@@ -1,0 +1,140 @@
+
+import React, { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import AuthLayout from "@/components/AuthLayout";
+import { loginUser } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { supabase } from "@/integrations/supabase/client";
+
+const loginSchema = z.object({
+  email: z.string().email("Email inválido").min(1, "Email é obrigatório"),
+  password: z.string().min(1, "Senha é obrigatória"),
+});
+
+type LoginFormValues = z.infer<typeof loginSchema>;
+
+const Login: React.FC = () => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Verificar se já existe uma sessão ativa
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        // Se já estiver logado, redirecionar para o dashboard
+        navigate("/dashboard");
+      }
+      setAuthChecked(true);
+    };
+    
+    checkSession();
+  }, [navigate]);
+
+  const form = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
+
+  const onSubmit = async (data: LoginFormValues) => {
+    setIsLoading(true);
+    try {
+      const result = await loginUser(data.email, data.password);
+      
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+      
+      toast({
+        title: "Login realizado com sucesso",
+        description: "Você será redirecionado para o dashboard",
+      });
+      
+      // Garantir que a navegação aconteça após o login ser bem sucedido
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 500);
+    } catch (error: any) {
+      console.error("Erro no login:", error);
+      toast({
+        title: "Falha no login",
+        description: error.message || "Verifique suas credenciais e tente novamente",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (!authChecked) {
+    return (
+      <AuthLayout title="Verificando autenticação...">
+        <div className="flex justify-center">
+          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+        </div>
+      </AuthLayout>
+    );
+  }
+
+  return (
+    <AuthLayout title="Acesso ao Sistema">
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input type="email" placeholder="exemplo@email.com" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Senha</FormLabel>
+                <FormControl>
+                  <Input type="password" placeholder="******" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <div className="text-right">
+            <Link to="/forgot-password" className="text-sm text-primary hover:underline">
+              Esqueceu sua senha?
+            </Link>
+          </div>
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? "Entrando..." : "Entrar"}
+          </Button>
+        </form>
+      </Form>
+      <div className="mt-4 text-center text-sm">
+        Não tem uma conta?{" "}
+        <Link to="/register" className="text-primary hover:underline">
+          Registrar-se
+        </Link>
+      </div>
+    </AuthLayout>
+  );
+};
+
+export default Login;
