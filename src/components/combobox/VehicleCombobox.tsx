@@ -2,7 +2,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, ChevronsUpDown } from "lucide-react"
+import { Check, ChevronsUpDown, Search } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -131,12 +131,15 @@ export function VehicleCombobox({
       </PopoverTrigger>
       <PopoverContent className="w-full p-0" align="start">
         <Command shouldFilter={false}>
-          <CommandInput 
-            placeholder={searchPlaceholder} 
-            value={inputValue}
-            onValueChange={setInputValue}
-            className="h-9"
-          />
+          <div className="flex items-center border-b px-3">
+            <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+            <CommandInput 
+              placeholder={searchPlaceholder} 
+              value={inputValue}
+              onValueChange={setInputValue}
+              className="h-9 flex-1"
+            />
+          </div>
           <CommandList className="max-h-[300px] overflow-y-auto">
             {loading ? (
               <div className="py-6 text-center text-sm text-muted-foreground">
@@ -154,6 +157,7 @@ export function VehicleCombobox({
                       setInputValue("");
                       setOpen(false);
                     }}
+                    className="cursor-pointer hover:bg-accent hover:text-accent-foreground py-3"
                   >
                     <Check
                       className={cn(

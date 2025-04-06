@@ -15,7 +15,9 @@ import { Input } from "@/components/ui/input";
 import { DateRange } from "react-day-picker";
 import { ApontamentoFilterParams } from "@/services/apontamentoCaminhoesService";
 import { format } from "date-fns";
-import { FilterX, Search } from "lucide-react";
+import { FilterX, Search, SlidersHorizontal } from "lucide-react";
+import { useIsSmallScreen, useIsMobile } from "@/hooks/use-mobile";
+import ApontamentoCaminhoesFilterDrawer from "./ApontamentoCaminhoesFilterDrawer";
 
 interface ApontamentoCaminhoesFiltersProps {
   onApplyFilters: (filters: ApontamentoFilterParams) => void;
@@ -39,10 +41,14 @@ const ApontamentoCaminhoesFilters: React.FC<ApontamentoCaminhoesFiltersProps> = 
   const [caminhaoId, setCaminhaoId] = useState<string>("");
   const [operadorId, setOperadorId] = useState<string>("");
   const [centroCustoId, setCentroCustoId] = useState<string>("");
+  const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   // Apply filters whenever any filter value changes
   useEffect(() => {
-    applyFilters();
+    if (!isMobile) {
+      applyFilters();
+    }
   }, [dateRange, caminhaoId, operadorId, centroCustoId]);
 
   const applyFilters = () => {
@@ -84,6 +90,34 @@ const ApontamentoCaminhoesFilters: React.FC<ApontamentoCaminhoesFiltersProps> = 
       applyFilters();
     }
   };
+
+  if (isMobile) {
+    return (
+      <>
+        <div className="fixed top-28 right-4 z-10">
+          <Button 
+            onClick={() => setIsFilterDrawerOpen(true)} 
+            className="rounded-full shadow-lg bg-blue-600 hover:bg-blue-700"
+            size="sm"
+          >
+            <SlidersHorizontal className="h-5 w-5 mr-2" />
+            Filtros Avançados
+          </Button>
+        </div>
+        
+        <ApontamentoCaminhoesFilterDrawer
+          isOpen={isFilterDrawerOpen}
+          onClose={() => setIsFilterDrawerOpen(false)}
+          onApplyFilters={onApplyFilters}
+          onClearFilters={onClearFilters}
+          veiculosOptions={veiculosOptions}
+          operadoresOptions={operadoresOptions}
+          centrosCustoOptions={centrosCustoOptions}
+          isLoading={isLoading}
+        />
+      </>
+    );
+  }
 
   return (
     <Card className="mb-6 border border-slate-200 shadow-sm">

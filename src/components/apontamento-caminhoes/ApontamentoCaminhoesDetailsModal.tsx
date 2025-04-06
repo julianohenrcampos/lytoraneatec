@@ -1,32 +1,21 @@
 
-import React from "react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { ApontamentoCaminhao, ApontamentoInspecao } from "@/services/apontamentoCaminhoesService";
-import { Badge } from "@/components/ui/badge";
+import React, { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { format } from "date-fns";
+import { ApontamentoCaminhao, ApontamentoInspecao } from "@/services/apontamentoCaminhoesService";
+import { Loader2 } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
 interface ApontamentoCaminhoesDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   apontamento: ApontamentoCaminhao | null;
   inspecao: ApontamentoInspecao | null;
-  isLoading?: boolean;
+  isLoading: boolean;
 }
 
 const ApontamentoCaminhoesDetailsModal: React.FC<ApontamentoCaminhoesDetailsModalProps> = ({
@@ -34,204 +23,241 @@ const ApontamentoCaminhoesDetailsModal: React.FC<ApontamentoCaminhoesDetailsModa
   onClose,
   apontamento,
   inspecao,
-  isLoading = false,
+  isLoading
 }) => {
-  if (!isOpen) return null;
+  const [activeTab, setActiveTab] = useState('dados');
+  const isMobile = useIsMobile();
 
-  const renderStatusBadge = (status: string | null) => {
-    if (!status) return <Badge variant="outline">Não informado</Badge>;
-    
-    switch(status.toLowerCase()) {
-      case 'c':
-      case 'conforme':
-        return <Badge className="bg-green-500">Conforme</Badge>;
-      case 'nc':
-      case 'não conforme':
-        return <Badge variant="destructive">Não Conforme</Badge>;
-      case 'na':
-      case 'não aplicável':
-        return <Badge variant="secondary">Não Aplicável</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
+  if (isLoading) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-[600px]">
+          <div className="flex justify-center items-center h-40">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  if (!apontamento) {
+    return null;
+  }
+
+  const isVehicleTruck = 
+    apontamento.veiculo_identificacao?.toLowerCase().includes('caminhão') ||
+    (apontamento.veiculo_identificacao?.includes('-') && apontamento.veiculo_identificacao?.includes(' '));
+
+  const getHorimetroLabel = (isFinal = false) => {
+    if (isVehicleTruck) {
+      return isFinal ? "Hodômetro Final (KM)" : "Hodômetro Inicial (KM)"; 
     }
+    return isFinal ? "Horímetro Final" : "Horímetro Inicial";
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="md:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className={cn("sm:max-w-[700px]", isMobile ? "p-3" : "")}>
         <DialogHeader>
           <DialogTitle>Detalhes do Apontamento</DialogTitle>
         </DialogHeader>
         
-        {isLoading ? (
-          <div className="space-y-4">
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-32 w-full" />
-          </div>
-        ) : (
-          <ScrollArea className="flex-1 pr-4">
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-medium">Informações Básicas</h3>
-                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Tabs defaultValue="dados" value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className={cn("grid w-full mb-4", isMobile ? "grid-cols-1" : "grid-cols-2")}>
+            <TabsTrigger value="dados">Dados Operacionais</TabsTrigger>
+            <TabsTrigger value="checklist">Checklist</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="dados">
+            <ScrollArea className="h-[60vh] md:h-[400px] pr-4">
+              <dl className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Data do Registro</p>
-                    <p>
-                      {apontamento?.data
-                        ? format(new Date(apontamento.data), "dd/MM/yyyy", { locale: ptBR })
-                        : "-"}
-                    </p>
+                    <dt className="text-sm font-medium text-gray-600">Data</dt>
+                    <dd className="mt-1">
+                      {apontamento.data ? format(new Date(apontamento.data), 'dd/MM/yyyy') : 'N/A'}
+                    </dd>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Caminhão/Equipamento</p>
-                    <p>{apontamento?.veiculo_identificacao || "-"}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Operador</p>
-                    <p>{apontamento?.nome_operador || "-"}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Centro de Custo</p>
-                    <p>{apontamento?.nome_centro_custo || "-"}</p>
+                    <dt className="text-sm font-medium text-gray-600">Operador</dt>
+                    <dd className="mt-1">{apontamento.nome_operador || 'N/A'}</dd>
                   </div>
                 </div>
-              </div>
-
-              <div>
-                <h3 className="text-lg font-medium">Dados Operacionais</h3>
-                <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Horímetro Inicial</p>
-                    <p>{apontamento?.horimetro_inicial || "-"}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Horímetro Final</p>
-                    <p>{apontamento?.horimetro_final || "-"}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Abastecimento (L)</p>
-                    <p>{apontamento?.abastecimento || "-"}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Hora Inicial</p>
-                    <p>{apontamento?.hora_inicial || "-"}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Hora Final</p>
-                    <p>{apontamento?.hora_final || "-"}</p>
-                  </div>
-                </div>
-              </div>
-
-              {inspecao && (
+                
                 <div>
-                  <h3 className="text-lg font-medium">Checklist de Inspeção</h3>
-                  <div className="mt-2 space-y-4">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Item</TableHead>
-                          <TableHead className="text-center">Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        <TableRow>
-                          <TableCell>Nível de óleo</TableCell>
-                          <TableCell className="text-center">{renderStatusBadge(inspecao.nivel_oleo)}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Nível de água</TableCell>
-                          <TableCell className="text-center">{renderStatusBadge(inspecao.nivel_agua)}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Nível de combustível</TableCell>
-                          <TableCell className="text-center">{renderStatusBadge(inspecao.nivel_combustivel)}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Drenagem tanque de ar</TableCell>
-                          <TableCell className="text-center">{renderStatusBadge(inspecao.drenagem_tanque_ar)}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Material rodante</TableCell>
-                          <TableCell className="text-center">{renderStatusBadge(inspecao.material_rodante)}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Cinto de segurança</TableCell>
-                          <TableCell className="text-center">{renderStatusBadge(inspecao.cinto_seguranca)}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Material de desgaste</TableCell>
-                          <TableCell className="text-center">{renderStatusBadge(inspecao.material_desgaste)}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Estado de implementos</TableCell>
-                          <TableCell className="text-center">{renderStatusBadge(inspecao.estado_implementos)}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Tacógrafo</TableCell>
-                          <TableCell className="text-center">{renderStatusBadge(inspecao.tacografo)}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Limpeza interna</TableCell>
-                          <TableCell className="text-center">{renderStatusBadge(inspecao.limpeza_interna)}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Sistema elétrico</TableCell>
-                          <TableCell className="text-center">{renderStatusBadge(inspecao.sistema_eletrico)}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Documentação</TableCell>
-                          <TableCell className="text-center">{renderStatusBadge(inspecao.documentacao)}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Engate do reboque</TableCell>
-                          <TableCell className="text-center">{renderStatusBadge(inspecao.engate_reboque)}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Estado dos equipamentos</TableCell>
-                          <TableCell className="text-center">{renderStatusBadge(inspecao.estado_equipamentos)}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Inspeção veicular</TableCell>
-                          <TableCell className="text-center">{renderStatusBadge(inspecao.inspecao_veicular)}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Material de amarração</TableCell>
-                          <TableCell className="text-center">{renderStatusBadge(inspecao.material_amarracao)}</TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-
-                    {inspecao.anotacoes && (
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">Anotações</p>
-                        <p className="whitespace-pre-line">{inspecao.anotacoes}</p>
-                      </div>
-                    )}
-
-                    {inspecao.fotos_avarias && inspecao.fotos_avarias.length > 0 && (
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">Fotos de Avarias</p>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
-                          {inspecao.fotos_avarias.map((foto, index) => (
-                            <div key={index} className="relative aspect-square rounded-md overflow-hidden">
-                              <img 
-                                src={foto} 
-                                alt={`Avaria ${index + 1}`} 
-                                className="object-cover w-full h-full"
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                  <dt className="text-sm font-medium text-gray-600">Caminhão/Equipamento</dt>
+                  <dd className="mt-1">{apontamento.veiculo_identificacao || 'N/A'}</dd>
+                </div>
+                
+                <div>
+                  <dt className="text-sm font-medium text-gray-600">Centro de Custo</dt>
+                  <dd className="mt-1">{apontamento.nome_centro_custo || 'N/A'}</dd>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <dt className="text-sm font-medium text-gray-600">{getHorimetroLabel()}</dt>
+                    <dd className="mt-1">{apontamento.horimetro_inicial || 'N/A'}</dd>
                   </div>
+                  <div>
+                    <dt className="text-sm font-medium text-gray-600">{getHorimetroLabel(true)}</dt>
+                    <dd className="mt-1">{apontamento.horimetro_final || 'N/A'}</dd>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <dt className="text-sm font-medium text-gray-600">Hora Inicial</dt>
+                    <dd className="mt-1">{apontamento.hora_inicial || 'N/A'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium text-gray-600">Hora Final</dt>
+                    <dd className="mt-1">{apontamento.hora_final || 'N/A'}</dd>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <dt className="text-sm font-medium text-gray-600">Situação</dt>
+                    <dd className="mt-1">{apontamento.situacao || 'N/A'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium text-gray-600">Abastecimento</dt>
+                    <dd className="mt-1">{apontamento.abastecimento ? `${apontamento.abastecimento} litros` : 'N/A'}</dd>
+                  </div>
+                </div>
+              </dl>
+            </ScrollArea>
+          </TabsContent>
+          
+          <TabsContent value="checklist">
+            <ScrollArea className="h-[60vh] md:h-[400px] pr-4">
+              {inspecao ? (
+                <dl className="space-y-4">
+                  <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-2")}>
+                    <div>
+                      <dt className="text-sm font-medium text-gray-600">Documentação</dt>
+                      <dd className="mt-1">{inspecao.documentacao || 'N/A'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-sm font-medium text-gray-600">Tacógrafo</dt>
+                      <dd className="mt-1">{inspecao.tacografo || 'N/A'}</dd>
+                    </div>
+                  </div>
+                  
+                  <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-2")}>
+                    <div>
+                      <dt className="text-sm font-medium text-gray-600">Sistema Elétrico</dt>
+                      <dd className="mt-1">{inspecao.sistema_eletrico || 'N/A'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-sm font-medium text-gray-600">Nível Óleo</dt>
+                      <dd className="mt-1">{inspecao.nivel_oleo || 'N/A'}</dd>
+                    </div>
+                  </div>
+                  
+                  <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-2")}>
+                    <div>
+                      <dt className="text-sm font-medium text-gray-600">Nível Água</dt>
+                      <dd className="mt-1">{inspecao.nivel_agua || 'N/A'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-sm font-medium text-gray-600">Nível Combustível</dt>
+                      <dd className="mt-1">{inspecao.nivel_combustivel || 'N/A'}</dd>
+                    </div>
+                  </div>
+                  
+                  <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-2")}>
+                    <div>
+                      <dt className="text-sm font-medium text-gray-600">Drenagem Tanque Ar</dt>
+                      <dd className="mt-1">{inspecao.drenagem_tanque_ar || 'N/A'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-sm font-medium text-gray-600">Material Rodante</dt>
+                      <dd className="mt-1">{inspecao.material_rodante || 'N/A'}</dd>
+                    </div>
+                  </div>
+                  
+                  <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-2")}>
+                    <div>
+                      <dt className="text-sm font-medium text-gray-600">Cinto de Segurança</dt>
+                      <dd className="mt-1">{inspecao.cinto_seguranca || 'N/A'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-sm font-medium text-gray-600">Material de Desgaste</dt>
+                      <dd className="mt-1">{inspecao.material_desgaste || 'N/A'}</dd>
+                    </div>
+                  </div>
+                  
+                  <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-2")}>
+                    <div>
+                      <dt className="text-sm font-medium text-gray-600">Estado dos Implementos</dt>
+                      <dd className="mt-1">{inspecao.estado_implementos || 'N/A'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-sm font-medium text-gray-600">Limpeza Interna</dt>
+                      <dd className="mt-1">{inspecao.limpeza_interna || 'N/A'}</dd>
+                    </div>
+                  </div>
+                  
+                  <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-2")}>
+                    <div>
+                      <dt className="text-sm font-medium text-gray-600">Engate Reboque</dt>
+                      <dd className="mt-1">{inspecao.engate_reboque || 'N/A'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-sm font-medium text-gray-600">Estado dos Equipamentos</dt>
+                      <dd className="mt-1">{inspecao.estado_equipamentos || 'N/A'}</dd>
+                    </div>
+                  </div>
+                  
+                  <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-2")}>
+                    <div>
+                      <dt className="text-sm font-medium text-gray-600">Inspeção Veicular</dt>
+                      <dd className="mt-1">{inspecao.inspecao_veicular || 'N/A'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-sm font-medium text-gray-600">Material de Amarração</dt>
+                      <dd className="mt-1">{inspecao.material_amarracao || 'N/A'}</dd>
+                    </div>
+                  </div>
+                  
+                  {inspecao.anotacoes && (
+                    <div>
+                      <dt className="text-sm font-medium text-gray-600">Anotações</dt>
+                      <dd className="mt-1">{inspecao.anotacoes}</dd>
+                    </div>
+                  )}
+                  
+                  {inspecao.fotos_avarias && inspecao.fotos_avarias.length > 0 && (
+                    <div>
+                      <dt className="text-sm font-medium text-gray-600">Fotos de Avarias</dt>
+                      <dd className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {inspecao.fotos_avarias.map((foto, index) => (
+                          <div key={index} className="relative aspect-square">
+                            <img
+                              src={foto}
+                              alt={`Foto de avaria ${index + 1}`}
+                              className="object-cover rounded w-full h-full"
+                            />
+                          </div>
+                        ))}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">Nenhum dado de checklist disponível</p>
                 </div>
               )}
-            </div>
-          </ScrollArea>
-        )}
+            </ScrollArea>
+          </TabsContent>
+        </Tabs>
+        
+        <div className="flex justify-end mt-4">
+          <Button onClick={onClose} variant="outline" className="w-full md:w-auto">Fechar</Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

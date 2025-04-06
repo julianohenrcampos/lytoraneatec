@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface Caminhao {
@@ -147,7 +146,7 @@ export const fetchApontamentoById = async (id: string): Promise<{apontamento: Ap
       .select(`
         *,
         operador:operador_id(id, nome_completo),
-        veiculo:caminhao_equipamento_id(id, placa, modelo, frota_id, tipo_veiculo, situacao),
+        veiculo:caminhao_equipamento_id(id, placa, modelo, frota, tipo_veiculo, situacao),
         centro_custo:centro_custo_id(id, nome_centro_custo, codigo_centro_custo)
       `)
       .eq('id', id)

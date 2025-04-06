@@ -1,3 +1,4 @@
+
 import React from "react";
 import MainLayout from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -10,10 +11,12 @@ import ApontamentoCaminhoesForm from "@/components/apontamento-caminhoes/Apontam
 import ApontamentoCaminhoesDetailsModal from "@/components/apontamento-caminhoes/ApontamentoCaminhoesDetailsModal";
 import DeleteApontamentoCaminhoesDialog from "@/components/apontamento-caminhoes/DeleteApontamentoCaminhoesDialog";
 import { useCentrosCusto } from "@/hooks/useCentrosCusto";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const ApontamentoCaminhoes: React.FC = () => {
   useApontamentoCaminhoesInit();
   const { centrosCusto } = useCentrosCusto();
+  const isMobile = useIsMobile();
   
   const {
     apontamentos,
@@ -47,26 +50,28 @@ const ApontamentoCaminhoes: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="container mx-auto py-6">
+      <div className="container mx-auto py-6 px-2 md:px-6">
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-slate-800 mb-4 sm:mb-0">Apontamento de C&E</h1>
-          <div className="flex space-x-2">
+          <div className="flex space-x-2 w-full sm:w-auto">
             <Button 
               onClick={() => handleOpenFormModal()}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="bg-blue-600 hover:bg-blue-700 text-white flex-1 sm:flex-none"
             >
               <Plus className="h-4 w-4 mr-2" />
               Novo Apontamento
             </Button>
             
-            <Button 
-              onClick={handleExportToExcel}
-              variant="outline" 
-              className="border-green-200 text-green-700 hover:bg-green-50"
-            >
-              <FileDown className="h-4 w-4 mr-2" />
-              Exportar
-            </Button>
+            {!isMobile && (
+              <Button 
+                onClick={handleExportToExcel}
+                variant="outline" 
+                className="border-green-200 text-green-700 hover:bg-green-50"
+              >
+                <FileDown className="h-4 w-4 mr-2" />
+                Exportar
+              </Button>
+            )}
           </div>
         </div>
 
@@ -86,6 +91,20 @@ const ApontamentoCaminhoes: React.FC = () => {
           onDelete={handleOpenDeleteModal}
           isLoading={isLoading}
         />
+        
+        {isMobile && apontamentos.length > 0 && (
+          <div className="fixed bottom-4 right-4">
+            <Button 
+              onClick={handleExportToExcel}
+              variant="outline" 
+              size="sm"
+              className="rounded-full shadow-lg border border-green-300 bg-white text-green-700"
+            >
+              <FileDown className="h-4 w-4 mr-1" />
+              Exportar
+            </Button>
+          </div>
+        )}
       </div>
 
       <ApontamentoCaminhoesForm
