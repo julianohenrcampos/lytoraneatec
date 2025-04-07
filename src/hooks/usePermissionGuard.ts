@@ -51,13 +51,22 @@ export const usePermissionGuard = (requiredPermission?: string, requiredRoute?: 
         
         // Se há uma rota específica necessária, verifica acesso
         if (requiredRoute) {
-          const hasAccess = canAccessRoute(requiredRoute);
-          setIsAuthorized(hasAccess);
+          console.log(`Verificando acesso à rota: ${requiredRoute}`);
           
-          console.log("Permission Guard Check for route:", {
+          // Special debug for relatorio-medicao route
+          if (requiredRoute === '/gestao-maquinas/relatorio-medicao') {
+            console.log("==== RELATÓRIO DE MEDIÇÃO ACCESS CHECK ====");
+          }
+          
+          // Verificação de acesso com logging adicional
+          const hasAccess = canAccessRoute(requiredRoute);
+          
+          console.log("Permission Guard Check result:", {
             requiredRoute,
             hasAccess
           });
+          
+          setIsAuthorized(hasAccess);
           
           if (!hasAccess) {
             console.log("Acesso negado à rota:", requiredRoute);

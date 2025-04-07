@@ -31,6 +31,14 @@ export const useRouteAccess = () => {
       return userRoles.includes('AdmRH') || userPermissions.includes('acesso_dashboard_rh');
     }
     
+    // Handle specific case for Relatório de Medição route
+    if (route === '/gestao-maquinas/relatorio-medicao') {
+      return userRoles.includes('AdmEquipamentos') || 
+             userRoles.includes('AdmLogistica') || 
+             userRoles.includes('Encarregado') ||
+             userPermissions.includes('gestao_maquinas_relatorio_medicao_view');
+    }
+    
     // Role-based prefix mappings
     const rolePrefixMappings: Record<string, string> = {
       "AdmRH": "/gestao-rh/",
@@ -59,14 +67,44 @@ export const useRouteAccess = () => {
     // SuperAdmin always has access
     if (isSuperAdmin) return true;
 
+    // Debug permission checking for this route
+    console.log(`[Access Check] Checking access for route: ${route}`);
+    console.log(`[Access Check] User roles:`, userRoles);
+    console.log(`[Access Check] User permissions:`, userPermissions);
+    console.log(`[Access Check] Permission routes:`, permissionRoutes);
+
+    // Special case for Relatório de Medição
+    if (route === '/gestao-maquinas/relatorio-medicao') {
+      const hasAccess = userRoles.includes('AdmEquipamentos') || 
+                       userRoles.includes('AdmLogistica') || 
+                       userRoles.includes('Encarregado') ||
+                       userPermissions.includes('gestao_maquinas_relatorio_medicao_view');
+      
+      console.log(`[Access Check] Special check for Relatório de Medição: ${hasAccess}`);
+      if (hasAccess) return true;
+    }
+
     // Check for role-based access to route prefix
     if (hasRoleForRoutePrefix(route)) {
+      console.log(`[Access Check] Access granted by role prefix for ${route}`);
       return true;
     }
 
-    // Check if the route is in the permissionRoutes array
+    // Exact match: Check if the route is in the permissionRoutes array
     if (permissionRoutes.includes(route)) {
+      console.log(`[Access Check] Access granted by exact route match for ${route}`);
       return true;
+    }
+    
+    // Normalized check: Check for any permissionRoute that matches the current route
+    // This helps with trailing slashes and other minor differences
+    const normalizedRoute = route.endsWith('/') ? route.slice(0, -1) : route;
+    for (const permRoute of permissionRoutes) {
+      const normalizedPermRoute = permRoute.endsWith('/') ? permRoute.slice(0, -1) : permRoute;
+      if (normalizedRoute === normalizedPermRoute) {
+        console.log(`[Access Check] Access granted by normalized route match for ${route}`);
+        return true;
+      }
     }
 
     // If no direct route match, try to determine permission from route pattern
@@ -76,6 +114,8 @@ export const useRouteAccess = () => {
       routePermission = 'dashboard_view';
     } else if (route === '/gestao-rh/dashboard') {
       routePermission = 'acesso_dashboard_rh';
+    } else if (route === '/gestao-maquinas/relatorio-medicao') {
+      routePermission = 'gestao_maquinas_relatorio_medicao_view';
     } else if (route.startsWith('/gestao-rh/')) {
       const resource = route.split('/').pop();
       routePermission = `gestao_rh_${resource}_view`;
@@ -90,10 +130,15 @@ export const useRouteAccess = () => {
       routePermission = `admin_${resource}_view`;
     }
       
-    if (!routePermission) return false;
+    if (!routePermission) {
+      console.log(`[Access Check] No route permission pattern found for ${route}`);
+      return false;
+    }
     
-    return userPermissions.includes(routePermission);
-  }, [isLoading, isSuperAdmin, hasRoleForRoutePrefix, permissionRoutes, userPermissions]);
+    const hasPermission = userPermissions.includes(routePermission);
+    console.log(`[Access Check] Permission check for ${routePermission}: ${hasPermission}`);
+    return hasPermission;
+  }, [isLoading, isSuperAdmin, hasRoleForRoutePrefix, permissionRoutes, userPermissions, userRoles]);
 
   // Check if user can access a group based on their role
   const canAccessGroup = useCallback((groupKey: string): boolean => {
@@ -109,7 +154,7 @@ export const useRouteAccess = () => {
     const groupRoleMap: Record<string, string[]> = {
       "Gestão de RH": ["AdmRH"],
       "Gestão de Máquinas/Equipamentos": ["AdmEquipamentos"],
-      "Requisições e Logística": ["AdmRequisicoes"],
+      "Requisições e Logística": ["AdmRequisicoes", "AdmLogistica"],
       "Administração": ["AdmAdmin"]
     };
 

@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { logoutUser } from "@/lib/auth";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface UserMenuProps {
   onProfileClick?: () => void;
@@ -34,10 +35,31 @@ const UserMenu: React.FC<UserMenuProps> = ({
 
   const handleLogout = async () => {
     try {
-      await logoutUser();
-      navigate("/login");
+      console.log("Iniciando processo de logout");
+      
+      // Use diretamente o client Supabase para garantir que o logout funcione
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        throw error;
+      }
+      
+      console.log("Logout bem-sucedido, redirecionando para login");
+      
+      // Limpar qualquer estado local se necessário
+      localStorage.removeItem("supabase.auth.token");
+      
+      toast({
+        title: "Logout realizado",
+        description: "Você saiu do sistema com sucesso",
+      });
+      
+      // Redirecionamento após curto delay para garantir que o estado seja atualizado
+      setTimeout(() => {
+        navigate("/login", { replace: true });
+      }, 100);
     } catch (error) {
-      console.error("Error logging out:", error);
+      console.error("Erro ao fazer logout:", error);
       toast({
         title: "Erro ao sair",
         description: "Ocorreu um erro ao tentar fazer logout",

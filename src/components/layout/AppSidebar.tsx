@@ -1,3 +1,4 @@
+
 import React, { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ChevronDown } from "lucide-react";
@@ -46,12 +47,26 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
     debugPermissions
   } = useRouteAccess();
 
-  // Debug permissions on initial load
+  // Debug permissions on initial load and on route change
   useEffect(() => {
     if (!isLoading) {
+      console.log("=== AppSidebar Permission Debug ===");
+      console.log("Current path:", location.pathname);
+      console.log("Can access current path:", canAccessRoute(location.pathname));
+      
+      // Special debug for Relatório de Medição
+      if (location.pathname === "/gestao-maquinas/relatorio-medicao" || 
+          location.pathname.includes("relatorio-medicao")) {
+        console.log("=== RELATÓRIO DE MEDIÇÃO DEBUG ===");
+        console.log("User roles:", userRoles);
+        console.log("Has AdmEquipamentos:", userRoles.includes("AdmEquipamentos"));
+        console.log("Has permission:", userPermissions.includes("gestao_maquinas_relatorio_medicao_view"));
+        console.log("==============================");
+      }
+      
       debugPermissions();
     }
-  }, [isLoading, debugPermissions]);
+  }, [isLoading, debugPermissions, location.pathname, canAccessRoute, userRoles, userPermissions]);
 
   // Função simplificada para verificar se uma rota está ativa
   const isRouteActive = (path: string) => {
@@ -62,8 +77,19 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
   const handleMenuItemClick = (e: React.MouseEvent, path: string) => {
     e.preventDefault();
     
+    console.log(`Menu item clicked: ${path}`);
+    
+    // Special debug for Relatório de Medição
+    if (path === "/gestao-maquinas/relatorio-medicao") {
+      console.log("=== RELATÓRIO DE MEDIÇÃO CLICK ===");
+      console.log("User roles:", userRoles);
+      console.log("Has AdmEquipamentos:", userRoles.includes("AdmEquipamentos"));
+      console.log("Has permission:", userPermissions.includes("gestao_maquinas_relatorio_medicao_view"));
+    }
+    
     // Sempre verifica permissão antes de navegar
     const hasAccess = canAccessRoute(path);
+    console.log(`Access check for ${path}: ${hasAccess}`);
     
     if (hasAccess) {
       navigate(path);
@@ -84,6 +110,14 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
     // Dashboard routes are accessible to everyone
     if (path === '/' || path === '/dashboard') {
       return true;
+    }
+    
+    // Special case for Relatório de Medição
+    if (path === '/gestao-maquinas/relatorio-medicao') {
+      return userRoles.includes('AdmEquipamentos') || 
+             userRoles.includes('AdmLogistica') || 
+             userRoles.includes('Encarregado') ||
+             userPermissions.includes('gestao_maquinas_relatorio_medicao_view');
     }
     
     // Dashboard RH special case
@@ -130,7 +164,12 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
                       {groupItems.map(item => {
                         const hasItemAccess = checkRouteAccess(item.path);
                         
-                        console.log(`Menu item: ${item.label}, Path: ${item.path}, Access: ${hasItemAccess}`);
+                        // Special debug for Relatório de Medição menu item
+                        if (item.path === "/gestao-maquinas/relatorio-medicao") {
+                          console.log(`Menu item: ${item.label}, Path: ${item.path}, Access: ${hasItemAccess}`);
+                          console.log(`Has AdmEquipamentos role:`, userRoles.includes("AdmEquipamentos"));
+                          console.log(`Has specific permission:`, userPermissions.includes("gestao_maquinas_relatorio_medicao_view"));
+                        }
                         
                         return (
                           <SidebarMenuItem key={item.path}>

@@ -250,22 +250,53 @@ export const getUserPermissions = async (userId: string) => {
     // Also get permissions from roles in the funcoes array
     const { data: roleData, error: roleError } = await supabase
       .from("bd_funcoes_permissao")
-      .select("permissoes")
+      .select("permissoes, nome_funcao")
       .in("nome_funcao", roles);
 
     if (!roleError && roleData && roleData.length > 0) {
+      console.log("Role data fetched:", roleData);
+      
       const rolePermissions = roleData.reduce((acc, role) => {
+        console.log(`Role ${role.nome_funcao} has permissions:`, role.permissoes);
         return [...acc, ...(role.permissoes || [])];
       }, [] as string[]);
       
       console.log("Permissions from role array:", rolePermissions);
       permissionIds = [...permissionIds, ...rolePermissions];
+    } else if (roleError) {
+      console.error("Error fetching role permissions:", roleError);
+    } else {
+      console.log("No role data found or empty result");
     }
 
     // Remove duplicates from permissionIds
     permissionIds = [...new Set(permissionIds)];
     
     console.log("Combined unique permission IDs:", permissionIds);
+
+    // Special case: If user has AdmEquipamentos role, add specific permission for relatorio-medicao
+    if (roles.includes("AdmEquipamentos")) {
+      console.log("User has AdmEquipamentos role - checking for relatorio-medicao permission");
+      
+      // First, check if such a permission exists in the database
+      const { data: relatorioPermission, error: relatorioError } = await supabase
+        .from("bd_permissoes")
+        .select("id, nome_permissao, rota")
+        .ilike("nome_permissao", "%relatorio_medicao%")
+        .single();
+      
+      if (!relatorioError && relatorioPermission) {
+        console.log("Found relatorio-medicao permission:", relatorioPermission);
+        
+        // Add this permission ID if it's not already in the array
+        if (!permissionIds.includes(relatorioPermission.id)) {
+          console.log("Adding relatorio-medicao permission ID to the list");
+          permissionIds.push(relatorioPermission.id);
+        }
+      } else {
+        console.log("No specific relatorio-medicao permission found in the database");
+      }
+    }
 
     if (permissionIds.length === 0) {
       return {
@@ -289,12 +320,40 @@ export const getUserPermissions = async (userId: string) => {
 
     console.log("Retrieved permissions:", permissionsData);
     
+    // Extract permission routes and normalize them by removing trailing slashes
+    let permissionRoutes = permissionsData
+      .map(p => p.rota)
+      .filter(Boolean)
+      .map(route => {
+        // Normalize the route by removing trailing slash if present
+        return route.endsWith('/') ? route.slice(0, -1) : route;
+      });
+    
+    // Special case: If user has AdmEquipamentos role, ensure they have access to relatorio-medicao route
+    if (roles.includes("AdmEquipamentos") && 
+        !permissionRoutes.includes("/gestao-maquinas/relatorio-medicao")) {
+      console.log("Adding /gestao-maquinas/relatorio-medicao route for AdmEquipamentos");
+      permissionRoutes.push("/gestao-maquinas/relatorio-medicao");
+    }
+      
+    console.log("Normalized permission routes:", permissionRoutes);
+    
+    // Get permission names, including the special case for relatorio-medicao
+    let permissions = permissionsData.map(p => p.nome_permissao);
+    
+    // Add the special permission for AdmEquipamentos if not already there
+    if (roles.includes("AdmEquipamentos") && 
+        !permissions.includes("gestao_maquinas_relatorio_medicao_view")) {
+      console.log("Adding gestao_maquinas_relatorio_medicao_view permission for AdmEquipamentos");
+      permissions.push("gestao_maquinas_relatorio_medicao_view");
+    }
+    
     return {
       userId,
       roles,
       mainRoleId,
-      permissions: permissionsData.map(p => p.nome_permissao),
-      permissionRoutes: permissionsData.map(p => p.rota).filter(Boolean)
+      permissions,
+      permissionRoutes
     };
   } catch (error) {
     console.error("Error in getUserPermissions:", error);
