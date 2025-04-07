@@ -31,7 +31,7 @@ const ApontamentoCaminhoesDetailsModal: React.FC<ApontamentoCaminhoesDetailsModa
   if (isLoading) {
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className={cn("sm:max-w-[600px]", isMobile ? "p-3 w-[95vw] mx-auto" : "")}>
           <div className="flex justify-center items-center h-40">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
@@ -57,73 +57,84 @@ const ApontamentoCaminhoesDetailsModal: React.FC<ApontamentoCaminhoesDetailsModa
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className={cn("sm:max-w-[700px]", isMobile ? "p-3" : "")}>
+      <DialogContent className={cn("sm:max-w-[700px]", isMobile ? "p-3 w-[95vw] mx-auto" : "")}>
         <DialogHeader>
-          <DialogTitle>Detalhes do Apontamento</DialogTitle>
+          <DialogTitle className="text-center sm:text-left">
+            Detalhes do Apontamento
+          </DialogTitle>
         </DialogHeader>
         
         <Tabs defaultValue="dados" value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className={cn("grid w-full mb-4", isMobile ? "grid-cols-1" : "grid-cols-2")}>
-            <TabsTrigger value="dados">Dados Operacionais</TabsTrigger>
-            <TabsTrigger value="checklist">Checklist</TabsTrigger>
+          <TabsList className="grid w-full mb-4 grid-cols-2">
+            <TabsTrigger value="dados" className="text-sm">
+              Dados Operacionais
+            </TabsTrigger>
+            <TabsTrigger value="checklist" className="text-sm">
+              Checklist
+            </TabsTrigger>
           </TabsList>
           
           <TabsContent value="dados">
-            <ScrollArea className="h-[60vh] md:h-[400px] pr-4">
+            <ScrollArea className={cn(
+              "pr-4",
+              isMobile ? "h-[55vh] max-h-[400px]" : "h-[400px]" 
+            )}>
               <dl className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <dt className="text-sm font-medium text-gray-600">Data</dt>
-                    <dd className="mt-1">
+                    <dd className="mt-1 text-base">
                       {apontamento.data ? format(new Date(apontamento.data), 'dd/MM/yyyy') : 'N/A'}
                     </dd>
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-gray-600">Operador</dt>
-                    <dd className="mt-1">{apontamento.nome_operador || 'N/A'}</dd>
+                    <dd className="mt-1 text-base">{apontamento.nome_operador || 'N/A'}</dd>
                   </div>
                 </div>
                 
                 <div>
                   <dt className="text-sm font-medium text-gray-600">Caminhão/Equipamento</dt>
-                  <dd className="mt-1">{apontamento.veiculo_identificacao || 'N/A'}</dd>
+                  <dd className="mt-1 text-base font-medium">{apontamento.veiculo_identificacao || 'N/A'}</dd>
                 </div>
                 
                 <div>
                   <dt className="text-sm font-medium text-gray-600">Centro de Custo</dt>
-                  <dd className="mt-1">{apontamento.nome_centro_custo || 'N/A'}</dd>
+                  <dd className="mt-1 text-base">{apontamento.nome_centro_custo || 'N/A'}</dd>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <dt className="text-sm font-medium text-gray-600">{getHorimetroLabel()}</dt>
-                    <dd className="mt-1">{apontamento.horimetro_inicial || 'N/A'}</dd>
+                    <dd className="mt-1 text-base">{apontamento.horimetro_inicial || 'N/A'}</dd>
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-gray-600">{getHorimetroLabel(true)}</dt>
-                    <dd className="mt-1">{apontamento.horimetro_final || 'N/A'}</dd>
+                    <dd className="mt-1 text-base">{apontamento.horimetro_final || 'N/A'}</dd>
                   </div>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <dt className="text-sm font-medium text-gray-600">Hora Inicial</dt>
-                    <dd className="mt-1">{apontamento.hora_inicial || 'N/A'}</dd>
+                    <dd className="mt-1 text-base">{apontamento.hora_inicial || 'N/A'}</dd>
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-gray-600">Hora Final</dt>
-                    <dd className="mt-1">{apontamento.hora_final || 'N/A'}</dd>
+                    <dd className="mt-1 text-base">{apontamento.hora_final || 'N/A'}</dd>
                   </div>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <dt className="text-sm font-medium text-gray-600">Situação</dt>
-                    <dd className="mt-1">{apontamento.situacao || 'N/A'}</dd>
+                    <dd className="mt-1 text-base">{apontamento.situacao || 'N/A'}</dd>
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-gray-600">Abastecimento</dt>
-                    <dd className="mt-1">{apontamento.abastecimento ? `${apontamento.abastecimento} litros` : 'N/A'}</dd>
+                    <dd className="mt-1 text-base">
+                      {apontamento.abastecimento ? `${apontamento.abastecimento} litros` : 'N/A'}
+                    </dd>
                   </div>
                 </div>
               </dl>
@@ -131,108 +142,111 @@ const ApontamentoCaminhoesDetailsModal: React.FC<ApontamentoCaminhoesDetailsModa
           </TabsContent>
           
           <TabsContent value="checklist">
-            <ScrollArea className="h-[60vh] md:h-[400px] pr-4">
+            <ScrollArea className={cn(
+              "pr-4", 
+              isMobile ? "h-[55vh] max-h-[400px]" : "h-[400px]"
+            )}>
               {inspecao ? (
                 <dl className="space-y-4">
-                  <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-2")}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <dt className="text-sm font-medium text-gray-600">Documentação</dt>
-                      <dd className="mt-1">{inspecao.documentacao || 'N/A'}</dd>
+                      <dd className="mt-1 text-base">{inspecao.documentacao || 'N/A'}</dd>
                     </div>
                     <div>
                       <dt className="text-sm font-medium text-gray-600">Tacógrafo</dt>
-                      <dd className="mt-1">{inspecao.tacografo || 'N/A'}</dd>
+                      <dd className="mt-1 text-base">{inspecao.tacografo || 'N/A'}</dd>
                     </div>
                   </div>
                   
-                  <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-2")}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <dt className="text-sm font-medium text-gray-600">Sistema Elétrico</dt>
-                      <dd className="mt-1">{inspecao.sistema_eletrico || 'N/A'}</dd>
+                      <dd className="mt-1 text-base">{inspecao.sistema_eletrico || 'N/A'}</dd>
                     </div>
                     <div>
                       <dt className="text-sm font-medium text-gray-600">Nível Óleo</dt>
-                      <dd className="mt-1">{inspecao.nivel_oleo || 'N/A'}</dd>
+                      <dd className="mt-1 text-base">{inspecao.nivel_oleo || 'N/A'}</dd>
                     </div>
                   </div>
                   
-                  <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-2")}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <dt className="text-sm font-medium text-gray-600">Nível Água</dt>
-                      <dd className="mt-1">{inspecao.nivel_agua || 'N/A'}</dd>
+                      <dd className="mt-1 text-base">{inspecao.nivel_agua || 'N/A'}</dd>
                     </div>
                     <div>
                       <dt className="text-sm font-medium text-gray-600">Nível Combustível</dt>
-                      <dd className="mt-1">{inspecao.nivel_combustivel || 'N/A'}</dd>
+                      <dd className="mt-1 text-base">{inspecao.nivel_combustivel || 'N/A'}</dd>
                     </div>
                   </div>
                   
-                  <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-2")}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <dt className="text-sm font-medium text-gray-600">Drenagem Tanque Ar</dt>
-                      <dd className="mt-1">{inspecao.drenagem_tanque_ar || 'N/A'}</dd>
+                      <dd className="mt-1 text-base">{inspecao.drenagem_tanque_ar || 'N/A'}</dd>
                     </div>
                     <div>
                       <dt className="text-sm font-medium text-gray-600">Material Rodante</dt>
-                      <dd className="mt-1">{inspecao.material_rodante || 'N/A'}</dd>
+                      <dd className="mt-1 text-base">{inspecao.material_rodante || 'N/A'}</dd>
                     </div>
                   </div>
                   
-                  <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-2")}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <dt className="text-sm font-medium text-gray-600">Cinto de Segurança</dt>
-                      <dd className="mt-1">{inspecao.cinto_seguranca || 'N/A'}</dd>
+                      <dd className="mt-1 text-base">{inspecao.cinto_seguranca || 'N/A'}</dd>
                     </div>
                     <div>
                       <dt className="text-sm font-medium text-gray-600">Material de Desgaste</dt>
-                      <dd className="mt-1">{inspecao.material_desgaste || 'N/A'}</dd>
+                      <dd className="mt-1 text-base">{inspecao.material_desgaste || 'N/A'}</dd>
                     </div>
                   </div>
                   
-                  <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-2")}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <dt className="text-sm font-medium text-gray-600">Estado dos Implementos</dt>
-                      <dd className="mt-1">{inspecao.estado_implementos || 'N/A'}</dd>
+                      <dd className="mt-1 text-base">{inspecao.estado_implementos || 'N/A'}</dd>
                     </div>
                     <div>
                       <dt className="text-sm font-medium text-gray-600">Limpeza Interna</dt>
-                      <dd className="mt-1">{inspecao.limpeza_interna || 'N/A'}</dd>
+                      <dd className="mt-1 text-base">{inspecao.limpeza_interna || 'N/A'}</dd>
                     </div>
                   </div>
                   
-                  <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-2")}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <dt className="text-sm font-medium text-gray-600">Engate Reboque</dt>
-                      <dd className="mt-1">{inspecao.engate_reboque || 'N/A'}</dd>
+                      <dd className="mt-1 text-base">{inspecao.engate_reboque || 'N/A'}</dd>
                     </div>
                     <div>
                       <dt className="text-sm font-medium text-gray-600">Estado dos Equipamentos</dt>
-                      <dd className="mt-1">{inspecao.estado_equipamentos || 'N/A'}</dd>
+                      <dd className="mt-1 text-base">{inspecao.estado_equipamentos || 'N/A'}</dd>
                     </div>
                   </div>
                   
-                  <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-2")}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <dt className="text-sm font-medium text-gray-600">Inspeção Veicular</dt>
-                      <dd className="mt-1">{inspecao.inspecao_veicular || 'N/A'}</dd>
+                      <dd className="mt-1 text-base">{inspecao.inspecao_veicular || 'N/A'}</dd>
                     </div>
                     <div>
                       <dt className="text-sm font-medium text-gray-600">Material de Amarração</dt>
-                      <dd className="mt-1">{inspecao.material_amarracao || 'N/A'}</dd>
+                      <dd className="mt-1 text-base">{inspecao.material_amarracao || 'N/A'}</dd>
                     </div>
                   </div>
                   
                   {inspecao.anotacoes && (
                     <div>
                       <dt className="text-sm font-medium text-gray-600">Anotações</dt>
-                      <dd className="mt-1">{inspecao.anotacoes}</dd>
+                      <dd className="mt-1 text-base">{inspecao.anotacoes}</dd>
                     </div>
                   )}
                   
                   {inspecao.fotos_avarias && inspecao.fotos_avarias.length > 0 && (
                     <div>
                       <dt className="text-sm font-medium text-gray-600">Fotos de Avarias</dt>
-                      <dd className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2">
+                      <dd className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-2">
                         {inspecao.fotos_avarias.map((foto, index) => (
                           <div key={index} className="relative aspect-square">
                             <img
@@ -256,7 +270,16 @@ const ApontamentoCaminhoesDetailsModal: React.FC<ApontamentoCaminhoesDetailsModa
         </Tabs>
         
         <div className="flex justify-end mt-4">
-          <Button onClick={onClose} variant="outline" className="w-full md:w-auto">Fechar</Button>
+          <Button 
+            onClick={onClose} 
+            variant="outline" 
+            className={cn(
+              "w-full md:w-auto",
+              isMobile ? "h-12 text-base" : ""
+            )}
+          >
+            Fechar
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

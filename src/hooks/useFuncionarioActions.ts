@@ -78,15 +78,54 @@ export function useFuncionarioActions() {
     }
   }, [state.deletingFuncionario, deleteMutation, state]);
 
+  // Função para garantir que todos os campos numéricos sejam números válidos
+  const sanitizeFinancialData = (data: FuncionarioFormData): FuncionarioFormData => {
+    const ensureNumber = (value: any): number => {
+      if (value === null || value === undefined || value === "") {
+        return 0;
+      }
+      const numValue = Number(value);
+      return isNaN(numValue) ? 0 : numValue;
+    };
+
+    // Clone o objeto para não modificar o original
+    const sanitizedData = { ...data };
+    
+    // Garanta que todos os campos financeiros sejam números válidos
+    sanitizedData.salario_base = ensureNumber(data.salario_base);
+    sanitizedData.insalubridade = ensureNumber(data.insalubridade);
+    sanitizedData.periculosidade = ensureNumber(data.periculosidade);
+    sanitizedData.gratificacao = ensureNumber(data.gratificacao);
+    sanitizedData.adicional_noturno = ensureNumber(data.adicional_noturno);
+    sanitizedData.custo_passagem = ensureNumber(data.custo_passagem);
+    sanitizedData.refeicao = ensureNumber(data.refeicao);
+    sanitizedData.diarias = ensureNumber(data.diarias);
+    
+    console.log("Dados sanitizados:", sanitizedData);
+    return sanitizedData;
+  };
+
   // Handler para salvar funcionário (criar ou atualizar)
   const handleSaveFuncionario = useCallback((data: FuncionarioFormData) => {
+    console.log("Iniciando salvamento do funcionário", data);
     state.setIsSubmitting(true);
-    if (state.currentFuncionario) {
-      // Atualizar funcionário existente
-      updateMutation.mutate({ id: state.currentFuncionario.id, data });
-    } else {
-      // Criar novo funcionário
-      createMutation.mutate(data);
+    
+    try {
+      // Sanitize data to ensure all financial fields are valid numbers
+      const sanitizedData = sanitizeFinancialData(data);
+      
+      if (state.currentFuncionario) {
+        // Atualizar funcionário existente
+        console.log("Atualizando funcionário existente:", sanitizedData);
+        updateMutation.mutate({ id: state.currentFuncionario.id, data: sanitizedData });
+      } else {
+        // Criar novo funcionário
+        console.log("Criando novo funcionário:", sanitizedData);
+        createMutation.mutate(sanitizedData);
+      }
+    } catch (error) {
+      console.error("Erro ao processar dados do funcionário:", error);
+      state.setIsSubmitting(false);
     }
   }, [state, createMutation, updateMutation]);
 

@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from "react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { DatePickerWithRange } from "@/components/ui/date-picker-range";
@@ -14,13 +15,6 @@ import { DateRange } from "react-day-picker";
 import { ApontamentoFilterParams } from "@/services/apontamentoCaminhoesService";
 import { format } from "date-fns";
 import { FilterX, Search } from "lucide-react";
-import { 
-  Drawer,
-  DrawerContent, 
-  DrawerHeader,
-  DrawerTitle,
-  DrawerFooter
-} from "@/components/ui/drawer";
 
 interface ApontamentoCaminhoesFilterDrawerProps {
   isOpen: boolean;
@@ -47,8 +41,19 @@ const ApontamentoCaminhoesFilterDrawer: React.FC<ApontamentoCaminhoesFilterDrawe
   const [caminhaoId, setCaminhaoId] = useState<string>("");
   const [operadorId, setOperadorId] = useState<string>("");
   const [centroCustoId, setCentroCustoId] = useState<string>("");
+  
+  // Reset filters when drawer opens
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    // Reset states but don't trigger filter reset
+    setDateRange(undefined);
+    setCaminhaoId("");
+    setOperadorId("");
+    setCentroCustoId("");
+  }, [isOpen]);
 
-  const applyFilters = () => {
+  const handleApplyFilters = () => {
     const filters: ApontamentoFilterParams = {};
 
     if (dateRange?.from) {
@@ -85,29 +90,30 @@ const ApontamentoCaminhoesFilterDrawer: React.FC<ApontamentoCaminhoesFilterDrawe
   };
 
   return (
-    <Drawer open={isOpen} onOpenChange={onClose}>
-      <DrawerContent className="px-4">
-        <DrawerHeader className="text-left">
-          <DrawerTitle>Filtros Avançados</DrawerTitle>
-        </DrawerHeader>
+    <Sheet open={isOpen} onOpenChange={onClose}>
+      <SheetContent side="right" className="w-[85vw] sm:w-[350px] overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>Filtros Avançados</SheetTitle>
+        </SheetHeader>
         
-        <div className="space-y-6 py-4">
-          <div className="space-y-3">
-            <Label htmlFor="date-range" className="font-medium text-gray-700">Período</Label>
+        <div className="py-6 space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="date-range-mobile" className="font-medium text-gray-700">Período</Label>
             <DatePickerWithRange 
               value={dateRange} 
               onChange={setDateRange} 
-              className="w-full border border-slate-300 rounded-md"
+              className="border border-slate-300 rounded-md w-full h-12"
+              id="date-range-mobile"
             />
           </div>
 
-          <div className="space-y-3">
-            <Label htmlFor="caminhao" className="font-medium text-gray-700">Caminhão/Equipamento</Label>
+          <div className="space-y-2">
+            <Label htmlFor="caminhao-mobile" className="font-medium text-gray-700">Caminhão/Equipamento</Label>
             <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-2.5 top-3.5 h-5 w-5 text-muted-foreground" />
               <Select value={caminhaoId} onValueChange={setCaminhaoId}>
-                <SelectTrigger id="caminhao" className="pl-8 border border-slate-300 bg-white w-full">
-                  <SelectValue placeholder="Selecione um veículo" />
+                <SelectTrigger id="caminhao-mobile" className="pl-10 h-12 border border-slate-300 bg-white">
+                  <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent className="bg-white">
                   <SelectItem value="_all">Todos</SelectItem>
@@ -121,13 +127,13 @@ const ApontamentoCaminhoesFilterDrawer: React.FC<ApontamentoCaminhoesFilterDrawe
             </div>
           </div>
 
-          <div className="space-y-3">
-            <Label htmlFor="operador" className="font-medium text-gray-700">Operador</Label>
+          <div className="space-y-2">
+            <Label htmlFor="operador-mobile" className="font-medium text-gray-700">Operador</Label>
             <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-2.5 top-3.5 h-5 w-5 text-muted-foreground" />
               <Select value={operadorId} onValueChange={setOperadorId}>
-                <SelectTrigger id="operador" className="pl-8 border border-slate-300 bg-white w-full">
-                  <SelectValue placeholder="Selecione um operador" />
+                <SelectTrigger id="operador-mobile" className="pl-10 h-12 border border-slate-300 bg-white">
+                  <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent className="bg-white">
                   <SelectItem value="_all">Todos</SelectItem>
@@ -141,13 +147,13 @@ const ApontamentoCaminhoesFilterDrawer: React.FC<ApontamentoCaminhoesFilterDrawe
             </div>
           </div>
 
-          <div className="space-y-3">
-            <Label htmlFor="centro-custo" className="font-medium text-gray-700">Centro de Custo</Label>
+          <div className="space-y-2">
+            <Label htmlFor="centro-custo-mobile" className="font-medium text-gray-700">Centro de Custo</Label>
             <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-2.5 top-3.5 h-5 w-5 text-muted-foreground" />
               <Select value={centroCustoId} onValueChange={setCentroCustoId}>
-                <SelectTrigger id="centro-custo" className="pl-8 border border-slate-300 bg-white w-full">
-                  <SelectValue placeholder="Selecione um centro" />
+                <SelectTrigger id="centro-custo-mobile" className="pl-10 h-12 border border-slate-300 bg-white">
+                  <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent className="bg-white">
                   <SelectItem value="_all">Todos</SelectItem>
@@ -162,27 +168,27 @@ const ApontamentoCaminhoesFilterDrawer: React.FC<ApontamentoCaminhoesFilterDrawe
           </div>
         </div>
 
-        <DrawerFooter>
-          <Button 
-            variant="default" 
-            onClick={applyFilters} 
-            disabled={isLoading}
-            className="w-full"
-          >
-            Aplicar Filtros
-          </Button>
+        <SheetFooter className="sm:justify-between gap-3">
           <Button 
             variant="outline" 
             onClick={handleClearFilters} 
             disabled={isLoading}
-            className="w-full border-slate-300"
+            className="w-full h-12"
           >
             <FilterX className="mr-2 h-4 w-4" />
             Limpar Filtros
           </Button>
-        </DrawerFooter>
-      </DrawerContent>
-    </Drawer>
+          
+          <Button 
+            onClick={handleApplyFilters} 
+            disabled={isLoading}
+            className="w-full h-12"
+          >
+            Aplicar Filtros
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 };
 

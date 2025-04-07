@@ -11,7 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Eye, Pencil, Trash2 } from "lucide-react";
+import { Eye, Pencil, Trash2, Droplets, Clock } from "lucide-react";
 import { ApontamentoCaminhao } from "@/services/apontamentoCaminhoesService";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -62,6 +62,94 @@ const ApontamentoCaminhoesTable: React.FC<ApontamentoCaminhoesTableProps> = ({
     </TableRow>
   );
 
+  // Mobile card view
+  if (isMobile) {
+    return (
+      <div className="space-y-4">
+        {isLoading ? (
+          <div className="rounded-lg border p-4 text-center">Carregando...</div>
+        ) : apontamentos.length === 0 ? (
+          <div className="rounded-lg border p-6 text-center">
+            <p className="text-gray-500 mb-1">Nenhum registro encontrado.</p>
+            <p className="text-sm text-gray-400">Tente ajustar os filtros avançados.</p>
+          </div>
+        ) : (
+          apontamentos.map((apontamento) => (
+            <div 
+              key={apontamento.id} 
+              className="rounded-lg border shadow-sm p-4 bg-white"
+            >
+              <div className="space-y-3">
+                <div className="flex justify-between items-start">
+                  <div className="font-medium">
+                    {apontamento.data
+                      ? format(new Date(apontamento.data), "dd/MM/yyyy", { locale: ptBR })
+                      : "-"}
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    {apontamento.nome_operador || "Operador não especificado"}
+                  </div>
+                </div>
+                
+                <div className="font-semibold text-gray-800">
+                  {apontamento.veiculo_identificacao || "-"}
+                </div>
+                
+                <div className="grid grid-cols-1 xs:grid-cols-3 gap-2 pt-2 text-sm">
+                  <div className="flex items-center">
+                    <Droplets className="h-4 w-4 text-blue-500 mr-1.5" />
+                    <span className="text-gray-700">
+                      {apontamento.abastecimento ? `${apontamento.abastecimento}L` : "-"}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center">
+                    <Clock className="h-4 w-4 text-green-500 mr-1.5" />
+                    <span className="text-gray-700">
+                      {apontamento.horimetro_inicial || "-"}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center">
+                    <Clock className="h-4 w-4 text-amber-500 mr-1.5" />
+                    <span className="text-gray-700">
+                      {apontamento.horimetro_final || "-"}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end space-x-1 pt-2 border-t mt-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onView(apontamento.id)}
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onEdit(apontamento.id)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onDelete(apontamento.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    );
+  }
+
+  // Desktop table view
   return (
     <div className="rounded-md border overflow-x-auto">
       <Table>
@@ -69,14 +157,10 @@ const ApontamentoCaminhoesTable: React.FC<ApontamentoCaminhoesTableProps> = ({
           <TableRow>
             <TableHead className="w-[120px]">Data</TableHead>
             <TableHead className="min-w-[200px]">Caminhão/Equipamento</TableHead>
-            {!isMobile && (
-              <>
-                <TableHead className="min-w-[150px]">Operador</TableHead>
-                <TableHead className="text-center">Abastecimento (L)</TableHead>
-                <TableHead className="text-center">Horímetro Inicial</TableHead>
-                <TableHead className="text-center">Horímetro Final</TableHead>
-              </>
-            )}
+            <TableHead className="min-w-[150px]">Operador</TableHead>
+            <TableHead className="text-center">Abastecimento (L)</TableHead>
+            <TableHead className="text-center">Horímetro Inicial</TableHead>
+            <TableHead className="text-center">Horímetro Final</TableHead>
             <TableHead className="text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
@@ -94,20 +178,16 @@ const ApontamentoCaminhoesTable: React.FC<ApontamentoCaminhoesTableProps> = ({
                     : "-"}
                 </TableCell>
                 <TableCell>{apontamento.veiculo_identificacao || "-"}</TableCell>
-                {!isMobile && (
-                  <>
-                    <TableCell>{apontamento.nome_operador || "-"}</TableCell>
-                    <TableCell className="text-center">
-                      {apontamento.abastecimento || "-"}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {apontamento.horimetro_inicial || "-"}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {apontamento.horimetro_final || "-"}
-                    </TableCell>
-                  </>
-                )}
+                <TableCell>{apontamento.nome_operador || "-"}</TableCell>
+                <TableCell className="text-center">
+                  {apontamento.abastecimento || "-"}
+                </TableCell>
+                <TableCell className="text-center">
+                  {apontamento.horimetro_inicial || "-"}
+                </TableCell>
+                <TableCell className="text-center">
+                  {apontamento.horimetro_final || "-"}
+                </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end space-x-1">
                     <Button

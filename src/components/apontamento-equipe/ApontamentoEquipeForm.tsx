@@ -1,3 +1,4 @@
+
 import React, { useEffect } from "react";
 import { 
   Dialog, 
@@ -123,7 +124,7 @@ const ApontamentoEquipeForm: React.FC<ApontamentoEquipeFormProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[700px]">
+      <DialogContent className="sm:max-w-[700px] w-full max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {currentApontamento ? "Editar Apontamento" : "Novo Apontamento"}
@@ -174,8 +175,8 @@ const ApontamentoEquipeForm: React.FC<ApontamentoEquipeFormProps> = ({
               isEditing={isEditing}
             />
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
+            <DialogFooter className="sm:justify-between flex-col sm:flex-row gap-3 mt-6 pt-4 border-t">
+              <Button type="button" variant="outline" onClick={onClose} disabled={isLoading} className="w-full sm:w-auto h-12 sm:h-10">
                 Cancelar
               </Button>
               <Button 
@@ -187,7 +188,7 @@ const ApontamentoEquipeForm: React.FC<ApontamentoEquipeFormProps> = ({
                   (!todosColaboradoresAvaliados && !currentApontamento && isAvaliacaoObrigatoria) ||
                   !!loadingEquipeError
                 }
-                className="bg-blue-500 hover:bg-blue-600"
+                className="bg-blue-500 hover:bg-blue-600 w-full sm:w-auto h-12 sm:h-10"
               >
                 {isLoading ? (
                   <>

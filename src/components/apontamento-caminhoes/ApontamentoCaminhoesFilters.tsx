@@ -94,14 +94,14 @@ const ApontamentoCaminhoesFilters: React.FC<ApontamentoCaminhoesFiltersProps> = 
   if (isMobile) {
     return (
       <>
-        <div className="fixed top-28 right-4 z-10">
+        <div className="fixed top-24 right-4 z-10">
           <Button 
             onClick={() => setIsFilterDrawerOpen(true)} 
-            className="rounded-full shadow-lg bg-blue-600 hover:bg-blue-700"
+            className="rounded-full shadow-lg bg-blue-600 hover:bg-blue-700 h-[32px] w-[100px]"
             size="sm"
           >
-            <SlidersHorizontal className="h-5 w-5 mr-2" />
-            Filtros Avançados
+            <SlidersHorizontal className="h-4 w-4 mr-2" />
+            Filtros
           </Button>
         </div>
         

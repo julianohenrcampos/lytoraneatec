@@ -20,19 +20,21 @@ interface DatePickerWithRangeProps {
   value?: DateRange;
   onChange: (value: DateRange | undefined) => void;
   className?: string;
+  id?: string; // Added id prop to the interface
 }
 
 export function DatePickerWithRange({
   value,
   onChange,
   className,
+  id,
 }: DatePickerWithRangeProps) {
   return (
     <div className={cn("grid gap-2", className)}>
       <Popover>
         <PopoverTrigger asChild>
           <Button
-            id="date"
+            id={id}
             variant={"outline"}
             className={cn(
               "w-full justify-start text-left font-normal",
@@ -54,14 +56,14 @@ export function DatePickerWithRange({
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
+        <PopoverContent className="w-auto p-0 sm:w-auto" align="start">
           <Calendar
             initialFocus
             mode="range"
             defaultMonth={value?.from}
             selected={value}
             onSelect={onChange}
-            numberOfMonths={2}
+            numberOfMonths={1}
             locale={ptBR}
             className="pointer-events-auto"
           />

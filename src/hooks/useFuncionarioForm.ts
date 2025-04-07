@@ -30,15 +30,15 @@ const formSchema = z.object({
   data_demissao: z.string().nullable().optional(),
   status: z.string().default("Ativo"),
   
-  // Dados Financeiros
-  salario_base: z.coerce.number().min(0).default(0),
-  insalubridade: z.coerce.number().min(0).default(0),
-  periculosidade: z.coerce.number().min(0).default(0),
-  gratificacao: z.coerce.number().min(0).default(0),
-  adicional_noturno: z.coerce.number().min(0).default(0),
-  custo_passagem: z.coerce.number().min(0).default(0),
-  refeicao: z.coerce.number().min(0).default(0),
-  diarias: z.coerce.number().min(0).default(0),
+  // Dados Financeiros - Garantindo que todos sejam números, ou convertidos para 0 se forem inválidos
+  salario_base: z.coerce.number().default(0),
+  insalubridade: z.coerce.number().default(0),
+  periculosidade: z.coerce.number().default(0),
+  gratificacao: z.coerce.number().default(0),
+  adicional_noturno: z.coerce.number().default(0),
+  custo_passagem: z.coerce.number().default(0),
+  refeicao: z.coerce.number().default(0),
+  diarias: z.coerce.number().default(0),
 });
 
 export function useFuncionarioForm(funcionario: Funcionario | null, isOpen: boolean) {
@@ -46,6 +46,15 @@ export function useFuncionarioForm(funcionario: Funcionario | null, isOpen: bool
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  
+  // Função para garantir que valores numéricos sejam sempre números
+  const ensureNumber = (value: any): number => {
+    if (value === null || value === undefined || value === "") {
+      return 0;
+    }
+    const numValue = Number(value);
+    return isNaN(numValue) ? 0 : numValue;
+  };
   
   // Calculate vacation date based on admission date
   const calculateVacationDate = (admissionDateStr: string | undefined | null): string => {
@@ -90,19 +99,21 @@ export function useFuncionarioForm(funcionario: Funcionario | null, isOpen: bool
         ? format(new Date(funcionario.data_demissao), "yyyy-MM-dd") 
         : null,
       status: funcionario?.status || "Ativo",
-      salario_base: funcionario?.salario_base || 0,
-      insalubridade: funcionario?.insalubridade || 0,
-      periculosidade: funcionario?.periculosidade || 0,
-      gratificacao: funcionario?.gratificacao || 0,
-      adicional_noturno: funcionario?.adicional_noturno || 0,
-      custo_passagem: funcionario?.custo_passagem || 0,
-      refeicao: funcionario?.refeicao || 0,
-      diarias: funcionario?.diarias || 0,
+      // Garantindo que os valores financeiros sejam sempre números
+      salario_base: ensureNumber(funcionario?.salario_base),
+      insalubridade: ensureNumber(funcionario?.insalubridade),
+      periculosidade: ensureNumber(funcionario?.periculosidade),
+      gratificacao: ensureNumber(funcionario?.gratificacao),
+      adicional_noturno: ensureNumber(funcionario?.adicional_noturno),
+      custo_passagem: ensureNumber(funcionario?.custo_passagem),
+      refeicao: ensureNumber(funcionario?.refeicao),
+      diarias: ensureNumber(funcionario?.diarias),
     },
   });
 
   useEffect(() => {
     if (isOpen) {
+      console.log("Modal aberto, redefinindo o formulário", funcionario);
       // Calculate vacation date if admission date exists but vacation date doesn't
       let vacationDate = "";
       if (funcionario?.data_admissao && !funcionario?.data_ferias) {
@@ -111,7 +122,7 @@ export function useFuncionarioForm(funcionario: Funcionario | null, isOpen: bool
         vacationDate = format(new Date(funcionario.data_ferias), "yyyy-MM-dd");
       }
       
-      // Reset form values
+      // Reset form values - certifique-se de que os campos financeiros são números válidos
       form.reset({
         imagem: funcionario?.imagem || "",
         nome_completo: funcionario?.nome_completo || "",
@@ -136,15 +147,18 @@ export function useFuncionarioForm(funcionario: Funcionario | null, isOpen: bool
           ? format(new Date(funcionario.data_demissao), "yyyy-MM-dd") 
           : null,
         status: funcionario?.status || "Ativo",
-        salario_base: funcionario?.salario_base || 0,
-        insalubridade: funcionario?.insalubridade || 0,
-        periculosidade: funcionario?.periculosidade || 0,
-        gratificacao: funcionario?.gratificacao || 0,
-        adicional_noturno: funcionario?.adicional_noturno || 0,
-        custo_passagem: funcionario?.custo_passagem || 0,
-        refeicao: funcionario?.refeicao || 0,
-        diarias: funcionario?.diarias || 0,
+        // Garantindo que os valores financeiros sejam sempre números válidos
+        salario_base: ensureNumber(funcionario?.salario_base),
+        insalubridade: ensureNumber(funcionario?.insalubridade),
+        periculosidade: ensureNumber(funcionario?.periculosidade),
+        gratificacao: ensureNumber(funcionario?.gratificacao),
+        adicional_noturno: ensureNumber(funcionario?.adicional_noturno),
+        custo_passagem: ensureNumber(funcionario?.custo_passagem),
+        refeicao: ensureNumber(funcionario?.refeicao),
+        diarias: ensureNumber(funcionario?.diarias),
       });
+      
+      console.log("Formulário redefinido com valores", form.getValues());
       
       // Reset other state
       setActiveTab("pessoal");

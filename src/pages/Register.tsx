@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { z } from "zod";
@@ -87,12 +88,18 @@ const Register: React.FC = () => {
         data.nome_completo
       );
 
-      if (result) {
+      if (result.success) {
         toast({
           title: "Conta criada com sucesso",
           description: "Verifique seu email para confirmar sua conta",
         });
         navigate("/login");
+      } else {
+        toast({
+          title: "Falha no registro",
+          description: result.error?.message || "Ocorreu um erro ao criar sua conta",
+          variant: "destructive",
+        });
       }
     } catch (error: any) {
       toast({

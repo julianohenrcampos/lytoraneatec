@@ -1,9 +1,11 @@
+
 import React, { useEffect, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import MainLayout from "@/components/layout/MainLayout";
 import ApontamentoEquipeFilters from "@/components/apontamento-equipe/ApontamentoEquipeFilters";
+import ApontamentoEquipeFilterDrawer from "@/components/apontamento-equipe/ApontamentoEquipeFilterDrawer";
 import ApontamentoEquipeTable from "@/components/apontamento-equipe/ApontamentoEquipeTable";
 import ApontamentoEquipeForm from "@/components/apontamento-equipe/ApontamentoEquipeForm";
 import ApontamentoEquipeDetailsModal from "@/components/apontamento-equipe/ApontamentoEquipeDetailsModal";
@@ -33,6 +35,7 @@ const ApontamentoEquipe: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isAvaliacaoModalOpen, setIsAvaliacaoModalOpen] = useState(false);
+  const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [selectedColaborador, setSelectedColaborador] = useState<{
     id: string;
     nome: string;
@@ -201,11 +204,15 @@ const ApontamentoEquipe: React.FC = () => {
 
   const formattedDate = format(new Date(), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR });
 
-  const exportButtonText = "Exportar Apontamentos e Avaliações";
+  const handleApplyFilters = (newFilters: any) => {
+    Object.entries(newFilters).forEach(([key, value]) => {
+      handleFilterChange(key as any, value);
+    });
+  };
 
   return (
     <MainLayout>
-      <div className="container mx-auto py-6 space-y-6">
+      <div className="container mx-auto py-6 space-y-6 px-4 md:px-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Apontamento de Equipe</h1>
@@ -213,14 +220,25 @@ const ApontamentoEquipe: React.FC = () => {
               Registre a presença e o desempenho dos colaboradores por equipe.
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={() => openFormModal()} className="bg-primary text-white">
+          <div className="flex gap-2 w-full sm:w-auto flex-row justify-end">
+            <Button 
+              onClick={() => openFormModal()} 
+              className="bg-blue-600 hover:bg-blue-700 text-white h-8 sm:h-10 px-2 sm:px-4 text-sm"
+              size="xs"
+              // Changed from { base: "xs", sm: "default" } to "xs" to fix type error
+            >
               <Plus className="mr-2 h-4 w-4" />
-              Novo Apontamento
+              <span>Novo Apontamento</span>
             </Button>
-            <Button variant="outline" onClick={handleExport}>
+            <Button 
+              variant="outline" 
+              onClick={handleExport} 
+              className="h-8 sm:h-10 px-2 sm:px-4 text-sm"
+              size="xs"
+              // Changed from { base: "xs", sm: "default" } to "xs" to fix type error
+            >
               <Download className="mr-2 h-4 w-4" />
-              {exportButtonText}
+              <span>Exportar</span>
             </Button>
           </div>
         </div>
@@ -242,14 +260,24 @@ const ApontamentoEquipe: React.FC = () => {
           }}
           equipes={equipes}
           isLoading={isLoading}
+          onOpenMobileFilters={() => setIsFilterDrawerOpen(true)}
+        />
+
+        <ApontamentoEquipeFilterDrawer
+          isOpen={isFilterDrawerOpen}
+          onClose={() => setIsFilterDrawerOpen(false)}
+          onApplyFilters={handleApplyFilters}
+          onClearFilters={resetFilters}
+          equipes={equipes}
+          isLoading={isLoading}
         />
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
             <CardTitle className="text-xl">Apontamentos de Equipe</CardTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mt-2 sm:mt-0">
               <Users className="h-5 w-5 text-muted-foreground" />
-              <span className="font-medium capitalize">{formattedDate}</span>
+              <span className="font-medium capitalize text-sm">{formattedDate}</span>
             </div>
           </CardHeader>
           <CardContent>
@@ -332,3 +360,4 @@ const ApontamentoEquipe: React.FC = () => {
 };
 
 export default ApontamentoEquipe;
+
