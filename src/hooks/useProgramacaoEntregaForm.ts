@@ -1,0 +1,299 @@
+
+import { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
+import { ProgramacaoEntregaWithItems } from "@/types/programacaoEntrega";
+import { fetchOperatingVehicles, fetchApontadorByEquipeId } from "@/services/programacaoEntregaService";
+import { supabase } from "@/integrations/supabase/client";
+import { programacaoSchema, itemSchema, ProgramacaoFormValues, ItemFormValues } from "@/validations/programacaoSchema";
+import { useFormInitialization } from "./programacao/useFormInitialization";
+import { useFormSubmission } from "./programacao/useFormSubmission";
+import { useItemManagement } from "./programacao/useItemManagement";
+import { useToast } from "@/hooks/use-toast";
+import { fetchCentroCustoForProgramacao } from "@/services/centroCustoRegistroService";
+import { format } from "date-fns";
+
+export const useProgramacaoEntregaForm = (
+  programacao: ProgramacaoEntregaWithItems | null,
+  onSuccess: () => void
+) => {
+  const { toast } = useToast();
+  const [isAddingItem, setIsAddingItem] = useState(false);
+  const [selectedEquipeId, setSelectedEquipeId] = useState<string | null>(null);
+  const [selectedCaminhaoId, setSelectedCaminhaoId] = useState<string | null>(null);
+  const [centroCustoNome, setCentroCustoNome] = useState<string>("");
+
+  // Get current date in the correct format - SEMPRE a data atual
+  const getCurrentDate = () => {
+    const today = new Date();
+    const formatted = format(today, 'yyyy-MM-dd');
+    console.log("getCurrentDate called, returning:", formatted);
+    return formatted;
+  };
+
+  // Initialize the main form with ProgramacaoFormValues type
+  const form = useForm<ProgramacaoFormValues>({
+    resolver: zodResolver(programacaoSchema),
+    defaultValues: {
+      requisicao_id: programacao?.requisicao_id || "",
+      centro_custo_id: programacao?.centro_custo_id || "",
+      data_entrega: programacao?.data_entrega || getCurrentDate(), // SEMPRE data atual se não houver programação
+      ruas: [],
+      itens: [],
+    },
+  });
+
+  // Initialize the item form with ItemFormValues type
+  const itemForm = useForm<ItemFormValues>({
+    resolver: zodResolver(itemSchema),
+    defaultValues: {
+      requisicao_id: "",
+      centro_custo_nome: "",
+      quantidade_massa: 0,
+      caminhao_id: "",
+      tipo_lancamento: "",
+      equipe_id: "",
+      apontador_id: "",
+      usina_id: "",
+      data_entrega: getCurrentDate(), // SEMPRE data atual
+      cancelled: false,
+      cancelReason: ""
+    }
+  });
+
+  // Use the modular hooks
+  const { 
+    selectedRequisicaoId,
+    setSelectedRequisicaoId,
+    requisicaoDetails,
+    fetchRequisicaoDetails
+  } = useFormInitialization(programacao, form);
+
+  const { isSubmitting, onSubmit } = useFormSubmission(programacao, onSuccess);
+
+  const {
+    addItem,
+    removeItem,
+    openCancelDialog,
+    closeCancelDialog,
+    confirmCancel,
+    showCancelDialog,
+    itemToCancel,
+    calculateProgrammedQuantity
+  } = useItemManagement(form);
+
+  // Queries for required data
+  const { data: caminhoes = [] } = useQuery({
+    queryKey: ['operatingVehicles'],
+    queryFn: fetchOperatingVehicles,
+  });
+
+  const { data: requisicoes = [] } = useQuery({
+    queryKey: ['requisicoes'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('bd_requisicoes')
+        .select(`
+          id,
+          numero,
+          centro_custo_id,
+          centro_custo:bd_centros_custo(id, nome_centro_custo, codigo_centro_custo)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    }
+  });
+
+  const { data: logradouros = [] } = useQuery({
+    queryKey: ['logradouros', selectedRequisicaoId],
+    enabled: !!selectedRequisicaoId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('bd_ruas_requisicao')
+        .select('*')
+        .eq('requisicao_id', selectedRequisicaoId);
+
+      if (error) throw error;
+      return data || [];
+    }
+  });
+
+  const { data: equipes = [] } = useQuery({
+    queryKey: ['equipes'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('bd_equipes')
+        .select(`
+          id, 
+          nome_equipe,
+          apontador_id,
+          apontador:bd_funcionarios!bd_equipes_apontador_id_fkey(id, nome_completo)
+        `)
+        .order('nome_equipe');
+
+      if (error) throw error;
+      return data || [];
+    }
+  });
+
+  const { data: usinas = [] } = useQuery({
+    queryKey: ['usinas'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('bd_usinas')
+        .select('*')
+        .order('nome_usina');
+
+      if (error) throw error;
+      return data || [];
+    }
+  });
+
+  // Watch for changes
+  const watchedRequisicaoId = form.watch("requisicao_id");
+  const watchedEquipeId = itemForm.watch("equipe_id");
+  const watchedCaminhaoId = itemForm.watch("caminhao_id");
+  const watchItens = form.watch("itens") || [];
+  const watchedDataEntrega = form.watch("data_entrega");
+
+  // Effect for handling requisição changes
+  useEffect(() => {
+    const handleRequisicaoChange = async () => {
+      if (watchedRequisicaoId) {
+        setSelectedRequisicaoId(watchedRequisicaoId);
+        
+        try {
+          await fetchRequisicaoDetails(watchedRequisicaoId);
+
+          const requisicao = requisicoes.find(req => req.id === watchedRequisicaoId);
+          if (requisicao?.centro_custo_id) {
+            form.setValue("centro_custo_id", requisicao.centro_custo_id);
+
+            // Get and set the centro_custo name for display
+            const centroCustoInfo = requisicao.centro_custo && 
+              typeof requisicao.centro_custo === 'object' && 
+              requisicao.centro_custo !== null ? 
+              requisicao.centro_custo : null;
+            
+            if (centroCustoInfo && 'nome_centro_custo' in centroCustoInfo) {
+              const nomeCentroCusto = String(centroCustoInfo.nome_centro_custo || '');
+              setCentroCustoNome(nomeCentroCusto);
+              
+              if (isAddingItem) {
+                itemForm.setValue("centro_custo_nome", nomeCentroCusto);
+              }
+            }
+          }
+          
+          if (isAddingItem) {
+            itemForm.setValue("requisicao_id", watchedRequisicaoId);
+          }
+        } catch (error) {
+          console.error('Error handling requisição change:', error);
+          toast({
+            title: "Erro ao carregar detalhes da requisição",
+            description: "Ocorreu um erro ao carregar os detalhes da requisição",
+            variant: "destructive",
+          });
+        }
+      }
+    };
+
+    handleRequisicaoChange();
+  }, [watchedRequisicaoId, requisicoes, form, isAddingItem, itemForm, toast, fetchRequisicaoDetails, setSelectedRequisicaoId]);
+
+  // Effect for handling equipe changes
+  useEffect(() => {
+    const updateApontador = async () => {
+      if (watchedEquipeId) {
+        setSelectedEquipeId(watchedEquipeId);
+        
+        try {
+          const equipe = equipes.find(eq => eq.id === watchedEquipeId);
+          if (equipe && typeof equipe === 'object' && 'apontador_id' in equipe && equipe.apontador_id) {
+            itemForm.setValue("apontador_id", equipe.apontador_id);
+          } else {
+            const apontador = await fetchApontadorByEquipeId(watchedEquipeId);
+            if (apontador && typeof apontador === 'object' && 'id' in apontador && apontador.id) {
+              itemForm.setValue("apontador_id", String(apontador.id));
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching apontador:', error);
+        }
+      }
+    };
+
+    updateApontador();
+  }, [watchedEquipeId, itemForm, equipes, fetchApontadorByEquipeId]);
+
+  // Effect for handling caminhão changes - REMOVED the auto-fill of quantidade_massa
+  useEffect(() => {
+    if (watchedCaminhaoId) {
+      setSelectedCaminhaoId(watchedCaminhaoId);
+      // REMOVED: Auto-population of quantidade_massa based on truck capacity
+      // Now users must manually enter the quantity for each truck
+    }
+  }, [watchedCaminhaoId]);
+
+  // Effect for synchronizing dates between main form and item form
+  useEffect(() => {
+    if (isAddingItem && watchedDataEntrega) {
+      console.log("Synchronizing item date with main form date:", watchedDataEntrega);
+      itemForm.setValue("data_entrega", watchedDataEntrega);
+    }
+  }, [watchedDataEntrega, isAddingItem, itemForm]);
+
+  // Effect for resetting item form when adding new item
+  useEffect(() => {
+    if (isAddingItem) {
+      const currentDataEntrega = form.getValues().data_entrega || getCurrentDate();
+      console.log("Resetting item form with date:", currentDataEntrega);
+      
+      itemForm.reset({
+        requisicao_id: form.getValues().requisicao_id || "",
+        centro_custo_nome: centroCustoNome,
+        quantidade_massa: 0, // Always start with 0, user must enter manually
+        caminhao_id: "",
+        tipo_lancamento: "",
+        equipe_id: "",
+        apontador_id: "",
+        usina_id: "",
+        data_entrega: currentDataEntrega, // Use current date from main form
+        cancelled: false,
+        cancelReason: ""
+      });
+    }
+  }, [isAddingItem, itemForm, form, centroCustoNome]);
+
+  return {
+    form,
+    itemForm,
+    isSubmitting,
+    isAddingItem,
+    setIsAddingItem,
+    onSubmit,
+    addItem,
+    removeItem,
+    openCancelDialog,
+    closeCancelDialog,
+    confirmCancel,
+    showCancelDialog,
+    itemToCancel,
+    requisicoes,
+    logradouros,
+    equipes,
+    usinas,
+    caminhoes,
+    selectedRequisicaoId,
+    selectedEquipeId,
+    selectedCaminhaoId,
+    requisicaoDetails,
+    calculateProgrammedQuantity,
+    watchItens,
+    centroCustoNome
+  };
+};
