@@ -51,6 +51,7 @@ export const NovoApontamentoModal: React.FC<NovoApontamentoModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingLogradouros, setIsLoadingLogradouros] = useState(false);
   const [integrityCheckDone, setIntegrityCheckDone] = useState(false);
+  const [searchWithoutDateFilter, setSearchWithoutDateFilter] = useState(false);
   const { toast } = useToast();
 
   // Load entregas when modal opens or dependencies change
@@ -64,8 +65,9 @@ export const NovoApontamentoModal: React.FC<NovoApontamentoModalProps> = ({
       setEntregas([]);
       setLogradouros([]);
       setIntegrityCheckDone(false);
+      setSearchWithoutDateFilter(false);
     }
-  }, [isOpen, selectedDate, equipeId]);
+  }, [isOpen, selectedDate, equipeId, searchWithoutDateFilter]);
 
   // Load logradouros when an entrega is selected
   useEffect(() => {
@@ -89,7 +91,9 @@ export const NovoApontamentoModal: React.FC<NovoApontamentoModalProps> = ({
         setIntegrityCheckDone(true);
       }
       
-      const entregasData = await fetchEntregasEnviadas(selectedDate, equipeId);
+      // Use flexible date search or no date filter
+      const dateToSearch = searchWithoutDateFilter ? undefined : selectedDate;
+      const entregasData = await fetchEntregasEnviadas(dateToSearch, equipeId);
       console.log(`📋 Loaded ${entregasData.length} entregas for modal`);
       
       setEntregas(entregasData);
@@ -97,14 +101,32 @@ export const NovoApontamentoModal: React.FC<NovoApontamentoModalProps> = ({
       // Show specific information about what was found
       if (entregasData.length === 0) {
         console.log("⚠️ No entregas found - this might indicate a problem");
-        toast({
-          title: "Nenhuma entrega encontrada",
-          description: "Não há entregas com massa remanescente disponível para a data selecionada.",
-          variant: "default",
-        });
+        
+        if (selectedDate && !searchWithoutDateFilter) {
+          toast({
+            title: "Nenhuma entrega encontrada",
+            description: `Não há entregas com massa remanescente para ${selectedDate.toLocaleDateString('pt-BR')}. Tente expandir a busca.`,
+            variant: "default",
+          });
+        } else {
+          toast({
+            title: "Nenhuma entrega encontrada",
+            description: "Não há entregas com massa remanescente disponível no período pesquisado.",
+            variant: "default",
+          });
+        }
       } else {
         const totalMassa = entregasData.reduce((sum, e) => sum + (e.massa_remanescente || 0), 0);
-        console.log(`✅ Found ${entregasData.length} entregas with ${totalMassa.toFixed(1)}t total massa remanescente`);
+        const dateRange = searchWithoutDateFilter ? "período ampliado" : 
+          selectedDate ? `data ${selectedDate.toLocaleDateString('pt-BR')}` : "período recente";
+        
+        console.log(`✅ Found ${entregasData.length} entregas with ${totalMassa.toFixed(1)}t total massa remanescente for ${dateRange}`);
+        
+        toast({
+          title: "Entregas carregadas",
+          description: `${entregasData.length} entregas encontradas com ${totalMassa.toFixed(1)}t disponível.`,
+          variant: "default",
+        });
       }
     } catch (error) {
       console.error("💥 Error loading entregas:", error);
@@ -152,6 +174,10 @@ export const NovoApontamentoModal: React.FC<NovoApontamentoModalProps> = ({
     }
   };
 
+  const handleRetryWithoutFilters = () => {
+    setSearchWithoutDateFilter(true);
+  };
+
   const handleConfirm = async () => {
     if (!selectedEntregaId) {
       toast({
@@ -188,6 +214,7 @@ export const NovoApontamentoModal: React.FC<NovoApontamentoModalProps> = ({
 
       console.log("Selected:", {
         entrega: selectedEntrega.logradouro,
+        data_entrega: selectedEntrega.data_entrega,
         logradouro: selectedLogradouro.logradouro,
         massa_remanescente: selectedEntrega.massa_remanescente
       });
@@ -219,9 +246,23 @@ export const NovoApontamentoModal: React.FC<NovoApontamentoModalProps> = ({
       ? `${entrega.massa_remanescente.toFixed(1)}t disponível`
       : 'Massa N/A';
     
+    const dateInfo = entrega.data_entrega 
+      ? new Date(entrega.data_entrega).toLocaleDateString('pt-BR')
+      : 'Data N/A';
+    
     const statusInfo = entrega.status ? `[${entrega.status}]` : '';
     
-    return `${entrega.logradouro} | ${caminhaoInfo} | ${massaInfo} ${statusInfo}`;
+    return `${entrega.logradouro} | ${dateInfo} | ${caminhaoInfo} | ${massaInfo} ${statusInfo}`;
+  };
+
+  const getSearchInfo = () => {
+    if (searchWithoutDateFilter) {
+      return "Buscando em período ampliado (últimos e próximos 7 dias)";
+    }
+    if (selectedDate) {
+      return `Buscando para: ${selectedDate.toLocaleDateString('pt-BR')} (±2 dias)`;
+    }
+    return "Buscando entregas recentes";
   };
 
   return (
@@ -231,7 +272,8 @@ export const NovoApontamentoModal: React.FC<NovoApontamentoModalProps> = ({
           <DialogTitle>Novo Apontamento de Aplicação</DialogTitle>
           <DialogDescription>
             Selecione uma entrega com massa remanescente e o logradouro para aplicação.
-            {selectedDate && ` Data: ${selectedDate.toLocaleDateString('pt-BR')}`}
+            <br />
+            <span className="text-xs text-muted-foreground">{getSearchInfo()}</span>
           </DialogDescription>
         </DialogHeader>
 
@@ -240,7 +282,9 @@ export const NovoApontamentoModal: React.FC<NovoApontamentoModalProps> = ({
             <LoadingIndicator />
           ) : entregas.length === 0 ? (
             <EmptyStateMessage 
-              hasFilters={false}
+              hasFilters={!!selectedDate && !searchWithoutDateFilter}
+              onRetryWithoutFilters={handleRetryWithoutFilters}
+              selectedDate={selectedDate}
             />
           ) : (
             <>

@@ -1,63 +1,85 @@
 
-import React from "react";
-import { Calendar, FileX, Filter, FilterX } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import React from 'react';
+import { AlertCircle, Calendar, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface EmptyStateMessageProps {
   hasFilters: boolean;
+  onRetryWithoutFilters?: () => void;
   onClearFilters?: () => void;
+  selectedDate?: Date;
 }
 
 const EmptyStateMessage: React.FC<EmptyStateMessageProps> = ({
   hasFilters,
-  onClearFilters
+  onRetryWithoutFilters,
+  onClearFilters,
+  selectedDate
 }) => {
   return (
-    <Card>
-      <CardContent className="p-8">
-        <div className="text-center space-y-4">
-          <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center">
-            {hasFilters ? (
-              <Filter className="h-8 w-8 text-muted-foreground" />
-            ) : (
-              <FileX className="h-8 w-8 text-muted-foreground" />
-            )}
-          </div>
-          
-          <div className="space-y-2">
-            <h3 className="text-lg font-medium text-foreground">
-              {hasFilters ? "Nenhum registro encontrado" : "Nenhum registro de aplicação"}
-            </h3>
-            <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              {hasFilters ? (
-                "Não foram encontrados registros que correspondam aos filtros aplicados. Tente ajustar os critérios de busca."
-              ) : (
-                "Ainda não há registros de aplicação cadastrados para esta data. Clique em 'Novo Apontamento' para criar o primeiro registro."
-              )}
-            </p>
-          </div>
-
-          {hasFilters && onClearFilters && (
-            <div className="pt-2">
-              <Button 
-                variant="outline" 
-                onClick={onClearFilters}
-                className="gap-2"
-              >
-                <FilterX className="h-4 w-4" />
-                Limpar Filtros
-              </Button>
+    <div className="text-center py-8 space-y-4">
+      <div className="flex justify-center">
+        <AlertCircle className="h-12 w-12 text-gray-400" />
+      </div>
+      
+      <div className="space-y-2">
+        <h3 className="text-lg font-medium text-gray-900">
+          Nenhuma entrega disponível encontrada
+        </h3>
+        
+        {selectedDate ? (
+          <div className="text-sm text-gray-600 space-y-1">
+            <div className="flex items-center justify-center gap-2">
+              <Calendar className="h-4 w-4" />
+              <span>Buscando para: {selectedDate.toLocaleDateString('pt-BR')}</span>
             </div>
-          )}
-
-          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-4">
-            <Calendar className="h-4 w-4" />
-            <span>Data atual selecionada nos filtros</span>
+            <p>Entregas precisam ter status "Enviada" e massa remanescente disponível.</p>
           </div>
+        ) : (
+          <p className="text-sm text-gray-600">
+            Não há entregas com massa remanescente disponível no momento.
+          </p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-xs text-gray-500">
+          Verifique se:
+        </p>
+        <ul className="text-xs text-gray-500 space-y-1">
+          <li>• As cargas foram registradas e enviadas</li>
+          <li>• Ainda há massa remanescente nas entregas</li>
+          <li>• A data da entrega está correta</li>
+        </ul>
+      </div>
+
+      {hasFilters && (onRetryWithoutFilters || onClearFilters) && (
+        <div className="flex gap-2 justify-center">
+          {onRetryWithoutFilters && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={onRetryWithoutFilters}
+              className="gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Expandir busca para outras datas
+            </Button>
+          )}
+          {onClearFilters && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={onClearFilters}
+              className="gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Limpar filtros
+            </Button>
+          )}
         </div>
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
 };
 

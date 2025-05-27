@@ -1,11 +1,11 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
-import { format } from "date-fns";
+import { format, addDays, subDays } from "date-fns";
 
 /**
  * Fetch all entregas with massa_remanescente > 0 (prioritizing 'Enviada' status but including others)
- * @param date Optional date filter
+ * @param date Optional date filter - if provided, searches around this date (±2 days)
  * @param equipeId Optional team filter - if provided, only shows deliveries for this team
  */
 export const fetchEntregasEnviadas = async (
@@ -30,11 +30,19 @@ export const fetchEntregasEnviadas = async (
       `)
       .in("status", ["Enviada", "Pendente"]); // Include both Enviada and Pendente statuses
     
-    // Apply date filter if provided
+    // Apply flexible date filter if provided
     if (date) {
-      const formattedDate = format(date, "yyyy-MM-dd");
-      console.log("📅 Applying date filter:", formattedDate);
-      query = query.eq("data_entrega", formattedDate);
+      // Search in a range of ±2 days from the specified date
+      const startDate = format(subDays(date, 2), "yyyy-MM-dd");
+      const endDate = format(addDays(date, 2), "yyyy-MM-dd");
+      console.log("📅 Applying flexible date range:", { startDate, endDate });
+      query = query.gte("data_entrega", startDate).lte("data_entrega", endDate);
+    } else {
+      // If no date provided, search for recent deliveries (last 7 days and next 7 days)
+      const startDate = format(subDays(new Date(), 7), "yyyy-MM-dd");
+      const endDate = format(addDays(new Date(), 7), "yyyy-MM-dd");
+      console.log("📅 No date specified, using recent range:", { startDate, endDate });
+      query = query.gte("data_entrega", startDate).lte("data_entrega", endDate);
     }
     
     // Apply team filter if provided (for non-SuperAdmin users)
@@ -61,6 +69,23 @@ export const fetchEntregasEnviadas = async (
     const entregasComMassaRemanescente = await Promise.all(
       data.map(async (entrega) => {
         try {
+          // Primeiro verificar se existe registro de carga
+          const { data: registroCarga, error: registroError } = await supabase
+            .from("bd_registro_cargas")
+            .select("id, tonelada_real")
+            .eq("lista_entrega_id", entrega.id)
+            .maybeSingle();
+          
+          if (registroError) {
+            console.error(`⚠️ Error checking registro carga for entrega ${entrega.id}:`, registroError);
+            return { ...entrega, massa_remanescente: 0 };
+          }
+          
+          if (!registroCarga) {
+            console.log(`📋 No registro carga found for entrega ${entrega.id}`);
+            return { ...entrega, massa_remanescente: 0 };
+          }
+          
           // Chamar a função do banco para calcular massa remanescente
           const { data: massaResult, error: massaError } = await supabase
             .rpc('calcular_massa_remanescente', { entrega_id: entrega.id });
@@ -74,8 +99,10 @@ export const fetchEntregasEnviadas = async (
           
           console.log(`📋 Entrega ${entrega.logradouro} (${entrega.id.slice(0, 8)}...):`, {
             status: entrega.status,
+            data_entrega: entrega.data_entrega,
             massa_remanescente: massaRemanescente,
-            caminhao: entrega.caminhao?.placa || 'N/A'
+            caminhao: entrega.caminhao?.placa || 'N/A',
+            has_registro_carga: !!registroCarga
           });
           
           return {
@@ -100,7 +127,12 @@ export const fetchEntregasEnviadas = async (
       if (a.status === 'Enviada' && b.status !== 'Enviada') return -1;
       if (a.status !== 'Enviada' && b.status === 'Enviada') return 1;
       
-      // Segundo critério: maior massa remanescente
+      // Segundo critério: data mais recente
+      if (a.data_entrega !== b.data_entrega) {
+        return new Date(b.data_entrega).getTime() - new Date(a.data_entrega).getTime();
+      }
+      
+      // Terceiro critério: maior massa remanescente
       return (b.massa_remanescente || 0) - (a.massa_remanescente || 0);
     });
     
@@ -115,6 +147,7 @@ export const fetchEntregasEnviadas = async (
       console.log("🎯 Top 3 entregas disponíveis:", 
         entregasOrdenadas.slice(0, 3).map(e => ({
           logradouro: e.logradouro,
+          data_entrega: e.data_entrega,
           status: e.status,
           massa: e.massa_remanescente,
           caminhao: e.caminhao?.placa

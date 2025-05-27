@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface Caminhao {
@@ -271,7 +270,9 @@ export const createApontamento = async (
   userEmail?: string | null
 ): Promise<string> => {
   try {
-    console.log("Creating apontamento with data:", apontamento);
+    console.log("=== INÍCIO CRIAÇÃO APONTAMENTO ===");
+    console.log("Dados recebidos:", apontamento);
+    console.log("Email do usuário:", userEmail);
     
     if (!apontamento.caminhao_equipamento_id) {
       throw new Error('Caminhão/Equipamento é obrigatório');
@@ -282,13 +283,19 @@ export const createApontamento = async (
       throw new Error('ID do operador é obrigatório');
     }
     
+    console.log("Verificando se operador existe na tabela funcionários...");
+    
     // Check if user exists in the funcionarios table
     try {
       const userExists = await checkUserInFuncionarios(operadorId);
+      console.log("Usuário existe na tabela funcionários:", userExists);
+      
       if (!userExists) {
+        console.log("Criando registro de funcionário para o usuário...");
         await createFuncionarioIfNeeded(operadorId, userEmail);
       }
     } catch (error) {
+      console.error("Erro ao verificar/criar funcionário:", error);
       // If creation fails, we want to provide a specific error message but not prevent creation
       // if the user already has a valid funcionario record
       const userExists = await checkUserInFuncionarios(operadorId);
@@ -301,6 +308,8 @@ export const createApontamento = async (
       }
       // If user exists despite the error, we can continue
     }
+    
+    console.log("Inserindo apontamento na base de dados...");
     
     // Insert into bd_registro_apontamento_cam_equipa table
     const { data, error: apontamentoError } = await supabase
@@ -322,23 +331,29 @@ export const createApontamento = async (
 
     if (apontamentoError) {
       console.error('Erro ao criar apontamento:', apontamentoError);
+      
+      // Provide more specific error messages
       if (apontamentoError.code === '23503') {
         if (apontamentoError.details?.includes('operador_id')) {
-          throw new Error('Usuário não está registrado como funcionário no sistema. Tente novamente.');
+          throw new Error('Operador não encontrado no sistema. Verifique se o usuário está registrado como funcionário.');
         } else if (apontamentoError.details?.includes('caminhao_equipamento_id')) {
-          throw new Error('Veículo não encontrado no sistema');
+          throw new Error('Veículo selecionado não encontrado no sistema');
         } else if (apontamentoError.details?.includes('centro_custo_id')) {
-          throw new Error('Centro de custo não encontrado no sistema');
+          throw new Error('Centro de custo selecionado não encontrado no sistema');
         }
+        throw new Error('Erro de referência: Verifique se todos os dados selecionados existem no sistema');
+      } else if (apontamentoError.code === '23505') {
+        throw new Error('Já existe um apontamento para este veículo na data selecionada');
+      } else {
+        throw new Error(`Erro ao salvar apontamento: ${apontamentoError.message}`);
       }
-      throw apontamentoError;
     }
 
     const apontamentoId = data.id;
-    console.log("Apontamento created with ID:", apontamentoId);
+    console.log("Apontamento criado com sucesso. ID:", apontamentoId);
 
     if (inspecao) {
-      console.log("Inserting inspection data for apontamento ID:", apontamentoId);
+      console.log("Inserindo dados de inspeção...");
       const { error: inspecaoError } = await supabase
         .from('bd_registro_apontamento_inspecao')
         .insert({
@@ -348,17 +363,24 @@ export const createApontamento = async (
 
       if (inspecaoError) {
         console.error('Erro ao criar inspeção:', inspecaoError);
-        throw inspecaoError;
+        // Don't throw here, as the main record was saved successfully
+        // Just log the error and continue
+        console.warn('Apontamento salvo, mas houve erro ao salvar inspeção');
+      } else {
+        console.log("Inspeção salva com sucesso");
       }
     }
 
+    console.log("=== APONTAMENTO CRIADO COM SUCESSO ===");
     return apontamentoId;
   } catch (error) {
-    console.error('Erro ao criar apontamento:', error);
+    console.error('=== ERRO NA CRIAÇÃO DO APONTAMENTO ===');
+    console.error('Detalhes do erro:', error);
+    
     if (error instanceof Error) {
       throw error;
     }
-    throw new Error('Falha ao criar apontamento');
+    throw new Error('Falha inesperada ao criar apontamento');
   }
 };
 

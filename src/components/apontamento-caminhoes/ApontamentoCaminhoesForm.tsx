@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import {
   Dialog,
@@ -25,6 +24,7 @@ import { CalendarIcon, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApontamentoCaminhao, ApontamentoInspecao } from "@/services/apontamentoCaminhoesService";
 import { ComboboxCaminhao } from "@/components/combobox/ComboboxCaminhao";
+import { mapSituacaoToDatabase, mapSituacaoFromDatabase } from "@/utils/situacaoMapping";
 
 interface ApontamentoCaminhoesFormProps {
   isOpen: boolean;
@@ -74,8 +74,18 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
 
   useEffect(() => {
     if (currentApontamento.apontamento) {
+      console.log("Carregando apontamento existente:", currentApontamento.apontamento);
+      
+      // Map situacao from database to UI when loading existing data
+      const mappedSituacao = currentApontamento.apontamento.situacao 
+        ? mapSituacaoFromDatabase(currentApontamento.apontamento.situacao)
+        : undefined;
+      
       setFormData({
-        apontamento: { ...currentApontamento.apontamento },
+        apontamento: { 
+          ...currentApontamento.apontamento,
+          situacao: mappedSituacao
+        },
         inspecao: currentApontamento.inspecao || {}
       });
       
@@ -89,9 +99,11 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
         setSelectedVehicleType(vehicle?.label.includes("Caminhão") ? "Caminhão" : "Equipamento");
       }
     } else {
-      // Set current time for new records
+      // Set current time for new records and ensure operator is current user
       const now = new Date();
       const currentTime = format(now, 'HH:mm');
+      
+      console.log("Inicializando novo apontamento com usuário:", currentUser);
       
       // Default inspecao fields to "OK" for new records
       setFormData({
@@ -206,17 +218,45 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
     setIsSubmitting(true);
     
     try {
+      console.log("Iniciando salvamento do apontamento");
+      console.log("Dados do formulário:", formData);
+      console.log("Usuário atual:", currentUser);
+      
+      // Map situacao from UI to database before submitting
+      const mappedSituacao = formData.apontamento.situacao 
+        ? mapSituacaoToDatabase(formData.apontamento.situacao)
+        : undefined;
+      
+      // Garantir que o operador_id seja sempre o usuário atual
       const submissionData = {
         apontamento: {
           ...formData.apontamento,
           data: date ? format(date, 'yyyy-MM-dd') : undefined,
+          operador_id: currentUser?.id || formData.apontamento.operador_id,
+          situacao: mappedSituacao
         },
         inspecao: formData.inspecao
       };
       
+      console.log("Dados finais para envio:", submissionData);
+      
+      if (!submissionData.apontamento.operador_id) {
+        throw new Error("Operador não identificado. Por favor, faça login novamente.");
+      }
+      
+      if (!submissionData.apontamento.caminhao_equipamento_id) {
+        throw new Error("Por favor, selecione um caminhão/equipamento.");
+      }
+      
+      if (!submissionData.apontamento.situacao) {
+        throw new Error("Por favor, selecione a situação do veículo.");
+      }
+      
       await onSubmit(submissionData);
+      console.log("Apontamento salvo com sucesso");
     } catch (error) {
       console.error("Erro ao enviar formulário:", error);
+      // O erro será tratado pelo hook pai
     } finally {
       setIsSubmitting(false);
     }
@@ -243,6 +283,14 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
       return isFinal ? "Hodômetro Final (KM)" : "Hodômetro Inicial (KM)";
     }
     return isFinal ? "Horímetro Final" : "Horímetro Inicial";
+  };
+
+  // Get the current operator's name for display
+  const getCurrentOperatorName = () => {
+    if (currentUser) {
+      return currentUser.email || 'Usuário Atual';
+    }
+    return 'Não identificado';
   };
 
   return (
@@ -296,22 +344,14 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
                 
                 <div className="space-y-2">
                   <Label htmlFor="operador_id">Operador</Label>
-                  <Select 
-                    value={formData.apontamento.operador_id || ''} 
-                    onValueChange={(value) => handleSelectChange(value, 'operador_id')}
-                    disabled={true}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o operador" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {operadoresOptions.map(operador => (
-                        <SelectItem key={operador.id} value={operador.id}>
-                          {operador.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center p-3 bg-gray-50 border border-gray-200 rounded-md">
+                    <span className="text-sm text-gray-700">
+                      {getCurrentOperatorName()}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    O operador é automaticamente definido como o usuário logado
+                  </p>
                 </div>
                 
                 <div className="space-y-2">

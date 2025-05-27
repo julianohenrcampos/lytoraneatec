@@ -1,11 +1,12 @@
 
-import React from "react";
+import React from 'react';
+import { Loader2 } from 'lucide-react';
 
 const LoadingIndicator: React.FC = () => {
   return (
-    <div className="flex justify-center items-center h-64">
-      <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full"></div>
-      <span className="ml-2">Carregando dados...</span>
+    <div className="flex items-center justify-center py-8 space-x-2">
+      <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+      <span className="text-sm text-gray-600">Carregando entregas disponíveis...</span>
     </div>
   );
 };
