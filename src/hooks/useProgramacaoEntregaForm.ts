@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,7 +11,7 @@ import { useFormSubmission } from "./programacao/useFormSubmission";
 import { useItemManagement } from "./programacao/useItemManagement";
 import { useToast } from "@/hooks/use-toast";
 import { fetchCentroCustoForProgramacao } from "@/services/centroCustoRegistroService";
-import { format } from "date-fns";
+import { getCurrentBrazilianDate, formatBrazilianDateToString } from "@/utils/timezoneUtils";
 
 export const useProgramacaoEntregaForm = (
   programacao: ProgramacaoEntregaWithItems | null,
@@ -24,12 +23,11 @@ export const useProgramacaoEntregaForm = (
   const [selectedCaminhaoId, setSelectedCaminhaoId] = useState<string | null>(null);
   const [centroCustoNome, setCentroCustoNome] = useState<string>("");
 
-  // Get current date in the correct format - SEMPRE a data atual
+  // Get current date in Brazilian timezone
   const getCurrentDate = () => {
-    const today = new Date();
-    const formatted = format(today, 'yyyy-MM-dd');
-    console.log("getCurrentDate called, returning:", formatted);
-    return formatted;
+    const currentDate = getCurrentBrazilianDate();
+    console.log("getCurrentDate called, returning Brazilian date:", currentDate);
+    return currentDate;
   };
 
   // Initialize the main form with ProgramacaoFormValues type
@@ -38,7 +36,7 @@ export const useProgramacaoEntregaForm = (
     defaultValues: {
       requisicao_id: programacao?.requisicao_id || "",
       centro_custo_id: programacao?.centro_custo_id || "",
-      data_entrega: programacao?.data_entrega || getCurrentDate(), // SEMPRE data atual se não houver programação
+      data_entrega: programacao?.data_entrega || getCurrentDate(),
       ruas: [],
       itens: [],
     },
@@ -56,7 +54,7 @@ export const useProgramacaoEntregaForm = (
       equipe_id: "",
       apontador_id: "",
       usina_id: "",
-      data_entrega: getCurrentDate(), // SEMPRE data atual
+      data_entrega: getCurrentDate(),
       cancelled: false,
       cancelReason: ""
     }
@@ -251,18 +249,18 @@ export const useProgramacaoEntregaForm = (
   useEffect(() => {
     if (isAddingItem) {
       const currentDataEntrega = form.getValues().data_entrega || getCurrentDate();
-      console.log("Resetting item form with date:", currentDataEntrega);
+      console.log("Resetting item form with Brazilian date:", currentDataEntrega);
       
       itemForm.reset({
         requisicao_id: form.getValues().requisicao_id || "",
         centro_custo_nome: centroCustoNome,
-        quantidade_massa: 0, // Always start with 0, user must enter manually
+        quantidade_massa: 0,
         caminhao_id: "",
         tipo_lancamento: "",
         equipe_id: "",
         apontador_id: "",
         usina_id: "",
-        data_entrega: currentDataEntrega, // Use current date from main form
+        data_entrega: currentDataEntrega,
         cancelled: false,
         cancelReason: ""
       });

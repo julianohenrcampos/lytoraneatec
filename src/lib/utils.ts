@@ -3,47 +3,33 @@ import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { format, parse } from "date-fns"
 import { ptBR } from "date-fns/locale"
+import { 
+  normalizeDateToBrazilianNoon, 
+  getCurrentBrazilianDate, 
+  formatBrazilianDateToString,
+  formatBrazilianDateForDisplay 
+} from "@/utils/timezoneUtils"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
 export function formatDate(dateString?: string): string {
-  if (!dateString) return "-";
-  
-  try {
-    // Check if the date is in ISO format or just a date string
-    let date: Date;
-    if (dateString.includes('T')) {
-      // ISO format
-      date = new Date(dateString);
-    } else {
-      // Just date string (YYYY-MM-DD)
-      const [year, month, day] = dateString.split('-').map(Number);
-      // Create date with noon time to avoid timezone issues
-      date = new Date(year, month - 1, day, 12, 0, 0);
-    }
-    
-    // Format the date
-    return format(date, 'dd/MM/yyyy', { locale: ptBR });
-  } catch (error) {
-    console.error("Error formatting date:", error);
-    return dateString;
-  }
+  return formatBrazilianDateForDisplay(dateString);
 }
 
 /**
  * Converte uma string de data (YYYY-MM-DD) para um objeto Date local
- * evitando problemas de timezone
+ * evitando problemas de timezone - DEPRECATED: use parseBrazilianDate
  */
 export function parseLocalDate(dateString: string): Date {
+  console.warn("parseLocalDate está deprecated. Use parseBrazilianDate do timezoneUtils");
   if (!dateString) {
     return new Date();
   }
   
   try {
     const [year, month, day] = dateString.split('-').map(Number);
-    // Cria a data em horário local (meio-dia para evitar problemas de timezone)
     return new Date(year, month - 1, day, 12, 0, 0);
   } catch (error) {
     console.error("Error parsing local date:", error);
@@ -53,58 +39,19 @@ export function parseLocalDate(dateString: string): Date {
 
 /**
  * Converte um objeto Date para string no formato YYYY-MM-DD
- * mantendo a data local (sem conversão de timezone)
+ * mantendo a data local - DEPRECATED: use formatBrazilianDateToString
  */
 export function formatDateToString(date: Date): string {
-  if (!date || isNaN(date.getTime())) {
-    return "";
-  }
-  
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  
-  return `${year}-${month}-${day}`;
+  console.warn("formatDateToString está deprecated. Use formatBrazilianDateToString do timezoneUtils");
+  return formatBrazilianDateToString(date);
 }
 
 /**
  * Normaliza uma data para meio-dia para evitar problemas de fuso horário
- * @param date A data a ser normalizada (opcional - se não fornecida, usa a data atual)
- * @returns Data normalizada para meio-dia
+ * ATUALIZADA: Agora usa timezone brasileiro
  */
 export function normalizeDateToNoon(date?: Date | string | null): Date {
-  if (!date) {
-    // Se a data não for fornecida, retorna SEMPRE a data atual normalizada para meio-dia
-    const today = new Date();
-    return new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate(),
-      12, 0, 0
-    );
-  }
-  
-  const dateObj = typeof date === 'string' ? parseLocalDate(date) : date;
-  
-  if (isNaN(dateObj.getTime())) {
-    console.error("Data inválida fornecida para normalização:", date);
-    // Retorna a data atual normalizada em caso de data inválida
-    const today = new Date();
-    return new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate(),
-      12, 0, 0
-    );
-  }
-  
-  // Configura a data para meio-dia local para evitar problemas de fuso horário
-  return new Date(
-    dateObj.getFullYear(),
-    dateObj.getMonth(),
-    dateObj.getDate(),
-    12, 0, 0
-  );
+  return normalizeDateToBrazilianNoon(date);
 }
 
 /**
@@ -125,3 +72,10 @@ export function formatNumber(value?: number | string, decimalPlaces: number = 2)
     maximumFractionDigits: decimalPlaces
   });
 }
+
+// Export Brazilian timezone functions for backwards compatibility
+export { 
+  normalizeDateToBrazilianNoon, 
+  formatBrazilianDateToString, 
+  formatBrazilianDateForDisplay 
+} from "@/utils/timezoneUtils";

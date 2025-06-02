@@ -19,7 +19,13 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn, normalizeDateToNoon } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { 
+  normalizeDateToBrazilianNoon, 
+  formatBrazilianDateToString, 
+  parseBrazilianDate, 
+  formatBrazilianDateForDisplay 
+} from "@/utils/timezoneUtils";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import CancelItemDialog from "./CancelItemDialog";
 
@@ -160,7 +166,7 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                             variant={"outline"} 
                             className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
                           >
-                            {field.value ? format(new Date(field.value), "dd/MM/yyyy", { locale: ptBR }) : <span>Selecione uma data</span>}
+                            {field.value ? formatBrazilianDateForDisplay(field.value) : <span>Selecione uma data</span>}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                           </Button>
                         </FormControl>
@@ -168,13 +174,13 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar 
                           mode="single" 
-                          selected={field.value ? new Date(field.value) : new Date()} 
+                          selected={field.value ? parseBrazilianDate(field.value) : new Date()} 
                           onSelect={(date) => {
                             if (date) {
-                              // Use a data normalizada e formate para yyyy-MM-dd
-                              const normalizedDate = normalizeDateToNoon(date);
-                              const formattedDate = format(normalizedDate, "yyyy-MM-dd");
-                              console.log("Date selected in calendar:", date, "normalized:", normalizedDate, "formatted:", formattedDate);
+                              // ✅ Usar timezone brasileiro para salvar a data corretamente
+                              const normalizedDate = normalizeDateToBrazilianNoon(date);
+                              const formattedDate = formatBrazilianDateToString(normalizedDate);
+                              console.log("Date selected in calendar:", date, "normalized Brazilian:", normalizedDate, "formatted:", formattedDate);
                               field.onChange(formattedDate);
                             }
                           }} 
@@ -460,7 +466,7 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                                 variant={"outline"} 
                                 className={cn("w-full pl-3 text-left font-normal bg-white", !field.value && "text-muted-foreground")}
                               >
-                                {field.value ? format(new Date(field.value), "dd/MM/yyyy", { locale: ptBR }) : <span>Selecione uma data</span>}
+                                {field.value ? formatBrazilianDateForDisplay(field.value) : <span>Selecione uma data</span>}
                                 <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                               </Button>
                             </FormControl>
@@ -468,13 +474,13 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                           <PopoverContent className="w-auto p-0" align="start">
                             <Calendar 
                               mode="single" 
-                              selected={field.value ? new Date(field.value) : new Date()} 
+                              selected={field.value ? parseBrazilianDate(field.value) : new Date()} 
                               onSelect={date => {
                                 if (date) {
-                                  // Use a data normalizada e formate para yyyy-MM-dd
-                                  const normalizedDate = normalizeDateToNoon(date);
-                                  const formattedDate = format(normalizedDate, "yyyy-MM-dd");
-                                  console.log("Item date selected in calendar:", date, "normalized:", normalizedDate, "formatted:", formattedDate);
+                                  // ✅ Usar timezone brasileiro para salvar a data corretamente
+                                  const normalizedDate = normalizeDateToBrazilianNoon(date);
+                                  const formattedDate = formatBrazilianDateToString(normalizedDate);
+                                  console.log("Item date selected in calendar:", date, "normalized Brazilian:", normalizedDate, "formatted:", formattedDate);
                                   field.onChange(formattedDate);
                                 }
                               }} 
