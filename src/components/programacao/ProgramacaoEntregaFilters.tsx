@@ -8,12 +8,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon, Search, X } from "lucide-react";
-import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import type { ProgramacaoEntregaFilters as FiltersType } from "@/types/programacaoEntrega";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { 
+  normalizeDateToBrazilianNoon, 
+  formatBrazilianDateToString, 
+  formatBrazilianDateForDisplay 
+} from "@/utils/timezoneUtils";
 
 interface FiltersProps {
   filters: FiltersType;
@@ -55,12 +59,22 @@ const ProgramacaoEntregaFilters: React.FC<FiltersProps> = ({
 
   const handleStartDateChange = (date: Date | undefined) => {
     setStartDate(date);
-    onFilterChange('data_inicio', date);
+    if (date) {
+      const normalizedDate = normalizeDateToBrazilianNoon(date);
+      onFilterChange('data_inicio', normalizedDate);
+    } else {
+      onFilterChange('data_inicio', undefined);
+    }
   };
 
   const handleEndDateChange = (date: Date | undefined) => {
     setEndDate(date);
-    onFilterChange('data_fim', date);
+    if (date) {
+      const normalizedDate = normalizeDateToBrazilianNoon(date);
+      onFilterChange('data_fim', normalizedDate);
+    } else {
+      onFilterChange('data_fim', undefined);
+    }
   };
 
   const hasFilters = Object.values(filters).some(value => 
@@ -120,7 +134,7 @@ const ProgramacaoEntregaFilters: React.FC<FiltersProps> = ({
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {startDate ? format(startDate, 'dd/MM/yyyy', { locale: ptBR }) : "Data início"}
+                    {startDate ? formatBrazilianDateForDisplay(formatBrazilianDateToString(startDate)) : "Data início"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -130,6 +144,7 @@ const ProgramacaoEntregaFilters: React.FC<FiltersProps> = ({
                     onSelect={handleStartDateChange}
                     initialFocus
                     locale={ptBR}
+                    className="pointer-events-auto"
                   />
                 </PopoverContent>
               </Popover>
@@ -144,7 +159,7 @@ const ProgramacaoEntregaFilters: React.FC<FiltersProps> = ({
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {endDate ? format(endDate, 'dd/MM/yyyy', { locale: ptBR }) : "Data fim"}
+                    {endDate ? formatBrazilianDateForDisplay(formatBrazilianDateToString(endDate)) : "Data fim"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -157,6 +172,7 @@ const ProgramacaoEntregaFilters: React.FC<FiltersProps> = ({
                     disabled={(date) => 
                       startDate ? date < startDate : false
                     }
+                    className="pointer-events-auto"
                   />
                 </PopoverContent>
               </Popover>

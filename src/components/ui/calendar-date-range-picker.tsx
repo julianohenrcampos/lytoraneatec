@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
+import { 
+  normalizeDateToBrazilianNoon 
+} from "@/utils/timezoneUtils";
 
 interface CalendarDateRangePickerProps {
   date?: DateRange;
@@ -12,17 +15,17 @@ interface CalendarDateRangePickerProps {
 }
 
 export function CalendarDateRangePicker({ date, onDateChange }: CalendarDateRangePickerProps) {
-  // Função de manipulação que preserva a data local correta, sem deslocamento de timezone
+  // Use Brazilian timezone normalization for date handling
   const handleDateChange = (range: DateRange | undefined) => {
     if (!range) {
       onDateChange(undefined);
       return;
     }
 
-    // Certifica-se de que as datas são preservadas como datas locais sem conversão UTC
+    // Use Brazilian timezone normalization functions
     const normalizedRange: DateRange = {
-      from: range.from ? new Date(range.from.getFullYear(), range.from.getMonth(), range.from.getDate(), 12, 0, 0) : undefined,
-      to: range.to ? new Date(range.to.getFullYear(), range.to.getMonth(), range.to.getDate(), 12, 0, 0) : undefined
+      from: range.from ? normalizeDateToBrazilianNoon(range.from) : undefined,
+      to: range.to ? normalizeDateToBrazilianNoon(range.to) : undefined
     };
 
     onDateChange(normalizedRange);

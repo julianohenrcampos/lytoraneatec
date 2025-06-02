@@ -2,8 +2,6 @@
 import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ProgramacaoEntregaWithItems } from "@/types/programacaoEntrega";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Truck, Calendar, Building, Table } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
@@ -16,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 
 interface ProgramacaoEntregaDetailsModalProps {
   isOpen: boolean;
@@ -29,14 +28,6 @@ const ProgramacaoEntregaDetailsModal: React.FC<ProgramacaoEntregaDetailsModalPro
   programacao,
 }) => {
   if (!programacao) return null;
-
-  const formatDate = (dateString: string) => {
-    try {
-      return format(new Date(dateString), 'dd/MM/yyyy', { locale: ptBR });
-    } catch (e) {
-      return dateString;
-    }
-  };
 
   const renderStatusBadge = (status: string | undefined) => {
     if (status === 'Cancelada') {
@@ -85,7 +76,7 @@ const ProgramacaoEntregaDetailsModal: React.FC<ProgramacaoEntregaDetailsModalPro
               <dl className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">Data de Entrega:</dt>
-                  <dd className="font-medium">{formatDate(programacao.data_entrega)}</dd>
+                  <dd className="font-medium">{formatBrazilianDateForDisplay(programacao.data_entrega)}</dd>
                 </div>
               </dl>
             </CardContent>

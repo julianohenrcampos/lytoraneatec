@@ -4,7 +4,7 @@ import { UseFormReturn } from "react-hook-form";
 import { ProgramacaoEntregaWithItems } from "@/types/programacaoEntrega";
 import { ProgramacaoFormValues, ItemFormValues } from "@/validations/programacaoSchema";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
+import { getCurrentBrazilianDate } from "@/utils/timezoneUtils";
 
 export const useFormInitialization = (
   programacao: ProgramacaoEntregaWithItems | null,
@@ -16,13 +16,6 @@ export const useFormInitialization = (
     areaTotal: 0,
     pesoTotal: 0,
   });
-
-  // Get current date in the correct format - SEMPRE a data atual
-  const getCurrentDate = () => {
-    const today = new Date();
-    console.log("Getting current date:", today, "formatted:", format(today, 'yyyy-MM-dd'));
-    return format(today, 'yyyy-MM-dd');
-  };
 
   useEffect(() => {
     const initializeFormWithExistingData = async () => {
@@ -55,9 +48,9 @@ export const useFormInitialization = (
           setSelectedRequisicaoId(programacao.requisicao_id);
         }
       } else {
-        // SEMPRE usar a data atual quando criar nova programação
-        const currentDate = getCurrentDate();
-        console.log("Creating new programação with current date:", currentDate);
+        // Use Brazilian timezone current date when creating new programação
+        const currentDate = getCurrentBrazilianDate();
+        console.log("Creating new programação with Brazilian current date:", currentDate);
         
         form.reset({
           requisicao_id: "",

@@ -11,11 +11,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { PencilIcon, Eye, Trash2 } from "lucide-react";
 import { ProgramacaoEntrega } from "@/types/programacaoEntrega";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
-import { normalizeDateToNoon } from "@/lib/utils";
+import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 
 interface ProgramacaoEntregaTableProps {
   programacoes: ProgramacaoEntrega[];
@@ -32,17 +30,6 @@ const ProgramacaoEntregaTable: React.FC<ProgramacaoEntregaTableProps> = ({
   onEdit,
   onDelete,
 }) => {
-  // Normalize the date to avoid timezone issues and ensure correct display
-  const formatProgramacaoDate = (dateString: string) => {
-    try {
-      const normalizedDate = normalizeDateToNoon(dateString);
-      return format(normalizedDate, 'dd/MM/yyyy', { locale: ptBR });
-    } catch (error) {
-      console.error("Error formatting programacao date:", error, "for date:", dateString);
-      return dateString;
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="w-full flex justify-center py-8">
@@ -92,7 +79,7 @@ const ProgramacaoEntregaTable: React.FC<ProgramacaoEntregaTableProps> = ({
                 </TableCell>
                 <TableCell>
                   {programacao.data_entrega
-                    ? formatProgramacaoDate(programacao.data_entrega)
+                    ? formatBrazilianDateForDisplay(programacao.data_entrega)
                     : 'N/A'
                   }
                 </TableCell>

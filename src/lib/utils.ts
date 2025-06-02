@@ -1,8 +1,6 @@
 
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { format, parse } from "date-fns"
-import { ptBR } from "date-fns/locale"
 import { 
   normalizeDateToBrazilianNoon, 
   getCurrentBrazilianDate, 
@@ -77,5 +75,6 @@ export function formatNumber(value?: number | string, decimalPlaces: number = 2)
 export { 
   normalizeDateToBrazilianNoon, 
   formatBrazilianDateToString, 
-  formatBrazilianDateForDisplay 
+  formatBrazilianDateForDisplay,
+  getCurrentBrazilianDate
 } from "@/utils/timezoneUtils";

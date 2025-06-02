@@ -15,12 +15,16 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { 
+  normalizeDateToBrazilianNoon, 
+  formatBrazilianDateToString 
+} from "@/utils/timezoneUtils";
 
 interface DatePickerWithRangeProps {
   value?: DateRange;
   onChange: (value: DateRange | undefined) => void;
   className?: string;
-  id?: string; // Added id prop to the interface
+  id?: string;
 }
 
 export function DatePickerWithRange({
@@ -29,17 +33,17 @@ export function DatePickerWithRange({
   className,
   id,
 }: DatePickerWithRangeProps) {
-  // Função de manipulação que preserva a data local correta, sem deslocamento de timezone
+  // Use Brazilian timezone normalization for date handling
   const handleDateChange = (range: DateRange | undefined) => {
     if (!range) {
       onChange(undefined);
       return;
     }
 
-    // Certifica-se de que as datas são preservadas como datas locais sem conversão UTC
+    // Use Brazilian timezone normalization functions
     const normalizedRange: DateRange = {
-      from: range.from ? new Date(range.from.getFullYear(), range.from.getMonth(), range.from.getDate(), 12, 0, 0) : undefined,
-      to: range.to ? new Date(range.to.getFullYear(), range.to.getMonth(), range.to.getDate(), 12, 0, 0) : undefined
+      from: range.from ? normalizeDateToBrazilianNoon(range.from) : undefined,
+      to: range.to ? normalizeDateToBrazilianNoon(range.to) : undefined
     };
 
     onChange(normalizedRange);

@@ -1,6 +1,6 @@
 
 import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
-import { format } from "date-fns";
+import { formatBrazilianDateForDisplay, getCurrentBrazilianDate } from "@/utils/timezoneUtils";
 
 /**
  * Export to Excel function - modified to accept ListaProgramacaoEntrega array
@@ -9,7 +9,7 @@ export const exportRegistrosAplicacaoToExcel = (entregas: ListaProgramacaoEntreg
   import('xlsx').then((XLSX) => {
     const exportData = entregas.map(entrega => {
       return {
-        'Data da Aplicação': format(new Date(), 'yyyy-MM-dd'),
+        'Data da Aplicação': getCurrentBrazilianDate(),
         'Logradouro': entrega.logradouro || 'N/A',
         'Caminhão': entrega.caminhao 
           ? `${entrega.caminhao.placa} - ${entrega.caminhao.modelo}` 
@@ -26,7 +26,7 @@ export const exportRegistrosAplicacaoToExcel = (entregas: ListaProgramacaoEntreg
     
     XLSX.utils.book_append_sheet(wb, ws, 'Entregas Enviadas');
     
-    const fileName = `entregas-enviadas-${format(new Date(), 'dd-MM-yyyy')}.xlsx`;
+    const fileName = `entregas-enviadas-${getCurrentBrazilianDate().replace(/-/g, '')}.xlsx`;
     
     XLSX.writeFile(wb, fileName);
   }).catch(error => {
