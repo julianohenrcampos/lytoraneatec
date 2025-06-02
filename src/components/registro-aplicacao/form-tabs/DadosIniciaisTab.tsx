@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { parseLocalDate, formatDateToString } from "@/lib/utils";
 import { RegistroAplicacaoSchema } from "@/validations/registroAplicacaoSchema";
 import { RegistroCarga } from "@/types/registroCargas";
 
@@ -24,18 +25,58 @@ const DadosIniciaisTab: React.FC<DadosIniciaisTabProps> = ({
   onNext,
   registroCarga 
 }) => {
-  // Função para manipular a seleção de data sem deslocamento de timezone
+  // Função melhorada para seleção de data que evita problemas de timezone
   const handleDateSelect = (date: Date | undefined) => {
+    console.log("📅 Date selection triggered:", date);
+    
     if (!date) {
+      console.log("❌ No date selected, clearing field");
       form.setValue("data_aplicacao", "");
       return;
     }
     
-    // Cria uma nova data com a hora meio-dia para evitar problemas de timezone
-    const normalizedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
-    // Formata a data para o formato esperado yyyy-MM-dd
-    form.setValue("data_aplicacao", format(normalizedDate, "yyyy-MM-dd"));
+    try {
+      // Cria uma data local normalizada para evitar problemas de timezone
+      const localDate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
+      const formattedDate = formatDateToString(localDate);
+      
+      console.log("✅ Setting date:", {
+        originalSelected: date,
+        localNormalized: localDate,
+        formattedString: formattedDate,
+        dayOfMonth: localDate.getDate(),
+        month: localDate.getMonth() + 1,
+        year: localDate.getFullYear()
+      });
+      
+      // Define o valor no formulário
+      form.setValue("data_aplicacao", formattedDate);
+      
+      // Força a atualização do formulário
+      form.trigger("data_aplicacao");
+      
+      console.log("📝 Form value after selection:", form.getValues("data_aplicacao"));
+    } catch (error) {
+      console.error("❌ Error setting date:", error);
+    }
   };
+
+  // Função para manipular clique direto no dia (backup para problemas de onSelect)
+  const handleDayClick = (day: Date, modifiers: any) => {
+    console.log("🖱️ Day clicked:", day, "modifiers:", modifiers);
+    
+    if (!modifiers.disabled && !modifiers.outside) {
+      handleDateSelect(day);
+    }
+  };
+
+  // Obtém o valor atual da data para exibição
+  const currentDateValue = form.watch("data_aplicacao");
+  console.log("👀 Current form date value:", currentDateValue);
+
+  // Converte a string de data para Date object para o componente Calendar
+  const selectedDate = currentDateValue ? parseLocalDate(currentDateValue) : undefined;
+  console.log("📊 Selected date for calendar:", selectedDate);
 
   return (
     <div className="space-y-4">
@@ -45,27 +86,31 @@ const DadosIniciaisTab: React.FC<DadosIniciaisTabProps> = ({
           <Popover>
             <PopoverTrigger asChild>
               <Button
+                type="button"
                 variant={"outline"}
                 className={cn(
                   "w-full justify-start text-left font-normal",
-                  !form.watch("data_aplicacao") && "text-muted-foreground"
+                  !currentDateValue && "text-muted-foreground"
                 )}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {form.watch("data_aplicacao") ? (
-                  format(new Date(form.watch("data_aplicacao")), "dd/MM/yyyy", { locale: ptBR })
+                {currentDateValue ? (
+                  format(parseLocalDate(currentDateValue), "dd/MM/yyyy", { locale: ptBR })
                 ) : (
                   <span>Selecione uma data</span>
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
+            <PopoverContent className="w-auto p-0 z-[99999] bg-white border shadow-lg" align="start">
               <Calendar
                 mode="single"
-                selected={form.watch("data_aplicacao") ? new Date(form.watch("data_aplicacao")) : undefined}
+                selected={selectedDate}
                 onSelect={handleDateSelect}
+                onDayClick={handleDayClick}
                 initialFocus
                 className="pointer-events-auto"
+                disabled={(date) => date < new Date("2000-01-01") || date > new Date("2030-12-31")}
+                fixedWeeks
               />
             </PopoverContent>
           </Popover>

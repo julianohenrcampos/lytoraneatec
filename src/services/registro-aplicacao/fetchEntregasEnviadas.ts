@@ -1,161 +1,222 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
-import { format, addDays, subDays } from "date-fns";
+import { format } from "date-fns";
 
 /**
- * Fetch all entregas with massa_remanescente > 0 (prioritizing 'Enviada' status but including others)
- * @param date Optional date filter - if provided, searches around this date (±2 days)
- * @param equipeId Optional team filter - if provided, only shows deliveries for this team
+ * Fetch entregas enviadas and entregues that are available for registro aplicacao
+ * Now includes finalized deliveries for viewing and better debugging
  */
 export const fetchEntregasEnviadas = async (
-  date?: Date, 
+  selectedDate?: Date,
   equipeId?: string
 ): Promise<ListaProgramacaoEntrega[]> => {
   try {
-    console.log("🔍 Fetching entregas with massa remanescente > 0:", { date, equipeId });
+    console.log("🔍 Fetching entregas - Input params:", {
+      selectedDate: selectedDate ? format(selectedDate, "yyyy-MM-dd") : "ALL DATES",
+      equipeId: equipeId || "ALL TEAMS"
+    });
     
+    // Query principal nas tabelas ao invés da view
     let query = supabase
       .from("bd_lista_programacao_entrega")
       .select(`
-        *,
-        caminhao:caminhao_id (id, placa, modelo),
-        equipe:equipe_id (id, nome_equipe),
-        usina:usina_id (id, nome_usina),
-        requisicao:requisicao_id (
-          id,
-          numero,
-          centro_custo:centro_custo_id (id, nome_centro_custo)
-        )
+        id,
+        logradouro,
+        quantidade_massa,
+        data_entrega,
+        tipo_lancamento,
+        status,
+        apontador_id,
+        caminhao_id,
+        equipe_id,
+        usina_id,
+        requisicao_id,
+        programacao_entrega_id,
+        programacao_id,
+        created_at,
+        updated_at
       `)
-      .in("status", ["Enviada", "Pendente"]); // Include both Enviada and Pendente statuses
-    
-    // Apply flexible date filter if provided
-    if (date) {
-      // Search in a range of ±2 days from the specified date
-      const startDate = format(subDays(date, 2), "yyyy-MM-dd");
-      const endDate = format(addDays(date, 2), "yyyy-MM-dd");
-      console.log("📅 Applying flexible date range:", { startDate, endDate });
-      query = query.gte("data_entrega", startDate).lte("data_entrega", endDate);
+      .in("status", ["Enviada", "Entregue", "Pendente"]); // Incluir mais status
+
+    // Filter by date if provided - melhor tratamento de data
+    if (selectedDate) {
+      const formattedDate = format(selectedDate, "yyyy-MM-dd");
+      console.log("📅 Filtering by date:", formattedDate);
+      query = query.eq("data_entrega", formattedDate);
     } else {
-      // If no date provided, search for recent deliveries (last 7 days and next 7 days)
-      const startDate = format(subDays(new Date(), 7), "yyyy-MM-dd");
-      const endDate = format(addDays(new Date(), 7), "yyyy-MM-dd");
-      console.log("📅 No date specified, using recent range:", { startDate, endDate });
-      query = query.gte("data_entrega", startDate).lte("data_entrega", endDate);
+      console.log("📅 No date filter - showing all dates");
     }
-    
-    // Apply team filter if provided (for non-SuperAdmin users)
+
+    // Filter by equipe if provided
     if (equipeId) {
-      console.log("👥 Applying team filter for equipe:", equipeId);
-      query = query.eq("equipe_id", equipeId);
+      console.log("👥 Filtering by equipe:", equipeId);
+      query = query.eq("apontador_id", equipeId);
+    } else {
+      console.log("👥 No team filter - showing all teams");
     }
-    
-    const { data, error } = await query.order("data_entrega", { ascending: false });
-    
+
+    // Ordenar por data mais recente
+    query = query.order("data_entrega", { ascending: false })
+                 .order("created_at", { ascending: false });
+
+    const { data, error } = await query;
+
     if (error) {
       console.error("❌ Error fetching entregas:", error);
       throw error;
     }
+
+    console.log(`📊 Raw data fetched: ${data?.length || 0} records`);
+    console.log("📋 Raw data sample:", data?.slice(0, 3));
     
     if (!data || data.length === 0) {
-      console.log("📭 No entregas found with current filters");
+      console.log("⚠️ No entregas found with current filters");
       return [];
     }
+
+    // Buscar dados relacionados para enriquecer os resultados
+    const caminhaoIds = [...new Set(data.map(item => item.caminhao_id).filter(Boolean))];
+    const equipeIds = [...new Set(data.map(item => item.equipe_id).filter(Boolean))];
+    const usinaIds = [...new Set(data.map(item => item.usina_id).filter(Boolean))];
+
+    console.log("🔗 Fetching related data:", {
+      caminhoes: caminhaoIds.length,
+      equipes: equipeIds.length,
+      usinas: usinaIds.length
+    });
+
+    // Fetch dados relacionados em paralelo
+    const [caminhoesResult, equipesResult, usinasResult] = await Promise.all([
+      caminhaoIds.length > 0 ? supabase
+        .from("bd_caminhoes_equipamentos")
+        .select("id, placa, modelo, marca")
+        .in("id", caminhaoIds) : Promise.resolve({ data: [] }),
+      equipeIds.length > 0 ? supabase
+        .from("bd_equipes")
+        .select("id, nome_equipe")
+        .in("id", equipeIds) : Promise.resolve({ data: [] }),
+      usinaIds.length > 0 ? supabase
+        .from("bd_usinas")
+        .select("id, nome_usina")
+        .in("id", usinaIds) : Promise.resolve({ data: [] })
+    ]);
+
+    // Create lookup maps with proper typing
+    const caminhoesMap = new Map();
+    caminhoesResult.data?.forEach(c => caminhoesMap.set(c.id, c));
     
-    console.log(`📊 Found ${data.length} entregas before massa calculation`);
+    const equipesMap = new Map();
+    equipesResult.data?.forEach(e => equipesMap.set(e.id, e));
     
-    // Para cada entrega, calcular a massa remanescente usando a função do banco
-    const entregasComMassaRemanescente = await Promise.all(
-      data.map(async (entrega) => {
+    const usinasMap = new Map();
+    usinasResult.data?.forEach(u => usinasMap.set(u.id, u));
+    
+    console.log("🗺️ Created lookup maps:", {
+      caminhoes: caminhoesMap.size,
+      equipes: equipesMap.size,
+      usinas: usinasMap.size
+    });
+
+    // Para cada entrega, calcular massa remanescente corretamente
+    const entregasComMassa = await Promise.all(
+      data.map(async (item) => {
+        let massaRemanescente = item.quantidade_massa; // Default para quantidade original
+        let massaTotalCarga = item.quantidade_massa;
+
         try {
-          // Primeiro verificar se existe registro de carga
-          const { data: registroCarga, error: registroError } = await supabase
+          // Buscar registro de carga se existir
+          const { data: cargaData } = await supabase
             .from("bd_registro_cargas")
-            .select("id, tonelada_real")
-            .eq("lista_entrega_id", entrega.id)
+            .select("tonelada_real")
+            .eq("lista_entrega_id", item.id)
             .maybeSingle();
-          
-          if (registroError) {
-            console.error(`⚠️ Error checking registro carga for entrega ${entrega.id}:`, registroError);
-            return { ...entrega, massa_remanescente: 0 };
+
+          if (cargaData?.tonelada_real) {
+            massaTotalCarga = cargaData.tonelada_real;
+
+            // Buscar total já aplicado para esta entrega específica
+            const { data: aplicadoData } = await supabase
+              .from("bd_registro_apontamento_aplicacao")
+              .select("tonelada_aplicada")
+              .eq("lista_entrega_id", item.id);
+
+            const totalJaAplicado = aplicadoData?.reduce((sum, app) => sum + (app.tonelada_aplicada || 0), 0) || 0;
+            
+            // Fórmula correta: massa remanescente = massa total da carga - total já aplicado
+            massaRemanescente = Math.max(0, massaTotalCarga - totalJaAplicado);
+            
+            console.log(`📊 Massa calculation for ${item.logradouro}:`, {
+              massaTotalCarga,
+              totalJaAplicado,
+              massaRemanescente
+            });
           }
-          
-          if (!registroCarga) {
-            console.log(`📋 No registro carga found for entrega ${entrega.id}`);
-            return { ...entrega, massa_remanescente: 0 };
-          }
-          
-          // Chamar a função do banco para calcular massa remanescente
-          const { data: massaResult, error: massaError } = await supabase
-            .rpc('calcular_massa_remanescente', { entrega_id: entrega.id });
-          
-          if (massaError) {
-            console.error(`⚠️ Error calculating massa remanescente for entrega ${entrega.id}:`, massaError);
-            return { ...entrega, massa_remanescente: 0 };
-          }
-          
-          const massaRemanescente = massaResult || 0;
-          
-          console.log(`📋 Entrega ${entrega.logradouro} (${entrega.id.slice(0, 8)}...):`, {
-            status: entrega.status,
-            data_entrega: entrega.data_entrega,
-            massa_remanescente: massaRemanescente,
-            caminhao: entrega.caminhao?.placa || 'N/A',
-            has_registro_carga: !!registroCarga
-          });
-          
-          return {
-            ...entrega,
-            massa_remanescente: massaRemanescente
-          };
         } catch (error) {
-          console.error(`💥 Error processing entrega ${entrega.id}:`, error);
-          return { ...entrega, massa_remanescente: 0 };
+          console.warn(`⚠️ Error calculating massa for entrega ${item.id}:`, error);
         }
+
+        return {
+          ...item,
+          massa_remanescente: massaRemanescente,
+          massa_total_carga: massaTotalCarga
+        };
       })
     );
     
-    // Filtrar apenas entregas com massa remanescente > 0
-    const entregasDisponiveis = entregasComMassaRemanescente.filter(
-      entrega => entrega.massa_remanescente > 0
-    );
-    
-    // Priorizar entregas com status 'Enviada', mas incluir todas com massa > 0
-    const entregasOrdenadas = entregasDisponiveis.sort((a, b) => {
-      // Primeiro critério: status 'Enviada' tem prioridade
-      if (a.status === 'Enviada' && b.status !== 'Enviada') return -1;
-      if (a.status !== 'Enviada' && b.status === 'Enviada') return 1;
-      
-      // Segundo critério: data mais recente
-      if (a.data_entrega !== b.data_entrega) {
-        return new Date(b.data_entrega).getTime() - new Date(a.data_entrega).getTime();
-      }
-      
-      // Terceiro critério: maior massa remanescente
-      return (b.massa_remanescente || 0) - (a.massa_remanescente || 0);
+    // Transform data to match ListaProgramacaoEntrega interface
+    const entregas: ListaProgramacaoEntrega[] = entregasComMassa.map(item => {
+      const caminhao = item.caminhao_id ? caminhoesMap.get(item.caminhao_id) : undefined;
+      const equipe = item.equipe_id ? equipesMap.get(item.equipe_id) : undefined;
+      const usina = item.usina_id ? usinasMap.get(item.usina_id) : undefined;
+
+      return {
+        id: item.id,
+        logradouro: item.logradouro,
+        quantidade_massa: item.quantidade_massa,
+        data_entrega: item.data_entrega,
+        tipo_lancamento: item.tipo_lancamento,
+        status: item.status,
+        apontador_id: item.apontador_id,
+        massa_remanescente: item.massa_remanescente,
+        massa_total_carga: item.massa_total_carga,
+        caminhao_id: item.caminhao_id,
+        equipe_id: item.equipe_id,
+        usina_id: item.usina_id,
+        requisicao_id: item.requisicao_id,
+        programacao_entrega_id: item.programacao_entrega_id,
+        programacao_id: item.programacao_id,
+        created_at: item.created_at || new Date().toISOString(),
+        updated_at: item.updated_at || new Date().toISOString(),
+        // Add the related data with proper fallbacks
+        caminhao: caminhao ? {
+          id: caminhao.id,
+          placa: caminhao.placa || 'N/A',
+          modelo: caminhao.modelo || 'N/A',
+          marca: caminhao.marca
+        } : undefined,
+        equipe: equipe ? {
+          id: equipe.id,
+          nome_equipe: equipe.nome_equipe || 'N/A'
+        } : undefined,
+        usina: usina ? {
+          id: usina.id,
+          nome_usina: usina.nome_usina || 'N/A'
+        } : undefined
+      };
     });
+
+    console.log(`✅ Final processed entregas: ${entregas.length}`);
+    console.log("📋 Sample entrega:", entregas[0]);
     
-    console.log(`✅ Final result: ${entregasDisponiveis.length} entregas with massa > 0`);
-    console.log("📈 Status breakdown:", {
-      enviada: entregasDisponiveis.filter(e => e.status === 'Enviada').length,
-      pendente: entregasDisponiveis.filter(e => e.status === 'Pendente').length,
-      outros: entregasDisponiveis.filter(e => !['Enviada', 'Pendente'].includes(e.status)).length
-    });
-    
-    if (entregasOrdenadas.length > 0) {
-      console.log("🎯 Top 3 entregas disponíveis:", 
-        entregasOrdenadas.slice(0, 3).map(e => ({
-          logradouro: e.logradouro,
-          data_entrega: e.data_entrega,
-          status: e.status,
-          massa: e.massa_remanescente,
-          caminhao: e.caminhao?.placa
-        }))
-      );
-    }
-    
-    return entregasOrdenadas as ListaProgramacaoEntrega[];
+    // Log estatísticas por status
+    const statusStats = entregas.reduce((acc, e) => {
+      acc[e.status] = (acc[e.status] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    console.log("📊 Status distribution:", statusStats);
+
+    return entregas;
   } catch (error) {
     console.error("💥 Unexpected error fetching entregas:", error);
     throw error;

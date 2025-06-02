@@ -49,10 +49,10 @@ export const handleFormSubmission = async (
       area_calculada: data.area_calculada !== null ? Number(data.area_calculada) : null,
       tonelada_aplicada: data.tonelada_aplicada !== null ? Number(data.tonelada_aplicada) : null,
       espessura: data.espessura !== null ? Number(data.espessura) : null,
-      espessura_calculada: data.espessura_calculada !== null ? Number(data.espessura_calculada) : null,
       hora_saida_caminhao: data.hora_saida_caminhao,
       estaca_final: data.estaca_final !== null ? Number(data.estaca_final) : null,
-      anotacoes_apontador: data.anotacoes_apontador
+      anotacoes_apontador: data.anotacoes_apontador,
+      usar_massa_total_para_espessura: data.usar_massa_total_para_espessura
     };
     
     try {

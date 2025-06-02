@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,7 +8,7 @@ import { useRegistroAplicacaoForm } from "@/hooks/useRegistroAplicacaoForm";
 import { fetchRegistroCargaByListaEntregaId } from "@/services/registroCargaService";
 import { useToast } from "@/hooks/use-toast";
 import { useFormTabs } from "@/hooks/useFormTabs";
-import { getEspessuraStatusClass, getEspessuraStatusText, getEspessuraCalculadaStatusClass, getEspessuraCalculadaStatusText } from "./utils/espessuraUtils";
+import { getEspessuraStatusClass, getEspessuraStatusText } from "./utils/espessuraUtils";
 
 // Import components
 import LoadingIndicator from "./LoadingIndicator";
@@ -24,6 +23,11 @@ interface RegistroAplicacaoFormProps {
   onClose: () => void;
   onSuccess: () => void;
   existingRegistro?: RegistroAplicacao; // New optional prop for editing
+  preSelectedData?: {
+    registroCarga: any;
+    logradouroId?: string;
+    logradouroName?: string;
+  };
 }
 
 const RegistroAplicacaoForm: React.FC<RegistroAplicacaoFormProps> = ({
@@ -31,7 +35,8 @@ const RegistroAplicacaoForm: React.FC<RegistroAplicacaoFormProps> = ({
   entrega,
   onClose,
   onSuccess,
-  existingRegistro
+  existingRegistro,
+  preSelectedData
 }) => {
   const { toast } = useToast();
   const { activeTab, setActiveTab, handleNext, handlePrevious } = useFormTabs();
@@ -43,14 +48,21 @@ const RegistroAplicacaoForm: React.FC<RegistroAplicacaoFormProps> = ({
     calculatedArea,
     calculatedEspessura,
     calculatedToneladaAplicada,
-    calculatedEspessuraCalculada,
     espessuraStatus,
-    espessuraCalculadaStatus,
     onSubmit,
     initializeFromEntrega,
     massaRemanescente,
     exceededAvailableMass
-  } = useRegistroAplicacaoForm(onSuccess, existingRegistro); // Pass existing data to hook
+  } = useRegistroAplicacaoForm(
+    onSuccess, 
+    existingRegistro,
+    preSelectedData ? {
+      entrega,
+      registroCarga: preSelectedData.registroCarga,
+      logradouroId: preSelectedData.logradouroId,
+      logradouroName: preSelectedData.logradouroName
+    } : undefined
+  );
 
   // Store the registro carga data
   const [registroCarga, setRegistroCarga] = useState<any>(null);
@@ -66,8 +78,12 @@ const RegistroAplicacaoForm: React.FC<RegistroAplicacaoFormProps> = ({
     try {
       let registroCargaData;
       
+      // If we have pre-selected data, use it
+      if (preSelectedData?.registroCarga) {
+        registroCargaData = preSelectedData.registroCarga;
+      }
       // If editing, use the registro_carga from the existing record
-      if (existingRegistro?.registro_carga) {
+      else if (existingRegistro?.registro_carga) {
         registroCargaData = existingRegistro.registro_carga;
       } else {
         // If creating new, fetch by lista_entrega_id
@@ -86,8 +102,8 @@ const RegistroAplicacaoForm: React.FC<RegistroAplicacaoFormProps> = ({
       
       setRegistroCarga(registroCargaData);
       
-      // Only initialize from entrega if not editing (existingRegistro will handle initialization)
-      if (!existingRegistro) {
+      // Only initialize from entrega if not editing and no pre-selected data
+      if (!existingRegistro && !preSelectedData) {
         await initializeFromEntrega(entrega, registroCargaData);
       }
     } catch (error) {
@@ -105,11 +121,9 @@ const RegistroAplicacaoForm: React.FC<RegistroAplicacaoFormProps> = ({
 
   const handleFormSubmit = form.handleSubmit(onSubmit);
   const espessuraStatusClassName = getEspessuraStatusClass(espessuraStatus);
-  const espessuraCalculadaStatusClassName = getEspessuraCalculadaStatusClass(espessuraCalculadaStatus);
   
-  // Fix: Use the imported utility functions directly instead of calling itself recursively
+  // Get status text function
   const getStatusText = () => getEspessuraStatusText(espessuraStatus);
-  const getCalculadaStatusText = () => getEspessuraCalculadaStatusText(espessuraCalculadaStatus);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -136,11 +150,8 @@ const RegistroAplicacaoForm: React.FC<RegistroAplicacaoFormProps> = ({
               espessuraStatusClass={espessuraStatusClassName}
               getEspessuraStatusText={getStatusText}
               registroCarga={registroCarga}
-              calculatedEspessuraCalculada={calculatedEspessuraCalculada}
               calculatedToneladaAplicada={calculatedToneladaAplicada}
               massaRemanescente={massaRemanescente}
-              espessuraCalculadaStatusClass={espessuraCalculadaStatusClassName}
-              getEspessuraCalculadaStatusText={getCalculadaStatusText}
               exceededAvailableMass={exceededAvailableMass}
             />
 
@@ -176,9 +187,7 @@ const RegistroAplicacaoForm: React.FC<RegistroAplicacaoFormProps> = ({
                     calculatedArea={calculatedArea}
                     calculatedEspessura={calculatedEspessura}
                     calculatedToneladaAplicada={calculatedToneladaAplicada}
-                    calculatedEspessuraCalculada={calculatedEspessuraCalculada}
                     espessuraStatusClass={espessuraStatusClassName}
-                    espessuraCalculadaStatusClass={espessuraCalculadaStatusClassName}
                     registroCarga={registroCarga}
                     exceededAvailableMass={exceededAvailableMass}
                   />

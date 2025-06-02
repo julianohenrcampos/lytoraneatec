@@ -45,7 +45,9 @@ export const useFormInitialization = (
             apontador_id: item.apontador_id,
             usina_id: item.usina_id,
             data_entrega: item.data_entrega || programacao.data_entrega,
-            status: item.status || (item.cancelled ? 'Cancelada' : 'Pendente'),
+            status: (item.status === 'Pendente' || item.status === 'Enviada' || item.status === 'Cancelada' || item.status === 'Entregue') 
+              ? item.status 
+              : 'Pendente',
             cancelled: item.cancelled || false
           }));
           

@@ -4,18 +4,23 @@ import { RegistroAplicacaoSchema } from "@/validations/registroAplicacaoSchema";
 import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
 import { RegistroCarga } from "@/types/registroCargas";
 import { Toast } from "@/types/toast";
+import { formatDateToString } from "@/lib/utils";
 
 /**
  * Get default values for the form from initial data or defaults
  */
 export const getFormDefaultValues = (initialData?: any): RegistroAplicacaoSchema => {
+  // Obtém a data atual no formato correto
+  const today = formatDateToString(new Date());
+  const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
   return {
     lista_entrega_id: initialData?.lista_entrega_id || "",
     registro_carga_id: initialData?.registro_carga_id || "",
     logradouro_id: initialData?.logradouro_id || "",
     logradouro_aplicado: initialData?.logradouro_aplicado || "",
-    data_aplicacao: initialData?.data_aplicacao || new Date().toISOString().split('T')[0],
-    hora_chegada_local: initialData?.hora_chegada_local || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    data_aplicacao: initialData?.data_aplicacao || today,
+    hora_chegada_local: initialData?.hora_chegada_local || currentTime,
     temperatura_chegada: initialData?.temperatura_chegada || null,
     hora_aplicacao: initialData?.hora_aplicacao || null,
     temperatura_aplicacao: initialData?.temperatura_aplicacao || null,
@@ -25,10 +30,17 @@ export const getFormDefaultValues = (initialData?: any): RegistroAplicacaoSchema
     largura_media: initialData?.largura_media || null,
     area_calculada: initialData?.area_calculada || null,
     tonelada_aplicada: initialData?.tonelada_aplicada || null,
-    espessura_calculada: initialData?.espessura_calculada || null,
+    espessura: initialData?.espessura || initialData?.espessura_calculada || null,
     hora_saida_caminhao: initialData?.hora_saida_caminhao || null,
     estaca_final: initialData?.estaca_final || null,
     anotacoes_apontador: initialData?.anotacoes_apontador || null,
+    usar_massa_total_para_espessura: initialData?.usar_massa_total_para_espessura === true ? true : false,
+    // Novos campos para múltiplas aplicações
+    aplicacao_sequencia: initialData?.aplicacao_sequencia || 1,
+    media_espessura_cm: initialData?.media_espessura_cm || null,
+    carga_finalizada: initialData?.carga_finalizada === true ? true : false,
+    massa_remanescente_antes_aplicacao: initialData?.massa_remanescente_antes_aplicacao || null,
+    carga_origem_id: initialData?.carga_origem_id || initialData?.registro_carga_id || "",
   };
 };
 
@@ -39,7 +51,9 @@ export const initializeFormFromEntrega = async (
   form: UseFormReturn<RegistroAplicacaoSchema>,
   entrega: ListaProgramacaoEntrega,
   regCarga: RegistroCarga,
-  toast: (props: Toast) => void
+  toast: (props: Toast) => void,
+  aplicacaoSequencia: number = 1,
+  massaRemanescenteAnterior?: number
 ) => {
   try {
     // Set values from entrega
@@ -47,16 +61,26 @@ export const initializeFormFromEntrega = async (
     form.setValue("registro_carga_id", regCarga.id);
     
     // Set default values for data and times - ensuring they're in the correct format
-    const today = new Date().toISOString().split('T')[0];
+    const today = formatDateToString(new Date());
     const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     
     form.setValue("data_aplicacao", today);
     form.setValue("hora_chegada_local", currentTime);
     
-    toast({
-      title: "Sucesso",
-      description: "Dados da entrega carregados com sucesso!",
-    });
+    // Garantir que o checkbox seja inicializado como false de forma explícita
+    form.setValue("usar_massa_total_para_espessura", false);
+    
+    // Configurar campos para múltiplas aplicações
+    form.setValue("aplicacao_sequencia", aplicacaoSequencia);
+    form.setValue("carga_origem_id", regCarga.id);
+    
+    // Se não for a primeira aplicação, armazenar massa remanescente anterior
+    if (aplicacaoSequencia > 1 && massaRemanescenteAnterior !== undefined) {
+      form.setValue("massa_remanescente_antes_aplicacao", massaRemanescenteAnterior);
+    }
+    
+    console.log("✅ Form initialized - checkbox value:", form.getValues("usar_massa_total_para_espessura"));
+    console.log("✅ Form initialized - aplicacao_sequencia:", aplicacaoSequencia);
     
     return true;
   } catch (error) {

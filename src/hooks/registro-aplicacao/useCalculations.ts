@@ -10,7 +10,9 @@ export const useCalculations = (
   comprimento: number | null | undefined,
   largura: number | null | undefined,
   registroCarga: RegistroCarga | null,
-  entregaMassaRemanescente?: number
+  entregaMassaRemanescente?: number,
+  usarMassaTotal?: boolean,
+  massaRemanescenteCarga?: number // Nova propriedade para massa remanescente específica da carga
 ) => {
   // Calculate area
   const calculatedArea = useMemo(() => {
@@ -18,7 +20,7 @@ export const useCalculations = (
     return comprimento * largura;
   }, [comprimento, largura]);
 
-  // Calculate tonelada aplicada based on calculated area and disponible mass
+  // Calculate tonelada aplicada based on calculated area and available mass
   const calculatedToneladaAplicada = useMemo(() => {
     if (!calculatedArea || !registroCarga?.tonelada_real) return null;
     
@@ -26,74 +28,76 @@ export const useCalculations = (
     const calculatedTonelada = calculatedArea * 0.05 * 2.4;
     
     // Use the minimum between calculated and available mass
-    const massaDisponivel = entregaMassaRemanescente ?? registroCarga.tonelada_real;
+    // Priorizar massa remanescente da carga se disponível
+    const massaDisponivel = massaRemanescenteCarga ?? entregaMassaRemanescente ?? registroCarga.tonelada_real;
     
     return Math.min(calculatedTonelada, massaDisponivel);
-  }, [calculatedArea, registroCarga?.tonelada_real, entregaMassaRemanescente]);
+  }, [calculatedArea, registroCarga?.tonelada_real, entregaMassaRemanescente, massaRemanescenteCarga]);
 
-  // Calculate thickness (espessura)
+  // Calculate thickness (espessura) with conditional logic - FÓRMULA CORRIGIDA
   const calculatedEspessura = useMemo(() => {
-    if (!calculatedToneladaAplicada || !calculatedArea) return null;
+    if (!calculatedArea || !registroCarga?.tonelada_real) return null;
     
-    // Espessura = (Tonelada / Area) / 2.4 (densidade)
-    const espessura = (calculatedToneladaAplicada / calculatedArea) / 2.4;
-    return Number(espessura.toFixed(3));
-  }, [calculatedToneladaAplicada, calculatedArea]);
+    if (usarMassaTotal) {
+      // Quando checkbox marcado: usar massa remanescente da carga ou massa total
+      const massaParaCalculo = massaRemanescenteCarga ?? registroCarga.tonelada_real;
+      // Fórmula: espessura = (massa / área) / 2.4 / 1000 (para converter para metros)
+      const espessura = (massaParaCalculo / calculatedArea) / 2.4;
+      return Number(espessura.toFixed(3));
+    } else {
+      // Fórmula tradicional: (ToneladaAplicada / Area) / 2.4
+      if (!calculatedToneladaAplicada) return null;
+      const espessura = (calculatedToneladaAplicada / calculatedArea) / 2.4;
+      return Number(espessura.toFixed(3));
+    }
+  }, [calculatedArea, calculatedToneladaAplicada, registroCarga?.tonelada_real, usarMassaTotal, massaRemanescenteCarga]);
 
-  // Calculate theoretical thickness (espessura calculada)
-  const calculatedEspessuraCalculada = useMemo(() => {
-    if (!calculatedToneladaAplicada || !calculatedArea) return null;
-    
-    // This is the same calculation for now, but could have different logic
-    const espessuraCalculada = (calculatedToneladaAplicada / calculatedArea) / 2.4;
-    return Number(espessuraCalculada.toFixed(3));
-  }, [calculatedToneladaAplicada, calculatedArea]);
-
-  // Calculate remaining mass after this application
+  // Calculate remaining mass after this application - FÓRMULA CORRIGIDA
   const massaRemanescente = useMemo(() => {
     if (!registroCarga?.tonelada_real || !calculatedToneladaAplicada) {
-      return entregaMassaRemanescente ?? registroCarga?.tonelada_real ?? 0;
+      return massaRemanescenteCarga ?? entregaMassaRemanescente ?? registroCarga?.tonelada_real ?? 0;
     }
     
-    const massaDisponivel = entregaMassaRemanescente ?? registroCarga.tonelada_real;
-    return Math.max(0, massaDisponivel - calculatedToneladaAplicada);
-  }, [registroCarga?.tonelada_real, calculatedToneladaAplicada, entregaMassaRemanescente]);
+    // Usar massa remanescente da carga se disponível, caso contrário usar massa total
+    const massaAtual = massaRemanescenteCarga ?? entregaMassaRemanescente ?? registroCarga.tonelada_real;
+    // Nova massa remanescente = massa atual - massa que será aplicada agora
+    return Math.max(0, massaAtual - calculatedToneladaAplicada);
+  }, [registroCarga?.tonelada_real, calculatedToneladaAplicada, entregaMassaRemanescente, massaRemanescenteCarga]);
 
   // Check if the applied mass exceeds available mass
   const exceededAvailableMass = useMemo(() => {
     if (!calculatedToneladaAplicada || !registroCarga?.tonelada_real) return false;
     
-    const massaDisponivel = entregaMassaRemanescente ?? registroCarga.tonelada_real;
+    const massaDisponivel = massaRemanescenteCarga ?? entregaMassaRemanescente ?? registroCarga.tonelada_real;
     return calculatedToneladaAplicada > massaDisponivel;
-  }, [calculatedToneladaAplicada, registroCarga?.tonelada_real, entregaMassaRemanescente]);
+  }, [calculatedToneladaAplicada, registroCarga?.tonelada_real, entregaMassaRemanescente, massaRemanescenteCarga]);
 
-  // Status for espessura (thickness) - returning proper EspessuraStatus type
+  // Status for espessura (thickness) - logic based on calculation method
   const espessuraStatus: EspessuraStatus = useMemo(() => {
     if (!calculatedEspessura) return null;
     
-    if (calculatedEspessura < 0.03) return 'warning'; // Less than 3cm
-    if (calculatedEspessura > 0.08) return 'error';  // More than 8cm
-    return 'success';
-  }, [calculatedEspessura]);
-
-  // Status for espessura calculada - returning proper EspessuraStatus type
-  const espessuraCalculadaStatus: EspessuraStatus = useMemo(() => {
-    if (!calculatedEspessuraCalculada) return null;
-    
-    if (calculatedEspessuraCalculada < 0.035 || calculatedEspessuraCalculada > 0.05) {
-      return 'error';
+    if (usarMassaTotal) {
+      // Nova lógica: < 0.035 cm ou > 0.05 cm → "Fora do Padrão" (error)
+      // Entre 0.035 e 0.05, inclusive → "Dentro do Padrão" (success)
+      if (calculatedEspessura < 0.035 || calculatedEspessura > 0.05) {
+        return 'error';
+      } else {
+        return 'success';
+      }
+    } else {
+      // Lógica original: < 0.03 cm → warning, > 0.08 cm → error, resto → success
+      if (calculatedEspessura < 0.03) return 'warning';
+      if (calculatedEspessura > 0.08) return 'error';
+      return 'success';
     }
-    return 'success';
-  }, [calculatedEspessuraCalculada]);
+  }, [calculatedEspessura, usarMassaTotal]);
 
   return {
     calculatedArea,
     calculatedToneladaAplicada,
     calculatedEspessura,
-    calculatedEspessuraCalculada,
     massaRemanescente,
     espessuraStatus,
-    espessuraCalculadaStatus,
     exceededAvailableMass
   };
 };

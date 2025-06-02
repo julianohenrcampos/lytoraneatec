@@ -25,6 +25,13 @@ export interface RegistroAplicacao {
   hora_saida_caminhao?: string | null;
   estaca_final?: number | null;
   anotacoes_apontador?: string | null;
+  usar_massa_total_para_espessura?: boolean | null;
+  // Novos campos para múltiplas aplicações
+  aplicacao_sequencia?: number | null;
+  media_espessura_cm?: number | null;
+  carga_finalizada?: boolean | null;
+  massa_remanescente_antes_aplicacao?: number | null;
+  carga_origem_id?: string | null;
   created_at?: string;
   updated_at?: string;
   created_by?: string | null;
@@ -61,6 +68,13 @@ export interface RegistroAplicacaoFormValues {
   hora_saida_caminhao?: string | null;
   estaca_final?: number | null;
   anotacoes_apontador?: string | null;
+  usar_massa_total_para_espessura?: boolean | null;
+  // Novos campos para múltiplas aplicações
+  aplicacao_sequencia?: number | null;
+  media_espessura_cm?: number | null;
+  carga_finalizada?: boolean | null;
+  massa_remanescente_antes_aplicacao?: number | null;
+  carga_origem_id?: string | null;
 }
 
 export interface RegistroAplicacaoFilters {

@@ -4,6 +4,7 @@ import { UseFormReturn } from "react-hook-form";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -16,6 +17,7 @@ import { RegistroAplicacaoSchema } from "@/validations/registroAplicacaoSchema";
 import { RegistroCarga } from "@/types/registroCargas";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { InfoIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface DadosTecnicosTabProps {
   form: UseFormReturn<RegistroAplicacaoSchema>;
@@ -24,11 +26,13 @@ interface DadosTecnicosTabProps {
   calculatedArea: number | string | null;
   calculatedEspessura: number | string | null;
   calculatedToneladaAplicada: number | string | null;
-  calculatedEspessuraCalculada: number | string | null;
   espessuraStatusClass: string;
-  espessuraCalculadaStatusClass: string;
   registroCarga?: RegistroCarga | null;
   exceededAvailableMass?: boolean;
+  // Novos props para múltiplas aplicações
+  aplicacaoSequencia?: number;
+  massaRemanescenteCarga?: number;
+  cargaFinalizada?: boolean;
 }
 
 const DadosTecnicosTab: React.FC<DadosTecnicosTabProps> = ({
@@ -38,11 +42,12 @@ const DadosTecnicosTab: React.FC<DadosTecnicosTabProps> = ({
   calculatedArea,
   calculatedEspessura,
   calculatedToneladaAplicada,
-  calculatedEspessuraCalculada,
   espessuraStatusClass,
-  espessuraCalculadaStatusClass,
   registroCarga,
-  exceededAvailableMass
+  exceededAvailableMass,
+  aplicacaoSequencia = 1,
+  massaRemanescenteCarga,
+  cargaFinalizada = false
 }) => {
   // Helper function to safely format number values with proper decimal places
   const formatValue = (value: number | string | null): string => {
@@ -68,8 +73,66 @@ const DadosTecnicosTab: React.FC<DadosTecnicosTabProps> = ({
     return `${numValue.toFixed(1)}`;
   };
 
+  // Controle COMPLETAMENTE simplificado do checkbox
+  const checkboxValue = form.watch("usar_massa_total_para_espessura");
+  const isChecked = Boolean(checkboxValue);
+  
+  console.log("🔍 Checkbox DEBUG:", { 
+    watchValue: checkboxValue, 
+    isChecked: isChecked,
+    formValue: form.getValues("usar_massa_total_para_espessura")
+  });
+
+  // Handler ultra-simplificado
+  const toggleCheckbox = () => {
+    const newValue = !isChecked;
+    console.log("🔄 Toggling checkbox:", { from: isChecked, to: newValue });
+    
+    form.setValue("usar_massa_total_para_espessura", newValue);
+    
+    // Verificação imediata
+    setTimeout(() => {
+      const updatedValue = form.getValues("usar_massa_total_para_espessura");
+      console.log("✅ Checkbox updated:", updatedValue);
+    }, 0);
+  };
+
   return (
     <div className="space-y-4">
+      {/* Indicador de aplicação múltipla */}
+      {aplicacaoSequencia > 1 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Badge variant="default">Aplicação {aplicacaoSequencia}</Badge>
+              <span className="text-sm text-blue-700">
+                Aplicação sequencial da mesma carga
+              </span>
+            </div>
+            {massaRemanescenteCarga !== undefined && (
+              <div className="text-sm text-blue-700">
+                <span className="font-medium">Massa remanescente: </span>
+                {formatToneladas(massaRemanescenteCarga)} t
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Aviso se carga finalizada */}
+      {cargaFinalizada && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="bg-green-100 text-green-800">
+              Carga Finalizada
+            </Badge>
+            <span className="text-sm text-green-700">
+              Esta carga foi finalizada e a média de espessura foi calculada
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="hora_aplicacao">Hora da Aplicação</Label>
@@ -162,6 +225,73 @@ const DadosTecnicosTab: React.FC<DadosTecnicosTabProps> = ({
             className={exceededAvailableMass ? "border-amber-500 bg-amber-50" : ""}
             disabled
           />
+        </div>
+      </div>
+
+      {/* Seção de cálculo de espessura */}
+      <div className="border-t pt-4">
+        <div className="space-y-4">
+          {/* Checkbox - versão ultra-simplificada e funcional */}
+          <div className="flex flex-row items-center space-x-3 space-y-0">
+            <div 
+              className="flex items-center space-x-3 cursor-pointer"
+              onClick={toggleCheckbox}
+            >
+              <Checkbox
+                id="usar_massa_total_para_espessura"
+                checked={isChecked}
+                onCheckedChange={(checked) => {
+                  const newValue = checked === true;
+                  console.log("🔄 Checkbox onCheckedChange:", newValue);
+                  form.setValue("usar_massa_total_para_espessura", newValue);
+                }}
+              />
+              <Label 
+                htmlFor="usar_massa_total_para_espessura" 
+                className="text-sm font-medium cursor-pointer"
+              >
+                Calcular Espessura com Massa Total
+              </Label>
+            </div>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <InfoIcon className="h-4 w-4 text-gray-400" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="max-w-xs">
+                    Quando marcado, a espessura será calculada usando a quantidade total de massa da balança em vez da tonelada aplicada
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          
+          {/* Texto explicativo dinâmico */}
+          <p className="text-xs text-muted-foreground">
+            {isChecked 
+              ? "Usando quantidade total de massa da balança para cálculo"
+              : "Usando tonelada aplicada tradicional para cálculo"
+            }
+          </p>
+          
+          {/* Campo único de espessura */}
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <Label>Espessura (cm)</Label>
+              {isChecked && (
+                <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                  Modo Massa Total
+                </span>
+              )}
+            </div>
+            <Input
+              type="text"
+              value={formatValue(calculatedEspessura)}
+              className={espessuraStatusClass}
+              disabled
+            />
+          </div>
         </div>
       </div>
 

@@ -36,12 +36,16 @@ interface RegistroAplicacaoFiltersProps {
   onFilter: (filters: RegistroAplicacaoFiltersType) => void;
   caminhoesList: { id: string; placa: string; modelo: string }[];
   centrosCustoList: { id: string; nome_centro_custo: string }[];
+  hasActiveFilters: boolean;
+  onClearFilters: () => void;
 }
 
 const RegistroAplicacaoFilters: React.FC<RegistroAplicacaoFiltersProps> = ({
   onFilter,
   caminhoesList,
   centrosCustoList,
+  hasActiveFilters,
+  onClearFilters,
 }) => {
   // Get today's date in YYYY-MM-DD format
   const today = format(new Date(), "yyyy-MM-dd");
@@ -72,10 +76,8 @@ const RegistroAplicacaoFilters: React.FC<RegistroAplicacaoFiltersProps> = ({
       data_inicio: today,
     };
     form.reset(resetValues);
-    onFilter({
-      data_inicio: new Date()
-    });
-  }, [form, today, onFilter]);
+    onClearFilters();
+  }, [form, today, onClearFilters]);
 
   // Optimized watch - only trigger when values actually change
   React.useEffect(() => {
@@ -197,6 +199,7 @@ const RegistroAplicacaoFilters: React.FC<RegistroAplicacaoFiltersProps> = ({
                 onClick={handleReset}
                 size="sm"
                 className="gap-2"
+                disabled={!hasActiveFilters}
               >
                 <FilterX className="h-4 w-4" />
                 Limpar Filtros

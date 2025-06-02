@@ -22,10 +22,16 @@ export const registroAplicacaoSchema = z.object({
   area_calculada: z.number().nullable().optional(),
   tonelada_aplicada: z.number().nullable().optional(),
   espessura: z.number().nullable().optional(),
-  espessura_calculada: z.number().nullable().optional(),
   hora_saida_caminhao: z.string().optional(),
   estaca_final: z.number().nullable().optional(),
   anotacoes_apontador: z.string().nullable().optional(),
+  usar_massa_total_para_espessura: z.boolean().default(false),
+  // Novos campos para múltiplas aplicações
+  aplicacao_sequencia: z.number().default(1),
+  media_espessura_cm: z.number().nullable().optional(),
+  carga_finalizada: z.boolean().default(false),
+  massa_remanescente_antes_aplicacao: z.number().nullable().optional(),
+  carga_origem_id: z.string().uuid().optional(),
 });
 
 export type RegistroAplicacaoSchema = z.infer<typeof registroAplicacaoSchema>;

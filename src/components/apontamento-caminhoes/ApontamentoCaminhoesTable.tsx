@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Eye, Pencil, Trash2, Droplets, Clock } from "lucide-react";
 import { ApontamentoCaminhao } from "@/services/apontamentoCaminhoesService";
-import { cn } from "@/lib/utils";
+import { cn, normalizeDateToNoon } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ApontamentoCaminhoesTableProps {
@@ -32,6 +32,17 @@ const ApontamentoCaminhoesTable: React.FC<ApontamentoCaminhoesTableProps> = ({
   isLoading = false,
 }) => {
   const isMobile = useIsMobile();
+
+  // Function to format date consistently using normalizeDateToNoon
+  const formatApontamentoDate = (dateString: string) => {
+    try {
+      const normalizedDate = normalizeDateToNoon(dateString);
+      return format(normalizedDate, "dd/MM/yyyy", { locale: ptBR });
+    } catch (error) {
+      console.error("Error formatting apontamento date:", error, "for date:", dateString);
+      return dateString;
+    }
+  };
 
   // Empty state component
   const EmptyState = () => (
@@ -83,7 +94,7 @@ const ApontamentoCaminhoesTable: React.FC<ApontamentoCaminhoesTableProps> = ({
                 <div className="flex justify-between items-start">
                   <div className="font-medium">
                     {apontamento.data
-                      ? format(new Date(apontamento.data), "dd/MM/yyyy", { locale: ptBR })
+                      ? formatApontamentoDate(apontamento.data)
                       : "-"}
                   </div>
                   <div className="text-sm text-gray-500">
@@ -174,7 +185,7 @@ const ApontamentoCaminhoesTable: React.FC<ApontamentoCaminhoesTableProps> = ({
               <TableRow key={apontamento.id}>
                 <TableCell className="font-medium">
                   {apontamento.data
-                    ? format(new Date(apontamento.data), "dd/MM/yyyy", { locale: ptBR })
+                    ? formatApontamentoDate(apontamento.data)
                     : "-"}
                 </TableCell>
                 <TableCell>{apontamento.veiculo_identificacao || "-"}</TableCell>

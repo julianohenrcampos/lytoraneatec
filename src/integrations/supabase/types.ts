@@ -261,6 +261,50 @@ export type Database = {
           },
         ]
       }
+      bd_carga_status_historico: {
+        Row: {
+          alterado_por: string | null
+          data_alteracao: string | null
+          id: string
+          massa_remanescente: number | null
+          observacoes: string | null
+          percentual_aplicado: number | null
+          registro_carga_id: string
+          status_anterior: string | null
+          status_novo: string
+        }
+        Insert: {
+          alterado_por?: string | null
+          data_alteracao?: string | null
+          id?: string
+          massa_remanescente?: number | null
+          observacoes?: string | null
+          percentual_aplicado?: number | null
+          registro_carga_id: string
+          status_anterior?: string | null
+          status_novo: string
+        }
+        Update: {
+          alterado_por?: string | null
+          data_alteracao?: string | null
+          id?: string
+          massa_remanescente?: number | null
+          observacoes?: string | null
+          percentual_aplicado?: number | null
+          registro_carga_id?: string
+          status_anterior?: string | null
+          status_novo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_carga_status_historico_registro_carga_id_fkey"
+            columns: ["registro_carga_id"]
+            isOneToOne: false
+            referencedRelation: "bd_registro_cargas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_centros_custo: {
         Row: {
           cnpj_vinculado: string | null
@@ -1045,16 +1089,155 @@ export type Database = {
           },
         ]
       }
+      bd_registro_aplicacao_detalhes: {
+        Row: {
+          area_aplicada: number
+          bordo: string | null
+          comprimento: number | null
+          condicoes_climaticas: string | null
+          created_at: string | null
+          created_by: string | null
+          data_aplicacao: string
+          densidade_compactacao: number | null
+          equipamento_compactacao: string | null
+          espessura_aplicada: number | null
+          espessura_calculada: number | null
+          estaca_final: number | null
+          estaca_inicial: number | null
+          fotos_aplicacao: string[] | null
+          hora_fim_aplicacao: string | null
+          hora_inicio_aplicacao: string | null
+          id: string
+          largura_media: number | null
+          lista_entrega_id: string
+          logradouro_id: string | null
+          logradouro_nome: string
+          numero_passadas: number | null
+          observacoes_aplicacao: string | null
+          registro_aplicacao_id: string
+          registro_carga_id: string
+          sequencia_aplicacao: number
+          temperatura_aplicacao: number | null
+          tonelada_aplicada: number
+          updated_at: string | null
+        }
+        Insert: {
+          area_aplicada: number
+          bordo?: string | null
+          comprimento?: number | null
+          condicoes_climaticas?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          data_aplicacao?: string
+          densidade_compactacao?: number | null
+          equipamento_compactacao?: string | null
+          espessura_aplicada?: number | null
+          espessura_calculada?: number | null
+          estaca_final?: number | null
+          estaca_inicial?: number | null
+          fotos_aplicacao?: string[] | null
+          hora_fim_aplicacao?: string | null
+          hora_inicio_aplicacao?: string | null
+          id?: string
+          largura_media?: number | null
+          lista_entrega_id: string
+          logradouro_id?: string | null
+          logradouro_nome: string
+          numero_passadas?: number | null
+          observacoes_aplicacao?: string | null
+          registro_aplicacao_id: string
+          registro_carga_id: string
+          sequencia_aplicacao?: number
+          temperatura_aplicacao?: number | null
+          tonelada_aplicada: number
+          updated_at?: string | null
+        }
+        Update: {
+          area_aplicada?: number
+          bordo?: string | null
+          comprimento?: number | null
+          condicoes_climaticas?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          data_aplicacao?: string
+          densidade_compactacao?: number | null
+          equipamento_compactacao?: string | null
+          espessura_aplicada?: number | null
+          espessura_calculada?: number | null
+          estaca_final?: number | null
+          estaca_inicial?: number | null
+          fotos_aplicacao?: string[] | null
+          hora_fim_aplicacao?: string | null
+          hora_inicio_aplicacao?: string | null
+          id?: string
+          largura_media?: number | null
+          lista_entrega_id?: string
+          logradouro_id?: string | null
+          logradouro_nome?: string
+          numero_passadas?: number | null
+          observacoes_aplicacao?: string | null
+          registro_aplicacao_id?: string
+          registro_carga_id?: string
+          sequencia_aplicacao?: number
+          temperatura_aplicacao?: number | null
+          tonelada_aplicada?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_registro_aplicacao_detalhes_lista_entrega_id_fkey"
+            columns: ["lista_entrega_id"]
+            isOneToOne: false
+            referencedRelation: "bd_lista_programacao_entrega"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_registro_aplicacao_detalhes_lista_entrega_id_fkey"
+            columns: ["lista_entrega_id"]
+            isOneToOne: false
+            referencedRelation: "vw_entregas_com_massa_remanescente"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_registro_aplicacao_detalhes_registro_aplicacao_id_fkey"
+            columns: ["registro_aplicacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_registro_apontamento_aplicacao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_registro_aplicacao_detalhes_registro_aplicacao_id_fkey"
+            columns: ["registro_aplicacao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_registro_aplicacao_completo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_registro_aplicacao_detalhes_registro_carga_id_fkey"
+            columns: ["registro_carga_id"]
+            isOneToOne: false
+            referencedRelation: "bd_registro_cargas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_registro_apontamento_aplicacao: {
         Row: {
           anotacoes_apontador: string | null
+          aplicacao_numero: number | null
+          aplicacao_sequencia: number | null
           area: number | null
           area_calculada: number | null
           bordo: string | null
+          carga_finalizada: boolean | null
+          carga_origem_id: string | null
+          carga_total_aplicada: number | null
           comprimento: number | null
           created_at: string | null
           created_by: string | null
           data_aplicacao: string
+          data_fim_aplicacao: string | null
+          data_inicio_aplicacao: string | null
           espessura: number | null
           espessura_calculada: number | null
           estaca_final: number | null
@@ -1067,21 +1250,34 @@ export type Database = {
           lista_entrega_id: string | null
           logradouro_aplicado: string | null
           logradouro_id: string | null
+          massa_remanescente_antes_aplicacao: number | null
+          media_espessura_cm: number | null
+          observacoes_gerais: string | null
+          percentual_aplicado: number | null
           registro_carga_id: string | null
+          status_aplicacao: string | null
           temperatura_aplicacao: number | null
           temperatura_chegada: number | null
           tonelada_aplicada: number | null
           updated_at: string | null
+          usar_massa_total_para_espessura: boolean | null
         }
         Insert: {
           anotacoes_apontador?: string | null
+          aplicacao_numero?: number | null
+          aplicacao_sequencia?: number | null
           area?: number | null
           area_calculada?: number | null
           bordo?: string | null
+          carga_finalizada?: boolean | null
+          carga_origem_id?: string | null
+          carga_total_aplicada?: number | null
           comprimento?: number | null
           created_at?: string | null
           created_by?: string | null
           data_aplicacao: string
+          data_fim_aplicacao?: string | null
+          data_inicio_aplicacao?: string | null
           espessura?: number | null
           espessura_calculada?: number | null
           estaca_final?: number | null
@@ -1094,21 +1290,34 @@ export type Database = {
           lista_entrega_id?: string | null
           logradouro_aplicado?: string | null
           logradouro_id?: string | null
+          massa_remanescente_antes_aplicacao?: number | null
+          media_espessura_cm?: number | null
+          observacoes_gerais?: string | null
+          percentual_aplicado?: number | null
           registro_carga_id?: string | null
+          status_aplicacao?: string | null
           temperatura_aplicacao?: number | null
           temperatura_chegada?: number | null
           tonelada_aplicada?: number | null
           updated_at?: string | null
+          usar_massa_total_para_espessura?: boolean | null
         }
         Update: {
           anotacoes_apontador?: string | null
+          aplicacao_numero?: number | null
+          aplicacao_sequencia?: number | null
           area?: number | null
           area_calculada?: number | null
           bordo?: string | null
+          carga_finalizada?: boolean | null
+          carga_origem_id?: string | null
+          carga_total_aplicada?: number | null
           comprimento?: number | null
           created_at?: string | null
           created_by?: string | null
           data_aplicacao?: string
+          data_fim_aplicacao?: string | null
+          data_inicio_aplicacao?: string | null
           espessura?: number | null
           espessura_calculada?: number | null
           estaca_final?: number | null
@@ -1121,11 +1330,17 @@ export type Database = {
           lista_entrega_id?: string | null
           logradouro_aplicado?: string | null
           logradouro_id?: string | null
+          massa_remanescente_antes_aplicacao?: number | null
+          media_espessura_cm?: number | null
+          observacoes_gerais?: string | null
+          percentual_aplicado?: number | null
           registro_carga_id?: string | null
+          status_aplicacao?: string | null
           temperatura_aplicacao?: number | null
           temperatura_chegada?: number | null
           tonelada_aplicada?: number | null
           updated_at?: string | null
+          usar_massa_total_para_espessura?: boolean | null
         }
         Relationships: [
           {
@@ -1711,15 +1926,75 @@ export type Database = {
           },
         ]
       }
+      vw_registro_aplicacao_completo: {
+        Row: {
+          area_total_aplicada: number | null
+          created_at: string | null
+          data_aplicacao: string | null
+          espessura_media_cm: number | null
+          hora_chegada_local: string | null
+          hora_saida_caminhao: string | null
+          id: string | null
+          lista_entrega_id: string | null
+          logradouro: string | null
+          massa_remanescente: number | null
+          massa_total_carga: number | null
+          numero_aplicacoes: number | null
+          percentual_aplicado: number | null
+          quantidade_massa: number | null
+          registro_carga_id: string | null
+          status_aplicacao: string | null
+          status_calculado: string | null
+          status_entrega: string | null
+          tipo_lancamento: string | null
+          total_aplicado: number | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_registro_apontamento_aplicacao_lista_entrega_id_fkey"
+            columns: ["lista_entrega_id"]
+            isOneToOne: false
+            referencedRelation: "bd_lista_programacao_entrega"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_registro_apontamento_aplicacao_lista_entrega_id_fkey"
+            columns: ["lista_entrega_id"]
+            isOneToOne: false
+            referencedRelation: "vw_entregas_com_massa_remanescente"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_registro_apontamento_aplicacao_registro_carga_id_fkey"
+            columns: ["registro_carga_id"]
+            isOneToOne: false
+            referencedRelation: "bd_registro_cargas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       calcular_massa_remanescente: {
         Args: { entrega_id: string }
         Returns: number
       }
+      calcular_media_espessura_carga: {
+        Args: { carga_id: string }
+        Returns: number
+      }
       corrigir_status_entregas_inconsistentes: {
         Args: Record<PropertyKey, never>
         Returns: number
+      }
+      finalizar_aplicacao_carga: {
+        Args: { carga_id: string }
+        Returns: undefined
+      }
+      finalizar_carga_aplicacao: {
+        Args: { carga_id: string }
+        Returns: Json
       }
     }
     Enums: {

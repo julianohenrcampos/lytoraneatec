@@ -98,35 +98,22 @@ export const NovoApontamentoModal: React.FC<NovoApontamentoModalProps> = ({
       
       setEntregas(entregasData);
       
-      // Show specific information about what was found
+      // Only log information to console, no toast notifications for normal operation
       if (entregasData.length === 0) {
         console.log("⚠️ No entregas found - this might indicate a problem");
         
         if (selectedDate && !searchWithoutDateFilter) {
-          toast({
-            title: "Nenhuma entrega encontrada",
-            description: `Não há entregas com massa remanescente para ${selectedDate.toLocaleDateString('pt-BR')}. Tente expandir a busca.`,
-            variant: "default",
-          });
+          console.log(`No entregas found for ${selectedDate.toLocaleDateString('pt-BR')} - user can expand search`);
         } else {
-          toast({
-            title: "Nenhuma entrega encontrada",
-            description: "Não há entregas com massa remanescente disponível no período pesquisado.",
-            variant: "default",
-          });
+          console.log("No entregas found in expanded search period");
         }
       } else {
+        // Only log to console when entregas are found
         const totalMassa = entregasData.reduce((sum, e) => sum + (e.massa_remanescente || 0), 0);
         const dateRange = searchWithoutDateFilter ? "período ampliado" : 
           selectedDate ? `data ${selectedDate.toLocaleDateString('pt-BR')}` : "período recente";
         
         console.log(`✅ Found ${entregasData.length} entregas with ${totalMassa.toFixed(1)}t total massa remanescente for ${dateRange}`);
-        
-        toast({
-          title: "Entregas carregadas",
-          description: `${entregasData.length} entregas encontradas com ${totalMassa.toFixed(1)}t disponível.`,
-          variant: "default",
-        });
       }
     } catch (error) {
       console.error("💥 Error loading entregas:", error);
@@ -164,6 +151,7 @@ export const NovoApontamentoModal: React.FC<NovoApontamentoModalProps> = ({
       console.log(`Loaded ${logradouroOptions.length} logradouros`);
     } catch (error) {
       console.error("Error loading logradouros:", error);
+      // Only show toast for critical errors that prevent functionality
       toast({
         title: "Erro ao carregar logradouros",
         description: "Não foi possível carregar os logradouros disponíveis.",
@@ -219,6 +207,7 @@ export const NovoApontamentoModal: React.FC<NovoApontamentoModalProps> = ({
         massa_remanescente: selectedEntrega.massa_remanescente
       });
 
+      // Call the selection handler silently - the form will open automatically
       onSelectEntrega(
         selectedEntrega,
         registroCarga,

@@ -33,7 +33,12 @@ const EntregaTableRow: React.FC<EntregaTableRowProps> = ({ entrega, onEntregaCli
       onClick={() => isClickable ? onEntregaClick(entrega) : null}
     >
       <TableCell>{formatEntregaDate(entrega.data_entrega)}</TableCell>
-      <TableCell>{entrega.centro_custo_nome || entrega.logradouro}</TableCell>
+      <TableCell>
+        {entrega.centro_custo_nome || 
+         entrega.centro_custo?.nome_centro_custo || 
+         entrega.requisicao?.centro_custo?.nome_centro_custo || 
+         entrega.logradouro}
+      </TableCell>
       <TableCell>
         {entrega.caminhao ? 
           `${entrega.caminhao.placa} - ${entrega.caminhao.modelo}` : 

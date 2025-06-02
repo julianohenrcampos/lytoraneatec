@@ -104,8 +104,10 @@ const RegistroAplicacaoTable: React.FC<RegistroAplicacaoTableProps> = ({
                                 registro.lista_entrega?.logradouro ||
                                 "N/A";
 
-              // Get centro de custo name
+              // Get centro de custo name - check multiple paths
               const centroCustoNome = 
+                registro.lista_entrega?.centro_custo_nome ||
+                registro.lista_entrega?.centro_custo?.nome_centro_custo ||
                 registro.lista_entrega?.requisicao?.centro_custo?.nome_centro_custo ||
                 "N/A";
 
