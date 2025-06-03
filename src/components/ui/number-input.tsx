@@ -14,19 +14,30 @@ const NumberInput = React.forwardRef<HTMLInputElement, NumberInputProps>(
     const [displayValue, setDisplayValue] = useState("");
     const [isTyping, setIsTyping] = useState(false);
 
-    // Format number with thousand separators - only when not typing
+    // Format number with thousand separators using dots (26.750)
     const formatNumber = (num: number): string => {
       if (isNaN(num) || num === 0) return "";
-      return num.toLocaleString('pt-BR', {
-        minimumFractionDigits: decimalPlaces,
-        maximumFractionDigits: decimalPlaces
-      });
+      
+      // Custom formatting with dots as thousand separators
+      const numStr = num.toString();
+      const parts = numStr.split('.');
+      const integerPart = parts[0];
+      
+      // Add dots every 3 digits from right to left
+      const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+      
+      if (decimalPlaces > 0 && parts[1]) {
+        const decimalPart = parts[1].padEnd(decimalPlaces, '0').slice(0, decimalPlaces);
+        return `${formattedInteger},${decimalPart}`;
+      }
+      
+      return formattedInteger;
     };
 
-    // Parse formatted string back to number
+    // Parse formatted string back to number (remove dots, handle commas)
     const parseNumber = (str: string): number => {
       if (!str) return 0;
-      // Remove thousand separators and convert decimal comma to dot
+      // Remove thousand separator dots and convert decimal comma to dot
       const cleaned = str.replace(/\./g, '').replace(',', '.');
       const parsed = parseFloat(cleaned);
       return isNaN(parsed) ? 0 : parsed;
@@ -43,14 +54,16 @@ const NumberInput = React.forwardRef<HTMLInputElement, NumberInputProps>(
       const inputValue = e.target.value;
       setIsTyping(true);
       
-      // Allow only numbers and decimal separators during typing
-      const filteredValue = inputValue.replace(/[^\d,]/g, '');
+      // Allow only numbers during typing (accept large numbers like 26750)
+      const filteredValue = inputValue.replace(/[^\d]/g, '');
       
       // Show raw input while typing (no formatting)
       setDisplayValue(filteredValue);
       
       // Parse and send numeric value to parent
       const numericValue = parseNumber(filteredValue);
+      console.log("NumberInput - Input value:", inputValue, "Filtered:", filteredValue, "Numeric (kg):", numericValue);
+      
       if (onChange) {
         onChange(numericValue);
       }
@@ -71,6 +84,8 @@ const NumberInput = React.forwardRef<HTMLInputElement, NumberInputProps>(
       const numericValue = parseNumber(displayValue);
       const formattedValue = numericValue === 0 ? "" : formatNumber(numericValue);
       setDisplayValue(formattedValue);
+      
+      console.log("NumberInput - On blur, numeric value (kg):", numericValue, "formatted:", formattedValue);
       
       if (props.onBlur) {
         props.onBlur(e);

@@ -32,23 +32,47 @@ export const useFormSubmission = (
       };
       
       // Create proper ItemFormValues objects with all required fields
-      const itensWithRequiredFields = data.itens.map(item => ({
-        id: item.id,
-        requisicao_id: item.requisicao_id || data.requisicao_id || "",
-        centro_custo_nome: item.centro_custo_nome || "",
-        // Use centro_custo_nome for the logradouro field in the database
-        logradouro: item.centro_custo_nome || "",
-        quantidade_massa: Number(item.quantidade_massa || 0),
-        caminhao_id: item.caminhao_id || "",
-        // IMPORTANT: Keep the tipo_lancamento exactly as selected by the user
-        tipo_lancamento: item.tipo_lancamento || "",
-        equipe_id: item.equipe_id || "",
-        apontador_id: item.apontador_id || "",
-        usina_id: item.usina_id || "",
-        data_entrega: item.data_entrega || data.data_entrega,
-        status: item.status || (item.cancelled ? 'Cancelada' : 'Pendente'),
-        cancelled: item.cancelled || false
-      }));
+      const itensWithRequiredFields = data.itens.map(item => {
+        console.log("Original item data:", item);
+        
+        // Convert kg to tons: divide by 1000
+        // O NumberInput já fornece o valor em kg, então precisamos converter para toneladas
+        const quantidadeEmKg = Number(item.quantidade_massa || 0);
+        const quantidadeEmToneladas = quantidadeEmKg / 1000;
+        
+        console.log("Quantidade conversion - Original (kg):", quantidadeEmKg, "→ Tons:", quantidadeEmToneladas);
+        
+        // Garantir que o logradouro não seja vazio
+        const logradouroValue = item.centro_custo_nome || item.logradouro || "";
+        console.log("Logradouro mapping - centro_custo_nome:", item.centro_custo_nome, "→ logradouro:", logradouroValue);
+        
+        if (!logradouroValue) {
+          console.warn("Logradouro está vazio! centro_custo_nome:", item.centro_custo_nome);
+        }
+        
+        const processedItem = {
+          id: item.id,
+          requisicao_id: item.requisicao_id || data.requisicao_id || "",
+          centro_custo_nome: item.centro_custo_nome || "",
+          // Use centro_custo_nome for the logradouro field in the database
+          logradouro: logradouroValue,
+          quantidade_massa: quantidadeEmToneladas, // Converted to tons with decimal point
+          caminhao_id: item.caminhao_id || "",
+          // IMPORTANT: Keep the tipo_lancamento exactly as selected by the user
+          tipo_lancamento: item.tipo_lancamento || "",
+          equipe_id: item.equipe_id || "",
+          apontador_id: item.apontador_id || "",
+          usina_id: item.usina_id || "",
+          data_entrega: item.data_entrega || data.data_entrega,
+          status: item.status || (item.cancelled ? 'Cancelada' : 'Pendente'),
+          cancelled: item.cancelled || false
+        };
+        
+        console.log("Final processed item:", processedItem);
+        return processedItem;
+      });
+      
+      console.log("Final items to save:", itensWithRequiredFields);
       
       if (programacao?.id) {
         await updateProgramacao(programacao.id, programacaoData, itensWithRequiredFields);

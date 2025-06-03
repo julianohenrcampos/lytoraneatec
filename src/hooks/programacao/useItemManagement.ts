@@ -103,7 +103,15 @@ export const useItemManagement = (
     const itens = form.getValues().itens || [];
     return itens.reduce((sum, item) => {
       if (item.cancelled) return sum;
-      return sum + (item.quantidade_massa || 0);
+      
+      // Convert values correctly for calculation:
+      // If value is > 100, it's in kg and needs conversion to tons
+      // If value is <= 100, it's already in tons
+      const quantity = typeof item.quantidade_massa === 'number' 
+        ? (item.quantidade_massa > 100 ? item.quantidade_massa / 1000 : item.quantidade_massa)
+        : parseFloat(String(item.quantidade_massa || 0));
+      
+      return sum + quantity;
     }, 0);
   }, [form]);
 

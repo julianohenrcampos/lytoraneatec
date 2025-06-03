@@ -48,7 +48,7 @@ export const useProgramacaoEntregaForm = (
     defaultValues: {
       requisicao_id: "",
       centro_custo_nome: "",
-      quantidade_massa: 0, // Starts empty (0)
+      quantidade_massa: 0, // Starts empty (0) - will be in KG from NumberInput
       caminhao_id: "",
       tipo_lancamento: "",
       equipe_id: "",
@@ -179,9 +179,12 @@ export const useProgramacaoEntregaForm = (
             if (centroCustoInfo && 'nome_centro_custo' in centroCustoInfo) {
               const nomeCentroCusto = String(centroCustoInfo.nome_centro_custo || '');
               setCentroCustoNome(nomeCentroCusto);
+              console.log("Setting centro custo nome:", nomeCentroCusto);
               
+              // Immediately update item form if adding item
               if (isAddingItem) {
                 itemForm.setValue("centro_custo_nome", nomeCentroCusto);
+                console.log("Updated item form centro_custo_nome:", nomeCentroCusto);
               }
             }
           }
@@ -228,12 +231,11 @@ export const useProgramacaoEntregaForm = (
     updateApontador();
   }, [watchedEquipeId, itemForm, equipes, fetchApontadorByEquipeId]);
 
-  // Effect for handling caminhão changes - REMOVED the auto-fill of quantidade_massa
+  // Effect for handling caminhão changes
   useEffect(() => {
     if (watchedCaminhaoId) {
       setSelectedCaminhaoId(watchedCaminhaoId);
-      // REMOVED: Auto-population of quantidade_massa based on truck capacity
-      // Now users must manually enter the quantity for each truck
+      // Users must manually enter the quantity for each truck
     }
   }, [watchedCaminhaoId]);
 
@@ -245,16 +247,17 @@ export const useProgramacaoEntregaForm = (
     }
   }, [watchedDataEntrega, isAddingItem, itemForm]);
 
-  // Effect for resetting item form when adding new item - ensure quantidade_massa starts at 0
+  // Effect for resetting item form when adding new item
   useEffect(() => {
     if (isAddingItem) {
       const currentDataEntrega = form.getValues().data_entrega || getCurrentDate();
       console.log("Resetting item form with Brazilian date:", currentDataEntrega);
+      console.log("Centro custo nome available:", centroCustoNome);
       
       itemForm.reset({
         requisicao_id: form.getValues().requisicao_id || "",
-        centro_custo_nome: centroCustoNome,
-        quantidade_massa: 0, // Always start at 0 (empty)
+        centro_custo_nome: centroCustoNome, // Ensure centro_custo_nome is set
+        quantidade_massa: 0, // Always start at 0 (empty) - in KG
         caminhao_id: "",
         tipo_lancamento: "",
         equipe_id: "",
@@ -264,6 +267,14 @@ export const useProgramacaoEntregaForm = (
         cancelled: false,
         cancelReason: ""
       });
+      
+      // Force update the centro_custo_nome field if it's available
+      if (centroCustoNome) {
+        setTimeout(() => {
+          itemForm.setValue("centro_custo_nome", centroCustoNome);
+          console.log("Force updated centro_custo_nome:", centroCustoNome);
+        }, 100);
+      }
     }
   }, [isAddingItem, itemForm, form, centroCustoNome]);
 

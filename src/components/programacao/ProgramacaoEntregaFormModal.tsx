@@ -119,6 +119,15 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
 
     itemForm.handleSubmit(values => {
       console.log("Submitting item values:", values);
+      console.log("Centro custo nome:", values.centro_custo_nome);
+      console.log("Quantidade massa (kg):", values.quantidade_massa);
+      
+      // Validate that centro_custo_nome is not empty
+      if (!values.centro_custo_nome) {
+        console.error("Centro custo nome is empty!");
+        return;
+      }
+      
       addItem(values);
     })();
   };
@@ -196,7 +205,7 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
               </CardContent>
             </Card>
 
-            {/* Resumo da Requisição */}
+            {/* Resumo da Requisição - Fixed to show tons correctly */}
             {selectedRequisicaoId && (
               <Card className="bg-blue-50 border-blue-200">
                 <CardHeader>
@@ -217,7 +226,7 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                       <div className="text-sm text-blue-600">Peso Total (t)</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-green-700">{Math.round(calculateProgrammedQuantity())}</div>
+                      <div className="text-2xl font-bold text-green-700">{calculateProgrammedQuantity().toFixed(1)}</div>
                       <div className="text-sm text-green-600">Programado (t)</div>
                     </div>
                   </div>
@@ -225,7 +234,7 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
               </Card>
             )}
 
-            {/* Seção de Entregas - Fixed date formatting */}
+            {/* Seção de Entregas - Fixed display to show values in tons */}
             <Card>
               <CardHeader>
                 <div className="flex justify-between items-center">
@@ -264,63 +273,71 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {watchItens.map((item, index) => (
-                          <TableRow key={index} className={item.cancelled ? "bg-red-50" : ""}>
-                            <TableCell className="font-medium">
-                              {item.logradouro || item.centro_custo_nome}
-                              {item.cancelled && (
-                                <div className="mt-1 flex items-center text-xs text-red-600">
-                                  <AlertCircle className="h-3 w-3 mr-1" />
-                                  <span className="truncate">Cancelado</span>
-                                </div>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="secondary">{item.quantidade_massa} t</Badge>
-                            </TableCell>
-                            <TableCell>
-                              {caminhoes.find(c => c.id === item.caminhao_id)?.placa || 'N/A'}
-                            </TableCell>
-                            <TableCell>
-                              {equipes.find(e => e.id === item.equipe_id)?.nome_equipe || 'N/A'}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{item.tipo_lancamento}</Badge>
-                            </TableCell>
-                            <TableCell>
-                              {usinas.find(u => u.id === item.usina_id)?.nome_usina || 'N/A'}
-                            </TableCell>
-                            <TableCell>
-                              {item.data_entrega ? formatBrazilianDateForDisplay(item.data_entrega) : 'N/A'}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex justify-end space-x-1">
-                                {!item.cancelled && (
+                        {watchItens.map((item, index) => {
+                          // Convert display value: if editing existing data from DB (tons), show as tons
+                          // If new data from form (kg), convert to tons for display
+                          const displayQuantity = typeof item.quantidade_massa === 'number' 
+                            ? (item.quantidade_massa > 100 ? item.quantidade_massa / 1000 : item.quantidade_massa)
+                            : parseFloat(String(item.quantidade_massa || 0));
+                          
+                          return (
+                            <TableRow key={index} className={item.cancelled ? "bg-red-50" : ""}>
+                              <TableCell className="font-medium">
+                                {item.logradouro || item.centro_custo_nome}
+                                {item.cancelled && (
+                                  <div className="mt-1 flex items-center text-xs text-red-600">
+                                    <AlertCircle className="h-3 w-3 mr-1" />
+                                    <span className="truncate">Cancelado</span>
+                                  </div>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="secondary">{displayQuantity.toFixed(1)} t</Badge>
+                              </TableCell>
+                              <TableCell>
+                                {caminhoes.find(c => c.id === item.caminhao_id)?.placa || 'N/A'}
+                              </TableCell>
+                              <TableCell>
+                                {equipes.find(e => e.id === item.equipe_id)?.nome_equipe || 'N/A'}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline">{item.tipo_lancamento}</Badge>
+                              </TableCell>
+                              <TableCell>
+                                {usinas.find(u => u.id === item.usina_id)?.nome_usina || 'N/A'}
+                              </TableCell>
+                              <TableCell>
+                                {item.data_entrega ? formatBrazilianDateForDisplay(item.data_entrega) : 'N/A'}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end space-x-1">
+                                  {!item.cancelled && (
+                                    <Button 
+                                      type="button" 
+                                      variant="outline" 
+                                      size="sm" 
+                                      onClick={() => openCancelDialog(index)}
+                                      disabled={item.status === 'Enviada' || item.status === 'Entregue'}
+                                      title={item.status === 'Enviada' || item.status === 'Entregue' ? 
+                                        "Não é possível cancelar uma entrega que já foi enviada ou entregue" : 
+                                        "Cancelar entrega"}
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  )}
                                   <Button 
                                     type="button" 
-                                    variant="outline" 
+                                    variant="destructive" 
                                     size="sm" 
-                                    onClick={() => openCancelDialog(index)}
-                                    disabled={item.status === 'Enviada' || item.status === 'Entregue'}
-                                    title={item.status === 'Enviada' || item.status === 'Entregue' ? 
-                                      "Não é possível cancelar uma entrega que já foi enviada ou entregue" : 
-                                      "Cancelar entrega"}
+                                    onClick={() => removeItem(index)}
                                   >
-                                    <X className="h-4 w-4" />
+                                    <Trash2 className="h-4 w-4" />
                                   </Button>
-                                )}
-                                <Button 
-                                  type="button" 
-                                  variant="destructive" 
-                                  size="sm" 
-                                  onClick={() => removeItem(index)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </div>
@@ -328,7 +345,7 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
               </CardContent>
             </Card>
             
-            {/* Formulário de Adição de Item - Updated with improved NumberInput */}
+            {/* Formulário de Adição de Item - keep existing code */}
             {isAddingItem && (
               <Card className="border-blue-200 bg-blue-50">
                 <CardHeader>
@@ -349,12 +366,17 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                           />
                         </FormControl>
                         <FormMessage />
+                        {!centroCustoNome && (
+                          <p className="text-xs text-red-500">
+                            Centro de custo não encontrado. Selecione uma requisição válida.
+                          </p>
+                        )}
                       </FormItem>
                     )} />
                     
                     <FormField control={itemForm.control} name="quantidade_massa" render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-sm font-medium">Quantidade (t) *</FormLabel>
+                        <FormLabel className="text-sm font-medium">Quantidade (kg) *</FormLabel>
                         <FormControl>
                           <NumberInput 
                             value={field.value} 
@@ -364,6 +386,9 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                           />
                         </FormControl>
                         <FormMessage />
+                        <p className="text-xs text-muted-foreground">
+                          Digite o peso em kg (ex: 26750). Será convertido para toneladas automaticamente.
+                        </p>
                       </FormItem>
                     )} />
                     
