@@ -5,6 +5,7 @@ export const itemSchema = z.object({
   id: z.string().optional(),
   requisicao_id: z.string().optional(),
   centro_custo_nome: z.string().optional(),
+  logradouro: z.string().optional(),
   caminhao_id: z.string().optional(),
   tipo_lancamento: z.string().optional(),
   equipe_id: z.string().optional(),

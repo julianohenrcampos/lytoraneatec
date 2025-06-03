@@ -93,6 +93,7 @@ export interface ItemFormValues {
   id?: string;
   requisicao_id: string;
   centro_custo_nome?: string;
+  logradouro?: string;
   quantidade_massa: number;
   caminhao_id: string;
   tipo_lancamento: string;

@@ -1,7 +1,5 @@
 
 import React from "react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
 import { 
   Table, 
@@ -14,7 +12,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Clipboard, TruckIcon, CheckCircle, Calendar, FileEdit, Eye } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { normalizeDateToNoon, formatNumber } from "@/lib/utils";
+import { formatNumber } from "@/lib/utils";
+import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 
 interface EntregasTableProps {
   entregas: ListaProgramacaoEntrega[];
@@ -29,17 +28,6 @@ const EntregasTable: React.FC<EntregasTableProps> = ({ entregas, onEntregaClick 
       case "Entregue": return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300";
       case "Cancelada": return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300";
       default: return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
-    }
-  };
-
-  // Normalize the date to avoid timezone issues and ensure correct display
-  const formatEntregaDate = (dateString: string) => {
-    try {
-      const normalizedDate = normalizeDateToNoon(dateString);
-      return format(normalizedDate, "dd/MM/yyyy", { locale: ptBR });
-    } catch (error) {
-      console.error("Error formatting entrega date:", error, "for date:", dateString);
-      return dateString;
     }
   };
 
@@ -74,7 +62,7 @@ const EntregasTable: React.FC<EntregasTableProps> = ({ entregas, onEntregaClick 
           <TableBody>
             {entregas.map((entrega) => (
               <TableRow key={entrega.id}>
-                <TableCell>{formatEntregaDate(entrega.data_entrega)}</TableCell>
+                <TableCell>{formatBrazilianDateForDisplay(entrega.data_entrega)}</TableCell>
                 <TableCell>{entrega.centro_custo_nome || entrega.logradouro}</TableCell>
                 <TableCell>
                   {entrega.caminhao ? 

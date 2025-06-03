@@ -1,12 +1,10 @@
 
 import React from "react";
 import { TableRow, TableCell } from "@/components/ui/table";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
 import EntregaStatusBadge from "./EntregaStatusBadge";
 import EntregaActionButtons from "./EntregaActionButtons";
-import { normalizeDateToNoon } from "@/lib/utils";
+import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 
 interface EntregaTableRowProps {
   entrega: ListaProgramacaoEntrega;
@@ -16,28 +14,21 @@ interface EntregaTableRowProps {
 const EntregaTableRow: React.FC<EntregaTableRowProps> = ({ entrega, onEntregaClick }) => {
   const isClickable = entrega.status === "Enviada";
   
-  // Normalize the date to avoid timezone issues and ensure correct display
-  const formatEntregaDate = (dateString: string) => {
-    try {
-      const normalizedDate = normalizeDateToNoon(dateString);
-      return format(normalizedDate, "dd/MM/yyyy", { locale: ptBR });
-    } catch (error) {
-      console.error("Error formatting entrega date:", error, "for date:", dateString);
-      return dateString;
-    }
-  };
+  // Get centro de custo name - priority order: centro_custo_nome, centro_custo relation, requisicao relation
+  const centroCustoNome = 
+    entrega.centro_custo_nome ||
+    entrega.centro_custo?.nome_centro_custo ||
+    entrega.requisicao?.centro_custo?.nome_centro_custo ||
+    "N/A";
   
   return (
     <TableRow 
       className={isClickable ? "hover:bg-amber-50 dark:hover:bg-amber-950/20 cursor-pointer" : ""}
       onClick={() => isClickable ? onEntregaClick(entrega) : null}
     >
-      <TableCell>{formatEntregaDate(entrega.data_entrega)}</TableCell>
-      <TableCell>
-        {entrega.centro_custo_nome || 
-         entrega.centro_custo?.nome_centro_custo || 
-         entrega.requisicao?.centro_custo?.nome_centro_custo || 
-         entrega.logradouro}
+      <TableCell>{formatBrazilianDateForDisplay(entrega.data_entrega)}</TableCell>
+      <TableCell className="max-w-[200px] truncate" title={centroCustoNome}>
+        {centroCustoNome}
       </TableCell>
       <TableCell>
         {entrega.caminhao ? 

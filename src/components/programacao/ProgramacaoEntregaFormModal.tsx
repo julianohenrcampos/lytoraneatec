@@ -139,6 +139,7 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                 <CardTitle className="text-lg">Dados da Programação</CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Seção de Dados Principais */}
                 <FormField control={form.control} name="requisicao_id" render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-sm font-medium">Requisição *</FormLabel>
@@ -224,7 +225,7 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
               </Card>
             )}
 
-            {/* Seção de Entregas */}
+            {/* Seção de Entregas - Fixed date formatting */}
             <Card>
               <CardHeader>
                 <div className="flex justify-between items-center">
@@ -252,7 +253,7 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Centro de Custo</TableHead>
+                          <TableHead>Logradouro</TableHead>
                           <TableHead>Quantidade</TableHead>
                           <TableHead>Caminhão</TableHead>
                           <TableHead>Equipe</TableHead>
@@ -266,7 +267,7 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                         {watchItens.map((item, index) => (
                           <TableRow key={index} className={item.cancelled ? "bg-red-50" : ""}>
                             <TableCell className="font-medium">
-                              {item.centro_custo_nome}
+                              {item.logradouro || item.centro_custo_nome}
                               {item.cancelled && (
                                 <div className="mt-1 flex items-center text-xs text-red-600">
                                   <AlertCircle className="h-3 w-3 mr-1" />
@@ -290,7 +291,7 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                               {usinas.find(u => u.id === item.usina_id)?.nome_usina || 'N/A'}
                             </TableCell>
                             <TableCell>
-                              {item.data_entrega ? format(new Date(item.data_entrega), "dd/MM/yyyy", { locale: ptBR }) : 'N/A'}
+                              {item.data_entrega ? formatBrazilianDateForDisplay(item.data_entrega) : 'N/A'}
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end space-x-1">

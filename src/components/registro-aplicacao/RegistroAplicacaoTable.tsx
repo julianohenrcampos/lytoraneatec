@@ -1,7 +1,5 @@
 
 import React, { useState } from 'react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { RegistroAplicacao } from '@/types/registroAplicacao';
 import { RegistroAplicacaoActions } from './RegistroAplicacaoActions';
@@ -10,6 +8,7 @@ import { RegistroAplicacaoEditModal } from './RegistroAplicacaoEditModal';
 import { DeleteRegistroAplicacaoDialog } from './DeleteRegistroAplicacaoDialog';
 import { Badge } from '@/components/ui/badge';
 import { getEspessuraCalculadaStatus, getEspessuraCalculadaStatusText } from '@/utils/aplicacaoCalculations';
+import { formatBrazilianDateForDisplay } from '@/utils/timezoneUtils';
 import EmptyStateMessage from './EmptyStateMessage';
 
 interface RegistroAplicacaoTableProps {
@@ -104,7 +103,7 @@ const RegistroAplicacaoTable: React.FC<RegistroAplicacaoTableProps> = ({
                                 registro.lista_entrega?.logradouro ||
                                 "N/A";
 
-              // Get centro de custo name - check multiple paths
+              // Get centro de custo name - check multiple paths using new priority order
               const centroCustoNome = 
                 registro.lista_entrega?.centro_custo_nome ||
                 registro.lista_entrega?.centro_custo?.nome_centro_custo ||
@@ -123,7 +122,7 @@ const RegistroAplicacaoTable: React.FC<RegistroAplicacaoTableProps> = ({
                 <TableRow key={registro.id}>
                   <TableCell>
                     {registro.data_aplicacao ? 
-                      format(new Date(registro.data_aplicacao), "dd/MM/yyyy", { locale: ptBR }) : 
+                      formatBrazilianDateForDisplay(registro.data_aplicacao) : 
                       "N/A"}
                   </TableCell>
                   <TableCell className="max-w-[200px] truncate" title={logradouro}>

@@ -1,7 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
-import { format } from "date-fns";
+import { formatBrazilianDateToString } from "@/utils/timezoneUtils";
 
 /**
  * Fetch entregas enviadas and entregues that are available for registro aplicacao
@@ -13,11 +13,11 @@ export const fetchEntregasEnviadas = async (
 ): Promise<ListaProgramacaoEntrega[]> => {
   try {
     console.log("🔍 Fetching entregas - Input params:", {
-      selectedDate: selectedDate ? format(selectedDate, "yyyy-MM-dd") : "ALL DATES",
+      selectedDate: selectedDate ? formatBrazilianDateToString(selectedDate) : "ALL DATES",
       equipeId: equipeId || "ALL TEAMS"
     });
     
-    // Query principal nas tabelas ao invés da view
+    // Query principal nas tabelas ao invés da view, incluindo relações com centro de custo
     let query = supabase
       .from("bd_lista_programacao_entrega")
       .select(`
@@ -35,13 +35,22 @@ export const fetchEntregasEnviadas = async (
         programacao_entrega_id,
         programacao_id,
         created_at,
-        updated_at
+        updated_at,
+        requisicao:requisicao_id(
+          id,
+          numero,
+          centro_custo_id,
+          centro_custo:centro_custo_id(
+            id,
+            nome_centro_custo
+          )
+        )
       `)
       .in("status", ["Enviada", "Entregue", "Pendente"]); // Incluir mais status
 
-    // Filter by date if provided - melhor tratamento de data
+    // Filter by date if provided - usar formatação brasileira
     if (selectedDate) {
-      const formattedDate = format(selectedDate, "yyyy-MM-dd");
+      const formattedDate = formatBrazilianDateToString(selectedDate);
       console.log("📅 Filtering by date:", formattedDate);
       query = query.eq("data_entrega", formattedDate);
     } else {
@@ -170,6 +179,14 @@ export const fetchEntregasEnviadas = async (
       const equipe = item.equipe_id ? equipesMap.get(item.equipe_id) : undefined;
       const usina = item.usina_id ? usinasMap.get(item.usina_id) : undefined;
 
+      // Safely access requisicao data - handle both array and object cases
+      const requisicaoData = Array.isArray(item.requisicao) ? item.requisicao[0] : item.requisicao;
+      
+      // Safely access centro_custo data - handle both array and object cases
+      const centroCustoData = requisicaoData?.centro_custo ? 
+        (Array.isArray(requisicaoData.centro_custo) ? requisicaoData.centro_custo[0] : requisicaoData.centro_custo) : 
+        undefined;
+
       return {
         id: item.id,
         logradouro: item.logradouro,
@@ -202,12 +219,27 @@ export const fetchEntregasEnviadas = async (
         usina: usina ? {
           id: usina.id,
           nome_usina: usina.nome_usina || 'N/A'
+        } : undefined,
+        // Add centro_custo_nome from the requisicao relation - safely access the data
+        centro_custo_nome: centroCustoData?.nome_centro_custo,
+        requisicao: requisicaoData ? {
+          id: requisicaoData.id,
+          numero: requisicaoData.numero,
+          centro_custo_id: requisicaoData.centro_custo_id,
+          centro_custo: centroCustoData ? {
+            id: centroCustoData.id,
+            nome_centro_custo: centroCustoData.nome_centro_custo
+          } : undefined
         } : undefined
       };
     });
 
     console.log(`✅ Final processed entregas: ${entregas.length}`);
-    console.log("📋 Sample entrega:", entregas[0]);
+    console.log("📋 Sample entrega with centro custo:", {
+      logradouro: entregas[0]?.logradouro,
+      centro_custo_nome: entregas[0]?.centro_custo_nome,
+      data_entrega: entregas[0]?.data_entrega
+    });
     
     // Log estatísticas por status
     const statusStats = entregas.reduce((acc, e) => {
