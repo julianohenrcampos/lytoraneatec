@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -7,8 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Truck, Users, Package, Eye, Edit, RefreshCw, AlertCircle } from "lucide-react";
 import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 
 interface EntregasEnviadasTableProps {
   entregas: ListaProgramacaoEntrega[];
@@ -172,7 +170,7 @@ const EntregasEnviadasTable: React.FC<EntregasEnviadasTableProps> = ({
                   onClick={() => onEntregaSelect(entrega)}
                 >
                   <TableCell>
-                    {format(new Date(entrega.data_entrega), "dd/MM/yyyy", { locale: ptBR })}
+                    {formatBrazilianDateForDisplay(entrega.data_entrega)}
                   </TableCell>
                   <TableCell className="font-medium">
                     {entrega.logradouro}

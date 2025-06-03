@@ -42,13 +42,13 @@ export const useProgramacaoEntregaForm = (
     },
   });
 
-  // Initialize the item form with ItemFormValues type
+  // Initialize the item form with ItemFormValues type - quantidade_massa starts at 0
   const itemForm = useForm<ItemFormValues>({
     resolver: zodResolver(itemSchema),
     defaultValues: {
       requisicao_id: "",
       centro_custo_nome: "",
-      quantidade_massa: 0,
+      quantidade_massa: 0, // Starts empty (0)
       caminhao_id: "",
       tipo_lancamento: "",
       equipe_id: "",
@@ -245,7 +245,7 @@ export const useProgramacaoEntregaForm = (
     }
   }, [watchedDataEntrega, isAddingItem, itemForm]);
 
-  // Effect for resetting item form when adding new item
+  // Effect for resetting item form when adding new item - ensure quantidade_massa starts at 0
   useEffect(() => {
     if (isAddingItem) {
       const currentDataEntrega = form.getValues().data_entrega || getCurrentDate();
@@ -254,7 +254,7 @@ export const useProgramacaoEntregaForm = (
       itemForm.reset({
         requisicao_id: form.getValues().requisicao_id || "",
         centro_custo_nome: centroCustoNome,
-        quantidade_massa: 0,
+        quantidade_massa: 0, // Always start at 0 (empty)
         caminhao_id: "",
         tipo_lancamento: "",
         equipe_id: "",

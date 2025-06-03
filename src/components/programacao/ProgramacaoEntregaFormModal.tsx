@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import { VehicleCombobox } from "@/components/combobox/VehicleCombobox";
+import { NumberInput } from "@/components/ui/number-input";
 import { useProgramacaoEntregaForm } from "@/hooks/useProgramacaoEntregaForm";
 import { ProgramacaoEntregaWithItems } from "@/types/programacaoEntrega";
 import { Badge } from "@/components/ui/badge";
@@ -178,7 +179,6 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                           selected={field.value ? parseBrazilianDate(field.value) : new Date()} 
                           onSelect={(date) => {
                             if (date) {
-                              // ✅ Usar timezone brasileiro para salvar a data corretamente
                               const normalizedDate = normalizeDateToBrazilianNoon(date);
                               const formattedDate = formatBrazilianDateToString(normalizedDate);
                               console.log("Date selected in calendar:", date, "normalized Brazilian:", normalizedDate, "formatted:", formattedDate);
@@ -328,7 +328,7 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
               </CardContent>
             </Card>
             
-            {/* Formulário de Adição de Item */}
+            {/* Formulário de Adição de Item - Updated with improved NumberInput */}
             {isAddingItem && (
               <Card className="border-blue-200 bg-blue-50">
                 <CardHeader>
@@ -356,11 +356,10 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                       <FormItem>
                         <FormLabel className="text-sm font-medium">Quantidade (t) *</FormLabel>
                         <FormControl>
-                          <Input 
-                            type="number" 
-                            {...field} 
-                            onChange={e => field.onChange(parseFloat(e.target.value) || 0)} 
-                            placeholder="Informe a quantidade" 
+                          <NumberInput 
+                            value={field.value} 
+                            onChange={field.onChange} 
+                            placeholder="26750" 
                             className="bg-white" 
                           />
                         </FormControl>
@@ -478,7 +477,6 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                               selected={field.value ? parseBrazilianDate(field.value) : new Date()} 
                               onSelect={date => {
                                 if (date) {
-                                  // ✅ Usar timezone brasileiro para salvar a data corretamente
                                   const normalizedDate = normalizeDateToBrazilianNoon(date);
                                   const formattedDate = formatBrazilianDateToString(normalizedDate);
                                   console.log("Item date selected in calendar:", date, "normalized Brazilian:", normalizedDate, "formatted:", formattedDate);
