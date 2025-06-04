@@ -13,7 +13,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Eye, Pencil, Trash2, Droplets, Clock } from "lucide-react";
 import { ApontamentoCaminhao } from "@/services/apontamentoCaminhoesService";
-import { cn, normalizeDateToNoon } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ApontamentoCaminhoesTableProps {
@@ -33,11 +34,10 @@ const ApontamentoCaminhoesTable: React.FC<ApontamentoCaminhoesTableProps> = ({
 }) => {
   const isMobile = useIsMobile();
 
-  // Function to format date consistently using normalizeDateToNoon
+  // Function to format date consistently using formatBrazilianDateForDisplay
   const formatApontamentoDate = (dateString: string) => {
     try {
-      const normalizedDate = normalizeDateToNoon(dateString);
-      return format(normalizedDate, "dd/MM/yyyy", { locale: ptBR });
+      return formatBrazilianDateForDisplay(dateString);
     } catch (error) {
       console.error("Error formatting apontamento date:", error, "for date:", dateString);
       return dateString;

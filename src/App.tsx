@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { TimezoneProvider } from "@/contexts/TimezoneContext";
+import RouteProtection from "@/components/routing/RouteProtection";
 import MainLayout from "./components/layout/MainLayout";
 import Dashboard from "./pages/Dashboard"; // Direct import for Dashboard
 import Dashboard1 from "./pages/Dashboard1";
@@ -51,54 +52,56 @@ const App = () => {
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            <Routes>
-              {/* Directly render Dashboard at root path */}
-              <Route path="/" element={<Dashboard />} />
-              
-              {/* Keep dashboard route */}
-              <Route path="/dashboard" element={<Dashboard />} />
-              
-              {/* Dashboard RH route */}
-              <Route path="/gestao-rh/dashboard" element={<DashboardRH />} />
-              
-              {/* Dashboard1 route - deprecated, but keep for backwards compatibility */}
-              <Route path="/dashboard1" element={<Dashboard1 />} />
-              
-              {/* Auth routes */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              
-              {/* Gestão RH routes */}
-              <Route path="/gestao-rh/empresas" element={<GestaoEmpresas />} />
-              <Route path="/gestao-rh/departamentos" element={<GestaoDepartamentos />} />
-              <Route path="/gestao-rh/centros-custo" element={<GestaoCentrosCusto />} />
-              <Route path="/gestao-rh/funcoes" element={<GestaoFuncoes />} />
-              <Route path="/gestao-rh/funcionarios" element={<GestaoFuncionarios />} />
-              <Route path="/gestao-rh/equipes" element={<GestaoEquipes />} />
-              
-              {/* Gestão Máquinas routes - Removed Frotas route */}
-              <Route path="/gestao-maquinas/caminhoes-equipamentos" element={<GestaoCaminhoes />} />
-              <Route path="/gestao-maquinas/usinas" element={<GestaoUsinas />} />
-              <Route path="/gestao-maquinas/relatorio-medicao" element={<RelatorioMedicao />} />
-              
-              {/* Requisições routes */}
-              <Route path="/requisicoes/cadastro" element={<GestaoRequisicoes />} />
-              <Route path="/requisicoes/programacao-entrega" element={<ProgramacaoEntrega />} />
-              <Route path="/requisicoes/registro-cargas" element={<RegistroCargas />} />
-              <Route path="/requisicoes/registro-aplicacao" element={<RegistroAplicacao />} />
-              <Route path="/requisicoes/apontamento-equipe" element={<ApontamentoEquipe />} />
-              <Route path="/requisicoes/apontamento-caminhoes" element={<ApontamentoCaminhoes />} />
-              <Route path="/requisicoes/chamados-os" element={<ChamadosOS />} />
-              <Route path="/requisicoes/gestao-os" element={<GestaoOrdemServico />} />
-              
-              {/* Admin routes */}
-              <Route path="/admin/permissoes" element={<GestaoPermissoes />} />
-              
-              {/* Not found route */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <RouteProtection>
+              <Routes>
+                {/* Directly render Dashboard at root path */}
+                <Route path="/" element={<Dashboard />} />
+                
+                {/* Keep dashboard route */}
+                <Route path="/dashboard" element={<Dashboard />} />
+                
+                {/* Dashboard RH route */}
+                <Route path="/gestao-rh/dashboard" element={<DashboardRH />} />
+                
+                {/* Dashboard1 route - deprecated, but keep for backwards compatibility */}
+                <Route path="/dashboard1" element={<Dashboard1 />} />
+                
+                {/* Auth routes */}
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                
+                {/* Gestão RH routes */}
+                <Route path="/gestao-rh/empresas" element={<GestaoEmpresas />} />
+                <Route path="/gestao-rh/departamentos" element={<GestaoDepartamentos />} />
+                <Route path="/gestao-rh/centros-custo" element={<GestaoCentrosCusto />} />
+                <Route path="/gestao-rh/funcoes" element={<GestaoFuncoes />} />
+                <Route path="/gestao-rh/funcionarios" element={<GestaoFuncionarios />} />
+                <Route path="/gestao-rh/equipes" element={<GestaoEquipes />} />
+                
+                {/* Gestão Máquinas routes - Removed Frotas route */}
+                <Route path="/gestao-maquinas/caminhoes-equipamentos" element={<GestaoCaminhoes />} />
+                <Route path="/gestao-maquinas/usinas" element={<GestaoUsinas />} />
+                <Route path="/gestao-maquinas/relatorio-medicao" element={<RelatorioMedicao />} />
+                
+                {/* Requisições routes */}
+                <Route path="/requisicoes/cadastro" element={<GestaoRequisicoes />} />
+                <Route path="/requisicoes/programacao-entrega" element={<ProgramacaoEntrega />} />
+                <Route path="/requisicoes/registro-cargas" element={<RegistroCargas />} />
+                <Route path="/requisicoes/registro-aplicacao" element={<RegistroAplicacao />} />
+                <Route path="/requisicoes/apontamento-equipe" element={<ApontamentoEquipe />} />
+                <Route path="/requisicoes/apontamento-caminhoes" element={<ApontamentoCaminhoes />} />
+                <Route path="/requisicoes/chamados-os" element={<ChamadosOS />} />
+                <Route path="/requisicoes/gestao-os" element={<GestaoOrdemServico />} />
+                
+                {/* Admin routes */}
+                <Route path="/admin/permissoes" element={<GestaoPermissoes />} />
+                
+                {/* Redirect any unknown paths to NotFound */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </RouteProtection>
           </BrowserRouter>
         </TooltipProvider>
       </TimezoneProvider>

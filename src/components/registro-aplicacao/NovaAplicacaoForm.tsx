@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
-import { Plus, Calculator } from "lucide-react";
+import { Plus, Calculator, AlertTriangle } from "lucide-react";
 import { RegistroAplicacaoDetalhesFormValues, BordoType } from "@/types/registroAplicacaoDetalhes";
 import { useToast } from "@/hooks/use-toast";
 import { useLogradourosRequisicao } from "@/hooks/registro-aplicacao/useLogradourosRequisicao";
@@ -53,7 +54,7 @@ const NovaAplicacaoForm: React.FC<NovaAplicacaoFormProps> = ({
     estaca_final: undefined,
   });
 
-  const [calcularComMassaTotal, setCalcularComMassaTotal] = useState(false);
+  const [aplicarTodaMassa, setAplicarTodaMassa] = useState(false);
 
   // Carregar dados para edição
   useEffect(() => {
@@ -93,26 +94,32 @@ const NovaAplicacaoForm: React.FC<NovaAplicacaoFormProps> = ({
     ? calculatedArea * 0.05 * 2.4
     : 0;
 
-  // CORREÇÃO: Tonelada aplicada real limitada pela massa remanescente
+  // CORREÇÃO: Lógica principal do checkbox
   const toneladaAplicadaReal = calculatedArea > 0 
-    ? Math.min(toneladaPadrao, massaRemanescente)
-    : 0;
-
-  // CORREÇÃO: Cálculo da espessura baseado na lógica do checkbox
-  const calculatedEspessura = calculatedArea > 0 
-    ? (calcularComMassaTotal 
-        ? massaRemanescente / calculatedArea / 2.4  // Usar toda a massa remanescente
-        : toneladaAplicadaReal / calculatedArea / 2.4  // Usar tonelada aplicada real limitada
+    ? (aplicarTodaMassa 
+        ? massaRemanescente  // Quando checkbox marcado: aplicar TODA a massa remanescente
+        : Math.min(toneladaPadrao, massaRemanescente)  // Quando desmarcado: cálculo tradicional limitado
       )
     : 0;
 
-  // Verificar se a espessura está dentro do padrão (0.035 a 0.05)
+  // CORREÇÃO: Cálculo da espessura sempre baseado na tonelada que será realmente aplicada
+  const calculatedEspessura = calculatedArea > 0 && toneladaAplicadaReal > 0
+    ? toneladaAplicadaReal / calculatedArea / 2.4
+    : 0;
+
+  // Verificar se a espessura está dentro do padrão
   const espessuraStatus = calculatedEspessura > 0 
-    ? (calculatedEspessura >= 0.035 && calculatedEspessura <= 0.05 ? 'success' : 'warning')
+    ? (aplicarTodaMassa
+        ? (calculatedEspessura >= 0.035 && calculatedEspessura <= 0.05 ? 'success' : 'warning')  // Lógica especial para massa total
+        : (calculatedEspessura >= 0.035 && calculatedEspessura <= 0.05 ? 'success' : 'warning')  // Lógica tradicional
+      )
     : null;
 
   const getEspessuraStatusText = () => {
     if (!espessuraStatus) return "";
+    if (aplicarTodaMassa) {
+      return espessuraStatus === 'success' ? "Dentro do Padrão (Massa Total)" : "Fora do Padrão (Massa Total)";
+    }
     return espessuraStatus === 'success' ? "Dentro do Padrão" : "Fora do Padrão";
   };
 
@@ -121,12 +128,13 @@ const NovaAplicacaoForm: React.FC<NovaAplicacaoFormProps> = ({
     return espessuraStatus === 'success' ? "text-green-600" : "text-orange-600";
   };
 
-  // Verificar se há limitação por massa remanescente
-  const temLimitacaoMassa = toneladaPadrao > massaRemanescente;
+  // CORREÇÃO: Nova massa remanescente - quando checkbox marcado, fica zero
+  const novaMassaRemanescente = Math.max(0, massaRemanescente - toneladaAplicadaReal);
 
-  // CORREÇÃO: Nova massa remanescente considerando a massa que será aplicada
-  const massaQueSeraAplicada = calcularComMassaTotal ? massaRemanescente : toneladaAplicadaReal;
-  const novaMassaRemanescente = Math.max(0, massaRemanescente - massaQueSeraAplicada);
+  // Verificar se há diferença significativa entre cálculo padrão e aplicação real
+  const temLimitacaoOuDiferenca = aplicarTodaMassa 
+    ? (toneladaAplicadaReal > toneladaPadrao)  // Aplicando mais que o padrão
+    : (toneladaPadrao > massaRemanescente);   // Limitado pela massa disponível
 
   // Atualizar campos calculados
   useEffect(() => {
@@ -136,11 +144,10 @@ const NovaAplicacaoForm: React.FC<NovaAplicacaoFormProps> = ({
   }, [calculatedArea]);
 
   useEffect(() => {
-    const massaParaAplicar = calcularComMassaTotal ? massaRemanescente : toneladaAplicadaReal;
-    if (massaParaAplicar !== formData.tonelada_aplicada) {
-      setFormData(prev => ({ ...prev, tonelada_aplicada: massaParaAplicar }));
+    if (toneladaAplicadaReal !== formData.tonelada_aplicada) {
+      setFormData(prev => ({ ...prev, tonelada_aplicada: toneladaAplicadaReal }));
     }
-  }, [toneladaAplicadaReal, massaRemanescente, calcularComMassaTotal]);
+  }, [toneladaAplicadaReal]);
 
   useEffect(() => {
     if (calculatedEspessura !== formData.espessura_aplicada) {
@@ -165,9 +172,8 @@ const NovaAplicacaoForm: React.FC<NovaAplicacaoFormProps> = ({
     }
   };
 
-  const handleCalcularComMassaTotalChange = (checked: boolean | "indeterminate") => {
-    // Convert CheckedState to boolean
-    setCalcularComMassaTotal(checked === true);
+  const handleAplicarTodaMassaChange = (checked: boolean | "indeterminate") => {
+    setAplicarTodaMassa(checked === true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -244,7 +250,7 @@ const NovaAplicacaoForm: React.FC<NovaAplicacaoFormProps> = ({
           estaca_inicial: undefined,
           estaca_final: undefined,
         });
-        setCalcularComMassaTotal(false);
+        setAplicarTodaMassa(false);
       }
     } catch (error) {
       console.error("Erro ao salvar aplicação:", error);
@@ -274,8 +280,11 @@ const NovaAplicacaoForm: React.FC<NovaAplicacaoFormProps> = ({
         </CardTitle>
         <div className="text-sm text-gray-600 space-y-1">
           <div>Massa remanescente: <span className="font-medium text-orange-600">{massaRemanescente.toFixed(2)}t</span></div>
-          {novaMassaRemanescente > 0 && (
-            <div>Nova massa remanescente: <span className="font-medium text-blue-600">{novaMassaRemanescente.toFixed(2)}t</span></div>
+          <div>Nova massa remanescente: <span className={`font-medium ${novaMassaRemanescente === 0 ? 'text-red-600' : 'text-blue-600'}`}>{novaMassaRemanescente.toFixed(2)}t</span></div>
+          {aplicarTodaMassa && (
+            <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+              ⚡ Aplicando toda a massa remanescente nesta rua
+            </div>
           )}
         </div>
       </CardHeader>
@@ -385,7 +394,22 @@ const NovaAplicacaoForm: React.FC<NovaAplicacaoFormProps> = ({
             </div>
           </div>
 
-          {/* Linha 4: Cálculos */}
+          {/* Linha 4: Opções de cálculo - MOVIDO ANTES DOS RESULTADOS */}
+          <div className="flex items-center space-x-2 p-4 bg-gray-50 rounded-lg">
+            <Checkbox
+              id="aplicar_toda_massa"
+              checked={aplicarTodaMassa}
+              onCheckedChange={handleAplicarTodaMassaChange}
+            />
+            <Label htmlFor="aplicar_toda_massa" className="text-sm font-medium">
+              Aplicar toda a massa remanescente nesta rua
+            </Label>
+            <div className="text-xs text-gray-500 ml-2">
+              ({aplicarTodaMassa ? 'Massa total será aplicada' : 'Cálculo tradicional por área'})
+            </div>
+          </div>
+
+          {/* Linha 5: Cálculos - REORGANIZADO */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Área Calculada (m²)</Label>
@@ -401,13 +425,17 @@ const NovaAplicacaoForm: React.FC<NovaAplicacaoFormProps> = ({
               <Label>Tonelada Aplicada (t)</Label>
               <Input
                 type="number"
-                value={(calcularComMassaTotal ? massaRemanescente : toneladaAplicadaReal).toFixed(2)}
+                value={toneladaAplicadaReal.toFixed(2)}
                 readOnly
-                className="bg-gray-50 font-medium"
+                className={`bg-gray-50 font-medium ${aplicarTodaMassa ? 'border-blue-300 bg-blue-50' : ''}`}
               />
-              {temLimitacaoMassa && !calcularComMassaTotal && (
-                <div className="text-xs text-orange-600 font-medium">
-                  Limitado pela massa remanescente (padrão: {toneladaPadrao.toFixed(2)}t)
+              {temLimitacaoOuDiferenca && (
+                <div className="text-xs font-medium">
+                  {aplicarTodaMassa ? (
+                    <span className="text-blue-600">Aplicando massa total: {massaRemanescente.toFixed(2)}t</span>
+                  ) : (
+                    <span className="text-orange-600">Limitado pela massa remanescente (padrão: {toneladaPadrao.toFixed(2)}t)</span>
+                  )}
                 </div>
               )}
             </div>
@@ -418,7 +446,7 @@ const NovaAplicacaoForm: React.FC<NovaAplicacaoFormProps> = ({
                 type="number"
                 value={(calculatedEspessura * 100).toFixed(1)}
                 readOnly
-                className="bg-gray-50 font-medium"
+                className={`bg-gray-50 font-medium ${aplicarTodaMassa ? 'border-blue-300 bg-blue-50' : ''}`}
               />
               {espessuraStatus && (
                 <div className={`text-xs font-medium ${getEspessuraStatusColor()}`}>
@@ -426,18 +454,6 @@ const NovaAplicacaoForm: React.FC<NovaAplicacaoFormProps> = ({
                 </div>
               )}
             </div>
-          </div>
-
-          {/* Linha 5: Opções de cálculo */}
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="calcular_massa_total"
-              checked={calcularComMassaTotal}
-              onCheckedChange={(checked) => setCalcularComMassaTotal(checked === true)}
-            />
-            <Label htmlFor="calcular_massa_total" className="text-sm">
-              Calcular espessura com massa total remanescente
-            </Label>
           </div>
 
           {/* Linha 6: Temperatura */}

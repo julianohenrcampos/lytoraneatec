@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { format } from 'date-fns';
@@ -17,6 +18,7 @@ import {
 } from '@/services/apontamentoCaminhoesService';
 import { getCurrentUser } from '@/lib/auth';
 import { fetchCaminhoes, Caminhao } from '@/services/caminhoesService';
+import { formatBrazilianDateForDisplay } from '@/utils/timezoneUtils';
 
 interface VeiculoDropdownItem {
   id: string;
@@ -316,7 +318,7 @@ export const useApontamentoCaminhoes = () => {
   const handleExportToExcel = () => {
     try {
       const dataForExport = apontamentos.map(item => ({
-        'Data': item.data ? format(new Date(item.data), 'dd/MM/yyyy', { locale: ptBR }) : '',
+        'Data': item.data ? formatBrazilianDateForDisplay(item.data) : '',
         'Caminhão/Equipamento': item.veiculo_identificacao || '',
         'Operador': item.nome_operador || '',
         'Centro de Custo': item.nome_centro_custo || '',
