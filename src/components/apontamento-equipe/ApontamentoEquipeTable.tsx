@@ -1,3 +1,4 @@
+
 import React from "react";
 import { 
   Table, 
@@ -18,6 +19,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { formatDate } from "@/lib/utils";
+import { usePagination } from "@/hooks/usePagination";
+import TablePagination from "@/components/ui/table-pagination";
 
 interface ApontamentoEquipeSummary {
   equipe_id: string;
@@ -49,6 +52,8 @@ const ApontamentoEquipeTable: React.FC<ApontamentoEquipeTableProps> = ({
   onAvaliarColaborador,
   avaliacaoStatusMap = new Map()
 }) => {
+  const pagination = usePagination(apontamentos, { pageSize: 10 });
+
   if (apontamentos.length === 0) {
     return (
       <div className="text-center py-6 text-muted-foreground">
@@ -61,7 +66,7 @@ const ApontamentoEquipeTable: React.FC<ApontamentoEquipeTableProps> = ({
   const MobileCards = () => {
     return (
       <div className="space-y-4 md:hidden">
-        {apontamentos.map((apontamento) => {
+        {pagination.paginatedData.map((apontamento) => {
           // Choose first collaborator for the row actions
           const firstColaborador = apontamento.colaboradores[0];
           const colaboradorId = firstColaborador.colaborador_id || '';
@@ -198,7 +203,7 @@ const ApontamentoEquipeTable: React.FC<ApontamentoEquipeTableProps> = ({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {apontamentos.map((apontamento) => {
+            {pagination.paginatedData.map((apontamento) => {
               // Choose first collaborator for the row actions
               const firstColaborador = apontamento.colaboradores[0];
               const colaboradorId = firstColaborador.colaborador_id || '';
@@ -307,10 +312,14 @@ const ApontamentoEquipeTable: React.FC<ApontamentoEquipeTableProps> = ({
   };
 
   return (
-    <>
+    <div className="space-y-4">
       <MobileCards />
       <DesktopTable />
-    </>
+      
+      {apontamentos.length > 0 && (
+        <TablePagination pagination={pagination} />
+      )}
+    </div>
   );
 };
 

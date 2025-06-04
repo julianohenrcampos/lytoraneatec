@@ -11,6 +11,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Edit, Eye, Trash } from "lucide-react";
 import { Usina } from "@/types/usina";
+import { usePagination } from "@/hooks/usePagination";
+import TablePagination from "@/components/ui/table-pagination";
 
 interface UsinaTableProps {
   usinas: Usina[] | undefined;
@@ -29,6 +31,8 @@ const UsinaTable: React.FC<UsinaTableProps> = ({
   onView,
   onDelete,
 }) => {
+  const pagination = usePagination(usinas || [], { pageSize: 10 });
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-48">
@@ -63,47 +67,53 @@ const UsinaTable: React.FC<UsinaTableProps> = ({
   }
 
   return (
-    <div className="border rounded-md">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Nome da Usina</TableHead>
-            <TableHead>Endereço</TableHead>
-            <TableHead>Telefone</TableHead>
-            <TableHead className="text-right">Ações</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {usinas.map((usina) => (
-            <TableRow key={usina.id}>
-              <TableCell 
-                className="font-medium cursor-pointer hover:text-primary"
-                onClick={() => onView(usina)}
-              >
-                {usina.nome_usina}
-              </TableCell>
-              <TableCell>{usina.endereco || 'N/A'}</TableCell>
-              <TableCell>{usina.telefone || 'N/A'}</TableCell>
-              <TableCell className="text-right">
-                <div className="flex justify-end gap-2">
-                  <Button variant="ghost" size="icon" onClick={() => onView(usina)}>
-                    <Eye className="h-4 w-4" />
-                    <span className="sr-only">Visualizar</span>
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => onEdit(usina)}>
-                    <Edit className="h-4 w-4" />
-                    <span className="sr-only">Editar</span>
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => onDelete(usina)}>
-                    <Trash className="h-4 w-4" />
-                    <span className="sr-only">Excluir</span>
-                  </Button>
-                </div>
-              </TableCell>
+    <div className="space-y-4">
+      <div className="border rounded-md">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nome da Usina</TableHead>
+              <TableHead>Endereço</TableHead>
+              <TableHead>Telefone</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {pagination.paginatedData.map((usina) => (
+              <TableRow key={usina.id}>
+                <TableCell 
+                  className="font-medium cursor-pointer hover:text-primary"
+                  onClick={() => onView(usina)}
+                >
+                  {usina.nome_usina}
+                </TableCell>
+                <TableCell>{usina.endereco || 'N/A'}</TableCell>
+                <TableCell>{usina.telefone || 'N/A'}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-2">
+                    <Button variant="ghost" size="icon" onClick={() => onView(usina)}>
+                      <Eye className="h-4 w-4" />
+                      <span className="sr-only">Visualizar</span>
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => onEdit(usina)}>
+                      <Edit className="h-4 w-4" />
+                      <span className="sr-only">Editar</span>
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => onDelete(usina)}>
+                      <Trash className="h-4 w-4" />
+                      <span className="sr-only">Excluir</span>
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      
+      {usinas.length > 0 && (
+        <TablePagination pagination={pagination} />
+      )}
     </div>
   );
 };

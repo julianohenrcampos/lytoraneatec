@@ -16,6 +16,8 @@ import { ApontamentoCaminhao } from "@/services/apontamentoCaminhoesService";
 import { cn } from "@/lib/utils";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePagination } from "@/hooks/usePagination";
+import TablePagination from "@/components/ui/table-pagination";
 
 interface ApontamentoCaminhoesTableProps {
   apontamentos: ApontamentoCaminhao[];
@@ -33,6 +35,7 @@ const ApontamentoCaminhoesTable: React.FC<ApontamentoCaminhoesTableProps> = ({
   isLoading = false,
 }) => {
   const isMobile = useIsMobile();
+  const pagination = usePagination(apontamentos, { pageSize: 10 });
 
   // Function to format date consistently using formatBrazilianDateForDisplay
   const formatApontamentoDate = (dateString: string) => {
@@ -79,13 +82,13 @@ const ApontamentoCaminhoesTable: React.FC<ApontamentoCaminhoesTableProps> = ({
       <div className="space-y-4">
         {isLoading ? (
           <div className="rounded-lg border p-4 text-center">Carregando...</div>
-        ) : apontamentos.length === 0 ? (
+        ) : pagination.paginatedData.length === 0 ? (
           <div className="rounded-lg border p-6 text-center">
             <p className="text-gray-500 mb-1">Nenhum registro encontrado.</p>
             <p className="text-sm text-gray-400">Tente ajustar os filtros avançados.</p>
           </div>
         ) : (
-          apontamentos.map((apontamento) => (
+          pagination.paginatedData.map((apontamento) => (
             <div 
               key={apontamento.id} 
               className="rounded-lg border shadow-sm p-4 bg-white"
@@ -156,79 +159,89 @@ const ApontamentoCaminhoesTable: React.FC<ApontamentoCaminhoesTableProps> = ({
             </div>
           ))
         )}
+        
+        {apontamentos.length > 0 && (
+          <TablePagination pagination={pagination} />
+        )}
       </div>
     );
   }
 
   // Desktop table view
   return (
-    <div className="rounded-md border overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[120px]">Data</TableHead>
-            <TableHead className="min-w-[200px]">Caminhão/Equipamento</TableHead>
-            <TableHead className="min-w-[150px]">Operador</TableHead>
-            <TableHead className="text-center">Abastecimento (L)</TableHead>
-            <TableHead className="text-center">Horímetro Inicial</TableHead>
-            <TableHead className="text-center">Horímetro Final</TableHead>
-            <TableHead className="text-right">Ações</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {isLoading ? (
-            <LoadingState />
-          ) : apontamentos.length === 0 ? (
-            <EmptyState />
-          ) : (
-            apontamentos.map((apontamento) => (
-              <TableRow key={apontamento.id}>
-                <TableCell className="font-medium">
-                  {apontamento.data
-                    ? formatApontamentoDate(apontamento.data)
-                    : "-"}
-                </TableCell>
-                <TableCell>{apontamento.veiculo_identificacao || "-"}</TableCell>
-                <TableCell>{apontamento.nome_operador || "-"}</TableCell>
-                <TableCell className="text-center">
-                  {apontamento.abastecimento || "-"}
-                </TableCell>
-                <TableCell className="text-center">
-                  {apontamento.horimetro_inicial || "-"}
-                </TableCell>
-                <TableCell className="text-center">
-                  {apontamento.horimetro_final || "-"}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end space-x-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => onView(apontamento.id)}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => onEdit(apontamento.id)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => onDelete(apontamento.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+    <div className="space-y-4">
+      <div className="rounded-md border overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[120px]">Data</TableHead>
+              <TableHead className="min-w-[200px]">Caminhão/Equipamento</TableHead>
+              <TableHead className="min-w-[150px]">Operador</TableHead>
+              <TableHead className="text-center">Abastecimento (L)</TableHead>
+              <TableHead className="text-center">Horímetro Inicial</TableHead>
+              <TableHead className="text-center">Horímetro Final</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <LoadingState />
+            ) : pagination.paginatedData.length === 0 ? (
+              <EmptyState />
+            ) : (
+              pagination.paginatedData.map((apontamento) => (
+                <TableRow key={apontamento.id}>
+                  <TableCell className="font-medium">
+                    {apontamento.data
+                      ? formatApontamentoDate(apontamento.data)
+                      : "-"}
+                  </TableCell>
+                  <TableCell>{apontamento.veiculo_identificacao || "-"}</TableCell>
+                  <TableCell>{apontamento.nome_operador || "-"}</TableCell>
+                  <TableCell className="text-center">
+                    {apontamento.abastecimento || "-"}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {apontamento.horimetro_inicial || "-"}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {apontamento.horimetro_final || "-"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end space-x-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onView(apontamento.id)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onEdit(apontamento.id)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onDelete(apontamento.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      
+      {apontamentos.length > 0 && (
+        <TablePagination pagination={pagination} />
+      )}
     </div>
   );
 };

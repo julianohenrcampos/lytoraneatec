@@ -6,6 +6,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Check, Edit, Eye, Loader2, Trash, X } from "lucide-react";
 import { Empresa } from "@/types/empresa";
+import { usePagination } from "@/hooks/usePagination";
+import TablePagination from "@/components/ui/table-pagination";
 
 interface EmpresaTableProps {
   empresas: Empresa[] | undefined;
@@ -24,6 +26,8 @@ const EmpresaTable: React.FC<EmpresaTableProps> = ({
   onView,
   onDelete
 }) => {
+  const pagination = usePagination(empresas || [], { pageSize: 10 });
+
   return (
     <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
       <div className="p-6">
@@ -55,7 +59,7 @@ const EmpresaTable: React.FC<EmpresaTableProps> = ({
                   </TableCell>
                 </TableRow>
               ) : empresas && empresas.length > 0 ? (
-                empresas.map((empresa) => (
+                pagination.paginatedData.map((empresa) => (
                   <TableRow key={empresa.id}>
                     <TableCell 
                       className="font-medium cursor-pointer hover:text-primary"
@@ -119,6 +123,12 @@ const EmpresaTable: React.FC<EmpresaTableProps> = ({
             </TableBody>
           </Table>
         </div>
+
+        {empresas && empresas.length > 0 && (
+          <div className="mt-4">
+            <TablePagination pagination={pagination} />
+          </div>
+        )}
       </div>
     </div>
   );

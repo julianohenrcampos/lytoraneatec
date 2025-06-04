@@ -14,6 +14,8 @@ import { Clipboard, TruckIcon, CheckCircle, Calendar, FileEdit, Eye } from "luci
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatNumber } from "@/lib/utils";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
+import { usePagination } from "@/hooks/usePagination";
+import TablePagination from "@/components/ui/table-pagination";
 
 interface EntregasTableProps {
   entregas: ListaProgramacaoEntrega[];
@@ -21,6 +23,8 @@ interface EntregasTableProps {
 }
 
 const EntregasTable: React.FC<EntregasTableProps> = ({ entregas, onEntregaClick }) => {
+  const pagination = usePagination(entregas, { pageSize: 10 });
+
   const statusColor = (status: string) => {
     switch (status) {
       case "Pendente": return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300";
@@ -46,117 +50,123 @@ const EntregasTable: React.FC<EntregasTableProps> = ({ entregas, onEntregaClick 
   }
 
   return (
-    <TooltipProvider>
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Data</TableHead>
-              <TableHead>Centro de Custo</TableHead>
-              <TableHead>Caminhão</TableHead>
-              <TableHead>Quantidade (t)</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {entregas.map((entrega) => (
-              <TableRow key={entrega.id}>
-                <TableCell>{formatBrazilianDateForDisplay(entrega.data_entrega)}</TableCell>
-                <TableCell>{entrega.centro_custo_nome || entrega.logradouro}</TableCell>
-                <TableCell>
-                  {entrega.caminhao ? 
-                    `${entrega.caminhao.placa} - ${entrega.caminhao.modelo}` : 
-                    "N/A"}
-                </TableCell>
-                <TableCell>
-                  {formatNumber(entrega.quantidade_massa, 2)} t
-                </TableCell>
-                <TableCell>
-                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor(entrega.status)}`}>
-                    {entrega.status}
-                  </span>
-                </TableCell>
-                <TableCell className="text-right">
-                  {entrega.status === "Pendente" ? (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={() => onEntregaClick(entrega)}
-                          aria-label="Registrar carga"
-                        >
-                          <TruckIcon className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Registrar carga</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  ) : entrega.status === "Enviada" ? (
-                    <div className="flex justify-end">
+    <div className="space-y-4">
+      <TooltipProvider>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Data</TableHead>
+                <TableHead>Centro de Custo</TableHead>
+                <TableHead>Caminhão</TableHead>
+                <TableHead>Quantidade (t)</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pagination.paginatedData.map((entrega) => (
+                <TableRow key={entrega.id}>
+                  <TableCell>{formatBrazilianDateForDisplay(entrega.data_entrega)}</TableCell>
+                  <TableCell>{entrega.centro_custo_nome || entrega.logradouro}</TableCell>
+                  <TableCell>
+                    {entrega.caminhao ? 
+                      `${entrega.caminhao.placa} - ${entrega.caminhao.modelo}` : 
+                      "N/A"}
+                  </TableCell>
+                  <TableCell>
+                    {formatNumber(entrega.quantidade_massa, 2)} t
+                  </TableCell>
+                  <TableCell>
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor(entrega.status)}`}>
+                      {entrega.status}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {entrega.status === "Pendente" ? (
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button 
                             variant="ghost" 
                             size="icon"
                             onClick={() => onEntregaClick(entrega)}
-                            aria-label="Editar registro de carga"
+                            aria-label="Registrar carga"
                           >
-                            <FileEdit className="h-4 w-4 text-amber-600" />
+                            <TruckIcon className="h-4 w-4" />
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>Editar registro de carga</p>
+                          <p>Registrar carga</p>
                         </TooltipContent>
                       </Tooltip>
-                    </div>
-                  ) : entrega.status === "Entregue" ? (
-                    <div className="flex justify-end gap-2" aria-label="Entrega concluída">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span><CheckCircle className="h-4 w-4 text-green-500" /></span>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Entrega concluída</p>
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onEntregaClick(entrega)}
-                            aria-label="Ver detalhes"
-                          >
-                            <Eye className="h-4 w-4 text-muted-foreground" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Ver detalhes</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                  ) : (
-                    <div className="flex justify-end">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span><Clipboard className="h-4 w-4 text-muted-foreground" /></span>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Registro cancelado</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </TooltipProvider>
+                    ) : entrega.status === "Enviada" ? (
+                      <div className="flex justify-end">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => onEntregaClick(entrega)}
+                              aria-label="Editar registro de carga"
+                            >
+                              <FileEdit className="h-4 w-4 text-amber-600" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Editar registro de carga</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    ) : entrega.status === "Entregue" ? (
+                      <div className="flex justify-end gap-2" aria-label="Entrega concluída">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span><CheckCircle className="h-4 w-4 text-green-500" /></span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Entrega concluída</p>
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => onEntregaClick(entrega)}
+                              aria-label="Ver detalhes"
+                            >
+                              <Eye className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Ver detalhes</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    ) : (
+                      <div className="flex justify-end">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span><Clipboard className="h-4 w-4 text-muted-foreground" /></span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Registro cancelado</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </TooltipProvider>
+      
+      {entregas.length > 0 && (
+        <TablePagination pagination={pagination} />
+      )}
+    </div>
   );
 };
 

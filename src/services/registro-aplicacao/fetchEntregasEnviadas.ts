@@ -2,20 +2,17 @@
 import { supabase } from "@/integrations/supabase/client";
 import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
 import { formatBrazilianDateToString } from "@/utils/timezoneUtils";
+import type { RegistroAplicacaoFilters } from "@/types/registroAplicacao";
 
 /**
  * Fetch entregas enviadas and entregues that are available for registro aplicacao
  * Now includes finalized deliveries for viewing and better debugging
  */
 export const fetchEntregasEnviadas = async (
-  selectedDate?: Date,
-  equipeId?: string
+  filters?: RegistroAplicacaoFilters
 ): Promise<ListaProgramacaoEntrega[]> => {
   try {
-    console.log("🔍 Fetching entregas - Input params:", {
-      selectedDate: selectedDate ? formatBrazilianDateToString(selectedDate) : "ALL DATES",
-      equipeId: equipeId || "ALL TEAMS"
-    });
+    console.log("🔍 Fetching entregas - Input filters:", filters);
     
     // Query principal nas tabelas ao invés da view, incluindo relações com centro de custo
     let query = supabase
@@ -45,24 +42,53 @@ export const fetchEntregasEnviadas = async (
             nome_centro_custo
           )
         )
-      `)
-      .in("status", ["Enviada", "Entregue", "Pendente"]); // Incluir mais status
+      `);
 
-    // Filter by date if provided - usar formatação brasileira
-    if (selectedDate) {
-      const formattedDate = formatBrazilianDateToString(selectedDate);
+    // Apply status filter if provided
+    if (filters?.status) {
+      console.log("🎯 Filtering by status:", filters.status);
+      query = query.eq("status", filters.status);
+    } else {
+      // Default status filter - include main statuses (removed Pendente)
+      query = query.in("status", ["Enviada", "Entregue", "Cancelada"]);
+      console.log("📋 Using default status filter: Enviada, Entregue, Cancelada");
+    }
+
+    // Filter by date if provided
+    if (filters?.data_inicio) {
+      const formattedDate = formatBrazilianDateToString(filters.data_inicio);
       console.log("📅 Filtering by date:", formattedDate);
       query = query.eq("data_entrega", formattedDate);
     } else {
       console.log("📅 No date filter - showing all dates");
     }
 
-    // Filter by equipe if provided
-    if (equipeId) {
-      console.log("👥 Filtering by equipe:", equipeId);
-      query = query.eq("apontador_id", equipeId);
+    // Filter by centro_custo_id if provided
+    if (filters?.centro_custo_id) {
+      console.log("🏢 Filtering by centro_custo_id:", filters.centro_custo_id);
+      // We need to filter by the centro_custo_id through the requisicao relation
+      const { data: requisicaoIds } = await supabase
+        .from("bd_requisicoes")
+        .select("id")
+        .eq("centro_custo_id", filters.centro_custo_id);
+      
+      if (requisicaoIds && requisicaoIds.length > 0) {
+        const ids = requisicaoIds.map(r => r.id);
+        query = query.in("requisicao_id", ids);
+      } else {
+        // If no requisitions found for this centro_custo, return empty
+        return [];
+      }
     } else {
-      console.log("👥 No team filter - showing all teams");
+      console.log("🏢 No centro custo filter - showing all centro custos");
+    }
+
+    // Filter by caminhao_id if provided
+    if (filters?.caminhao_id) {
+      console.log("🚛 Filtering by caminhao_id:", filters.caminhao_id);
+      query = query.eq("caminhao_id", filters.caminhao_id);
+    } else {
+      console.log("🚛 No caminhao filter - showing all caminhoes");
     }
 
     // Ordenar por data mais recente
@@ -238,7 +264,8 @@ export const fetchEntregasEnviadas = async (
     console.log("📋 Sample entrega with centro custo:", {
       logradouro: entregas[0]?.logradouro,
       centro_custo_nome: entregas[0]?.centro_custo_nome,
-      data_entrega: entregas[0]?.data_entrega
+      data_entrega: entregas[0]?.data_entrega,
+      status: entregas[0]?.status
     });
     
     // Log estatísticas por status

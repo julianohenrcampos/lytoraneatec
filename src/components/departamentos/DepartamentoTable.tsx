@@ -6,6 +6,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Edit, Eye, Loader2, Trash } from "lucide-react";
 import { Departamento } from "@/types/departamento";
+import { usePagination } from "@/hooks/usePagination";
+import TablePagination from "@/components/ui/table-pagination";
 
 interface DepartamentoTableProps {
   departamentos: Departamento[] | undefined;
@@ -24,6 +26,8 @@ const DepartamentoTable: React.FC<DepartamentoTableProps> = ({
   onView,
   onDelete
 }) => {
+  const pagination = usePagination(departamentos || [], { pageSize: 10 });
+
   return (
     <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
       <div className="p-6">
@@ -53,7 +57,7 @@ const DepartamentoTable: React.FC<DepartamentoTableProps> = ({
                   </TableCell>
                 </TableRow>
               ) : departamentos && departamentos.length > 0 ? (
-                departamentos.map((departamento) => (
+                pagination.paginatedData.map((departamento) => (
                   <TableRow key={departamento.id}>
                     <TableCell>{departamento.empresa?.nome_empresa || 'N/A'}</TableCell>
                     <TableCell 
@@ -103,6 +107,12 @@ const DepartamentoTable: React.FC<DepartamentoTableProps> = ({
             </TableBody>
           </Table>
         </div>
+
+        {departamentos && departamentos.length > 0 && (
+          <div className="mt-4">
+            <TablePagination pagination={pagination} />
+          </div>
+        )}
       </div>
     </div>
   );

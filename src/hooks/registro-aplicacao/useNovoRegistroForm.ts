@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -45,6 +46,7 @@ export const useNovoRegistroForm = (
   const [calculatedArea, setCalculatedArea] = useState<number | null>(null);
   const [calculatedEspessura, setCalculatedEspessura] = useState<number | null>(null);
   const [registroAplicacaoId, setRegistroAplicacaoId] = useState<string | null>(null);
+  const [registroExistente, setRegistroExistente] = useState<any>(null);
 
   const form = useForm<NovoRegistroFormData>({
     resolver: zodResolver(novoRegistroSchema),
@@ -67,6 +69,65 @@ export const useNovoRegistroForm = (
   const comprimento = form.watch("comprimento");
   const largura = form.watch("largura_media");
   const toneladaAplicada = form.watch("tonelada_aplicada");
+
+  // Buscar registro existente quando entrega carregada
+  useEffect(() => {
+    const buscarRegistroExistente = async () => {
+      if (!entrega?.id) return;
+
+      try {
+        console.log("🔍 Buscando registro existente para entrega:", entrega.id);
+        
+        const { data: registros, error } = await supabase
+          .from("bd_registro_apontamento_aplicacao")
+          .select("*")
+          .eq("lista_entrega_id", entrega.id)
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        if (error) {
+          console.error("Erro ao buscar registro existente:", error);
+          return;
+        }
+
+        if (registros && registros.length > 0) {
+          const registro = registros[0];
+          setRegistroExistente(registro);
+          setRegistroAplicacaoId(registro.id);
+          
+          console.log("📄 Registro existente encontrado:", registro);
+          
+          // Preencher formulário com dados existentes
+          form.reset({
+            data_aplicacao: registro.data_aplicacao || format(new Date(), "yyyy-MM-dd"),
+            hora_chegada_local: registro.hora_chegada_local || "",
+            hora_saida_caminhao: registro.hora_saida_caminhao || "",
+            temperatura_chegada: registro.temperatura_chegada,
+            anotacoes_apontador: registro.anotacoes_apontador || "",
+            observacoes_aplicacao: registro.observacoes_gerais || "",
+            logradouro_nome: entrega?.logradouro || "",
+            comprimento: registro.comprimento || 0,
+            largura_media: registro.largura_media || 0,
+            area_aplicada: registro.area_calculada || 0,
+            tonelada_aplicada: registro.tonelada_aplicada || 0,
+            espessura_aplicada: registro.espessura_calculada || 0,
+            bordo: registro.bordo,
+            temperatura_aplicacao: registro.temperatura_aplicacao,
+            estaca_inicial: registro.estaca_inicial,
+            estaca_final: registro.estaca_final,
+          });
+
+          console.log("✅ Formulário preenchido com dados existentes");
+        } else {
+          console.log("ℹ️ Nenhum registro existente encontrado");
+        }
+      } catch (error) {
+        console.error("Erro ao buscar registro existente:", error);
+      }
+    };
+
+    buscarRegistroExistente();
+  }, [entrega?.id, form]);
 
   // Calcular área automaticamente
   useEffect(() => {
@@ -92,6 +153,7 @@ export const useNovoRegistroForm = (
     console.log("Dados recebidos:", data);
     console.log("Entrega:", entrega);
     console.log("Registro Carga:", registroCarga);
+    console.log("Registro existente:", registroExistente);
 
     if (!entrega || !registroCarga) {
       console.error("Dados obrigatórios não encontrados");
@@ -116,26 +178,40 @@ export const useNovoRegistroForm = (
 
     setIsLoading(true);
     try {
-      console.log("Buscando registro de aplicação existente...");
-      
-      // Buscar registro existente
-      const { data: registrosExistentes, error: searchError } = await supabase
-        .from("bd_registro_apontamento_aplicacao")
-        .select("id")
-        .eq("lista_entrega_id", entrega.id)
-        .limit(1);
+      if (registroExistente) {
+        // Atualizar registro existente
+        console.log("📝 Atualizando registro existente:", registroExistente.id);
 
-      if (searchError) {
-        console.error("Erro ao buscar registro:", searchError);
-        throw new Error(`Erro ao buscar registro: ${searchError.message}`);
-      }
+        const updateData = {
+          data_aplicacao: data.data_aplicacao,
+          hora_chegada_local: data.hora_chegada_local,
+          hora_saida_caminhao: data.hora_saida_caminhao,
+          temperatura_chegada: data.temperatura_chegada,
+          anotacoes_apontador: data.anotacoes_apontador || null,
+          observacoes_gerais: data.observacoes_aplicacao || null,
+          status_aplicacao: 'Finalizada',
+          updated_at: new Date().toISOString()
+        };
 
-      console.log("Registros encontrados:", registrosExistentes);
+        console.log("Dados para atualização:", updateData);
 
-      if (!registrosExistentes || registrosExistentes.length === 0) {
-        console.error("Nenhum registro encontrado - criando novo registro");
+        const { data: registroAtualizado, error: updateError } = await supabase
+          .from("bd_registro_apontamento_aplicacao")
+          .update(updateData)
+          .eq("id", registroExistente.id)
+          .select()
+          .single();
+
+        if (updateError) {
+          console.error("Erro ao atualizar registro:", updateError);
+          throw new Error(`Erro ao atualizar registro: ${updateError.message}`);
+        }
+
+        console.log("Registro atualizado:", registroAtualizado);
+      } else {
+        // Criar novo registro
+        console.log("🆕 Criando novo registro");
         
-        // Criar novo registro se não existir
         const novoRegistro = {
           lista_entrega_id: entrega.id,
           registro_carga_id: registroCarga.id,
@@ -164,36 +240,8 @@ export const useNovoRegistroForm = (
         }
 
         console.log("Novo registro criado:", novoRegistroCreated);
-      } else {
-        // Atualizar registro existente
-        const registroId = registrosExistentes[0].id;
-        console.log("Atualizando registro existente:", registroId);
-
-        const updateData = {
-          hora_chegada_local: data.hora_chegada_local,
-          hora_saida_caminhao: data.hora_saida_caminhao,
-          temperatura_chegada: data.temperatura_chegada,
-          anotacoes_apontador: data.anotacoes_apontador || null,
-          observacoes_gerais: data.observacoes_aplicacao || null,
-          status_aplicacao: 'Finalizada',
-          updated_at: new Date().toISOString()
-        };
-
-        console.log("Dados para atualização:", updateData);
-
-        const { data: registroAtualizado, error: updateError } = await supabase
-          .from("bd_registro_apontamento_aplicacao")
-          .update(updateData)
-          .eq("id", registroId)
-          .select()
-          .single();
-
-        if (updateError) {
-          console.error("Erro ao atualizar registro:", updateError);
-          throw new Error(`Erro ao atualizar registro: ${updateError.message}`);
-        }
-
-        console.log("Registro atualizado:", registroAtualizado);
+        setRegistroExistente(novoRegistroCreated);
+        setRegistroAplicacaoId(novoRegistroCreated.id);
       }
 
       toast({
@@ -226,6 +274,7 @@ export const useNovoRegistroForm = (
     calculatedArea,
     calculatedEspessura,
     registroAplicacaoId,
+    registroExistente,
     setRegistroAplicacaoId,
     onSubmit: form.handleSubmit(onSubmit),
   };

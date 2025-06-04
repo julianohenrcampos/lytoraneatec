@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Clock, FileText, CheckCircle, AlertTriangle, Eye } from "lucide-react";
+import { Clock, FileText, CheckCircle, AlertTriangle, Eye, Save } from "lucide-react";
 import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
 import { RegistroCarga } from "@/types/registroCargas";
 import { UseFormReturn } from "react-hook-form";
@@ -46,9 +46,14 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
   // Watch dos campos necessários para validação
   const horaSaidaCaminhao = watch("hora_saida_caminhao");
   const horaChegadaLocal = watch("hora_chegada_local");
+  const temperaturaChegada = watch("temperatura_chegada");
+  const anotacoesApontador = watch("anotacoes_apontador");
 
   // Validação: deve ter pelo menos hora de chegada E hora de saída
   const isFormValid = horaSaidaCaminhao?.trim() && horaChegadaLocal?.trim();
+
+  // Verificar se há dados existentes
+  const hasExistingData = horaChegadaLocal || temperaturaChegada || anotacoesApontador;
 
   // Handler direto para o submit - usar handleSubmit do form
   const handleSaveClick = () => {
@@ -56,6 +61,7 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
     console.log("Form válido:", isFormValid);
     console.log("Hora chegada:", horaChegadaLocal);
     console.log("Hora saída:", horaSaidaCaminhao);
+    console.log("Temperatura chegada:", temperaturaChegada);
     
     if (!isFormValid) {
       console.error("Formulário inválido");
@@ -72,12 +78,19 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             {isReadOnly && <Eye className="h-5 w-5" />}
+            {hasExistingData && !isReadOnly && <Save className="h-5 w-5 text-blue-500" />}
             <FileText className="h-5 w-5" />
-            {isReadOnly ? "Finalização do Registro (Visualização)" : "Finalização do Registro"}
+            {isReadOnly ? "Finalização do Registro (Visualização)" : 
+             hasExistingData ? "Finalização do Registro (Editando)" : "Finalização do Registro"}
           </CardTitle>
           {isReadOnly && (
             <p className="text-sm text-muted-foreground">
               Esta entrega está finalizada e os dados são somente para visualização.
+            </p>
+          )}
+          {hasExistingData && !isReadOnly && (
+            <p className="text-sm text-blue-600">
+              Dados existentes carregados. Você pode modificar e salvar as alterações.
             </p>
           )}
         </CardHeader>
@@ -100,18 +113,35 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
             </Alert>
           )}
 
+          {/* Indicador de dados existentes */}
+          {hasExistingData && (
+            <Alert className="bg-blue-50 border-blue-200">
+              <CheckCircle className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-800">
+                Dados previamente salvos carregados automaticamente. 
+                {horaChegadaLocal && ` Chegada: ${horaChegadaLocal}`}
+                {temperaturaChegada && ` | Temperatura: ${temperaturaChegada}°C`}
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label htmlFor="hora_chegada_local" className="flex items-center gap-2">
                 <Clock className="h-4 w-4" />
                 Hora de Chegada *
+                {horaChegadaLocal && (
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    Salvo: {horaChegadaLocal}
+                  </Badge>
+                )}
               </Label>
               <Input
                 id="hora_chegada_local"
                 type="time"
                 {...register("hora_chegada_local", { required: "Hora de chegada é obrigatória" })}
                 disabled={isReadOnly}
-                className={isReadOnly ? "bg-muted" : ""}
+                className={isReadOnly ? "bg-muted" : horaChegadaLocal ? "border-blue-300 bg-blue-50" : ""}
                 placeholder="HH:MM"
               />
               {errors.hora_chegada_local && (
@@ -125,13 +155,18 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
               <Label htmlFor="hora_saida_caminhao" className="flex items-center gap-2">
                 <Clock className="h-4 w-4" />
                 Hora de Saída do Caminhão *
+                {horaSaidaCaminhao && (
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    Salvo: {horaSaidaCaminhao}
+                  </Badge>
+                )}
               </Label>
               <Input
                 id="hora_saida_caminhao"
                 type="time"
                 {...register("hora_saida_caminhao", { required: "Hora de saída é obrigatória" })}
                 disabled={isReadOnly}
-                className={isReadOnly ? "bg-muted" : ""}
+                className={isReadOnly ? "bg-muted" : horaSaidaCaminhao ? "border-blue-300 bg-blue-50" : ""}
                 placeholder="HH:MM"
               />
               {errors.hora_saida_caminhao && (
@@ -147,11 +182,21 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
             <Badge variant="secondary" className={isFormValid ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
               {isFormValid ? "Pronto para Salvar" : "Dados Incompletos"}
             </Badge>
+            {hasExistingData && (
+              <Badge variant="outline" className="bg-blue-100 text-blue-800">
+                Dados Existentes Carregados
+              </Badge>
+            )}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="temperatura_chegada">
               Temperatura de Chegada (°C)
+              {temperaturaChegada && (
+                <Badge variant="secondary" className="ml-2 text-xs">
+                  Atual: {temperaturaChegada}°C
+                </Badge>
+              )}
             </Label>
             <Input
               id="temperatura_chegada"
@@ -159,7 +204,7 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
               step="0.1"
               {...register("temperatura_chegada", { valueAsNumber: true })}
               disabled={isReadOnly}
-              className={isReadOnly ? "bg-muted" : ""}
+              className={isReadOnly ? "bg-muted" : temperaturaChegada ? "border-blue-300 bg-blue-50" : ""}
               placeholder="Ex: 150"
             />
           </div>
@@ -167,6 +212,11 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
           <div className="space-y-2">
             <Label htmlFor="anotacoes_apontador">
               Observações Gerais do Apontamento
+              {anotacoesApontador && (
+                <Badge variant="secondary" className="ml-2 text-xs">
+                  Com observações
+                </Badge>
+              )}
             </Label>
             <Textarea
               id="anotacoes_apontador"
@@ -174,7 +224,7 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
               {...register("anotacoes_apontador")}
               rows={3}
               disabled={isReadOnly}
-              className={isReadOnly ? "bg-muted" : ""}
+              className={isReadOnly ? "bg-muted" : anotacoesApontador ? "border-blue-300 bg-blue-50" : ""}
             />
           </div>
 
@@ -219,7 +269,19 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
               disabled={isLoading || !isFormValid}
               className="bg-green-500 hover:bg-green-600"
             >
-              {isLoading ? "Salvando..." : "Salvar Aplicação"}
+              {isLoading ? (
+                <>
+                  <span className="animate-spin mr-2">⏳</span>
+                  Salvando...
+                </>
+              ) : hasExistingData ? (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Atualizar Aplicação
+                </>
+              ) : (
+                "Salvar Aplicação"
+              )}
             </Button>
           )}
         </div>

@@ -6,6 +6,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Edit, Eye, Loader2, Trash } from "lucide-react";
 import { Funcao } from "@/types/funcao";
+import { usePagination } from "@/hooks/usePagination";
+import TablePagination from "@/components/ui/table-pagination";
 
 interface FuncaoTableProps {
   funcoes: Funcao[] | undefined;
@@ -24,6 +26,8 @@ const FuncaoTable: React.FC<FuncaoTableProps> = ({
   onView,
   onDelete
 }) => {
+  const pagination = usePagination(funcoes || [], { pageSize: 10 });
+
   return (
     <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
       <div className="p-6">
@@ -52,7 +56,7 @@ const FuncaoTable: React.FC<FuncaoTableProps> = ({
                   </TableCell>
                 </TableRow>
               ) : funcoes && funcoes.length > 0 ? (
-                funcoes.map((funcao) => (
+                pagination.paginatedData.map((funcao) => (
                   <TableRow key={funcao.id}>
                     <TableCell 
                       className="font-medium cursor-pointer hover:text-primary"
@@ -101,6 +105,12 @@ const FuncaoTable: React.FC<FuncaoTableProps> = ({
             </TableBody>
           </Table>
         </div>
+
+        {funcoes && funcoes.length > 0 && (
+          <div className="mt-4">
+            <TablePagination pagination={pagination} />
+          </div>
+        )}
       </div>
     </div>
   );

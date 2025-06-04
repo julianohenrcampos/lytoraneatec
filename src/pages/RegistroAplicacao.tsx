@@ -39,7 +39,7 @@ const RegistroAplicacao: React.FC = () => {
     error: entregasError
   } = useQuery({
     queryKey: ['entregasEnviadas', filters, userId, isSuperAdmin],
-    queryFn: () => fetchEntregasEnviadas(filters.data_inicio, !isSuperAdmin ? userId || undefined : undefined),
+    queryFn: () => fetchEntregasEnviadas(filters),
     refetchOnWindowFocus: false,
     retry: 2,
     retryDelay: 1000,

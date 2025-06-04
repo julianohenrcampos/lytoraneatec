@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Edit, Eye, Trash2 } from "lucide-react";
 import { Equipe } from "@/types/equipe";
 import { Card } from "@/components/ui/card";
+import { usePagination } from "@/hooks/usePagination";
+import TablePagination from "@/components/ui/table-pagination";
 
 interface EquipeTableProps {
   equipes: Equipe[];
@@ -30,6 +32,8 @@ const EquipeTable: React.FC<EquipeTableProps> = ({
   onView,
   onDelete,
 }) => {
+  const pagination = usePagination(equipes, { pageSize: 10 });
+
   if (isLoading) {
     return (
       <Card className="p-8">
@@ -67,44 +71,50 @@ const EquipeTable: React.FC<EquipeTableProps> = ({
   }
 
   return (
-    <div className="border rounded-md">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Nome da Equipe</TableHead>
-            <TableHead>Encarregado</TableHead>
-            <TableHead>Apontador</TableHead>
-            <TableHead className="text-right">Ações</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {equipes.map((equipe) => (
-            <TableRow key={equipe.id}>
-              <TableCell className="font-medium cursor-pointer hover:underline" onClick={() => onView(equipe)}>
-                {equipe.nome_equipe}
-              </TableCell>
-              <TableCell>{equipe.encarregado?.nome_completo || "Não definido"}</TableCell>
-              <TableCell>{equipe.apontador?.nome_completo || "Não definido"}</TableCell>
-              <TableCell className="text-right">
-                <div className="flex justify-end gap-2">
-                  <Button variant="ghost" size="icon" onClick={() => onEdit(equipe)}>
-                    <Edit className="h-4 w-4" />
-                    <span className="sr-only">Editar</span>
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => onView(equipe)}>
-                    <Eye className="h-4 w-4" />
-                    <span className="sr-only">Visualizar</span>
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => onDelete(equipe)}>
-                    <Trash2 className="h-4 w-4" />
-                    <span className="sr-only">Excluir</span>
-                  </Button>
-                </div>
-              </TableCell>
+    <div className="space-y-4">
+      <div className="border rounded-md">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nome da Equipe</TableHead>
+              <TableHead>Encarregado</TableHead>
+              <TableHead>Apontador</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {pagination.paginatedData.map((equipe) => (
+              <TableRow key={equipe.id}>
+                <TableCell className="font-medium cursor-pointer hover:underline" onClick={() => onView(equipe)}>
+                  {equipe.nome_equipe}
+                </TableCell>
+                <TableCell>{equipe.encarregado?.nome_completo || "Não definido"}</TableCell>
+                <TableCell>{equipe.apontador?.nome_completo || "Não definido"}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-2">
+                    <Button variant="ghost" size="icon" onClick={() => onEdit(equipe)}>
+                      <Edit className="h-4 w-4" />
+                      <span className="sr-only">Editar</span>
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => onView(equipe)}>
+                      <Eye className="h-4 w-4" />
+                      <span className="sr-only">Visualizar</span>
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => onDelete(equipe)}>
+                      <Trash2 className="h-4 w-4" />
+                      <span className="sr-only">Excluir</span>
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      
+      {equipes.length > 0 && (
+        <TablePagination pagination={pagination} />
+      )}
     </div>
   );
 };

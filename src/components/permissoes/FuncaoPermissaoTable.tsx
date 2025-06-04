@@ -13,6 +13,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { FuncaoPermissao, FuncaoPermissaoFilter } from "@/types/permissao";
+import { usePagination } from "@/hooks/usePagination";
+import TablePagination from "@/components/ui/table-pagination";
 
 interface FuncaoPermissaoTableProps {
   funcoesPermissao: FuncaoPermissao[];
@@ -33,6 +35,8 @@ const FuncaoPermissaoTable: React.FC<FuncaoPermissaoTableProps> = ({
   onFilterChange,
   onResetFilters
 }) => {
+  const pagination = usePagination(funcoesPermissao, { pageSize: 10 });
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     onFilterChange(name, value);
@@ -84,14 +88,14 @@ const FuncaoPermissaoTable: React.FC<FuncaoPermissaoTableProps> = ({
                   Carregando...
                 </TableCell>
               </TableRow>
-            ) : funcoesPermissao.length === 0 ? (
+            ) : pagination.paginatedData.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4} className="text-center py-4">
                   Nenhuma função encontrada
                 </TableCell>
               </TableRow>
             ) : (
-              funcoesPermissao.map((funcaoPermissao) => (
+              pagination.paginatedData.map((funcaoPermissao) => (
                 <TableRow key={funcaoPermissao.id}>
                   <TableCell>{funcaoPermissao.nome_funcao}</TableCell>
                   <TableCell>{funcaoPermissao.descricao || "-"}</TableCell>
@@ -124,6 +128,10 @@ const FuncaoPermissaoTable: React.FC<FuncaoPermissaoTableProps> = ({
           </TableBody>
         </Table>
       </div>
+      
+      {funcoesPermissao.length > 0 && (
+        <TablePagination pagination={pagination} />
+      )}
     </div>
   );
 };

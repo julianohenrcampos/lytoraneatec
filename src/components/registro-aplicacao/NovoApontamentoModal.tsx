@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -91,9 +90,9 @@ export const NovoApontamentoModal: React.FC<NovoApontamentoModalProps> = ({
         setIntegrityCheckDone(true);
       }
       
-      // Use flexible date search or no date filter
-      const dateToSearch = searchWithoutDateFilter ? undefined : selectedDate;
-      const entregasData = await fetchEntregasEnviadas(dateToSearch, equipeId);
+      // Create filters object for the new function signature
+      const filters = searchWithoutDateFilter ? {} : { data_inicio: selectedDate };
+      const entregasData = await fetchEntregasEnviadas(filters);
       console.log(`📋 Loaded ${entregasData.length} entregas for modal`);
       
       setEntregas(entregasData);

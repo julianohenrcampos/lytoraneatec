@@ -37,6 +37,8 @@ export const registroAplicacaoSelectQuery = `
     id,
     tonelada_saida,
     tonelada_retorno,
-    tonelada_real
+    tonelada_real,
+    data_saida,
+    hora_saida
   )
 `;

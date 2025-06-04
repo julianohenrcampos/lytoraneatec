@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Truck, Users, Package, Eye, Edit, RefreshCw, AlertCircle } from "lucide-react";
 import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
+import { usePagination } from "@/hooks/usePagination";
+import TablePagination from "@/components/ui/table-pagination";
 
 interface EntregasEnviadasTableProps {
   entregas: ListaProgramacaoEntrega[];
@@ -21,6 +24,8 @@ const EntregasEnviadasTable: React.FC<EntregasEnviadasTableProps> = ({
   onEntregaSelect,
   onRefresh
 }) => {
+  const pagination = usePagination(entregas, { pageSize: 10 });
+
   if (isLoading) {
     return (
       <Card>
@@ -125,90 +130,96 @@ const EntregasEnviadasTable: React.FC<EntregasEnviadasTableProps> = ({
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Truck className="h-5 w-5" />
-            Entregas Disponíveis ({entregas.length})
-          </div>
-          {onRefresh && (
-            <Button 
-              onClick={onRefresh} 
-              variant="ghost" 
-              size="sm"
-              className="gap-2"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Atualizar
-            </Button>
-          )}
-        </CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Clique em uma entrega para registrar aplicação (Enviada/Pendente) ou visualizar (Entregue)
-        </p>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Data</TableHead>
-                <TableHead>Logradouro</TableHead>
-                <TableHead>Caminhão</TableHead>
-                <TableHead>Equipe</TableHead>
-                <TableHead>Massa Total</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Ação</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {entregas.map((entrega) => (
-                <TableRow 
-                  key={entrega.id}
-                  className="hover:bg-muted/50 cursor-pointer"
-                  onClick={() => onEntregaSelect(entrega)}
-                >
-                  <TableCell>
-                    {formatBrazilianDateForDisplay(entrega.data_entrega)}
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    {entrega.logradouro}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Truck className="h-4 w-4" />
-                      <span className="font-mono">
-                        {entrega.caminhao?.placa || "N/A"}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4" />
-                      <span>{entrega.equipe?.nome_equipe || "N/A"}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">
-                      {entrega.quantidade_massa.toFixed(1)} t
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={getStatusBadgeVariant(entrega.status)}>
-                      {entrega.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {getActionButton(entrega)}
-                  </TableCell>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Truck className="h-5 w-5" />
+              Entregas Disponíveis ({entregas.length})
+            </div>
+            {onRefresh && (
+              <Button 
+                onClick={onRefresh} 
+                variant="ghost" 
+                size="sm"
+                className="gap-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Atualizar
+              </Button>
+            )}
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Clique em uma entrega para registrar aplicação (Enviada/Pendente) ou visualizar (Entregue)
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Logradouro</TableHead>
+                  <TableHead>Caminhão</TableHead>
+                  <TableHead>Equipe</TableHead>
+                  <TableHead>Massa Total</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Ação</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
+              </TableHeader>
+              <TableBody>
+                {pagination.paginatedData.map((entrega) => (
+                  <TableRow 
+                    key={entrega.id}
+                    className="hover:bg-muted/50 cursor-pointer"
+                    onClick={() => onEntregaSelect(entrega)}
+                  >
+                    <TableCell>
+                      {formatBrazilianDateForDisplay(entrega.data_entrega)}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {entrega.logradouro}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Truck className="h-4 w-4" />
+                        <span className="font-mono">
+                          {entrega.caminhao?.placa || "N/A"}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        <span>{entrega.equipe?.nome_equipe || "N/A"}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {entrega.quantidade_massa.toFixed(1)} t
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={getStatusBadgeVariant(entrega.status)}>
+                        {entrega.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {getActionButton(entrega)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+      
+      {entregas.length > 0 && (
+        <TablePagination pagination={pagination} />
+      )}
+    </div>
   );
 };
 

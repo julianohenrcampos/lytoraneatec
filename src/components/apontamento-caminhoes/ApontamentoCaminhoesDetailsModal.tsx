@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -9,6 +8,7 @@ import { ApontamentoCaminhao, ApontamentoInspecao } from "@/services/apontamento
 import { Loader2 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 
 interface ApontamentoCaminhoesDetailsModalProps {
   isOpen: boolean;
@@ -55,23 +55,6 @@ const ApontamentoCaminhoesDetailsModal: React.FC<ApontamentoCaminhoesDetailsModa
     return isFinal ? "Horímetro Final" : "Horímetro Inicial";
   };
 
-  // Improved date formatting with error handling
-  const formatApontamentoDate = (dateString: string | undefined): string => {
-    if (!dateString) return 'N/A';
-    
-    try {
-      const dateObj = new Date(dateString);
-      if (isNaN(dateObj.getTime())) {
-        console.error("Invalid date:", dateString);
-        return 'Data inválida';
-      }
-      return format(dateObj, 'dd/MM/yyyy');
-    } catch (error) {
-      console.error("Error formatting date:", error);
-      return 'Erro ao formatar data';
-    }
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className={cn("sm:max-w-[700px]", isMobile ? "p-3 w-[95vw] mx-auto" : "")}>
@@ -101,7 +84,7 @@ const ApontamentoCaminhoesDetailsModal: React.FC<ApontamentoCaminhoesDetailsModa
                   <div>
                     <dt className="text-sm font-medium text-gray-600">Data</dt>
                     <dd className="mt-1 text-base">
-                      {formatApontamentoDate(apontamento.data)}
+                      {formatBrazilianDateForDisplay(apontamento.data)}
                     </dd>
                   </div>
                   <div>
