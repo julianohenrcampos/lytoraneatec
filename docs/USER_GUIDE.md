@@ -211,30 +211,69 @@ O Dashboard é a primeira tela após o login e apresenta uma visão geral do sis
 1. Vá em **"Apontamentos"** → **"Máquinas"**
 2. Clique em **"+ Novo Apontamento"**
 3. Preencha os dados:
-   - **Data**: Data do uso
+   - **Data**: Data do uso (formatada como DD/MM/AAAA)
    - **Máquina/Veículo**: Selecione da lista
    - **Operador**: Funcionário responsável
    - **Centro de Custo**: Para controle financeiro
    - **Hora Inicial**: Início da operação
    - **Hora Final**: Fim da operação
-   - **Horímetro Inicial**: Leitura inicial
-   - **Horímetro Final**: Leitura final
+   - **Horímetro/Hodômetro Inicial**: Leitura inicial
+     - Para caminhões: exibido como "Hodômetro (KM)"
+     - Para equipamentos: exibido como "Horímetro"
+   - **Horímetro/Hodômetro Final**: Leitura final
    - **Abastecimento**: Litros abastecidos
    - **Situação**: Estado da máquina após uso
 
-4. **Inspeção Veicular** (opcional):
+4. **Inspeção Veicular** (opcional mas recomendado):
    - Preencha o checklist de inspeção
    - Marque itens como: Conforme, Não Conforme, Não Aplicável
    - Adicione fotos de avarias se necessário
    - Itens inspecionados:
-     - Nível de óleo e água
-     - Sistema elétrico
-     - Material rodante
-     - Freios e documentação
-     - Limpeza interna
-     - Estado dos implementos
+     - **Documentação**: Documentos obrigatórios
+     - **Tacógrafo**: Funcionamento (apenas caminhões)
+     - **Sistema Elétrico**: Luzes, painel, bateria
+     - **Nível de Óleo**: Motor e hidráulico
+     - **Nível de Água**: Radiador
+     - **Nível de Combustível**: Tanque
+     - **Drenagem Tanque de Ar**: Sistema pneumático
+     - **Material Rodante**: Pneus, esteiras, rodas
+     - **Cinto de Segurança**: Estado e funcionamento
+     - **Material de Desgaste**: Lâminas, dentes, etc.
+     - **Estado dos Implementos**: Caçambas, lâminas
+     - **Limpeza Interna**: Cabine do operador
+     - **Engate Reboque**: Quinta roda, engate
+     - **Estado dos Equipamentos**: Equipamentos auxiliares
+     - **Inspeção Veicular**: Verificação geral
+     - **Material de Amarração**: Cordas, cintas
 
-5. Clique em **"Salvar Apontamento"**
+5. **Upload de Fotos de Avarias**:
+   - Clique em **"+ Adicionar Foto"**
+   - Selecione ou tire fotos das avarias encontradas
+   - Adicione quantas fotos forem necessárias
+
+6. Clique em **"Salvar Apontamento"**
+
+#### Visualizando Detalhes do Apontamento
+1. Na lista de apontamentos, clique no ícone **"👁️ Visualizar"**
+2. O modal de detalhes mostra:
+   - **Aba "Dados Operacionais"**:
+     - Data (formatada corretamente como DD/MM/AAAA)
+     - Operador, caminhão/equipamento
+     - Centro de custo
+     - Horímetros/hodômetros inicial e final
+     - Horas de trabalho
+     - Situação e abastecimento
+   
+   - **Aba "Checklist"**:
+     - Todos os itens da inspeção veicular
+     - Status de cada item inspecionado
+     - Anotações do inspetor
+     - Fotos de avarias (se houver)
+
+3. **Interface Responsiva**:
+   - Em dispositivos móveis, o modal se adapta automaticamente
+   - Navegação por abas otimizada para toque
+   - Scroll suave em telas pequenas
 
 ### Chamados Técnicos e Manutenção
 
@@ -501,7 +540,7 @@ O Dashboard é a primeira tela após o login e apresenta uma visão geral do sis
 
 ## 🎯 Registro de Aplicação
 
-### Processo Completo de Aplicação
+### Processo Simplificado de Aplicação
 
 #### Acessando o Módulo
 1. Vá em **"Logística"** → **"Aplicações"**
@@ -510,85 +549,55 @@ O Dashboard é a primeira tela após o login e apresenta uma visão geral do sis
 #### Iniciando um Novo Registro
 1. Clique na entrega desejada
 2. Clique em **"+ Nova Aplicação"**
-3. O sistema abre o modal de registro em 3 etapas
+3. O sistema abre o formulário simplificado
 
-### Etapa 1: Dados Iniciais
+### Dados Essenciais da Aplicação
 
-#### Informações da Entrega
-- **Dados Automáticos**: Caminhão, equipe, usina, logradouro
-- **Massa Programada vs Real**: Comparação automática
-- **Data de Aplicação**: Data atual (editável)
-- **Hora de Chegada**: Hora que o caminhão chegou no local (obrigatório)
-- **Temperatura de Chegada**: Temperatura do asfalto na chegada
+#### Informações Obrigatórias
+1. **Data de Aplicação**: Data atual (editável)
+2. **Hora de Chegada**: Quando o caminhão chegou no local (obrigatório)
+3. **Hora de Saída**: Quando o caminhão saiu do local (obrigatório)
+4. **Temperatura de Chegada**: Temperatura do asfalto na chegada (opcional)
 
-#### Validações
-- Data não pode ser futura
-- Hora de chegada é obrigatória
-- Temperatura deve estar dentro dos parâmetros
-
-Clique em **"Próximo: Dados Técnicos"**
-
-### Etapa 2: Dados Técnicos
-
-#### Informações da Aplicação
+#### Dados Técnicos (Opcionais)
 1. **Localização**:
-   - **Logradouro**: Pré-preenchido ou selecionar outro
-   - **Bordo**: Direito, Esquerdo, Centro, Único, Embocadura
-   - **Estaca Inicial**: Referência inicial (opcional)
-   - **Estaca Final**: Referência final (opcional)
-
-2. **Medições** (obrigatório):
+   - **Logradouro**: Pré-preenchido da programação
    - **Comprimento**: Em metros
    - **Largura Média**: Em metros
-   - **Área**: Calculada automaticamente (comprimento × largura)
+   - **Área Aplicada**: Calculada automaticamente (comprimento × largura)
 
-3. **Massa e Espessura**:
+2. **Massa e Espessura**:
    - **Tonelada Aplicada**: Quantidade efetivamente aplicada
-   - **Espessura**: Calculada automaticamente ou manual
-   - **Usar Massa Total**: Opção para usar toda a massa da carga
+   - **Espessura Aplicada**: Calculada automaticamente
+   - **Fórmula**: Espessura = (Tonelada ÷ Área) ÷ 2,4 × 100 (cm)
 
-4. **Detalhes Técnicos** (opcional):
+3. **Detalhes Adicionais** (opcionais):
+   - **Bordo**: Direito, Esquerdo, Centro, Único, Embocadura
    - **Temperatura de Aplicação**: Durante a aplicação
    - **Hora de Aplicação**: Quando iniciou a aplicação
-   - **Equipamento de Compactação**: Rolo, Vibro, etc.
-   - **Número de Passadas**: Quantas passadas de compactação
-   - **Densidade de Compactação**: Resultado da compactação
+   - **Estaca Inicial/Final**: Referências de localização
 
-#### Cálculos Automáticos
+#### Observações
+- **Anotações do Apontador**: Comentários sobre a aplicação
+- **Observações Gerais**: Observações sobre toda a aplicação
+
+### Cálculos Automáticos
+
+#### Área e Espessura
 - **Área = Comprimento × Largura**
-- **Espessura = (Tonelada ÷ Área) ÷ 2,4 × 100**
+- **Espessura = (Tonelada ÷ Área) ÷ 2,4 × 100 (cm)**
 - **Massa Remanescente = Massa Total - Massa Aplicada**
 
 #### Validações
 - Massa aplicada não pode exceder massa remanescente
-- Área deve ser maior que zero
-- Comprimento e largura são obrigatórios
-
-5. **Fotos da Aplicação** (recomendado):
-   - Antes da aplicação
-   - Durante a aplicação
-   - Após compactação
-
-Clique em **"Próximo: Finalização"**
-
-### Etapa 3: Finalização
-
-#### Dados Finais
-1. **Hora de Saída do Caminhão**: Obrigatório para finalizar
-2. **Observações Gerais**: Comentários sobre toda a aplicação
-3. **Confirmação dos Dados**: Revisão final
-
-#### Informações da Carga
-- **Massa Total**: Da carga original
-- **Total Aplicado**: Soma de todas as aplicações desta carga
-- **Massa Remanescente**: Quanto ainda resta
-
-#### Validações Finais
-- Hora de saída é obrigatória
 - Hora de saída deve ser posterior à chegada
 - Dados devem estar consistentes
 
-4. Clique em **"Salvar Aplicação"**
+### Salvando a Aplicação
+1. Preencha os campos obrigatórios (data, horas de chegada e saída)
+2. **Opcional**: Adicione dados técnicos para relatórios detalhados
+3. Clique em **"Salvar Aplicação"**
+4. Status da entrega muda para "Finalizada"
 
 ### Múltiplas Aplicações
 
@@ -605,6 +614,41 @@ Quando uma carga de asfalto é aplicada em múltiplos locais:
 - **Massa Disponível**: Mostrada em tempo real
 - **Sequência**: Aplicações numeradas sequencialmente
 - **Finalização Automática**: Quando massa ≤ 0.001t
+
+### Visualização de Detalhes da Aplicação
+
+#### Modal de Detalhes Melhorado
+1. Clique no ícone **"👁️ Visualizar"** em qualquer aplicação
+2. **Seção de Progresso da Aplicação**:
+   - Barra de progresso visual da carga
+   - Massa aplicada vs. remanescente
+   - Percentual de conclusão
+   - **Espessura Média da Carga**: Calculada quando há dados de área
+
+3. **Informações da Entrega**:
+   - Data de aplicação (formatada como DD/MM/AAAA)
+   - Hora de chegada
+   - Logradouro e centro de custo
+
+4. **Detalhes da Carga**:
+   - Data e hora de saída da usina
+   - Tonelagem real carregada
+   - Dados do caminhão
+   - **Espessura Média**: Exibida quando há dados válidos de área
+
+5. **Dados Técnicos da Aplicação**:
+   - Dimensões (comprimento, largura, área)
+   - Massa aplicada e espessura calculada
+   - Status da espessura (adequada/inadequada)
+
+6. **Dados de Aplicação** (se preenchidos):
+   - Hora e temperatura de aplicação
+   - Bordo aplicado
+
+#### Cálculo de Espessura Média
+- **Fórmula**: (Massa Total da Carga ÷ Área Total dos Detalhes) ÷ 2.4
+- **Exibição**: Apenas quando há dados válidos de área
+- **Precisão**: 3 casas decimais (ex: 4.567 cm)
 
 ### Status e Finalização
 
@@ -758,9 +802,44 @@ Quando uma carga de asfalto é aplicada em múltiplos locais:
 - Rastreabilidade completa
 - Relatórios de auditoria
 
+## 📱 Interface Responsiva
+
+### Adaptação para Dispositivos Móveis
+
+#### Características Gerais
+- **Design Adaptativo**: Interface se ajusta automaticamente ao tamanho da tela
+- **Navegação Otimizada**: Menus e botões adequados para toque
+- **Modais Responsivos**: Ajuste automático em telas pequenas
+- **Scroll Otimizado**: Rolagem suave em todos os componentes
+
+#### Recursos Mobile-Friendly
+1. **Tabelas Adaptativas**:
+   - Em telas pequenas, dados importantes ficam em formato de cards
+   - Scroll horizontal quando necessário
+   - Botões de ação maiores para facilitar o toque
+
+2. **Formulários Otimizados**:
+   - Campos maiores para facilitar digitação
+   - Teclado adequado para cada tipo de campo
+   - Validação em tempo real
+
+3. **Modais Responsivos**:
+   - Tamanho ajustado para tela (95% da largura em mobile)
+   - Padding reduzido para melhor aproveitamento
+   - Scroll interno quando necessário
+
+4. **Navegação Simplificada**:
+   - Menu lateral colapsível
+   - Breadcrumbs em telas maiores
+   - Botões de ação flutuantes quando necessário
+
 ## ❓ Perguntas Frequentes (FAQ)
 
 ### Problemas Comuns
+
+#### "Data aparece incorreta no sistema"
+**Causa**: Problema de timezone
+**Solução**: O sistema foi corrigido para sempre exibir datas no fuso horário brasileiro. Se ainda houver problemas, contate o suporte.
 
 #### "Não consigo salvar a aplicação"
 **Possíveis causas**:
@@ -797,6 +876,13 @@ Quando uma carga de asfalto é aplicada em múltiplos locais:
 2. Use formatos JPG ou PNG
 3. Verifique sua conexão
 
+#### "Espessura não está sendo calculada"
+**Causa**: Falta de dados de área ou massa
+**Solução**: 
+1. Preencha comprimento e largura
+2. Informe a tonelada aplicada
+3. O cálculo será automático: (Tonelada ÷ Área) ÷ 2,4 × 100
+
 ### Dicas de Uso
 
 #### Melhor Performance
@@ -818,6 +904,13 @@ Quando uma carga de asfalto é aplicada em múltiplos locais:
 2. **Preencha observações** detalhadas
 3. **Valide medições** no campo
 4. **Revise dados** antes de salvar
+5. **Verifique datas** exibidas (devem estar no formato DD/MM/AAAA)
+
+#### Uso em Dispositivos Móveis
+1. **Gire a tela** para landscape em formulários complexos
+2. **Use zoom** para ver detalhes pequenos
+3. **Toque longo** para opções adicionais
+4. **Swipe** para navegar entre abas
 
 ## 📞 Suporte Técnico
 
@@ -842,9 +935,21 @@ Ao entrar em contato, tenha em mãos:
 1. **URL do sistema** que está usando
 2. **Usuário** logado
 3. **Navegador e versão** (Chrome, Firefox, etc.)
-4. **Descrição detalhada** do problema
-5. **Prints das telas** com erro
-6. **Passos para reproduzir** o problema
+4. **Tipo de dispositivo** (Desktop, Tablet, Smartphone)
+5. **Descrição detalhada** do problema
+6. **Prints das telas** com erro
+7. **Passos para reproduzir** o problema
+
+### Problemas Conhecidos e Soluções
+
+#### Formatação de Datas
+- **Problema**: Sistema corrigido para sempre exibir datas brasileiras
+- **Se persistir**: Limpe cache do navegador e recarregue a página
+
+#### Cálculos de Espessura
+- **Problema**: Espessura média agora é calculada corretamente
+- **Fórmula**: (Massa Total ÷ Área Total) ÷ 2.4
+- **Exibição**: Apenas quando há dados válidos de área
 
 ### Atualizações
 
@@ -853,6 +958,13 @@ Ao entrar em contato, tenha em mãos:
 - Emails informativos sobre novas funcionalidades
 - Changelog disponível no sistema
 
+#### Melhorias Recentes (Janeiro 2025)
+- ✅ Correção de formatação de datas em todos os modais
+- ✅ Cálculo correto de espessura média por carga
+- ✅ Interface responsiva melhorada para dispositivos móveis
+- ✅ Simplificação do processo de registro de aplicação
+- ✅ Melhor visualização de progresso de aplicação
+
 #### Treinamentos
 - Webinars mensais
 - Treinamentos presenciais sob demanda
@@ -860,4 +972,5 @@ Ao entrar em contato, tenha em mãos:
 
 ---
 
-**Este manual é atualizado constantemente. Verifique a versão mais recente no sistema.**
+**Este manual é atualizado constantemente. Última atualização: Janeiro 2025**
+**Versão: 2.1 - Inclui melhorias de timezone, cálculos e responsividade**

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { addDays, format, parse, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { FileDown, FileText, BarChart3, X } from "lucide-react";
+import { FileDown, FileText, BarChart3, X, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,23 +19,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { downloadExcel } from "@/lib/excel";
 import { CentroCusto } from "@/types/centroCusto";
 import { debugLog } from "@/lib/debug";
-
-interface ReportData {
-  id: string;
-  data: string;
-  centro_custo: string;
-  codigo_centro_custo?: string;
-  descricao: string;
-  situacao: string;
-  horimetro_inicial?: number;
-  horimetro_final?: number;
-  abastecimento?: number;
-}
+import RelatorioMedicaoDetalhado from "@/components/relatorio-medicao/RelatorioMedicaoDetalhado";
+import RelatorioMedicaoPlaceholder from "@/components/relatorio-medicao/RelatorioMedicaoPlaceholder";
+import RelatorioMedicaoLoadingState from "@/components/relatorio-medicao/RelatorioMedicaoLoadingState";
+import RelatorioMedicaoEmptyState from "@/components/relatorio-medicao/RelatorioMedicaoEmptyState";
+import { formatBrazilianDateToString } from "@/utils/timezoneUtils";
+import { EquipmentReportData, TruckReportData, ManutencaoEquipmentData, ManutencaoTruckData } from "@/types/relatorioMedicao";
+import { downloadRelatorioMedicaoExcel } from "@/lib/excel";
+import { generateReportPDF } from "@/services/pdfService";
 
 interface VehicleInfo {
   id: string;
   label: string;
   tipo_veiculo: string;
+  aluguel: number;
   imagem_url?: string | null;
 }
 
@@ -57,7 +54,6 @@ interface CentroCustoResponse {
   codigo_centro_custo?: string;
 }
 
-// Define a type for the centro_custo_id field which can be an array or an object
 interface CentroCustoItem {
   id: string;
   nome_centro_custo: string;
@@ -74,6 +70,16 @@ interface ApontamentoItem {
   centro_custo_id: CentroCustoItem | CentroCustoItem[] | null;
 }
 
+// Type for grouped data structure
+interface GroupedDataItem {
+  veiculo: any;
+  centroCusto: any;
+  registros: any[];
+  diasTrabalhados: number;
+  quilometragemTotal: number;
+  abastecimentoTotal: number;
+}
+
 const RelatorioMedicao: React.FC = () => {
   const [vehicleType, setVehicleType] = useState<string>("");
   const [selectedVehicle, setSelectedVehicle] = useState<string>("");
@@ -82,13 +88,15 @@ const RelatorioMedicao: React.FC = () => {
     to: new Date(2025, 2, 20)   // 20/03/2025
   });
   
-  const [reportData, setReportData] = useState<ReportData[]>([]);
+  const [reportData, setReportData] = useState<(EquipmentReportData | TruckReportData)[]>([]);
+  const [manutencaoData, setManutencaoData] = useState<ManutencaoEquipmentData | ManutencaoTruckData | null>(null);
   const [vehicleOptions, setVehicleOptions] = useState<VehicleInfo[]>([]);
   const [stats, setStats] = useState<ReportStats | null>(null);
   const [showReport, setShowReport] = useState(false);
   const [selectedVehicleDetails, setSelectedVehicleDetails] = useState<VehicleInfo | null>(null);
   const [situacaoData, setSituacaoData] = useState<SituacaoData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showEmptyState, setShowEmptyState] = useState(false);
   
   const { toast } = useToast();
   const { userRoles, isSuperAdmin } = useUserPermissions();
@@ -117,10 +125,12 @@ const RelatorioMedicao: React.FC = () => {
       return;
     }
     
+    setIsLoading(true);
+    
     try {
       const { data, error } = await supabase
         .from("bd_caminhoes_equipamentos")
-        .select("id, placa, modelo, frota, numero_frota, tipo_veiculo, imagem_url")
+        .select("id, placa, modelo, frota, numero_frota, tipo_veiculo, aluguel, imagem_url")
         .eq("tipo_veiculo", vehicleType);
       
       if (error) {
@@ -136,11 +146,20 @@ const RelatorioMedicao: React.FC = () => {
       const options = data.map(vehicle => ({
         id: vehicle.id,
         tipo_veiculo: vehicle.tipo_veiculo,
+        aluguel: parseFloat(vehicle.aluguel || '0'),
         imagem_url: vehicle.imagem_url,
         label: `${vehicle.frota || ""}${vehicle.numero_frota || ""} - ${vehicle.placa || ""} ${vehicle.modelo ? `(${vehicle.modelo})` : ""}`
       }));
       
       setVehicleOptions(options);
+      
+      if (options.length === 0) {
+        toast({
+          title: "Nenhum veículo encontrado",
+          description: `Não há veículos do tipo "${vehicleType}" cadastrados.`,
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       console.error("Error:", error);
       toast({
@@ -148,6 +167,8 @@ const RelatorioMedicao: React.FC = () => {
         description: "Ocorreu um erro ao buscar os veículos. Tente novamente.",
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -168,70 +189,328 @@ const RelatorioMedicao: React.FC = () => {
     }
   };
   
-  const fetchReportData = async () => {
+  const fetchReportData = async (): Promise<(EquipmentReportData | TruckReportData)[]> => {
     if (!selectedVehicle || !dateRange?.from || !dateRange?.to) return [];
     
     try {
-      const fromDate = format(dateRange.from, 'yyyy-MM-dd');
-      const toDate = format(dateRange.to, 'yyyy-MM-dd');
+      const fromDate = formatBrazilianDateToString(dateRange.from);
+      const toDate = formatBrazilianDateToString(dateRange.to);
       
-      const { data, error } = await supabase
+      console.log("=== DEBUG RELATÓRIO MEDIÇÃO ===");
+      console.log("Período:", fromDate, "à", toDate);
+      console.log("Veículo ID:", selectedVehicle);
+      console.log("Tipo de Veículo:", vehicleType);
+      
+      // Buscar dados de "Operando" e "Disponível" para a tabela principal
+      const { data: operandoData, error: operandoError } = await supabase
         .from("bd_registro_apontamento_cam_equipa")
         .select(`
-          id,
+          caminhao_equipamento_id,
+          centro_custo_id(id, nome_centro_custo, codigo_centro_custo),
           data,
           horimetro_inicial,
           horimetro_final,
           abastecimento,
           situacao,
-          centro_custo_id(id, nome_centro_custo, codigo_centro_custo)
+          bd_caminhoes_equipamentos!inner(
+            id,
+            frota,
+            numero_frota,
+            placa,
+            modelo,
+            tipo_veiculo,
+            aluguel
+          )
         `)
         .eq("caminhao_equipamento_id", selectedVehicle)
         .gte("data", fromDate)
         .lte("data", toDate)
+        .in("situacao", ["Operando", "Disponível"])
+        .not("centro_custo_id", "is", null)
         .order("data", { ascending: true });
       
-      if (error) {
-        console.error("Error fetching report data:", error);
-        throw error;
+      if (operandoError) {
+        console.error("Error fetching operando data:", operandoError);
+        throw operandoError;
+      }
+
+      // Buscar dados de "Em Manutenção" para os descontos
+      console.log("Buscando dados de manutenção...");
+      const { data: manutencaoDataResult, error: manutencaoError } = await supabase
+        .from("bd_registro_apontamento_cam_equipa")
+        .select(`
+          caminhao_equipamento_id,
+          data,
+          situacao,
+          bd_caminhoes_equipamentos!inner(
+            id,
+            aluguel
+          )
+        `)
+        .eq("caminhao_equipamento_id", selectedVehicle)
+        .gte("data", fromDate)
+        .lte("data", toDate)
+        .eq("situacao", "Em Manutenção")
+        .order("data", { ascending: true });
+      
+      if (manutencaoError) {
+        console.error("Error fetching manutenção data:", manutencaoError);
+      }
+
+      console.log("Dados Operando/Disponível:", operandoData?.length || 0, "registros");
+      console.log("Dados Manutenção:", manutencaoDataResult?.length || 0, "registros");
+
+      if (!operandoData || operandoData.length === 0) {
+        console.log("Nenhum dado 'Operando/Disponível' encontrado para os filtros aplicados");
+        return [];
+      }
+
+      // Obter aluguel mensal do veículo
+      const veiculo = Array.isArray(operandoData[0].bd_caminhoes_equipamentos) 
+        ? operandoData[0].bd_caminhoes_equipamentos[0] 
+        : operandoData[0].bd_caminhoes_equipamentos;
+      
+      const aluguelMensal = parseFloat(veiculo?.aluguel || '0');
+
+      // IMPLEMENTAÇÃO DAS 4 PARTES CONFORME ESPECIFICADO
+      const totalDiasOperandoDisponiveis = operandoData.length;
+      const diasManutencao = manutencaoDataResult?.length || 0;
+      
+      console.log("=== FÓRMULA CAMINHÃO (4 PARTES) ===");
+      console.log("1º parte - Aluguel mensal:", aluguelMensal);
+      console.log("1º parte - Dias em manutenção:", diasManutencao);
+      
+      // 2º parte: Calcular valor da manutenção = (VALOR MENSAL / 30) * dias Em Manutenção
+      const valorDiarioAluguel = aluguelMensal / 30;
+      const valorManutencao = valorDiarioAluguel * diasManutencao;
+      
+      console.log("2º parte - Valor diário aluguel (VALOR MENSAL / 30):", valorDiarioAluguel);
+      console.log("2º parte - Valor manutenção:", valorManutencao);
+      
+      // 3º parte: Valor restante = aluguel - valor manutenção
+      const valorRestante = aluguelMensal - valorManutencao;
+      
+      console.log("3º parte - Valor restante (aluguel - manutenção):", valorRestante);
+      
+      // 4º parte: Valor diário para divisão = valor restante / total dias Operando+Disponível
+      const valorDiarioParaDivisao = totalDiasOperandoDisponiveis > 0 ? valorRestante / totalDiasOperandoDisponiveis : 0;
+      
+      console.log("4º parte - Total dias Operando+Disponível:", totalDiasOperandoDisponiveis);
+      console.log("4º parte - Valor diário para divisão:", valorDiarioParaDivisao);
+
+      // CALCULAR TOTAIS DO PERÍODO PARA CAMINHÕES (NOVAS FÓRMULAS)
+      let totalKmPeriodo = 0;
+      let totalLitrosPeriodo = 0;
+      let totalDiasPeriodo = 0;
+
+      if (vehicleType === "Caminhão") {
+        // Calcular totais de quilometragem e abastecimento de TODOS os registros
+        operandoData.forEach(item => {
+          totalDiasPeriodo += 1;
+          
+          // Calcular quilometragem apenas se ambos os valores existirem
+          if (item.horimetro_inicial !== null && item.horimetro_inicial !== undefined && 
+              item.horimetro_final !== null && item.horimetro_final !== undefined) {
+            const quilometragem = item.horimetro_final - item.horimetro_inicial;
+            if (quilometragem > 0) {
+              totalKmPeriodo += quilometragem;
+            }
+          }
+          
+          // Somar abastecimento real
+          if (item.abastecimento && item.abastecimento > 0) {
+            totalLitrosPeriodo += item.abastecimento;
+          }
+        });
+
+        console.log("=== TOTAIS DO PERÍODO (CAMINHÃO) ===");
+        console.log("Total KM período:", totalKmPeriodo);
+        console.log("Total Litros período:", totalLitrosPeriodo);
+        console.log("Total dias período:", totalDiasPeriodo);
+      }
+
+      // Processar dados de manutenção para exibição
+      let calculatedManutencaoData: any = null;
+      if (vehicleType === "Caminhão") {
+        calculatedManutencaoData = {
+          valorMensal: aluguelMensal,
+          qtdDia: diasManutencao,
+          valor: valorManutencao
+        };
+      } else if (vehicleType === "Equipamento") {
+        // Manter lógica original para equipamentos
+        if (manutencaoDataResult && manutencaoDataResult.length > 0) {
+          const horasManutencao = diasManutencao * 8; // Assumindo 8h por dia
+          const valorUnitarioHora = aluguelMensal / 200; // 200h mensais
+          const valorDescontoEquipamento = valorUnitarioHora * horasManutencao;
+          
+          calculatedManutencaoData = {
+            valorUnitario: valorUnitarioHora,
+            qtdHoras: horasManutencao,
+            valor: valorDescontoEquipamento
+          };
+        } else {
+          calculatedManutencaoData = {
+            valorUnitario: aluguelMensal / 200,
+            qtdHoras: 0,
+            valor: 0
+          };
+        }
       }
       
-      return data.map((item: ApontamentoItem) => {
-        debugLog("Centro custo item", item.centro_custo_id);
+      setManutencaoData(calculatedManutencaoData);
+
+      // Agrupar dados por centro de custo
+      const groupedData: Record<string, any> = operandoData.reduce((acc, item) => {
+        const veiculo = Array.isArray(item.bd_caminhoes_equipamentos) 
+          ? item.bd_caminhoes_equipamentos[0] 
+          : item.bd_caminhoes_equipamentos;
         
-        let centroCusto: CentroCustoResponse | null = null;
+        const centroCusto = Array.isArray(item.centro_custo_id) 
+          ? item.centro_custo_id[0] 
+          : item.centro_custo_id;
         
-        if (item.centro_custo_id) {
-          if (Array.isArray(item.centro_custo_id)) {
-            if (item.centro_custo_id.length > 0) {
-              const firstItem = item.centro_custo_id[0];
-              centroCusto = {
-                id: firstItem?.id || '',
-                nome_centro_custo: firstItem?.nome_centro_custo || '',
-                codigo_centro_custo: firstItem?.codigo_centro_custo
-              };
-            }
-          } else if (typeof item.centro_custo_id === 'object') {
-            centroCusto = {
-              id: item.centro_custo_id.id,
-              nome_centro_custo: item.centro_custo_id.nome_centro_custo,
-              codigo_centro_custo: item.centro_custo_id.codigo_centro_custo
-            };
+        if (!veiculo || !centroCusto) {
+          console.log("Registro ignorado - dados incompletos:", { veiculo: !!veiculo, centroCusto: !!centroCusto });
+          return acc;
+        }
+        
+        const key = `${veiculo.id}_${centroCusto.id}`;
+        
+        if (!acc[key]) {
+          acc[key] = {
+            veiculo,
+            centroCusto,
+            registros: [],
+            diasTrabalhados: 0,
+            quilometragemTotal: 0,
+            abastecimentoTotal: 0
+          };
+        }
+        
+        acc[key].registros.push(item);
+        acc[key].diasTrabalhados += 1;
+        
+        // Calcular quilometragem apenas se ambos os valores existirem
+        if (item.horimetro_inicial !== null && item.horimetro_inicial !== undefined && 
+            item.horimetro_final !== null && item.horimetro_final !== undefined) {
+          const quilometragem = item.horimetro_final - item.horimetro_inicial;
+          if (quilometragem > 0) {
+            acc[key].quilometragemTotal += quilometragem;
           }
         }
         
-        return {
-          id: item.id,
-          data: format(new Date(item.data), 'dd/MM/yyyy'),
-          centro_custo: centroCusto?.nome_centro_custo || "Não informado",
-          codigo_centro_custo: centroCusto?.codigo_centro_custo || "",
-          descricao: getSituationDescription(item.situacao),
-          situacao: item.situacao || "Não informado",
-          horimetro_inicial: item.horimetro_inicial,
-          horimetro_final: item.horimetro_final,
-          abastecimento: item.abastecimento
-        };
+        // Somar abastecimento real
+        if (item.abastecimento && item.abastecimento > 0) {
+          acc[key].abastecimentoTotal += item.abastecimento;
+        }
+        
+        return acc;
+      }, {} as Record<string, any>);
+
+      console.log("Dados agrupados por centro de custo:", Object.keys(groupedData).length, "grupos");
+
+      // Gerar dados específicos baseado no tipo de veículo
+      const reportData: (EquipmentReportData | TruckReportData)[] = Object.values(groupedData).map((group: any) => {
+        const veiculo = group.veiculo;
+        const centroCusto = group.centroCusto;
+        
+        const descricaoServico = `${veiculo.tipo_veiculo?.toUpperCase() || 'VEÍCULO'} - ${veiculo.frota || ''}${veiculo.numero_frota || ''} - ${centroCusto.codigo_centro_custo || centroCusto.nome_centro_custo}`;
+        
+        if (vehicleType === "Equipamento") {
+          // Manter lógica original para equipamentos
+          const totalDiasTrabalhados = Object.values(groupedData).reduce((total: number, g: any) => {
+            return total + g.diasTrabalhados;
+          }, 0);
+
+          const totalAbastecimentoPeriodo = Object.values(groupedData).reduce((total: number, g: any) => {
+            return total + g.abastecimentoTotal;
+          }, 0);
+
+          const horasManutencaoTotal = calculatedManutencaoData ? calculatedManutencaoData.qtdHoras : 0;
+          const horasRestantes = 200 - horasManutencaoTotal;
+
+          const quantidadeHoras = 200;
+          const valorUnitarioHora = aluguelMensal / 200;
+          
+          const horasDisponiveis = totalDiasTrabalhados > 0 
+            ? (horasRestantes / totalDiasTrabalhados) * group.diasTrabalhados 
+            : 0;
+          
+          const valorPeriodo = valorUnitarioHora * horasDisponiveis;
+          const produtividade = horasDisponiveis;
+          
+          const abastecimentoProporcional = totalDiasTrabalhados > 0
+            ? (totalAbastecimentoPeriodo / totalDiasTrabalhados) * group.diasTrabalhados
+            : 0;
+          
+          const mediaAbastecimento = horasDisponiveis > 0 ? abastecimentoProporcional / horasDisponiveis : 0;
+          
+          return {
+            id: `${veiculo.id}_${centroCusto.id}`,
+            label: descricaoServico,
+            tipo_veiculo: veiculo.tipo_veiculo,
+            centro_custo: centroCusto.codigo_centro_custo || centroCusto.nome_centro_custo,
+            diasTrabalhados: group.diasTrabalhados,
+            totalMensal: aluguelMensal,
+            quantidadeHoras,
+            valorUnitarioHora,
+            horasDisponiveis,
+            valorPeriodo,
+            produtividade,
+            abastecimento: abastecimentoProporcional,
+            mediaAbastecimento,
+            rastreador: produtividade
+          } as EquipmentReportData;
+        } else {
+          // NOVAS FÓRMULAS PARA CAMINHÃO CONFORME ESPECIFICADO
+          console.log(`=== CÁLCULOS CAMINHÃO (NOVAS FÓRMULAS) - ${centroCusto.codigo_centro_custo} ===`);
+          console.log("Dias trabalhados neste centro:", group.diasTrabalhados);
+          console.log("Valor diário para divisão:", valorDiarioParaDivisao);
+          
+          // QTD/DIA: Dias trabalhados específicos deste centro de custo
+          const qtdDia = group.diasTrabalhados;
+          
+          // VALOR (R$): Valor diário para divisão × Dias trabalhados no centro de custo
+          const valor = valorDiarioParaDivisao * qtdDia;
+          
+          // PRODUTIVIDADE: (Total KM do período ÷ Total dias) × QTD/DIA
+          const produtividadeKmDia = totalDiasPeriodo > 0 ? totalKmPeriodo / totalDiasPeriodo : 0;
+          const produtividade = produtividadeKmDia * qtdDia;
+          
+          // ABASTECIMENTO: (Total L do período ÷ Total dias) × QTD/DIA
+          const abastecimentoLDia = totalDiasPeriodo > 0 ? totalLitrosPeriodo / totalDiasPeriodo : 0;
+          const abastecimento = abastecimentoLDia * qtdDia;
+          
+          // MÉDIA ABAST.: PRODUTIVIDADE ÷ ABASTECIMENTO (KM/L) - CORRIGIDO
+          const mediaAbastecimento = abastecimento > 0 ? produtividade / abastecimento : 0;
+          
+          console.log("Produtividade Km/dia total:", produtividadeKmDia);
+          console.log("Produtividade calculada (item):", produtividade);
+          console.log("Abastecimento L/dia total:", abastecimentoLDia);
+          console.log("Abastecimento calculado (item):", abastecimento);
+          console.log("Valor calculado (4 partes):", valor);
+          console.log("Média abastecimento (KM/L):", mediaAbastecimento);
+          
+          return {
+            id: `${veiculo.id}_${centroCusto.id}`,
+            label: descricaoServico,
+            tipo_veiculo: veiculo.tipo_veiculo,
+            centro_custo: centroCusto.codigo_centro_custo || centroCusto.nome_centro_custo,
+            diasTrabalhados: group.diasTrabalhados,
+            totalMensal: aluguelMensal,
+            qtdDia: qtdDia,
+            valor: valor,
+            quilometragem: produtividade, // PRODUTIVIDADE conforme nova fórmula
+            abastecimento: abastecimento, // ABASTECIMENTO conforme nova fórmula
+            mediaAbastecimento: mediaAbastecimento, // MÉDIA ABAST. conforme nova fórmula CORRIGIDA
+            rastreador: produtividade // Usar a produtividade calculada
+          } as TruckReportData;
+        }
       });
+
+      console.log("Dados finais do relatório:", reportData.length, "itens");
+      return reportData;
     } catch (error) {
       console.error("Error in fetchReportData:", error);
       toast({
@@ -259,56 +538,6 @@ const RelatorioMedicao: React.FC = () => {
     return descriptions[situation] || situation;
   };
   
-  const calculateStats = (data: ReportData[]): ReportStats => {
-    let totalQuilometragem = 0;
-    let totalAbastecimento = 0;
-    
-    data.forEach(item => {
-      if (item.horimetro_inicial !== undefined && item.horimetro_final !== undefined) {
-        const diff = item.horimetro_final - item.horimetro_inicial;
-        if (diff > 0) totalQuilometragem += diff;
-      }
-      
-      if (item.abastecimento !== undefined && item.abastecimento > 0) {
-        totalAbastecimento += item.abastecimento;
-      }
-    });
-    
-    const produtividade = totalAbastecimento > 0 
-      ? totalQuilometragem / totalAbastecimento
-      : 0;
-    
-    return {
-      quilometragem: totalQuilometragem,
-      abastecimento: totalAbastecimento,
-      produtividade: produtividade
-    };
-  };
-  
-  const generateSituacaoData = (data: ReportData[]): SituacaoData[] => {
-    const situacoes = data.reduce<Record<string, number>>((acc, item) => {
-      const situacao = item.situacao || "Desconhecido";
-      acc[situacao] = (acc[situacao] || 0) + 1;
-      return acc;
-    }, {});
-    
-    const colorMap: Record<string, string> = {
-      "Trabalhado": "#22c55e",
-      "Manutenção": "#eab308",
-      "À Disposição": "#3b82f6",
-      "Falta": "#ef4444",
-      "Feriado": "#f97316",
-      "Chuva": "#0ea5e9",
-      "Intempérie": "#a855f7"
-    };
-    
-    return Object.entries(situacoes).map(([name, value]) => ({
-      name,
-      value,
-      color: colorMap[name] || "#6b7280"
-    }));
-  };
-
   const resetFilters = () => {
     setVehicleType("");
     setSelectedVehicle("");
@@ -317,19 +546,30 @@ const RelatorioMedicao: React.FC = () => {
       to: new Date(2025, 2, 20)
     });
     setShowReport(false);
+    setShowEmptyState(false);
+  };
+
+  const handleTryDifferentPeriod = () => {
+    setShowEmptyState(false);
+    setShowReport(false);
+    setDateRange({
+      from: new Date(2025, 1, 21),
+      to: new Date(2025, 2, 20)
+    });
   };
 
   const generateReport = async () => {
     if (!vehicleType || !selectedVehicle || !dateRange?.from || !dateRange?.to) {
       toast({
-        title: "Campos incompletos",
-        description: "Por favor, preencha todos os campos para gerar o relatório.",
+        title: "Campos obrigatórios",
+        description: "Por favor, preencha todos os campos obrigatórios para gerar o relatório.",
         variant: "destructive",
       });
       return;
     }
 
     setIsLoading(true);
+    setShowEmptyState(false);
     
     try {
       const vehicleDetail = vehicleOptions.find(v => v.id === selectedVehicle);
@@ -347,22 +587,19 @@ const RelatorioMedicao: React.FC = () => {
       const reportData = await fetchReportData();
       
       if (reportData.length === 0) {
-        toast({
-          title: "Sem dados",
-          description: "Não foram encontrados registros para o período selecionado.",
-          variant: "destructive",
-        });
+        setShowEmptyState(true);
+        setShowReport(false);
         return;
       }
       
-      const calculatedStats = calculateStats(reportData);
-      setStats(calculatedStats);
-      
-      const chartData = generateSituacaoData(reportData);
-      setSituacaoData(chartData);
-      
       setReportData(reportData);
       setShowReport(true);
+      setShowEmptyState(false);
+      
+      toast({
+        title: "Relatório gerado",
+        description: `Relatório gerado com ${reportData.length} registros encontrados.`,
+      });
       
     } catch (error) {
       console.error("Error generating report:", error);
@@ -377,7 +614,7 @@ const RelatorioMedicao: React.FC = () => {
   };
 
   const handleExportToExcel = () => {
-    if (!reportData.length || !stats || !selectedVehicleDetails) {
+    if (!reportData.length || !selectedVehicleDetails || !dateRange?.from || !dateRange?.to) {
       toast({
         title: "Sem dados para exportar",
         description: "Gere um relatório primeiro.",
@@ -387,69 +624,65 @@ const RelatorioMedicao: React.FC = () => {
     }
     
     try {
-      const diarioSheet = reportData.map(item => ({
-        'Data': item.data,
-        'Centro de Custo': item.centro_custo,
-        'Código CC': item.codigo_centro_custo || 'N/A',
-        'Diário de Serviços': item.descricao,
-        'Situação': item.situacao,
-        'Horímetro Inicial': item.horimetro_inicial || 'N/A',
-        'Horímetro Final': item.horimetro_final || 'N/A',
-        'Abastecimento (L)': item.abastecimento || 'N/A',
-      }));
+      console.log("=== INICIANDO EXPORTAÇÃO EXCEL ===");
+      console.log("Report data:", reportData.length, "registros");
+      console.log("Vehicle details:", selectedVehicleDetails);
+      console.log("Date range:", dateRange);
+      console.log("Vehicle type:", vehicleType);
+      console.log("Manutenção data:", manutencaoData);
       
-      const resumoSheet = [{
-        'Veículo/Equipamento': selectedVehicleDetails.label,
-        'Período': `${dateRange?.from ? format(dateRange.from, 'dd/MM/yyyy') : ''} à ${dateRange?.to ? format(dateRange.to, 'dd/MM/yyyy') : ''}`,
-        'Quilometragem Total': stats.quilometragem.toFixed(2),
-        'Abastecimento Total (L)': stats.abastecimento.toFixed(2),
-        'Produtividade (km/L)': stats.produtividade.toFixed(4),
-        'Tipo de Veículo': selectedVehicleDetails.tipo_veiculo
-      }];
-      
-      const situacaoSheet = situacaoData.map(item => ({
-        'Situação': item.name,
-        'Quantidade de Dias': item.value,
-        'Percentual': `${((item.value / reportData.length) * 100).toFixed(2)}%`
-      }));
-      
-      const workbookData = {
-        'Resumo': resumoSheet,
-        'Diário de Serviços': diarioSheet,
-        'Situação': situacaoSheet
-      } as any;
-      
-      downloadExcel(
-        workbookData,
-        `Relatório_${selectedVehicleDetails.label}_${format(new Date(), 'dd-MM-yyyy')}`
+      downloadRelatorioMedicaoExcel(
+        reportData,
+        manutencaoData,
+        selectedVehicleDetails,
+        { from: dateRange.from, to: dateRange.to },
+        vehicleType
       );
       
       toast({
         title: "Exportação concluída",
-        description: "Os dados foram exportados com sucesso.",
+        description: "Os dados foram exportados para Excel com múltiplas abas.",
       });
     } catch (error) {
       console.error("Error exporting to Excel:", error);
       toast({
         title: "Erro na exportação",
-        description: "Ocorreu um erro ao exportar para Excel.",
+        description: error instanceof Error ? error.message : "Ocorreu um erro ao exportar para Excel.",
         variant: "destructive",
       });
     }
   };
 
-  const CustomSituacaoTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const item = payload[0];
-      return (
-        <div className="bg-white p-2 border rounded shadow">
-          <p className="font-semibold">{item.name}</p>
-          <p>{item.value} dia(s)</p>
-          <p>{((item.value / reportData.length) * 100).toFixed(2)}%</p>
-        </div>
-      );
+  const handleExportToPDF = async () => {
+    if (!reportData.length || !selectedVehicleDetails || !dateRange?.from || !dateRange?.to) {
+      toast({
+        title: "Sem dados para exportar",
+        description: "Gere um relatório primeiro.",
+        variant: "destructive",
+      });
+      return;
     }
-    return null;
+    
+    try {
+      const periodo = `${format(dateRange.from, 'dd-MM-yyyy')}_${format(dateRange.to, 'dd-MM-yyyy')}`;
+      
+      await generateReportPDF(
+        selectedVehicleDetails.label,
+        periodo
+      );
+      
+      toast({
+        title: "PDF gerado com sucesso",
+        description: "O relatório foi exportado em PDF.",
+      });
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast({
+        title: "Erro ao gerar PDF",
+        description: "Ocorreu um erro ao gerar o PDF. Tente novamente.",
+        variant: "destructive",
+      });
+    }
   };
 
   if (!canAccessPage) {
@@ -486,9 +719,12 @@ const RelatorioMedicao: React.FC = () => {
           <CardContent>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="flex flex-col gap-2">
-                <label htmlFor="tipo" className="font-medium">Tipo de Veículo</label>
+                <label htmlFor="tipo" className="font-medium flex items-center gap-1">
+                  Tipo de Veículo
+                  <span className="text-red-500">*</span>
+                </label>
                 <Select value={vehicleType} onValueChange={setVehicleType}>
-                  <SelectTrigger>
+                  <SelectTrigger className={!vehicleType ? "border-red-200" : ""}>
                     <SelectValue placeholder="Selecione o tipo" />
                   </SelectTrigger>
                   <SelectContent>
@@ -502,10 +738,27 @@ const RelatorioMedicao: React.FC = () => {
               </div>
               
               <div className="flex flex-col gap-2">
-                <label htmlFor="identificacao" className="font-medium">Identificação</label>
-                <Select value={selectedVehicle} onValueChange={setSelectedVehicle} disabled={!vehicleType || vehicleOptions.length === 0}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={vehicleOptions.length === 0 ? "Sem veículos disponíveis" : "Selecione o veículo"} />
+                <label htmlFor="identificacao" className="font-medium flex items-center gap-1">
+                  Identificação
+                  <span className="text-red-500">*</span>
+                </label>
+                <Select 
+                  value={selectedVehicle} 
+                  onValueChange={setSelectedVehicle} 
+                  disabled={!vehicleType || isLoading}
+                >
+                  <SelectTrigger className={!selectedVehicle ? "border-red-200" : ""}>
+                    <SelectValue 
+                      placeholder={
+                        !vehicleType 
+                          ? "Selecione o tipo primeiro" 
+                          : isLoading 
+                            ? "Carregando veículos..." 
+                            : vehicleOptions.length === 0 
+                              ? "Nenhum veículo disponível" 
+                              : "Selecione o veículo"
+                      } 
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {vehicleOptions.map((vehicle) => (
@@ -515,6 +768,11 @@ const RelatorioMedicao: React.FC = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                {vehicleType && vehicleOptions.length === 0 && !isLoading && (
+                  <p className="text-sm text-orange-600">
+                    Nenhum veículo do tipo "{vehicleType}" encontrado
+                  </p>
+                )}
               </div>
               
               <div className="flex flex-col gap-2">
@@ -560,7 +818,7 @@ const RelatorioMedicao: React.FC = () => {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      Carregando...
+                      Gerando...
                     </span>
                   ) : (
                     <>
@@ -583,140 +841,40 @@ const RelatorioMedicao: React.FC = () => {
           </CardContent>
         </Card>
         
-        {showReport && selectedVehicleDetails && (
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <CardTitle>Relatório de Medição</CardTitle>
-                <Button variant="outline" onClick={handleExportToExcel}>
-                  <FileDown className="mr-2 h-4 w-4" />
-                  Exportar para Excel
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="mb-6 grid gap-4 md:grid-cols-3">
-                <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-1">Veículo/Equipamento</h4>
-                  <p className="text-lg font-semibold">{selectedVehicleDetails.label}</p>
-                </div>
-                <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-1">Período</h4>
-                  <p className="text-lg font-semibold">
-                    {dateRange?.from && dateRange?.to && (
-                      `${format(dateRange.from, 'dd/MM/yyyy')} à ${format(dateRange.to, 'dd/MM/yyyy')}`
-                    )}
-                  </p>
-                </div>
-                <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-1">Objeto</h4>
-                  <p className="text-lg font-semibold">
-                    {selectedVehicleDetails.tipo_veiculo === "Caminhão" 
-                      ? "Transporte de Funcionários/Materiais" 
-                      : "Operações em Obra"}
-                  </p>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-2">
-                  <h3 className="font-bold mb-4 text-lg">Diário de Serviços</h3>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Data</TableHead>
-                          <TableHead>Centro de Custo</TableHead>
-                          <TableHead>Diário de Serviços</TableHead>
-                          <TableHead>Situação</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {reportData.map((row) => (
-                          <TableRow key={row.id}>
-                            <TableCell>{row.data}</TableCell>
-                            <TableCell>{row.centro_custo}</TableCell>
-                            <TableCell>{row.descricao}</TableCell>
-                            <TableCell>{row.situacao}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-                
-                <div className="flex flex-col gap-6 md:col-span-1">
-                  {stats && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base">Informações Mensais</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Quilometragem Mensal</p>
-                          <p className="text-lg font-semibold">{stats.quilometragem.toFixed(2)} km</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Abastecimento Mensal</p>
-                          <p className="text-lg font-semibold">{stats.abastecimento.toFixed(2)} litros</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Produtividade</p>
-                          <p className="text-lg font-semibold">{stats.produtividade.toFixed(4)} km/l</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-                  
-                  {situacaoData.length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base">Resumo de Situação</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div style={{ width: '100%', height: 240 }}>
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie
-                                data={situacaoData}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={0}
-                                outerRadius={80}
-                                paddingAngle={1}
-                                dataKey="value"
-                              >
-                                {situacaoData.map((entry, index) => (
-                                  <Cell key={`cell-${index}`} fill={entry.color} />
-                                ))}
-                              </Pie>
-                              <Tooltip content={<CustomSituacaoTooltip />} />
-                              <Legend layout="vertical" align="right" verticalAlign="middle" />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-                  
-                  {selectedVehicleDetails.imagem_url && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base">Imagem do Veículo</CardTitle>
-                      </CardHeader>
-                      <CardContent className="flex justify-center">
-                        <img 
-                          src={selectedVehicleDetails.imagem_url} 
-                          alt={selectedVehicleDetails.label}
-                          className="max-w-full h-auto rounded-md max-h-48 object-contain" 
-                        />
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        {isLoading && <RelatorioMedicaoLoadingState />}
+        
+        {showEmptyState && (
+          <RelatorioMedicaoEmptyState
+            vehicleName={selectedVehicleDetails?.label}
+            periodo={dateRange?.from && dateRange?.to ? 
+              `${format(dateRange.from, 'dd/MM/yyyy')} à ${format(dateRange.to, 'dd/MM/yyyy')}` : 
+              undefined
+            }
+            onTryDifferentPeriod={handleTryDifferentPeriod}
+          />
+        )}
+        
+        {!showReport && !showEmptyState && !isLoading && <RelatorioMedicaoPlaceholder />}
+        
+        {showReport && reportData.length > 0 && dateRange?.from && dateRange?.to && !isLoading && (
+          <div>
+            <div className="flex justify-end gap-2 mb-4">
+              <Button variant="outline" onClick={handleExportToExcel}>
+                <FileDown className="mr-2 h-4 w-4" />
+                Exportar Excel
+              </Button>
+              <Button variant="outline" onClick={handleExportToPDF}>
+                <Download className="mr-2 h-4 w-4" />
+                Exportar PDF
+              </Button>
+            </div>
+            <RelatorioMedicaoDetalhado
+              vehicleData={reportData}
+              dateRange={{ from: dateRange.from, to: dateRange.to }}
+              manutencaoData={manutencaoData}
+              tipoVeiculo={vehicleType as "Caminhão" | "Equipamento"}
+            />
+          </div>
         )}
       </div>
     </MainLayout>

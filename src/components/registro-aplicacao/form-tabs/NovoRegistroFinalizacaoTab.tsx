@@ -38,9 +38,9 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
 }) => {
   const {
     register,
-    formState: { errors },
+    formState: { errors, isValid },
     watch,
-    handleSubmit
+    trigger
   } = form;
 
   // Watch dos campos necessários para validação
@@ -48,28 +48,55 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
   const horaChegadaLocal = watch("hora_chegada_local");
   const temperaturaChegada = watch("temperatura_chegada");
   const anotacoesApontador = watch("anotacoes_apontador");
+  const dataAplicacao = watch("data_aplicacao");
 
   // Validação: deve ter pelo menos hora de chegada E hora de saída
-  const isFormValid = horaSaidaCaminhao?.trim() && horaChegadaLocal?.trim();
+  const isFormCompleteValid = Boolean(
+    dataAplicacao?.trim() && 
+    horaSaidaCaminhao?.trim() && 
+    horaChegadaLocal?.trim()
+  );
 
   // Verificar se há dados existentes
-  const hasExistingData = horaChegadaLocal || temperaturaChegada || anotacoesApontador;
+  const hasExistingData = Boolean(
+    horaChegadaLocal || 
+    temperaturaChegada || 
+    anotacoesApontador
+  );
 
-  // Handler direto para o submit - usar handleSubmit do form
-  const handleSaveClick = () => {
+  // Handler para o submit com validação adicional
+  const handleSaveClick = async () => {
     console.log("=== CLIQUE NO BOTÃO SALVAR ===");
-    console.log("Form válido:", isFormValid);
-    console.log("Hora chegada:", horaChegadaLocal);
-    console.log("Hora saída:", horaSaidaCaminhao);
-    console.log("Temperatura chegada:", temperaturaChegada);
+    console.log("Form data atual:", {
+      dataAplicacao,
+      horaChegadaLocal,
+      horaSaidaCaminhao,
+      temperaturaChegada,
+      isFormCompleteValid,
+      isValid
+    });
     
-    if (!isFormValid) {
-      console.error("Formulário inválido");
+    // Trigger validation antes de submeter
+    const isFormValidationPassed = await trigger();
+    
+    if (!isFormValidationPassed) {
+      console.error("❌ Validação do formulário falhou");
       return;
     }
 
-    // Usar handleSubmit do React Hook Form para garantir validação
-    handleSubmit(onSubmit)();
+    if (!isFormCompleteValid) {
+      console.error("❌ Campos obrigatórios não preenchidos");
+      return;
+    }
+
+    console.log("✅ Validações passaram - chamando onSubmit");
+    
+    // Obter todos os dados do formulário
+    const formData = form.getValues();
+    console.log("Dados completos do formulário:", formData);
+    
+    // Chamar o onSubmit diretamente
+    onSubmit(formData);
   };
 
   return (
@@ -96,19 +123,33 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Validação do formulário */}
-          {!isFormValid && !isReadOnly && (
+          {!isFormCompleteValid && !isReadOnly && (
             <Alert>
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                {!horaChegadaLocal?.trim() && !horaSaidaCaminhao?.trim() && (
-                  "Preencha as horas de chegada e saída do caminhão para finalizar."
-                )}
-                {!horaChegadaLocal?.trim() && horaSaidaCaminhao?.trim() && (
-                  "Preencha a hora de chegada do caminhão para finalizar."
-                )}
-                {horaChegadaLocal?.trim() && !horaSaidaCaminhao?.trim() && (
-                  "Preencha a hora de saída do caminhão para finalizar."
-                )}
+                <div className="space-y-1">
+                  <div>Complete os campos obrigatórios para finalizar:</div>
+                  <ul className="text-sm space-y-1 ml-4">
+                    {!dataAplicacao?.trim() && (
+                      <li className="flex items-center gap-2">
+                        <span className="w-1 h-1 bg-red-500 rounded-full"></span>
+                        Data da aplicação
+                      </li>
+                    )}
+                    {!horaChegadaLocal?.trim() && (
+                      <li className="flex items-center gap-2">
+                        <span className="w-1 h-1 bg-red-500 rounded-full"></span>
+                        Hora de chegada no local
+                      </li>
+                    )}
+                    {!horaSaidaCaminhao?.trim() && (
+                      <li className="flex items-center gap-2">
+                        <span className="w-1 h-1 bg-red-500 rounded-full"></span>
+                        Hora de saída do caminhão
+                      </li>
+                    )}
+                  </ul>
+                </div>
               </AlertDescription>
             </Alert>
           )}
@@ -132,7 +173,7 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
                 Hora de Chegada *
                 {horaChegadaLocal && (
                   <Badge variant="secondary" className="ml-2 text-xs">
-                    Salvo: {horaChegadaLocal}
+                    Atual: {horaChegadaLocal}
                   </Badge>
                 )}
               </Label>
@@ -157,7 +198,7 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
                 Hora de Saída do Caminhão *
                 {horaSaidaCaminhao && (
                   <Badge variant="secondary" className="ml-2 text-xs">
-                    Salvo: {horaSaidaCaminhao}
+                    Atual: {horaSaidaCaminhao}
                   </Badge>
                 )}
               </Label>
@@ -177,10 +218,11 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
             </div>
           </div>
 
+          {/* Status visual */}
           <div className="flex items-center gap-2">
             <CheckCircle className="h-5 w-5 text-green-500" />
-            <Badge variant="secondary" className={isFormValid ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
-              {isFormValid ? "Pronto para Salvar" : "Dados Incompletos"}
+            <Badge variant="secondary" className={isFormCompleteValid ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
+              {isFormCompleteValid ? "Pronto para Salvar" : "Dados Incompletos"}
             </Badge>
             {hasExistingData && (
               <Badge variant="outline" className="bg-blue-100 text-blue-800">
@@ -252,6 +294,24 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
               </div>
             </div>
           )}
+
+          {/* Debug info em desenvolvimento */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="bg-gray-100 p-3 rounded text-xs">
+              <details>
+                <summary className="cursor-pointer font-medium">Debug Info</summary>
+                <div className="mt-2 space-y-1">
+                  <div>isFormCompleteValid: {String(isFormCompleteValid)}</div>
+                  <div>isValid (react-hook-form): {String(isValid)}</div>
+                  <div>hasExistingData: {String(hasExistingData)}</div>
+                  <div>isLoading: {String(isLoading)}</div>
+                  <div>Data aplicação: {dataAplicacao || 'vazio'}</div>
+                  <div>Hora chegada: {horaChegadaLocal || 'vazio'}</div>
+                  <div>Hora saída: {horaSaidaCaminhao || 'vazio'}</div>
+                </div>
+              </details>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -266,7 +326,7 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
           {!isReadOnly && (
             <Button
               onClick={handleSaveClick}
-              disabled={isLoading || !isFormValid}
+              disabled={isLoading || !isFormCompleteValid}
               className="bg-green-500 hover:bg-green-600"
             >
               {isLoading ? (

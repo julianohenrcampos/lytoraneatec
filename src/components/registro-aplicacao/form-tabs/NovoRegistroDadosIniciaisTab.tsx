@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,12 +29,21 @@ const NovoRegistroDadosIniciaisTab: React.FC<NovoRegistroDadosIniciaisTabProps> 
   const {
     register,
     formState: { errors },
-    watch
+    watch,
+    setValue
   } = form;
 
   // Watch form values for validation
   const dataAplicacao = watch("data_aplicacao");
   const horaChegadaLocal = watch("hora_chegada_local");
+  const temperaturaChegada = watch("temperatura_chegada");
+
+  // Garantir que o logradouro seja definido corretamente para esta entrega
+  useEffect(() => {
+    if (entrega?.logradouro) {
+      setValue("logradouro_nome", entrega.logradouro);
+    }
+  }, [entrega?.logradouro, setValue]);
 
   const isFormValid = dataAplicacao && horaChegadaLocal;
 
@@ -205,6 +214,25 @@ const NovoRegistroDadosIniciaisTab: React.FC<NovoRegistroDadosIniciaisTabProps> 
               </AlertDescription>
             </Alert>
           )}
+
+          {/* Indicador visual dos valores atuais */}
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <h5 className="font-medium text-gray-700 mb-2">Status dos Campos:</h5>
+            <div className="space-y-1 text-sm">
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${dataAplicacao ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                <span>Data: {dataAplicacao || "Não informada"}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${horaChegadaLocal ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                <span>Hora de Chegada: {horaChegadaLocal || "Não informada"}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${temperaturaChegada ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+                <span>Temperatura: {temperaturaChegada ? `${temperaturaChegada}°C` : "Opcional"}</span>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

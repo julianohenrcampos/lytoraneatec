@@ -1,15 +1,30 @@
 import * as XLSX from 'xlsx';
+import { format } from 'date-fns';
 
-export const downloadExcel = (data: any[], fileName: string) => {
+export const downloadExcel = (data: Record<string, any[]> | any[], fileName: string) => {
   try {
     // Create a workbook
     const wb = XLSX.utils.book_new();
     
-    // Convert the data to a worksheet
-    const ws = XLSX.utils.json_to_sheet(data);
-    
-    // Add the worksheet to the workbook
-    XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+    if (Array.isArray(data)) {
+      // Se for um array simples, criar uma única planilha
+      const ws = XLSX.utils.json_to_sheet(data);
+      XLSX.utils.book_append_sheet(wb, ws, "Dados");
+    } else {
+      // Se for um objeto com múltiplas planilhas
+      Object.entries(data).forEach(([sheetName, sheetData]) => {
+        const ws = XLSX.utils.json_to_sheet(sheetData);
+        
+        // Configurar largura das colunas
+        const columnWidths = Object.keys(sheetData[0] || {}).map(() => ({ wch: 20 }));
+        ws['!cols'] = columnWidths;
+        
+        // Sanitizar nome da planilha para evitar caracteres especiais
+        const sanitizedSheetName = sheetName.replace(/[\\/:*?"<>|]/g, '_').substring(0, 31);
+        
+        XLSX.utils.book_append_sheet(wb, ws, sanitizedSheetName);
+      });
+    }
     
     // Generate a download
     XLSX.writeFile(wb, `${fileName}.xlsx`);
@@ -233,4 +248,176 @@ export const generateFuncoesTemplate = () => {
   
   // Generate file download
   XLSX.writeFile(wb, "modelo_funcoes.xlsx");
+};
+
+// Nova função específica para relatório de medição
+export const downloadRelatorioMedicaoExcel = (
+  reportData: any[],
+  manutencaoData: any,
+  selectedVehicleDetails: any,
+  dateRange: { from: Date; to: Date },
+  tipoVeiculo: string
+) => {
+  try {
+    console.log("Iniciando exportação Excel...");
+    console.log("Dados recebidos:", { 
+      reportDataLength: reportData?.length || 0,
+      manutencaoData: !!manutencaoData,
+      selectedVehicleDetails: !!selectedVehicleDetails,
+      dateRange: !!dateRange,
+      tipoVeiculo 
+    });
+
+    // Validações de segurança
+    if (!reportData || !Array.isArray(reportData) || reportData.length === 0) {
+      throw new Error("Dados do relatório não encontrados ou vazios");
+    }
+
+    if (!selectedVehicleDetails) {
+      throw new Error("Detalhes do veículo não encontrados");
+    }
+
+    if (!dateRange || !dateRange.from || !dateRange.to) {
+      throw new Error("Período de datas não definido corretamente");
+    }
+
+    if (!tipoVeiculo) {
+      throw new Error("Tipo de veículo não definido");
+    }
+
+    // Aba 1: Resumo do Relatório
+    const resumoSheet = [{
+      'Tipo de Veículo': selectedVehicleDetails.tipo_veiculo || 'N/A',
+      'Identificação': selectedVehicleDetails.label || 'N/A',
+      'Período Inicial': format(dateRange.from, 'dd/MM/yyyy'),
+      'Período Final': format(dateRange.to, 'dd/MM/yyyy'),
+      'Total de Registros': reportData.length,
+      'Valor Aluguel Mensal': `R$ ${(selectedVehicleDetails.aluguel || 0).toFixed(2).replace('.', ',')}`,
+      'Data/Hora Geração': format(new Date(), 'dd/MM/yyyy HH:mm:ss')
+    }];
+
+    console.log("Resumo sheet criado:", resumoSheet);
+
+    // Aba 2: Dados Detalhados dos Serviços
+    const servicosSheet = reportData.map((item, index) => {
+      const baseData = {
+        'Item': index + 1,
+        'Descrição dos Serviços': item.label || 'N/A',
+        'Centro de Custo': item.centro_custo || 'N/A',
+        'Tipo de Veículo': item.tipo_veiculo || 'N/A',
+        'Dias Trabalhados': item.diasTrabalhados || 0,
+        'Total Mensal (R$)': (item.totalMensal || 0).toFixed(2).replace('.', ','),
+        'Abastecimento': (item.abastecimento || 0).toFixed(2).replace('.', ','),
+        'Média Abastecimento': (item.mediaAbastecimento || 0).toFixed(2).replace('.', ','),
+        'Rastreador': (item.rastreador || 0).toFixed(2).replace('.', ','),
+      };
+
+      if (tipoVeiculo === "Equipamento") {
+        const equipmentItem = item as any;
+        return {
+          ...baseData,
+          'Quantidade Horas': equipmentItem.quantidadeHoras || 0,
+          'Valor Unitário Hora (R$)': (equipmentItem.valorUnitarioHora || 0).toFixed(2).replace('.', ','),
+          'Horas Disponíveis': (equipmentItem.horasDisponiveis || 0).toFixed(2).replace('.', ','),
+          'Valor Período (R$)': (equipmentItem.valorPeriodo || 0).toFixed(2).replace('.', ','),
+          'Produtividade (H)': (equipmentItem.produtividade || 0).toFixed(2).replace('.', ','),
+        };
+      } else {
+        const truckItem = item as any;
+        return {
+          ...baseData,
+          'QTD/DIA': truckItem.qtdDia || 0,
+          'Valor (R$)': (truckItem.valor || 0).toFixed(2).replace('.', ','),
+          'Quilometragem (KM)': (truckItem.quilometragem || 0).toFixed(2).replace('.', ','),
+        };
+      }
+    });
+
+    console.log("Serviços sheet criado:", servicosSheet.length, "itens");
+
+    // Aba 3: Dados de Manutenção/Descontos
+    const manutencaoSheet = [];
+    if (manutencaoData && typeof manutencaoData === 'object') {
+      if (tipoVeiculo === "Equipamento") {
+        manutencaoSheet.push({
+          'Tipo': 'Desconto de Manutenção - Equipamento',
+          'Valor Unitário (R$/h)': (manutencaoData.valorUnitario || 0).toFixed(2).replace('.', ','),
+          'Quantidade Horas': manutencaoData.qtdHoras || 0,
+          'Valor Total (R$)': (manutencaoData.valor || 0).toFixed(2).replace('.', ',')
+        });
+      } else {
+        manutencaoSheet.push({
+          'Tipo': 'Desconto de Manutenção - Caminhão',
+          'Valor Mensal (R$)': (manutencaoData.valorMensal || 0).toFixed(2).replace('.', ','),
+          'Quantidade Dias': manutencaoData.qtdDia || 0,
+          'Valor Total (R$)': (manutencaoData.valor || 0).toFixed(2).replace('.', ',')
+        });
+      }
+    } else {
+      manutencaoSheet.push({
+        'Tipo': 'Nenhum desconto de manutenção',
+        'Observação': 'Não foram encontrados registros de manutenção no período'
+      });
+    }
+
+    console.log("Manutenção sheet criado:", manutencaoSheet);
+
+    // Aba 4: Totais e Cálculos
+    const totalServicos = reportData.reduce((acc, item) => {
+      if (tipoVeiculo === "Equipamento") {
+        return acc + (item.valorPeriodo || 0);
+      } else {
+        return acc + (item.valor || 0);
+      }
+    }, 0);
+
+    const totalDescontos = manutencaoData ? (manutencaoData.valor || 0) : 0;
+    const totalPeriodo = totalServicos - totalDescontos;
+
+    const totaisSheet = [{
+      'Descrição': 'Total dos Serviços',
+      'Valor (R$)': totalServicos.toFixed(2).replace('.', ',')
+    }, {
+      'Descrição': 'Total dos Descontos',
+      'Valor (R$)': totalDescontos.toFixed(2).replace('.', ',')
+    }, {
+      'Descrição': 'TOTAL NO PERÍODO',
+      'Valor (R$)': totalPeriodo.toFixed(2).replace('.', ',')
+    }];
+
+    console.log("Totais sheet criado:", totaisSheet);
+
+    // Validar se todas as sheets têm dados
+    if (!resumoSheet.length || !servicosSheet.length || !totaisSheet.length) {
+      throw new Error("Erro ao criar dados das planilhas");
+    }
+
+    const workbookData = {
+      'Resumo': resumoSheet,
+      'Servicos Detalhados': servicosSheet,  // Removido caracteres especiais
+      'Manutencao_Descontos': manutencaoSheet,  // Removido caracteres especiais  
+      'Totais': totaisSheet
+    };
+    
+    // Criar nome do arquivo seguro - sanitizar completamente
+    const vehicleLabel = (selectedVehicleDetails.label || 'Veiculo')
+      .replace(/[^a-zA-Z0-9]/g, '_')
+      .substring(0, 50); // Limitar tamanho
+    
+    const safeDate = format(new Date(), 'dd-MM-yyyy_HH-mm');
+    const fileName = `Relatorio_Medicao_${vehicleLabel}_${safeDate}`;
+    
+    console.log("Arquivo será salvo como:", fileName);
+    console.log("Dados do workbook:", Object.keys(workbookData));
+
+    // Usar a função downloadExcel existente
+    downloadExcel(workbookData, fileName);
+    
+    console.log("Exportação Excel concluída com sucesso!");
+    return true;
+  } catch (error) {
+    console.error("Erro detalhado na exportação Excel:", error);
+    console.error("Stack trace:", error instanceof Error ? error.stack : 'Stack não disponível');
+    throw new Error(`Erro ao exportar relatório para Excel: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+  }
 };

@@ -178,17 +178,20 @@ export const useApontamentoCaminhoes = () => {
       if (currentApontamento.apontamento?.id) {
         console.log("Updating apontamento with ID:", currentApontamento.apontamento.id);
         
+        // Incluir todos os campos editáveis na atualização
         const updateData = {
           horimetro_final: formData.apontamento.horimetro_final,
           hora_final: formData.apontamento.hora_final,
           abastecimento: formData.apontamento.abastecimento,
-          situacao: formData.apontamento.situacao
+          situacao: formData.apontamento.situacao,
+          centro_custo_id: formData.apontamento.centro_custo_id,
+          caminhao_equipamento_id: formData.apontamento.caminhao_equipamento_id
         };
         
         await updateApontamento(
           currentApontamento.apontamento.id,
           updateData,
-          undefined
+          formData.inspecao
         );
         
         toast({

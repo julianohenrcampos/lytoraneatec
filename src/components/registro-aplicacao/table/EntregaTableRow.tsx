@@ -21,6 +21,46 @@ const EntregaTableRow: React.FC<EntregaTableRowProps> = ({ entrega, onEntregaCli
     entrega.requisicao?.centro_custo?.nome_centro_custo ||
     "N/A";
   
+  // Format caminhão display with fallbacks
+  const formatCaminhaoDisplay = (caminhao: any): string => {
+    console.log("Formatting caminhao display for:", caminhao);
+    
+    if (!caminhao) {
+      console.log("No caminhao data available");
+      return "N/A";
+    }
+    
+    // Primary format: placa - modelo
+    if (caminhao.placa && caminhao.modelo) {
+      return `${caminhao.placa} - ${caminhao.modelo}`;
+    }
+    
+    // Fallback 1: frota + numero_frota
+    if (caminhao.frota && caminhao.numero_frota) {
+      return `${caminhao.frota}${caminhao.numero_frota}${caminhao.modelo ? ` - ${caminhao.modelo}` : ''}`;
+    }
+    
+    // Fallback 2: just placa
+    if (caminhao.placa) {
+      return caminhao.placa;
+    }
+    
+    // Fallback 3: just modelo
+    if (caminhao.modelo) {
+      return caminhao.modelo;
+    }
+    
+    // Fallback 4: frota only
+    if (caminhao.frota) {
+      return caminhao.frota;
+    }
+    
+    console.log("No usable caminhao data found");
+    return "N/A";
+  };
+  
+  const caminhaoDisplay = formatCaminhaoDisplay(entrega.caminhao);
+  
   return (
     <TableRow 
       className={isClickable ? "hover:bg-amber-50 dark:hover:bg-amber-950/20 cursor-pointer" : ""}
@@ -31,9 +71,7 @@ const EntregaTableRow: React.FC<EntregaTableRowProps> = ({ entrega, onEntregaCli
         {centroCustoNome}
       </TableCell>
       <TableCell>
-        {entrega.caminhao ? 
-          `${entrega.caminhao.placa} - ${entrega.caminhao.modelo}` : 
-          "N/A"}
+        {caminhaoDisplay}
       </TableCell>
       <TableCell>{entrega.equipe?.nome_equipe || "N/A"}</TableCell>
       <TableCell>{entrega.quantidade_massa}</TableCell>

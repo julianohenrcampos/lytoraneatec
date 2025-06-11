@@ -89,15 +89,15 @@ export const fetchProgramacaoById = async (id: string): Promise<ProgramacaoEntre
   
   console.log("Found programação:", programacao);
 
-  // Fetch the items for this programação
+  // Fetch the items for this programação with corrected query syntax
   const { data: itens, error: itensError } = await supabase
     .from('bd_lista_programacao_entrega')
     .select(`
       *,
-      caminhao:caminhao_id(id, placa, modelo),
-      equipe:equipe_id(id, nome_equipe),
-      apontador:apontador_id(id, nome_completo),
-      usina:usina_id(id, nome_usina)
+      caminhao:bd_caminhoes_equipamentos!caminhao_id(id, placa, modelo, marca, frota, numero_frota),
+      equipe:bd_equipes!equipe_id(id, nome_equipe),
+      apontador:bd_funcionarios!apontador_id(id, nome_completo),
+      usina:bd_usinas!usina_id(id, nome_usina)
     `)
     .eq('programacao_entrega_id', id);
 
@@ -106,7 +106,7 @@ export const fetchProgramacaoById = async (id: string): Promise<ProgramacaoEntre
     throw itensError;
   }
   
-  console.log("Found items:", itens);
+  console.log("Found items with corrected query:", itens);
 
   // First, get the centro custo name for display
   let centroCustoName = "";
@@ -116,6 +116,8 @@ export const fetchProgramacaoById = async (id: string): Promise<ProgramacaoEntre
 
   // Set the cancelled flag for UI based on status and normalize status values
   const processedItems = (itens || []).map(item => {
+    console.log("Processing item caminhao data:", item.caminhao);
+    
     return {
       ...item,
       cancelled: normalizeStatus(item.status) === 'Cancelada',
@@ -126,7 +128,7 @@ export const fetchProgramacaoById = async (id: string): Promise<ProgramacaoEntre
     };
   }) as ListaProgramacaoEntrega[];
   
-  console.log("Processed items:", processedItems);
+  console.log("Processed items with caminhao data:", processedItems);
 
   return {
     ...programacao,
@@ -305,10 +307,10 @@ export const exportProgramacoes = async (filters: ProgramacaoEntregaFilters = {}
       .from('bd_lista_programacao_entrega')
       .select(`
         *,
-        caminhao:caminhao_id(id, placa, modelo),
-        equipe:equipe_id(id, nome_equipe),
-        apontador:apontador_id(id, nome_completo),
-        usina:usina_id(id, nome_usina)
+        caminhao:bd_caminhoes_equipamentos!caminhao_id(id, placa, modelo, marca, frota, numero_frota),
+        equipe:bd_equipes!equipe_id(id, nome_equipe),
+        apontador:bd_funcionarios!apontador_id(id, nome_completo),
+        usina:bd_usinas!usina_id(id, nome_usina)
       `)
       .eq('programacao_entrega_id', programacao.id);
 

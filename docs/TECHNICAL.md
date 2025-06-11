@@ -24,6 +24,87 @@ graph TB
     H[Authentication] --> B
 ```
 
+## Tratamento de Timezone e Datas
+
+### Função Central de Formatação
+
+O sistema utiliza uma função centralizada para formatação de datas brasileiras:
+
+```typescript
+// utils/timezoneUtils.ts
+export const formatBrazilianDateForDisplay = (dateString: string | undefined): string => {
+  if (!dateString) return 'N/A';
+  
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      return 'Data inválida';
+    }
+    
+    // Força timezone brasileiro para exibição
+    const brazilDate = new Date(date.toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
+    return format(brazilDate, 'dd/MM/yyyy', { locale: ptBR });
+  } catch (error) {
+    console.error('Erro ao formatar data:', error);
+    return 'Erro na formatação';
+  }
+};
+```
+
+### Padrão de Uso
+- **SEMPRE** use `formatBrazilianDateForDisplay` para exibir datas
+- **NUNCA** use `format` do date-fns diretamente em componentes
+- Para cálculos, use as funções utilitárias do `timezoneUtils.ts`
+
+### Exemplo de Implementação
+```typescript
+// ❌ Incorreto - causa problemas de timezone
+<dd className="mt-1 text-base">
+  {format(new Date(data.data), 'dd/MM/yyyy')}
+</dd>
+
+// ✅ Correto - usa formatação centralizada
+<dd className="mt-1 text-base">
+  {formatBrazilianDateForDisplay(data.data)}
+</dd>
+```
+
+## Cálculos de Espessura e Aplicação
+
+### Fórmulas Matemáticas
+
+#### Cálculo de Área
+```typescript
+const area = comprimento * largura; // em m²
+```
+
+#### Cálculo de Espessura
+```typescript
+const espessura = (massaAplicada / area) / 2.4 * 100; // em cm
+// Onde 2.4 é a densidade padrão do asfalto em t/m³
+```
+
+#### Cálculo de Espessura Média por Carga
+```typescript
+const espessuraMedia = (massaTotalCarga / areaTotalDetalhes) / 2.4 * 100;
+```
+
+### Validações Implementadas
+- Massa aplicada não pode exceder massa remanescente
+- Área deve ser maior que zero
+- Espessura deve estar entre limites técnicos (0.5cm - 15cm)
+- Temperatura do asfalto entre 120°C e 180°C
+
+### Status de Espessura
+```typescript
+export const getEspessuraCalculadaStatus = (espessura: number): 'success' | 'warning' | 'error' => {
+  if (espessura >= 3 && espessura <= 7) return 'success';
+  if (espessura >= 2 && espessura < 3) return 'warning';
+  if (espessura > 7 && espessura <= 10) return 'warning';
+  return 'error';
+};
+```
+
 ## Estrutura de Pastas Detalhada
 
 ### `/src/components/`
@@ -92,6 +173,15 @@ Componentes organizados por domínio funcional:
     └── VeiculoStatusBadge.tsx    # Badge de status
 ```
 
+#### `apontamento-caminhoes/` - Apontamento de Equipamentos
+```typescript
+├── ApontamentoCaminhoesTable.tsx        # Tabela de apontamentos
+├── ApontamentoCaminhoesForm.tsx         # Formulário de apontamento
+├── ApontamentoCaminhoesDetailsModal.tsx # Modal de detalhes
+├── ApontamentoCaminhoesFilters.tsx      # Filtros de busca
+└── DeleteApontamentoCaminhoesDialog.tsx # Dialog de exclusão
+```
+
 #### `requisicoes/` - Gestão de Requisições
 ```typescript
 ├── RequisicaoPage.tsx            # Página principal
@@ -122,7 +212,7 @@ Componentes organizados por domínio funcional:
 ```typescript
 ├── NovoRegistroAplicacaoModal.tsx # Modal principal
 ├── RegistroAplicacaoTable.tsx    # Tabela de registros
-├── RegistroAplicacaoForm.tsx     # Formulário de registro
+├── RegistroAplicacaoViewModal.tsx # Modal de visualização
 ├── form-tabs/
 │   ├── DadosIniciaisTab.tsx      # Aba dados iniciais
 │   ├── DadosTecnicosTab.tsx      # Aba dados técnicos
@@ -133,81 +223,13 @@ Componentes organizados por domínio funcional:
     └── EntregaStatusBadge.tsx    # Badge de status
 ```
 
-### `/src/hooks/`
-
-Hooks personalizados organizados por funcionalidade:
-
-#### Hooks de Dados
-```typescript
-├── useAuth.ts                    # Autenticação
-├── useUserPermissions.ts         # Permissões do usuário
-├── useFuncionarios.ts            # Dados de funcionários
-├── useVeiculos.ts                # Dados de veículos
-├── useRequisicoes.ts             # Dados de requisições
-└── useProgramacaoEntrega.ts      # Dados de programação
-```
-
-#### Hooks de Formulários
-```typescript
-├── useFuncionarioForm.ts         # Formulário de funcionários
-├── useVeiculoForm.ts             # Formulário de veículos
-├── useRequisicaoForm.ts          # Formulário de requisições
-├── useRegistroCargaForm.ts       # Formulário de cargas
-└── useRegistroAplicacaoForm.ts   # Formulário de aplicação
-```
-
-#### Hooks de Estado
-```typescript
-├── useSidebarState.ts            # Estado da sidebar
-├── useFormTabs.ts                # Estado das abas
-└── useTableState.ts              # Estado das tabelas
-```
-
-### `/src/services/`
-
-Serviços organizados por entidade:
-
-#### Serviços de Entidades
-```typescript
-├── funcionarioService.ts         # CRUD de funcionários
-├── veiculoService.ts             # CRUD de veículos
-├── requisicaoService.ts          # CRUD de requisições
-├── programacaoEntregaService.ts  # CRUD de programação
-├── registroCargaService.ts       # CRUD de cargas
-└── registroAplicacaoService.ts   # CRUD de aplicação
-```
-
-#### Serviços Auxiliares
-```typescript
-├── authService.ts                # Autenticação
-├── storageService.ts             # Upload de arquivos
-├── permissaoService.ts           # Permissões
-└── userService.ts                # Usuários
-```
-
-### `/src/types/`
-
-Definições de tipos TypeScript:
-
-```typescript
-├── funcionario.ts                # Tipos de funcionários
-├── veiculo.ts                    # Tipos de veículos
-├── requisicao.ts                 # Tipos de requisições
-├── programacaoEntrega.ts         # Tipos de programação
-├── registroCargas.ts             # Tipos de cargas
-├── registroAplicacao.ts          # Tipos de aplicação
-├── centroCusto.ts                # Tipos de centro de custo
-├── equipe.ts                     # Tipos de equipes
-└── permissao.ts                  # Tipos de permissões
-```
-
 ### `/src/utils/`
 
-Funções utilitárias:
+Funções utilitárias especializadas:
 
 ```typescript
-├── calculations.ts               # Cálculos matemáticos
-├── dateUtils.ts                  # Manipulação de datas
+├── timezoneUtils.ts              # Formatação de datas (CRÍTICO)
+├── aplicacaoCalculations.ts      # Cálculos de espessura
 ├── formatters.ts                 # Formatação de dados
 ├── validators.ts                 # Validações
 ├── exportUtils.ts                # Exportação de dados
@@ -216,59 +238,129 @@ Funções utilitárias:
 
 ## Principais Componentes React
 
-### `MainLayout.tsx`
-Layout principal da aplicação que envolve todas as páginas.
-
-**Props:**
+### Modal de Detalhes (Padrão Atualizado)
 ```typescript
-interface MainLayoutProps {
-  children: React.ReactNode;
-}
+// ApontamentoCaminhoesDetailsModal.tsx
+const ApontamentoCaminhoesDetailsModal: React.FC<Props> = ({
+  isOpen,
+  onClose,
+  apontamento,
+  inspecao,
+  isLoading
+}) => {
+  const isMobile = useIsMobile();
+  
+  // ✅ Usa formatação centralizada
+  const dataFormatada = formatBrazilianDateForDisplay(apontamento.data);
+  
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className={cn(
+        "sm:max-w-[700px]", 
+        isMobile ? "p-3 w-[95vw] mx-auto" : ""
+      )}>
+        {/* Conteúdo responsivo */}
+      </DialogContent>
+    </Dialog>
+  );
+};
 ```
 
-**Funcionalidades:**
-- Sidebar de navegação responsiva
-- Header com informações do usuário
-- Sistema de notificações (toast)
-- Controle de permissões de acesso
-
-### `FuncionarioFormModal.tsx`
-Modal para criação/edição de funcionários.
-
-**Props:**
+### Hook de Formulário com Cálculos
 ```typescript
-interface FuncionarioFormModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  funcionario?: Funcionario;
-  onSuccess: () => void;
-}
+// useNovoRegistroForm.ts
+export const useNovoRegistroForm = (
+  entrega: ListaProgramacaoEntrega | null,
+  registroCarga: RegistroCarga | null,
+  onSuccess?: () => void
+) => {
+  // Estados para cálculos automáticos
+  const [calculatedArea, setCalculatedArea] = useState<number | null>(null);
+  const [calculatedEspessura, setCalculatedEspessura] = useState<number | null>(null);
+  
+  // Cálculo de área automático
+  useEffect(() => {
+    if (comprimento && largura) {
+      const area = comprimento * largura;
+      setCalculatedArea(area);
+      form.setValue("area_aplicada", area);
+    }
+  }, [comprimento, largura, form]);
+  
+  // Cálculo de espessura automático
+  useEffect(() => {
+    if (calculatedArea && toneladaAplicada && calculatedArea > 0) {
+      const espessura = (toneladaAplicada / calculatedArea) / 2.4;
+      setCalculatedEspessura(espessura);
+      form.setValue("espessura_aplicada", Number(espessura.toFixed(3)));
+    }
+  }, [calculatedArea, toneladaAplicada, form]);
+  
+  return {
+    form,
+    calculatedArea,
+    calculatedEspessura,
+    // ... outros métodos
+  };
+};
 ```
 
-**Funcionalidades:**
-- Formulário multi-step com abas
-- Upload de foto do funcionário
-- Validação completa com Zod
-- Integração com API do Supabase
-
-### `RegistroAplicacaoModal.tsx`
-Modal para registro de aplicação de asfalto.
-
-**Props:**
+### Modal de Visualização com Resumo de Aplicação
 ```typescript
-interface RegistroAplicacaoModalProps {
-  isOpen: boolean;
-  entrega: ListaProgramacaoEntrega | null;
-  onClose: () => void;
-  onSuccess: () => void;
-}
+// RegistroAplicacaoViewModal.tsx
+export const RegistroAplicacaoViewModal: React.FC<Props> = ({
+  registro,
+  isOpen,
+  onClose,
+}) => {
+  const [aplicacaoSummary, setAplicacaoSummary] = useState<AplicacaoSummary | null>(null);
+  
+  // Carregamento de resumo da aplicação
+  useEffect(() => {
+    const loadAplicacaoSummary = async () => {
+      // Cálculos complexos de massa e espessura média
+      const espessuraMedia = areaTotalAplicada > 0 ? 
+        (massaTotalCarga / areaTotalAplicada) / 2.4 : null;
+        
+      setAplicacaoSummary({
+        totalAplicado,
+        massaRemanescente,
+        percentualAplicado,
+        espessuraMedia,
+        areaTotalAplicada,
+        massaTotalCarga
+      });
+    };
+    
+    loadAplicacaoSummary();
+  }, [isOpen, registro.registro_carga_id]);
+  
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      {/* Modal com seção de progresso */}
+      {aplicacaoSummary && (
+        <Card className="bg-blue-50 border-blue-200">
+          <CardHeader>
+            <CardTitle className="text-lg text-blue-800">
+              Progresso da Aplicação
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Progress value={aplicacaoSummary.percentualAplicado} />
+            {/* Exibição de espessura média quando disponível */}
+            {aplicacaoSummary.espessuraMedia !== null && (
+              <div>
+                <label>Espessura Média</label>
+                <p>{aplicacaoSummary.espessuraMedia.toFixed(3)} cm</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </Dialog>
+  );
+};
 ```
-
-**Funcionalidades:**
-- Processo de 3 etapas (Dados Iniciais → Técnicos → Finalização)
-- Cálculos automáticos de área e espessura
-- Controle de massa remanescente
-- Upload de fotos da aplicação
 
 ## Hooks Personalizados
 
@@ -292,52 +384,64 @@ export const useAuth = () => {
 };
 ```
 
-### `useFuncionarioForm.ts`
-Gerencia formulário de funcionários com validação.
+### `useNovoRegistroForm.ts` (Atualizado)
+Gerencia formulário complexo de aplicação com cálculos automáticos e controle de estado.
 
 ```typescript
-export const useFuncionarioForm = (
-  onSuccess?: () => void,
-  initialData?: Funcionario
+export const useNovoRegistroForm = (
+  entrega: ListaProgramacaoEntrega | null,
+  registroCarga: RegistroCarga | null,
+  onSuccess?: () => void
 ) => {
-  const form = useForm<FuncionarioFormData>({
-    resolver: zodResolver(funcionarioSchema),
-    defaultValues: getDefaultValues(initialData)
-  });
+  // Estados para cálculos
+  const [calculatedArea, setCalculatedArea] = useState<number | null>(null);
+  const [calculatedEspessura, setCalculatedEspessura] = useState<number | null>(null);
+  const [registroExistente, setRegistroExistente] = useState<any>(null);
   
-  const onSubmit = async (data: FuncionarioFormData) => {
-    // Lógica de submissão
-  };
+  // Buscar registro existente
+  useEffect(() => {
+    const buscarRegistroExistente = async () => {
+      if (!entrega?.id) return;
+      
+      const { data: registros } = await supabase
+        .from("bd_registro_apontamento_aplicacao")
+        .select("*")
+        .eq("lista_entrega_id", entrega.id)
+        .order("created_at", { ascending: false })
+        .limit(1);
+        
+      if (registros && registros.length > 0) {
+        setRegistroExistente(registros[0]);
+        // Preencher formulário com dados existentes
+      }
+    };
+    
+    buscarRegistroExistente();
+  }, [entrega?.id, form]);
   
-  return {
-    form,
-    isLoading,
-    onSubmit: form.handleSubmit(onSubmit)
-  };
-};
-```
-
-### `useRegistroAplicacaoForm.ts`
-Gerencia formulário complexo de aplicação com cálculos.
-
-```typescript
-export const useRegistroAplicacaoForm = (
-  entrega: ListaProgramacaoEntrega,
-  registroCarga: RegistroCarga
-) => {
   // Cálculos automáticos
-  const calculatedArea = comprimento * largura;
-  const calculatedEspessura = (tonelada / area) / 2.4;
+  useEffect(() => {
+    if (comprimento && largura) {
+      const area = comprimento * largura;
+      setCalculatedArea(area);
+      form.setValue("area_aplicada", area);
+    }
+  }, [comprimento, largura, form]);
   
-  // Validação de massa remanescente
-  const massaRemanescente = massaTotal - massaAplicada;
+  useEffect(() => {
+    if (calculatedArea && toneladaAplicada && calculatedArea > 0) {
+      const espessura = (toneladaAplicada / calculatedArea) / 2.4;
+      setCalculatedEspessura(espessura);
+      form.setValue("espessura_aplicada", Number(espessura.toFixed(3)));
+    }
+  }, [calculatedArea, toneladaAplicada, form]);
   
   return {
     form,
     calculatedArea,
     calculatedEspessura,
-    massaRemanescente,
-    onSubmit
+    registroExistente,
+    onSubmit: form.handleSubmit(onSubmit)
   };
 };
 ```
@@ -403,58 +507,98 @@ export const funcionarioService = {
 };
 ```
 
-### `registroAplicacaoService.ts`
-Serviço especializado para registros de aplicação.
+### `apontamentoCaminhoesService.ts` (Atualizado)
+Serviço para apontamentos de equipamentos com inspeção.
 
 ```typescript
-export const registroAplicacaoService = {
-  // Buscar registros com joins complexos
-  async fetchRegistrosAplicacao(filters?: RegistroAplicacaoFilters) {
+export const apontamentoCaminhoesService = {
+  // Buscar apontamentos com inspeções
+  async fetchApontamentosComInspecao(filters?: ApontamentoCaminhoesFilters) {
     const { data, error } = await supabase
-      .from('bd_registro_apontamento_aplicacao')
+      .from('bd_registro_apontamento_caminhoes')
       .select(`
         *,
-        lista_entrega:lista_entrega_id (
-          *,
-          caminhao:caminhao_id(*),
-          equipe:equipe_id(*),
-          usina:usina_id(*),
-          requisicao:requisicao_id(*)
-        ),
-        registro_carga:registro_carga_id(*)
+        veiculo:veiculo_id(*),
+        operador:operador_id(*),
+        centro_custo:centro_custo_id(*),
+        inspecao:bd_registro_inspecao_caminhoes!bd_registro_inspecao_caminhoes_apontamento_id_fkey(*)
       `)
-      .order('created_at', { ascending: false });
+      .order('data', { ascending: false });
       
     if (error) throw error;
     return data;
   },
   
-  // Criar registro com validações de negócio
-  async createRegistroAplicacao(data: RegistroAplicacaoFormData) {
-    // Validar massa remanescente
-    const massaRemanescente = await this.calculateMassaRemanescente(
-      data.lista_entrega_id
-    );
-    
-    if (data.tonelada_aplicada > massaRemanescente) {
-      throw new Error('Massa aplicada excede massa remanescente');
-    }
-    
-    const { data: registro, error } = await supabase
-      .from('bd_registro_apontamento_aplicacao')
-      .insert(data)
-      .select()
+  // Buscar detalhes completos
+  async fetchApontamentoDetalhes(id: string) {
+    const { data: apontamento, error: apontamentoError } = await supabase
+      .from('bd_registro_apontamento_caminhoes')
+      .select(`
+        *,
+        veiculo:veiculo_id(*),
+        operador:operador_id(*),
+        centro_custo:centro_custo_id(*)
+      `)
+      .eq('id', id)
       .single();
       
-    if (error) throw error;
-    return registro;
-  },
-  
-  // Calcular massa remanescente
-  async calculateMassaRemanescente(listaEntregaId: string) {
-    // Lógica de cálculo complexa
-    return massaRemanescente;
+    if (apontamentoError) throw apontamentoError;
+    
+    const { data: inspecao, error: inspecaoError } = await supabase
+      .from('bd_registro_inspecao_caminhoes')
+      .select('*')
+      .eq('apontamento_id', id)
+      .single();
+      
+    return { apontamento, inspecao };
   }
+};
+```
+
+## Responsividade e Mobile
+
+### Hook useIsMobile
+```typescript
+import { useState, useEffect } from "react";
+
+export const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkDevice = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkDevice();
+    window.addEventListener("resize", checkDevice);
+
+    return () => {
+      window.removeEventListener("resize", checkDevice);
+    };
+  }, []);
+
+  return isMobile;
+};
+```
+
+### Padrão de Componente Responsivo
+```typescript
+const Component: React.FC = () => {
+  const isMobile = useIsMobile();
+  
+  return (
+    <div className={cn(
+      "container",
+      isMobile ? "p-3 w-[95vw]" : "p-6"
+    )}>
+      <ScrollArea className={cn(
+        "pr-4",
+        isMobile ? "h-[55vh] max-h-[400px]" : "h-[400px]"
+      )}>
+        {/* Conteúdo adaptativo */}
+      </ScrollArea>
+    </div>
+  );
 };
 ```
 
@@ -541,7 +685,7 @@ USING (empresa_id IN (
 ));
 ```
 
-## Padrões de Desenvolvimento
+## Padrões de Desenvolvimento Atualizados
 
 ### Naming Conventions
 - **Componentes**: PascalCase (`FuncionarioForm.tsx`)
@@ -549,58 +693,107 @@ USING (empresa_id IN (
 - **Serviços**: camelCase terminando em 'Service' (`funcionarioService.ts`)
 - **Tipos**: PascalCase (`FuncionarioFormData`)
 - **Variáveis**: camelCase (`massaRemanescente`)
+- **Utilitários**: camelCase (`formatBrazilianDateForDisplay`)
 
-### Estrutura de Componentes
+### Estrutura de Componentes Modal
 ```typescript
-// Imports
-import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
+// Imports organizados por categoria
+import React, { useState, useEffect } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { cn } from '@/lib/utils';
+import { formatBrazilianDateForDisplay } from '@/utils/timezoneUtils';
 
-// Types
+// Interface de props bem definida
 interface ComponentProps {
-  prop1: string;
-  prop2?: number;
+  isOpen: boolean;
+  onClose: () => void;
+  data: DataType | null;
+  isLoading?: boolean;
 }
 
-// Component
+// Component com responsividade
 export const Component: React.FC<ComponentProps> = ({ 
-  prop1, 
-  prop2 = 0 
+  isOpen,
+  onClose,
+  data,
+  isLoading = false
 }) => {
-  // Hooks
-  const [state, setState] = useState('');
+  // Hooks na ordem: estado, custom hooks, effects
+  const [localState, setLocalState] = useState('');
+  const isMobile = useIsMobile();
   
-  // Event handlers
-  const handleClick = () => {
-    // Logic
-  };
+  useEffect(() => {
+    // Lógica de efeito
+  }, []);
   
-  // Render
+  // Early returns para loading/error
+  if (isLoading) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent>
+          <div className="flex justify-center">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+  
+  if (!data) return null;
+  
+  // Render principal com classes responsivas
   return (
-    <div>
-      {/* JSX */}
-    </div>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className={cn(
+        "sm:max-w-[700px]",
+        isMobile ? "p-3 w-[95vw] mx-auto" : ""
+      )}>
+        <DialogHeader>
+          <DialogTitle className="text-center sm:text-left">
+            Título
+          </DialogTitle>
+        </DialogHeader>
+        
+        <ScrollArea className={cn(
+          "pr-4",
+          isMobile ? "h-[55vh] max-h-[400px]" : "h-[400px]"
+        )}>
+          {/* Conteúdo responsivo */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <dt className="text-sm font-medium text-gray-600">Data</dt>
+              <dd className="mt-1 text-base">
+                {formatBrazilianDateForDisplay(data.data)}
+              </dd>
+            </div>
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
   );
 };
 ```
 
-### Error Handling
+### Error Handling Melhorado
 ```typescript
 try {
   const result = await apiCall();
+  console.log('Sucesso:', result); // Debug estratégico
   return result;
 } catch (error) {
-  console.error('Error details:', error);
+  console.error('Erro detalhado:', error);
   toast({
     title: 'Erro',
-    description: 'Mensagem amigável para o usuário',
+    description: error instanceof Error ? error.message : 'Erro inesperado',
     variant: 'destructive'
   });
-  throw error;
+  throw error; // Re-throw para handling upstream
 }
 ```
 
-### Estado de Loading
+### Estado de Loading com Cleanup
 ```typescript
 const [isLoading, setIsLoading] = useState(false);
 
@@ -608,24 +801,115 @@ const handleAction = async () => {
   setIsLoading(true);
   try {
     await action();
+    toast({
+      title: 'Sucesso',
+      description: 'Operação realizada com sucesso'
+    });
+  } catch (error) {
+    // Error handling
   } finally {
-    setIsLoading(false);
+    setIsLoading(false); // Sempre executa
   }
 };
+```
+
+### Validação de Formulários
+```typescript
+// Schema Zod bem estruturado
+const formSchema = z.object({
+  data_aplicacao: z.string().min(1, "Data é obrigatória"),
+  hora_chegada_local: z.string().min(1, "Hora de chegada é obrigatória"),
+  comprimento: z.number().positive("Comprimento deve ser positivo"),
+  largura_media: z.number().positive("Largura deve ser positiva"),
+  tonelada_aplicada: z.number().positive("Tonelada deve ser positiva"),
+}).refine((data) => {
+  // Validações cruzadas
+  return data.tonelada_aplicada <= massaRemanescente;
+}, {
+  message: "Massa aplicada excede massa remanescente",
+  path: ["tonelada_aplicada"]
+});
 ```
 
 ## Performance
 
 ### Otimizações Implementadas
-- **React.memo()** em componentes pesados
-- **useMemo()** para cálculos complexos
-- **useCallback()** para funções de callback
-- **Lazy loading** de componentes com React.lazy()
-- **Debounce** em campos de busca
-- **Virtualização** de listas grandes
-- **Code splitting** por rotas
+- **React.memo()** em componentes pesados de tabela
+- **useMemo()** para cálculos de espessura e área
+- **useCallback()** para funções de submit e handlers
+- **React.lazy()** para lazy loading de páginas
+- **Debounce** em campos de busca (300ms)
+- **Virtualização** de listas grandes com react-window
+- **Code splitting** por rotas e funcionalidades
 
-### Monitoramento
-- Console.log estratégico para debug
-- Error boundaries para captura de erros
-- Performance.mark() para medição de performance
+### Monitoramento e Debug
+```typescript
+// Debug estratégico com contexto
+console.log('🔍 Carregando resumo para carga:', registroCargaId);
+console.log('📊 Dados brutos:', { carga, aplicacoes, detalhes });
+console.log('📊 Resumo calculado:', {
+  massaTotalCarga,
+  totalAplicado,
+  percentualAplicado: percentualAplicado.toFixed(1) + "%",
+  espessuraMedia: espessuraMedia?.toFixed(3) + " cm"
+});
+console.log('=== SALVAMENTO CONCLUÍDO COM SUCESSO ===');
+```
+
+### Métricas de Performance
+- **Performance.mark()** para medição de operações críticas
+- **React DevTools Profiler** para análise de renders
+- **Lighthouse** para métricas de carregamento
+- **Bundle analyzer** para otimização de tamanho
+
+## Segurança
+
+### Validações de Input
+- Sanitização de uploads de imagem
+- Validação de tipos de arquivo
+- Limitação de tamanho de arquivo (5MB)
+- Escape de SQL injection via Supabase RLS
+
+### Controle de Acesso
+```typescript
+// Verificação de permissões por módulo
+const hasPermission = (module: string, action: string): boolean => {
+  return userPermissions.some(p => 
+    p.modulo === module && 
+    p.acao === action && 
+    p.ativo
+  );
+};
+
+// Proteção de rotas
+<RouteProtection 
+  requiredModule="aplicacao" 
+  requiredAction="visualizar"
+>
+  <Component />
+</RouteProtection>
+```
+
+### Auditoria
+- Log de todas as ações críticas
+- Rastreabilidade completa de modificações
+- Backup automático diário
+- Retenção de logs por 90 dias
+
+## Testes e Qualidade
+
+### Estratégia de Testes
+- **Unit Tests**: Funções utilitárias (timezoneUtils, calculations)
+- **Integration Tests**: Hooks e serviços
+- **E2E Tests**: Fluxos críticos de aplicação
+- **Manual Testing**: Interface responsiva
+
+### Ferramentas de Qualidade
+- **ESLint**: Linting de código
+- **Prettier**: Formatação consistente
+- **TypeScript**: Type checking
+- **Husky**: Git hooks para qualidade
+
+---
+
+**Esta documentação é atualizada constantemente. Última atualização: Janeiro 2025**
