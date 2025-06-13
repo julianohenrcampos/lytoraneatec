@@ -22,15 +22,14 @@ export default function DashboardRH() {
   const [isLoaded, setIsLoaded] = useState(false);
   const { toast } = useToast();
   
-  // Use the permission guard with the dashboard RH route
-  const { isLoading: authLoading, isAuthorized } = usePermissionGuard(
-    "acesso_dashboard_rh", 
-    "/gestao-rh/dashboard"
-  );
+  // Use the permission guard with the dashboard RH permission
+  const { canAccess, isLoading } = usePermissionGuard({
+    requiredPermission: "dashboard_rh_view"
+  });
 
   useEffect(() => {
     console.log("DashboardRH mounted");
-    console.log("Auth status:", { loading: authLoading, authorized: isAuthorized });
+    console.log("Auth status:", { loading: isLoading, canAccess });
     
     // Force a proper initialization when component mounts
     const initialLoadTimer = setTimeout(() => {
@@ -51,7 +50,7 @@ export default function DashboardRH() {
       clearTimeout(refreshTimer);
       console.log("DashboardRH unmounted");
     };
-  }, [authLoading, isAuthorized]);
+  }, [isLoading, canAccess]);
 
   // Function to calculate date range based on period filter
   const getDateRange = (period: PeriodFilter) => {
@@ -133,7 +132,7 @@ export default function DashboardRH() {
   console.log("DashboardRH rendering with period:", period, "isLoaded:", isLoaded);
 
   // If auth is still loading, render a loading state
-  if (authLoading) {
+  if (isLoading) {
     return (
       <MainLayout>
         <ResponsiveContainer className="pt-6 pb-10">
@@ -147,7 +146,7 @@ export default function DashboardRH() {
   
   // If not authorized, show unauthorized message instead of redirecting
   // This ensures we don't get stuck in a redirect loop
-  if (!isAuthorized) {
+  if (!canAccess) {
     return (
       <MainLayout>
         <ResponsiveContainer className="pt-6 pb-10">

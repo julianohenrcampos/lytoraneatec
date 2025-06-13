@@ -1,14 +1,12 @@
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Equipe } from "@/types/equipe";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useEquipeQueries } from "@/hooks/useEquipeQueries";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/hooks/use-toast";
+import { UserCog, UserCheck, Users } from "lucide-react";
 
 interface EquipeDetailsModalProps {
   isOpen: boolean;
@@ -21,54 +19,35 @@ const EquipeDetailsModal: React.FC<EquipeDetailsModalProps> = ({
   onClose, 
   equipe 
 }) => {
-  const [loading, setLoading] = useState(false);
-  const [equipeDetails, setEquipeDetails] = useState<Equipe | null>(null);
-  const { getEquipe } = useEquipeQueries();
-  const { toast } = useToast();
-  
-  // Effect to fetch team details when modal opens
-  useEffect(() => {
-    // Clear data when modal closes
-    if (!isOpen) {
-      setEquipeDetails(null);
-      return;
-    }
-    
-    // Only fetch if we have an equipe ID and the modal is open
-    if (equipe && equipe.id && isOpen) {
-      const fetchEquipeDetails = async () => {
-        setLoading(true);
-        
-        try {
-          console.log("Fetching details for equipe ID:", equipe.id);
-          const details = await getEquipe(equipe.id);
-          console.log("Fetched details:", details);
-          console.log("Members:", details.membros?.length || 0);
-          setEquipeDetails(details);
-        } catch (error) {
-          console.error("Error fetching equipe details:", error);
-          toast({
-            title: "Erro ao carregar detalhes",
-            description: "Não foi possível carregar os membros da equipe.",
-            variant: "destructive"
-          });
-          // Use provided equipe data as fallback
-          setEquipeDetails(equipe);
-        } finally {
-          setLoading(false);
-        }
-      };
-      
-      fetchEquipeDetails();
-    }
-  }, [equipe, isOpen, getEquipe, toast]);
-  
   // Check if we have an equipe to display
   if (!equipe) return null;
   
-  // Safety check for membros array - use empty array if undefined/null
-  const membros = equipeDetails?.membros || [];
-  console.log("Rendering modal with members:", membros.length);
+  // Get the member role for display
+  const getMemberRole = (id: string) => {
+    if (id === equipe.encarregado_id) return "encarregado";
+    if (id === equipe.apontador_id) return "apontador";
+    return "membro";
+  };
+
+  const getMemberIcon = (role: string) => {
+    switch (role) {
+      case "encarregado": return <UserCog className="h-3 w-3" />;
+      case "apontador": return <UserCheck className="h-3 w-3" />;
+      default: return <Users className="h-3 w-3" />;
+    }
+  };
+
+  const getMemberBadgeVariant = (role: string) => {
+    switch (role) {
+      case "encarregado": return "default";
+      case "apontador": return "secondary";
+      default: return "outline";
+    }
+  };
+
+  // Use the membros array if available, otherwise fall back to an empty array
+  const membros = equipe.membros || [];
+  const totalMembros = equipe.equipe?.length || 0;
   
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -103,26 +82,33 @@ const EquipeDetailsModal: React.FC<EquipeDetailsModalProps> = ({
           </div>
           
           <div>
-            <Label className="text-sm font-medium">Membros da Equipe</Label>
+            <Label className="text-sm font-medium">
+              Membros da Equipe ({totalMembros} membro{totalMembros !== 1 ? 's' : ''})
+            </Label>
             <div className="rounded-md border mt-1 bg-background min-h-[150px] max-h-[250px] overflow-hidden">
-              {loading ? (
-                <div className="space-y-2 p-4">
-                  <Skeleton className="h-5 w-1/3" />
-                  <Skeleton className="h-5 w-1/2" />
-                  <Skeleton className="h-5 w-1/4" />
-                </div>
-              ) : membros && membros.length > 0 ? (
+              {totalMembros > 0 ? (
                 <ScrollArea className="h-[200px] w-full p-4">
                   <div className="flex flex-wrap gap-2">
-                    {membros.map((membro) => (
-                      <Badge 
-                        key={membro.id} 
-                        variant="outline" 
-                        className="py-1.5 px-3 text-sm bg-secondary/50"
-                      >
-                        {membro.nome_completo}
-                      </Badge>
-                    ))}
+                    {membros.map((membro) => {
+                      const role = getMemberRole(membro.id);
+                      return (
+                        <Badge 
+                          key={membro.id} 
+                          variant={getMemberBadgeVariant(role)}
+                          className="py-1.5 px-3 text-sm bg-secondary/50 flex items-center gap-2"
+                        >
+                          {getMemberIcon(role)}
+                          <span>
+                            {membro.nome_completo}
+                            {role !== "membro" && (
+                              <span className="ml-1 text-xs opacity-75">
+                                ({role})
+                              </span>
+                            )}
+                          </span>
+                        </Badge>
+                      );
+                    })}
                   </div>
                 </ScrollArea>
               ) : (

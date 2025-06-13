@@ -22,15 +22,19 @@ export const useLogradourosRequisicao = (requisicaoId?: string) => {
   const loadLogradouros = async (reqId: string) => {
     setIsLoading(true);
     try {
+      console.log("🔄 Loading logradouros for requisicao:", reqId);
       const data = await fetchLogradourosByRequisicao(reqId);
+      console.log("✅ Logradouros loaded successfully:", data.length);
+      console.log("📍 Logradouros list:", data.map(l => l.logradouro));
       setLogradouros(data);
     } catch (error) {
-      console.error("Erro ao carregar logradouros:", error);
+      console.error("❌ Erro ao carregar logradouros:", error);
       toast({
         title: "Erro",
         description: "Não foi possível carregar os logradouros da requisição",
         variant: "destructive",
       });
+      setLogradouros([]);
     } finally {
       setIsLoading(false);
     }
@@ -39,6 +43,8 @@ export const useLogradourosRequisicao = (requisicaoId?: string) => {
   useEffect(() => {
     if (requisicaoId) {
       loadLogradouros(requisicaoId);
+    } else {
+      setLogradouros([]);
     }
   }, [requisicaoId]);
 

@@ -24,6 +24,199 @@ graph TB
     H[Authentication] --> B
 ```
 
+## Módulo de Relatório de Medição (v2.1) ⭐
+
+### Arquitetura do Módulo
+
+```mermaid
+graph TD
+    A[RelatorioMedicao.tsx] --> B[Filtros de Geração]
+    A --> C[fetchReportData()]
+    C --> D[Equipamentos Logic]
+    C --> E[Caminhões Logic]
+    D --> F[Cálculo 4 Partes]
+    E --> G[Distribuição Proporcional]
+    F --> H[RelatorioMedicaoDetalhado]
+    G --> H
+    H --> I[Export Excel/PDF]
+```
+
+### Componentes Principais
+
+#### `RelatorioMedicao.tsx` (1085 linhas)
+**⚠️ Este arquivo está muito longo e deveria ser refatorado em componentes menores**
+
+Componente principal que gerencia todo o fluxo do relatório:
+
+```typescript
+interface RelatorioMedicaoProps {
+  // Sem props específicas - componente de página
+}
+
+const RelatorioMedicao: React.FC = () => {
+  // Estados principais
+  const [vehicleType, setVehicleType] = useState<string>("");
+  const [selectedVehicle, setSelectedVehicle] = useState<string>("");
+  const [desmobilizacao, setDesmobilizacao] = useState<boolean>(false);
+  const [reportData, setReportData] = useState<(EquipmentReportData | TruckReportData)[]>([]);
+  const [manutencaoData, setManutencaoData] = useState<ManutencaoEquipmentData | ManutencaoTruckData | null>(null);
+  
+  // Lógica complexa de cálculos baseada no tipo de veículo
+  const fetchReportData = async (): Promise<(EquipmentReportData | TruckReportData)[]> => {
+    // Implementação das 4 partes para equipamentos
+    // Implementação da distribuição proporcional para caminhões
+  };
+};
+```
+
+**Responsabilidades:**
+- Gerenciamento de filtros de geração
+- Busca e processamento de dados do Supabase
+- Cálculos complexos para ambos os tipos de veículo
+- Controle de estados de loading e erro
+- Integração com componentes de exportação
+
+#### `RelatorioMedicaoDetalhado.tsx` (424 linhas)
+**⚠️ Este arquivo também está longo e deveria ser refatorado**
+
+Componente de renderização do relatório formatado:
+
+```typescript
+interface RelatorioMedicaoDetalhadoProps {
+  vehicleData: (EquipmentReportData | TruckReportData)[];
+  dateRange: { from: Date; to: Date; };
+  manutencaoData?: ManutencaoEquipmentData | ManutencaoTruckData | null;
+  tipoVeiculo: "Caminhão" | "Equipamento";
+}
+```
+
+**Funcionalidades:**
+- Renderização condicional de tabelas por tipo
+- Formatação monetária brasileira
+- Cálculo de totais em tempo real
+- Campo rastreador editável
+- Seção de assinaturas formatada
+
+### Tipos TypeScript Especializados
+
+#### `relatorioMedicao.ts`
+```typescript
+export interface BaseVehicleReportData {
+  id: string;
+  label: string;
+  tipo_veiculo: string;
+  centro_custo: string;
+  diasTrabalhados: number;
+  totalMensal: number;
+  abastecimento: number;
+  mediaAbastecimento: number;
+  rastreador: number;
+}
+
+export interface EquipmentReportData extends BaseVehicleReportData {
+  quantidadeHoras: number; // 200 horas fixas
+  valorUnitarioHora: number; // R$/h
+  horasDisponiveis: number; // Horas efetivas - manutenção
+  valorPeriodo: number; // Horas disponíveis * valor unitário
+  produtividade: number; // Nova fórmula aplicada
+}
+
+export interface TruckReportData extends BaseVehicleReportData {
+  qtdDia: number; // Dias trabalhados
+  valor: number; // Valor proporcional
+  quilometragem: number; // Km do período
+}
+
+export interface DescontoData {
+  tipoDesconto: string;
+  valorUnitario: number;
+  qtdHoras?: number; // Para equipamentos
+  qtdDias?: number; // Para caminhões
+  valor: number;
+}
+```
+
+### Fórmulas Matemáticas Implementadas
+
+#### Equipamentos (Fórmula de 4 Partes)
+
+```typescript
+// 1º parte: Valor Unitário
+const valorUnitarioHora = aluguelMensal / 200;
+
+// 2º parte: Desconto de Manutenção
+const quantidadeManutencao = (200 / 30) * diasManutencao;
+const valorManutencao = quantidadeManutencao * valorUnitarioHora;
+
+// 3º parte: Desconto de Desmobilização (se ativo)
+const qtdHorasDesmobilizado = (200 / 30) * diasDesmobilizado;
+const valorDesmobilizacao = qtdHorasDesmobilizado * valorUnitarioHora;
+
+// 4º parte: Distribuição das Horas Restantes
+const horasRestantes = 200 - totalHorasDescontadas;
+const horasDisponiveis = (horasRestantes / totalDiasOperando) * diasCentroCusto;
+const valorPeriodo = horasDisponiveis * valorUnitarioHora;
+
+// Nova Fórmula de Produtividade
+const produtividade = (totalHorimetrosPeriodo / horasRestantes) * horasDisponiveis;
+```
+
+#### Caminhões (Nova Lógica com Descontos)
+
+```typescript
+// 1º parte: Valor Diário
+const valorDiarioAluguel = aluguelMensal / 30;
+
+// 2º parte: Descontos
+const valorDescontoManutencao = valorDiarioAluguel * diasManutencao;
+const valorDescontoDesmobilizacao = valorDiarioAluguel * diasDesmobilizado;
+
+// 3º parte: Valor Restante
+const valorRestante = aluguelMensal - totalDescontos;
+const valorDiarioParaDivisao = valorRestante / totalDiasOperando;
+
+// 4º parte: Valor por Centro de Custo
+const valorCentroCusto = valorDiarioParaDivisao * diasCentroCusto;
+```
+
+### Queries Otimizadas
+
+#### Busca de Apontamentos Operacionais
+```typescript
+const { data: operandoData, error } = await supabase
+  .from("bd_registro_apontamento_cam_equipa")
+  .select(`
+    caminhao_equipamento_id,
+    centro_custo_id(id, nome_centro_custo, codigo_centro_custo),
+    data,
+    horimetro_inicial,
+    horimetro_final,
+    abastecimento,
+    situacao,
+    bd_caminhoes_equipamentos!inner(
+      id, frota, numero_frota, placa, modelo, tipo_veiculo, aluguel
+    )
+  `)
+  .eq("caminhao_equipamento_id", selectedVehicle)
+  .gte("data", fromDate)
+  .lte("data", toDate)
+  .in("situacao", ["Operando", "Disponível"])
+  .not("centro_custo_id", "is", null)
+  .order("data", { ascending: true });
+```
+
+#### Busca de Manutenção para Descontos
+```typescript
+const { data: manutencaoData, error } = await supabase
+  .from("bd_registro_apontamento_cam_equipa")
+  .select("data, situacao")
+  .eq("caminhao_equipamento_id", selectedVehicle)
+  .gte("data", fromDate)
+  .lte("data", toDate)
+  .eq("situacao", "Em Manutenção")
+  .order("data", { ascending: true });
+```
+
 ## Tratamento de Timezone e Datas
 
 ### Função Central de Formatação
@@ -49,6 +242,13 @@ export const formatBrazilianDateForDisplay = (dateString: string | undefined): s
     return 'Erro na formatação';
   }
 };
+
+export const formatBrazilianDateToString = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 ```
 
 ### Padrão de Uso
@@ -56,17 +256,92 @@ export const formatBrazilianDateForDisplay = (dateString: string | undefined): s
 - **NUNCA** use `format` do date-fns diretamente em componentes
 - Para cálculos, use as funções utilitárias do `timezoneUtils.ts`
 
-### Exemplo de Implementação
-```typescript
-// ❌ Incorreto - causa problemas de timezone
-<dd className="mt-1 text-base">
-  {format(new Date(data.data), 'dd/MM/yyyy')}
-</dd>
+## Sistema de Exportação (v2.1)
 
-// ✅ Correto - usa formatação centralizada
-<dd className="mt-1 text-base">
-  {formatBrazilianDateForDisplay(data.data)}
-</dd>
+### Excel com Múltiplas Abas
+
+```typescript
+// lib/excel.ts
+export const downloadRelatorioMedicaoExcel = (
+  reportData: (EquipmentReportData | TruckReportData)[],
+  manutencaoData: ManutencaoEquipmentData | ManutencaoTruckData | null,
+  vehicleDetails: VehicleInfo,
+  dateRange: { from: Date; to: Date },
+  tipoVeiculo: string
+) => {
+  const workbook = XLSX.utils.book_new();
+  
+  // Aba 1: Relatório Principal
+  const mainSheetData = generateMainReportData(reportData, manutencaoData, tipoVeiculo);
+  const mainSheet = XLSX.utils.aoa_to_sheet(mainSheetData);
+  XLSX.utils.book_append_sheet(workbook, mainSheet, "Relatório Principal");
+  
+  // Aba 2: Detalhamento de Descontos
+  if (manutencaoData && manutencaoData.valor > 0) {
+    const discountSheetData = generateDiscountReportData(manutencaoData, tipoVeiculo);
+    const discountSheet = XLSX.utils.aoa_to_sheet(discountSheetData);
+    XLSX.utils.book_append_sheet(workbook, discountSheet, "Descontos");
+  }
+  
+  // Aba 3: Resumo por Centro de Custo
+  const summarySheetData = generateSummaryReportData(reportData);
+  const summarySheet = XLSX.utils.aoa_to_sheet(summarySheetData);
+  XLSX.utils.book_append_sheet(workbook, summarySheet, "Resumo");
+  
+  // Aplicar formatação
+  applyExcelFormatting(mainSheet, discountSheet, summarySheet);
+  
+  // Download
+  const fileName = `Relatorio_Medicao_${vehicleDetails.label.replace(/[^a-zA-Z0-9]/g, '_')}_${format(dateRange.from, 'dd-MM-yyyy')}_${format(dateRange.to, 'dd-MM-yyyy')}.xlsx`;
+  XLSX.writeFile(workbook, fileName);
+};
+```
+
+### PDF Formatado
+
+```typescript
+// services/pdfService.ts
+export const generateReportPDF = async (
+  vehicleName: string,
+  periodo: string
+) => {
+  // Capturar elemento HTML do relatório
+  const element = document.getElementById('relatorio-medicao-detalhado');
+  
+  if (!element) {
+    throw new Error('Elemento do relatório não encontrado');
+  }
+  
+  const canvas = await html2canvas(element, {
+    scale: 2,
+    useCORS: true,
+    allowTaint: true,
+    logging: false
+  });
+  
+  const imgData = canvas.toDataURL('image/png');
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  
+  const imgWidth = 210;
+  const pageHeight = 295;
+  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+  let heightLeft = imgHeight;
+  
+  let position = 0;
+  
+  pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+  heightLeft -= pageHeight;
+  
+  while (heightLeft >= 0) {
+    position = heightLeft - imgHeight;
+    pdf.addPage();
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+  }
+  
+  const fileName = `Relatorio_Medicao_${vehicleName.replace(/[^a-zA-Z0-9]/g, '_')}_${periodo}.pdf`;
+  pdf.save(fileName);
+};
 ```
 
 ## Cálculos de Espessura e Aplicação
@@ -107,136 +382,79 @@ export const getEspessuraCalculadaStatus = (espessura: number): 'success' | 'war
 
 ## Estrutura de Pastas Detalhada
 
-### `/src/components/`
+### `/src/components/relatorio-medicao/` (NOVO)
 
-Componentes organizados por domínio funcional:
-
-#### `ui/` - Componentes Base
 ```typescript
-// Componentes do shadcn/ui customizados
-├── button.tsx          # Botão base
-├── input.tsx           # Input base
-├── dialog.tsx          # Modal/Dialog
-├── table.tsx           # Tabela
-├── form.tsx            # Formulário
-├── toast.tsx           # Notificações
-└── ...
+├── RelatorioMedicaoDetalhado.tsx      # Componente principal do relatório
+├── RelatorioMedicaoDescontos.tsx      # Seção de descontos (não utilizado atualmente)
+├── RelatorioMedicaoTabelaServicos.tsx # Tabela de serviços (não utilizado atualmente)
+├── RelatorioMedicaoPlaceholder.tsx    # Estado inicial
+├── RelatorioMedicaoLoadingState.tsx   # Estado de carregamento
+└── RelatorioMedicaoEmptyState.tsx     # Estado vazio
 ```
 
-#### `layout/` - Layout e Navegação
+### `/src/types/`
+
 ```typescript
-├── MainLayout.tsx      # Layout principal
-├── AppSidebar.tsx      # Sidebar de navegação
-├── AppHeader.tsx       # Header da aplicação
-└── Navbar.tsx          # Barra de navegação
+├── relatorioMedicao.ts   # Tipos específicos do relatório (NOVO)
+├── centroCusto.ts        # Tipos de centro de custo
+├── funcionario.ts        # Tipos de funcionários
+└── veiculo.ts           # Tipos de veículos
 ```
 
-#### `dashboard/` - Dashboard
+### `/src/lib/`
+
 ```typescript
-├── StatsCard.tsx       # Cards de estatísticas
-├── BarChartCard.tsx    # Gráficos de barras
-├── PieChartCard.tsx    # Gráficos de pizza
-├── RequisicaoSection.tsx # Seção de requisições
-├── RhSection.tsx       # Seção de RH
-└── MaquinasSection.tsx # Seção de máquinas
+├── excel.ts             # Funções de exportação Excel (ATUALIZADO)
+├── debug.ts             # Funções de debug
+└── utils.ts             # Utilitários gerais
 ```
 
-#### `funcionarios/` - Gestão de RH
-```typescript
-├── FuncionarioPage.tsx           # Página principal
-├── FuncionarioTable.tsx          # Tabela de funcionários
-├── FuncionarioFormModal.tsx      # Modal de formulário
-├── FuncionarioDetailsModal.tsx   # Modal de detalhes
-├── ImportFuncionariosModal.tsx   # Modal de importação
-├── form/
-│   ├── FormTabs.tsx              # Abas do formulário
-│   ├── PessoalTab.tsx            # Aba dados pessoais
-│   ├── ProfissionalTab.tsx       # Aba dados profissionais
-│   ├── ContratualTab.tsx         # Aba dados contratuais
-│   └── FinanceiroTab.tsx         # Aba dados financeiros
-└── DeleteFuncionarioDialog.tsx   # Dialog de exclusão
-```
-
-#### `veiculos/` - Gestão de Máquinas
-```typescript
-├── VeiculoPage.tsx               # Página principal
-├── VeiculoTable.tsx              # Tabela de veículos
-├── VeiculoFormModal.tsx          # Modal de formulário
-├── VeiculoDetailsModal.tsx       # Modal de detalhes
-├── form/
-│   ├── VeiculoFormTabs.tsx       # Abas do formulário
-│   ├── VeiculoDetailsTab.tsx     # Aba detalhes
-│   └── VeiculoSpecificationsTab.tsx # Aba especificações
-└── table/
-    ├── VeiculoTableBody.tsx      # Corpo da tabela
-    ├── VeiculoActions.tsx        # Ações da tabela
-    └── VeiculoStatusBadge.tsx    # Badge de status
-```
-
-#### `apontamento-caminhoes/` - Apontamento de Equipamentos
-```typescript
-├── ApontamentoCaminhoesTable.tsx        # Tabela de apontamentos
-├── ApontamentoCaminhoesForm.tsx         # Formulário de apontamento
-├── ApontamentoCaminhoesDetailsModal.tsx # Modal de detalhes
-├── ApontamentoCaminhoesFilters.tsx      # Filtros de busca
-└── DeleteApontamentoCaminhoesDialog.tsx # Dialog de exclusão
-```
-
-#### `requisicoes/` - Gestão de Requisições
-```typescript
-├── RequisicaoPage.tsx            # Página principal
-├── RequisicaoTable.tsx           # Tabela de requisições
-├── RequisicaoFormModal.tsx       # Modal de formulário
-├── RequisicaoDetailsModal.tsx    # Modal de detalhes
-└── ImportRequisicaoModal.tsx     # Modal de importação
-```
-
-#### `programacao/` - Programação de Entregas
-```typescript
-├── ProgramacaoEntregaPage.tsx    # Página principal
-├── ProgramacaoEntregaTable.tsx   # Tabela de programação
-├── ProgramacaoEntregaFormModal.tsx # Modal de formulário
-└── ProgramacaoEntregaDetailsModal.tsx # Modal de detalhes
-```
-
-#### `registro-cargas/` - Registro de Cargas
-```typescript
-├── RegistroCargaForm.tsx         # Formulário principal
-├── EntregasTable.tsx             # Tabela de entregas
-├── ImageUpload.tsx               # Upload de imagens
-├── PesagemSection.tsx            # Seção de pesagem
-└── WeightInput.tsx               # Input de peso
-```
-
-#### `registro-aplicacao/` - Aplicação de Asfalto
-```typescript
-├── NovoRegistroAplicacaoModal.tsx # Modal principal
-├── RegistroAplicacaoTable.tsx    # Tabela de registros
-├── RegistroAplicacaoViewModal.tsx # Modal de visualização
-├── form-tabs/
-│   ├── DadosIniciaisTab.tsx      # Aba dados iniciais
-│   ├── DadosTecnicosTab.tsx      # Aba dados técnicos
-│   └── FinalizacaoTab.tsx        # Aba de finalização
-└── table/
-    ├── EntregaTableRow.tsx       # Linha da tabela
-    ├── EntregaActionButtons.tsx  # Botões de ação
-    └── EntregaStatusBadge.tsx    # Badge de status
-```
-
-### `/src/utils/`
-
-Funções utilitárias especializadas:
+### `/src/services/`
 
 ```typescript
-├── timezoneUtils.ts              # Formatação de datas (CRÍTICO)
-├── aplicacaoCalculations.ts      # Cálculos de espessura
-├── formatters.ts                 # Formatação de dados
-├── validators.ts                 # Validações
-├── exportUtils.ts                # Exportação de dados
-└── imageUtils.ts                 # Manipulação de imagens
+├── pdfService.ts        # Serviço de geração de PDF (NOVO)
+├── funcionarioService.ts # Serviços de RH
+└── veiculoService.ts    # Serviços de veículos
 ```
 
 ## Principais Componentes React
+
+### Hook Personalizado para Relatório de Medição
+
+```typescript
+// hooks/useRelatorioMedicao.ts (SUGESTÃO PARA REFATORAÇÃO)
+export const useRelatorioMedicao = () => {
+  const [vehicleType, setVehicleType] = useState<string>("");
+  const [selectedVehicle, setSelectedVehicle] = useState<string>("");
+  const [desmobilizacao, setDesmobilizacao] = useState<boolean>(false);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  
+  const { data: reportData, isLoading, error } = useQuery({
+    queryKey: ['relatorio-medicao', selectedVehicle, dateRange],
+    queryFn: () => fetchReportData(selectedVehicle, dateRange, desmobilizacao, vehicleType),
+    enabled: !!selectedVehicle && !!dateRange?.from && !!dateRange?.to
+  });
+  
+  return {
+    // Estados
+    vehicleType, setVehicleType,
+    selectedVehicle, setSelectedVehicle,
+    desmobilizacao, setDesmobilizacao,
+    dateRange, setDateRange,
+    
+    // Dados
+    reportData,
+    isLoading,
+    error,
+    
+    // Ações
+    generateReport: () => {/* lógica de geração */},
+    exportToExcel: () => {/* exportação Excel */},
+    exportToPDF: () => {/* exportação PDF */}
+  };
+};
+```
 
 ### Modal de Detalhes (Padrão Atualizado)
 ```typescript
@@ -305,63 +523,6 @@ export const useNovoRegistroForm = (
 };
 ```
 
-### Modal de Visualização com Resumo de Aplicação
-```typescript
-// RegistroAplicacaoViewModal.tsx
-export const RegistroAplicacaoViewModal: React.FC<Props> = ({
-  registro,
-  isOpen,
-  onClose,
-}) => {
-  const [aplicacaoSummary, setAplicacaoSummary] = useState<AplicacaoSummary | null>(null);
-  
-  // Carregamento de resumo da aplicação
-  useEffect(() => {
-    const loadAplicacaoSummary = async () => {
-      // Cálculos complexos de massa e espessura média
-      const espessuraMedia = areaTotalAplicada > 0 ? 
-        (massaTotalCarga / areaTotalAplicada) / 2.4 : null;
-        
-      setAplicacaoSummary({
-        totalAplicado,
-        massaRemanescente,
-        percentualAplicado,
-        espessuraMedia,
-        areaTotalAplicada,
-        massaTotalCarga
-      });
-    };
-    
-    loadAplicacaoSummary();
-  }, [isOpen, registro.registro_carga_id]);
-  
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      {/* Modal com seção de progresso */}
-      {aplicacaoSummary && (
-        <Card className="bg-blue-50 border-blue-200">
-          <CardHeader>
-            <CardTitle className="text-lg text-blue-800">
-              Progresso da Aplicação
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Progress value={aplicacaoSummary.percentualAplicado} />
-            {/* Exibição de espessura média quando disponível */}
-            {aplicacaoSummary.espessuraMedia !== null && (
-              <div>
-                <label>Espessura Média</label>
-                <p>{aplicacaoSummary.espessuraMedia.toFixed(3)} cm</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-    </Dialog>
-  );
-};
-```
-
 ## Hooks Personalizados
 
 ### `useAuth.ts`
@@ -384,64 +545,45 @@ export const useAuth = () => {
 };
 ```
 
-### `useNovoRegistroForm.ts` (Atualizado)
-Gerencia formulário complexo de aplicação com cálculos automáticos e controle de estado.
+### `useUserPermissions.ts` (ATUALIZADO)
+Gerencia permissões e roles do usuário.
 
 ```typescript
-export const useNovoRegistroForm = (
-  entrega: ListaProgramacaoEntrega | null,
-  registroCarga: RegistroCarga | null,
-  onSuccess?: () => void
-) => {
-  // Estados para cálculos
-  const [calculatedArea, setCalculatedArea] = useState<number | null>(null);
-  const [calculatedEspessura, setCalculatedEspessura] = useState<number | null>(null);
-  const [registroExistente, setRegistroExistente] = useState<any>(null);
+export const useUserPermissions = () => {
+  const { user } = useAuth();
+  const [userRoles, setUserRoles] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
   
-  // Buscar registro existente
+  // Buscar roles do usuário
   useEffect(() => {
-    const buscarRegistroExistente = async () => {
-      if (!entrega?.id) return;
+    const fetchUserRoles = async () => {
+      if (!user) return;
       
-      const { data: registros } = await supabase
-        .from("bd_registro_apontamento_aplicacao")
-        .select("*")
-        .eq("lista_entrega_id", entrega.id)
-        .order("created_at", { ascending: false })
-        .limit(1);
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('funcoes')
+        .eq('id', user.id)
+        .single();
         
-      if (registros && registros.length > 0) {
-        setRegistroExistente(registros[0]);
-        // Preencher formulário com dados existentes
-      }
+      setUserRoles(profile?.funcoes || []);
+      setLoading(false);
     };
     
-    buscarRegistroExistente();
-  }, [entrega?.id, form]);
+    fetchUserRoles();
+  }, [user]);
   
-  // Cálculos automáticos
-  useEffect(() => {
-    if (comprimento && largura) {
-      const area = comprimento * largura;
-      setCalculatedArea(area);
-      form.setValue("area_aplicada", area);
-    }
-  }, [comprimento, largura, form]);
-  
-  useEffect(() => {
-    if (calculatedArea && toneladaAplicada && calculatedArea > 0) {
-      const espessura = (toneladaAplicada / calculatedArea) / 2.4;
-      setCalculatedEspessura(espessura);
-      form.setValue("espessura_aplicada", Number(espessura.toFixed(3)));
-    }
-  }, [calculatedArea, toneladaAplicada, form]);
+  // Verificações de permissão
+  const isSuperAdmin = userRoles.includes('SuperAdm');
+  const canAccessRelatorioMedicao = isSuperAdmin || 
+    userRoles.includes('AdmLogistica') || 
+    userRoles.includes('Encarregado');
   
   return {
-    form,
-    calculatedArea,
-    calculatedEspessura,
-    registroExistente,
-    onSubmit: form.handleSubmit(onSubmit)
+    userRoles,
+    loading,
+    isSuperAdmin,
+    canAccessRelatorioMedicao,
+    hasRole: (role: string) => userRoles.includes(role)
   };
 };
 ```
@@ -507,50 +649,72 @@ export const funcionarioService = {
 };
 ```
 
-### `apontamentoCaminhoesService.ts` (Atualizado)
-Serviço para apontamentos de equipamentos com inspeção.
+### `relatorioMedicaoService.ts` (NOVO)
+Serviço especializado para relatórios de medição.
 
 ```typescript
-export const apontamentoCaminhoesService = {
-  // Buscar apontamentos com inspeções
-  async fetchApontamentosComInspecao(filters?: ApontamentoCaminhoesFilters) {
+export const relatorioMedicaoService = {
+  // Buscar tipos de veículo disponíveis
+  async fetchVehicleTypes(): Promise<string[]> {
     const { data, error } = await supabase
-      .from('bd_registro_apontamento_caminhoes')
+      .from("bd_caminhoes_equipamentos")
+      .select("tipo_veiculo")
+      .not("tipo_veiculo", "is", null);
+        
+    if (error) throw error;
+    
+    const uniqueTypes = [...new Set(data.map(item => item.tipo_veiculo))];
+    return uniqueTypes.filter(Boolean);
+  },
+  
+  // Buscar veículos por tipo
+  async fetchVehiclesByType(vehicleType: string): Promise<VehicleInfo[]> {
+    const { data, error } = await supabase
+      .from("bd_caminhoes_equipamentos")
+      .select("id, placa, modelo, frota, numero_frota, tipo_veiculo, aluguel, imagem_url")
+      .eq("tipo_veiculo", vehicleType);
+    
+    if (error) throw error;
+    
+    return data.map(vehicle => ({
+      id: vehicle.id,
+      tipo_veiculo: vehicle.tipo_veiculo,
+      aluguel: parseFloat(vehicle.aluguel || '0'),
+      imagem_url: vehicle.imagem_url,
+      label: `${vehicle.frota || ""}${vehicle.numero_frota || ""} - ${vehicle.placa || ""} ${vehicle.modelo ? `(${vehicle.modelo})` : ""}`
+    }));
+  },
+  
+  // Buscar apontamentos para relatório
+  async fetchApontamentosRelatorio(
+    vehicleId: string,
+    fromDate: string,
+    toDate: string,
+    situacoes: string[]
+  ) {
+    const { data, error } = await supabase
+      .from("bd_registro_apontamento_cam_equipa")
       .select(`
-        *,
-        veiculo:veiculo_id(*),
-        operador:operador_id(*),
-        centro_custo:centro_custo_id(*),
-        inspecao:bd_registro_inspecao_caminhoes!bd_registro_inspecao_caminhoes_apontamento_id_fkey(*)
+        caminhao_equipamento_id,
+        centro_custo_id(id, nome_centro_custo, codigo_centro_custo),
+        data,
+        horimetro_inicial,
+        horimetro_final,
+        abastecimento,
+        situacao,
+        bd_caminhoes_equipamentos!inner(
+          id, frota, numero_frota, placa, modelo, tipo_veiculo, aluguel
+        )
       `)
-      .order('data', { ascending: false });
+      .eq("caminhao_equipamento_id", vehicleId)
+      .gte("data", fromDate)
+      .lte("data", toDate)
+      .in("situacao", situacoes)
+      .not("centro_custo_id", "is", null)
+      .order("data", { ascending: true });
       
     if (error) throw error;
     return data;
-  },
-  
-  // Buscar detalhes completos
-  async fetchApontamentoDetalhes(id: string) {
-    const { data: apontamento, error: apontamentoError } = await supabase
-      .from('bd_registro_apontamento_caminhoes')
-      .select(`
-        *,
-        veiculo:veiculo_id(*),
-        operador:operador_id(*),
-        centro_custo:centro_custo_id(*)
-      `)
-      .eq('id', id)
-      .single();
-      
-    if (apontamentoError) throw apontamentoError;
-    
-    const { data: inspecao, error: inspecaoError } = await supabase
-      .from('bd_registro_inspecao_caminhoes')
-      .select('*')
-      .eq('apontamento_id', id)
-      .single();
-      
-    return { apontamento, inspecao };
   }
 };
 ```
@@ -625,291 +789,300 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true
+    sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-select'],
+          charts: ['recharts'],
+          utils: ['date-fns', 'zod']
+        }
+      }
+    }
   }
 });
 ```
 
 ### `tailwind.config.ts`
-Configuração do Tailwind CSS.
+Configuração do Tailwind CSS customizada.
 
 ```typescript
-export default {
-  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+import type { Config } from "tailwindcss";
+
+const config: Config = {
+  darkMode: ["class"],
+  content: [
+    './pages/**/*.{ts,tsx}',
+    './components/**/*.{ts,tsx}',
+    './app/**/*.{ts,tsx}',
+    './src/**/*.{ts,tsx}',
+  ],
   theme: {
+    container: {
+      center: true,
+      padding: "2rem",
+      screens: {
+        "2xl": "1400px",
+      },
+    },
     extend: {
       colors: {
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
         primary: {
-          50: '#eff6ff',
-          500: '#3b82f6',
-          600: '#2563eb',
-          900: '#1e3a8a',
-        }
-      }
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
+      },
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
+      keyframes: {
+        "accordion-down": {
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
+        },
+        "accordion-up": {
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
+        },
+      },
+      animation: {
+        "accordion-down": "accordion-down 0.2s ease-out",
+        "accordion-up": "accordion-up 0.2s ease-out",
+      },
     },
   },
-  plugins: [require('@tailwindcss/forms')],
+  plugins: [require("tailwindcss-animate")],
 };
+
+export default config;
 ```
 
-### Configuração do Supabase
+## Performance e Otimizações
 
-#### Autenticação
+### Otimizações de Bundle
 ```typescript
-// supabase/client.ts
-export const supabase = createClient(
-  process.env.VITE_SUPABASE_URL,
-  process.env.VITE_SUPABASE_ANON_KEY,
-  {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true
+// vite.config.ts - Code splitting estratégico
+export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Vendor chunks
+          'react-vendor': ['react', 'react-dom'],
+          'router': ['react-router-dom'],
+          'query': ['@tanstack/react-query'],
+          
+          // UI chunks  
+          'ui-core': ['@radix-ui/react-dialog', '@radix-ui/react-select'],
+          'ui-forms': ['react-hook-form', '@hookform/resolvers'],
+          'ui-charts': ['recharts'],
+          
+          // Utility chunks
+          'date-utils': ['date-fns'],
+          'validation': ['zod'],
+          'supabase': ['@supabase/supabase-js']
+        }
+      }
     }
   }
-);
+});
 ```
 
-#### Row Level Security (RLS)
-Todas as tabelas utilizam RLS para segurança:
-
-```sql
--- Exemplo de política RLS
-CREATE POLICY "Users can view own company data" 
-ON bd_funcionarios 
-FOR SELECT 
-USING (empresa_id IN (
-  SELECT empresa_id 
-  FROM profiles 
-  WHERE id = auth.uid()
-));
-```
-
-## Padrões de Desenvolvimento Atualizados
-
-### Naming Conventions
-- **Componentes**: PascalCase (`FuncionarioForm.tsx`)
-- **Hooks**: camelCase começando com 'use' (`useFuncionarioForm.ts`)
-- **Serviços**: camelCase terminando em 'Service' (`funcionarioService.ts`)
-- **Tipos**: PascalCase (`FuncionarioFormData`)
-- **Variáveis**: camelCase (`massaRemanescente`)
-- **Utilitários**: camelCase (`formatBrazilianDateForDisplay`)
-
-### Estrutura de Componentes Modal
+### Memoização de Componentes
 ```typescript
-// Imports organizados por categoria
-import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { cn } from '@/lib/utils';
-import { formatBrazilianDateForDisplay } from '@/utils/timezoneUtils';
-
-// Interface de props bem definida
-interface ComponentProps {
-  isOpen: boolean;
-  onClose: () => void;
-  data: DataType | null;
-  isLoading?: boolean;
-}
-
-// Component com responsividade
-export const Component: React.FC<ComponentProps> = ({ 
-  isOpen,
-  onClose,
-  data,
-  isLoading = false
+// Componentes pesados devem ser memoizados
+const RelatorioMedicaoDetalhado = React.memo<RelatorioMedicaoDetalhadoProps>(({
+  vehicleData,
+  dateRange,
+  manutencaoData,
+  tipoVeiculo
 }) => {
-  // Hooks na ordem: estado, custom hooks, effects
-  const [localState, setLocalState] = useState('');
-  const isMobile = useIsMobile();
-  
-  useEffect(() => {
-    // Lógica de efeito
-  }, []);
-  
-  // Early returns para loading/error
-  if (isLoading) {
-    return (
-      <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent>
-          <div className="flex justify-center">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-  
-  if (!data) return null;
-  
-  // Render principal com classes responsivas
+  // Lógica complexa aqui
+}, (prevProps, nextProps) => {
+  // Comparação customizada para evitar re-renders desnecessários
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className={cn(
-        "sm:max-w-[700px]",
-        isMobile ? "p-3 w-[95vw] mx-auto" : ""
-      )}>
-        <DialogHeader>
-          <DialogTitle className="text-center sm:text-left">
-            Título
-          </DialogTitle>
-        </DialogHeader>
-        
-        <ScrollArea className={cn(
-          "pr-4",
-          isMobile ? "h-[55vh] max-h-[400px]" : "h-[400px]"
-        )}>
-          {/* Conteúdo responsivo */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <dt className="text-sm font-medium text-gray-600">Data</dt>
-              <dd className="mt-1 text-base">
-                {formatBrazilianDateForDisplay(data.data)}
-              </dd>
-            </div>
-          </div>
-        </ScrollArea>
-      </DialogContent>
-    </Dialog>
+    prevProps.vehicleData === nextProps.vehicleData &&
+    prevProps.dateRange === nextProps.dateRange &&
+    prevProps.manutencaoData === nextProps.manutencaoData &&
+    prevProps.tipoVeiculo === nextProps.tipoVeiculo
   );
+});
+```
+
+### Lazy Loading de Rotas
+```typescript
+// App.tsx
+const RelatorioMedicao = lazy(() => import('@/pages/RelatorioMedicao'));
+const Dashboard = lazy(() => import('@/pages/Dashboard'));
+
+// Uso com Suspense
+<Suspense fallback={<LoadingSpinner />}>
+  <Routes>
+    <Route path="/relatorio-medicao" element={<RelatorioMedicao />} />
+    <Route path="/dashboard" element={<Dashboard />} />
+  </Routes>
+</Suspense>
+```
+
+## Debugging e Monitoramento
+
+### Debug Utilities
+```typescript
+// lib/debug.ts
+export const debugLog = (message: string, data?: any) => {
+  if (import.meta.env.DEV) {
+    console.log(`[DEBUG] ${message}`, data);
+  }
+};
+
+export const performanceLog = (name: string, fn: () => any) => {
+  if (import.meta.env.DEV) {
+    console.time(name);
+    const result = fn();
+    console.timeEnd(name);
+    return result;
+  }
+  return fn();
 };
 ```
 
-### Error Handling Melhorado
+### Error Boundary
 ```typescript
-try {
-  const result = await apiCall();
-  console.log('Sucesso:', result); // Debug estratégico
-  return result;
-} catch (error) {
-  console.error('Erro detalhado:', error);
-  toast({
-    title: 'Erro',
-    description: error instanceof Error ? error.message : 'Erro inesperado',
-    variant: 'destructive'
-  });
-  throw error; // Re-throw para handling upstream
+// components/ErrorBoundary.tsx
+export class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('Error caught by boundary:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex items-center justify-center min-h-screen">
+          <Card>
+            <CardHeader>
+              <CardTitle>Algo deu errado</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p>Ocorreu um erro inesperado. Recarregue a página.</p>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
 }
 ```
-
-### Estado de Loading com Cleanup
-```typescript
-const [isLoading, setIsLoading] = useState(false);
-
-const handleAction = async () => {
-  setIsLoading(true);
-  try {
-    await action();
-    toast({
-      title: 'Sucesso',
-      description: 'Operação realizada com sucesso'
-    });
-  } catch (error) {
-    // Error handling
-  } finally {
-    setIsLoading(false); // Sempre executa
-  }
-};
-```
-
-### Validação de Formulários
-```typescript
-// Schema Zod bem estruturado
-const formSchema = z.object({
-  data_aplicacao: z.string().min(1, "Data é obrigatória"),
-  hora_chegada_local: z.string().min(1, "Hora de chegada é obrigatória"),
-  comprimento: z.number().positive("Comprimento deve ser positivo"),
-  largura_media: z.number().positive("Largura deve ser positiva"),
-  tonelada_aplicada: z.number().positive("Tonelada deve ser positiva"),
-}).refine((data) => {
-  // Validações cruzadas
-  return data.tonelada_aplicada <= massaRemanescente;
-}, {
-  message: "Massa aplicada excede massa remanescente",
-  path: ["tonelada_aplicada"]
-});
-```
-
-## Performance
-
-### Otimizações Implementadas
-- **React.memo()** em componentes pesados de tabela
-- **useMemo()** para cálculos de espessura e área
-- **useCallback()** para funções de submit e handlers
-- **React.lazy()** para lazy loading de páginas
-- **Debounce** em campos de busca (300ms)
-- **Virtualização** de listas grandes com react-window
-- **Code splitting** por rotas e funcionalidades
-
-### Monitoramento e Debug
-```typescript
-// Debug estratégico com contexto
-console.log('🔍 Carregando resumo para carga:', registroCargaId);
-console.log('📊 Dados brutos:', { carga, aplicacoes, detalhes });
-console.log('📊 Resumo calculado:', {
-  massaTotalCarga,
-  totalAplicado,
-  percentualAplicado: percentualAplicado.toFixed(1) + "%",
-  espessuraMedia: espessuraMedia?.toFixed(3) + " cm"
-});
-console.log('=== SALVAMENTO CONCLUÍDO COM SUCESSO ===');
-```
-
-### Métricas de Performance
-- **Performance.mark()** para medição de operações críticas
-- **React DevTools Profiler** para análise de renders
-- **Lighthouse** para métricas de carregamento
-- **Bundle analyzer** para otimização de tamanho
 
 ## Segurança
 
-### Validações de Input
-- Sanitização de uploads de imagem
-- Validação de tipos de arquivo
-- Limitação de tamanho de arquivo (5MB)
-- Escape de SQL injection via Supabase RLS
-
-### Controle de Acesso
-```typescript
-// Verificação de permissões por módulo
-const hasPermission = (module: string, action: string): boolean => {
-  return userPermissions.some(p => 
-    p.modulo === module && 
-    p.acao === action && 
-    p.ativo
+### Row Level Security (RLS)
+```sql
+-- Exemplo de política RLS para bd_funcionarios
+CREATE POLICY "Users can only see their company employees" ON bd_funcionarios
+  FOR ALL TO authenticated
+  USING (
+    empresa_id IN (
+      SELECT empresa_id FROM profiles WHERE id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    empresa_id IN (
+      SELECT empresa_id FROM profiles WHERE id = auth.uid()
+    )
   );
-};
-
-// Proteção de rotas
-<RouteProtection 
-  requiredModule="aplicacao" 
-  requiredAction="visualizar"
->
-  <Component />
-</RouteProtection>
 ```
 
-### Auditoria
-- Log de todas as ações críticas
-- Rastreabilidade completa de modificações
-- Backup automático diário
-- Retenção de logs por 90 dias
+### Validação Client-Side
+```typescript
+// schemas/relatorioMedicao.ts
+export const relatorioMedicaoSchema = z.object({
+  vehicleType: z.string().min(1, "Tipo de veículo é obrigatório"),
+  selectedVehicle: z.string().uuid("Veículo deve ser selecionado"),
+  dateRange: z.object({
+    from: z.date({ required_error: "Data inicial é obrigatória" }),
+    to: z.date({ required_error: "Data final é obrigatória" })
+  }).refine(data => data.to >= data.from, {
+    message: "Data final deve ser posterior à data inicial"
+  }),
+  desmobilizacao: z.boolean().optional()
+});
+```
 
-## Testes e Qualidade
+## Sugestões de Refatoração
 
-### Estratégia de Testes
-- **Unit Tests**: Funções utilitárias (timezoneUtils, calculations)
-- **Integration Tests**: Hooks e serviços
-- **E2E Tests**: Fluxos críticos de aplicação
-- **Manual Testing**: Interface responsiva
+### Urgente (Arquivos Longos)
+1. **RelatorioMedicao.tsx (1085 linhas)** - Dividir em:
+   - `RelatorioMedicaoPage.tsx` - Componente de página
+   - `useRelatorioMedicao.ts` - Hook para lógica
+   - `RelatorioMedicaoFilters.tsx` - Componente de filtros
+   - `RelatorioMedicaoResults.tsx` - Componente de resultados
 
-### Ferramentas de Qualidade
-- **ESLint**: Linting de código
-- **Prettier**: Formatação consistente
-- **TypeScript**: Type checking
-- **Husky**: Git hooks para qualidade
+2. **RelatorioMedicaoDetalhado.tsx (424 linhas)** - Dividir em:
+   - `RelatorioMedicaoHeader.tsx` - Cabeçalho
+   - `RelatorioMedicaoTable.tsx` - Tabela principal
+   - `RelatorioMedicaoDescontos.tsx` - Seção de descontos
+   - `RelatorioMedicaoFooter.tsx` - Assinaturas
+
+### Médio Prazo
+1. **Criar serviços especializados** para cada módulo
+2. **Implementar testes unitários** para cálculos críticos
+3. **Adicionar Storybook** para documentação de componentes
+4. **Implementar cache Redis** para queries pesadas
+
+### Melhorias de Performance
+1. **Implementar virtualization** para tabelas grandes
+2. **Adicionar Service Worker** para cache offline
+3. **Otimizar images** com lazy loading
+4. **Implementar Suspense** para loading states
 
 ---
 
-**Esta documentação é atualizada constantemente. Última atualização: Janeiro 2025**
+**Versão**: 2.1  
+**Última Atualização**: Dezembro 2024  
+**Responsável**: Equipe de Desenvolvimento

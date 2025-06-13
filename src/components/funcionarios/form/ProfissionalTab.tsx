@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { UseFormReturn } from "react-hook-form";
+import { useFuncionarioEquipe } from "@/hooks/funcionarios/useFuncionarioEquipe";
 
 interface ProfissionalTabProps {
   form: UseFormReturn<any>;
@@ -32,6 +33,7 @@ interface ProfissionalTabProps {
   isLoadingDepartamentos: boolean;
   isLoadingCentrosCusto: boolean;
   isLoadingEmpresas: boolean;
+  funcionarioId?: string;
 }
 
 const ProfissionalTab: React.FC<ProfissionalTabProps> = ({
@@ -45,8 +47,11 @@ const ProfissionalTab: React.FC<ProfissionalTabProps> = ({
   isLoadingFuncoes,
   isLoadingDepartamentos,
   isLoadingCentrosCusto,
-  isLoadingEmpresas
+  isLoadingEmpresas,
+  funcionarioId
 }) => {
+  const { data: nomeEquipe, isLoading: isLoadingEquipe } = useFuncionarioEquipe(funcionarioId);
+
   return (
     <TabsContent value="profissional" className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -196,12 +201,24 @@ const ProfissionalTab: React.FC<ProfissionalTabProps> = ({
       <FormField
         control={form.control}
         name="equipe_id"
-        render={({ field }) => (
+        render={() => (
           <FormItem>
             <FormLabel>Equipe Vinculada</FormLabel>
             <FormControl>
-              <Input placeholder="Equipe vinculada (preenchida automaticamente)" {...field} value={field.value || ""} readOnly />
+              <div className="relative">
+                <Input 
+                  value={isLoadingEquipe ? "Carregando..." : (nomeEquipe as string || "Nenhuma equipe vinculada")}
+                  readOnly 
+                  className="bg-muted/50 cursor-not-allowed"
+                />
+                {isLoadingEquipe && (
+                  <Loader2 className="h-4 w-4 animate-spin absolute right-3 top-1/2 transform -translate-y-1/2" />
+                )}
+              </div>
             </FormControl>
+            <p className="text-xs text-muted-foreground">
+              A equipe é definida automaticamente pelo sistema de gerenciamento de equipes
+            </p>
             <FormMessage />
           </FormItem>
         )}

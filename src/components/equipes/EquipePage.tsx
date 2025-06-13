@@ -1,16 +1,20 @@
 
-import React from "react";
+import React, { useState } from "react";
 import { Users } from "lucide-react";
 import { useEquipeActions } from "@/hooks/useEquipeActions";
 import EquipeFormModal from "./EquipeFormModal";
 import EquipeDetailsModal from "./EquipeDetailsModal";
 import ImportEquipesModal from "./ImportEquipesModal";
+import TransferMembersModal from "./TransferMembersModal";
 import EquipeFilters from "./EquipeFilters";
 import EquipeTable from "./EquipeTable";
 import DeleteEquipeDialog from "./DeleteEquipeDialog";
 import EquipeHeaderActions from "./EquipeHeaderActions";
 
 const EquipePage: React.FC = () => {
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [selectedEquipeForTransfer, setSelectedEquipeForTransfer] = useState(null);
+
   const {
     // Estado
     filters,
@@ -45,6 +49,16 @@ const EquipePage: React.FC = () => {
     exportToExcel
   } = useEquipeActions();
 
+  const handleOpenTransferModal = (equipe) => {
+    setSelectedEquipeForTransfer(equipe);
+    setTransferModalOpen(true);
+  };
+
+  const handleCloseTransferModal = () => {
+    setTransferModalOpen(false);
+    setSelectedEquipeForTransfer(null);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -75,6 +89,7 @@ const EquipePage: React.FC = () => {
         onEdit={openFormModal}
         onView={openDetailsModal}
         onDelete={confirmDelete}
+        onTransfer={handleOpenTransferModal}
       />
       
       <EquipeFormModal
@@ -98,6 +113,16 @@ const EquipePage: React.FC = () => {
         onClose={() => setIsImportModalOpen(false)}
         onSuccess={() => refetch()}
       />
+
+      {selectedEquipeForTransfer && (
+        <TransferMembersModal
+          isOpen={transferModalOpen}
+          onClose={handleCloseTransferModal}
+          sourceEquipe={selectedEquipeForTransfer}
+          allEquipes={equipes}
+          allFuncionarios={allFuncionarios}
+        />
+      )}
       
       <DeleteEquipeDialog
         isOpen={isDeleteModalOpen}

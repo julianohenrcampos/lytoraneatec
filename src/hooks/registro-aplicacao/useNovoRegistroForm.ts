@@ -10,34 +10,34 @@ import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
 import { RegistroCarga } from "@/types/registroCargas";
 import { supabase } from "@/integrations/supabase/client";
 
-// Schema de validação simplificado focado nos campos essenciais
+// Schema de validação simplificado e mais permissivo
 const novoRegistroSchema = z.object({
   data_aplicacao: z.string().min(1, "Data é obrigatória"),
   hora_chegada_local: z.string().min(1, "Hora de chegada é obrigatória"),
   hora_saida_caminhao: z.string().min(1, "Hora de saída é obrigatória"),
-  temperatura_chegada: z.number().optional().nullable(),
-  anotacoes_apontador: z.string().optional(),
-  observacoes_aplicacao: z.string().optional(),
-  // Campos técnicos (não obrigatórios para finalização)
-  logradouro_nome: z.string().optional(),
-  comprimento: z.number().optional(),
-  largura_media: z.number().optional(),
-  area_aplicada: z.number().optional(),
-  tonelada_aplicada: z.number().optional(),
-  espessura_aplicada: z.number().optional(),
-  bordo: z.enum(["Direito", "Esquerdo", "Centro", "Único", "Embocadura"]).optional(),
-  temperatura_aplicacao: z.number().optional(),
-  densidade_compactacao: z.number().optional(),
-  numero_passadas: z.number().int().optional(),
-  equipamento_compactacao: z.string().optional(),
-  estaca_inicial: z.number().optional(),
-  estaca_final: z.number().optional(),
+  temperatura_chegada: z.union([z.number(), z.null(), z.undefined()]).optional(),
+  anotacoes_apontador: z.string().optional().nullable(),
+  observacoes_aplicacao: z.string().optional().nullable(),
+  // Campos técnicos (todos opcionais)
+  logradouro_nome: z.string().optional().nullable(),
+  comprimento: z.union([z.number(), z.null(), z.undefined()]).optional(),
+  largura_media: z.union([z.number(), z.null(), z.undefined()]).optional(),
+  area_aplicada: z.union([z.number(), z.null(), z.undefined()]).optional(),
+  tonelada_aplicada: z.union([z.number(), z.null(), z.undefined()]).optional(),
+  espessura_aplicada: z.union([z.number(), z.null(), z.undefined()]).optional(),
+  bordo: z.enum(["Direito", "Esquerdo", "Centro", "Único", "Embocadura"]).optional().nullable(),
+  temperatura_aplicacao: z.union([z.number(), z.null(), z.undefined()]).optional(),
+  densidade_compactacao: z.union([z.number(), z.null(), z.undefined()]).optional(),
+  numero_passadas: z.union([z.number().int(), z.null(), z.undefined()]).optional(),
+  equipamento_compactacao: z.string().optional().nullable(),
+  estaca_inicial: z.union([z.number(), z.null(), z.undefined()]).optional(),
+  estaca_final: z.union([z.number(), z.null(), z.undefined()]).optional(),
 });
 
 type NovoRegistroFormData = z.infer<typeof novoRegistroSchema>;
 
 // Função para obter valores padrão limpos
-const getCleanDefaultValues = (): NovoRegistroFormData => ({
+const getCleanDefaultValues = (): Partial<NovoRegistroFormData> => ({
   data_aplicacao: format(new Date(), "yyyy-MM-dd"),
   hora_chegada_local: "",
   hora_saida_caminhao: "",
@@ -45,18 +45,18 @@ const getCleanDefaultValues = (): NovoRegistroFormData => ({
   anotacoes_apontador: "",
   observacoes_aplicacao: "",
   logradouro_nome: "",
-  comprimento: 0,
-  largura_media: 0,
-  area_aplicada: 0,
-  tonelada_aplicada: 0,
-  espessura_aplicada: 0,
-  bordo: undefined,
-  temperatura_aplicacao: undefined,
-  densidade_compactacao: undefined,
-  numero_passadas: undefined,
+  comprimento: null,
+  largura_media: null,
+  area_aplicada: null,
+  tonelada_aplicada: null,
+  espessura_aplicada: null,
+  bordo: null,
+  temperatura_aplicacao: null,
+  densidade_compactacao: null,
+  numero_passadas: null,
   equipamento_compactacao: "",
-  estaca_inicial: undefined,
-  estaca_final: undefined,
+  estaca_inicial: null,
+  estaca_final: null,
 });
 
 export const useNovoRegistroForm = (
@@ -74,6 +74,7 @@ export const useNovoRegistroForm = (
   const form = useForm<NovoRegistroFormData>({
     resolver: zodResolver(novoRegistroSchema),
     defaultValues: getCleanDefaultValues(),
+    mode: "onChange", // Validação em tempo real
   });
 
   // Watch para cálculos automáticos
@@ -139,25 +140,26 @@ export const useNovoRegistroForm = (
             console.log("📄 Registro existente encontrado:", registro);
             
             // Preencher formulário APENAS com dados desta entrega específica
-            form.reset({
+            const formData = {
               data_aplicacao: registro.data_aplicacao || format(new Date(), "yyyy-MM-dd"),
               hora_chegada_local: registro.hora_chegada_local || "",
               hora_saida_caminhao: registro.hora_saida_caminhao || "",
-              temperatura_chegada: registro.temperatura_chegada,
+              temperatura_chegada: registro.temperatura_chegada || null,
               anotacoes_apontador: registro.anotacoes_apontador || "",
               observacoes_aplicacao: registro.observacoes_gerais || "",
               logradouro_nome: entrega?.logradouro || "",
-              comprimento: registro.comprimento || 0,
-              largura_media: registro.largura_media || 0,
-              area_aplicada: registro.area_calculada || 0,
-              tonelada_aplicada: registro.tonelada_aplicada || 0,
-              espessura_aplicada: registro.espessura_calculada || 0,
-              bordo: registro.bordo,
-              temperatura_aplicacao: registro.temperatura_aplicacao,
-              estaca_inicial: registro.estaca_inicial,
-              estaca_final: registro.estaca_final,
-            });
+              comprimento: registro.comprimento || null,
+              largura_media: registro.largura_media || null,
+              area_aplicada: registro.area_calculada || null,
+              tonelada_aplicada: registro.tonelada_aplicada || null,
+              espessura_aplicada: registro.espessura_calculada || null,
+              bordo: registro.bordo || null,
+              temperatura_aplicacao: registro.temperatura_aplicacao || null,
+              estaca_inicial: registro.estaca_inicial || null,
+              estaca_final: registro.estaca_final || null,
+            };
 
+            form.reset(formData);
             console.log("✅ Formulário preenchido com dados da entrega específica");
           } else {
             console.log("ℹ️ Nenhum registro existente encontrado - mantendo formulário limpo");
@@ -207,7 +209,7 @@ export const useNovoRegistroForm = (
       return;
     }
 
-    // Validação específica
+    // Validação específica simplificada
     if (!data.hora_saida_caminhao?.trim()) {
       console.error("Hora de saída não informada");
       toast({
@@ -303,7 +305,9 @@ export const useNovoRegistroForm = (
 
       console.log("=== SALVAMENTO CONCLUÍDO COM SUCESSO ===");
 
+      // Chamar callback de sucesso
       if (onSuccess) {
+        console.log("🔄 Chamando callback onSuccess");
         onSuccess();
       }
     } catch (error) {

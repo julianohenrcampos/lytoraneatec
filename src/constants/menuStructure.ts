@@ -18,67 +18,191 @@ import {
   UserPlus,
   Shield,
   PieChart,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Home,
+  DollarSign,
+  Briefcase,
+  Calendar,
+  ClipboardCheck,
+  AlertTriangle,
+  Settings
 } from "lucide-react";
 
-export type MenuItem = {
-  icon: React.ComponentType<any>;
-  label: string;
-  path: string;
-};
+// Remove duplicate type declarations and use a single interface
+interface MenuItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  requiredPermission?: string;
+  requiredPermissions?: string[];
+  requireAny?: boolean;
+}
 
-export type MenuGroup = {
-  label: string;
+interface MenuGroup {
+  title: string;
   items: MenuItem[];
-};
+}
 
-export type MenuStructure = Record<string, MenuGroup>;
-
-// Define main menu structure with consistent naming and paths to eliminate duplicates
-export const MENU_STRUCTURE: MenuStructure = {
-  Dashboard: {
-    label: "Dashboard",
+// Estrutura do menu com permissões atualizadas
+export const menuStructure: MenuGroup[] = [
+  {
+    title: "Dashboard",
     items: [
-      { icon: LayoutDashboard, label: "Página Inicial", path: "/" }
+      {
+        name: "Dashboard Principal",
+        href: "/dashboard",
+        icon: Home,
+        requiredPermission: "dashboard_view"
+      },
+      {
+        name: "Dashboard RH",
+        href: "/gestao-rh/dashboard",
+        icon: Users,
+        requiredPermission: "dashboard_rh_view"
+      }
     ]
   },
-  GestaoRH: {
-    label: "Gestão de RH",
+  {
+    title: "Gestão de RH",
     items: [
-      { icon: PieChart, label: "Dashboard RH", path: "/gestao-rh/dashboard" },
-      { icon: Building2, label: "Cadastro de Empresas", path: "/gestao-rh/empresas" },
-      { icon: Building, label: "Cadastro de Departamentos", path: "/gestao-rh/departamentos" },
-      { icon: HardHat, label: "Cadastro de Centros de Custo", path: "/gestao-rh/centros-custo" },
-      { icon: Bookmark, label: "Cadastro de Funções", path: "/gestao-rh/funcoes" },
-      { icon: UserCircle, label: "Gestão de Funcionários", path: "/gestao-rh/funcionarios" },
-      { icon: Users, label: "Cadastro de Equipes", path: "/gestao-rh/equipes" }
+      {
+        name: "Empresas",
+        href: "/gestao-rh/empresas",
+        icon: Building2,
+        requiredPermission: "gestao_rh_empresas_view"
+      },
+      {
+        name: "Departamentos",
+        href: "/gestao-rh/departamentos",
+        icon: Building,
+        requiredPermission: "gestao_rh_departamentos_view"
+      },
+      {
+        name: "Centros de Custo",
+        href: "/gestao-rh/centros-custo",
+        icon: DollarSign,
+        requiredPermission: "gestao_rh_centros_custo_view"
+      },
+      {
+        name: "Funções",
+        href: "/gestao-rh/funcoes",
+        icon: Briefcase,
+        requiredPermission: "gestao_rh_funcoes_view"
+      },
+      {
+        name: "Funcionários",
+        href: "/gestao-rh/funcionarios",
+        icon: Users,
+        requiredPermission: "gestao_rh_funcionarios_view"
+      },
+      {
+        name: "Equipes",
+        href: "/gestao-rh/equipes",
+        icon: Users,
+        requiredPermission: "gestao_rh_equipes_view"
+      }
     ]
   },
-  GestaoMaquinas: {
-    label: "Gestão de Máquinas/Equipamentos",
+  {
+    title: "Gestão de Máquinas",
     items: [
-      { icon: Truck, label: "Cadastro de C/E", path: "/gestao-maquinas/caminhoes-equipamentos" },
-      { icon: Factory, label: "Cadastro de Usinas", path: "/gestao-maquinas/usinas" },
-      { icon: FileSpreadsheet, label: "Relatório de Medição", path: "/gestao-maquinas/relatorio-medicao" }
+      {
+        name: "Caminhões e Equipamentos",
+        href: "/gestao-maquinas/caminhoes-equipamentos",
+        icon: Truck,
+        requiredPermission: "gestao_maquinas_caminhoes_view"
+      },
+      {
+        name: "Usinas",
+        href: "/gestao-maquinas/usinas",
+        icon: Factory,
+        requiredPermission: "gestao_maquinas_usinas_view"
+      },
+      {
+        name: "Relatório de Medição",
+        href: "/gestao-maquinas/relatorio-medicao",
+        icon: FileText,
+        requiredPermission: "gestao_maquinas_relatorio_medicao_view"
+      }
     ]
   },
-  Requisicoes: {
-    label: "Requisições e Logística",
+  {
+    title: "Requisições e Logística",
     items: [
-      { icon: FileText, label: "Cadastro de Requisições", path: "/requisicoes/cadastro" },
-      { icon: Package, label: "Programação de Entrega", path: "/requisicoes/programacao-entrega" },
-      { icon: BarChart3, label: "Registro de Cargas - Balança", path: "/requisicoes/registro-cargas" },
-      { icon: Building, label: "Registro de Aplicação", path: "/requisicoes/registro-aplicacao" },
-      { icon: ClipboardList, label: "Apontamento de Equipe", path: "/requisicoes/apontamento-equipe" },
-      { icon: Truck, label: "Apontamento de C&E", path: "/requisicoes/apontamento-caminhoes" },
-      { icon: Wrench, label: "Abertura de Chamado para OS", path: "/requisicoes/chamados-os" },
-      { icon: PackageOpen, label: "Gestão de Ordens de Serviço", path: "/requisicoes/gestao-os" }
+      {
+        name: "Cadastro de Requisições",
+        href: "/requisicoes/cadastro",
+        icon: FileText,
+        requiredPermission: "requisicoes_cadastro_view"
+      },
+      {
+        name: "Programação de Entrega",
+        href: "/requisicoes/programacao-entrega",
+        icon: Calendar,
+        requiredPermission: "requisicoes_programacao_entrega_view"
+      },
+      {
+        name: "Registro de Cargas",
+        href: "/requisicoes/registro-cargas",
+        icon: Package,
+        requiredPermission: "requisicoes_registro_cargas_view"
+      },
+      {
+        name: "Registro de Aplicação",
+        href: "/requisicoes/registro-aplicacao",
+        icon: ClipboardCheck,
+        requiredPermission: "requisicoes_registro_aplicacao_view"
+      },
+      {
+        name: "Apontamento de Equipe",
+        href: "/requisicoes/apontamento-equipe",
+        icon: Users,
+        requiredPermission: "requisicoes_apontamento_equipe_view"
+      },
+      {
+        name: "Apontamento de Caminhões",
+        href: "/requisicoes/apontamento-caminhoes",
+        icon: Truck,
+        requiredPermission: "requisicoes_apontamento_caminhoes_view"
+      },
+      {
+        name: "Chamados para OS",
+        href: "/requisicoes/chamados-os",
+        icon: AlertTriangle,
+        requiredPermission: "requisicoes_chamados_os_view"
+      },
+      {
+        name: "Gestão de OS",
+        href: "/requisicoes/gestao-os",
+        icon: Settings,
+        requiredPermission: "requisicoes_gestao_os_view"
+      }
     ]
   },
-  Administracao: {
-    label: "Administração",
+  {
+    title: "Administração",
     items: [
-      { icon: Shield, label: "Gestão de Permissões", path: "/admin/permissoes" }
+      {
+        name: "Gestão de Permissões",
+        href: "/admin/permissoes",
+        icon: Shield,
+        requiredPermission: "admin_permissoes_view"
+      }
     ]
   }
-};
+];
+
+export function getVisibleMenuItems(menuItems: MenuItem[], userPermissions: string[]): MenuItem[] {
+  return menuItems.filter(item => {
+    if (item.requiredPermission) {
+      return userPermissions.includes(item.requiredPermission);
+    }
+    if (item.requiredPermissions) {
+      return item.requiredPermissions.some(permission => userPermissions.includes(permission));
+    }
+    if (item.requireAny) {
+      return userPermissions.some(permission => item.requiredPermissions?.includes(permission));
+    }
+    return true;
+  });
+}

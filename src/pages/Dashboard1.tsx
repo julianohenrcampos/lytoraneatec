@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import MainLayout from "@/components/layout/MainLayout";
@@ -21,7 +20,9 @@ export default function Dashboard1() {
   const [isLoaded, setIsLoaded] = useState(false);
   
   // Use the permission guard with the dashboard1 route
-  const { isLoading: authLoading } = usePermissionGuard();
+  const { isLoading: authLoading } = usePermissionGuard({
+    requiredPermission: "dashboard_view"
+  });
 
   useEffect(() => {
     console.log("Dashboard1 mounted");

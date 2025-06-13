@@ -25,8 +25,9 @@ export const useLogradourosByRequisicao = (requisicaoId?: string) => {
       try {
         console.log("🗺️ Fetching logradouros for requisicao:", requisicaoId);
         const data = await fetchLogradourosByRequisicao(requisicaoId);
+        console.log("✅ Loaded unique logradouros:", data.length);
+        console.log("📍 Logradouros:", data.map(l => l.logradouro));
         setLogradouros(data);
-        console.log("✅ Loaded logradouros:", data.length);
       } catch (error) {
         console.error("❌ Error loading logradouros:", error);
         toast({

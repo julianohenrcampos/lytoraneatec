@@ -7,11 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Clock, FileText, CheckCircle, AlertTriangle, Eye, Save } from "lucide-react";
+import { Clock, FileText, CheckCircle, AlertTriangle, Eye, Save, Calculator } from "lucide-react";
 import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
 import { RegistroCarga } from "@/types/registroCargas";
 import { UseFormReturn } from "react-hook-form";
 import { CargaComAplicacoes } from "@/hooks/registro-aplicacao/useMultipleApplications";
+import { useEspessuraMedia } from "@/hooks/registro-aplicacao/useEspessuraMedia";
+import EspessuraMediaCard from "../EspessuraMediaCard";
 
 interface NovoRegistroFinalizacaoTabProps {
   form: UseFormReturn<any>;
@@ -38,9 +40,9 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
 }) => {
   const {
     register,
-    formState: { errors, isValid },
+    formState: { errors },
     watch,
-    trigger
+    getValues
   } = form;
 
   // Watch dos campos necessários para validação
@@ -50,8 +52,8 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
   const anotacoesApontador = watch("anotacoes_apontador");
   const dataAplicacao = watch("data_aplicacao");
 
-  // Validação: deve ter pelo menos hora de chegada E hora de saída
-  const isFormCompleteValid = Boolean(
+  // Validação simplificada: apenas campos obrigatórios
+  const isFormValid = Boolean(
     dataAplicacao?.trim() && 
     horaSaidaCaminhao?.trim() && 
     horaChegadaLocal?.trim()
@@ -64,27 +66,21 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
     anotacoesApontador
   );
 
-  // Handler para o submit com validação adicional
-  const handleSaveClick = async () => {
+  // Hook para calcular espessura média das aplicações da carga
+  const espessuraInfo = useEspessuraMedia(cargaInfo?.detalhesAplicacoes || []);
+
+  // Handler para o submit com validação simplificada
+  const handleSaveClick = () => {
     console.log("=== CLIQUE NO BOTÃO SALVAR ===");
     console.log("Form data atual:", {
       dataAplicacao,
       horaChegadaLocal,
       horaSaidaCaminhao,
       temperaturaChegada,
-      isFormCompleteValid,
-      isValid
+      isFormValid
     });
-    
-    // Trigger validation antes de submeter
-    const isFormValidationPassed = await trigger();
-    
-    if (!isFormValidationPassed) {
-      console.error("❌ Validação do formulário falhou");
-      return;
-    }
 
-    if (!isFormCompleteValid) {
+    if (!isFormValid) {
       console.error("❌ Campos obrigatórios não preenchidos");
       return;
     }
@@ -92,7 +88,7 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
     console.log("✅ Validações passaram - chamando onSubmit");
     
     // Obter todos os dados do formulário
-    const formData = form.getValues();
+    const formData = getValues();
     console.log("Dados completos do formulário:", formData);
     
     // Chamar o onSubmit diretamente
@@ -123,7 +119,7 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Validação do formulário */}
-          {!isFormCompleteValid && !isReadOnly && (
+          {!isFormValid && !isReadOnly && (
             <Alert>
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
@@ -221,8 +217,8 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
           {/* Status visual */}
           <div className="flex items-center gap-2">
             <CheckCircle className="h-5 w-5 text-green-500" />
-            <Badge variant="secondary" className={isFormCompleteValid ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
-              {isFormCompleteValid ? "Pronto para Salvar" : "Dados Incompletos"}
+            <Badge variant="secondary" className={isFormValid ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
+              {isFormValid ? "Pronto para Salvar" : "Dados Incompletos"}
             </Badge>
             {hasExistingData && (
               <Badge variant="outline" className="bg-blue-100 text-blue-800">
@@ -295,19 +291,34 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
             </div>
           )}
 
+          {/* Card de Espessura Média - só mostra se há aplicações */}
+          {cargaInfo && cargaInfo.detalhesAplicacoes && cargaInfo.detalhesAplicacoes.length > 0 && (
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                <Calculator className="h-4 w-4" />
+                Resumo Técnico da Carga
+              </h4>
+              <EspessuraMediaCard 
+                espessuraInfo={espessuraInfo}
+                isReadOnly={isReadOnly}
+              />
+            </div>
+          )}
+
           {/* Debug info em desenvolvimento */}
           {process.env.NODE_ENV === 'development' && (
             <div className="bg-gray-100 p-3 rounded text-xs">
               <details>
                 <summary className="cursor-pointer font-medium">Debug Info</summary>
                 <div className="mt-2 space-y-1">
-                  <div>isFormCompleteValid: {String(isFormCompleteValid)}</div>
-                  <div>isValid (react-hook-form): {String(isValid)}</div>
+                  <div>isFormValid: {String(isFormValid)}</div>
                   <div>hasExistingData: {String(hasExistingData)}</div>
                   <div>isLoading: {String(isLoading)}</div>
                   <div>Data aplicação: {dataAplicacao || 'vazio'}</div>
                   <div>Hora chegada: {horaChegadaLocal || 'vazio'}</div>
                   <div>Hora saída: {horaSaidaCaminhao || 'vazio'}</div>
+                  <div>Aplicações na carga: {cargaInfo?.detalhesAplicacoes?.length || 0}</div>
+                  <div>Espessura média: {espessuraInfo.espessuraMedia} cm</div>
                 </div>
               </details>
             </div>
@@ -326,7 +337,7 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
           {!isReadOnly && (
             <Button
               onClick={handleSaveClick}
-              disabled={isLoading || !isFormCompleteValid}
+              disabled={isLoading || !isFormValid}
               className="bg-green-500 hover:bg-green-600"
             >
               {isLoading ? (

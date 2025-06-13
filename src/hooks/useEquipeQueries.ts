@@ -1,3 +1,4 @@
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   fetchEquipes, 
@@ -13,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 export function useEquipeQueries(filters: EquipeFilter = {}) {
   const queryClient = useQueryClient();
   
-  // Query to fetch equipes with filters
+  // Query to fetch equipes with filters and optimized member loading
   const { 
     data: equipes = [], 
     isLoading, 
@@ -21,11 +22,48 @@ export function useEquipeQueries(filters: EquipeFilter = {}) {
     refetch 
   } = useQuery({
     queryKey: ['equipes', filters],
-    queryFn: () => fetchEquipes(filters)
+    queryFn: async () => {
+      const equipesData = await fetchEquipes(filters);
+      
+      // For each equipe, fetch the member names if equipe array exists
+      const equipesWithMembers = await Promise.all(
+        equipesData.map(async (equipe) => {
+          if (equipe.equipe && equipe.equipe.length > 0) {
+            try {
+              const { data: membrosData } = await supabase
+                .from("bd_funcionarios")
+                .select("id, nome_completo")
+                .in("id", equipe.equipe);
+              
+              const membrosMap = new Map(membrosData?.map(m => [m.id, m]) || []);
+              equipe.membros = equipe.equipe
+                .map(id => membrosMap.get(id))
+                .filter(Boolean) as { id: string; nome_completo: string }[];
+            } catch (error) {
+              console.warn(`Erro ao carregar membros da equipe ${equipe.id}:`, error);
+              equipe.membros = [];
+            }
+          } else {
+            equipe.membros = [];
+          }
+          return equipe;
+        })
+      );
+      
+      return equipesWithMembers;
+    },
+    staleTime: 1000 * 60 * 2, // 2 minutes
   });
   
   // Function to get a single equipe by ID with its members
   const getEquipe = async (id: string) => {
+    // Try to get from cache first
+    const cachedEquipe = equipes.find(e => e.id === id);
+    if (cachedEquipe && cachedEquipe.membros) {
+      return cachedEquipe;
+    }
+    
+    // If not in cache or no members, fetch fresh data
     return await getEquipeById(id);
   };
   

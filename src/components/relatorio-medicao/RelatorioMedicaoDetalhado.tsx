@@ -23,7 +23,7 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
   const [rastreadorValues, setRastreadorValues] = useState<Record<string, number>>(() => {
     const initialValues: Record<string, number> = {};
     vehicleData.forEach(vehicle => {
-      initialValues[vehicle.id] = vehicle.rastreador || 0;
+      initialValues[vehicle.id] = 0; // CORRIGIDO: Sempre iniciar com 0
     });
     return initialValues;
   });
@@ -61,11 +61,11 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
   const renderEquipmentTable = () => {
     const equipmentData = vehicleData as EquipmentReportData[];
     
+    // CORRIGIDO: Calcular totais conforme mostrado na imagem
     const totais = {
-      quantidadeHoras: equipmentData.reduce((acc, item) => acc + (item.quantidadeHoras || 0), 0),
       totalMensal: equipmentData.reduce((acc, item) => acc + (item.totalMensal || 0), 0),
-      horasDisponiveis: equipmentData.reduce((acc, item) => acc + (item.horasDisponiveis || 0), 0),
       valorPeriodo: equipmentData.reduce((acc, item) => acc + (item.valorPeriodo || 0), 0),
+      horasDisponiveis: equipmentData.reduce((acc, item) => acc + (item.horasDisponiveis || 0), 0),
       produtividade: equipmentData.reduce((acc, item) => acc + (item.produtividade || 0), 0),
       abastecimento: equipmentData.reduce((acc, item) => acc + (item.abastecimento || 0), 0),
       rastreador: Object.values(rastreadorValues).reduce((acc, value) => acc + (value || 0), 0)
@@ -115,9 +115,10 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
               </td>
             </tr>
           ))}
+          {/* CORRIGIDO: Linha de totais com valores conforme imagem */}
           <tr className="font-bold bg-gray-50">
             <td className="border border-gray-300 px-2 py-1 text-right">TOTAIS</td>
-            <td className="border border-gray-300 px-2 py-1">{totais.quantidadeHoras} H</td>
+            <td className="border border-gray-300 px-2 py-1">-</td>
             <td className="border border-gray-300 px-2 py-1">-</td>
             <td className="border border-gray-300 px-2 py-1">{formatCurrency(totais.totalMensal)}</td>
             <td className="border border-gray-300 px-2 py-1">{formatNumber(totais.horasDisponiveis)} H</td>
@@ -136,6 +137,7 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
   const renderTruckTable = () => {
     const truckData = vehicleData as TruckReportData[];
     
+    // CORRIGIDO: Calcular totais conforme necessário para caminhões
     const totais = {
       qtdDia: truckData.reduce((acc, item) => acc + (item.qtdDia || 0), 0),
       valor: truckData.reduce((acc, item) => acc + (item.valor || 0), 0),
@@ -180,14 +182,15 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
               </td>
             </tr>
           ))}
+          {/* CORRIGIDO: Linha de totais com valores para caminhões */}
           <tr className="font-bold bg-gray-50">
             <td className="border border-gray-300 px-2 py-1 text-right">TOTAIS</td>
-            <td className="border border-gray-300 px-2 py-1"></td>
+            <td className="border border-gray-300 px-2 py-1">-</td>
             <td className="border border-gray-300 px-2 py-1">{totais.qtdDia}</td>
             <td className="border border-gray-300 px-2 py-1">{formatCurrency(totais.valor)}</td>
             <td className="border border-gray-300 px-2 py-1">{formatNumber(totais.quilometragem)} km</td>
             <td className="border border-gray-300 px-2 py-1">{formatNumber(totais.abastecimento)} L</td>
-            <td className="border border-gray-300 px-2 py-1"></td>
+            <td className="border border-gray-300 px-2 py-1">-</td>
             <td className="border border-gray-300 px-2 py-1">{formatNumber(totais.rastreador)} km</td>
           </tr>
         </tbody>
@@ -195,74 +198,145 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
     );
   };
 
-  // Renderizar seção de descontos - SEMPRE MOSTRAR
+  // Renderizar seção de descontos - ATUALIZADO para múltiplos descontos
   const renderDescontos = () => {
     if (tipoVeiculo === "Equipamento") {
-      // Se não há dados de manutenção, mostrar valores zerados
-      const equipmentMaintenance = manutencaoData as ManutencaoEquipmentData || {
-        valorUnitario: 0,
-        qtdHoras: 0,
-        valor: 0
-      };
+      const equipmentMaintenance = manutencaoData as ManutencaoEquipmentData;
+      
+      // Se não há dados de manutenção ou descontos, mostrar valores zerados
+      if (!equipmentMaintenance || !equipmentMaintenance.descontos || equipmentMaintenance.descontos.length === 0) {
+        return (
+          <table className="w-full text-xs border border-gray-300">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="border border-gray-300 px-2 py-1">TIPO DE DESCONTO</th>
+                <th className="border border-gray-300 px-2 py-1">VALOR UNIT. (R$)</th>
+                <th className="border border-gray-300 px-2 py-1">QTD/H</th>
+                <th className="border border-gray-300 px-2 py-1">VALOR (R$)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="border border-gray-300 px-2 py-1">NENHUM DESCONTO APLICÁVEL</td>
+                <td className="border border-gray-300 px-2 py-1">{formatCurrency(0)}</td>
+                <td className="border border-gray-300 px-2 py-1">{formatNumber(0)}</td>
+                <td className="border border-gray-300 px-2 py-1">{formatCurrency(0)}</td>
+              </tr>
+            </tbody>
+          </table>
+        );
+      }
       
       return (
         <table className="w-full text-xs border border-gray-300">
           <thead className="bg-gray-100">
             <tr>
+              <th className="border border-gray-300 px-2 py-1">TIPO DE DESCONTO</th>
               <th className="border border-gray-300 px-2 py-1">VALOR UNIT. (R$)</th>
               <th className="border border-gray-300 px-2 py-1">QTD/H</th>
               <th className="border border-gray-300 px-2 py-1">VALOR (R$)</th>
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td className="border border-gray-300 px-2 py-1">{formatCurrency(equipmentMaintenance.valorUnitario)}</td>
-              <td className="border border-gray-300 px-2 py-1">{formatNumber(equipmentMaintenance.qtdHoras)}</td>
-              <td className="border border-gray-300 px-2 py-1">{formatCurrency(equipmentMaintenance.valor)}</td>
-            </tr>
+            {equipmentMaintenance.descontos.map((desconto, index) => (
+              <tr key={index}>
+                <td className="border border-gray-300 px-2 py-1 font-medium">{desconto.tipoDesconto}</td>
+                <td className="border border-gray-300 px-2 py-1">{formatCurrency(desconto.valorUnitario)}</td>
+                <td className="border border-gray-300 px-2 py-1">{formatNumber(desconto.qtdHoras || 0)}</td>
+                <td className="border border-gray-300 px-2 py-1">{formatCurrency(desconto.valor)}</td>
+              </tr>
+            ))}
+            {equipmentMaintenance.descontos.length > 1 && (
+              <tr className="font-bold bg-gray-50">
+                <td className="border border-gray-300 px-2 py-1 text-right">TOTAL DESCONTOS</td>
+                <td className="border border-gray-300 px-2 py-1">-</td>
+                <td className="border border-gray-300 px-2 py-1">{formatNumber(equipmentMaintenance.qtdHoras)}</td>
+                <td className="border border-gray-300 px-2 py-1">{formatCurrency(equipmentMaintenance.valor)}</td>
+              </tr>
+            )}
           </tbody>
         </table>
       );
     } else {
-      // Se não há dados de manutenção, mostrar valores zerados
-      const truckMaintenance = manutencaoData as ManutencaoTruckData || {
-        valorMensal: 0,
-        qtdDia: 0,
-        valor: 0
-      };
+      // NOVA LÓGICA PARA CAMINHÕES COM MÚLTIPLOS DESCONTOS
+      const truckMaintenance = manutencaoData as ManutencaoTruckData;
+      
+      // Se não há dados de manutenção ou descontos, mostrar valores zerados
+      if (!truckMaintenance || !truckMaintenance.descontos || truckMaintenance.descontos.length === 0) {
+        return (
+          <table className="w-full text-xs border border-gray-300">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="border border-gray-300 px-2 py-1">TIPO DE DESCONTO</th>
+                <th className="border border-gray-300 px-2 py-1">VALOR UNIT. (R$)</th>
+                <th className="border border-gray-300 px-2 py-1">QTD/DIA</th>
+                <th className="border border-gray-300 px-2 py-1">VALOR (R$)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="border border-gray-300 px-2 py-1">NENHUM DESCONTO APLICÁVEL</td>
+                <td className="border border-gray-300 px-2 py-1">{formatCurrency(0)}</td>
+                <td className="border border-gray-300 px-2 py-1">{formatNumber(0)}</td>
+                <td className="border border-gray-300 px-2 py-1">{formatCurrency(0)}</td>
+              </tr>
+            </tbody>
+          </table>
+        );
+      }
       
       return (
         <table className="w-full text-xs border border-gray-300">
           <thead className="bg-gray-100">
             <tr>
-              <th className="border border-gray-300 px-2 py-1">VALOR MENSAL</th>
+              <th className="border border-gray-300 px-2 py-1">TIPO DE DESCONTO</th>
+              <th className="border border-gray-300 px-2 py-1">VALOR UNIT. (R$)</th>
               <th className="border border-gray-300 px-2 py-1">QTD/DIA</th>
               <th className="border border-gray-300 px-2 py-1">VALOR (R$)</th>
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td className="border border-gray-300 px-2 py-1">{formatCurrency(truckMaintenance.valorMensal)}</td>
-              <td className="border border-gray-300 px-2 py-1">{formatNumber(truckMaintenance.qtdDia)}</td>
-              <td className="border border-gray-300 px-2 py-1">{formatCurrency(truckMaintenance.valor)}</td>
-            </tr>
+            {truckMaintenance.descontos.map((desconto, index) => (
+              <tr key={index}>
+                <td className="border border-gray-300 px-2 py-1 font-medium">{desconto.tipoDesconto}</td>
+                <td className="border border-gray-300 px-2 py-1">{formatCurrency(desconto.valorUnitario)}</td>
+                <td className="border border-gray-300 px-2 py-1">{formatNumber(desconto.qtdDias || 0)}</td>
+                <td className="border border-gray-300 px-2 py-1">{formatCurrency(desconto.valor)}</td>
+              </tr>
+            ))}
+            {truckMaintenance.descontos.length > 1 && (
+              <tr className="font-bold bg-gray-50">
+                <td className="border border-gray-300 px-2 py-1 text-right">TOTAL DESCONTOS</td>
+                <td className="border border-gray-300 px-2 py-1">-</td>
+                <td className="border border-gray-300 px-2 py-1">{formatNumber(truckMaintenance.qtdDias)}</td>
+                <td className="border border-gray-300 px-2 py-1">{formatCurrency(truckMaintenance.valor)}</td>
+              </tr>
+            )}
           </tbody>
         </table>
       );
     }
   };
 
-  // Calcular total do período baseado no tipo
+  // Calcular total do período baseado no tipo - ATUALIZADO para subtrair descontos
   const calculateTotalPeriodo = () => {
     if (tipoVeiculo === "Equipamento") {
       const equipmentData = vehicleData as EquipmentReportData[];
       const totalServicos = equipmentData.reduce((acc, item) => acc + (item.valorPeriodo || 0), 0);
-      const totalDescontos = manutencaoData ? ((manutencaoData as ManutencaoEquipmentData).valor || 0) : 0;
+      
+      // Subtrair descontos se existirem
+      const equipmentMaintenance = manutencaoData as ManutencaoEquipmentData;
+      const totalDescontos = equipmentMaintenance?.valor || 0;
+      
       return totalServicos - totalDescontos;
     } else {
       const truckData = vehicleData as TruckReportData[];
       const totalServicos = truckData.reduce((acc, item) => acc + (item.valor || 0), 0);
-      const totalDescontos = manutencaoData ? ((manutencaoData as ManutencaoTruckData).valor || 0) : 0;
+      
+      // Subtrair descontos de caminhões
+      const truckMaintenance = manutencaoData as ManutencaoTruckData;
+      const totalDescontos = truckMaintenance?.valor || 0;
+      
       return totalServicos - totalDescontos;
     }
   };
@@ -303,10 +377,10 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
         {tipoVeiculo === "Equipamento" ? renderEquipmentTable() : renderTruckTable()}
       </div>
 
-      {/* Tabela de Descontos - SEMPRE MOSTRAR */}
+      {/* Tabela de Descontos - ATUALIZADA para múltiplos descontos */}
       <div className="text-sm print:mb-4">
         <p className="font-bold mb-2 print:text-black">2. DESCONTOS/ACRÉSCIMOS</p>
-        <p className="font-semibold mb-1 text-xs print:text-black">2.1 DESCONTO DE MANUTENÇÃO</p>
+        <p className="font-semibold mb-1 text-xs print:text-black">2.1 DESCONTOS APLICÁVEIS</p>
         {renderDescontos()}
       </div>
 

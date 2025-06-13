@@ -20,20 +20,60 @@ export const updateEquipe = async (id: string, data: EquipeFormData): Promise<Eq
       throw new Error(error.message);
     }
     
-    // First, clear all existing team member associations by removing the equipe_id
-    const { error: clearError } = await supabase
+    // Primeiro, obter todos os funcionários que atualmente pertencem a esta equipe
+    const { data: currentMembers, error: currentMembersError } = await supabase
       .from("bd_funcionarios")
-      .update({ equipe_id: null })
+      .select("id")
       .eq("equipe_id", id);
       
-    if (clearError) {
-      console.error("Error clearing team members:", clearError);
-      throw new Error(clearError.message);
+    if (currentMembersError) {
+      console.error("Error fetching current team members:", currentMembersError);
+      throw new Error(currentMembersError.message);
     }
     
-    // Then update equipe_id for all new team members
-    if (data.equipe && data.equipe.length > 0) {
-      for (const funcionarioId of data.equipe) {
+    const currentMemberIds = currentMembers?.map(m => m.id) || [];
+    
+    // Remover funcionários que não estão mais na equipe
+    const membersToRemove = currentMemberIds.filter(memberId => !data.equipe.includes(memberId));
+    
+    if (membersToRemove.length > 0) {
+      const { error: clearError } = await supabase
+        .from("bd_funcionarios")
+        .update({ equipe_id: null })
+        .in("id", membersToRemove);
+        
+      if (clearError) {
+        console.error("Error removing team members:", clearError);
+        throw new Error(clearError.message);
+      }
+      
+      console.log(`Removed ${membersToRemove.length} members from team`);
+    }
+    
+    // Adicionar novos funcionários à equipe
+    const membersToAdd = data.equipe.filter(memberId => !currentMemberIds.includes(memberId));
+    
+    if (membersToAdd.length > 0) {
+      for (const funcionarioId of membersToAdd) {
+        const { error: updateError } = await supabase
+          .from("bd_funcionarios")
+          .update({ equipe_id: id })
+          .eq("id", funcionarioId);
+          
+        if (updateError) {
+          console.error(`Error adding funcionario ${funcionarioId}:`, updateError);
+          // Continue trying to update other team members despite errors
+        }
+      }
+      
+      console.log(`Added ${membersToAdd.length} new members to team`);
+    }
+    
+    // Atualizar funcionários que permaneceram na equipe (garantir que equipe_id está correto)
+    const remainingMembers = data.equipe.filter(memberId => currentMemberIds.includes(memberId));
+    
+    if (remainingMembers.length > 0) {
+      for (const funcionarioId of remainingMembers) {
         const { error: updateError } = await supabase
           .from("bd_funcionarios")
           .update({ equipe_id: id })
@@ -41,12 +81,17 @@ export const updateEquipe = async (id: string, data: EquipeFormData): Promise<Eq
           
         if (updateError) {
           console.error(`Error updating funcionario ${funcionarioId}:`, updateError);
-          // Continue trying to update other team members despite errors
         }
       }
     }
     
     console.log("Equipe updated successfully:", updatedEquipe);
+    console.log("Team composition changes:", {
+      removed: membersToRemove.length,
+      added: membersToAdd.length,
+      total: data.equipe.length
+    });
+    
     return updatedEquipe as unknown as Equipe;
   } catch (error) {
     console.error("Error updating equipe:", error);

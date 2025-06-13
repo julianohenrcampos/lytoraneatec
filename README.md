@@ -1,245 +1,343 @@
 
-# Sistema de Gestão de Asfalto e Logística 🛣️
+# Sistema de Gestão Integrada de Pavimentação Asfáltica 🛣️
 
-[![Status](https://img.shields.io/badge/Status-Em%20Desenvolvimento-yellow.svg)](https://github.com/your-repo)
-[![Version](https://img.shields.io/badge/Version-2.1-blue.svg)](./CHANGELOG.md)
-[![React](https://img.shields.io/badge/React-18.3.1-61DAFB.svg)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-Latest-3178C6.svg)](https://www.typescriptlang.org/)
-[![Supabase](https://img.shields.io/badge/Supabase-Backend-3ECF8E.svg)](https://supabase.com/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
+[![Versão](https://img.shields.io/badge/versão-2.1.0-blue.svg)](CHANGELOG.md)
+[![React](https://img.shields.io/badge/React-18.0+-61DAFB.svg)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6.svg)](https://www.typescriptlang.org/)
+[![Supabase](https://img.shields.io/badge/Supabase-Backend-00D588.svg)](https://supabase.com/)
+[![Licença](https://img.shields.io/badge/licença-MIT-green.svg)](LICENSE)
 
-> **Sistema completo para gestão de aplicação de asfalto, controle de equipes, máquinas e logística operacional**
+## 📋 Sobre o Projeto
 
-## 🚀 Quick Start
+Sistema completo de gestão para empresas de pavimentação asfáltica, integrando recursos humanos, equipamentos, logística e **relatórios de medição para contratos de locação**. Desenvolvido com tecnologias modernas para máxima eficiência e confiabilidade.
 
-### Demo ao Vivo
-- 🌐 **Demo**: [sistema-asfalto.lovable.app](https://sistema-asfalto.lovable.app)
-- 👤 **Usuário Demo**: demo@sistema.com
-- 🔑 **Senha**: demo123
+### ✨ Principais Funcionalidades
 
-### Instalação Local
-```bash
-# Clone o repositório
-git clone <repository-url>
-cd sistema-asfalto
+- 👥 **Gestão de RH**: Cadastro, apontamentos e avaliações
+- 🚛 **Gestão de Máquinas**: Controle de veículos e equipamentos
+- 📦 **Logística**: Requisições, programação e aplicação de asfalto
+- 📊 **Relatórios de Medição**: Cálculos automáticos para contratos de locação ⭐
+- 🔧 **Ordens de Serviço**: Chamados e manutenção
+- 📈 **Dashboard**: KPIs e métricas em tempo real
+- 📑 **Exportações**: Excel e PDF com formatação profissional
 
-# Instale as dependências
-npm install
+### 🆕 Novidades da Versão 2.1
 
-# Configure as variáveis de ambiente
-cp .env.example .env
-# Edite o .env com suas credenciais do Supabase
+- **🎯 Módulo de Relatório de Medição Completo**
+  - Cálculos automáticos para equipamentos (200h/mês) e caminhões
+  - Sistema de descontos (manutenção e desmobilização)
+  - Distribuição proporcional por centro de custo
+  - Exportação para Excel com múltiplas abas
+  - Fórmulas validadas conforme contratos de locação
 
-# Execute o projeto
-npm run dev
-```
+- **📊 Cálculos Avançados**
+  - Equipamentos: R$/hora baseado em 200h mensais
+  - Caminhões: R$/dia baseado no aluguel mensal
+  - Descontos automáticos por apontamentos de manutenção
+  - Opção de desconto por desmobilização
 
-## 📋 Visão Geral
+- **🔐 Melhorias de Segurança**
+  - Row Level Security (RLS) implementado
+  - Controle granular de permissões
+  - Validações aprimoradas
 
-O Sistema de Gestão de Asfalto e Logística é uma aplicação web moderna desenvolvida para **digitalizar e otimizar todo o processo de aplicação de asfalto**,  integrando gestão operacional, administrativa e financeira em uma única plataforma.
+## 🚀 Tecnologias Utilizadas
 
-### 🎯 Objetivos
-
-- Rastreabilidade completa do processo de aplicação
-- Controle de custos e recursos operacionais
-- Otimização de rotas e entregas de materiais
-- Gestão eficiente de equipes e equipamentos
-- Relatórios e análises em tempo real
-- Conformidade com normas técnicas
-
-### 👥 Perfis de Usuários
-
-| Perfil | Principais Funcionalidades |
-|--------|----------------------------|
-| **Gestores** | Dashboard executivo, aprovações, relatórios |
-| **Apontadores** | Registro de aplicações, medições, documentação |
-| **Encarregados** | Gestão de equipes, avaliação de desempenho |
-| **Operadores** | Controle de máquinas, chamados técnicos |
-| **Administradores** | Configurações, permissões, usuários |
-
-## 📚 Mapa da Documentação
-
-Nossa documentação está organizada por tipo de conteúdo e público-alvo:
-
-### 📖 Guias do Usuário
-- [**Manual do Usuário**](./docs/USER_GUIDE.md) - Guia completo para usuários finais do sistema
-- [**Troubleshooting**](./docs/TROUBLESHOOTING.md) - Soluções para problemas comuns
-
-### 🛠️ Documentação Técnica
-- [**Documentação Técnica**](./docs/TECHNICAL.md) - Arquitetura, padrões e implementação
-- [**Banco de Dados**](./docs/DATABASE.md) - Estrutura, tabelas e relações
-- [**Diagramas**](./docs/DIAGRAMS.md) - Fluxogramas e diagramas do sistema
-
-### 👨‍💻 Desenvolvimento
-- [**Guia de Desenvolvimento**](./docs/DEVELOPMENT.md) - Setup do ambiente e padrões de código
-- [**CHANGELOG**](./CHANGELOG.md) - Histórico de alterações do projeto
-- [**CONTRIBUTING**](./CONTRIBUTING.md) - Como contribuir para o projeto
-
-## 🔄 Fluxo do Sistema
-
-O sistema segue um fluxo de processo linear com cinco etapas principais:
-
-```mermaid
-graph TD
-    A[1️⃣ Requisição] --> B[2️⃣ Programação]
-    B --> C[3️⃣ Registro de Carga]
-    C --> D[4️⃣ Aplicação de Asfalto]
-    D --> E[5️⃣ Apontamentos]
-    E --> F[Relatórios]
-    
-    G[Gestão RH] -->|Suporta| E
-    H[Gestão Máquinas] -->|Suporta| C
-    H -->|Suporta| D
-```
-
-### Processo de Aplicação de Asfalto
-
-1. **Requisição**
-   - Criação detalhada de requisições por logradouro
-   - Cálculo automático de área, volume e quantidade de massa
-   - Workflow de aprovações com múltiplos níveis
-
-2. **Programação**
-   - Alocação inteligente de recursos (equipes, caminhões, usinas)
-   - Cronograma de entregas otimizado
-   - Planejamento de rotas eficientes
-
-3. **Registro de Cargas**
-   - Controle de saída de usinas com temperaturas e pesagens
-   - Documentação fotográfica completa de tickets
-   - Validações de temperatura e peso
-
-4. **Aplicação**
-   - Registro preciso da chegada e aplicação em campo
-   - Cálculos automáticos de espessura e área
-   - Controle granular de massa remanescente
-   - Múltiplas aplicações por carga
-
-5. **Apontamentos**
-   - Registro de presença e produtividade das equipes
-   - Controle de uso e manutenção de equipamentos
-   - Documentação de ocorrências e anomalias
-
-## 🏗️ Arquitetura do Sistema
-
-### Stack Tecnológico
-
-#### Frontend
-- **React 18** - Interface de usuário moderna
-- **TypeScript** - Tipagem estática robusta
+### Frontend
+- **React 18** - Framework principal
+- **TypeScript** - Tipagem estática
 - **Vite** - Build tool otimizado
-- **Tailwind CSS** - Design system flexível
-- **Shadcn/UI** - Componentes de interface acessíveis
-- **React Query** - Gerenciamento de estado do servidor
-- **Recharts** - Visualização de dados e dashboards
+- **Tailwind CSS** - Estilização
+- **Shadcn/UI** - Componentes modernos
+- **React Hook Form** - Gerenciamento de formulários
+- **TanStack Query** - Gerenciamento de estado e cache
+- **Recharts** - Gráficos e visualizações
 
-#### Backend/Database
-- **Supabase** - Backend-as-a-Service
-- **PostgreSQL** - Sistema de banco de dados relacional
-- **Row Level Security (RLS)** - Segurança por linha
-- **Edge Functions** - Funções serverless
-- **Realtime** - Updates em tempo real
+### Backend
+- **Supabase** - Backend as a Service
+- **PostgreSQL** - Banco de dados principal
+- **Row Level Security** - Segurança granular
+- **Edge Functions** - Processamento server-side
+- **Realtime** - Atualizações em tempo real
 
-### Estrutura do Projeto
+### Ferramentas
+- **Date-fns** - Manipulação de datas
+- **Zod** - Validação de schemas
+- **Lucide React** - Ícones
+- **React Router** - Roteamento
+
+## 📦 Instalação e Configuração
+
+### Pré-requisitos
+- Node.js 18+ 
+- npm ou yarn
+- Conta no Supabase
+
+### 1. Clone o Repositório
+```bash
+git clone https://github.com/seu-usuario/sistema-pavimentacao.git
+cd sistema-pavimentacao
 ```
-src/
-├── components/    # Componentes React organizados por domínio
-├── hooks/         # Hooks personalizados 
-├── services/      # Serviços de API e integrações
-├── utils/         # Funções utilitárias
-├── validations/   # Schemas de validação
-└── pages/         # Páginas da aplicação
+
+### 2. Instale as Dependências
+```bash
+npm install
+# ou
+yarn install
 ```
 
-## 📈 Roadmap
+### 3. Configuração do Ambiente
+Crie um arquivo `.env.local` na raiz do projeto:
 
-### Versão 2.1 (Atual)
-- ✅ Correção de formatação de datas com timezone brasileiro
-- ✅ Cálculo preciso de espessura média por carga
-- ✅ Interface responsiva para dispositivos móveis
-- ✅ Simplificação do processo de registro de aplicação
-- ✅ Melhor visualização de progresso de aplicação
+```env
+VITE_SUPABASE_URL=sua_url_do_supabase
+VITE_SUPABASE_ANON_KEY=sua_chave_anonima_do_supabase
+```
 
-### Próximas Versões
-- 🔄 **Versão 2.2** (Q3 2025)
-  - Módulo de gestão financeira
-  - Integração com sistemas de GPS
-  - Dashboard personalizado por usuário
-  
-- 🔄 **Versão 3.0** (Q4 2025)
-  - App mobile para apontamento em campo
-  - Sistema de notificações push
-  - BI avançado com relatórios personalizáveis
-  - API pública para integrações de terceiros
+### 4. Configuração do Banco de Dados
+Execute os scripts SQL fornecidos na pasta `/database`:
 
-## 👥 Guia por Perfil de Usuário
+```sql
+-- 1. Estrutura básica
+\i database/01_estrutura_basica.sql
 
-### Para Desenvolvedores
-1. Leia o [Guia de Desenvolvimento](./docs/DEVELOPMENT.md)
-2. Consulte a [Documentação Técnica](./docs/TECHNICAL.md) 
-3. Entenda o [Modelo de Dados](./docs/DATABASE.md)
+-- 2. Tabelas principais
+\i database/02_tabelas_principais.sql
 
-### Para Usuários Finais
-1. Consulte o [Manual do Usuário](./docs/USER_GUIDE.md)
-2. Veja o guia de [Troubleshooting](./docs/TROUBLESHOOTING.md)
-3. Entre em contato com suporte para treinamento
+-- 3. Views e functions
+\i database/03_views_functions.sql
 
-### Para Administradores
-1. Configure permissões no módulo de Administração
-2. Gerencie usuários e níveis de acesso
-3. Monitore logs de sistema e auditoria
+-- 4. Dados iniciais
+\i database/04_dados_iniciais.sql
+```
 
-## 🚀 Deployment
+### 5. Execute o Projeto
+```bash
+npm run dev
+# ou
+yarn dev
+```
 
-### Ambientes
-- **Desenvolvimento**: dev-asfalto.lovable.app
-- **Homologação**: homolog-asfalto.lovable.app
-- **Produção**: sistema-asfalto.lovable.app
+O sistema estará disponível em `http://localhost:5173`
 
-### Requisitos de Sistema
-- Node.js 18+
-- NPM ou Yarn
-- PostgreSQL 14+
-- 2GB RAM mínimo
-- SSL configurado
+## 📚 Documentação
 
-### Configurações de Produção
-Configure as variáveis de ambiente conforme documentado em `.env.example`:
-- `VITE_SUPABASE_URL`: URL do projeto Supabase
-- `VITE_SUPABASE_ANON_KEY`: Chave anônima do Supabase
-- `VITE_API_URL`: URL da API em produção
-- `VITE_GOOGLE_MAPS_KEY`: Chave de API do Google Maps (opcional)
+### Guias Completos
+- 📖 [Guia do Usuário](docs/USER_GUIDE.md) - Como usar todas as funcionalidades
+- 🛠️ [Documentação Técnica](docs/TECHNICAL.md) - Arquitetura e desenvolvimento
+- 🗄️ [Documentação do Banco](docs/DATABASE.md) - Estrutura e queries
+- 📝 [Changelog](CHANGELOG.md) - Histórico de versões
+
+### Links Rápidos
+- [Módulo de Relatório de Medição](docs/USER_GUIDE.md#relatório-de-medição) ⭐
+- [Gestão de RH](docs/USER_GUIDE.md#gestão-de-rh)
+- [Aplicação de Asfalto](docs/USER_GUIDE.md#aplicação-de-asfalto)
+- [Configuração de Permissões](docs/TECHNICAL.md#permissões)
+
+## 🎯 Funcionalidades Principais
+
+### 👥 Gestão de Recursos Humanos
+- Cadastro completo de funcionários
+- Organização em equipes
+- Apontamento de presença diário
+- Sistema de avaliação de performance
+- Controle de benefícios e salários
+
+### 🚛 Gestão de Máquinas e Equipamentos
+- Cadastro de veículos, caminhões e equipamentos
+- Apontamento operacional com inspeção
+- Sistema de chamados técnicos
+- Ordens de serviço completas
+- Controle de manutenção preventiva
+
+### 📦 Logística de Pavimentação
+- **Requisições de Obra**: Cadastro de logradouros para pavimentação
+- **Programação de Entregas**: Organização de entregas por data e equipe
+- **Registro de Cargas**: Controle de saída e retorno da usina
+- **Aplicação de Asfalto**: Processo completo em 3 etapas:
+  1. Dados iniciais (seleção da entrega)
+  2. Dados técnicos (dimensões e temperaturas)
+  3. Finalização (cálculos automáticos)
+
+### 📊 Relatório de Medição ⭐
+
+#### Para Equipamentos
+- **Base de Cálculo**: 200 horas mensais
+- **Valor Unitário**: Aluguel mensal ÷ 200h = R$/h
+- **Descontos**: 
+  - Manutenção: (200 ÷ 30) × dias × R$/h
+  - Desmobilização: (200 ÷ 30) × dias parados × R$/h
+- **Distribuição**: Proporcional por centro de custo
+
+#### Para Caminhões
+- **Base de Cálculo**: Dias úteis
+- **Valor Unitário**: Aluguel mensal ÷ 30 = R$/dia
+- **Descontos**:
+  - Manutenção: R$/dia × dias
+  - Desmobilização: R$/dia × dias parados
+- **Distribuição**: Proporcional por centro de custo
+
+#### Funcionalidades
+- ✅ Filtros por tipo, veículo e período
+- ✅ Cálculos automáticos baseados em apontamentos
+- ✅ Controle de descontos de manutenção
+- ✅ Opção de desconto por desmobilização
+- ✅ Exportação Excel com múltiplas abas
+- ✅ Geração de PDF formatado
+- ✅ Validações e mensagens de erro
+
+## 🎨 Interface e Experiência
+
+### Design System
+- **Responsivo**: Funciona perfeitamente em desktop, tablet e mobile
+- **Tema Moderno**: Interface limpa e profissional
+- **Cores Consistentes**: Paleta harmoniosa e acessível
+- **Componentes Reutilizáveis**: Baseados no Shadcn/UI
+
+### Usabilidade
+- **Navegação Intuitiva**: Menu lateral organizado por módulos
+- **Formulários Inteligentes**: Validação em tempo real
+- **Feedback Visual**: Loading states e mensagens claras
+- **Atalhos**: Teclas de atalho para ações comuns
+
+## 🔐 Segurança e Permissões
+
+### Sistema de Roles
+- **SuperAdm**: Acesso total ao sistema
+- **AdmLogistica**: Gestão de logística e relatórios
+- **Encarregado**: Apontamentos e operações
+- **Usuário**: Consultas básicas
+
+### Segurança
+- **Row Level Security (RLS)**: Controle granular no banco
+- **Autenticação JWT**: Tokens seguros via Supabase
+- **Validação Server-side**: Todas as operações validadas
+- **Auditoria**: Log de todas as ações importantes
+
+## 📈 Performance e Otimizações
+
+### Frontend
+- **Code Splitting**: Carregamento otimizado por rotas
+- **Lazy Loading**: Componentes carregados sob demanda
+- **Memoização**: Componentes otimizados com React.memo
+- **Bundle Size**: Otimizado com Vite
+
+### Backend
+- **Índices**: Queries otimizadas com índices estratégicos
+- **Views**: Consultas complexas pré-processadas
+- **Cache**: TanStack Query para cache inteligente
+- **Pagination**: Listas grandes paginadas
+
+## 🧪 Testes e Qualidade
+
+### Validações
+- **TypeScript**: Tipagem estrita em todo o código
+- **Zod**: Validação de schemas em runtime
+- **Formulários**: Validação em tempo real
+- **Dados**: Sanitização automática
+
+### Monitoramento
+- **Error Tracking**: Captura de erros em produção
+- **Performance**: Métricas de carregamento
+- **Usage Analytics**: Análise de uso das funcionalidades
+
+## 🚀 Deploy e Produção
+
+### Ambientes Suportados
+- **Vercel**: Deploy automático via Git
+- **Netlify**: Integração contínua
+- **Docker**: Containerização disponível
+
+### CI/CD
+- **GitHub Actions**: Deploy automático
+- **Preview Deployments**: Branch previews
+- **Environment Variables**: Configuração por ambiente
 
 ## 🤝 Contribuição
 
-Contribuições são bem-vindas! Siga estes passos:
-
-1. Faça um fork do projeto
-2. Crie uma branch para sua feature: `git checkout -b feature/nova-funcionalidade`
-3. Commit suas mudanças: `git commit -m 'Add: Nova funcionalidade'`
-4. Push para a branch: `git push origin feature/nova-funcionalidade`
+### Como Contribuir
+1. Fork o projeto
+2. Crie uma branch para sua feature (`git checkout -b feature/nova-funcionalidade`)
+3. Commit suas mudanças (`git commit -m 'feat: adicionar nova funcionalidade'`)
+4. Push para a branch (`git push origin feature/nova-funcionalidade`)
 5. Abra um Pull Request
 
-### Padrões de Código
-- Seguimos o [Airbnb JavaScript Style Guide](https://github.com/airbnb/javascript)
-- Utilizamos ESLint e Prettier para formatação consistente
-- Todos os componentes devem ser tipados com TypeScript
-- Testes unitários são necessários para novas features
+### Convenções
+- **Commits**: Seguimos [Conventional Commits](https://www.conventionalcommits.org/)
+- **Code Style**: ESLint + Prettier configurados
+- **TypeScript**: Tipagem obrigatória
+- **Testes**: Incluir testes para novas funcionalidades
 
-## 📞 Suporte
+## 📊 Roadmap
 
-Para suporte técnico ou dúvidas sobre o sistema:
+### Versão 2.2 (Q1 2025)
+- [ ] **Módulo Financeiro**
+  - Controle de custos operacionais
+  - Análise de rentabilidade por projeto
+  - Integração bancária
 
-- **Email**: suporte@sistema-asfalto.com
-- **WhatsApp**: (11) 99999-9999
-- **Site**: [sistema-asfalto.com/suporte](https://sistema-asfalto.com/suporte)
-- **Horário de Atendimento**: Segunda a Sexta, 8h às 18h
+- [ ] **Mobile App**
+  - App nativo React Native
+  - Funcionalidades offline
+  - Sincronização automática
 
-## 📝 Licença
+### Versão 2.3 (Q2 2025)
+- [ ] **Inteligência Artificial**
+  - Previsão de manutenções
+  - Otimização de rotas
+  - Análise preditiva
 
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](./LICENSE) para mais detalhes.
+- [ ] **Integração IoT**
+  - Sensores de equipamentos
+  - Monitoramento em tempo real
+  - Alertas automáticos
+
+### Versão 3.0 (Q3 2025)
+- [ ] **Gestão de Contratos**
+  - Contratos digitais
+  - Assinaturas eletrônicas
+  - Workflow de aprovações
+
+- [ ] **Business Intelligence**
+  - Dashboards executivos
+  - Relatórios gerenciais
+  - Data warehouse
+
+## 📞 Suporte e Comunidade
+
+### Canais de Suporte
+- 📧 **Email**: suporte@sistema-pavimentacao.com
+- 💬 **Discord**: [Comunidade](https://discord.gg/sistema-pavimentacao)
+- 🐛 **Issues**: [GitHub Issues](https://github.com/sistema-pavimentacao/issues)
+- 📚 **Documentação**: [Wiki Completa](https://docs.sistema-pavimentacao.com)
+
+### FAQ
+- [Perguntas Frequentes](docs/FAQ.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Video Tutoriais](https://youtube.com/sistema-pavimentacao)
+
+## 📄 Licença
+
+Este projeto está licenciado sob a Licença MIT - veja o arquivo [LICENSE](LICENSE) para detalhes.
+
+## 🙏 Agradecimentos
+
+- **Equipe de Desenvolvimento**: Pelos esforços incansáveis
+- **Beta Testers**: Pelas sugestões valiosas
+- **Comunidade Open Source**: Pelas bibliotecas incríveis
+- **Clientes**: Pelo feedback construtivo
 
 ---
 
-**Desenvolvido com ❤️ para otimizar a gestão de aplicação de asfalto**
+<div align="center">
 
+**Sistema de Gestão Integrada de Pavimentação Asfáltica v2.1**
+
+[🌐 Website](https://sistema-pavimentacao.com) • 
+[📖 Documentação](docs/USER_GUIDE.md) • 
+[🚀 Demo](https://demo.sistema-pavimentacao.com) • 
+[💬 Suporte](mailto:suporte@sistema-pavimentacao.com)
+
+Desenvolvido com ❤️ pela equipe de desenvolvimento
+
+</div>

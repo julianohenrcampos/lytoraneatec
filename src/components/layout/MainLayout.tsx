@@ -1,7 +1,6 @@
-
 import React, { useEffect } from "react";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import AppSidebar from "./AppSidebar";
+import { AppSidebar } from "./AppSidebar";
 import AppHeader from "./AppHeader";
 import { useSidebarState } from "@/hooks/useSidebarState";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -48,11 +47,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
   return (
     <SidebarProvider defaultOpen={!isMobile}>
       <div className="flex min-h-screen w-full bg-background">
-        <AppSidebar 
-          openGroups={openGroups} 
-          setOpenGroups={setOpenGroups} 
-          toggleGroup={toggleGroup}
-        />
+        <AppSidebar />
         
         <SidebarInset>
           <div className="flex flex-col h-full">

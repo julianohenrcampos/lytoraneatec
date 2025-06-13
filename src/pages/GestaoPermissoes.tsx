@@ -6,13 +6,15 @@ import { usePermissionGuard } from "@/hooks/usePermissionGuard";
 
 const GestaoPermissoes: React.FC = () => {
   // Only allow SuperAdm to access this page
-  const { isLoading, isAuthorized } = usePermissionGuard();
+  const { canAccess, isLoading } = usePermissionGuard({
+    requiredPermission: "admin_permissoes_view"
+  });
 
   if (isLoading) {
     return <div>Carregando...</div>;
   }
 
-  if (!isAuthorized) {
+  if (!canAccess) {
     return null; // The hook will handle redirection
   }
 

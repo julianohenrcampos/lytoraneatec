@@ -71,7 +71,7 @@ export function useFuncionarioForm(funcionario: Funcionario | null, isOpen: bool
   };
   
   // Set initial form values
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<FuncionarioFormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       imagem: funcionario?.imagem || "",
@@ -79,25 +79,25 @@ export function useFuncionarioForm(funcionario: Funcionario | null, isOpen: bool
       cpf: funcionario?.cpf || "",
       data_nascimento: funcionario?.data_nascimento 
         ? format(new Date(funcionario.data_nascimento), "yyyy-MM-dd") 
-        : null,
+        : undefined,
       email: funcionario?.email || "",
       endereco_completo: funcionario?.endereco_completo || "",
       escolaridade: funcionario?.escolaridade || "",
       genero: funcionario?.genero || "",
-      funcao_id: funcionario?.funcao_id || null,
-      departamento_id: funcionario?.departamento_id || null,
-      centro_custo_id: funcionario?.centro_custo_id || null,
-      empresa_id: funcionario?.empresa_id || null,
-      equipe_id: funcionario?.equipe_id || null,
+      funcao_id: funcionario?.funcao_id || undefined,
+      departamento_id: funcionario?.departamento_id || undefined,
+      centro_custo_id: funcionario?.centro_custo_id || undefined,
+      empresa_id: funcionario?.empresa_id || undefined,
+      equipe_id: funcionario?.equipe_id || undefined,
       data_admissao: funcionario?.data_admissao 
         ? format(new Date(funcionario.data_admissao), "yyyy-MM-dd") 
-        : null,
+        : undefined,
       data_ferias: funcionario?.data_ferias 
         ? format(new Date(funcionario.data_ferias), "yyyy-MM-dd") 
-        : null,
+        : undefined,
       data_demissao: funcionario?.data_demissao 
         ? format(new Date(funcionario.data_demissao), "yyyy-MM-dd") 
-        : null,
+        : undefined,
       status: funcionario?.status || "Ativo",
       // Garantindo que os valores financeiros sejam sempre números
       salario_base: ensureNumber(funcionario?.salario_base),
@@ -115,7 +115,7 @@ export function useFuncionarioForm(funcionario: Funcionario | null, isOpen: bool
     if (isOpen) {
       console.log("Modal aberto, redefinindo o formulário", funcionario);
       // Calculate vacation date if admission date exists but vacation date doesn't
-      let vacationDate = "";
+      let vacationDate: string | undefined = undefined;
       if (funcionario?.data_admissao && !funcionario?.data_ferias) {
         vacationDate = calculateVacationDate(funcionario.data_admissao);
       } else if (funcionario?.data_ferias) {
@@ -129,23 +129,23 @@ export function useFuncionarioForm(funcionario: Funcionario | null, isOpen: bool
         cpf: funcionario?.cpf || "",
         data_nascimento: funcionario?.data_nascimento 
           ? format(new Date(funcionario.data_nascimento), "yyyy-MM-dd") 
-          : null,
+          : undefined,
         email: funcionario?.email || "",
         endereco_completo: funcionario?.endereco_completo || "",
         escolaridade: funcionario?.escolaridade || "",
         genero: funcionario?.genero || "",
-        funcao_id: funcionario?.funcao_id || null,
-        departamento_id: funcionario?.departamento_id || null,
-        centro_custo_id: funcionario?.centro_custo_id || null,
-        empresa_id: funcionario?.empresa_id || null,
-        equipe_id: funcionario?.equipe_id || null,
+        funcao_id: funcionario?.funcao_id || undefined,
+        departamento_id: funcionario?.departamento_id || undefined,
+        centro_custo_id: funcionario?.centro_custo_id || undefined,
+        empresa_id: funcionario?.empresa_id || undefined,
+        equipe_id: funcionario?.equipe_id || undefined,
         data_admissao: funcionario?.data_admissao 
           ? format(new Date(funcionario.data_admissao), "yyyy-MM-dd") 
-          : null,
-        data_ferias: vacationDate || null,
+          : undefined,
+        data_ferias: vacationDate,
         data_demissao: funcionario?.data_demissao 
           ? format(new Date(funcionario.data_demissao), "yyyy-MM-dd") 
-          : null,
+          : undefined,
         status: funcionario?.status || "Ativo",
         // Garantindo que os valores financeiros sejam sempre números válidos
         salario_base: ensureNumber(funcionario?.salario_base),

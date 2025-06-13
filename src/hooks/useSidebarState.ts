@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { MENU_STRUCTURE } from '@/constants/menuStructure';
+import { menuStructure } from '@/constants/menuStructure';
 
 export const useSidebarState = () => {
   const location = useLocation();
@@ -13,8 +13,8 @@ export const useSidebarState = () => {
     // Initialize all groups as closed
     const initialState: Record<string, boolean> = {};
     
-    Object.keys(MENU_STRUCTURE).forEach(key => {
-      initialState[MENU_STRUCTURE[key].label] = false;
+    menuStructure.forEach(group => {
+      initialState[group.title] = false;
     });
     
     // Open the appropriate group based on the current path
@@ -23,7 +23,7 @@ export const useSidebarState = () => {
     } else if (path.includes('/gestao-rh/')) {
       initialState["Gestão de RH"] = true;
     } else if (path.includes('/gestao-maquinas/')) {
-      initialState["Gestão de Máquinas/Equipamentos"] = true;
+      initialState["Gestão de Máquinas"] = true;
     } else if (path.includes('/requisicoes/')) {
       initialState["Requisições e Logística"] = true;
     } else if (path.includes('/admin/')) {

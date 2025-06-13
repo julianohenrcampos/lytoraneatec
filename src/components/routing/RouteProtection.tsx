@@ -1,67 +1,38 @@
 
-import React, { useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { useToast } from "@/hooks/use-toast";
+import React from 'react';
+import { usePermissionGuard } from '@/hooks/usePermissionGuard';
 
 interface RouteProtectionProps {
   children: React.ReactNode;
-  fallbackRoute?: string;
+  requiredPermission?: string;
+  requiredPermissions?: string[];
+  requireAny?: boolean;
 }
 
-const RouteProtection: React.FC<RouteProtectionProps> = ({ 
-  children, 
-  fallbackRoute = "/dashboard" 
+const RouteProtection: React.FC<RouteProtectionProps> = ({
+  children,
+  requiredPermission,
+  requiredPermissions = [],
+  requireAny = true
 }) => {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { toast } = useToast();
+  const { canAccess, isLoading } = usePermissionGuard({
+    requiredPermission,
+    requiredPermissions,
+    requireAny
+  });
 
-  useEffect(() => {
-    // Verificar se a rota atual é válida
-    const validRoutes = [
-      "/",
-      "/dashboard",
-      "/dashboard1",
-      "/gestao-rh/dashboard",
-      "/gestao-rh/empresas",
-      "/gestao-rh/departamentos",
-      "/gestao-rh/centros-custo",
-      "/gestao-rh/funcoes",
-      "/gestao-rh/funcionarios",
-      "/gestao-rh/equipes",
-      "/gestao-maquinas/caminhoes-equipamentos",
-      "/gestao-maquinas/usinas",
-      "/gestao-maquinas/relatorio-medicao",
-      "/requisicoes/cadastro",
-      "/requisicoes/programacao-entrega",
-      "/requisicoes/registro-cargas",
-      "/requisicoes/registro-aplicacao",
-      "/requisicoes/apontamento-equipe",
-      "/requisicoes/apontamento-caminhoes",
-      "/requisicoes/chamados-os",
-      "/requisicoes/gestao-os",
-      "/admin/permissoes",
-      "/login",
-      "/register",
-      "/forgot-password",
-      "/reset-password"
-    ];
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <span className="ml-2">Verificando permissões...</span>
+      </div>
+    );
+  }
 
-    const isValidRoute = validRoutes.includes(location.pathname);
-    
-    // Se a rota não for válida e não for uma rota de auth
-    if (!isValidRoute && !location.pathname.includes('/auth/')) {
-      console.warn(`Rota inválida detectada: ${location.pathname}, redirecionando para ${fallbackRoute}`);
-      
-      toast({
-        title: "Redirecionamento",
-        description: "Você foi redirecionado para uma página segura",
-        variant: "default",
-      });
-      
-      navigate(fallbackRoute, { replace: true });
-    }
-  }, [location.pathname, navigate, fallbackRoute, toast]);
+  if (!canAccess) {
+    return null; // O usePermissionGuard já faz o redirect
+  }
 
   return <>{children}</>;
 };

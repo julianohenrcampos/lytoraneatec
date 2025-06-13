@@ -1,48 +1,145 @@
 
 import React from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Briefcase, FileText, DollarSign } from "lucide-react";
+import { Form } from "@/components/ui/form";
+import { Tabs } from "@/components/ui/tabs";
+import { UseFormReturn } from "react-hook-form";
+import { FuncionarioFormData, Funcionario } from "@/types/funcionario";
+import PessoalTab from "./PessoalTab";
+import ProfissionalTab from "./ProfissionalTab";
+import ContratualTab from "./ContratualTab";
+import FinanceiroTab from "./FinanceiroTab";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface FormTabsProps {
+  form: UseFormReturn<FuncionarioFormData>;
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  children: React.ReactNode;
-  className?: string;
+  onSubmit: (data: FuncionarioFormData) => void;
+  onClose: () => void;
+  isSubmitting: boolean;
+  imagePreview: string | null;
+  setImagePreview: (preview: string | null) => void;
+  imageFile: File | null;
+  setImageFile: (file: File | null) => void;
+  isUploadingImage: boolean;
+  setIsUploadingImage: (uploading: boolean) => void;
+  funcionarioId?: string;
+  funcionario?: Funcionario | null;
 }
 
 const FormTabs: React.FC<FormTabsProps> = ({
+  form,
   activeTab,
   setActiveTab,
-  children,
-  className
+  onSubmit,
+  onClose,
+  isSubmitting,
+  imagePreview,
+  setImagePreview,
+  imageFile,
+  setImageFile,
+  isUploadingImage,
+  setIsUploadingImage,
+  funcionarioId,
+  funcionario
 }) => {
+  // Buscar dados auxiliares
+  const { data: funcoes = [], isLoading: isLoadingFuncoes } = useQuery({
+    queryKey: ['funcoes'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bd_funcoes")
+        .select("id, nome_funcao");
+      if (error) throw error;
+      return data || [];
+    }
+  });
+
+  const { data: departamentos = [], isLoading: isLoadingDepartamentos } = useQuery({
+    queryKey: ['departamentos'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bd_departamentos")
+        .select("id, nome_departamento");
+      if (error) throw error;
+      return data || [];
+    }
+  });
+
+  const { data: centrosCusto = [], isLoading: isLoadingCentrosCusto } = useQuery({
+    queryKey: ['centrosCusto'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bd_centros_custo")
+        .select("id, codigo_centro_custo, nome_centro_custo");
+      if (error) throw error;
+      return data || [];
+    }
+  });
+
+  const { data: empresas = [], isLoading: isLoadingEmpresas } = useQuery({
+    queryKey: ['empresas'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bd_empresas")
+        .select("id, nome_empresa");
+      if (error) throw error;
+      return data || [];
+    }
+  });
+
+  const handleFormSubmit = (data: FuncionarioFormData) => {
+    onSubmit(data);
+  };
+
   return (
-    <Tabs
-      defaultValue="pessoal"
-      className={`w-full ${className || ''}`}
-      value={activeTab}
-      onValueChange={setActiveTab}
-    >
-      <TabsList className="grid grid-cols-4 mb-4">
-        <TabsTrigger value="pessoal" className="flex items-center gap-2">
-          <User className="h-4 w-4" />
-          <span className="hidden sm:inline">Dados Pessoais</span>
-        </TabsTrigger>
-        <TabsTrigger value="profissional" className="flex items-center gap-2">
-          <Briefcase className="h-4 w-4" />
-          <span className="hidden sm:inline">Dados Profissionais</span>
-        </TabsTrigger>
-        <TabsTrigger value="contratual" className="flex items-center gap-2">
-          <FileText className="h-4 w-4" />
-          <span className="hidden sm:inline">Dados Contratuais</span>
-        </TabsTrigger>
-        <TabsTrigger value="financeiro" className="flex items-center gap-2">
-          <DollarSign className="h-4 w-4" />
-          <span className="hidden sm:inline">Dados Financeiros</span>
-        </TabsTrigger>
-      </TabsList>
-      {children}
-    </Tabs>
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <PessoalTab
+            form={form}
+            funcionario={funcionario}
+            onClose={onClose}
+            setActiveTab={setActiveTab}
+            imagePreview={imagePreview}
+            setImagePreview={setImagePreview}
+            imageFile={imageFile}
+            setImageFile={setImageFile}
+            isUploadingImage={isUploadingImage}
+            setIsUploadingImage={setIsUploadingImage}
+          />
+          
+          <ProfissionalTab
+            form={form}
+            onClose={onClose}
+            setActiveTab={setActiveTab}
+            funcoes={funcoes}
+            departamentos={departamentos}
+            centrosCusto={centrosCusto}
+            empresas={empresas}
+            isLoadingFuncoes={isLoadingFuncoes}
+            isLoadingDepartamentos={isLoadingDepartamentos}
+            isLoadingCentrosCusto={isLoadingCentrosCusto}
+            isLoadingEmpresas={isLoadingEmpresas}
+            funcionarioId={funcionarioId}
+          />
+          
+          <ContratualTab
+            form={form}
+            onClose={onClose}
+            setActiveTab={setActiveTab}
+          />
+          
+          <FinanceiroTab
+            form={form}
+            onClose={onClose}
+            setActiveTab={setActiveTab}
+            isSubmitting={isSubmitting}
+          />
+        </Tabs>
+      </form>
+    </Form>
   );
 };
 

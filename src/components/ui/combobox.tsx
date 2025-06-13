@@ -60,16 +60,25 @@ export function Combobox({
     );
   }, [options, inputValue]);
 
-  // Handle item selection with explicit click handling
-  const handleSelect = (currentValue: string) => {
-    // Find the option with the matching value
-    const selectedOption = options.find(option => option.value === currentValue);
-    if (selectedOption) {
-      onChange(selectedOption.value);
-      setInputValue("");
-      setOpen(false);
+  // CORREÇÃO: Handler simplificado que recebe o valor diretamente
+  const handleSelect = React.useCallback((selectedValue: string) => {
+    console.log("🎯 Combobox item selected:", selectedValue);
+    
+    // Garantir que temos um valor válido
+    if (!selectedValue) {
+      console.warn("⚠️ Empty value selected");
+      return;
     }
-  };
+    
+    // Chamar onChange com o valor
+    onChange(selectedValue);
+    
+    // Limpar input e fechar popover
+    setInputValue("");
+    setOpen(false);
+    
+    console.log("✅ Combobox selection completed");
+  }, [onChange]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -80,13 +89,12 @@ export function Combobox({
           aria-expanded={open}
           className={cn("w-full justify-between", className)}
           disabled={disabled}
-          onClick={() => !disabled && setOpen(!open)}
         >
           {selectedItem ? selectedItem.label : placeholder}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-full p-0 z-50 bg-background" align="start">
+      <PopoverContent className="w-full p-0 z-[10000] bg-white shadow-xl border border-gray-200 pointer-events-auto" align="start">
         <Command shouldFilter={false}>
           <div className="flex items-center border-b px-3">
             <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
@@ -103,9 +111,11 @@ export function Combobox({
               <CommandItem
                 key={option.value}
                 value={option.value}
-                onSelect={() => handleSelect(option.value)}
-                onClick={() => handleSelect(option.value)}
-                className="cursor-pointer hover:bg-accent hover:text-accent-foreground py-3"
+                onSelect={() => {
+                  console.log("🖱️ CommandItem clicked:", option.value, option.label);
+                  handleSelect(option.value);
+                }}
+                className="cursor-pointer hover:bg-accent hover:text-accent-foreground py-3 px-3 pointer-events-auto"
               >
                 <Check
                   className={cn(
@@ -113,7 +123,7 @@ export function Combobox({
                     value === option.value ? "opacity-100" : "opacity-0"
                   )}
                 />
-                {option.label}
+                <span className="flex-1 pointer-events-none">{option.label}</span>
               </CommandItem>
             ))}
           </CommandList>

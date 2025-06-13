@@ -1,19 +1,10 @@
 
 import React from "react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Edit, Eye, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Eye, Edit, Trash2, ArrowRight } from "lucide-react";
 import { Equipe } from "@/types/equipe";
-import { Card } from "@/components/ui/card";
-import { usePagination } from "@/hooks/usePagination";
-import TablePagination from "@/components/ui/table-pagination";
 
 interface EquipeTableProps {
   equipes: Equipe[];
@@ -22,6 +13,7 @@ interface EquipeTableProps {
   onEdit: (equipe: Equipe) => void;
   onView: (equipe: Equipe) => void;
   onDelete: (equipe: Equipe) => void;
+  onTransfer?: (equipe: Equipe) => void;
 }
 
 const EquipeTable: React.FC<EquipeTableProps> = ({
@@ -31,90 +23,136 @@ const EquipeTable: React.FC<EquipeTableProps> = ({
   onEdit,
   onView,
   onDelete,
+  onTransfer
 }) => {
-  const pagination = usePagination(equipes, { pageSize: 10 });
-
   if (isLoading) {
     return (
-      <Card className="p-8">
-        <div className="flex justify-center">
-          <div className="animate-pulse text-center">
-            <div className="h-4 bg-gray-200 rounded w-32 mb-2 mx-auto"></div>
-            <div className="h-4 bg-gray-200 rounded w-full mb-2"></div>
-            <div className="h-4 bg-gray-200 rounded w-full mb-2"></div>
-            <div className="h-4 bg-gray-200 rounded w-full"></div>
-          </div>
-        </div>
-      </Card>
-    );
-  }
-
-  if (isError) {
-    return (
-      <Card className="p-8">
-        <div className="text-center text-destructive">
-          <p>Ocorreu um erro ao carregar as equipes.</p>
-          <p>Por favor, tente novamente mais tarde.</p>
-        </div>
-      </Card>
-    );
-  }
-
-  if (equipes.length === 0) {
-    return (
-      <Card className="p-8">
-        <div className="text-center text-muted-foreground">
-          <p>Nenhuma equipe encontrada.</p>
-        </div>
-      </Card>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="border rounded-md">
+      <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Nome da Equipe</TableHead>
               <TableHead>Encarregado</TableHead>
               <TableHead>Apontador</TableHead>
+              <TableHead>Membros</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pagination.paginatedData.map((equipe) => (
-              <TableRow key={equipe.id}>
-                <TableCell className="font-medium cursor-pointer hover:underline" onClick={() => onView(equipe)}>
-                  {equipe.nome_equipe}
+            {Array.from({ length: 5 }).map((_, index) => (
+              <TableRow key={index}>
+                <TableCell>
+                  <div className="h-4 bg-gray-200 rounded animate-pulse" />
                 </TableCell>
-                <TableCell>{equipe.encarregado?.nome_completo || "Não definido"}</TableCell>
-                <TableCell>{equipe.apontador?.nome_completo || "Não definido"}</TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="icon" onClick={() => onEdit(equipe)}>
-                      <Edit className="h-4 w-4" />
-                      <span className="sr-only">Editar</span>
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => onView(equipe)}>
-                      <Eye className="h-4 w-4" />
-                      <span className="sr-only">Visualizar</span>
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => onDelete(equipe)}>
-                      <Trash2 className="h-4 w-4" />
-                      <span className="sr-only">Excluir</span>
-                    </Button>
-                  </div>
+                <TableCell>
+                  <div className="h-4 bg-gray-200 rounded animate-pulse" />
+                </TableCell>
+                <TableCell>
+                  <div className="h-4 bg-gray-200 rounded animate-pulse" />
+                </TableCell>
+                <TableCell>
+                  <div className="h-4 bg-gray-200 rounded animate-pulse" />
+                </TableCell>
+                <TableCell>
+                  <div className="h-4 bg-gray-200 rounded animate-pulse" />
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
-      
-      {equipes.length > 0 && (
-        <TablePagination pagination={pagination} />
-      )}
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="rounded-md border p-8 text-center">
+        <p className="text-muted-foreground">Erro ao carregar as equipes. Tente novamente.</p>
+      </div>
+    );
+  }
+
+  if (equipes.length === 0) {
+    return (
+      <div className="rounded-md border p-8 text-center">
+        <p className="text-muted-foreground">Nenhuma equipe encontrada.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Nome da Equipe</TableHead>
+            <TableHead>Encarregado</TableHead>
+            <TableHead>Apontador</TableHead>
+            <TableHead>Membros</TableHead>
+            <TableHead className="text-right">Ações</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {equipes.map((equipe) => (
+            <TableRow key={equipe.id}>
+              <TableCell className="font-medium">
+                {equipe.nome_equipe}
+              </TableCell>
+              <TableCell>
+                {equipe.encarregado?.nome_completo || "Não informado"}
+              </TableCell>
+              <TableCell>
+                {equipe.apontador?.nome_completo || "Não informado"}
+              </TableCell>
+              <TableCell>
+                <Badge variant="secondary">
+                  {equipe.equipe?.length || 0} membro(s)
+                </Badge>
+              </TableCell>
+              <TableCell className="text-right">
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onView(equipe)}
+                    title="Visualizar"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onEdit(equipe)}
+                    title="Editar"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  {onTransfer && (equipe.equipe?.length || 0) > 2 && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onTransfer(equipe)}
+                      title="Transferir Membros"
+                      className="text-blue-600 hover:text-blue-700"
+                    >
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onDelete(equipe)}
+                    title="Excluir"
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 };

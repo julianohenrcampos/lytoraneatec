@@ -24,7 +24,7 @@ import RelatorioMedicaoPlaceholder from "@/components/relatorio-medicao/Relatori
 import RelatorioMedicaoLoadingState from "@/components/relatorio-medicao/RelatorioMedicaoLoadingState";
 import RelatorioMedicaoEmptyState from "@/components/relatorio-medicao/RelatorioMedicaoEmptyState";
 import { formatBrazilianDateToString } from "@/utils/timezoneUtils";
-import { EquipmentReportData, TruckReportData, ManutencaoEquipmentData, ManutencaoTruckData } from "@/types/relatorioMedicao";
+import { EquipmentReportData, TruckReportData, ManutencaoEquipmentData, ManutencaoTruckData, DescontoData } from "@/types/relatorioMedicao";
 import { downloadRelatorioMedicaoExcel } from "@/lib/excel";
 import { generateReportPDF } from "@/services/pdfService";
 
@@ -83,6 +83,7 @@ interface GroupedDataItem {
 const RelatorioMedicao: React.FC = () => {
   const [vehicleType, setVehicleType] = useState<string>("");
   const [selectedVehicle, setSelectedVehicle] = useState<string>("");
+  const [desmobilizacao, setDesmobilizacao] = useState<boolean>(false);
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: new Date(2025, 1, 21), // 21/02/2025
     to: new Date(2025, 2, 20)   // 20/03/2025
@@ -200,6 +201,7 @@ const RelatorioMedicao: React.FC = () => {
       console.log("Período:", fromDate, "à", toDate);
       console.log("Veículo ID:", selectedVehicle);
       console.log("Tipo de Veículo:", vehicleType);
+      console.log("Desmobilização:", desmobilizacao);
       
       // Buscar dados de "Operando" e "Disponível" para a tabela principal
       const { data: operandoData, error: operandoError } = await supabase
@@ -257,8 +259,24 @@ const RelatorioMedicao: React.FC = () => {
         console.error("Error fetching manutenção data:", manutencaoError);
       }
 
+      // Buscar TODOS os apontamentos para identificar última data real
+      console.log("Buscando todos os apontamentos para desmobilização...");
+      const { data: todosApontamentos, error: todosError } = await supabase
+        .from("bd_registro_apontamento_cam_equipa")
+        .select("data, situacao")
+        .eq("caminhao_equipamento_id", selectedVehicle)
+        .gte("data", fromDate)
+        .lte("data", toDate)
+        .in("situacao", ["Operando", "Disponível", "Em Manutenção"])
+        .order("data", { ascending: false });
+
+      if (todosError) {
+        console.error("Error fetching todos apontamentos:", todosError);
+      }
+
       console.log("Dados Operando/Disponível:", operandoData?.length || 0, "registros");
       console.log("Dados Manutenção:", manutencaoDataResult?.length || 0, "registros");
+      console.log("Todos apontamentos:", todosApontamentos?.length || 0, "registros");
 
       if (!operandoData || operandoData.length === 0) {
         console.log("Nenhum dado 'Operando/Disponível' encontrado para os filtros aplicados");
@@ -276,175 +294,180 @@ const RelatorioMedicao: React.FC = () => {
       const totalDiasOperandoDisponiveis = operandoData.length;
       const diasManutencao = manutencaoDataResult?.length || 0;
       
-      console.log("=== FÓRMULA CAMINHÃO (4 PARTES) ===");
+      console.log("=== FÓRMULA EQUIPAMENTO (4 PARTES) ===");
       console.log("1º parte - Aluguel mensal:", aluguelMensal);
       console.log("1º parte - Dias em manutenção:", diasManutencao);
       
-      // 2º parte: Calcular valor da manutenção = (VALOR MENSAL / 30) * dias Em Manutenção
-      const valorDiarioAluguel = aluguelMensal / 30;
-      const valorManutencao = valorDiarioAluguel * diasManutencao;
-      
-      console.log("2º parte - Valor diário aluguel (VALOR MENSAL / 30):", valorDiarioAluguel);
-      console.log("2º parte - Valor manutenção:", valorManutencao);
-      
-      // 3º parte: Valor restante = aluguel - valor manutenção
-      const valorRestante = aluguelMensal - valorManutencao;
-      
-      console.log("3º parte - Valor restante (aluguel - manutenção):", valorRestante);
-      
-      // 4º parte: Valor diário para divisão = valor restante / total dias Operando+Disponível
-      const valorDiarioParaDivisao = totalDiasOperandoDisponiveis > 0 ? valorRestante / totalDiasOperandoDisponiveis : 0;
-      
-      console.log("4º parte - Total dias Operando+Disponível:", totalDiasOperandoDisponiveis);
-      console.log("4º parte - Valor diário para divisão:", valorDiarioParaDivisao);
-
-      // CALCULAR TOTAIS DO PERÍODO PARA CAMINHÕES (NOVAS FÓRMULAS)
-      let totalKmPeriodo = 0;
-      let totalLitrosPeriodo = 0;
-      let totalDiasPeriodo = 0;
-
-      if (vehicleType === "Caminhão") {
-        // Calcular totais de quilometragem e abastecimento de TODOS os registros
-        operandoData.forEach(item => {
-          totalDiasPeriodo += 1;
+      if (vehicleType === "Equipamento") {
+        // 1º parte: VALOR UNIT. (R$/h) = Total Mensal ÷ 200h
+        const valorUnitarioHora = aluguelMensal / 200;
+        console.log("1º parte - Valor unitário por hora (Total Mensal ÷ 200):", valorUnitarioHora);
+        
+        // Preparar array de descontos
+        const descontos: DescontoData[] = [];
+        
+        // 2º parte: Desconto de Manutenção
+        if (diasManutencao > 0) {
+          const quantidadeManutencao = (200 / 30) * diasManutencao;
+          const valorManutencao = quantidadeManutencao * valorUnitarioHora;
           
-          // Calcular quilometragem apenas se ambos os valores existirem
+          console.log("2º parte - Quantidade de manutenção ((200 ÷ 30) × dias manutenção):", quantidadeManutencao);
+          console.log("2º parte - Valor manutenção (quantidade × valor unitário):", valorManutencao);
+          
+          descontos.push({
+            tipoDesconto: "DESCONTO DE MANUTENÇÃO",
+            valorUnitario: valorUnitarioHora,
+            qtdHoras: quantidadeManutencao,
+            valor: valorManutencao
+          });
+        }
+        
+        // 3º parte: Desconto de Desmobilização (se checkbox estiver ativo)
+        if (desmobilizacao && todosApontamentos && todosApontamentos.length > 0) {
+          const ultimaDataApontamento = new Date(todosApontamentos[0].data);
+          const dataFinalPeriodo = dateRange.to;
+          
+          // Calcular diferença em dias
+          const diferencaMs = dataFinalPeriodo.getTime() - ultimaDataApontamento.getTime();
+          const diasDesmobilizado = Math.max(0, Math.floor(diferencaMs / (1000 * 60 * 60 * 24)));
+          
+          console.log("=== CÁLCULO DESMOBILIZAÇÃO ===");
+          console.log("Última data apontamento:", ultimaDataApontamento.toISOString().split('T')[0]);
+          console.log("Data final período:", dataFinalPeriodo.toISOString().split('T')[0]);
+          console.log("Dias desmobilizado:", diasDesmobilizado);
+          
+          if (diasDesmobilizado > 0) {
+            const qtdHorasDesmobilizado = (200 / 30) * diasDesmobilizado;
+            const valorDesmobilizacao = qtdHorasDesmobilizado * valorUnitarioHora;
+            
+            console.log("QTD horas desmobilizado ((200 ÷ 30) × dias):", qtdHorasDesmobilizado);
+            console.log("Valor desmobilização:", valorDesmobilizacao);
+            
+            descontos.push({
+              tipoDesconto: "DESCONTO DE DESMOBILIZAÇÃO",
+              valorUnitario: valorUnitarioHora,
+              qtdHoras: qtdHorasDesmobilizado,
+              valor: valorDesmobilizacao
+            });
+          }
+        }
+        
+        // Calcular total dos descontos
+        const totalDescontos = descontos.reduce((acc, desc) => acc + desc.valor, 0);
+        
+        // 3º parte: Horas Restantes = 200 - Total de horas descontadas
+        const totalHorasDescontadas = descontos.reduce((acc, desc) => acc + (desc.qtdHoras || 0), 0);
+        const horasRestantes = 200 - totalHorasDescontadas;
+        console.log("3º parte - Horas restantes (200 - total descontos):", horasRestantes);
+        
+        // NOVA LÓGICA DE PRODUTIVIDADE: Calcular total de horímetros do período
+        let totalHorimetrosPeriodo = 0;
+        operandoData.forEach(item => {
           if (item.horimetro_inicial !== null && item.horimetro_inicial !== undefined && 
               item.horimetro_final !== null && item.horimetro_final !== undefined) {
-            const quilometragem = item.horimetro_final - item.horimetro_inicial;
-            if (quilometragem > 0) {
-              totalKmPeriodo += quilometragem;
+            const diferenca = item.horimetro_final - item.horimetro_inicial;
+            if (diferenca > 0) {
+              totalHorimetrosPeriodo += diferenca;
             }
           }
+        });
+        
+        console.log("=== NOVA FÓRMULA PRODUTIVIDADE ===");
+        console.log("Total horímetros do período (soma das diferenças):", totalHorimetrosPeriodo);
+        
+        // Processar dados de manutenção para exibição
+        const calculatedManutencaoData: ManutencaoEquipmentData = {
+          valorUnitario: valorUnitarioHora,
+          qtdHoras: totalHorasDescontadas,
+          valor: totalDescontos,
+          descontos: descontos
+        };
+        
+        setManutencaoData(calculatedManutencaoData);
+
+        // Agrupar dados por centro de custo
+        const groupedData: Record<string, any> = operandoData.reduce((acc, item) => {
+          const veiculo = Array.isArray(item.bd_caminhoes_equipamentos) 
+            ? item.bd_caminhoes_equipamentos[0] 
+            : item.bd_caminhoes_equipamentos;
+          
+          const centroCusto = Array.isArray(item.centro_custo_id) 
+            ? item.centro_custo_id[0] 
+            : item.centro_custo_id;
+          
+          if (!veiculo || !centroCusto) {
+            console.log("Registro ignorado - dados incompletos:", { veiculo: !!veiculo, centroCusto: !!centroCusto });
+            return acc;
+          }
+          
+          const key = `${veiculo.id}_${centroCusto.id}`;
+          
+          if (!acc[key]) {
+            acc[key] = {
+              veiculo,
+              centroCusto,
+              registros: [],
+              diasTrabalhados: 0,
+              abastecimentoTotal: 0
+            };
+          }
+          
+          acc[key].registros.push(item);
+          acc[key].diasTrabalhados += 1;
           
           // Somar abastecimento real
           if (item.abastecimento && item.abastecimento > 0) {
-            totalLitrosPeriodo += item.abastecimento;
+            acc[key].abastecimentoTotal += item.abastecimento;
           }
-        });
-
-        console.log("=== TOTAIS DO PERÍODO (CAMINHÃO) ===");
-        console.log("Total KM período:", totalKmPeriodo);
-        console.log("Total Litros período:", totalLitrosPeriodo);
-        console.log("Total dias período:", totalDiasPeriodo);
-      }
-
-      // Processar dados de manutenção para exibição
-      let calculatedManutencaoData: any = null;
-      if (vehicleType === "Caminhão") {
-        calculatedManutencaoData = {
-          valorMensal: aluguelMensal,
-          qtdDia: diasManutencao,
-          valor: valorManutencao
-        };
-      } else if (vehicleType === "Equipamento") {
-        // Manter lógica original para equipamentos
-        if (manutencaoDataResult && manutencaoDataResult.length > 0) {
-          const horasManutencao = diasManutencao * 8; // Assumindo 8h por dia
-          const valorUnitarioHora = aluguelMensal / 200; // 200h mensais
-          const valorDescontoEquipamento = valorUnitarioHora * horasManutencao;
           
-          calculatedManutencaoData = {
-            valorUnitario: valorUnitarioHora,
-            qtdHoras: horasManutencao,
-            valor: valorDescontoEquipamento
-          };
-        } else {
-          calculatedManutencaoData = {
-            valorUnitario: aluguelMensal / 200,
-            qtdHoras: 0,
-            valor: 0
-          };
-        }
-      }
-      
-      setManutencaoData(calculatedManutencaoData);
-
-      // Agrupar dados por centro de custo
-      const groupedData: Record<string, any> = operandoData.reduce((acc, item) => {
-        const veiculo = Array.isArray(item.bd_caminhoes_equipamentos) 
-          ? item.bd_caminhoes_equipamentos[0] 
-          : item.bd_caminhoes_equipamentos;
-        
-        const centroCusto = Array.isArray(item.centro_custo_id) 
-          ? item.centro_custo_id[0] 
-          : item.centro_custo_id;
-        
-        if (!veiculo || !centroCusto) {
-          console.log("Registro ignorado - dados incompletos:", { veiculo: !!veiculo, centroCusto: !!centroCusto });
           return acc;
-        }
-        
-        const key = `${veiculo.id}_${centroCusto.id}`;
-        
-        if (!acc[key]) {
-          acc[key] = {
-            veiculo,
-            centroCusto,
-            registros: [],
-            diasTrabalhados: 0,
-            quilometragemTotal: 0,
-            abastecimentoTotal: 0
-          };
-        }
-        
-        acc[key].registros.push(item);
-        acc[key].diasTrabalhados += 1;
-        
-        // Calcular quilometragem apenas se ambos os valores existirem
-        if (item.horimetro_inicial !== null && item.horimetro_inicial !== undefined && 
-            item.horimetro_final !== null && item.horimetro_final !== undefined) {
-          const quilometragem = item.horimetro_final - item.horimetro_inicial;
-          if (quilometragem > 0) {
-            acc[key].quilometragemTotal += quilometragem;
-          }
-        }
-        
-        // Somar abastecimento real
-        if (item.abastecimento && item.abastecimento > 0) {
-          acc[key].abastecimentoTotal += item.abastecimento;
-        }
-        
-        return acc;
-      }, {} as Record<string, any>);
+        }, {} as Record<string, any>);
 
-      console.log("Dados agrupados por centro de custo:", Object.keys(groupedData).length, "grupos");
+        console.log("Dados agrupados por centro de custo:", Object.keys(groupedData).length, "grupos");
 
-      // Gerar dados específicos baseado no tipo de veículo
-      const reportData: (EquipmentReportData | TruckReportData)[] = Object.values(groupedData).map((group: any) => {
-        const veiculo = group.veiculo;
-        const centroCusto = group.centroCusto;
-        
-        const descricaoServico = `${veiculo.tipo_veiculo?.toUpperCase() || 'VEÍCULO'} - ${veiculo.frota || ''}${veiculo.numero_frota || ''} - ${centroCusto.codigo_centro_custo || centroCusto.nome_centro_custo}`;
-        
-        if (vehicleType === "Equipamento") {
-          // Manter lógica original para equipamentos
+        // Gerar dados específicos para equipamento
+        const reportData: EquipmentReportData[] = Object.values(groupedData).map((group: any) => {
+          const veiculo = group.veiculo;
+          const centroCusto = group.centroCusto;
+          
+          const descricaoServico = `${veiculo.tipo_veiculo?.toUpperCase() || 'EQUIPAMENTO'} - ${veiculo.frota || ''}${veiculo.numero_frota || ''} - ${centroCusto.codigo_centro_custo || centroCusto.nome_centro_custo}`;
+          
+          // 4º parte: (horas restantes ÷ total dias) × dias do centro de custo
+          const horasDisponiveis = totalDiasOperandoDisponiveis > 0 
+            ? (horasRestantes / totalDiasOperandoDisponiveis) * group.diasTrabalhados 
+            : 0;
+          
+          const valorPeriodo = horasDisponiveis * valorUnitarioHora;
+          
+          // NOVA FÓRMULA DE PRODUTIVIDADE: (totalHorimetrosPeriodo / horasRestantes) × horasDisponiveis
+          const produtividade = horasRestantes > 0 
+            ? (totalHorimetrosPeriodo / horasRestantes) * horasDisponiveis 
+            : 0;
+          
+          // Calcular abastecimento proporcional
+          const totalAbastecimentoPeriodo = Object.values(groupedData).reduce((total: number, g: any) => {
+            return total + g.abastecimentoTotal;
+          }, 0);
+          
           const totalDiasTrabalhados = Object.values(groupedData).reduce((total: number, g: any) => {
             return total + g.diasTrabalhados;
           }, 0);
 
-          const totalAbastecimentoPeriodo = Object.values(groupedData).reduce((total: number, g: any) => {
-            return total + g.abastecimentoTotal;
-          }, 0);
-
-          const horasManutencaoTotal = calculatedManutencaoData ? calculatedManutencaoData.qtdHoras : 0;
-          const horasRestantes = 200 - horasManutencaoTotal;
-
-          const quantidadeHoras = 200;
-          const valorUnitarioHora = aluguelMensal / 200;
-          
-          const horasDisponiveis = totalDiasTrabalhados > 0 
-            ? (horasRestantes / totalDiasTrabalhados) * group.diasTrabalhados 
-            : 0;
-          
-          const valorPeriodo = valorUnitarioHora * horasDisponiveis;
-          const produtividade = horasDisponiveis;
-          
           const abastecimentoProporcional = totalDiasTrabalhados > 0
             ? (totalAbastecimentoPeriodo / totalDiasTrabalhados) * group.diasTrabalhados
             : 0;
           
-          const mediaAbastecimento = horasDisponiveis > 0 ? abastecimentoProporcional / horasDisponiveis : 0;
+          const mediaAbastecimento = produtividade > 0 ? abastecimentoProporcional / produtividade : 0;
+          
+          console.log(`=== CÁLCULOS EQUIPAMENTO - ${centroCusto.codigo_centro_custo} ===`);
+          console.log("Dias trabalhados neste centro:", group.diasTrabalhados);
+          console.log("Horas disponíveis (restantes ÷ total × dias centro):", horasDisponiveis);
+          console.log("Valor período (horas × valor unitário):", valorPeriodo);
+          console.log("NOVA PRODUTIVIDADE (total horímetros / horas restantes × horas disponíveis):", produtividade);
+          console.log("Total horímetros período:", totalHorimetrosPeriodo);
+          console.log("Horas restantes:", horasRestantes);
+          console.log("Abastecimento proporcional:", abastecimentoProporcional);
+          console.log("Média abastecimento (L/H):", mediaAbastecimento);
           
           return {
             id: `${veiculo.id}_${centroCusto.id}`,
@@ -453,17 +476,152 @@ const RelatorioMedicao: React.FC = () => {
             centro_custo: centroCusto.codigo_centro_custo || centroCusto.nome_centro_custo,
             diasTrabalhados: group.diasTrabalhados,
             totalMensal: aluguelMensal,
-            quantidadeHoras,
-            valorUnitarioHora,
-            horasDisponiveis,
-            valorPeriodo,
-            produtividade,
+            quantidadeHoras: 200, // Sempre 200h conforme especificado
+            valorUnitarioHora: valorUnitarioHora,
+            horasDisponiveis: horasDisponiveis,
+            valorPeriodo: valorPeriodo,
+            produtividade: produtividade, // NOVA FÓRMULA APLICADA
             abastecimento: abastecimentoProporcional,
-            mediaAbastecimento,
+            mediaAbastecimento: mediaAbastecimento,
             rastreador: produtividade
           } as EquipmentReportData;
-        } else {
-          // NOVAS FÓRMULAS PARA CAMINHÃO CONFORME ESPECIFICADO
+        });
+
+        console.log("Dados finais do relatório:", reportData.length, "itens");
+        return reportData;
+
+      } else {
+        // === NOVA LÓGICA PARA CAMINHÕES COM DESCONTOS ===
+        console.log("=== FÓRMULA CAMINHÃO COM DESCONTOS ===");
+        
+        // 1º parte: Valor diário = aluguel_mensal / 30
+        const valorDiarioAluguel = aluguelMensal / 30;
+        console.log("1º parte - Valor diário (aluguel_mensal / 30):", valorDiarioAluguel);
+        
+        // Preparar array de descontos para caminhões
+        const descontos: DescontoData[] = [];
+        
+        // 2º parte: Desconto de Manutenção
+        if (diasManutencao > 0) {
+          const valorManutencao = valorDiarioAluguel * diasManutencao;
+          console.log("2º parte - Desconto manutenção (valor_diário × dias_manutenção):", valorManutencao);
+          
+          descontos.push({
+            tipoDesconto: "DESCONTO DE MANUTENÇÃO",
+            valorUnitario: valorDiarioAluguel,
+            qtdDias: diasManutencao,
+            valor: valorManutencao
+          });
+        }
+        
+        // 3º parte: Desconto de Desmobilização (se checkbox estiver ativo)
+        if (desmobilizacao && todosApontamentos && todosApontamentos.length > 0) {
+          const ultimaDataApontamento = new Date(todosApontamentos[0].data);
+          const dataFinalPeriodo = dateRange.to;
+          
+          // Calcular diferença em dias
+          const diferencaMs = dataFinalPeriodo.getTime() - ultimaDataApontamento.getTime();
+          const diasDesmobilizado = Math.max(0, Math.floor(diferencaMs / (1000 * 60 * 60 * 24)));
+          
+          console.log("=== CÁLCULO DESMOBILIZAÇÃO CAMINHÃO ===");
+          console.log("Última data apontamento:", ultimaDataApontamento.toISOString().split('T')[0]);
+          console.log("Data final período:", dataFinalPeriodo.toISOString().split('T')[0]);
+          console.log("Dias desmobilizado:", diasDesmobilizado);
+          
+          if (diasDesmobilizado > 0) {
+            const valorDesmobilizacao = valorDiarioAluguel * diasDesmobilizado;
+            console.log("Valor desmobilização (valor_diário × dias):", valorDesmobilizacao);
+            
+            descontos.push({
+              tipoDesconto: "DESCONTO DE DESMOBILIZAÇÃO",
+              valorUnitario: valorDiarioAluguel,
+              qtdDias: diasDesmobilizado,
+              valor: valorDesmobilizacao
+            });
+          }
+        }
+        
+        // Calcular total dos descontos
+        const totalDescontos = descontos.reduce((acc, desc) => acc + desc.valor, 0);
+        const totalDiasDescontados = descontos.reduce((acc, desc) => acc + (desc.qtdDias || 0), 0);
+        
+        console.log("Total descontos caminhão:", totalDescontos);
+        console.log("Total dias descontados:", totalDiasDescontados);
+        
+        // 4º parte: Valor restante para divisão
+        const valorRestante = aluguelMensal - totalDescontos;
+        console.log("4º parte - Valor restante (aluguel - descontos):", valorRestante);
+        
+        const valorDiarioParaDivisao = totalDiasOperandoDisponiveis > 0 ? valorRestante / totalDiasOperandoDisponiveis : 0;
+        console.log("4º parte - Valor diário para divisão:", valorDiarioParaDivisao);
+
+        // Processar dados de manutenção para exibição
+        const calculatedManutencaoData: ManutencaoTruckData = {
+          valorUnitario: valorDiarioAluguel,
+          qtdDias: totalDiasDescontados,
+          valor: totalDescontos,
+          descontos: descontos
+        };
+        
+        setManutencaoData(calculatedManutencaoData);
+
+        // Agrupar dados por centro de custo
+        const groupedData: Record<string, any> = operandoData.reduce((acc, item) => {
+          const veiculo = Array.isArray(item.bd_caminhoes_equipamentos) 
+            ? item.bd_caminhoes_equipamentos[0] 
+            : item.bd_caminhoes_equipamentos;
+          
+          const centroCusto = Array.isArray(item.centro_custo_id) 
+            ? item.centro_custo_id[0] 
+            : item.centro_custo_id;
+          
+          if (!veiculo || !centroCusto) {
+            console.log("Registro ignorado - dados incompletos:", { veiculo: !!veiculo, centroCusto: !!centroCusto });
+            return acc;
+          }
+          
+          const key = `${veiculo.id}_${centroCusto.id}`;
+          
+          if (!acc[key]) {
+            acc[key] = {
+              veiculo,
+              centroCusto,
+              registros: [],
+              diasTrabalhados: 0,
+              quilometragemTotal: 0,
+              abastecimentoTotal: 0
+            };
+          }
+          
+          acc[key].registros.push(item);
+          acc[key].diasTrabalhados += 1;
+          
+          // Calcular quilometragem apenas se ambos os valores existirem
+          if (item.horimetro_inicial !== null && item.horimetro_inicial !== undefined && 
+              item.horimetro_final !== null && item.horimetro_final !== undefined) {
+            const quilometragem = item.horimetro_final - item.horimetro_inicial;
+            if (quilometragem > 0) {
+              acc[key].quilometragemTotal += quilometragem;
+            }
+          }
+          
+          // Somar abastecimento real
+          if (item.abastecimento && item.abastecimento > 0) {
+            acc[key].abastecimentoTotal += item.abastecimento;
+          }
+          
+          return acc;
+        }, {} as Record<string, any>);
+
+        console.log("Dados agrupados por centro de custo:", Object.keys(groupedData).length, "grupos");
+
+        // Gerar dados específicos baseado no tipo de veículo
+        const reportData: TruckReportData[] = Object.values(groupedData).map((group: any) => {
+          const veiculo = group.veiculo;
+          const centroCusto = group.centroCusto;
+          
+          const descricaoServico = `${veiculo.tipo_veiculo?.toUpperCase() || 'VEÍCULO'} - ${veiculo.frota || ''}${veiculo.numero_frota || ''} - ${centroCusto.codigo_centro_custo || centroCusto.nome_centro_custo}`;
+          
           console.log(`=== CÁLCULOS CAMINHÃO (NOVAS FÓRMULAS) - ${centroCusto.codigo_centro_custo} ===`);
           console.log("Dias trabalhados neste centro:", group.diasTrabalhados);
           console.log("Valor diário para divisão:", valorDiarioParaDivisao);
@@ -475,11 +633,11 @@ const RelatorioMedicao: React.FC = () => {
           const valor = valorDiarioParaDivisao * qtdDia;
           
           // PRODUTIVIDADE: (Total KM do período ÷ Total dias) × QTD/DIA
-          const produtividadeKmDia = totalDiasPeriodo > 0 ? totalKmPeriodo / totalDiasPeriodo : 0;
+          const produtividadeKmDia = totalDiasOperandoDisponiveis > 0 ? group.quilometragemTotal / group.diasTrabalhados : 0;
           const produtividade = produtividadeKmDia * qtdDia;
           
           // ABASTECIMENTO: (Total L do período ÷ Total dias) × QTD/DIA
-          const abastecimentoLDia = totalDiasPeriodo > 0 ? totalLitrosPeriodo / totalDiasPeriodo : 0;
+          const abastecimentoLDia = totalDiasOperandoDisponiveis > 0 ? group.abastecimentoTotal / group.diasTrabalhados : 0;
           const abastecimento = abastecimentoLDia * qtdDia;
           
           // MÉDIA ABAST.: PRODUTIVIDADE ÷ ABASTECIMENTO (KM/L) - CORRIGIDO
@@ -501,16 +659,16 @@ const RelatorioMedicao: React.FC = () => {
             totalMensal: aluguelMensal,
             qtdDia: qtdDia,
             valor: valor,
-            quilometragem: produtividade, // PRODUTIVIDADE conforme nova fórmula
-            abastecimento: abastecimento, // ABASTECIMENTO conforme nova fórmula
-            mediaAbastecimento: mediaAbastecimento, // MÉDIA ABAST. conforme nova fórmula CORRIGIDA
-            rastreador: produtividade // Usar a produtividade calculada
+            quilometragem: group.quilometragemTotal,
+            abastecimento: group.abastecimentoTotal,
+            mediaAbastecimento: mediaAbastecimento,
+            rastreador: group.quilometragemTotal
           } as TruckReportData;
-        }
-      });
+        });
 
-      console.log("Dados finais do relatório:", reportData.length, "itens");
-      return reportData;
+        console.log("Dados finais do relatório:", reportData.length, "itens");
+        return reportData;
+      }
     } catch (error) {
       console.error("Error in fetchReportData:", error);
       toast({
@@ -541,6 +699,7 @@ const RelatorioMedicao: React.FC = () => {
   const resetFilters = () => {
     setVehicleType("");
     setSelectedVehicle("");
+    setDesmobilizacao(false);
     setDateRange({
       from: new Date(2025, 1, 21),
       to: new Date(2025, 2, 20)
@@ -702,6 +861,29 @@ const RelatorioMedicao: React.FC = () => {
     );
   }
 
+  // Calcular total do período baseado no tipo - ATUALIZADO para subtrair descontos
+  const calculateTotalPeriodo = () => {
+    if (vehicleType === "Equipamento") {
+      const equipmentData = reportData as EquipmentReportData[];
+      const totalServicos = equipmentData.reduce((acc, item) => acc + (item.valorPeriodo || 0), 0);
+      
+      // Subtrair descontos se existirem
+      const equipmentMaintenance = manutencaoData as ManutencaoEquipmentData;
+      const totalDescontos = equipmentMaintenance?.valor || 0;
+      
+      return totalServicos - totalDescontos;
+    } else {
+      const truckData = reportData as TruckReportData[];
+      const totalServicos = truckData.reduce((acc, item) => acc + (item.valor || 0), 0);
+      
+      // Subtrair descontos de caminhões
+      const truckMaintenance = manutencaoData as ManutencaoTruckData;
+      const totalDescontos = truckMaintenance?.valor || 0;
+      
+      return totalServicos - totalDescontos;
+    }
+  };
+
   return (
     <MainLayout>
       <div className="flex flex-col gap-6">
@@ -717,7 +899,7 @@ const RelatorioMedicao: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               <div className="flex flex-col gap-2">
                 <label htmlFor="tipo" className="font-medium flex items-center gap-1">
                   Tipo de Veículo
@@ -805,6 +987,24 @@ const RelatorioMedicao: React.FC = () => {
                   </PopoverContent>
                 </Popover>
               </div>
+
+              {(vehicleType === "Equipamento" || vehicleType === "Caminhão") && (
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="desmobilizacao" className="font-medium">Desmobilização</label>
+                  <div className="flex items-center space-x-2 h-10">
+                    <input
+                      type="checkbox"
+                      id="desmobilizacao"
+                      checked={desmobilizacao}
+                      onChange={(e) => setDesmobilizacao(e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                    <label htmlFor="desmobilizacao" className="text-sm">
+                      Aplicar desconto de desmobilização
+                    </label>
+                  </div>
+                </div>
+              )}
               
               <div className="flex items-end gap-2">
                 <Button
