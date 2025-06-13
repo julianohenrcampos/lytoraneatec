@@ -11,8 +11,9 @@
 6. [Logística](#logística)
 7. [Relatório de Medição](#relatório-de-medição) ⭐ **NOVO**
 8. [Relatórios e Exportações](#relatórios-e-exportações)
-9. [Configurações](#configurações)
-10. [Solução de Problemas](#solução-de-problemas)
+9. [**Índice de Fórmulas e Cálculos**](#índice-de-fórmulas-e-cálculos) 🧮 **NOVO**
+10. [Configurações](#configurações)
+11. [Solução de Problemas](#solução-de-problemas)
 
 ## Introdução
 
@@ -410,6 +411,194 @@ O módulo de Relatório de Medição é utilizado para contratos de locação de
 1. Verifique valor de aluguel do veículo
 2. Confirme apontamentos de manutenção
 3. Valide configuração de desmobilização
+
+## Índice de Fórmulas e Cálculos 🧮
+
+### 📍 Localização das Fórmulas no Código
+
+#### 1. **Aplicação de Asfalto**
+📁 **Arquivo**: `src/utils/aplicacaoCalculations.ts`
+
+- **Cálculo de Área** (linha 8-15)
+  ```typescript
+  // Fórmula: comprimento × largura
+  return comprimento * largura;
+  ```
+
+- **Cálculo de Tonelada Aplicada** (linha 22-29)
+  ```typescript
+  // Fórmula: área × 0.05 × 2.4
+  return area * 0.05 * 2.4;
+  ```
+
+- **Cálculo de Espessura** (linha 62-76)
+  ```typescript
+  // Fórmula: (tonelada_aplicada ÷ área) ÷ 2.4
+  return tonelada / area / 2.4;
+  ```
+
+- **Status da Espessura** (linha 139-150)
+  ```typescript
+  // < 0.035 cm ou > 0.05 cm → "Fora do Padrão"
+  // Entre 0.035 e 0.05 → "Dentro do Padrão"
+  ```
+
+#### 2. **Hook de Cálculos de Aplicação**
+📁 **Arquivo**: `src/hooks/registro-aplicacao/useCalculations.ts`
+
+- **Área Calculada** (linha 18-21)
+  ```typescript
+  // Multiplica comprimento por largura
+  return comprimento * largura;
+  ```
+
+- **Tonelada Aplicada com Limite** (linha 24-36)
+  ```typescript
+  // Usa o menor valor entre calculado e disponível
+  return Math.min(calculatedTonelada, massaDisponivel);
+  ```
+
+- **Espessura Condicional** (linha 39-55)
+  ```typescript
+  // Com massa total: (massa ÷ área) ÷ 2.4
+  // Tradicional: (tonelada_aplicada ÷ área) ÷ 2.4
+  ```
+
+#### 3. **Relatório de Medição - Equipamentos**
+📁 **Arquivo**: `src/components/relatorio-medicao/RelatorioMedicaoDetalhado.tsx`
+
+- **Valor Unitário por Hora** (documentado nas linhas 105-115)
+  ```
+  Fórmula: Aluguel Mensal ÷ 200 horas = R$/h
+  ```
+
+- **Desconto de Manutenção**
+  ```
+  Fórmula: (200 ÷ 30) × Dias Manutenção × R$/h
+  ```
+
+- **Horas Disponíveis por Centro**
+  ```
+  Fórmula: (Horas Restantes ÷ Total Dias) × Dias do Centro
+  ```
+
+- **Produtividade Nova**
+  ```
+  Fórmula: (Total Horímetros ÷ Horas Restantes) × Horas Disponíveis
+  ```
+
+#### 4. **Relatório de Medição - Caminhões**
+
+- **Valor Diário**
+  ```
+  Fórmula: Aluguel Mensal ÷ 30 dias = R$/dia
+  ```
+
+- **Distribuição Proporcional**
+  ```
+  Fórmula: ((Aluguel - Descontos) ÷ Total Dias) × Dias do Centro
+  ```
+
+#### 5. **Banco de Dados - Views e Queries**
+📁 **Arquivo**: `docs/DATABASE.md`
+
+- **View de Massa Remanescente** (linhas 520-535)
+  ```sql
+  -- Massa Total - Massa Aplicada = Remanescente
+  COALESCE(rc.massa_total_carga, 0) - COALESCE(aa.massa_aplicada_total, 0)
+  ```
+
+- **Cálculo de Espessura Média** (linhas 560-575)
+  ```sql
+  -- (Massa Total ÷ Área Total) ÷ 2.4
+  (emr.massa_total_carga / area_total) / 2.4
+  ```
+
+### 🔍 **Fórmulas por Funcionalidade**
+
+#### **A. Pavimentação Asfáltica**
+
+| **Cálculo** | **Fórmula** | **Localização** | **Unidade** |
+|-------------|-------------|----------------|-------------|
+| Área | `comprimento × largura` | `aplicacaoCalculations.ts:12` | m² |
+| Volume | `área × espessura × 2.4` | `DATABASE.md:645` | m³ |
+| Tonelada Aplicada | `área × 0.05 × 2.4` | `aplicacaoCalculations.ts:25` | ton |
+| Espessura | `(tonelada ÷ área) ÷ 2.4` | `aplicacaoCalculations.ts:70` | m |
+| Densidade Padrão | `2.4 ton/m³` | Constante | ton/m³ |
+
+#### **B. Relatório de Medição - Equipamentos**
+
+| **Cálculo** | **Fórmula** | **Localização** | **Unidade** |
+|-------------|-------------|----------------|-------------|
+| Valor/Hora | `Aluguel ÷ 200` | Documentação | R$/h |
+| Horas Manutenção | `(200 ÷ 30) × Dias` | Documentação | horas |
+| Horas Disponíveis | `(Restantes ÷ Total Dias) × Dias Centro` | Documentação | horas |
+| Valor Período | `Horas Disponíveis × R$/h` | Documentação | R$ |
+| Produtividade | `(Horímetros ÷ Restantes) × Disponíveis` | Documentação | horas |
+
+#### **C. Relatório de Medição - Caminhões**
+
+| **Cálculo** | **Fórmula** | **Localização** | **Unidade** |
+|-------------|-------------|----------------|-------------|
+| Valor/Dia | `Aluguel ÷ 30` | Documentação | R$/dia |
+| Desconto Manutenção | `R$/dia × Dias` | Documentação | R$ |
+| Valor Centro | `((Aluguel - Descontos) ÷ Dias) × Dias Centro` | Documentação | R$ |
+| Quilometragem | Proporcional por centro | Documentação | km |
+
+#### **D. Validações e Status**
+
+| **Validação** | **Critério** | **Localização** | **Status** |
+|---------------|--------------|----------------|------------|
+| Espessura Boa | `0.035 ≤ valor ≤ 0.05` | `aplicacaoCalculations.ts:145` | Success |
+| Espessura Crítica | `< 0.035 ou > 0.05` | `aplicacaoCalculations.ts:147` | Error |
+| Massa Excedida | `Aplicada > Disponível` | `useCalculations.ts:75` | Warning |
+| Período Válido | `Tem apontamentos` | Documentação | Valid |
+
+### 📊 **Constantes do Sistema**
+
+#### **Pavimentação**
+- **Densidade do Asfalto**: `2.4 ton/m³`
+- **Espessura Padrão**: `0.05 m (5 cm)`
+- **Fator de Compactação**: `1.0`
+
+#### **Relatório de Medição**
+- **Horas Mensais Equipamento**: `200 h/mês`
+- **Dias Mensais**: `30 dias/mês`
+- **Conversão Hora/Dia**: `200h ÷ 30 dias = 6.67 h/dia`
+
+#### **Validações**
+- **Espessura Mínima**: `0.035 m`
+- **Espessura Máxima**: `0.05 m`
+- **Tolerância Temperatura**: `±10°C`
+
+### 🔗 **Referências Cruzadas**
+
+#### **Dependências entre Módulos**
+1. **Aplicação → Cargas**: Usa massa real da carga
+2. **Medição → Apontamentos**: Baseia-se em datas de operação
+3. **Área → Volume**: Multiplica por espessura e densidade
+4. **Centro Custo → Rateio**: Distribui valores proporcionalmente
+
+#### **Fluxo de Dados**
+```
+Apontamentos → Cálculo Horas → Distribuição Centro → Valor Final
+     ↓              ↓              ↓              ↓
+Banco de Dados → Hook Cálculos → Component → Relatório
+```
+
+### 💡 **Dicas de Manutenção**
+
+1. **Alterações em Fórmulas**: Sempre atualizar documentação
+2. **Novos Cálculos**: Criar testes unitários
+3. **Constantes**: Definir em arquivo separado para fácil alteração
+4. **Performance**: Cachear cálculos complexos em useMemo
+
+---
+**📍 Localização dos Arquivos Principais:**
+- **Cálculos**: `src/utils/aplicacaoCalculations.ts`
+- **Hooks**: `src/hooks/registro-aplicacao/useCalculations.ts`
+- **Componentes**: `src/components/relatorio-medicao/`
+- **Documentação**: `docs/DATABASE.md`, `docs/USER_GUIDE.md`
 
 ## Relatórios e Exportações
 

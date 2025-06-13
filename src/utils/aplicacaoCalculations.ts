@@ -1,10 +1,10 @@
 
 /**
- * Utility functions for registro aplicacao calculations
+ * Funções utilitárias para cálculos de registro de aplicação
  */
 
 /**
- * Calculate area based on comprimento and largura
+ * Calcula área baseada no comprimento e largura
  */
 export const calculateArea = (
   comprimento: number | null, 
@@ -17,8 +17,8 @@ export const calculateArea = (
 };
 
 /**
- * Calculate tonelada aplicada based on area
- * area_calculada × 0.05 × 2.4
+ * Calcula tonelada aplicada baseada na área
+ * Fórmula: area_calculada × 0.05 × 2.4
  */
 export const calculateToneladaAplicada = (
   area: number | null
@@ -30,8 +30,8 @@ export const calculateToneladaAplicada = (
 };
 
 /**
- * Adjust tonelada aplicada based on available mass
- * If calculated tonelada_aplicada > qtd_massa, use qtd_massa instead
+ * Ajusta tonelada aplicada baseada na massa disponível
+ * Se tonelada_aplicada calculada > qtd_massa, usa qtd_massa
  */
 export const adjustToneladaAplicada = (
   calculatedToneladaAplicada: number | null,
@@ -49,14 +49,14 @@ export const adjustToneladaAplicada = (
     return calculatedToneladaAplicada;
   }
   
-  // If calculated value exceeds available mass, use available mass instead
+  // Se o valor calculado excede a massa disponível, usa a massa disponível
   return calculatedToneladaAplicada > qtdMassaNum ? qtdMassaNum : calculatedToneladaAplicada;
 };
 
 /**
- * Calculate espessura based on tonelada_aplicada and area
- * Formula: (tonelada_aplicada ÷ area) ÷ 2.4 = espessura em cm
- * This now correctly uses the tonelada_aplicada value instead of tonelada_real
+ * Calcula espessura baseada na tonelada_aplicada e área
+ * Fórmula: (tonelada_aplicada ÷ area) ÷ 2.4 = espessura em cm
+ * Agora usa corretamente o valor tonelada_aplicada ao invés de tonelada_real
  */
 export const calculateEspessura = (
   tonelada_aplicada: number | string | null | undefined, 
@@ -74,13 +74,13 @@ export const calculateEspessura = (
     return null;
   }
   
-  // Correct formula: tonelada / area / 2.4 (to get cm)
+  // Fórmula correta: tonelada / area / 2.4 (para obter cm)
   return tonelada / area / 2.4;
 };
 
 /**
- * Calculate espessura calculada based on tonelada_aplicada and area
- * (tonelada_aplicada ÷ área_calculada) ÷ 2.4
+ * Calcula espessura calculada baseada na tonelada_aplicada e área
+ * Fórmula: (tonelada_aplicada ÷ área_calculada) ÷ 2.4
  */
 export const calculateEspessuraCalculada = (
   tonelada_aplicada: number | null,
@@ -94,9 +94,9 @@ export const calculateEspessuraCalculada = (
 };
 
 /**
- * Calculate massa remanescente based on tonelada_real and tonelada_aplicada
- * If tonelada_aplicada > tonelada_real, return 0
- * Otherwise, return tonelada_real - tonelada_aplicada
+ * Calcula massa remanescente baseada na tonelada_real e tonelada_aplicada
+ * Se tonelada_aplicada > tonelada_real, retorna 0
+ * Caso contrário, retorna tonelada_real - tonelada_aplicada
  */
 export const calculateMassaRemanescente = (
   tonelada_real: number | string | null | undefined,
@@ -114,19 +114,19 @@ export const calculateMassaRemanescente = (
     return null;
   }
   
-  // If tonelada_aplicada exceeds tonelada_real, remaining mass is 0
+  // Se tonelada_aplicada excede tonelada_real, massa remanescente é 0
   return tonelada_aplicada > tonelada ? 0 : tonelada - tonelada_aplicada;
 };
 
 /**
- * Determine status based on espessura value
+ * Determina status baseado no valor da espessura
  */
 export type EspessuraStatus = "success" | "warning" | "error" | null;
 
 /**
- * Updated espessura status logic with new requirements
- * < 0.035 cm or > 0.05 cm → "Crítica" (error)
- * Between 0.035 and 0.05, inclusive → "Boa" (success)
+ * Lógica atualizada de status da espessura com novos requisitos
+ * < 0.035 cm ou > 0.05 cm → "Crítica" (error)
+ * Entre 0.035 e 0.05, inclusive → "Boa" (success)
  */
 export const getEspessuraStatus = (espessura: number | null): EspessuraStatus => {
   if (!espessura) return null;
@@ -139,9 +139,9 @@ export const getEspessuraStatus = (espessura: number | null): EspessuraStatus =>
 };
 
 /**
- * New espessura status logic
+ * Nova lógica de status da espessura
  * < 0.035 cm ou > 0.05 cm → "Fora do Padrão" (error)
- * Between 0.035 and 0.05, inclusive → "Dentro do Padrão" (success)
+ * Entre 0.035 e 0.05, inclusive → "Dentro do Padrão" (success)
  */
 export const getEspessuraCalculadaStatus = (espessura: number | null): EspessuraStatus => {
   if (!espessura) return null;
@@ -154,7 +154,7 @@ export const getEspessuraCalculadaStatus = (espessura: number | null): Espessura
 };
 
 /**
- * Get text description for espessura status
+ * Obtém descrição textual para o status da espessura
  */
 export const getEspessuraCalculadaStatusText = (status: EspessuraStatus): string => {
   switch (status) {

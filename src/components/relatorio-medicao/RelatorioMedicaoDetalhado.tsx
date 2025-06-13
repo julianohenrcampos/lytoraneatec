@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -23,7 +24,7 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
   const [rastreadorValues, setRastreadorValues] = useState<Record<string, number>>(() => {
     const initialValues: Record<string, number> = {};
     vehicleData.forEach(vehicle => {
-      initialValues[vehicle.id] = 0; // CORRIGIDO: Sempre iniciar com 0
+      initialValues[vehicle.id] = 0; // Sempre iniciar com 0
     });
     return initialValues;
   });
@@ -57,11 +58,39 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
     return safeValue.toFixed(decimals);
   };
 
+  // Calcular total do período SEM subtrair descontos - apenas soma dos serviços
+  const calculateTotalPeriodo = () => {
+    console.log('calculateTotalPeriodo - tipoVeiculo:', tipoVeiculo);
+    console.log('calculateTotalPeriodo - vehicleData:', vehicleData);
+    
+    if (tipoVeiculo === "Equipamento") {
+      const equipmentData = vehicleData as EquipmentReportData[];
+      const totalServicos = equipmentData.reduce((acc, item) => {
+        const valor = item.valorPeriodo || 0;
+        console.log(`Equipamento ${item.id}: valor=${valor}`);
+        return acc + valor;
+      }, 0);
+      
+      console.log('Equipamentos - totalServicos (SEM descontos):', totalServicos);
+      return totalServicos;
+    } else {
+      const truckData = vehicleData as TruckReportData[];
+      const totalServicos = truckData.reduce((acc, item) => {
+        const valor = item.valor || 0;
+        console.log(`Caminhão ${item.id}: valor=${valor}`);
+        return acc + valor;
+      }, 0);
+      
+      console.log('Caminhões - totalServicos (SEM descontos):', totalServicos);
+      return totalServicos;
+    }
+  };
+
   // Renderizar tabela para Equipamento
   const renderEquipmentTable = () => {
     const equipmentData = vehicleData as EquipmentReportData[];
     
-    // CORRIGIDO: Calcular totais conforme mostrado na imagem
+    // Calcular totais conforme mostrado na imagem
     const totais = {
       totalMensal: equipmentData.reduce((acc, item) => acc + (item.totalMensal || 0), 0),
       valorPeriodo: equipmentData.reduce((acc, item) => acc + (item.valorPeriodo || 0), 0),
@@ -115,12 +144,12 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
               </td>
             </tr>
           ))}
-          {/* CORRIGIDO: Linha de totais com valores conforme imagem */}
+          {/* Linha de totais SEM o total mensal */}
           <tr className="font-bold bg-gray-50">
             <td className="border border-gray-300 px-2 py-1 text-right">TOTAIS</td>
             <td className="border border-gray-300 px-2 py-1">-</td>
             <td className="border border-gray-300 px-2 py-1">-</td>
-            <td className="border border-gray-300 px-2 py-1">{formatCurrency(totais.totalMensal)}</td>
+            <td className="border border-gray-300 px-2 py-1">-</td>
             <td className="border border-gray-300 px-2 py-1">{formatNumber(totais.horasDisponiveis)} H</td>
             <td className="border border-gray-300 px-2 py-1">{formatCurrency(totais.valorPeriodo)}</td>
             <td className="border border-gray-300 px-2 py-1">{formatNumber(totais.produtividade)} H</td>
@@ -133,18 +162,23 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
     );
   };
 
-  // Renderizar tabela para Caminhão (manter estrutura atual)
+  // Renderizar tabela para Caminhão 
   const renderTruckTable = () => {
     const truckData = vehicleData as TruckReportData[];
     
-    // CORRIGIDO: Calcular totais conforme necessário para caminhões
+    // Calcular totais conforme necessário para caminhões
     const totais = {
+      totalMensal: truckData.reduce((acc, item) => acc + (item.totalMensal || 0), 0),
       qtdDia: truckData.reduce((acc, item) => acc + (item.qtdDia || 0), 0),
       valor: truckData.reduce((acc, item) => acc + (item.valor || 0), 0),
       quilometragem: truckData.reduce((acc, item) => acc + (item.quilometragem || 0), 0),
       abastecimento: truckData.reduce((acc, item) => acc + (item.abastecimento || 0), 0),
       rastreador: Object.values(rastreadorValues).reduce((acc, value) => acc + (value || 0), 0)
     };
+
+    // Debug para caminhões
+    console.log('renderTruckTable - truckData:', truckData);
+    console.log('renderTruckTable - totais:', totais);
 
     return (
       <table className="w-full text-xs border border-gray-300">
@@ -182,7 +216,7 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
               </td>
             </tr>
           ))}
-          {/* CORRIGIDO: Linha de totais com valores para caminhões */}
+          {/* Linha de totais SEM o total mensal */}
           <tr className="font-bold bg-gray-50">
             <td className="border border-gray-300 px-2 py-1 text-right">TOTAIS</td>
             <td className="border border-gray-300 px-2 py-1">-</td>
@@ -258,7 +292,7 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
         </table>
       );
     } else {
-      // NOVA LÓGICA PARA CAMINHÕES COM MÚLTIPLOS DESCONTOS
+      // Lógica para caminhões com múltiplos descontos
       const truckMaintenance = manutencaoData as ManutencaoTruckData;
       
       // Se não há dados de manutenção ou descontos, mostrar valores zerados
@@ -318,29 +352,6 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
     }
   };
 
-  // Calcular total do período baseado no tipo - ATUALIZADO para subtrair descontos
-  const calculateTotalPeriodo = () => {
-    if (tipoVeiculo === "Equipamento") {
-      const equipmentData = vehicleData as EquipmentReportData[];
-      const totalServicos = equipmentData.reduce((acc, item) => acc + (item.valorPeriodo || 0), 0);
-      
-      // Subtrair descontos se existirem
-      const equipmentMaintenance = manutencaoData as ManutencaoEquipmentData;
-      const totalDescontos = equipmentMaintenance?.valor || 0;
-      
-      return totalServicos - totalDescontos;
-    } else {
-      const truckData = vehicleData as TruckReportData[];
-      const totalServicos = truckData.reduce((acc, item) => acc + (item.valor || 0), 0);
-      
-      // Subtrair descontos de caminhões
-      const truckMaintenance = manutencaoData as ManutencaoTruckData;
-      const totalDescontos = truckMaintenance?.valor || 0;
-      
-      return totalServicos - totalDescontos;
-    }
-  };
-
   return (
     <div id="relatorio-medicao-detalhado" className="px-6 py-4 space-y-4 bg-white print:p-4 print:shadow-none">
       {/* Header */}
@@ -396,7 +407,7 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
         />
       </div>
 
-      {/* Total do Período */}
+      {/* Total do Período mostra apenas soma dos serviços (SEM descontos) */}
       <div className="text-center text-lg font-bold print:text-black print:mb-6">
         <p>TOTAL NO PERÍODO: {formatCurrency(calculateTotalPeriodo())}</p>
       </div>
