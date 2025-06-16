@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn, normalizeDateToNoon } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, ChevronLeft, MapPin, Plus, Ruler, Trash, X } from "lucide-react";
+import { CalendarIcon, ChevronLeft, MapPin, Plus, Ruler, Trash, X, RefreshCw, AlertCircle, CheckCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -18,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface RequisicaoFormModalProps {
   isOpen: boolean;
@@ -42,7 +44,9 @@ const RequisicaoFormModal: React.FC<RequisicaoFormModalProps> = ({
     addRua,
     removeRua,
     currentUser,
-    funcionarioId
+    funcionarioId,
+    searchStatus,
+    retrySearch
   } = useRequisicaoForm(requisicao, () => {
     onSuccess();
     onClose();
@@ -124,6 +128,65 @@ const RequisicaoFormModal: React.FC<RequisicaoFormModalProps> = ({
     };
     getEngenheiroNome();
   }, [form.getValues("engenheiro_id"), engenheiros]);
+
+  // Render search status indicator
+  const renderSearchStatus = () => {
+    switch (searchStatus) {
+      case 'searching':
+        return (
+          <Alert className="mb-4">
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            <AlertDescription>
+              Buscando seu usuário no sistema...
+            </AlertDescription>
+          </Alert>
+        );
+      case 'found':
+        return (
+          <Alert className="mb-4 border-green-200 bg-green-50">
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-800">
+              Usuário encontrado com sucesso! Você pode prosseguir com a requisição.
+            </AlertDescription>
+          </Alert>
+        );
+      case 'not_found':
+        return (
+          <Alert className="mb-4 border-yellow-200 bg-yellow-50">
+            <AlertCircle className="h-4 w-4 text-yellow-600" />
+            <AlertDescription className="text-yellow-800">
+              Não foi possível encontrar seu usuário automaticamente. 
+              <Button 
+                variant="link" 
+                className="p-0 h-auto text-yellow-800 underline ml-1"
+                onClick={retrySearch}
+              >
+                Tentar novamente
+              </Button>
+            </AlertDescription>
+          </Alert>
+        );
+      case 'error':
+        return (
+          <Alert className="mb-4 border-red-200 bg-red-50">
+            <AlertCircle className="h-4 w-4 text-red-600" />
+            <AlertDescription className="text-red-800">
+              Erro ao buscar usuário. Verifique se você está logado corretamente.
+              <Button 
+                variant="link" 
+                className="p-0 h-auto text-red-800 underline ml-1"
+                onClick={retrySearch}
+              >
+                Tentar novamente
+              </Button>
+            </AlertDescription>
+          </Alert>
+        );
+      default:
+        return null;
+    }
+  };
+
   const pinturaOptions = ["IMPRIMA", "RR"];
   const tracoOptions = ["Binder", "5A", "4C"];
   const ruas = form.watch('ruas') || [];
@@ -153,6 +216,9 @@ const RequisicaoFormModal: React.FC<RequisicaoFormModalProps> = ({
             Preencha os campos para {requisicao && requisicao.id ? "editar a" : "criar uma nova"} requisição
           </DialogDescription>
         </DialogHeader>
+        
+        {/* Search Status Indicator */}
+        {!requisicao?.id && renderSearchStatus()}
         
         <Form {...form}>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -383,7 +449,11 @@ const RequisicaoFormModal: React.FC<RequisicaoFormModalProps> = ({
                   <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
                     Cancelar
                   </Button>
-                  <Button type="submit" onClick={form.handleSubmit(handleSubmit)} disabled={isSubmitting}>
+                  <Button 
+                    type="submit" 
+                    onClick={form.handleSubmit(handleSubmit)} 
+                    disabled={isSubmitting || (searchStatus !== 'found' && !requisicao?.id)}
+                  >
                     {isSubmitting ? <>
                         <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent"></div>
                         Salvando...

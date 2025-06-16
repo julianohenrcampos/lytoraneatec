@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import MainLayout from "@/components/layout/MainLayout";
@@ -11,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import RhSection from "@/components/dashboard/RhSection";
 import MaquinasSection from "@/components/dashboard/MaquinasSection";
 import RequisicaoSection from "@/components/dashboard/RequisicaoSection";
+import RhDashboardComplete from "@/components/dashboard/rh/RhDashboardComplete";
 
 // Define period options for filter
 type PeriodFilter = "day" | "week" | "month" | "all";
@@ -186,13 +186,16 @@ export default function DashboardRH() {
             </Tabs>
           </div>
 
-          {/* RH Module */}
+          {/* DASHBOARD RH COMPLETO */}
+          <RhDashboardComplete />
+
+          {/* (Comentado: se quiser manter painéis parciais, pode) */}
+          {/* 
           <RhSection 
             navigateTo={navigateTo} 
             period={period} 
           />
 
-          {/* For this specialized dashboard, we could eventually customize to only show RH-related content */}
           <MaquinasSection 
             navigateTo={navigateTo} 
             period={period} 
@@ -205,6 +208,7 @@ export default function DashboardRH() {
             statusColors={statusColors}
             getDateRange={getDateRange}
           />
+          */}
         </div>
       </ResponsiveContainer>
     </MainLayout>
