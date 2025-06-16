@@ -12,8 +12,23 @@ const cores = [
 ];
 
 export default function MediaPorFuncaoChart({ data }: MediaPorFuncaoChartProps) {
-  if (!data || data.length === 0 || data.every(d => d.media === 0)) {
-    return <div className="text-muted-foreground text-center py-4">Sem salários cadastrados para funções.</div>;
+  console.log("🔍 DEBUG MediaPorFuncaoChart - data recebida:", data);
+  
+  // Filtrar dados válidos (com média > 0) e funções nomeadas
+  const dadosValidos = data.filter(d => 
+    d.media > 0 && 
+    d.nome_funcao && 
+    d.nome_funcao !== "Não informada"
+  );
+  
+  console.log("🔍 DEBUG MediaPorFuncaoChart - dados válidos:", dadosValidos);
+  
+  if (!data || data.length === 0 || dadosValidos.length === 0) {
+    return (
+      <div className="text-muted-foreground text-center py-4 text-xs">
+        {data?.length === 0 ? "Sem funções cadastradas." : "Sem salários cadastrados para funções."}
+      </div>
+    );
   }
 
   // Truncar nomes para labels e oferecer tooltip
@@ -33,7 +48,7 @@ export default function MediaPorFuncaoChart({ data }: MediaPorFuncaoChartProps) 
   return (
     <ResponsiveContainer width="100%" height={180}>
       <BarChart
-        data={data.sort((a, b) => b.media - a.media)}
+        data={dadosValidos.sort((a, b) => b.media - a.media)}
         layout="vertical"
         margin={{ left: 120, right: 10 }}
       >
@@ -49,7 +64,7 @@ export default function MediaPorFuncaoChart({ data }: MediaPorFuncaoChartProps) 
           labelFormatter={label => label}
         />
         <Bar dataKey="media" radius={[0, 6, 6, 0]}>
-          {data.map((entry, i) => (
+          {dadosValidos.map((entry, i) => (
             <Cell key={entry.nome_funcao} fill={cores[i % cores.length]} />
           ))}
         </Bar>

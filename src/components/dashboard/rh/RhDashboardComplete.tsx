@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo } from "react";
-import { useRhDashboardData } from "@/hooks/dashboard/useRhDashboardData";
+import { useRhDashboardDataSecure } from "@/hooks/dashboard/useRhDashboardDataSecure";
 import { Card } from "@/components/ui/card";
 import { Users, UserCheck, Calendar, Group, PieChart, BarChart } from "lucide-react";
 import { usePermissionGuard } from "@/hooks/usePermissionGuard";
@@ -9,11 +8,11 @@ import TopFuncionariosCards from "./TopFuncionariosCards";
 import TopEquipesCards from "./TopEquipesCards";
 import DistribuicaoCharts from "./DistribuicaoCharts";
 import EvolucaoChart from "./EvolucaoChart";
+import RhSecurityIndicator from "./RhSecurityIndicator";
 import { FolhaPagamentoResumo } from "./FolhaPagamentoResumo";
 import { useFinanceiroDashboard } from "@/hooks/dashboard/useFinanceiroDashboard";
 import { Badge } from "@/components/ui/badge";
 
-// estados/init igual...
 export default function RhDashboardComplete() {
   // ... filtros e estados igual...
   const [period, setPeriod] = useState<"6m" | "12m" | "all">("12m");
@@ -61,9 +60,11 @@ export default function RhDashboardComplete() {
 
   // Permissões
   const { canAccess } = usePermissionGuard({ requiredPermission: "dashboard_rh_view" });
-  const { kpisQuery, distribuicaoQuery, evolucaoTemporal, analiseIndividual, analiseEquipe } = useRhDashboardData(filters);
+  
+  // Usar hook seguro em vez do original
+  const { kpisQuery, distribuicaoQuery, evolucaoTemporal, analiseIndividual, analiseEquipe, securityContext } = useRhDashboardDataSecure(filters);
 
-  // Hook financeiro (novo)
+  // Hook financeiro (mantido igual)
   const { totalQuery, filtroQuery } = useFinanceiroDashboard({
     ...filters
   });
@@ -127,6 +128,9 @@ export default function RhDashboardComplete() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Indicador de Segurança */}
+      <RhSecurityIndicator securityContext={securityContext} />
+
       {/* Painel de Filtros */}
       <RhDashboardFilters
         period={period}
@@ -147,6 +151,7 @@ export default function RhDashboardComplete() {
         onResetFilters={resetFilters}
         filtrosAtivos={filtrosAtivos}
       />
+      
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="flex flex-col items-center p-4 gap-2">
@@ -178,6 +183,7 @@ export default function RhDashboardComplete() {
           <span className="text-2xl font-bold">{kpisQuery.data?.turnover ?? 0}%</span>
         </Card>
       </div>
+      
       {/* RESUMO FINANCEIRO */}
       <div>
         {loadingFinanceiro ? (
@@ -191,26 +197,31 @@ export default function RhDashboardComplete() {
           />
         )}
       </div>
+      
       {/* Gráficos Dashboard */}
       <div>
         <h2 className="font-semibold text-lg mb-2 flex gap-2 items-center"><PieChart className="h-5 w-5" /> Distribuição de Funcionários</h2>
         <DistribuicaoCharts distribuicaoQuery={distribuicaoQuery} />
       </div>
+      
       {/* Evolução temporal */}
       <div>
         <h2 className="font-semibold text-lg mb-2 flex gap-2 items-center"><BarChart className="h-5 w-5" /> Evolução Mensal de Funcionários</h2>
         <EvolucaoChart evolucaoTemporal={evolucaoTemporal} />
       </div>
+      
       {/* Top 10 Funcionários */}
       <div>
         <h2 className="font-semibold text-lg mb-2 flex gap-2 items-center"><UserCheck className="h-5 w-5" /> Top 10 Funcionários Mais Bem Avaliados</h2>
         <TopFuncionariosCards funcionarios={topFuncionarios} />
       </div>
+      
       {/* Top 5 Equipes */}
       <div>
         <h2 className="font-semibold text-lg mb-2 flex gap-2 items-center"><Group className="h-5 w-5" /> Melhores Equipes</h2>
         <TopEquipesCards equipes={topEquipes} />
       </div>
+      
       {/* Badge de filtros ativos */}
       {filtrosAtivos > 0 && (
         <div className="sticky bottom-5 left-0 z-50 p-3 flex justify-end">

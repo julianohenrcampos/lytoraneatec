@@ -53,19 +53,24 @@ export const useRhDashboardData = (filters: {
   const kpisQuery = useQuery<RhKpis>({
     queryKey: ["rh-kpis", filters],
     queryFn: async () => {
+      console.log("🔍 DEBUG kpisQuery - iniciando consulta KPIs");
+      
       // Total ativos
       const { count: totalAtivos } = await supabase
         .from("bd_funcionarios")
         .select("*", { count: "exact", head: true })
         .eq("status", "Ativo");
+        
       // Total de funcionários
       const { count: totalFuncionarios } = await supabase
         .from("bd_funcionarios")
         .select("*", { count: "exact", head: true });
+        
       // Total de equipes
       const { count: totalEquipes } = await supabase
         .from("bd_equipes")
         .select("*", { count: "exact", head: true });
+        
       // Turnover estimado - número de demissões no período vs base
       const { count: demissoesPeriodo } = await supabase
         .from("bd_funcionarios")
@@ -73,32 +78,46 @@ export const useRhDashboardData = (filters: {
         .gte("data_demissao", filters.periodStart)
         .lte("data_demissao", filters.periodEnd);
 
+      console.log("🔍 DEBUG kpisQuery - contadores:", {
+        totalAtivos, totalFuncionarios, totalEquipes, demissoesPeriodo
+      });
+
       const { data: funcionariosDataTempo, error: errorTempo } = await supabase
         .from("bd_funcionarios")
         .select("data_admissao, data_demissao")
         .eq("status", "Ativo");
 
-      // Tempo médio de empresa (em meses)
+      console.log("🔍 DEBUG kpisQuery - funcionários para tempo médio:", funcionariosDataTempo?.length || 0);
+
+      // Tempo médio de empresa (em meses) - CORRIGIDO para retornar número inteiro
       const now = new Date();
       let tempoTotal = 0;
       let tempoCount = 0;
+      
       if (funcionariosDataTempo && funcionariosDataTempo.length) {
         funcionariosDataTempo.forEach(f => {
           if (f.data_admissao) {
             const admissaoDate = new Date(f.data_admissao);
-            const diff =
-              (now.getFullYear() - admissaoDate.getFullYear()) * 12 +
-              (now.getMonth() - admissaoDate.getMonth());
+            const diff = (now.getFullYear() - admissaoDate.getFullYear()) * 12 + (now.getMonth() - admissaoDate.getMonth());
             tempoTotal += diff;
             tempoCount += 1;
           }
         });
       }
-      const tempoMedioMeses = tempoCount > 0 ? (tempoTotal / tempoCount) : 0;
+      
+      // APLICAR Math.round() para garantir número inteiro
+      const tempoMedioMeses = tempoCount > 0 ? Math.round(tempoTotal / tempoCount) : 0;
+      
       // Turnover %
-      const turnover = totalFuncionarios
-        ? ((demissoesPeriodo || 0) / totalFuncionarios) * 100
-        : 0;
+      const turnover = totalFuncionarios ? ((demissoesPeriodo || 0) / totalFuncionarios) * 100 : 0;
+
+      console.log("🔍 DEBUG kpisQuery - resultados:", {
+        totalAtivos: totalAtivos || 0,
+        totalFuncionarios: totalFuncionarios || 0,
+        totalEquipes: totalEquipes || 0,
+        tempoMedioMeses,
+        turnover: Number(turnover.toFixed(1))
+      });
 
       return {
         totalAtivos: totalAtivos || 0,
@@ -110,7 +129,7 @@ export const useRhDashboardData = (filters: {
     }
   });
 
-  // 2. Distribuição por Departamento, Função, Centro de Custo
+  // 2. Distribuição por Departamento, Função, Centro de Custo e Gênero
   const distribuicaoQuery = useQuery({
     queryKey: ["rh-distribuicao", filters],
     queryFn: async () => {
@@ -125,13 +144,20 @@ export const useRhDashboardData = (filters: {
         .select("funcao_id, bd_funcoes(nome_funcao)")
         .eq("status", "Ativo");
 
+      // Atualizar para buscar código do centro de custo
       const { data: centroDist } = await supabase
         .from("bd_funcionarios")
-        .select("centro_custo_id, bd_centros_custo(nome_centro_custo)")
+        .select("centro_custo_id, bd_centros_custo(codigo_centro_custo, nome_centro_custo)")
+        .eq("status", "Ativo");
+
+      // Nova consulta para distribuição por gênero
+      const { data: generoDist } = await supabase
+        .from("bd_funcionarios")
+        .select("genero")
         .eq("status", "Ativo");
 
       // Vai devolver array of { departamento_id, bd_departamentos: [{ nome_departamento }] }
-      return { deptoDist, funcaoDist, centroDist };
+      return { deptoDist, funcaoDist, centroDist, generoDist };
     },
   });
 
