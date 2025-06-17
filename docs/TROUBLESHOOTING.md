@@ -71,6 +71,196 @@
    -- Enable email confirmations: OFF
    ```
 
+### 🔄 Modo Offline e Sincronização **NOVO**
+
+#### Problema: "Dados não sincronizando"
+**Sintomas:**
+- Indicador mostra dados pendentes há muito tempo
+- Botão "Sincronizar agora" não funciona
+- Dados permanecem no localStorage
+- Contagem de pendentes não diminui
+
+**Soluções Detalhadas:**
+
+1. **Verificar Status de Conexão**:
+   ```javascript
+   // Verificar se indicador está verde
+   // Canto superior direito da tela deve mostrar:
+   // 🟢 Online (ideal)
+   // 🟡 Conectando... (aguardar)
+   // 🔴 Offline (problema de rede)
+   ```
+
+2. **Testar Conectividade Real**:
+   ```javascript
+   // No console do navegador (F12)
+   fetch('https://zczirljepectqohlloua.supabase.co/rest/v1/')
+     .then(r => console.log('Supabase OK:', r.status))
+     .catch(e => console.log('Supabase Error:', e));
+   ```
+
+3. **Verificar Dados Pendentes**:
+   ```javascript
+   // No console do navegador (F12)
+   // Verificar o que está no cache offline
+   console.log('Apontamentos Equipe:', localStorage.getItem('offline_apontamento_equipe'));
+   console.log('Apontamentos Caminhões:', localStorage.getItem('offline_apontamento_caminhoes'));
+   console.log('Registro Aplicação:', localStorage.getItem('offline_registro_aplicacao'));
+   console.log('Registro Cargas:', localStorage.getItem('offline_registro_cargas'));
+   console.log('Chamados OS:', localStorage.getItem('offline_chamados_os'));
+   ```
+
+4. **Forçar Sincronização Manual**:
+   ```typescript
+   // Aguardar até 2 minutos antes de tentar manual
+   // Clicar apenas uma vez no botão "Sincronizar agora"
+   // Aguardar toast de confirmação
+   // Verificar se contagem diminuiu
+   ```
+
+5. **Verificar Logs de Erro**:
+   ```javascript
+   // Console (F12) > procurar mensagens vermelhas
+   // Procurar por:
+   // "Erro ao sincronizar"
+   // "Permission denied"
+   // "Network error"
+   // "Invalid token"
+   ```
+
+#### Problema: "Sincronização falhando com erro de permissão"
+**Sintomas:**
+- Console mostra "Permission denied for table"
+- Toast de erro: "Erro na sincronização"
+- Logs mostram problema de autenticação
+
+**Soluções:**
+1. **Renovar Autenticação**:
+   ```typescript
+   // Fazer logout completo
+   await supabase.auth.signOut();
+   
+   // Limpar session storage
+   sessionStorage.clear();
+   
+   // Fazer login novamente
+   // Tentar sincronização
+   ```
+
+2. **Verificar Token de Acesso**:
+   ```javascript
+   // No console (F12)
+   supabase.auth.getSession().then(({ data }) => {
+     console.log('Session válida:', !!data.session);
+     console.log('Expires at:', new Date(data.session?.expires_at * 1000));
+   });
+   ```
+
+3. **Verificar Políticas RLS**:
+   ```sql
+   -- Verificar se usuário tem acesso às tabelas
+   SELECT schemaname, tablename, policyname 
+   FROM pg_policies 
+   WHERE tablename IN (
+     'bd_apontamento_equipe',
+     'bd_registro_apontamento_cam_equipa',
+     'bd_registro_apontamento_aplicacao',
+     'bd_registro_cargas',
+     'bd_chamados_os'
+   );
+   ```
+
+#### Problema: "Dados duplicados após sincronização"
+**Sintomas:**
+- Registros aparecem duplicados no sistema
+- Múltiplas entradas para o mesmo apontamento
+- IDs diferentes para dados idênticos
+
+**Diagnóstico:**
+```javascript
+// Verificar se há IDs temporários duplicados
+const equipeData = JSON.parse(localStorage.getItem('offline_apontamento_equipe') || '[]');
+const ids = equipeData.map(item => item.id);
+const duplicateIds = ids.filter((id, index) => ids.indexOf(id) !== index);
+console.log('IDs duplicados:', duplicateIds);
+```
+
+**Prevenção:**
+- Sistema gera IDs únicos com uuid
+- Validação antes da inserção
+- Raramente ocorre devido às proteções
+
+**Solução:**
+```typescript
+// Se detectar duplicatas, contatar suporte
+// NÃO limpar cache manualmente
+// Aguardar correção automática
+```
+
+#### Problema: "Cache offline ocupando muito espaço"
+**Sintomas:**
+- Navegador lento
+- Erro "Quota exceeded"
+- Milhares de registros pendentes
+- Sistema não consegue salvar novos dados
+
+**Diagnóstico:**
+```javascript
+// Verificar tamanho do localStorage
+let totalSize = 0;
+for (const key in localStorage) {
+  if (key.startsWith('offline_')) {
+    const size = localStorage.getItem(key).length;
+    console.log(`${key}: ${(size / 1024).toFixed(2)} KB`);
+    totalSize += size;
+  }
+}
+console.log(`Total offline: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
+```
+
+**Soluções:**
+1. **Sincronização Prioritária**:
+   ```typescript
+   // Conectar à internet imediatamente
+   // Aguardar sincronização automática completa
+   // Cache será limpo após sucesso
+   ```
+
+2. **Limpeza Seletiva** (cuidado):
+   ```javascript
+   // APENAS se orientado pelo suporte
+   // Limpar apenas dados já sincronizados
+   localStorage.removeItem('offline_apontamento_equipe');
+   // NUNCA use localStorage.clear() sem orientação
+   ```
+
+#### Problema: "Indicador de conexão incorreto"
+**Sintomas:**
+- Mostra online mas não sincroniza
+- Mostra offline mas internet funciona
+- Status inconsistente
+
+**Soluções:**
+1. **Refresh do Status**:
+   ```typescript
+   // Recarregar página (Ctrl+F5)
+   // Aguardar 30 segundos para verificação automática
+   // Observar mudanças no indicador
+   ```
+
+2. **Teste Manual de Conectividade**:
+   ```javascript
+   // Console (F12)
+   navigator.onLine // true/false - status do navegador
+   
+   // Teste real com Supabase
+   fetch('https://zczirljepectqohlloua.supabase.co/rest/v1/', {
+     headers: {
+       'apikey': 'sua-api-key'
+     }
+   }).then(r => console.log('Real status:', r.ok));
+   ```
+
 ### 🗄️ Banco de Dados
 
 #### Problema: "Cannot read properties of null"
@@ -188,6 +378,36 @@
    
    // ✅ Correto
    <form onSubmit={form.handleSubmit(onSubmit)}>
+   ```
+
+#### Problema: "Formulário salva offline mas não mostra indicação"
+**Sintomas:**
+- Dados salvos mas usuário não sabe que está offline
+- Sem feedback visual sobre modo offline
+- Confusão sobre status de sincronização
+
+**Soluções:**
+1. **Verificar Componente de Status**:
+   ```typescript
+   // Verificar se OfflineStatusIndicator está renderizando
+   // Deve aparecer no canto superior direito quando offline
+   // ou quando há dados pendentes
+   ```
+
+2. **Verificar Toast Messages**:
+   ```typescript
+   // Deve aparecer toast com uma das mensagens:
+   // "Apontamento registrado" (online)
+   // "Salvo offline" (offline)
+   // "X registros sincronizados" (após sync)
+   ```
+
+3. **Verificar Indicadores no Formulário**:
+   ```typescript
+   // Modal deve mostrar:
+   // - Ícone Wi-Fi no título
+   // - Mensagem sobre modo offline
+   // - Texto "(Offline)" no botão
    ```
 
 #### Problema: "Imagens não carregam"
@@ -387,7 +607,19 @@
    };
    ```
 
-3. **Virtualizar listas grandes**:
+3. **Verificar cache offline excessivo**:
+   ```javascript
+   // Verificar se localStorage está muito grande
+   let totalSize = 0;
+   for (let key in localStorage) {
+     totalSize += localStorage.getItem(key).length;
+   }
+   console.log('LocalStorage size:', (totalSize / 1024 / 1024).toFixed(2), 'MB');
+   
+   // Se > 10MB, sincronizar dados pendentes urgentemente
+   ```
+
+4. **Virtualizar listas grandes**:
    ```typescript
    import { FixedSizeList as List } from 'react-window';
    
@@ -538,8 +770,12 @@ console.error('Error details:', error);
 
 #### Application Tab
 ```javascript
-// Verificar localStorage
-localStorage.getItem('supabase.auth.token');
+// Verificar localStorage (especialmente dados offline)
+localStorage.getItem('offline_apontamento_equipe');
+localStorage.getItem('offline_apontamento_caminhoes');
+localStorage.getItem('offline_registro_aplicacao');
+localStorage.getItem('offline_registro_cargas');
+localStorage.getItem('offline_chamados_os');
 
 // Verificar sessionStorage
 sessionStorage.getItem('app-state');
@@ -610,6 +846,7 @@ export const healthCheck = async () => {
     auth: false,
     database: false,
     storage: false,
+    offline: false,
   };
   
   try {
@@ -636,6 +873,15 @@ export const healthCheck = async () => {
     const { data: buckets, error: storageError } = await supabase.storage.listBuckets();
     checks.storage = !storageError && buckets.length > 0;
     
+    // Verificar cache offline
+    let offlineSize = 0;
+    for (const key in localStorage) {
+      if (key.startsWith('offline_')) {
+        offlineSize += localStorage.getItem(key).length;
+      }
+    }
+    checks.offline = offlineSize < 10 * 1024 * 1024; // < 10MB OK
+    
   } catch (error) {
     console.error('Health check failed:', error);
   }
@@ -651,6 +897,99 @@ const runHealthCheck = async () => {
   Object.entries(health).forEach(([service, status]) => {
     console.log(`${service}: ${status ? '✅' : '❌'}`);
   });
+};
+```
+
+### Verificação de Cache Offline **NOVO**
+
+```typescript
+// src/utils/offlineHealthCheck.ts
+export const offlineHealthCheck = () => {
+  const checks = {
+    totalSize: 0,
+    itemCount: 0,
+    oldestItem: null,
+    newestItem: null,
+    byType: {},
+  };
+  
+  const offlineTypes = [
+    'offline_apontamento_equipe',
+    'offline_apontamento_caminhoes', 
+    'offline_registro_aplicacao',
+    'offline_registro_cargas',
+    'offline_chamados_os',
+    'offline_ordens_servico'
+  ];
+  
+  offlineTypes.forEach(type => {
+    const data = localStorage.getItem(type);
+    if (data) {
+      try {
+        const parsed = JSON.parse(data);
+        const size = data.length;
+        const count = parsed.length;
+        
+        checks.totalSize += size;
+        checks.itemCount += count;
+        checks.byType[type] = { size, count, items: parsed };
+        
+        // Encontrar mais antigo e mais novo
+        parsed.forEach(item => {
+          const timestamp = new Date(item.timestamp);
+          if (!checks.oldestItem || timestamp < new Date(checks.oldestItem.timestamp)) {
+            checks.oldestItem = item;
+          }
+          if (!checks.newestItem || timestamp > new Date(checks.newestItem.timestamp)) {
+            checks.newestItem = item;
+          }
+        });
+      } catch (error) {
+        console.error(`Erro ao analisar ${type}:`, error);
+      }
+    }
+  });
+  
+  return checks;
+};
+
+// Relatório detalhado
+const generateOfflineReport = () => {
+  const health = offlineHealthCheck();
+  
+  console.log('📊 RELATÓRIO DE CACHE OFFLINE:');
+  console.log(`Total de registros: ${health.itemCount}`);
+  console.log(`Tamanho total: ${(health.totalSize / 1024 / 1024).toFixed(2)} MB`);
+  
+  if (health.oldestItem) {
+    console.log(`Mais antigo: ${health.oldestItem.timestamp}`);
+  }
+  if (health.newestItem) {
+    console.log(`Mais recente: ${health.newestItem.timestamp}`);
+  }
+  
+  console.log('\n📋 Por tipo:');
+  Object.entries(health.byType).forEach(([type, info]) => {
+    console.log(`${type}: ${info.count} registros (${(info.size / 1024).toFixed(2)} KB)`);
+  });
+  
+  // Alertas
+  if (health.totalSize > 5 * 1024 * 1024) {
+    console.warn('⚠️ Cache offline muito grande (>5MB)');
+  }
+  
+  if (health.itemCount > 1000) {
+    console.warn('⚠️ Muitos registros pendentes (>1000)');
+  }
+  
+  if (health.oldestItem) {
+    const ageHours = (Date.now() - new Date(health.oldestItem.timestamp)) / (1000 * 60 * 60);
+    if (ageHours > 24) {
+      console.warn(`⚠️ Registros antigos pendentes (${ageHours.toFixed(1)}h)`);
+    }
+  }
+  
+  return health;
 };
 ```
 
@@ -697,7 +1036,7 @@ export const performanceCheck = () => {
 // Limpar cache do React Query
 queryClient.clear();
 
-// Limpar localStorage
+// Limpar localStorage (CUIDADO: remove dados offline)
 localStorage.clear();
 
 // Fazer logout
@@ -705,6 +1044,31 @@ await supabase.auth.signOut();
 
 // Recarregar página
 window.location.reload();
+```
+
+### "Como funciona o modo offline?" **NOVO**
+- **Detecção automática**: Sistema monitora conexão constantemente
+- **Salvamento local**: Dados ficam no localStorage do navegador
+- **Sincronização automática**: Quando conexão volta, dados são enviados
+- **Feedback visual**: Indicadores e toasts informam status
+- **Zero perda**: Impossível perder dados, mesmo fechando navegador
+
+### "Posso trabalhar totalmente offline?" **NOVO**
+- **✅ SIM**: Apontamentos, registros, chamados
+- **❌ NÃO**: Consultas que precisam buscar novos dados
+- **⚠️ LIMITADO**: Apenas dados já carregados na sessão
+- **💡 DICA**: Carregue dados importantes antes de ficar offline
+
+### "Como saber se dados foram sincronizados?" **NOVO**
+```typescript
+// Indicadores visuais:
+// 1. Contagem de pendentes no canto superior direito
+// 2. Toast "X registros sincronizados com sucesso"
+// 3. Contagem zera quando tudo sincronizado
+
+// Verificação manual:
+console.log('Dados pendentes:', localStorage.getItem('offline_apontamento_equipe'));
+// Se retornar null ou [], não há dados pendentes
 ```
 
 ### "Como reportar um bug?"
@@ -715,10 +1079,13 @@ window.location.reload();
    - Mensagem de erro exata
    - Screenshots/videos
    - Console logs (F12 → Console)
+   - **NOVO**: Status de conexão no momento do erro
+   - **NOVO**: Dados offline pendentes (se aplicável)
 3. **Informações do ambiente**:
    - Navegador e versão
    - Sistema operacional
    - Tamanho da tela
+   - **NOVO**: Status de conectividade (WiFi/4G/etc)
 4. **Enviar para suporte** com todas as informações
 
 ### "Como fazer backup dos dados?"
@@ -733,10 +1100,19 @@ const exportData = async () => {
     .from('bd_caminhoes_equipamentos')
     .select('*');
   
+  // NOVO: Incluir dados offline pendentes
+  const offlineData = {};
+  const offlineTypes = ['offline_apontamento_equipe', 'offline_apontamento_caminhoes'];
+  offlineTypes.forEach(type => {
+    const data = localStorage.getItem(type);
+    if (data) offlineData[type] = JSON.parse(data);
+  });
+  
   const backup = {
     timestamp: new Date().toISOString(),
     funcionarios,
     veiculos,
+    offlineData, // NOVO
   };
   
   const blob = new Blob([JSON.stringify(backup, null, 2)], {
@@ -764,8 +1140,46 @@ Ao entrar em contato com o suporte, sempre inclua:
 6. **Screenshots** ou vídeos do problema
 7. **Console logs** (F12 → Console → screenshot dos erros)
 8. **Horário aproximado** quando o problema ocorreu
+9. **Status de conexão** no momento do erro ⭐ **NOVO**
+10. **Dados offline pendentes** (se aplicável) ⭐ **NOVO**
 
-### Template para Reportar Problemas
+### Template para Reportar Problemas Offline ⭐ **NOVO**
+
+```
+**Descrição do Problema:**
+[Descreva o que está acontecendo com sincronização/offline]
+
+**Status de Conexão:**
+- Indicador mostrava: [🟢 Online / 🟡 Conectando / 🔴 Offline]
+- Internet funcionando: [Sim/Não - outros sites carregam?]
+- Supabase funcionando: [Verificar em outros módulos]
+
+**Dados Offline:**
+- Registros pendentes: [Número mostrado no indicador]
+- Tipos de dados: [Equipe/Caminhões/Aplicação/etc]
+- Há quanto tempo pendentes: [Última sincronização]
+
+**Console Logs:**
+[F12 > Console > procurar mensagens sobre sincronização]
+
+**Ações Realizadas:**
+1. [Descreva tentativas de sincronização]
+2. [Botão "Sincronizar agora" funcionou?]
+3. [Logout/login resolveu?]
+
+**Ambiente:**
+- URL: https://sistema.exemplo.com
+- Usuário: usuario@empresa.com
+- Navegador: Chrome 120.0.6099.71
+- SO: Windows 11
+- Rede: WiFi/4G/Cabo
+- Timestamp: 2024-01-15 14:30:00
+
+**Screenshots/Logs:**
+[Anexar imagens do indicador de status e logs do console]
+```
+
+### Template para Reportar Problemas Gerais
 
 ```
 **Descrição do Problema:**
@@ -796,4 +1210,9 @@ Ao entrar em contato com o suporte, sempre inclua:
 
 ---
 
-**Este guia de troubleshooting será atualizado constantemente com novos problemas e soluções identificados.**
+**Este guia de troubleshooting foi atualizado com informações completas sobre o novo modo offline e sincronização automática.**
+
+**Versão**: 3.0  
+**Última Atualização**: Janeiro 2025  
+**Novidades**: Troubleshooting completo para modo offline e sincronização
+

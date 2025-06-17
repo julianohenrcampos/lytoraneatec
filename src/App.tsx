@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,10 +7,14 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { TimezoneProvider } from "@/contexts/TimezoneContext";
 import RouteProtection from "@/components/routing/RouteProtection";
 import MainLayout from "./components/layout/MainLayout";
-import Dashboard from "./pages/Dashboard"; // Direct import for Dashboard
+import { OfflineStatusIndicator } from "@/components/offline/OfflineStatusIndicator";
+import { useOfflineSync } from "@/hooks/useOfflineSync";
+import { useConnectionStatus } from "@/hooks/useConnectionStatus";
+import { useEffect } from "react";
+import Dashboard from "./pages/Dashboard"; // Fixed import
 import Dashboard1 from "./pages/Dashboard1";
-import DashboardRH from "./pages/DashboardRH"; // Import for DashboardRH
-import DashboardMaquinas from "./pages/DashboardMaquinas"; // Import for DashboardMaquinas
+import DashboardRH from "./pages/DashboardRH";
+import DashboardMaquinas from "./pages/DashboardMaquinas";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -45,6 +50,20 @@ const queryClient = new QueryClient({
   },
 });
 
+// Componente para gerenciar sincronização offline global
+const OfflineSyncManager: React.FC = () => {
+  const { isSupabaseConnected } = useConnectionStatus();
+  const { syncStatus } = useOfflineSync();
+
+  useEffect(() => {
+    if (isSupabaseConnected && syncStatus.pendingCount > 0) {
+      console.log('🔄 Conexão detectada, sincronização automática será iniciada...');
+    }
+  }, [isSupabaseConnected, syncStatus.pendingCount]);
+
+  return null;
+};
+
 const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
@@ -54,6 +73,10 @@ const App = () => {
           <Sonner />
           <BrowserRouter>
             <RouteProtection>
+              {/* Componentes para gestão offline global */}
+              <OfflineSyncManager />
+              <OfflineStatusIndicator />
+              
               <Routes>
                 {/* Directly render Dashboard at root path */}
                 <Route path="/" element={<Dashboard />} />

@@ -1,722 +1,66 @@
 
-# Guia de Desenvolvimento 🚀
+# Guia de Desenvolvimento - Sistema LYTEC 💻
+
+## Índice
+
+1. [Configuração do Ambiente](#configuração-do-ambiente)
+2. [**Desenvolvimento com Modo Offline**](#desenvolvimento-com-modo-offline) 🔄 **NOVO**
+3. [Estrutura e Convenções](#estrutura-e-convenções)
+4. [Padrões de Código](#padrões-de-código)
+5. [Banco de Dados](#banco-de-dados)
+6. [Testing](#testing)
+7. [Deployment](#deployment)
+8. [Troubleshooting](#troubleshooting)
 
 ## Configuração do Ambiente
 
 ### Pré-requisitos
+- Node.js 18+ 
+- npm ou yarn
+- Git
+- VS Code (recomendado)
 
-#### Software Necessário
-- **Node.js** 18+ ([Download](https://nodejs.org/))
-- **npm** 9+ ou **yarn** 1.22+
-- **Git** ([Download](https://git-scm.com/))
-- **VS Code** ou editor de sua preferência
-- **Conta no Supabase** ([Criar conta](https://supabase.com/))
+### Setup Inicial
+```bash
+# Clone do repositório
+git clone <repository-url>
+cd lytec-system
 
-#### Extensões Recomendadas para VS Code
+# Instalação de dependências
+npm install
+
+# Configuração das variáveis de ambiente
+cp .env.example .env.local
+
+# Configurar variáveis no .env.local
+VITE_SUPABASE_URL=https://zczirljepectqohlloua.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+# Executar em modo desenvolvimento
+npm run dev
+```
+
+### Extensões VS Code Recomendadas
 ```json
 {
   "recommendations": [
     "bradlc.vscode-tailwindcss",
     "esbenp.prettier-vscode",
     "ms-vscode.vscode-typescript-next",
-    "ms-vscode.vscode-eslint",
-    "formulahendry.auto-rename-tag",
     "ms-vscode.vscode-json",
-    "yzhang.markdown-all-in-one"
+    "formulahendry.auto-rename-tag",
+    "christian-kohler.path-intellisense",
+    "ms-vscode.vscode-eslint"
   ]
 }
 ```
 
-### Configuração Inicial
-
-#### 1. Clone do Repositório
-```bash
-# Clone o repositório
-git clone <repository-url>
-cd sistema-asfalto
-
-# Instale as dependências
-npm install
-
-# Ou usando yarn
-yarn install
-```
-
-#### 2. Configuração do Ambiente
-```bash
-# Copie o arquivo de exemplo
-cp .env.example .env
-
-# Edite o arquivo .env com suas configurações
-nano .env
-```
-
-#### 3. Variáveis de Ambiente
-```env
-# Supabase Configuration
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-
-# Development Settings
-VITE_APP_ENV=development
-VITE_APP_VERSION=1.0.0
-
-# Optional: External APIs
-VITE_GOOGLE_MAPS_API_KEY=your-google-maps-key
-```
-
-#### 4. Configuração do Supabase
-
-**Criar Projeto no Supabase:**
-1. Acesse [supabase.com](https://supabase.com/)
-2. Clique em "New Project"
-3. Escolha organização e nome do projeto
-4. Defina senha do banco de dados
-5. Selecione região (preferencialmente São Paulo)
-
-**Configurar Autenticação:**
-```sql
--- Criar tabela de perfis
-CREATE TABLE public.profiles (
-  id UUID REFERENCES auth.users ON DELETE CASCADE,
-  email TEXT,
-  nome_completo TEXT,
-  imagem_url TEXT,
-  funcoes TEXT[] DEFAULT ARRAY['user'::TEXT],
-  funcao_permissao UUID,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  PRIMARY KEY (id)
-);
-
--- Habilitar RLS
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-
--- Política de acesso
-CREATE POLICY "Users can view own profile" 
-ON public.profiles FOR SELECT 
-USING (auth.uid() = id);
-
-CREATE POLICY "Users can update own profile" 
-ON public.profiles FOR UPDATE 
-USING (auth.uid() = id);
-```
-
-**Função para Criar Perfil:**
-```sql
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.profiles (id, email, nome_completo)
-  VALUES (
-    NEW.id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'nome_completo', NEW.email)
-  );
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
-```
-
-#### 5. Executar Migrations
-```bash
-# Se estiver usando migrations locais
-npm run migrate
-
-# Ou execute diretamente no Supabase Dashboard
-```
-
-#### 6. Iniciar Desenvolvimento
-```bash
-# Iniciar servidor de desenvolvimento
-npm run dev
-
-# Ou com yarn
-yarn dev
-
-# Acesse http://localhost:5173
-```
-
-## Estrutura do Projeto
-
-### Organização de Pastas
-
-```
-src/
-├── components/           # Componentes React
-│   ├── ui/              # Componentes base (shadcn/ui)
-│   ├── layout/          # Componentes de layout
-│   ├── dashboard/       # Componentes do dashboard
-│   ├── funcionarios/    # Módulo de RH
-│   ├── veiculos/        # Módulo de máquinas
-│   ├── requisicoes/     # Módulo de requisições
-│   ├── programacao/     # Módulo de programação
-│   ├── registro-cargas/ # Módulo de cargas
-│   └── registro-aplicacao/ # Módulo de aplicação
-├── hooks/               # Hooks personalizados
-│   ├── useAuth.ts       # Hook de autenticação
-│   ├── useForm*.ts      # Hooks de formulários
-│   └── use*.ts          # Hooks específicos
-├── services/            # Serviços e APIs
-│   ├── *Service.ts      # Serviços por entidade
-│   └── api/             # Configurações de API
-├── types/               # Definições TypeScript
-│   ├── *.ts             # Tipos por entidade
-│   └── index.ts         # Exports centralizados
-├── utils/               # Funções utilitárias
-│   ├── calculations.ts  # Cálculos matemáticos
-│   ├── formatters.ts    # Formatação de dados
-│   └── validators.ts    # Validações
-├── validations/         # Schemas Zod
-│   └── *Schema.ts       # Schemas por entidade
-├── lib/                 # Configurações de bibliotecas
-│   ├── utils.ts         # Utilitários gerais
-│   └── auth.ts          # Configuração de auth
-├── pages/               # Páginas da aplicação
-│   ├── Dashboard.tsx    # Dashboard principal
-│   ├── Login.tsx        # Página de login
-│   └── *.tsx            # Outras páginas
-└── constants/           # Constantes da aplicação
-    └── *.ts             # Constantes agrupadas
-```
-
-### Convenções de Nomenclatura
-
-#### Arquivos e Pastas
-```bash
-# Componentes React - PascalCase
-ComponentName.tsx
-FuncionarioForm.tsx
-
-# Hooks - camelCase com prefixo 'use'
-useAuth.ts
-useFuncionarioForm.ts
-
-# Serviços - camelCase com sufixo 'Service'
-funcionarioService.ts
-authService.ts
-
-# Tipos - PascalCase
-FuncionarioType.ts
-ApiResponse.ts
-
-# Utilitários - camelCase
-dateUtils.ts
-mathUtils.ts
-
-# Constantes - camelCase ou SCREAMING_SNAKE_CASE
-apiEndpoints.ts
-API_ENDPOINTS.ts
-```
-
-#### Variáveis e Funções
-```typescript
-// Variáveis - camelCase
-const userName = 'João';
-const isLoggedIn = true;
-const userPreferences = {};
-
-// Funções - camelCase
-function calculateArea(width: number, height: number) {}
-const handleSubmit = () => {};
-
-// Constantes - SCREAMING_SNAKE_CASE
-const API_BASE_URL = 'https://api.exemplo.com';
-const MAX_UPLOAD_SIZE = 5 * 1024 * 1024; // 5MB
-
-// Tipos/Interfaces - PascalCase
-interface UserProfile {}
-type ApiResponse<T> = {};
-
-// Enums - PascalCase
-enum UserRole {
-  ADMIN = 'admin',
-  USER = 'user'
-}
-```
-
-## Padrões de Desenvolvimento
-
-### Componentes React
-
-#### Estrutura Base
-```typescript
-import React, { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-
-// Types
-interface ComponentProps {
-  title: string;
-  isOpen: boolean;
-  onClose: () => void;
-  data?: SomeDataType;
-}
-
-// Schema de validação
-const schema = z.object({
-  name: z.string().min(1, 'Nome é obrigatório'),
-  email: z.string().email('Email inválido'),
-});
-
-type FormData = z.infer<typeof schema>;
-
-// Componente
-export const Component: React.FC<ComponentProps> = ({
-  title,
-  isOpen,
-  onClose,
-  data
-}) => {
-  // Estados
-  const [isLoading, setIsLoading] = useState(false);
-  
-  // Hooks
-  const form = useForm<FormData>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      name: data?.name || '',
-      email: data?.email || '',
-    },
-  });
-
-  // Effects
-  useEffect(() => {
-    if (data) {
-      form.reset(data);
-    }
-  }, [data, form]);
-
-  // Handlers
-  const handleSubmit = async (formData: FormData) => {
-    setIsLoading(true);
-    try {
-      // Lógica de submissão
-      await saveData(formData);
-      onClose();
-    } catch (error) {
-      console.error('Error:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Early returns
-  if (!isOpen) return null;
-
-  // Render
-  return (
-    <div className="component-container">
-      <h2>{title}</h2>
-      <form onSubmit={form.handleSubmit(handleSubmit)}>
-        {/* Form fields */}
-        <button type="submit" disabled={isLoading}>
-          {isLoading ? 'Salvando...' : 'Salvar'}
-        </button>
-      </form>
-    </div>
-  );
-};
-```
-
-### Hooks Personalizados
-
-#### Hook de Formulário
-```typescript
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useToast } from '@/hooks/use-toast';
-
-export const useEntityForm = <T>(
-  schema: ZodSchema<T>,
-  onSuccess?: (data: T) => void,
-  initialData?: Partial<T>
-) => {
-  const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
-  
-  const form = useForm<T>({
-    resolver: zodResolver(schema),
-    defaultValues: initialData as T,
-  });
-
-  const onSubmit = async (data: T) => {
-    setIsLoading(true);
-    try {
-      // Lógica de submissão
-      await submitData(data);
-      
-      toast({
-        title: 'Sucesso',
-        description: 'Dados salvos com sucesso',
-      });
-      
-      onSuccess?.(data);
-    } catch (error) {
-      toast({
-        title: 'Erro',
-        description: 'Erro ao salvar dados',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return {
-    form,
-    isLoading,
-    onSubmit: form.handleSubmit(onSubmit),
-  };
-};
-```
-
-#### Hook de API
-```typescript
-import { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-
-export const useEntityAPI = () => {
-  const queryClient = useQueryClient();
-
-  // Query para buscar dados
-  const {
-    data: entities,
-    isLoading,
-    error,
-    refetch
-  } = useQuery({
-    queryKey: ['entities'],
-    queryFn: () => fetchEntities(),
-  });
-
-  // Mutation para criar
-  const createMutation = useMutation({
-    mutationFn: (data: EntityFormData) => createEntity(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['entities'] });
-    },
-  });
-
-  // Mutation para atualizar
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: EntityFormData }) => 
-      updateEntity(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['entities'] });
-    },
-  });
-
-  // Mutation para deletar
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteEntity(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['entities'] });
-    },
-  });
-
-  return {
-    entities,
-    isLoading,
-    error,
-    refetch,
-    create: createMutation.mutate,
-    update: updateMutation.mutate,
-    delete: deleteMutation.mutate,
-    isCreating: createMutation.isPending,
-    isUpdating: updateMutation.isPending,
-    isDeleting: deleteMutation.isPending,
-  };
-};
-```
-
-### Serviços
-
-#### Serviço Base
-```typescript
-import { supabase } from '@/integrations/supabase/client';
-
-export class BaseService<T> {
-  constructor(private tableName: string) {}
-
-  async findAll(filters?: Record<string, any>): Promise<T[]> {
-    let query = supabase.from(this.tableName).select('*');
-    
-    if (filters) {
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
-          query = query.eq(key, value);
-        }
-      });
-    }
-    
-    const { data, error } = await query.order('created_at', { ascending: false });
-    
-    if (error) throw error;
-    return data as T[];
-  }
-
-  async findById(id: string): Promise<T | null> {
-    const { data, error } = await supabase
-      .from(this.tableName)
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
-    
-    if (error) throw error;
-    return data as T | null;
-  }
-
-  async create(data: Omit<T, 'id' | 'created_at' | 'updated_at'>): Promise<T> {
-    const { data: result, error } = await supabase
-      .from(this.tableName)
-      .insert(data)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return result as T;
-  }
-
-  async update(id: string, data: Partial<T>): Promise<T> {
-    const { data: result, error } = await supabase
-      .from(this.tableName)
-      .update(data)
-      .eq('id', id)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return result as T;
-  }
-
-  async delete(id: string): Promise<void> {
-    const { error } = await supabase
-      .from(this.tableName)
-      .delete()
-      .eq('id', id);
-    
-    if (error) throw error;
-  }
-}
-
-// Uso específico
-export class FuncionarioService extends BaseService<Funcionario> {
-  constructor() {
-    super('bd_funcionarios');
-  }
-
-  async findByEmpresa(empresaId: string): Promise<Funcionario[]> {
-    const { data, error } = await supabase
-      .from('bd_funcionarios')
-      .select(`
-        *,
-        empresa:empresa_id(*),
-        departamento:departamento_id(*),
-        funcao:funcao_id(*)
-      `)
-      .eq('empresa_id', empresaId);
-    
-    if (error) throw error;
-    return data as Funcionario[];
-  }
-}
-
-export const funcionarioService = new FuncionarioService();
-```
-
-### Validações com Zod
-
-#### Schemas Comuns
-```typescript
-import * as z from 'zod';
-
-// Schema base para entidades
-const baseEntitySchema = z.object({
-  id: z.string().uuid().optional(),
-  created_at: z.string().datetime().optional(),
-  updated_at: z.string().datetime().optional(),
-});
-
-// Schema para funcionário
-export const funcionarioSchema = baseEntitySchema.extend({
-  nome_completo: z.string()
-    .min(2, 'Nome deve ter ao menos 2 caracteres')
-    .max(100, 'Nome muito longo'),
-  
-  cpf: z.string()
-    .regex(/^\d{11}$/, 'CPF deve ter 11 dígitos')
-    .refine(isValidCPF, 'CPF inválido'),
-  
-  email: z.string()
-    .email('Email inválido')
-    .optional()
-    .or(z.literal('')),
-  
-  data_nascimento: z.string()
-    .datetime()
-    .optional()
-    .refine((date) => {
-      if (!date) return true;
-      const birth = new Date(date);
-      const today = new Date();
-      const age = today.getFullYear() - birth.getFullYear();
-      return age >= 16 && age <= 80;
-    }, 'Idade deve estar entre 16 e 80 anos'),
-  
-  salario_base: z.number()
-    .min(0, 'Salário não pode ser negativo')
-    .optional(),
-  
-  empresa_id: z.string().uuid('Empresa é obrigatória'),
-  departamento_id: z.string().uuid().optional(),
-  funcao_id: z.string().uuid().optional(),
-});
-
-export type FuncionarioFormData = z.infer<typeof funcionarioSchema>;
-
-// Schema para aplicação de asfalto
-export const aplicacaoSchema = z.object({
-  data_aplicacao: z.string().min(1, 'Data é obrigatória'),
-  hora_chegada_local: z.string().min(1, 'Hora de chegada é obrigatória'),
-  comprimento: z.number()
-    .min(0.1, 'Comprimento deve ser maior que 0'),
-  largura_media: z.number()
-    .min(0.1, 'Largura deve ser maior que 0'),
-  tonelada_aplicada: z.number()
-    .min(0.001, 'Massa deve ser maior que 0'),
-}).refine((data) => {
-  const area = data.comprimento * data.largura_media;
-  const espessura = (data.tonelada_aplicada / area) / 2.4 * 100;
-  return espessura >= 3 && espessura <= 15;
-}, {
-  message: 'Espessura calculada deve estar entre 3cm e 15cm',
-  path: ['tonelada_aplicada']
-});
-```
-
-#### Validações Customizadas
-```typescript
-// Validador de CPF
-export const isValidCPF = (cpf: string): boolean => {
-  if (cpf.length !== 11) return false;
-  
-  // Elimina CPFs conhecidos como inválidos
-  if (/^(\d)\1{10}$/.test(cpf)) return false;
-  
-  // Valida dígitos verificadores
-  let sum = 0;
-  for (let i = 0; i < 9; i++) {
-    sum += parseInt(cpf.charAt(i)) * (10 - i);
-  }
-  
-  let remainder = (sum * 10) % 11;
-  if (remainder === 10 || remainder === 11) remainder = 0;
-  if (remainder !== parseInt(cpf.charAt(9))) return false;
-  
-  sum = 0;
-  for (let i = 0; i < 10; i++) {
-    sum += parseInt(cpf.charAt(i)) * (11 - i);
-  }
-  
-  remainder = (sum * 10) % 11;
-  if (remainder === 10 || remainder === 11) remainder = 0;
-  if (remainder !== parseInt(cpf.charAt(10))) return false;
-  
-  return true;
-};
-
-// Validador de CNPJ
-export const isValidCNPJ = (cnpj: string): boolean => {
-  if (cnpj.length !== 14) return false;
-  
-  // Algoritmo de validação do CNPJ
-  const weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-  const weights2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-  
-  const calc = (weights: number[]) => {
-    const sum = weights.reduce((acc, weight, index) => {
-      return acc + parseInt(cnpj.charAt(index)) * weight;
-    }, 0);
-    
-    const remainder = sum % 11;
-    return remainder < 2 ? 0 : 11 - remainder;
-  };
-  
-  const digit1 = calc(weights1);
-  const digit2 = calc(weights2);
-  
-  return digit1 === parseInt(cnpj.charAt(12)) && 
-         digit2 === parseInt(cnpj.charAt(13));
-};
-```
-
-## Configuração de Ferramentas
-
-### ESLint
+### Configuração do TypeScript
 ```json
-// .eslintrc.json
-{
-  "extends": [
-    "eslint:recommended",
-    "@typescript-eslint/recommended",
-    "plugin:react/recommended",
-    "plugin:react-hooks/recommended"
-  ],
-  "parser": "@typescript-eslint/parser",
-  "parserOptions": {
-    "ecmaVersion": 2020,
-    "sourceType": "module",
-    "ecmaFeatures": {
-      "jsx": true
-    }
-  },
-  "plugins": ["@typescript-eslint", "react", "react-hooks"],
-  "rules": {
-    "react/react-in-jsx-scope": "off",
-    "@typescript-eslint/explicit-function-return-type": "off",
-    "@typescript-eslint/no-explicit-any": "warn",
-    "react-hooks/rules-of-hooks": "error",
-    "react-hooks/exhaustive-deps": "warn"
-  },
-  "settings": {
-    "react": {
-      "version": "detect"
-    }
-  }
-}
-```
-
-### Prettier
-```json
-// .prettierrc
-{
-  "semi": true,
-  "trailingComma": "es5",
-  "singleQuote": true,
-  "printWidth": 80,
-  "tabWidth": 2,
-  "useTabs": false,
-  "jsxSingleQuote": false,
-  "bracketSpacing": true,
-  "jsxBracketSameLine": false,
-  "arrowParens": "avoid",
-  "endOfLine": "lf"
-}
-```
-
-### TypeScript
-```json
-// tsconfig.json
+// tsconfig.json - principais configurações
 {
   "compilerOptions": {
     "target": "ES2020",
-    "useDefineForClassFields": true,
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
@@ -734,211 +78,843 @@ export const isValidCNPJ = (cnpj: string): boolean => {
     "paths": {
       "@/*": ["./src/*"]
     }
-  },
-  "include": ["src"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  }
 }
 ```
 
-### Vite
+## Desenvolvimento com Modo Offline 🔄
+
+### Arquitetura de Desenvolvimento Offline
+
+#### 1. **Estrutura de Arquivos Offline**
+```
+src/
+├── hooks/
+│   ├── useConnectionStatus.ts      # Monitor de conectividade
+│   ├── useOfflineSync.ts          # Engine de sincronização  
+│   ├── useApontamentoEquipeOffline.ts
+│   ├── useApontamentoCaminhoesOffline.ts
+│   └── use[Modulo]Offline.ts      # Padrão para novos módulos
+├── utils/
+│   └── salvarOffline.ts           # Utilitários de armazenamento
+├── components/
+│   ├── offline/
+│   │   ├── OfflineStatusIndicator.tsx
+│   │   └── ConnectionMonitor.tsx
+│   └── [modulo]/
+│       └── [Modulo]FormOffline.tsx # Forms com suporte offline
+└── types/
+    └── offline.ts                 # Types para funcionalidade offline
+```
+
+#### 2. **Padrão para Implementar Novo Módulo Offline**
+
+**Passo 1: Criar Hook Offline**
 ```typescript
-// vite.config.ts
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import path from 'path';
+// src/hooks/use[Modulo]Offline.ts
+import { useState } from 'react';
+import { useConnectionStatus } from './useConnectionStatus';
+import { useToast } from './use-toast';
+import { salvarApontamentoOffline } from '@/utils/salvarOffline';
+import { create[Modulo] } from '@/services/[modulo]Service';
+import { useAuth } from './useAuth';
 
-export default defineConfig({
-  plugins: [react()],
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
-  },
-  server: {
-    port: 5173,
-    host: true,
-    open: true,
-  },
-  build: {
-    outDir: 'dist',
-    sourcemap: true,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          ui: ['@radix-ui/react-dialog', '@radix-ui/react-select'],
-          utils: ['date-fns', 'lodash'],
-        },
-      },
-    },
-  },
-  optimizeDeps: {
-    include: ['react', 'react-dom'],
-  },
+export const use[Modulo]Offline = () => {
+  const [isLoading, setIsLoading] = useState(false);
+  const { isSupabaseConnected } = useConnectionStatus();
+  const { toast } = useToast();
+  const { userId } = useAuth();
+
+  const submit[Modulo] = async (formData: any, onSuccess?: () => void) => {
+    setIsLoading(true);
+    
+    try {
+      if (isSupabaseConnected) {
+        // Online: Enviar direto para Supabase
+        console.log('📡 Enviando [modulo] online...');
+        await create[Modulo](formData);
+        
+        toast({
+          title: "[Modulo] registrado",
+          description: "[Modulo] salvo com sucesso",
+          variant: "default"
+        });
+      } else {
+        // Offline: Salvar no localStorage
+        console.log('📵 Salvando [modulo] offline...');
+        
+        salvarApontamentoOffline('[tipo_modulo]', formData, userId);
+        
+        toast({
+          title: "Salvo offline",
+          description: "[Modulo] será sincronizado quando a internet voltar",
+          variant: "default"
+        });
+      }
+      
+      onSuccess?.();
+    } catch (error) {
+      console.error('Erro ao submeter [modulo]:', error);
+      
+      toast({
+        title: "Erro",
+        description: error instanceof Error ? error.message : "Erro ao salvar [modulo]",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return {
+    submit[Modulo],
+    isLoading,
+    isOffline: !isSupabaseConnected
+  };
+};
+```
+
+**Passo 2: Adicionar Tipo no salvarOffline.ts**
+```typescript
+// src/utils/salvarOffline.ts
+export type TipoApontamento = 
+  | 'apontamento_equipe'
+  | 'apontamento_caminhoes'
+  | 'registro_aplicacao'
+  | 'registro_cargas'
+  | 'chamados_os'
+  | 'ordens_servico'
+  | '[novo_tipo_modulo]'; // ⭐ ADICIONAR AQUI
+
+export const TIPOS_APONTAMENTO: Record<TipoApontamento, ConfigTipoApontamento> = {
+  // ... tipos existentes
+  '[novo_tipo_modulo]': {
+    tabela: 'bd_[tabela_modulo]',
+    chaveLocalStorage: 'offline_[modulo]',
+    nomeExibicao: '[Nome Exibição do Módulo]'
+  }
+};
+```
+
+**Passo 3: Adaptar Componente de Formulário**
+```typescript
+// src/components/[modulo]/[Modulo]FormOffline.tsx
+import { useConnectionStatus } from '@/hooks/useConnectionStatus';
+import { use[Modulo]Offline } from '@/hooks/use[Modulo]Offline';
+
+const [Modulo]FormOffline = ({ isOpen, onClose, onSuccess }) => {
+  const { isSupabaseConnected } = useConnectionStatus();
+  const { submit[Modulo], isLoading, isOffline } = use[Modulo]Offline();
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            Novo [Módulo]
+            {/* Indicador de status */}
+            {isOffline && (
+              <div className="flex items-center gap-1 text-orange-600">
+                <WifiOff className="h-4 w-4" />
+                <span className="text-sm">Offline</span>
+              </div>
+            )}
+            {isSupabaseConnected && (
+              <div className="flex items-center gap-1 text-green-600">
+                <Wifi className="h-4 w-4" />
+                <span className="text-sm">Online</span>
+              </div>
+            )}
+          </DialogTitle>
+          
+          <DialogDescription>
+            {isOffline && (
+              <div className="mt-2 text-orange-600 text-sm">
+                Modo offline ativo - dados serão sincronizados automaticamente
+              </div>
+            )}
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Alert de modo offline */}
+        {isOffline && (
+          <Alert>
+            <WifiOff className="h-4 w-4" />
+            <AlertTitle>Modo Offline</AlertTitle>
+            <AlertDescription>
+              O [módulo] será salvo localmente e sincronizado quando a conexão for restaurada.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(submit[Modulo])}>
+            {/* Campos do formulário */}
+            
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <div className="animate-spin h-4 w-4 mr-2 border-2 border-current border-t-transparent rounded-full" />
+                    {isOffline ? "Salvando offline..." : "Salvando..."}
+                  </>
+                ) : (
+                  `Salvar [Módulo] ${isOffline ? "(Offline)" : ""}`
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+```
+
+#### 3. **Testando Funcionalidade Offline**
+
+**Simular Modo Offline no Navegador:**
+```javascript
+// Console do navegador (F12)
+// 1. Simular offline
+Object.defineProperty(navigator, 'onLine', {
+  writable: true,
+  value: false
 });
+window.dispatchEvent(new Event('offline'));
+
+// 2. Simular online
+Object.defineProperty(navigator, 'onLine', {
+  writable: true, 
+  value: true
+});
+window.dispatchEvent(new Event('online'));
 ```
 
-## Processo de Desenvolvimento
-
-### Git Workflow
-
-#### Branches
-```bash
-# Branch principal
-main
-
-# Branches de desenvolvimento
-develop
-
-# Feature branches
-feature/nome-da-funcionalidade
-feature/adicionar-modulo-estoque
-
-# Hotfix branches
-hotfix/corrigir-bug-critico
-
-# Release branches
-release/v1.2.0
+**DevTools Network Tab:**
+```
+1. F12 > Network tab
+2. Checkbox "Offline" para simular perda de conexão
+3. Testar formulários em modo offline
+4. Desmarcar "Offline" para simular reconexão
+5. Verificar sincronização automática
 ```
 
-#### Comandos Comuns
-```bash
-# Criar nova feature
-git checkout develop
-git pull origin develop
-git checkout -b feature/nova-funcionalidade
-
-# Trabalhar na feature
-git add .
-git commit -m "feat: adicionar nova funcionalidade"
-git push origin feature/nova-funcionalidade
-
-# Merge para develop
-git checkout develop
-git merge feature/nova-funcionalidade
-git push origin develop
-
-# Delete feature branch
-git branch -d feature/nova-funcionalidade
-git push origin --delete feature/nova-funcionalidade
+**Verificar localStorage:**
+```javascript
+// Console do navegador - verificar dados offline
+Object.keys(localStorage).filter(key => key.startsWith('offline_'))
+  .forEach(key => {
+    const data = JSON.parse(localStorage.getItem(key) || '[]');
+    console.log(`${key}: ${data.length} registros`);
+  });
 ```
 
-### Convenções de Commit
+#### 4. **Debugging Modo Offline**
 
-#### Formato
-```
-<type>(<scope>): <description>
+**Logs Estruturados:**
+```typescript
+// Padrão de logs para debugging offline
+const logOfflineOperation = (operation: string, type: string, data?: any) => {
+  const timestamp = new Date().toISOString();
+  console.log(`🔄 [${timestamp}] OFFLINE ${operation.toUpperCase()}: ${type}`, data);
+};
 
-[optional body]
-
-[optional footer(s)]
-```
-
-#### Tipos
-- **feat**: Nova funcionalidade
-- **fix**: Correção de bug
-- **docs**: Mudanças na documentação
-- **style**: Mudanças de formatação (não afetam código)
-- **refactor**: Refatoração de código
-- **test**: Adição ou correção de testes
-- **chore**: Mudanças de build, configuração, etc.
-
-#### Exemplos
-```bash
-feat(funcionarios): adicionar validação de CPF
-
-fix(dashboard): corrigir cálculo de estatísticas
-
-docs(readme): atualizar instruções de instalação
-
-style(components): ajustar formatação do código
-
-refactor(services): simplificar lógica de autenticação
-
-test(utils): adicionar testes para formatadores
-
-chore(deps): atualizar dependências do projeto
+// Uso:
+logOfflineOperation('save', 'apontamento_equipe', formData);
+logOfflineOperation('sync', 'apontamento_caminhoes', { count: 3 });
+logOfflineOperation('error', 'registro_aplicacao', error.message);
 ```
 
-### Code Review
-
-#### Checklist para PRs
-- [ ] Código segue as convenções estabelecidas
-- [ ] Testes passando
-- [ ] Documentação atualizada
-- [ ] Sem console.logs desnecessários
-- [ ] Variáveis com nomes descritivos
-- [ ] Funções pequenas e focadas
-- [ ] Tratamento adequado de erros
-- [ ] Performance adequada
-- [ ] Responsividade testada
-- [ ] Acessibilidade considerada
-
-#### Template de PR
-```markdown
-## Descrição
-Breve descrição das mudanças realizadas.
-
-## Tipo de Mudança
-- [ ] Bug fix (mudança que corrige um problema)
-- [ ] Nova funcionalidade (mudança que adiciona funcionalidade)
-- [ ] Breaking change (correção/funcionalidade que quebra compatibilidade)
-- [ ] Mudança de documentação
-
-## Como Testar
-1. Vá para '...'
-2. Clique em '....'
-3. Role para baixo até '....'
-4. Veja erro
-
-## Checklist
-- [ ] Meu código segue as convenções do projeto
-- [ ] Revisei meu próprio código
-- [ ] Comentei código complexo
-- [ ] Fiz mudanças correspondentes na documentação
-- [ ] Minhas mudanças não geram novos warnings
-- [ ] Adicionei testes que provam que a correção é efetiva
-- [ ] Testes novos e existentes passam localmente
+**Monitoramento de Estado:**
+```typescript
+// Hook para debugging estado offline
+export const useOfflineDebug = () => {
+  const { isOnline, isSupabaseConnected } = useConnectionStatus();
+  const { syncStatus } = useOfflineSync();
+  
+  useEffect(() => {
+    console.log('🌐 Connection Status:', {
+      isOnline,
+      isSupabaseConnected,
+      pendingCount: syncStatus.pendingCount,
+      lastSync: syncStatus.lastSync
+    });
+  }, [isOnline, isSupabaseConnected, syncStatus]);
+};
 ```
 
-### Testing
+### Fluxo de Desenvolvimento Offline
 
-#### Configuração do Jest
+#### Cenário 1: Desenvolvendo Nova Funcionalidade
+```
+1. Implementar versão online normal ✓
+2. Criar hook offline seguindo padrão ✓  
+3. Adicionar tipo no salvarOffline.ts ✓
+4. Adaptar componente form com indicadores ✓
+5. Testar modo offline no navegador ✓
+6. Testar sincronização automática ✓
+7. Verificar logs e error handling ✓
+```
+
+#### Cenário 2: Debugging Problemas de Sync
+```
+1. Verificar logs do console ✓
+2. Inspecionar localStorage (F12 > Application) ✓
+3. Simular reconexão ✓
+4. Verificar network requests ✓
+5. Testar sincronização manual ✓
+6. Validar limpeza de cache ✓
+```
+
+## Estrutura e Convenções
+
+### Estrutura de Pastas
+```
+src/
+├── components/
+│   ├── ui/              # Componentes base do shadcn/ui
+│   ├── layout/          # Components de layout (header, sidebar)
+│   ├── offline/         # Components específicos para offline ⭐
+│   └── [domain]/        # Components agrupados por domínio
+├── hooks/
+│   ├── offline/         # Hooks para funcionalidade offline ⭐
+│   └── [domain]/        # Hooks agrupados por domínio
+├── pages/               # Páginas/rotas da aplicação
+├── services/            # Camada de serviços/API
+├── utils/               # Funções utilitárias
+├── types/               # Definições de tipos TypeScript
+├── lib/                 # Configurações e utilities
+└── integrations/        # Integrações externas (Supabase, etc)
+```
+
+### Convenções de Nomenclatura
+
+#### Arquivos e Pastas
+```
+PascalCase:    Component.tsx, Service.ts
+camelCase:     utils.ts, hooks.ts
+kebab-case:    multi-word-folder/
+```
+
+#### Componentes
+```typescript
+// PascalCase para componentes
+export const UserProfile = () => {};
+export const DataTable = () => {};
+
+// Props interface com sufixo Props
+interface UserProfileProps {
+  userId: string;
+  onEdit?: () => void;
+}
+```
+
+#### Hooks
+```typescript
+// Prefixo use + PascalCase
+export const useUserData = () => {};
+export const useFormValidation = () => {};
+
+// Hooks offline com sufixo Offline ⭐
+export const useApontamentoEquipeOffline = () => {};
+export const useRegistroAplicacaoOffline = () => {};
+```
+
+#### Services
+```typescript
+// camelCase + Service suffix
+export const userService = {};
+export const apontamentoEquipeService = {};
+```
+
+### Organização de Imports
+```typescript
+// 1. React e bibliotecas externas
+import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+
+// 2. Componentes UI
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+
+// 3. Hooks customizados
+import { useAuth } from '@/hooks/useAuth';
+import { useConnectionStatus } from '@/hooks/useConnectionStatus'; // ⭐
+
+// 4. Services e utils
+import { userService } from '@/services/userService';
+import { formatDate } from '@/utils/formatters';
+
+// 5. Types
+import type { User } from '@/types/user';
+```
+
+## Padrões de Código
+
+### Componentes React
+
+#### Estrutura Padrão
+```typescript
+// Imports organizados
+import React, { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { useConnectionStatus } from '@/hooks/useConnectionStatus'; // ⭐
+
+// Interface das props
+interface ComponentProps {
+  id: string;
+  onSave?: () => void;
+}
+
+// Componente principal
+export const Component: React.FC<ComponentProps> = ({ id, onSave }) => {
+  // 1. State hooks
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // 2. Data fetching hooks
+  const { data, isLoading: isDataLoading } = useQuery(...);
+  
+  // 3. Custom hooks
+  const { isSupabaseConnected } = useConnectionStatus(); // ⭐
+  
+  // 4. Event handlers
+  const handleSave = async () => {
+    setIsLoading(true);
+    try {
+      // Lógica de save
+      onSave?.();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // 5. Effects
+  useEffect(() => {
+    // Side effects
+  }, []);
+  
+  // 6. Early returns
+  if (isDataLoading) return <div>Loading...</div>;
+  
+  // 7. Render
+  return (
+    <div>
+      {/* JSX */}
+    </div>
+  );
+};
+
+// Default export
+export default Component;
+```
+
+#### Padrão para Forms com Offline ⭐
+```typescript
+import { useConnectionStatus } from '@/hooks/useConnectionStatus';
+import { useModuleOffline } from '@/hooks/useModuleOffline';
+
+export const OfflineForm = ({ isOpen, onClose, onSuccess }) => {
+  const { isSupabaseConnected } = useConnectionStatus();
+  const { submitData, isLoading, isOffline } = useModuleOffline();
+  
+  const form = useForm({
+    resolver: zodResolver(schema),
+    defaultValues: {...}
+  });
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogTitle className="flex items-center gap-2">
+          Título do Form
+          {/* Indicador de status */}
+          {isOffline && <WifiOff className="h-4 w-4 text-orange-600" />}
+          {isSupabaseConnected && <Wifi className="h-4 w-4 text-green-600" />}
+        </DialogTitle>
+        
+        {/* Alert modo offline */}
+        {isOffline && (
+          <Alert>
+            <WifiOff className="h-4 w-4" />
+            <AlertTitle>Modo Offline</AlertTitle>
+            <AlertDescription>
+              Dados serão sincronizados automaticamente
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(data => submitData(data, onSuccess))}>
+            {/* Campos do form */}
+            
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? "Salvando..." : `Salvar ${isOffline ? "(Offline)" : ""}`}
+            </Button>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+```
+
+### Custom Hooks
+
+#### Padrão Geral
+```typescript
+export const useCustomHook = (params?: HookParams) => {
+  // State interno
+  const [state, setState] = useState(initialState);
+  
+  // Dependências
+  const { data } = useQuery(...);
+  
+  // Funções expostas
+  const doSomething = useCallback(async () => {
+    // Lógica
+  }, [dependencies]);
+  
+  // Effects
+  useEffect(() => {
+    // Side effects
+  }, []);
+  
+  // Return object tipado
+  return {
+    state,
+    doSomething,
+    isLoading: query.isLoading,
+  };
+};
+```
+
+#### Padrão Hook Offline ⭐
+```typescript
+export const useModuleOffline = () => {
+  const [isLoading, setIsLoading] = useState(false);
+  const { isSupabaseConnected } = useConnectionStatus();
+  const { toast } = useToast();
+  const { userId } = useAuth();
+
+  const submitData = async (formData: any, onSuccess?: () => void) => {
+    setIsLoading(true);
+    
+    try {
+      if (isSupabaseConnected) {
+        // Online path
+        await onlineService(formData);
+        toast({ title: "Sucesso", variant: "default" });
+      } else {
+        // Offline path
+        salvarApontamentoOffline(type, formData, userId);
+        toast({ title: "Salvo offline", variant: "default" });
+      }
+      
+      onSuccess?.();
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return {
+    submitData,
+    isLoading,
+    isOffline: !isSupabaseConnected
+  };
+};
+```
+
+### Services
+
+#### Padrão CRUD
+```typescript
+// Tipagem das operações
+interface CreateData {
+  name: string;
+  email: string;
+}
+
+interface UpdateData extends Partial<CreateData> {
+  id: string;
+}
+
+interface Filters {
+  name?: string;
+  status?: string;
+}
+
+// Service object
+export const entityService = {
+  async getAll(filters?: Filters): Promise<Entity[]> {
+    const query = supabase.from('entities').select('*');
+    
+    if (filters?.name) {
+      query.ilike('name', `%${filters.name}%`);
+    }
+    
+    const { data, error } = await query;
+    
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getById(id: string): Promise<Entity> {
+    const { data, error } = await supabase
+      .from('entities')
+      .select('*')
+      .eq('id', id)
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async create(data: CreateData): Promise<Entity> {
+    const { data: created, error } = await supabase
+      .from('entities')
+      .insert(data)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return created;
+  },
+
+  async update(data: UpdateData): Promise<Entity> {
+    const { id, ...updateData } = data;
+    
+    const { data: updated, error } = await supabase
+      .from('entities')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return updated;
+  },
+
+  async delete(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('entities')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+  },
+};
+```
+
+### Error Handling
+
+#### Try-Catch Padrão
+```typescript
+const handleAction = async () => {
+  try {
+    setIsLoading(true);
+    await riskyOperation();
+    
+    toast({
+      title: "Sucesso",
+      description: "Operação realizada com sucesso",
+    });
+  } catch (error) {
+    console.error('Error in handleAction:', error);
+    
+    toast({
+      title: "Erro",
+      description: error instanceof Error ? error.message : "Erro desconhecido",
+      variant: "destructive",
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};
+```
+
+#### Error Boundary
+```typescript
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('ErrorBoundary caught an error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <h2 className="text-lg font-semibold mb-2">Algo deu errado</h2>
+            <p className="text-muted-foreground mb-4">
+              Ocorreu um erro inesperado. Tente recarregar a página.
+            </p>
+            <Button onClick={() => window.location.reload()}>
+              Recarregar Página
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+```
+
+## Banco de Dados
+
+### Migrations
+```sql
+-- Padrão para migrations
+-- Sempre usar IF NOT EXISTS para evitar erros
+CREATE TABLE IF NOT EXISTS bd_nova_tabela (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome VARCHAR NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Habilitar RLS
+ALTER TABLE bd_nova_tabela ENABLE ROW LEVEL SECURITY;
+
+-- Criar políticas
+CREATE POLICY "Users can view own data" 
+ON bd_nova_tabela FOR SELECT 
+USING (auth.uid() = user_id);
+
+-- Trigger para updated_at
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_bd_nova_tabela_updated_at 
+  BEFORE UPDATE ON bd_nova_tabela 
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+```
+
+### RLS Policies
+```sql
+-- Padrões de políticas RLS
+
+-- 1. Acesso por empresa
+CREATE POLICY "Users access own company data" 
+ON bd_funcionarios FOR ALL 
+USING (
+  empresa_id IN (
+    SELECT empresa_id 
+    FROM profiles 
+    WHERE id = auth.uid()
+  )
+);
+
+-- 2. Acesso próprio (dados do usuário)
+CREATE POLICY "Users access own data" 
+ON bd_apontamento_equipe FOR ALL 
+USING (auth.uid() = created_by);
+
+-- 3. Acesso por role
+CREATE POLICY "Admins access all data" 
+ON bd_empresas FOR ALL 
+USING (
+  EXISTS (
+    SELECT 1 FROM profiles 
+    WHERE id = auth.uid() 
+    AND role IN ('SuperAdm', 'AdmLogistica')
+  )
+);
+```
+
+### Queries Complexas
+```sql
+-- Padrão para queries com joins
+SELECT 
+  f.id,
+  f.nome_completo,
+  e.nome_empresa,
+  d.nome_departamento,
+  fu.nome_funcao
+FROM bd_funcionarios f
+LEFT JOIN bd_empresas e ON f.empresa_id = e.id
+LEFT JOIN bd_departamentos d ON f.departamento_id = d.id  
+LEFT JOIN bd_funcoes fu ON f.funcao_id = fu.id
+WHERE f.status = 'Ativo'
+ORDER BY f.nome_completo;
+
+-- Views para queries frequentes
+CREATE OR REPLACE VIEW vw_funcionarios_completo AS
+SELECT 
+  f.*,
+  e.nome_empresa,
+  d.nome_departamento,
+  fu.nome_funcao
+FROM bd_funcionarios f
+LEFT JOIN bd_empresas e ON f.empresa_id = e.id
+LEFT JOIN bd_departamentos d ON f.departamento_id = d.id
+LEFT JOIN bd_funcoes fu ON f.funcao_id = fu.id;
+```
+
+## Testing
+
+### Configuração Jest
 ```javascript
 // jest.config.js
 module.exports = {
   testEnvironment: 'jsdom',
-  setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
+  setupFilesAfterEnv: ['<rootDir>/src/test/setup.ts'],
   moduleNameMapping: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
   transform: {
     '^.+\\.(ts|tsx)$': 'ts-jest',
   },
-  collectCoverageFrom: [
-    'src/**/*.{ts,tsx}',
-    '!src/**/*.d.ts',
-    '!src/main.tsx',
-    '!src/vite-env.d.ts',
-  ],
-  coverageThreshold: {
-    global: {
-      branches: 70,
-      functions: 70,
-      lines: 70,
-      statements: 70,
-    },
-  },
 };
 ```
 
-#### Testes de Componentes
+### Testing Utils
 ```typescript
-// src/components/__tests__/FuncionarioForm.test.tsx
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+// src/test/utils.tsx
+import { render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { FuncionarioForm } from '../FuncionarioForm';
+import { BrowserRouter } from 'react-router-dom';
 
+// Mock do useConnectionStatus para testes offline ⭐
+export const mockConnectionStatus = (isOnline = true, isSupabaseConnected = true) => {
+  jest.mock('@/hooks/useConnectionStatus', () => ({
+    useConnectionStatus: () => ({
+      isOnline,
+      isSupabaseConnected,
+      lastCheck: new Date()
+    })
+  }));
+};
+
+// Wrapper para testes
 const createTestQueryClient = () => new QueryClient({
   defaultOptions: {
     queries: { retry: false },
@@ -946,656 +922,290 @@ const createTestQueryClient = () => new QueryClient({
   },
 });
 
-const renderWithProviders = (component: React.ReactElement) => {
+export const renderWithProviders = (ui: React.ReactElement) => {
   const queryClient = createTestQueryClient();
+  
   return render(
     <QueryClientProvider client={queryClient}>
-      {component}
+      <BrowserRouter>
+        {ui}
+      </BrowserRouter>
     </QueryClientProvider>
   );
 };
-
-describe('FuncionarioForm', () => {
-  it('should render form fields', () => {
-    renderWithProviders(
-      <FuncionarioForm 
-        isOpen={true} 
-        onClose={jest.fn()} 
-        onSuccess={jest.fn()} 
-      />
-    );
-
-    expect(screen.getByLabelText(/nome completo/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/cpf/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
-  });
-
-  it('should validate required fields', async () => {
-    const onSubmit = jest.fn();
-    
-    renderWithProviders(
-      <FuncionarioForm 
-        isOpen={true} 
-        onClose={jest.fn()} 
-        onSuccess={onSubmit} 
-      />
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: /salvar/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/nome é obrigatório/i)).toBeInTheDocument();
-      expect(screen.getByText(/cpf é obrigatório/i)).toBeInTheDocument();
-    });
-
-    expect(onSubmit).not.toHaveBeenCalled();
-  });
-
-  it('should submit form with valid data', async () => {
-    const onSuccess = jest.fn();
-    
-    renderWithProviders(
-      <FuncionarioForm 
-        isOpen={true} 
-        onClose={jest.fn()} 
-        onSuccess={onSuccess} 
-      />
-    );
-
-    fireEvent.change(screen.getByLabelText(/nome completo/i), {
-      target: { value: 'João Silva' }
-    });
-    
-    fireEvent.change(screen.getByLabelText(/cpf/i), {
-      target: { value: '12345678901' }
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: /salvar/i }));
-
-    await waitFor(() => {
-      expect(onSuccess).toHaveBeenCalled();
-    });
-  });
-});
 ```
 
-#### Testes de Hooks
+### Testes de Componentes
 ```typescript
-// src/hooks/__tests__/useFuncionarioForm.test.ts
-import { renderHook, act } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useFuncionarioForm } from '../useFuncionarioForm';
+// Component.test.tsx
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { renderWithProviders, mockConnectionStatus } from '@/test/utils';
+import { Component } from './Component';
 
-const wrapper = ({ children }: { children: React.ReactNode }) => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-  
-  return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
-  );
-};
-
-describe('useFuncionarioForm', () => {
-  it('should initialize with default values', () => {
-    const { result } = renderHook(() => useFuncionarioForm(), { wrapper });
-
-    expect(result.current.form.getValues()).toEqual({
-      nome_completo: '',
-      cpf: '',
-      email: '',
-    });
-    expect(result.current.isLoading).toBe(false);
-  });
-
-  it('should handle form submission', async () => {
-    const onSuccess = jest.fn();
-    const { result } = renderHook(() => useFuncionarioForm(onSuccess), { wrapper });
-
-    act(() => {
-      result.current.form.setValue('nome_completo', 'João Silva');
-      result.current.form.setValue('cpf', '12345678901');
-    });
-
-    await act(async () => {
-      await result.current.onSubmit();
-    });
-
-    expect(onSuccess).toHaveBeenCalled();
-  });
-});
-```
-
-#### Testes de Serviços
-```typescript
-// src/services/__tests__/funcionarioService.test.ts
-import { funcionarioService } from '../funcionarioService';
-import { supabase } from '@/integrations/supabase/client';
-
-// Mock do Supabase
-jest.mock('@/integrations/supabase/client', () => ({
-  supabase: {
-    from: jest.fn(() => ({
-      select: jest.fn(() => ({
-        order: jest.fn(() => ({
-          data: [],
-          error: null,
-        })),
-      })),
-      insert: jest.fn(() => ({
-        select: jest.fn(() => ({
-          single: jest.fn(() => ({
-            data: { id: '1', nome_completo: 'João Silva' },
-            error: null,
-          })),
-        })),
-      })),
-    })),
-  },
-}));
-
-describe('funcionarioService', () => {
+describe('Component', () => {
   beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('should render correctly', () => {
+    renderWithProviders(<Component />);
+    expect(screen.getByText('Component Title')).toBeInTheDocument();
+  });
+
+  it('should handle offline mode correctly', () => {
+    // Mock modo offline ⭐
+    mockConnectionStatus(false, false);
+    
+    renderWithProviders(<Component />);
+    
+    // Verificar indicadores offline
+    expect(screen.getByText('Offline')).toBeInTheDocument();
+    expect(screen.getByTestId('wifi-off-icon')).toBeInTheDocument();
+  });
+
+  it('should save data offline when disconnected', async () => {
+    mockConnectionStatus(false, false);
+    
+    renderWithProviders(<Component />);
+    
+    // Preencher form
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Test' } });
+    fireEvent.click(screen.getByText('Salvar'));
+    
+    // Verificar se foi salvo no localStorage
+    await waitFor(() => {
+      const offlineData = localStorage.getItem('offline_test_data');
+      expect(offlineData).toBeTruthy();
+    });
+  });
+});
+```
+
+### Testes de Hooks Offline ⭐
+```typescript
+// useModuleOffline.test.ts
+import { renderHook, act } from '@testing-library/react';
+import { useModuleOffline } from '@/hooks/useModuleOffline';
+import { mockConnectionStatus } from '@/test/utils';
+
+describe('useModuleOffline', () => {
+  beforeEach(() => {
+    localStorage.clear();
     jest.clearAllMocks();
   });
 
-  it('should fetch all funcionarios', async () => {
-    const mockData = [
-      { id: '1', nome_completo: 'João Silva' },
-      { id: '2', nome_completo: 'Maria Santos' },
+  it('should save data offline when disconnected', async () => {
+    mockConnectionStatus(false, false);
+    
+    const { result } = renderHook(() => useModuleOffline());
+    
+    await act(async () => {
+      await result.current.submitData({ name: 'Test' });
+    });
+    
+    expect(result.current.isOffline).toBe(true);
+    expect(localStorage.getItem('offline_module_data')).toBeTruthy();
+  });
+
+  it('should send data online when connected', async () => {
+    mockConnectionStatus(true, true);
+    
+    const mockService = jest.fn().mockResolvedValue({});
+    
+    const { result } = renderHook(() => useModuleOffline());
+    
+    await act(async () => {
+      await result.current.submitData({ name: 'Test' });
+    });
+    
+    expect(result.current.isOffline).toBe(false);
+    expect(mockService).toHaveBeenCalledWith({ name: 'Test' });
+  });
+});
+```
+
+### Testes de Sincronização ⭐
+```typescript
+// syncOffline.test.ts
+import { sincronizarTodos } from '@/hooks/useOfflineSync';
+import { mockConnectionStatus } from '@/test/utils';
+
+describe('Offline Sync', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('should sync offline data when connection restored', async () => {
+    // Setup dados offline
+    const offlineData = [
+      { id: 'temp_1', data: { name: 'Test 1' }, tentativas: 0 },
+      { id: 'temp_2', data: { name: 'Test 2' }, tentativas: 0 }
     ];
-
-    (supabase.from as jest.Mock).mockReturnValue({
-      select: jest.fn().mockReturnValue({
-        order: jest.fn().mockResolvedValue({
-          data: mockData,
-          error: null,
-        }),
-      }),
-    });
-
-    const result = await funcionarioService.findAll();
-
-    expect(result).toEqual(mockData);
-    expect(supabase.from).toHaveBeenCalledWith('bd_funcionarios');
+    localStorage.setItem('offline_module_data', JSON.stringify(offlineData));
+    
+    // Mock conexão restaurada
+    mockConnectionStatus(true, true);
+    
+    // Mock serviço de API
+    const mockInsert = jest.fn().mockResolvedValue({});
+    
+    // Executar sincronização
+    await sincronizarTodos();
+    
+    // Verificar se dados foram enviados
+    expect(mockInsert).toHaveBeenCalledTimes(2);
+    
+    // Verificar se cache foi limpo
+    expect(localStorage.getItem('offline_module_data')).toBeNull();
   });
 
-  it('should create funcionario', async () => {
-    const newFuncionario = {
-      nome_completo: 'João Silva',
-      cpf: '12345678901',
-    };
-
-    const mockResponse = {
-      id: '1',
-      ...newFuncionario,
-    };
-
-    (supabase.from as jest.Mock).mockReturnValue({
-      insert: jest.fn().mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          single: jest.fn().mockResolvedValue({
-            data: mockResponse,
-            error: null,
-          }),
-        }),
-      }),
-    });
-
-    const result = await funcionarioService.create(newFuncionario);
-
-    expect(result).toEqual(mockResponse);
+  it('should handle sync errors gracefully', async () => {
+    const offlineData = [
+      { id: 'temp_1', data: { name: 'Test' }, tentativas: 0 }
+    ];
+    localStorage.setItem('offline_module_data', JSON.stringify(offlineData));
+    
+    mockConnectionStatus(true, true);
+    
+    // Mock erro na API
+    const mockInsert = jest.fn().mockRejectedValue(new Error('API Error'));
+    
+    await sincronizarTodos();
+    
+    // Verificar se incrementou tentativas
+    const updatedData = JSON.parse(localStorage.getItem('offline_module_data') || '[]');
+    expect(updatedData[0].tentativas).toBe(1);
   });
 });
 ```
 
-## Performance e Otimização
+## Deployment
 
-### Otimizações React
-
-#### Memoização
-```typescript
-import React, { memo, useMemo, useCallback } from 'react';
-
-// Memoizar componentes pesados
-const ExpensiveComponent = memo<Props>(({ data, onUpdate }) => {
-  // Memoizar cálculos pesados
-  const expensiveValue = useMemo(() => {
-    return data.reduce((acc, item) => acc + item.value, 0);
-  }, [data]);
-
-  // Memoizar funções
-  const handleClick = useCallback((id: string) => {
-    onUpdate(id);
-  }, [onUpdate]);
-
-  return (
-    <div>
-      <span>{expensiveValue}</span>
-      <button onClick={() => handleClick('1')}>
-        Update
-      </button>
-    </div>
-  );
-});
-```
-
-#### Lazy Loading
-```typescript
-import { lazy, Suspense } from 'react';
-
-// Componentes lazy
-const FuncionariosPage = lazy(() => import('@/pages/FuncionariosPage'));
-const VeiculosPage = lazy(() => import('@/pages/VeiculosPage'));
-
-// Uso com suspense
-function App() {
-  return (
-    <Router>
-      <Routes>
-        <Route 
-          path="/funcionarios" 
-          element={
-            <Suspense fallback={<div>Carregando...</div>}>
-              <FuncionariosPage />
-            </Suspense>
-          } 
-        />
-        <Route 
-          path="/veiculos" 
-          element={
-            <Suspense fallback={<div>Carregando...</div>}>
-              <VeiculosPage />
-            </Suspense>
-          } 
-        />
-      </Routes>
-    </Router>
-  );
-}
-```
-
-#### Virtualização
-```typescript
-import { FixedSizeList as List } from 'react-window';
-
-const VirtualizedTable = ({ items }: { items: any[] }) => {
-  const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => (
-    <div style={style}>
-      {items[index].name}
-    </div>
-  );
-
-  return (
-    <List
-      height={600}
-      itemCount={items.length}
-      itemSize={50}
-      width="100%"
-    >
-      {Row}
-    </List>
-  );
-};
-```
-
-### Otimizações de Bundle
-
-#### Code Splitting
-```typescript
-// vite.config.ts
-export default defineConfig({
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          // Vendor chunks
-          'react-vendor': ['react', 'react-dom'],
-          'ui-vendor': [
-            '@radix-ui/react-dialog',
-            '@radix-ui/react-select',
-            '@radix-ui/react-form'
-          ],
-          'utils-vendor': ['date-fns', 'lodash', 'zod'],
-          
-          // Feature chunks
-          'funcionarios': [
-            './src/pages/FuncionariosPage',
-            './src/components/funcionarios'
-          ],
-          'veiculos': [
-            './src/pages/VeiculosPage',
-            './src/components/veiculos'
-          ],
-        },
-      },
-    },
-  },
-});
-```
-
-#### Tree Shaking
-```typescript
-// Importações específicas
-import { format, parseISO } from 'date-fns'; // ✅ Bom
-import { debounce } from 'lodash'; // ✅ Bom
-
-// Evitar importações completas
-import * as dateFns from 'date-fns'; // ❌ Ruim
-import _ from 'lodash'; // ❌ Ruim
-```
-
-### Otimizações de Supabase
-
-#### Consultas Eficientes
-```typescript
-// Selecionar apenas campos necessários
-const { data } = await supabase
-  .from('bd_funcionarios')
-  .select('id, nome_completo, email') // ✅ Específico
-  .eq('empresa_id', empresaId);
-
-// Evitar select *
-const { data } = await supabase
-  .from('bd_funcionarios')
-  .select('*'); // ❌ Ineficiente
-```
-
-#### Paginação
-```typescript
-const fetchFuncionarios = async (page: number, limit: number = 20) => {
-  const start = (page - 1) * limit;
-  const end = start + limit - 1;
-
-  const { data, error, count } = await supabase
-    .from('bd_funcionarios')
-    .select('*', { count: 'exact' })
-    .range(start, end)
-    .order('nome_completo');
-
-  return {
-    data,
-    error,
-    totalPages: Math.ceil((count || 0) / limit),
-    currentPage: page,
-  };
-};
-```
-
-#### Índices de Banco
-```sql
--- Criar índices para consultas frequentes
-CREATE INDEX idx_funcionarios_empresa ON bd_funcionarios(empresa_id);
-CREATE INDEX idx_funcionarios_status ON bd_funcionarios(status);
-CREATE INDEX idx_aplicacao_data ON bd_registro_apontamento_aplicacao(data_aplicacao);
-
--- Índices compostos
-CREATE INDEX idx_funcionarios_empresa_status 
-ON bd_funcionarios(empresa_id, status);
-```
-
-## Deploy e CI/CD
-
-### GitHub Actions
-
-#### Workflow de CI
-```yaml
-# .github/workflows/ci.yml
-name: CI
-
-on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: 18
-        cache: 'npm'
-    
-    - name: Install dependencies
-      run: npm ci
-    
-    - name: Run linter
-      run: npm run lint
-    
-    - name: Run type check
-      run: npm run type-check
-    
-    - name: Run tests
-      run: npm run test:coverage
-    
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-```
-
-#### Workflow de Deploy
-```yaml
-# .github/workflows/deploy.yml
-name: Deploy
-
-on:
-  push:
-    branches: [ main ]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: 18
-        cache: 'npm'
-    
-    - name: Install dependencies
-      run: npm ci
-    
-    - name: Build
-      run: npm run build
-      env:
-        VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-        VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-    
-    - name: Deploy to Netlify
-      uses: nwtgck/actions-netlify@v2.0
-      with:
-        publish-dir: './dist'
-        production-branch: main
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        deploy-message: "Deploy from GitHub Actions"
-      env:
-        NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-        NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-```
-
-### Scripts de Package.json
-```json
-{
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "lint:fix": "eslint . --ext ts,tsx --fix",
-    "type-check": "tsc --noEmit",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
-    "prepare": "husky install"
-  }
-}
-```
-
-### Husky e Lint-staged
-```json
-// package.json
-{
-  "lint-staged": {
-    "*.{ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{json,css,md}": [
-      "prettier --write"
-    ]
-  }
-}
-```
-
+### Build para Produção
 ```bash
-# .husky/pre-commit
-#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
-
-npx lint-staged
+# Verificar variáveis de ambiente
 npm run type-check
+
+# Build otimizado
+npm run build
+
+# Preview local do build
+npm run preview
+```
+
+### Variáveis de Ambiente
+```bash
+# .env.production
+VITE_SUPABASE_URL=https://zczirljepectqohlloua.supabase.co
+VITE_SUPABASE_ANON_KEY=production_anon_key
+VITE_APP_VERSION=1.0.0
+```
+
+### Checklist de Deploy
+```
+□ Testes passando
+□ Build sem erros
+□ Variáveis de ambiente configuradas
+□ Migrações de DB aplicadas
+□ RLS policies verificadas
+□ Funcionalidade offline testada ⭐
+□ Indicadores de conexão funcionando ⭐
+□ Sincronização testada em produção ⭐
 ```
 
 ## Troubleshooting
 
 ### Problemas Comuns
 
-#### Erro de CORS
-```typescript
-// Configurar no Supabase Dashboard
-// Authentication > Settings > Site URL
-// Adicionar: http://localhost:5173
-
-// Se persistir, verificar configuração do projeto
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-if (!supabaseUrl.includes('supabase.co')) {
-  console.error('URL do Supabase incorreta');
-}
-```
-
-#### Problemas de Autenticação
-```typescript
-// Verificar se o usuário está logado
-const checkAuth = async () => {
-  const { data: { session } } = await supabase.auth.getSession();
-  
-  if (!session) {
-    console.log('Usuário não logado');
-    // Redirecionar para login
-  }
-};
-
-// Renovar token automaticamente
-supabase.auth.onAuthStateChange((event, session) => {
-  if (event === 'TOKEN_REFRESHED') {
-    console.log('Token renovado');
-  }
-  
-  if (event === 'SIGNED_OUT') {
-    // Limpar estado local
-    queryClient.clear();
-  }
-});
-```
-
-#### Problemas de Performance
-```typescript
-// Debug de re-renders
-import { whyDidYouUpdate } from '@welldone-software/why-did-you-render';
-
-if (process.env.NODE_ENV === 'development') {
-  whyDidYouUpdate(React, {
-    trackAllPureComponents: true,
-  });
-}
-
-// Profiler React
-import { Profiler } from 'react';
-
-const onRenderCallback = (id, phase, actualDuration) => {
-  console.log('Render:', { id, phase, actualDuration });
-};
-
-<Profiler id="App" onRender={onRenderCallback}>
-  <App />
-</Profiler>
-```
-
-### Debug
-
-#### Console Logs Estruturados
-```typescript
-// Wrapper para logs
-const logger = {
-  info: (message: string, data?: any) => {
-    console.log(`[INFO] ${message}`, data);
-  },
-  error: (message: string, error?: any) => {
-    console.error(`[ERROR] ${message}`, error);
-  },
-  debug: (message: string, data?: any) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.debug(`[DEBUG] ${message}`, data);
-    }
-  },
-};
-
-// Uso
-logger.info('Usuário logado', { userId: user.id });
-logger.error('Erro ao salvar', error);
-```
-
-#### React Developer Tools
+#### "Module not found"
 ```bash
-# Instalar extensão do navegador
-# Chrome: React Developer Tools
-# Firefox: React Developer Tools
-
-# Usar Profiler para performance
-# Components tree para hierarquia
-# Props e state em tempo real
+# Verificar path alias no tsconfig.json
+# Verificar se arquivo existe
+# Restart do dev server
+npm run dev
 ```
 
-## Recursos Úteis
+#### "Type errors"
+```bash
+# Verificar imports
+# Executar type check
+npm run type-check
 
-### Documentação
-- [React](https://reactjs.org/docs)
-- [TypeScript](https://www.typescriptlang.org/docs)
-- [Vite](https://vitejs.dev/guide)
-- [Tailwind CSS](https://tailwindcss.com/docs)
-- [Supabase](https://supabase.com/docs)
-- [React Hook Form](https://react-hook-form.com)
-- [Zod](https://zod.dev)
-- [Tanstack Query](https://tanstack.com/query/latest)
+# Gerar tipos do Supabase
+npx supabase gen types typescript --project-id zczirljepectqohlloua > src/integrations/supabase/types.ts
+```
 
-### Ferramentas
-- [VS Code](https://code.visualstudio.com)
-- [Chrome DevTools](https://developer.chrome.com/docs/devtools)
-- [React Developer Tools](https://chrome.google.com/webstore/detail/react-developer-tools)
-- [Supabase Dashboard](https://supabase.com/dashboard)
+#### "Build falha"
+```bash
+# Limpar cache
+rm -rf node_modules/.vite
+rm -rf dist
 
-### Bibliotecas Úteis
-- [date-fns](https://date-fns.org) - Manipulação de datas
-- [lodash](https://lodash.com) - Utilitários JavaScript
-- [recharts](https://recharts.org) - Gráficos React
-- [react-window](https://github.com/bvaughn/react-window) - Virtualização
-- [react-perfect-scrollbar](https://github.com/goldenyz/react-perfect-scrollbar) - Scroll customizado
+# Reinstalar dependências
+npm ci
+
+# Build novamente
+npm run build
+```
+
+#### Problemas de Sincronização Offline ⭐
+```javascript
+// Debug no console
+// 1. Verificar status de conexão
+console.log('Navigator online:', navigator.onLine);
+
+// 2. Verificar dados offline
+Object.keys(localStorage).filter(k => k.startsWith('offline_'))
+  .forEach(key => console.log(key, localStorage.getItem(key)));
+
+// 3. Forçar verificação de conexão
+// No console do navegador
+checkConnectionStatus();
+
+// 4. Limpar cache offline (último recurso)
+Object.keys(localStorage).filter(k => k.startsWith('offline_'))
+  .forEach(key => localStorage.removeItem(key));
+```
+
+### Logs de Debug
+```typescript
+// Ativar logs detalhados
+const DEBUG = import.meta.env.DEV;
+
+export const debugLog = (message: string, data?: any) => {
+  if (DEBUG) {
+    console.log(`🐛 [DEBUG] ${message}`, data);
+  }
+};
+
+// Logs específicos para offline ⭐
+export const offlineLog = (operation: string, type: string, data?: any) => {
+  if (DEBUG) {
+    const timestamp = new Date().toISOString();
+    console.log(`🔄 [${timestamp}] OFFLINE ${operation.toUpperCase()}: ${type}`, data);
+  }
+};
+```
+
+### Performance Monitoring
+```typescript
+// Monitorar performance
+export const measurePerformance = (name: string, fn: () => void) => {
+  const start = performance.now();
+  fn();
+  const end = performance.now();
+  
+  console.log(`⏱️ ${name}: ${(end - start).toFixed(2)}ms`);
+  
+  if (end - start > 100) {
+    console.warn(`🐌 Slow operation: ${name} took ${(end - start).toFixed(2)}ms`);
+  }
+};
+```
 
 ---
 
-**Mantenha este guia atualizado conforme o projeto evolui!**
+**Versão do Guia**: 3.0  
+**Última Atualização**: Janeiro 2025  
+**Novidades**: Padrões completos para desenvolvimento offline, testes de sincronização e debugging avançado
+
