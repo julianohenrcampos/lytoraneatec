@@ -43,7 +43,7 @@ export const usePermissionGuard = ({
   const canAccess = hasPermission();
 
   useEffect(() => {
-    if (!isLoading && !canAccess) {
+    if (!isLoading && userId && !canAccess) {
       if (showToast) {
         toast({
           title: 'Acesso Negado',
@@ -53,7 +53,7 @@ export const usePermissionGuard = ({
       }
       navigate(redirectTo, { replace: true });
     }
-  }, [isLoading, canAccess, navigate, redirectTo, showToast, toast]);
+  }, [isLoading, canAccess, navigate, redirectTo, showToast, toast, userId]);
 
   return {
     canAccess,

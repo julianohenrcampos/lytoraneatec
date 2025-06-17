@@ -1,9 +1,9 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import MainLayout from "@/components/layout/MainLayout";
 import { ResponsiveContainer } from "@/components/layout/ResponsiveContainer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { usePermissionGuard } from "@/hooks/usePermissionGuard";
 
 // Dashboard Sections
 import RhSection from "@/components/dashboard/RhSection";
@@ -18,12 +18,6 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [period, setPeriod] = useState<PeriodFilter>("day");
   const [isLoaded, setIsLoaded] = useState(false);
-  
-  // Use the permission guard to handle authorization
-  // We don't pass any specific permission or route here because the dashboard should be available to all
-  const { isLoading: authLoading } = usePermissionGuard({
-    requiredPermission: "dashboard_view"
-  });
 
   useEffect(() => {
     console.log("Dashboard mounted");
@@ -127,19 +121,6 @@ export default function Dashboard() {
   };
 
   console.log("Dashboard rendering with period:", period, "isLoaded:", isLoaded);
-
-  // If auth is still loading, render a loading state
-  if (authLoading) {
-    return (
-      <MainLayout>
-        <ResponsiveContainer className="pt-6 pb-10">
-          <div className="flex justify-center items-center h-[70vh]">
-            <p className="text-lg text-muted-foreground">Carregando...</p>
-          </div>
-        </ResponsiveContainer>
-      </MainLayout>
-    );
-  }
 
   return (
     <MainLayout>
