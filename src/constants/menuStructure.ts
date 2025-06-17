@@ -1,4 +1,3 @@
-
 import { 
   LayoutDashboard,
   Building2, 
@@ -59,6 +58,12 @@ export const menuStructure: MenuGroup[] = [
         href: "/gestao-rh/dashboard",
         icon: Users,
         requiredPermission: "dashboard_rh_view"
+      },
+      {
+        name: "Dashboard de Máquinas",
+        href: "/gestao-maquinas/dashboard",
+        icon: BarChart3,
+        requiredPermission: "dashboard_maquinas_view"
       }
     ]
   },

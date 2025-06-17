@@ -28,6 +28,14 @@ const CoresGenero = {
   "Não informado": "#6B7280"
 };
 
+// Cores específicas para empresas
+const CoresEmpresa = {
+  "LYTORANEA": "#854DFF",
+  "CONSTRUTORA ACAM": "#0BC2E1",
+  "ABRA": "#51C979",
+  "Não informado": "#6B7280"
+};
+
 function aggregate(
   arr: Array<{ [k: string]: any }> | undefined,
   arrKey: string,
@@ -69,8 +77,40 @@ function aggregateGenero(arr: Array<{ genero?: string }> | undefined) {
   }));
 }
 
+function aggregateEmpresa(arr: Array<{ empresa_id?: string; bd_empresas?: any }> | undefined) {
+  console.log("🔍 DEBUG aggregateEmpresa - dados recebidos:", arr?.length);
+  console.log("🔍 DEBUG aggregateEmpresa - sample dos dados:", arr?.slice(0, 5));
+  
+  if (!arr) return [];
+  const map = new Map<string, number>();
+  
+  arr.forEach((item) => {
+    let empresa = "Não informado";
+    
+    // Verificar se tem empresa_id e bd_empresas
+    if (item.empresa_id && item.bd_empresas) {
+      empresa = safeNome(item, "bd_empresas", "nome_empresa", "Não informado");
+    }
+    
+    console.log(`🔍 DEBUG aggregateEmpresa - processando: empresa_id=${item.empresa_id}, empresa_nome=${empresa}`);
+    
+    map.set(empresa, (map.get(empresa) || 0) + 1);
+  });
+  
+  console.log("🔍 DEBUG aggregateEmpresa - mapa final:", Array.from(map.entries()));
+  
+  return Array.from(map.entries()).map(([name, count]) => ({
+    name,
+    value: count,
+    color: CoresEmpresa[name as keyof typeof CoresEmpresa] || Cores[Math.floor(Math.random() * Cores.length)],
+  }));
+}
+
 export default function DistribuicaoCharts({ distribuicaoQuery }: any) {
   const { data, isLoading } = distribuicaoQuery;
+
+  console.log("🔍 DEBUG DistribuicaoCharts - data:", data);
+  console.log("🔍 DEBUG DistribuicaoCharts - empresaDist:", data?.empresaDist?.length);
 
   const centroData = useMemo(
     () => aggregate(data?.centroDist, "bd_centros_custo", "codigo_centro_custo", "centro de custo"),
@@ -80,13 +120,19 @@ export default function DistribuicaoCharts({ distribuicaoQuery }: any) {
     () => aggregateGenero(data?.generoDist),
     [data]
   );
+  const empresaData = useMemo(
+    () => aggregateEmpresa(data?.empresaDist),
+    [data]
+  );
+
+  console.log("🔍 DEBUG DistribuicaoCharts - empresaData processado:", empresaData);
 
   if (isLoading) {
-    return <div className="grid grid-cols-1 md:grid-cols-2 gap-5"><Badge className="w-full">Carregando...</Badge></div>
+    return <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"><Badge className="w-full">Carregando...</Badge></div>
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
       {/* Por Centro de Custo - Com legenda lateral */}
       <div>
         <div className="mb-1 text-muted-foreground">Por Centro de Custo</div>
@@ -217,6 +263,81 @@ export default function DistribuicaoCharts({ distribuicaoQuery }: any) {
               <div className="text-xs font-medium text-muted-foreground mb-2">Gêneros</div>
               <div className="space-y-1.5 max-h-[160px] overflow-y-auto">
                 {generoData.map((item, index) => (
+                  <div key={item.name} className="flex items-center gap-2 text-xs">
+                    <div 
+                      className="w-3 h-3 rounded-sm flex-shrink-0" 
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-foreground truncate">
+                        {item.name}
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <div className="font-semibold text-foreground">{item.value}</div>
+                      <div className="text-[10px] text-muted-foreground">
+                        {item.value === 1 ? 'func.' : 'funcs.'}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Por Empresa - Novo Gráfico */}
+      <div>
+        <div className="mb-1 text-muted-foreground">Por Empresa</div>
+        {empresaData.length === 0 || empresaData.every(e => e.value === 0) ? (
+          <Badge variant="secondary" className="w-full">Nenhum funcionário encontrado</Badge>
+        ) : (
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Gráfico */}
+            <div className="flex-1 min-h-[180px]">
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie
+                    data={empresaData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={40}
+                    outerRadius={70}
+                    paddingAngle={2}
+                    label={false}
+                  >
+                    {empresaData.map((entry, i) => (
+                      <Cell key={entry.name} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    formatter={(value, name, props) => {
+                      const funcionarios = value === 1 ? "funcionário" : "funcionários";
+                      const nomeCompleto = props?.payload?.name || name;
+                      return [`${value} ${funcionarios}`, nomeCompleto];
+                    }}
+                    contentStyle={{
+                      backgroundColor: 'white',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                      fontSize: '12px',
+                      padding: '8px 12px',
+                      maxWidth: '280px'
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            
+            {/* Legenda lateral */}
+            <div className="w-full lg:w-48 space-y-1">
+              <div className="text-xs font-medium text-muted-foreground mb-2">Empresas</div>
+              <div className="space-y-1.5 max-h-[160px] overflow-y-auto">
+                {empresaData.map((item, index) => (
                   <div key={item.name} className="flex items-center gap-2 text-xs">
                     <div 
                       className="w-3 h-3 rounded-sm flex-shrink-0" 

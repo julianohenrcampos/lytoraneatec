@@ -9,6 +9,7 @@ import MainLayout from "./components/layout/MainLayout";
 import Dashboard from "./pages/Dashboard"; // Direct import for Dashboard
 import Dashboard1 from "./pages/Dashboard1";
 import DashboardRH from "./pages/DashboardRH"; // Import for DashboardRH
+import DashboardMaquinas from "./pages/DashboardMaquinas"; // Import for DashboardMaquinas
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -62,6 +63,9 @@ const App = () => {
                 
                 {/* Dashboard RH route */}
                 <Route path="/gestao-rh/dashboard" element={<DashboardRH />} />
+                
+                {/* Dashboard Máquinas route */}
+                <Route path="/gestao-maquinas/dashboard" element={<DashboardMaquinas />} />
                 
                 {/* Dashboard1 route - deprecated, but keep for backwards compatibility */}
                 <Route path="/dashboard1" element={<Dashboard1 />} />

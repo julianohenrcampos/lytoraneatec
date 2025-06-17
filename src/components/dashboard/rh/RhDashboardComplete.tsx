@@ -1,7 +1,8 @@
+
 import React, { useState, useMemo } from "react";
 import { useRhDashboardDataSecure } from "@/hooks/dashboard/useRhDashboardDataSecure";
 import { Card } from "@/components/ui/card";
-import { Users, UserCheck, Calendar, Group, PieChart, BarChart } from "lucide-react";
+import { Users, UserCheck, Calendar, Group, PieChart, BarChart, TrendingDown } from "lucide-react";
 import { usePermissionGuard } from "@/hooks/usePermissionGuard";
 import RhDashboardFilters from "./RhDashboardFilters";
 import TopFuncionariosCards from "./TopFuncionariosCards";
@@ -126,6 +127,11 @@ export default function RhDashboardComplete() {
   const financeiro = filtroQuery.data ?? { folhaTotal: 0, mediaSalarial: 0, folhaPorFuncao: [] };
   const totalFinanceiro = totalQuery.data ?? { folhaTotal: 0, mediaSalarial: 0, folhaPorFuncao: [] };
 
+  // Debug do turnover com melhor formatação
+  const turnover = kpisQuery.data?.turnover ?? 0;
+  console.log("🔍 DEBUG RhDashboardComplete - turnover valor:", turnover);
+  console.log("🔍 DEBUG RhDashboardComplete - kpisQuery data:", kpisQuery.data);
+
   return (
     <div className="flex flex-col gap-4">
       {/* Indicador de Segurança */}
@@ -178,9 +184,11 @@ export default function RhDashboardComplete() {
           })()}</span>
         </Card>
         <Card className="flex flex-col items-center p-4 gap-2">
-          <BarChart className="h-7 w-7 text-orange-500 mb-1" />
-          <span className="text-xs text-muted-foreground mb-1">% Turnover</span>
-          <span className="text-2xl font-bold">{kpisQuery.data?.turnover ?? 0}%</span>
+          <TrendingDown className="h-7 w-7 text-orange-500 mb-1" />
+          <span className="text-xs text-muted-foreground mb-1">Turnover ({period})</span>
+          <span className="text-2xl font-bold">
+            {turnover === 0 ? "0%" : `${turnover}%`}
+          </span>
         </Card>
       </div>
       

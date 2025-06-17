@@ -64,7 +64,7 @@ export const useRhDashboardDataSecure = (filters: SecureFilters) => {
       const { count: totalAtivos } = await funcionariosQuery
         .eq("status", "Ativo");
         
-      // Total de funcionários
+      // Total de funcionários (incluindo ativos e inativos) - REMOVIDO O FILTRO DE STATUS
       const { count: totalFuncionarios } = await funcionariosQuery;
         
       // Total de equipes (filtrar por departamento se necessário)
@@ -84,11 +84,21 @@ export const useRhDashboardDataSecure = (filters: SecureFilters) => {
       const { count: totalEquipes } = await equipesQuery;
         
       // Turnover estimado - demissões no período
-      let demissoesQuery = funcionariosQuery
+      let demissoesQuery = supabase
+        .from("bd_funcionarios")
+        .select("*", { count: "exact", head: true })
         .gte("data_demissao", filters.periodStart)
         .lte("data_demissao", filters.periodEnd);
       
+      // Aplicar filtros de segurança para demissões
+      if (!securityContext.canViewAllData && securityContext.departamentoId) {
+        demissoesQuery = demissoesQuery.eq("departamento_id", securityContext.departamentoId);
+      }
+
       const { count: demissoesPeriodo } = await demissoesQuery;
+
+      console.log("🔍 DEBUG turnover - demissões no período:", demissoesPeriodo);
+      console.log("🔍 DEBUG turnover - total funcionários:", totalFuncionarios);
 
       // Tempo médio de empresa
       let tempoQuery = supabase
@@ -118,14 +128,19 @@ export const useRhDashboardDataSecure = (filters: SecureFilters) => {
       }
       
       const tempoMedioMeses = tempoCount > 0 ? Math.round(tempoTotal / tempoCount) : 0;
-      const turnover = totalFuncionarios ? ((demissoesPeriodo || 0) / totalFuncionarios) * 100 : 0;
+      
+      // Calcular turnover corretamente e garantir que não seja arredondado para 0
+      const turnoverCalc = totalFuncionarios && totalFuncionarios > 0 ? ((demissoesPeriodo || 0) / totalFuncionarios) * 100 : 0;
+      const turnover = turnoverCalc < 0.1 && turnoverCalc > 0 ? 0.1 : Math.round(turnoverCalc * 10) / 10; // Arredondar para 1 casa decimal
 
       console.log("🔍 DEBUG kpisQuery SECURE - resultados:", {
         totalAtivos: totalAtivos || 0,
         totalFuncionarios: totalFuncionarios || 0,
         totalEquipes: totalEquipes || 0,
         tempoMedioMeses,
-        turnover: Number(turnover.toFixed(1)),
+        turnover,
+        turnoverCalc,
+        demissoesPeriodo: demissoesPeriodo || 0,
         securityApplied: !securityContext.canViewAllData
       });
 
@@ -134,7 +149,7 @@ export const useRhDashboardDataSecure = (filters: SecureFilters) => {
         totalFuncionarios: totalFuncionarios || 0,
         totalEquipes: totalEquipes || 0,
         tempoMedioMeses,
-        turnover: Number(turnover.toFixed(1))
+        turnover
       };
     },
     enabled: !securityContext.isLoading
@@ -144,20 +159,31 @@ export const useRhDashboardDataSecure = (filters: SecureFilters) => {
   const distribuicaoQuery = useQuery({
     queryKey: ["rh-distribuicao-secure", secureFilters, securityContext],
     queryFn: async () => {
-      let baseQuery = supabase.from("bd_funcionarios").select("departamento_id, bd_departamentos(nome_departamento), funcao_id, bd_funcoes(nome_funcao), centro_custo_id, bd_centros_custo(codigo_centro_custo, nome_centro_custo), genero").eq("status", "Ativo");
+      console.log("🔍 DEBUG distribuicaoQuery - iniciando busca de distribuição");
       
-      // Aplicar filtros de segurança
+      let baseQuery = supabase.from("bd_funcionarios").select("departamento_id, bd_departamentos(nome_departamento), funcao_id, bd_funcoes(nome_funcao), centro_custo_id, bd_centros_custo(codigo_centro_custo, nome_centro_custo), genero, empresa_id, bd_empresas(nome_empresa)");
+      
+      // Aplicar filtros de segurança - buscar todos os funcionários se for SuperAdm
       if (!securityContext.canViewAllData && securityContext.departamentoId) {
         baseQuery = baseQuery.eq("departamento_id", securityContext.departamentoId);
       }
 
-      const { data: funcionarios } = await baseQuery;
+      const { data: funcionarios, error } = await baseQuery;
+      
+      if (error) {
+        console.error("❌ DEBUG distribuicaoQuery - erro:", error);
+        throw error;
+      }
+
+      console.log("🔍 DEBUG distribuicaoQuery - funcionários encontrados:", funcionarios?.length);
+      console.log("🔍 DEBUG distribuicaoQuery - sample funcionários:", funcionarios?.slice(0, 3));
 
       return {
         deptoDist: funcionarios?.map(f => ({ departamento_id: f.departamento_id, bd_departamentos: f.bd_departamentos })) || [],
         funcaoDist: funcionarios?.map(f => ({ funcao_id: f.funcao_id, bd_funcoes: f.bd_funcoes })) || [],
         centroDist: funcionarios?.map(f => ({ centro_custo_id: f.centro_custo_id, bd_centros_custo: f.bd_centros_custo })) || [],
-        generoDist: funcionarios?.map(f => ({ genero: f.genero })) || []
+        generoDist: funcionarios?.map(f => ({ genero: f.genero })) || [],
+        empresaDist: funcionarios?.map(f => ({ empresa_id: f.empresa_id, bd_empresas: f.bd_empresas })) || []
       };
     },
     enabled: !securityContext.isLoading

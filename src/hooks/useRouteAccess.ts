@@ -6,6 +6,7 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   // Dashboard
   '/dashboard': ['dashboard_view'],
   '/gestao-rh/dashboard': ['dashboard_rh_view'],
+  '/gestao-maquinas/dashboard': ['dashboard_maquinas_view'],
 
   // Gestão de RH
   '/gestao-rh/empresas': ['gestao_rh_empresas_view'],
