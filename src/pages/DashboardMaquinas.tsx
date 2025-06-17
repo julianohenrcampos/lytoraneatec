@@ -10,15 +10,18 @@ import EquipamentosPorCentroCusto from "@/components/dashboard/maquinas/Equipame
 import UtilizacaoEficienciaRosca from "@/components/dashboard/maquinas/UtilizacaoEficienciaRosca";
 import SaudeFrota from "@/components/dashboard/maquinas/SaudeFrota";
 import ResumoCustos from "@/components/dashboard/maquinas/ResumoCustos";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function DashboardMaquinas() {
+  const isMobile = useIsMobile();
+  
   // Estado dos filtros
   const [filters, setFilters] = useState<MaquinasFilters>(() => {
     const hoje = new Date();
     const data30d = new Date();
     data30d.setDate(hoje.getDate() - 30);
     
-    // Padrão para caminhões programados: próximos 7 dias
     const proximos7d = new Date();
     proximos7d.setDate(hoje.getDate() + 7);
     
@@ -45,10 +48,10 @@ export default function DashboardMaquinas() {
     chamadosQuery,
     tipoFalhaQuery,
     custoLocacaoQuery,
-    caminhoesProgramadosQuery
+    caminhoesProgramadosQuery,
+    distribuicaoCentroCustoQuery
   } = useMaquinasDashboard(filters);
 
-  // Handlers dos filtros
   const handleFilterChange = (newFilters: Partial<MaquinasFilters>) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
   };
@@ -58,7 +61,6 @@ export default function DashboardMaquinas() {
     const data30d = new Date();
     data30d.setDate(hoje.getDate() - 30);
     
-    // Resetar também os filtros de planejamento para o padrão
     const proximos7d = new Date();
     proximos7d.setDate(hoje.getDate() + 7);
     
@@ -74,7 +76,6 @@ export default function DashboardMaquinas() {
     });
   };
 
-  // Contador de filtros ativos
   const filtrosAtivos = useMemo(() => {
     let count = 0;
     if (filters.tipoVeiculo && filters.tipoVeiculo.length > 0) count++;
@@ -82,7 +83,6 @@ export default function DashboardMaquinas() {
     if (filters.centroCustoId) count++;
     if (filters.ativoEspecifico) count++;
     
-    // Contar filtros de planejamento se diferentes do padrão
     const hoje = new Date().toISOString().split("T")[0];
     const proximos7d = new Date();
     proximos7d.setDate(new Date().getDate() + 7);
@@ -99,10 +99,104 @@ export default function DashboardMaquinas() {
                    tipoVeiculoQuery.isLoading || 
                    statusOperacionalQuery.isLoading;
 
+  // Layout mobile com tabs
+  if (isMobile) {
+    return (
+      <MainLayout>
+        <div className="flex flex-col gap-4 p-2">
+          {/* Header compacto */}
+          <div className="flex flex-col gap-2">
+            <h1 className="text-xl font-bold">Gestão de Máquinas</h1>
+            <p className="text-sm text-muted-foreground">
+              Acompanhamento da frota
+            </p>
+          </div>
+
+          {/* Filtros compactos */}
+          <MaquinasFiltros
+            filters={filters}
+            onFilterChange={handleFilterChange}
+            onResetFilters={resetFilters}
+            filtrosAtivos={filtrosAtivos}
+          />
+
+          {/* KPIs sempre visíveis */}
+          <MaquinasKpiCards
+            kpis={kpisQuery.data || {
+              totalAtivos: 0,
+              ativosOperando: 0,
+              ativosDisponiveis: 0,
+              ativosManutencao: 0,
+              chamadosAbertos: 0,
+              tempoMedioReparo: 0
+            }}
+            isLoading={isLoading}
+          />
+
+          {/* Tabs para organizar conteúdo no mobile */}
+          <Tabs defaultValue="visao-geral" className="w-full">
+            <TabsList className="grid w-full grid-cols-4 text-xs">
+              <TabsTrigger value="visao-geral" className="text-xs">Frota</TabsTrigger>
+              <TabsTrigger value="custos" className="text-xs">Custos</TabsTrigger>
+              <TabsTrigger value="utilizacao" className="text-xs">Uso</TabsTrigger>
+              <TabsTrigger value="saude" className="text-xs">Saúde</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="visao-geral" className="mt-4">
+              <div className="space-y-4">
+                <VisaoGeralFrotaMelhorada
+                  statusOperacional={statusOperacionalQuery.data || []}
+                  idadeFrota={idadeFrotaQuery.data || []}
+                  centroCustoData={centroCustoQuery.data || []}
+                  distribuicaoCentroCusto={distribuicaoCentroCustoQuery.data || []}
+                  isLoading={isLoading || distribuicaoCentroCustoQuery.isLoading}
+                />
+                
+                <EquipamentosPorCentroCusto
+                  equipamentosData={equipamentosPorCentroCustoQuery.data || []}
+                  isLoading={equipamentosPorCentroCustoQuery.isLoading}
+                />
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="custos" className="mt-4">
+              <ResumoCustos
+                custoData={custoLocacaoQuery.data || {
+                  valorTotal: 0,
+                  totalDescontos: 0,
+                  valorLiquido: 0,
+                  diasManutencao: 0,
+                  horasManutencao: 0
+                }}
+                caminhoesProgramados={caminhoesProgramadosQuery.data || []}
+                isLoading={custoLocacaoQuery.isLoading || caminhoesProgramadosQuery.isLoading}
+              />
+            </TabsContent>
+            
+            <TabsContent value="utilizacao" className="mt-4">
+              <UtilizacaoEficienciaRosca
+                centroCustoData={centroCustoQuery.data || []}
+                isLoading={centroCustoQuery.isLoading}
+              />
+            </TabsContent>
+            
+            <TabsContent value="saude" className="mt-4">
+              <SaudeFrota
+                chamadosData={chamadosQuery.data || []}
+                tipoFalhaData={tipoFalhaQuery.data || []}
+                isLoading={chamadosQuery.isLoading || tipoFalhaQuery.isLoading}
+              />
+            </TabsContent>
+          </Tabs>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  // Layout desktop (mantém o original)
   return (
     <MainLayout>
       <div className="flex flex-col gap-6 p-6">
-        {/* Header */}
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-bold">Dashboard de Gestão de Máquinas</h1>
           <p className="text-muted-foreground">
@@ -110,7 +204,6 @@ export default function DashboardMaquinas() {
           </p>
         </div>
 
-        {/* Filtros */}
         <MaquinasFiltros
           filters={filters}
           onFilterChange={handleFilterChange}
@@ -118,7 +211,6 @@ export default function DashboardMaquinas() {
           filtrosAtivos={filtrosAtivos}
         />
 
-        {/* KPIs Principais */}
         <MaquinasKpiCards
           kpis={kpisQuery.data || {
             totalAtivos: 0,
@@ -131,7 +223,6 @@ export default function DashboardMaquinas() {
           isLoading={isLoading}
         />
 
-        {/* Seção 1: Resumo de Custos de Locação e Caminhões Programados */}
         <ResumoCustos
           custoData={custoLocacaoQuery.data || {
             valorTotal: 0,
@@ -144,27 +235,24 @@ export default function DashboardMaquinas() {
           isLoading={custoLocacaoQuery.isLoading || caminhoesProgramadosQuery.isLoading}
         />
 
-        {/* Seção 2: Equipamentos por Centro de Custo (NOVO) */}
         <EquipamentosPorCentroCusto
           equipamentosData={equipamentosPorCentroCustoQuery.data || []}
           isLoading={equipamentosPorCentroCustoQuery.isLoading}
         />
 
-        {/* Seção 3: Visão Geral da Frota (MELHORADA) */}
         <VisaoGeralFrotaMelhorada
-          tipoVeiculo={tipoVeiculoQuery.data || []}
           statusOperacional={statusOperacionalQuery.data || []}
           idadeFrota={idadeFrotaQuery.data || []}
-          isLoading={isLoading}
+          centroCustoData={centroCustoQuery.data || []}
+          distribuicaoCentroCusto={distribuicaoCentroCustoQuery.data || []}
+          isLoading={isLoading || distribuicaoCentroCustoQuery.isLoading}
         />
 
-        {/* Seção 4: Utilização e Eficiência (GRÁFICOS DE ROSCA) */}
         <UtilizacaoEficienciaRosca
           centroCustoData={centroCustoQuery.data || []}
           isLoading={centroCustoQuery.isLoading}
         />
 
-        {/* Seção 5: Saúde da Frota */}
         <SaudeFrota
           chamadosData={chamadosQuery.data || []}
           tipoFalhaData={tipoFalhaQuery.data || []}

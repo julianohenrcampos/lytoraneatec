@@ -1,3 +1,4 @@
+
 import React, { useEffect } from "react";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
@@ -5,6 +6,8 @@ import AppHeader from "./AppHeader";
 import { useSidebarState } from "@/hooks/useSidebarState";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
+import { PWAUpdateNotification } from "@/components/pwa/PWAUpdateNotification";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -20,9 +23,8 @@ export default function MainLayout({ children }: MainLayoutProps) {
     document.title = "Lytorânea Construtora - Sistema ERP";
   }, []);
 
-  // Meta viewport para garantir escala correta em dispositivos móveis
+  // Meta viewport otimizado para PWA
   useEffect(() => {
-    // Buscar ou criar meta viewport
     let viewportMeta = document.querySelector('meta[name="viewport"]');
     if (!viewportMeta) {
       viewportMeta = document.createElement('meta');
@@ -30,14 +32,22 @@ export default function MainLayout({ children }: MainLayoutProps) {
       document.head.appendChild(viewportMeta);
     }
     
-    // Configurar o meta viewport para garantir responsividade adequada
+    // Configuração otimizada para PWA
     viewportMeta.setAttribute(
       'content', 
-      'width=device-width, initial-scale=1.0, maximum-scale=1.2, user-scalable=yes, viewport-fit=cover'
+      'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover'
     );
     
+    // Adicionar meta theme-color para PWA
+    let themeColorMeta = document.querySelector('meta[name="theme-color"]');
+    if (!themeColorMeta) {
+      themeColorMeta = document.createElement('meta');
+      themeColorMeta.setAttribute('name', 'theme-color');
+      themeColorMeta.setAttribute('content', '#ffffff');
+      document.head.appendChild(themeColorMeta);
+    }
+    
     return () => {
-      // Restaurar viewport padrão ao desmontar
       viewportMeta.setAttribute('content', 'width=device-width, initial-scale=1.0');
     };
   }, []);
@@ -49,18 +59,24 @@ export default function MainLayout({ children }: MainLayoutProps) {
       <div className="flex min-h-screen w-full bg-background">
         <AppSidebar />
         
-        <SidebarInset>
-          <div className="flex flex-col h-full">
+        <SidebarInset className="flex-1 overflow-hidden">
+          <div className="flex flex-col h-screen">
             <AppHeader 
               user={!isLoading ? user : null}
               updateUserImage={updateUserImage}
             />
             
-            <main className="flex-1 overflow-auto p-2 sm:p-4 md:p-6">
-              {children}
+            <main className="flex-1 overflow-auto p-1 sm:p-2 md:p-4 lg:p-6">
+              <div className="max-w-full mx-auto">
+                {children}
+              </div>
             </main>
           </div>
         </SidebarInset>
+        
+        {/* Componentes PWA */}
+        <PWAInstallBanner />
+        <PWAUpdateNotification />
       </div>
     </SidebarProvider>
   );

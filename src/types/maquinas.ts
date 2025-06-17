@@ -119,6 +119,19 @@ export interface CaminhoesPorCentroCusto {
   totalCaminhoes: number;
 }
 
+export interface DistribuicaoCentroCusto {
+  centroCusto: string;
+  nomeCompleto: string;
+  quantidade: number;
+  percentual: number;
+  veiculos: Array<{
+    id: string;
+    frota: string;
+    numero_frota: string;
+    tipo_veiculo: string;
+  }>;
+}
+
 export interface MaquinasFilters {
   periodStart: string;
   periodEnd: string;

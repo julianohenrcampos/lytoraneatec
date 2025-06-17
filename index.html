@@ -1,18 +1,59 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
     <title>Lytorânea Construtora - Sistema ERP</title>
-    <meta name="description" content="Sistema ERP completo para gestão de empresas de construção" />
-    <meta name="author" content="Lovable" />
+    <meta name="description" content="Sistema ERP completo para gestão de empresas de construção civil" />
+    <meta name="author" content="Lytorânea Construtora" />
+    <meta name="keywords" content="ERP, construção civil, gestão, máquinas, funcionários, equipamentos" />
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#3b82f6" />
+    <meta name="application-name" content="LYTOTEC ERP" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="LYTOTEC ERP" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="msapplication-TileColor" content="#3b82f6" />
+    <meta name="msapplication-tap-highlight" content="no" />
+    
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Lytorânea Construtora - Sistema ERP" />
+    <meta property="og:description" content="Sistema ERP completo para gestão de empresas de construção" />
+    <meta property="og:site_name" content="LYTOTEC ERP" />
+    <meta property="og:url" content="https://lytotec.lovable.app" />
     <meta property="og:image" content="/og-image.png" />
+    
+    <!-- Icons -->
     <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/icons/icon-512x512.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    
+    <!-- Preload important resources -->
+    <link rel="preload" href="/src/main.tsx" as="script" />
+    <link rel="dns-prefetch" href="https://api.supabase.co" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    
+    <!-- Performance optimizations -->
+    <meta name="robots" content="noindex, nofollow" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   </head>
 
   <body>
     <div id="root"></div>
+    <noscript>
+      <div style="text-align: center; padding: 50px; font-family: Arial, sans-serif;">
+        <h1>JavaScript é necessário</h1>
+        <p>Este aplicativo requer JavaScript para funcionar. Por favor, habilite JavaScript em seu navegador.</p>
+      </div>
+    </noscript>
+    
     <!-- IMPORTANT: DO NOT REMOVE THIS SCRIPT TAG OR THIS VERY COMMENT! -->
     <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
     <script type="module" src="/src/main.tsx"></script>

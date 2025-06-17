@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { 
@@ -15,7 +14,8 @@ import {
   CaminhoesProgramados,
   CaminhoesPorCentroCusto,
   MaquinasFilters,
-  AtivoBasico 
+  AtivoBasico,
+  DistribuicaoCentroCusto
 } from "@/types/maquinas";
 
 export const useMaquinasDashboard = (filters: MaquinasFilters) => {
@@ -473,7 +473,7 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
   const caminhoesProgramadosQuery = useQuery<CaminhoesPorCentroCusto[]>({
     queryKey: ["caminhoes-programados", filters],
     queryFn: async () => {
-      // Determinar as datas baseadas nos novos filtros específicos
+      // Determine as datas baseadas nos novos filtros específicos
       let dataInicio: string;
       let dataFim: string;
 
@@ -572,6 +572,119 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
     }
   });
 
+  // 11. Distribuição Real da Frota por Centro de Custo (MODIFICADO - apenas apontamentos do dia atual)
+  const distribuicaoCentroCustoQuery = useQuery<DistribuicaoCentroCusto[]>({
+    queryKey: ["distribuicao-centro-custo", filters],
+    queryFn: async () => {
+      console.log("🔍 DEBUG useMaquinasDashboard - buscando distribuição por centro de custo do dia atual");
+
+      // Data de hoje
+      const hoje = new Date().toISOString().split('T')[0];
+      console.log("📅 Filtrando apontamentos para a data:", hoje);
+
+      // Buscar todos os veículos
+      let veiculosQuery = supabase
+        .from("bd_caminhoes_equipamentos")
+        .select("id, frota, numero_frota, tipo_veiculo");
+
+      if (filters.tipoVeiculo && filters.tipoVeiculo.length > 0) {
+        veiculosQuery = veiculosQuery.in("tipo_veiculo", filters.tipoVeiculo);
+      }
+
+      if (filters.empresaId) {
+        veiculosQuery = veiculosQuery.eq("empresa_id", filters.empresaId);
+      }
+
+      const { data: veiculos } = await veiculosQuery;
+
+      if (!veiculos || veiculos.length === 0) {
+        return [];
+      }
+
+      // Buscar apenas os apontamentos do dia atual
+      const { data: apontamentosHoje } = await supabase
+        .from("bd_registro_apontamento_cam_equipa")
+        .select(`
+          caminhao_equipamento_id,
+          centro_custo_id,
+          bd_centros_custo(codigo_centro_custo, nome_centro_custo)
+        `)
+        .eq("data", hoje);
+
+      console.log("📊 Apontamentos encontrados para hoje:", apontamentosHoje?.length || 0);
+
+      // Criar mapeamento de veículo -> centro de custo (apenas para hoje)
+      const veiculoCentroCusto = new Map<string, {
+        codigo: string;
+        nomeCompleto: string;
+      }>();
+
+      apontamentosHoje?.forEach(apontamento => {
+        const centro = apontamento.bd_centros_custo as any;
+        if (centro && !Array.isArray(centro)) {
+          veiculoCentroCusto.set(apontamento.caminhao_equipamento_id, {
+            codigo: centro.codigo_centro_custo || "Não Informado",
+            nomeCompleto: centro.nome_centro_custo || centro.codigo_centro_custo || "Não Informado"
+          });
+        }
+      });
+
+      // Agrupar veículos por centro de custo
+      const centroMap = new Map<string, {
+        nomeCompleto: string;
+        veiculos: Array<{
+          id: string;
+          frota: string;
+          numero_frota: string;
+          tipo_veiculo: string;
+        }>;
+      }>();
+
+      veiculos.forEach(veiculo => {
+        const centroCustoInfo = veiculoCentroCusto.get(veiculo.id);
+        
+        let centroCusto = "Não Alocado Hoje";
+        let nomeCompleto = "Veículos Não Alocados Hoje";
+
+        if (centroCustoInfo) {
+          centroCusto = centroCustoInfo.codigo;
+          nomeCompleto = centroCustoInfo.nomeCompleto;
+        }
+
+        if (!centroMap.has(centroCusto)) {
+          centroMap.set(centroCusto, {
+            nomeCompleto,
+            veiculos: []
+          });
+        }
+
+        centroMap.get(centroCusto)!.veiculos.push({
+          id: veiculo.id,
+          frota: veiculo.frota || '',
+          numero_frota: veiculo.numero_frota || '',
+          tipo_veiculo: veiculo.tipo_veiculo || ''
+        });
+      });
+
+      const totalVeiculos = veiculos.length;
+      const resultado = Array.from(centroMap.entries()).map(([centroCusto, data]) => ({
+        centroCusto,
+        nomeCompleto: data.nomeCompleto,
+        quantidade: data.veiculos.length,
+        percentual: totalVeiculos > 0 ? (data.veiculos.length / totalVeiculos) * 100 : 0,
+        veiculos: data.veiculos
+      })).sort((a, b) => b.quantidade - a.quantidade); // Ordenar por quantidade decrescente
+
+      console.log("📈 Distribuição calculada para hoje:", { 
+        totalCentros: resultado.length, 
+        totalVeiculos, 
+        alocadosHoje: totalVeiculos - (resultado.find(r => r.centroCusto === "Não Alocado Hoje")?.quantidade || 0)
+      });
+
+      return resultado;
+    }
+  });
+
   return {
     kpisQuery,
     tipoVeiculoQuery,
@@ -582,6 +695,7 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
     chamadosQuery,
     tipoFalhaQuery,
     custoLocacaoQuery,
-    caminhoesProgramadosQuery
+    caminhoesProgramadosQuery,
+    distribuicaoCentroCustoQuery
   };
 };
