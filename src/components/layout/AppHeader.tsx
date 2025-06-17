@@ -11,6 +11,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import UserProfileModal from "@/components/user/UserProfileModal";
 import UserImageUploadModal from "@/components/user/UserImageUploadModal";
+import { PWAInstallButton } from "@/components/pwa/PWAInstallButton";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AppHeaderProps {
@@ -173,6 +174,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           )}
           
           <div className="flex flex-col gap-2">
+            <PWAInstallButton variant="button" className="justify-start" />
             <Button variant="ghost" className="justify-start" onClick={() => setIsProfileModalOpen(true)}>
               <User className="mr-2 h-4 w-4" />
               <span>Perfil</span>
@@ -206,6 +208,8 @@ const AppHeader: React.FC<AppHeaderProps> = ({
       </div>
       
       <div className="flex items-center gap-1 sm:gap-3">
+        <PWAInstallButton />
+        
         {!isMobile && (
           <Button variant="ghost" size="icon" onClick={toggleFullScreen}>
             <Maximize className="h-4 w-4 sm:h-5 sm:w-5" />

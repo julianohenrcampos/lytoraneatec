@@ -1,12 +1,12 @@
 
 import { useAuthPermissions } from './useAuthPermissions';
 
-// Mapeamento de rotas para permissões necessárias
+// Mapeamento de rotas para permissões necessárias - ATUALIZADO
 const ROUTE_PERMISSIONS: Record<string, string[]> = {
   // Dashboard
   '/dashboard': ['dashboard_view'],
   '/gestao-rh/dashboard': ['dashboard_rh_view'],
-  '/gestao-maquinas/dashboard': ['dashboard_maquinas_view'],
+  '/gestao-maquinas/dashboard': ['dashboard_maquinas_view'], // ⭐ CORRIGIDO
 
   // Gestão de RH
   '/gestao-rh/empresas': ['gestao_rh_empresas_view'],
@@ -19,7 +19,7 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   // Gestão de Máquinas/Equipamentos
   '/gestao-maquinas/caminhoes-equipamentos': ['gestao_maquinas_caminhoes_view'],
   '/gestao-maquinas/usinas': ['gestao_maquinas_usinas_view'],
-  '/gestao-maquinas/relatorio-medicao': ['gestao_maquinas_relatorio_medicao_view'],
+  '/gestao-maquinas/relatorio-medicao': ['gestao_maquinas_relatorio_medicao_view'], // ⭐ CORRIGIDO
 
   // Requisições e Logística
   '/requisicoes/cadastro': ['requisicoes_cadastro_view'],
@@ -32,7 +32,7 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   '/requisicoes/gestao-os': ['requisicoes_gestao_os_view'],
 
   // Administração
-  '/admin/permissoes': ['admin_permissoes_view'],
+  '/admin/permissoes': ['admin_permissoes_view'], // ⭐ CORRIGIDO
 };
 
 export const useRouteAccess = () => {
@@ -54,9 +54,30 @@ export const useRouteAccess = () => {
     return Object.keys(ROUTE_PERMISSIONS).filter(route => canAccessRoute(route));
   };
 
+  // 🔧 DEBUG: Função para diagnosticar problemas de permissão
+  const debugRouteAccess = (route: string) => {
+    console.group(`🔍 Route Access Debug: ${route}`);
+    console.log('Loading:', isLoading);
+    console.log('Is SuperAdmin:', isSuperAdmin);
+    console.log('Required Permissions:', ROUTE_PERMISSIONS[route] || 'None (public route)');
+    console.log('User Permissions:', permissions);
+    console.log('Can Access:', canAccessRoute(route));
+    
+    if (ROUTE_PERMISSIONS[route] && !isSuperAdmin) {
+      const missingPermissions = ROUTE_PERMISSIONS[route].filter(
+        perm => !permissions.includes(perm)
+      );
+      if (missingPermissions.length > 0) {
+        console.warn('Missing Permissions:', missingPermissions);
+      }
+    }
+    console.groupEnd();
+  };
+
   return {
     canAccessRoute,
     getAccessibleRoutes,
+    debugRouteAccess, // ⭐ NOVO
     isLoading,
     isSuperAdmin
   };

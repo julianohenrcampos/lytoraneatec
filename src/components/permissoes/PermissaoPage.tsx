@@ -1,4 +1,3 @@
-
 import React from "react";
 import { UserCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,6 +9,7 @@ import PermissaoFormModal from "./PermissaoFormModal";
 import FuncaoPermissaoFormModal from "./FuncaoPermissaoFormModal";
 import DeletePermissaoDialog from "./DeletePermissaoDialog";
 import DeleteFuncaoPermissaoDialog from "./DeleteFuncaoPermissaoDialog";
+import PermissionDebugPanel from "../debug/PermissionDebugPanel";
 
 const PermissaoPage: React.FC = () => {
   const {
@@ -95,6 +95,9 @@ const PermissaoPage: React.FC = () => {
           />
         </TabsContent>
       </Tabs>
+
+      {/* ⭐ NOVO: Debug Panel */}
+      <PermissionDebugPanel />
       
       <PermissaoFormModal
         isOpen={isPermissaoFormOpen}
