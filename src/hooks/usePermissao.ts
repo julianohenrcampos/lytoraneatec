@@ -1,14 +1,16 @@
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { usePermissionCacheInvalidation } from "@/hooks/usePermissionCacheInvalidation";
 import { 
   Permissao, 
   PermissaoFilter, 
   FuncaoPermissao, 
   FuncaoPermissaoFilter, 
   PermissaoFormData, 
-  FuncaoPermissaoFormData 
+  FuncaoPermissaoFormData,
+  ProfileType 
 } from "@/types/permissao";
 import {
   fetchPermissoes,
@@ -20,24 +22,30 @@ import {
   updateFuncaoPermissao,
   deleteFuncaoPermissao
 } from "@/services/permissaoService";
+import { supabase } from "@/integrations/supabase/client";
 
 export const usePermissao = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { invalidatePermissionCache, refetchUserPermissions } = usePermissionCacheInvalidation();
   
   // Form states
   const [isPermissaoFormOpen, setIsPermissaoFormOpen] = useState(false);
   const [isFuncaoFormOpen, setIsFuncaoFormOpen] = useState(false);
   const [isDeletePermissaoOpen, setIsDeletePermissaoOpen] = useState(false);
   const [isDeleteFuncaoPermissaoOpen, setIsDeleteFuncaoPermissaoOpen] = useState(false);
+  const [isAssignPermissionOpen, setIsAssignPermissionOpen] = useState(false);
+  const [isUserDetailsOpen, setIsUserDetailsOpen] = useState(false);
   const [currentPermissao, setCurrentPermissao] = useState<Permissao | null>(null);
   const [currentFuncaoPermissao, setCurrentFuncaoPermissao] = useState<FuncaoPermissao | null>(null);
+  const [currentProfile, setCurrentProfile] = useState<ProfileType | null>(null);
   
   // Filter states
   const [permissaoFilter, setPermissaoFilter] = useState<PermissaoFilter>({});
   const [funcaoPermissaoFilter, setFuncaoPermissaoFilter] = useState<FuncaoPermissaoFilter>({});
+  const [profileFilter, setProfileFilter] = useState<{ nome?: string; status?: string }>({});
   
-  // Queries
+  // Queries existentes
   const {
     data: permissoes,
     isLoading: isPermissaoLoading,
@@ -62,8 +70,181 @@ export const usePermissao = () => {
     queryKey: ['allPermissoes'],
     queryFn: () => fetchPermissoes({})
   });
+
+  // Query para buscar funções únicas
+  const { data: availableFunctionsFromDB } = useQuery({
+    queryKey: ['availableFunctions'],
+    queryFn: async () => {
+      console.log('🔍 Buscando todas as funções disponíveis...');
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('funcoes')
+        .not('funcoes', 'is', null);
+      
+      if (error) {
+        console.error('❌ Erro ao buscar funções:', error);
+        throw error;
+      }
+      
+      const allFunctions = new Set<string>();
+      data?.forEach(profile => {
+        if (profile.funcoes && Array.isArray(profile.funcoes)) {
+          profile.funcoes.forEach(funcao => {
+            if (funcao && funcao.trim() !== '') {
+              allFunctions.add(funcao);
+            }
+          });
+        }
+      });
+      
+      const defaultFunctions = [
+        'SuperAdm',
+        'Administrador', 
+        'Operador',
+        'Visualizador',
+        'Encarregado',
+        'Apontador',
+        'AdmRH',
+        'Engenheiro Civil',
+        'AdmLogistica',
+        'AdmEquipamentos'
+      ];
+      
+      defaultFunctions.forEach(func => allFunctions.add(func));
+      
+      const finalFunctions = Array.from(allFunctions).sort();
+      console.log('✅ Funções disponíveis encontradas:', finalFunctions);
+      
+      return finalFunctions;
+    }
+  });
+
+  // Query CORRIGIDA com RLS funcionando
+  const {
+    data: allProfiles,
+    isLoading: isProfilesLoading,
+    refetch: refetchProfiles,
+    error: profilesError
+  } = useQuery({
+    queryKey: ['all-profiles-with-rls'],
+    queryFn: async () => {
+      console.log('🚀 ====== BUSCA COM RLS HABILITADO ======');
+      console.log('📅 Timestamp:', new Date().toISOString());
+      
+      try {
+        // Query simples que respeita as políticas RLS
+        const { data: users, error, count } = await supabase
+          .from('profiles')
+          .select(`
+            id,
+            email,
+            nome_completo,
+            imagem_url,
+            funcoes,
+            created_at
+          `, { count: 'exact' })
+          .order('created_at', { ascending: false });
+        
+        if (error) {
+          console.error('💥 ERRO na query com RLS:', error);
+          throw error;
+        }
+        
+        console.log('📊 DADOS COM RLS:');
+        console.log(`📈 Count: ${count}`);
+        console.log(`📝 Array length: ${users?.length || 0}`);
+        
+        // Log dos usuários encontrados
+        console.log('👥 ==== USUÁRIOS ENCONTRADOS COM RLS ====');
+        users?.forEach((user, index) => {
+          console.log(`👤 ${index + 1}/${users.length}:`, {
+            id: user.id?.substring(0, 8) + '...',
+            nome: user.nome_completo || 'SEM NOME',
+            email: user.email || 'SEM EMAIL',
+            funcoes: user.funcoes || 'SEM FUNCOES',
+            created_at: user.created_at
+          });
+        });
+        
+        console.log('✅ QUERY COM RLS EXECUTADA - RETORNANDO:', users?.length || 0, 'usuários');
+        return users as ProfileType[] || [];
+        
+      } catch (err) {
+        console.error('🔥 ERRO FATAL na busca com RLS:', err);
+        throw err;
+      }
+    },
+    staleTime: 30000, // Cache por 30 segundos
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
+    retry: 2
+  });
+
+  // Processar filtros nos dados retornados
+  const profiles = React.useMemo(() => {
+    console.log('🔄 ====== PROCESSANDO FILTROS ======');
+    console.log('📋 Filtros ativos:', profileFilter);
+    console.log('📊 Total de usuários disponíveis:', allProfiles?.length || 0);
+    
+    if (!allProfiles || allProfiles.length === 0) {
+      console.log('⚠️ Nenhum dado disponível para filtrar');
+      return [];
+    }
+    
+    let filteredData = [...allProfiles];
+    
+    // Aplicar filtro de nome
+    if (profileFilter.nome && profileFilter.nome.trim() !== '') {
+      const nomeFilter = profileFilter.nome.toLowerCase();
+      const beforeFilter = filteredData.length;
+      filteredData = filteredData.filter(profile => {
+        const nome = (profile.nome_completo || '').toLowerCase();
+        const email = (profile.email || '').toLowerCase();
+        return nome.includes(nomeFilter) || email.includes(nomeFilter);
+      });
+      console.log(`🔍 Filtro nome "${profileFilter.nome}": ${beforeFilter} → ${filteredData.length} usuários`);
+    }
+
+    // Aplicar filtro de status
+    if (profileFilter.status && profileFilter.status !== '' && profileFilter.status !== 'todos') {
+      const beforeFilter = filteredData.length;
+      
+      if (profileFilter.status === 'sem_permissao') {
+        filteredData = filteredData.filter(profile => {
+          const funcoes = profile.funcoes || [];
+          const temApenasUser = funcoes.length === 0 || 
+                               funcoes.every(f => !f || f.trim() === '' || f === 'user');
+          return temApenasUser;
+        });
+      } else if (profileFilter.status === 'com_permissao') {
+        filteredData = filteredData.filter(profile => {
+          const funcoes = profile.funcoes || [];
+          const temPermissaoValida = funcoes.some(f => f && f.trim() !== '' && f !== 'user');
+          return temPermissaoValida;
+        });
+      }
+      
+      console.log(`🎯 Filtro status "${profileFilter.status}": ${beforeFilter} → ${filteredData.length} usuários`);
+    }
+
+    console.log(`📊 ====== RESULTADO FINAL ======`);
+    console.log(`📈 Total para exibição: ${filteredData.length} usuários`);
+
+    return filteredData;
+  }, [allProfiles, profileFilter]);
+
+  // Lista de funções disponíveis
+  const availableFunctions = availableFunctionsFromDB || [
+    'SuperAdm',
+    'Administrador',
+    'Operador', 
+    'Visualizador',
+    'Encarregado',
+    'Apontador'
+  ];
   
-  // Mutations
+  // Mutations com invalidação corrigida
   const createPermissaoMutation = useMutation({
     mutationFn: (data: PermissaoFormData) => createPermissao(data),
     onSuccess: () => {
@@ -74,6 +255,8 @@ export const usePermissao = () => {
       setIsPermissaoFormOpen(false);
       queryClient.invalidateQueries({ queryKey: ['permissoes'] });
       queryClient.invalidateQueries({ queryKey: ['allPermissoes'] });
+      // CORREÇÃO: Invalidar cache de permissões do usuário
+      invalidatePermissionCache();
     },
     onError: (error: any) => {
       toast({
@@ -94,6 +277,8 @@ export const usePermissao = () => {
       setIsPermissaoFormOpen(false);
       queryClient.invalidateQueries({ queryKey: ['permissoes'] });
       queryClient.invalidateQueries({ queryKey: ['allPermissoes'] });
+      // CORREÇÃO: Invalidar cache de permissões do usuário
+      invalidatePermissionCache();
     },
     onError: (error: any) => {
       toast({
@@ -114,6 +299,8 @@ export const usePermissao = () => {
       setIsDeletePermissaoOpen(false);
       queryClient.invalidateQueries({ queryKey: ['permissoes'] });
       queryClient.invalidateQueries({ queryKey: ['allPermissoes'] });
+      // CORREÇÃO: Invalidar cache de permissões do usuário
+      invalidatePermissionCache();
     },
     onError: (error: any) => {
       toast({
@@ -133,6 +320,8 @@ export const usePermissao = () => {
       });
       setIsFuncaoFormOpen(false);
       queryClient.invalidateQueries({ queryKey: ['funcoesPermissao'] });
+      // CORREÇÃO: Invalidar cache de permissões do usuário
+      invalidatePermissionCache();
     },
     onError: (error: any) => {
       toast({
@@ -152,6 +341,10 @@ export const usePermissao = () => {
       });
       setIsFuncaoFormOpen(false);
       queryClient.invalidateQueries({ queryKey: ['funcoesPermissao'] });
+      // CORREÇÃO PRINCIPAL: Invalidar cache de permissões do usuário após mudança em função
+      console.log('🔄 Função atualizada - invalidando cache de permissões');
+      invalidatePermissionCache();
+      refetchUserPermissions();
     },
     onError: (error: any) => {
       toast({
@@ -171,6 +364,8 @@ export const usePermissao = () => {
       });
       setIsDeleteFuncaoPermissaoOpen(false);
       queryClient.invalidateQueries({ queryKey: ['funcoesPermissao'] });
+      // CORREÇÃO: Invalidar cache de permissões do usuário
+      invalidatePermissionCache();
     },
     onError: (error: any) => {
       toast({
@@ -180,8 +375,51 @@ export const usePermissao = () => {
       });
     }
   });
+
+  // Mutation para atribuir permissões
+  const assignPermissionMutation = useMutation({
+    mutationFn: async ({ profileId, funcaoString }: { profileId: string; funcaoString: string }) => {
+      const { data: profile, error: fetchError } = await supabase
+        .from('profiles')
+        .select('funcoes')
+        .eq('id', profileId)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      const currentFuncoes = profile?.funcoes || ['user'];
+      const newFuncoes = [...new Set([...currentFuncoes, funcaoString])];
+      
+      const { error } = await supabase
+        .from('profiles')
+        .update({ funcoes: newFuncoes })
+        .eq('id', profileId);
+      
+      if (error) throw error;
+      return { profileId, funcaoString };
+    },
+    onSuccess: () => {
+      toast({
+        title: "Permissão atribuída com sucesso",
+        variant: "default",
+      });
+      setIsAssignPermissionOpen(false);
+      // Invalidar cache para atualizar dados
+      queryClient.invalidateQueries({ queryKey: ['all-profiles-with-rls'] });
+      queryClient.invalidateQueries({ queryKey: ['availableFunctions'] });
+      // CORREÇÃO: Invalidar cache de permissões do usuário se for o próprio usuário
+      invalidatePermissionCache();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao atribuir permissão",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
   
-  // Filter handlers
+  // Filter handlers mantidos
   const handlePermissaoFilterChange = (name: string, value: any) => {
     setPermissaoFilter(prev => ({
       ...prev,
@@ -195,6 +433,18 @@ export const usePermissao = () => {
       [name]: value
     }));
   };
+
+  const handleProfileFilterChange = (name: string, value: any) => {
+    console.log(`🔧 Alterando filtro ${name} para:`, value);
+    setProfileFilter(prev => {
+      const newFilter = {
+        ...prev,
+        [name]: value
+      };
+      console.log('🔧 Novos filtros de profile:', newFilter);
+      return newFilter;
+    });
+  };
   
   const resetPermissaoFilters = () => {
     setPermissaoFilter({});
@@ -203,8 +453,14 @@ export const usePermissao = () => {
   const resetFuncaoPermissaoFilters = () => {
     setFuncaoPermissaoFilter({});
   };
+
+  const resetProfileFilters = () => {
+    console.log('🔄 Resetando todos os filtros de profile');
+    setProfileFilter({});
+    queryClient.invalidateQueries({ queryKey: ['all-profiles-with-rls'] });
+  };
   
-  // Form handlers
+  // Form handlers mantidos
   const openPermissaoForm = (permissao?: Permissao) => {
     setCurrentPermissao(permissao || null);
     setIsPermissaoFormOpen(true);
@@ -213,6 +469,16 @@ export const usePermissao = () => {
   const openFuncaoPermissaoForm = (funcaoPermissao?: FuncaoPermissao) => {
     setCurrentFuncaoPermissao(funcaoPermissao || null);
     setIsFuncaoFormOpen(true);
+  };
+
+  const openAssignPermission = (profile: ProfileType) => {
+    setCurrentProfile(profile);
+    setIsAssignPermissionOpen(true);
+  };
+
+  const openUserDetails = (profile: ProfileType) => {
+    setCurrentProfile(profile);
+    setIsUserDetailsOpen(true);
   };
   
   const confirmDeletePermissao = (permissao: Permissao) => {
@@ -252,19 +518,24 @@ export const usePermissao = () => {
       createFuncaoPermissaoMutation.mutate(data);
     }
   };
+
+  const handleAssignPermission = (profileId: string, funcaoString: string) => {
+    assignPermissionMutation.mutate({ profileId, funcaoString });
+  };
   
   const isSubmitting = 
     createPermissaoMutation.isPending || 
     updatePermissaoMutation.isPending ||
     createFuncaoPermissaoMutation.isPending ||
-    updateFuncaoPermissaoMutation.isPending;
+    updateFuncaoPermissaoMutation.isPending ||
+    assignPermissionMutation.isPending;
     
   const isDeleting = 
     deletePermissaoMutation.isPending || 
     deleteFuncaoPermissaoMutation.isPending;
   
   return {
-    // Estados
+    // Estados existentes
     isPermissaoFormOpen,
     isFuncaoFormOpen,
     isDeletePermissaoOpen,
@@ -280,8 +551,18 @@ export const usePermissao = () => {
     allPermissoes,
     isSubmitting,
     isDeleting,
+
+    // Estados para usuários
+    isAssignPermissionOpen,
+    isUserDetailsOpen,
+    currentProfile,
+    profileFilter,
+    profiles,
+    isProfilesLoading,
+    availableFunctions,
+    profilesError,
     
-    // Ações
+    // Ações existentes mantidas
     setIsPermissaoFormOpen,
     setIsFuncaoFormOpen,
     setIsDeletePermissaoOpen,
@@ -299,6 +580,16 @@ export const usePermissao = () => {
     handleSavePermissao,
     handleSaveFuncaoPermissao,
     refetchPermissoes,
-    refetchFuncoesPermissao
+    refetchFuncoesPermissao,
+
+    // Ações para usuários
+    setIsAssignPermissionOpen,
+    setIsUserDetailsOpen,
+    handleProfileFilterChange,
+    resetProfileFilters,
+    openAssignPermission,
+    openUserDetails,
+    handleAssignPermission,
+    refetchProfiles,
   };
 };

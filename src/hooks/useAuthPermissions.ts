@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface UserPermissions {
   userId: string | null;
@@ -20,6 +21,7 @@ export const useAuthPermissions = (): UserPermissions => {
     isLoading: true,
   });
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const loadUserPermissions = async () => {
@@ -27,6 +29,7 @@ export const useAuthPermissions = (): UserPermissions => {
         const { data: { user } } = await supabase.auth.getUser();
         
         if (!user) {
+          console.log("🔐 User not authenticated, clearing permissions");
           setPermissions({
             userId: null,
             isSuperAdmin: false,
@@ -37,16 +40,12 @@ export const useAuthPermissions = (): UserPermissions => {
           return;
         }
 
-        console.log('🔐 Loading permissions for user:', user.id);
+        console.log('🔐 Loading dynamic permissions for user:', user.id);
 
-        // Buscar perfil do usuário com função de permissão
+        // Buscar perfil do usuário
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select(`
-            id,
-            nome_completo,
-            funcao_permissao
-          `)
+          .select('id, nome_completo, funcoes')
           .eq('id', user.id)
           .single();
 
@@ -55,8 +54,8 @@ export const useAuthPermissions = (): UserPermissions => {
           throw profileError;
         }
 
-        if (!profile?.funcao_permissao) {
-          console.warn('⚠️ User has no permission function assigned');
+        if (!profile?.funcoes || !Array.isArray(profile.funcoes) || profile.funcoes.length === 0) {
+          console.warn('⚠️ User has no roles assigned in funcoes field');
           setPermissions({
             userId: user.id,
             isSuperAdmin: false,
@@ -67,25 +66,17 @@ export const useAuthPermissions = (): UserPermissions => {
           return;
         }
 
-        // Buscar a função de permissão separadamente
-        const { data: funcaoPermissao, error: funcaoError } = await supabase
-          .from('bd_funcoes_permissao')
-          .select(`
-            id,
-            nome_funcao,
-            descricao,
-            permissoes
-          `)
-          .eq('id', profile.funcao_permissao)
-          .single();
+        console.log('📋 Funções do usuário encontradas:', profile.funcoes);
 
-        if (funcaoError) {
-          console.error('❌ Error fetching user role:', funcaoError);
-          throw funcaoError;
-        }
+        // Filtrar funções válidas
+        const validRoles = profile.funcoes.filter(role => 
+          role && 
+          role.trim() !== '' && 
+          role !== 'user'
+        );
 
-        if (!funcaoPermissao) {
-          console.warn('⚠️ User role not found');
+        if (validRoles.length === 0) {
+          console.warn('⚠️ User has no valid roles assigned');
           setPermissions({
             userId: user.id,
             isSuperAdmin: false,
@@ -96,34 +87,91 @@ export const useAuthPermissions = (): UserPermissions => {
           return;
         }
 
-        const userRole = funcaoPermissao.nome_funcao;
-        const isSuperAdmin = userRole === 'SuperAdm';
+        const mainRole = validRoles[0];
+        const isSuperAdmin = validRoles.includes('SuperAdm');
 
-        // Se temos permissões como array de IDs, buscar os nomes das permissões
+        console.log('👤 Função principal:', mainRole);
+        console.log('👑 É SuperAdmin:', isSuperAdmin);
+
+        // SISTEMA DINÂMICO CORRIGIDO: Buscar permissões das funções configuradas na tabela
         let userPermissions: string[] = [];
-        if (funcaoPermissao.permissoes && funcaoPermissao.permissoes.length > 0) {
-          const { data: permissoes, error: permissoesError } = await supabase
-            .from('bd_permissoes')
-            .select('nome_permissao')
-            .in('id', funcaoPermissao.permissoes);
 
-          if (permissoesError) {
-            console.error('❌ Error fetching permissions:', permissoesError);
+        if (isSuperAdmin) {
+          // SuperAdmin tem todas as permissões disponíveis
+          const { data: allPermissions, error: allPermError } = await supabase
+            .from('bd_permissoes')
+            .select('nome_permissao');
+          
+          if (allPermError) {
+            console.error('❌ Error fetching all permissions for SuperAdmin:', allPermError);
           } else {
-            userPermissions = permissoes?.map(p => p.nome_permissao) || [];
+            userPermissions = allPermissions?.map(p => p.nome_permissao) || [];
+            console.log('👑 SuperAdmin - todas as permissões carregadas:', userPermissions.length);
+          }
+        } else {
+          // CORREÇÃO PRINCIPAL: Para outras funções, buscar permissões específicas com queries separadas
+          console.log('🔍 Buscando configuração de permissões para funções:', validRoles);
+          
+          const { data: funcoesConfig, error: funcoesError } = await supabase
+            .from('bd_funcoes_permissao')
+            .select('nome_funcao, permissoes')
+            .in('nome_funcao', validRoles);
+
+          if (funcoesError) {
+            console.error('❌ Error fetching role permissions:', funcoesError);
+          } else {
+            console.log('📊 Configurações de função encontradas:', funcoesConfig);
+            
+            if (funcoesConfig && funcoesConfig.length > 0) {
+              // Coletar todos os IDs de permissões das funções do usuário
+              const permissionIds: string[] = [];
+              funcoesConfig.forEach(funcao => {
+                console.log(`🔧 Processando função: ${funcao.nome_funcao}`, funcao.permissoes);
+                if (funcao.permissoes && Array.isArray(funcao.permissoes)) {
+                  permissionIds.push(...funcao.permissoes);
+                }
+              });
+
+              console.log('🆔 IDs de permissões coletados:', permissionIds);
+
+              if (permissionIds.length > 0) {
+                // CORREÇÃO: Query separada para buscar nomes das permissões pelos IDs
+                const { data: permissionNames, error: permissionNamesError } = await supabase
+                  .from('bd_permissoes')
+                  .select('nome_permissao')
+                  .in('id', permissionIds);
+
+                if (permissionNamesError) {
+                  console.error('❌ Error fetching permission names:', permissionNamesError);
+                } else {
+                  userPermissions = permissionNames?.map(p => p.nome_permissao) || [];
+                  console.log('✅ Nomes de permissões mapeados:', userPermissions);
+                }
+              } else {
+                console.log('⚠️ Nenhum ID de permissão encontrado para as funções do usuário');
+              }
+            } else {
+              console.log('⚠️ Nenhuma configuração de função encontrada na tabela bd_funcoes_permissao');
+            }
           }
         }
 
-        console.log('✅ User permissions loaded:', {
-          role: userRole,
+        // Remover duplicatas
+        userPermissions = [...new Set(userPermissions)];
+
+        console.log('✅ CORREÇÃO APLICADA - Permissões finais carregadas:', {
+          userId: user.id,
+          roles: validRoles,
+          mainRole,
           isSuperAdmin,
-          permissions: userPermissions.length
+          permissionsCount: userPermissions.length,
+          permissions: userPermissions
         });
 
         setPermissions({
           userId: user.id,
           isSuperAdmin,
-          userRole,
+          userRole: mainRole,
           permissions: userPermissions,
           isLoading: false,
         });
@@ -148,13 +196,39 @@ export const useAuthPermissions = (): UserPermissions => {
 
     loadUserPermissions();
 
-    // Listen for auth changes
+    // Listener para mudanças de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
       loadUserPermissions();
     });
 
+    // Cache key para permitir invalidação externa
+    queryClient.setQueryData(['auth-permissions'], () => loadUserPermissions);
+
     return () => subscription.unsubscribe();
-  }, [toast]);
+  }, [toast, queryClient]);
+
+  // Listener para invalidação de cache
+  useEffect(() => {
+    const handlePermissionUpdate = () => {
+      console.log('🔄 Permissões atualizadas - recarregando...');
+      const loadUserPermissions = async () => {
+        // Re-executar a lógica de carregamento
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          // Trigger reload
+          window.location.reload();
+        }
+      };
+      loadUserPermissions();
+    };
+
+    // Escutar eventos personalizados de atualização de permissões
+    window.addEventListener('permissions-updated', handlePermissionUpdate);
+    
+    return () => {
+      window.removeEventListener('permissions-updated', handlePermissionUpdate);
+    };
+  }, []);
 
   return permissions;
 };

@@ -1,10 +1,13 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import AuthLayout from "@/components/AuthLayout";
+import RegistrationSuccess from "@/components/register/RegistrationSuccess";
+import EmailValidationFeedback from "@/components/register/EmailValidationFeedback";
+import { useEmailVerification } from "@/hooks/useEmailVerification";
 import { registerUser } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -12,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { supabase } from "@/integrations/supabase/client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 
 const registerSchema = z
   .object({
@@ -32,7 +35,10 @@ const Register: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [emailError, setEmailError] = useState<string | null>(null);
+  const [isRegistered, setIsRegistered] = useState(false);
+  const [generalError, setGeneralError] = useState<string | null>(null);
+  
+  const { isAuthorized, isChecking, error: emailError, verifyEmail, clearVerification } = useEmailVerification();
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -44,44 +50,39 @@ const Register: React.FC = () => {
     },
   });
 
-  const verifyEmailAuthorized = async (email: string): Promise<boolean> => {
-    try {
-      const { data, error } = await supabase
-        .from("bd_funcionarios")
-        .select("email")
-        .eq("email", email);
+  const watchedEmail = form.watch("email");
 
-      if (error) {
-        console.error("Erro ao verificar email:", error);
-        throw error;
+  // Verificação de email em tempo real com debounce
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (watchedEmail && watchedEmail.includes('@')) {
+        verifyEmail(watchedEmail);
+      } else {
+        clearVerification();
       }
+    }, 500);
 
-      return (data?.length || 0) > 0;
-    } catch (error) {
-      console.error("Erro ao verificar email:", error);
-      return false;
-    }
-  };
+    return () => clearTimeout(timeoutId);
+  }, [watchedEmail, verifyEmail, clearVerification]);
 
   const onSubmit = async (data: RegisterFormValues) => {
     setIsLoading(true);
-    setEmailError(null);
+    setGeneralError(null);
     
     try {
-      // Verificar se o email está autorizado
-      const isAuthorized = await verifyEmailAuthorized(data.email);
+      console.log("📧 Iniciando processo de registro para:", data.email);
       
+      // Verificação final do email antes do registro
       if (!isAuthorized) {
-        setEmailError("Este e-mail não está autorizado para cadastro. Contate o RH.");
-        toast({
-          title: "Acesso não autorizado",
-          description: "Este e-mail não está autorizado para cadastro. Contate o RH.",
-          variant: "destructive",
-        });
-        setIsLoading(false);
-        return;
+        const isEmailAuthorized = await verifyEmail(data.email);
+        if (!isEmailAuthorized) {
+          setIsLoading(false);
+          return;
+        }
       }
 
+      console.log("✅ Email autorizado, prosseguindo com o registro...");
+      
       const result = await registerUser(
         data.email, 
         data.password, 
@@ -89,22 +90,46 @@ const Register: React.FC = () => {
       );
 
       if (result.success) {
+        // Garantir que o profile seja criado com funcao_permissao = NULL
+        if (result.data?.user?.id) {
+          console.log("👤 Criando perfil do usuário...");
+          await supabase
+            .from('profiles')
+            .update({ funcao_permissao: null })
+            .eq('id', result.data.user.id);
+        }
+
+        console.log("🎉 Registro concluído com sucesso!");
+        setIsRegistered(true);
         toast({
-          title: "Conta criada com sucesso",
-          description: "Verifique seu email para confirmar sua conta",
+          title: "Conta criada com sucesso! 🎉",
+          description: "Aguarde a aprovação do administrador para acessar o sistema",
         });
-        navigate("/login");
       } else {
+        console.error("❌ Falha no registro:", result.error);
+        const errorMessage = result.error?.message || "Ocorreu um erro ao criar sua conta";
+        setGeneralError(errorMessage);
         toast({
           title: "Falha no registro",
-          description: result.error?.message || "Ocorreu um erro ao criar sua conta",
+          description: errorMessage,
           variant: "destructive",
         });
       }
     } catch (error: any) {
+      console.error("❌ Exceção durante o registro:", error);
+      
+      let errorMessage = "Ocorreu um erro inesperado. Tente novamente.";
+      
+      if (error.message?.includes('row-level security') || error.message?.includes('permission')) {
+        errorMessage = "Erro de permissão. Contate o suporte técnico.";
+      } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+        errorMessage = "Erro de conexão. Verifique sua internet e tente novamente.";
+      }
+      
+      setGeneralError(errorMessage);
       toast({
-        title: "Falha no registro",
-        description: error.message || "Ocorreu um erro ao criar sua conta",
+        title: "Erro no cadastro",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -112,14 +137,27 @@ const Register: React.FC = () => {
     }
   };
 
+  const handleCreateAnother = () => {
+    setIsRegistered(false);
+    form.reset();
+    clearVerification();
+    setGeneralError(null);
+  };
+
+  if (isRegistered) {
+    return <RegistrationSuccess onCreateAnother={handleCreateAnother} />;
+  }
+
+  const canSubmit = isAuthorized && !isChecking && !emailError;
+
   return (
     <AuthLayout title="Criar Conta" description="Complete o cadastro para acessar o sistema">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          {emailError && (
-            <Alert variant="destructive" className="mb-2">
-              <AlertTriangle className="h-4 w-4 mr-2" />
-              <AlertDescription>{emailError}</AlertDescription>
+          {generalError && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>{generalError}</AlertDescription>
             </Alert>
           )}
           
@@ -128,70 +166,120 @@ const Register: React.FC = () => {
             name="nome_completo"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Nome Completo</FormLabel>
-                <FormControl>
-                  <Input placeholder="João da Silva" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Email</FormLabel>
+                <FormLabel>Nome Completo *</FormLabel>
                 <FormControl>
                   <Input 
-                    type="email" 
-                    placeholder="joao@exemplo.com" 
-                    {...field} 
-                    onChange={(e) => {
-                      field.onChange(e);
-                      // Limpar o erro de email quando o usuário alterar o campo
-                      if (emailError) setEmailError(null);
-                    }}
+                    placeholder="João da Silva" 
+                    {...field}
+                    disabled={isLoading}
+                    aria-describedby="nome-help"
                   />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
+          
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email Corporativo *</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="email" 
+                    placeholder="joao@empresa.com" 
+                    {...field}
+                    disabled={isLoading}
+                    aria-describedby="email-help email-validation"
+                  />
+                </FormControl>
+                <div id="email-validation">
+                  <EmailValidationFeedback
+                    isChecking={isChecking}
+                    isAuthorized={isAuthorized}
+                    error={emailError}
+                    email={watchedEmail}
+                  />
+                </div>
+                <FormMessage />
+                <div id="email-help" className="text-xs text-muted-foreground">
+                  Use apenas emails autorizados pela empresa
+                </div>
+              </FormItem>
+            )}
+          />
+          
           <FormField
             control={form.control}
             name="password"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Senha</FormLabel>
+                <FormLabel>Senha *</FormLabel>
                 <FormControl>
-                  <Input type="password" placeholder="******" {...field} />
+                  <Input 
+                    type="password" 
+                    placeholder="Mínimo 6 caracteres" 
+                    {...field}
+                    disabled={isLoading}
+                    aria-describedby="password-help"
+                  />
                 </FormControl>
                 <FormMessage />
+                <div id="password-help" className="text-xs text-muted-foreground">
+                  Crie uma senha segura com pelo menos 6 caracteres
+                </div>
               </FormItem>
             )}
           />
+          
           <FormField
             control={form.control}
             name="confirmPassword"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Confirmar Senha</FormLabel>
+                <FormLabel>Confirmar Senha *</FormLabel>
                 <FormControl>
-                  <Input type="password" placeholder="******" {...field} />
+                  <Input 
+                    type="password" 
+                    placeholder="Digite a senha novamente" 
+                    {...field}
+                    disabled={isLoading}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Verificando..." : "Criar Conta"}
+          
+          <Button 
+            type="submit" 
+            className="w-full" 
+            disabled={isLoading || !canSubmit}
+            size="lg"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {isChecking ? "Verificando email..." : "Criando conta..."}
+              </>
+            ) : (
+              "Criar Conta"
+            )}
           </Button>
+          
+          {!canSubmit && watchedEmail && (
+            <div className="text-center text-sm text-muted-foreground">
+              {isChecking ? "Verificando autorização..." : "Aguarde a verificação do email para continuar"}
+            </div>
+          )}
         </form>
       </Form>
-      <div className="mt-4 text-center text-sm">
+      
+      <div className="mt-6 text-center text-sm">
         Já tem uma conta?{" "}
-        <Link to="/login" className="text-primary hover:underline">
+        <Link to="/login" className="text-primary hover:underline font-medium">
           Fazer login
         </Link>
       </div>

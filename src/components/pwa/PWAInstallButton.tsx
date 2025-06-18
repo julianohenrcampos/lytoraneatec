@@ -2,7 +2,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Download } from 'lucide-react';
+import { Download, Smartphone, Monitor } from 'lucide-react';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -16,7 +16,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
   variant = 'icon',
   className 
 }) => {
-  const { isInstallable, installApp } = usePWAInstall();
+  const { isInstallable, installApp, platform, getInstallInstructions } = usePWAInstall();
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
@@ -27,16 +27,32 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
   const handleInstall = async () => {
     console.log('🔄 Iniciando instalação do PWA...');
     
-    const success = await installApp();
+    const result = await installApp();
     
-    if (success) {
+    if (result === 'ios-manual') {
+      const instructions = getInstallInstructions();
+      toast({
+        title: instructions.title,
+        description: (
+          <div className="space-y-2">
+            <p>Para instalar o LYTOTEC no seu iPhone/iPad:</p>
+            <ol className="list-decimal list-inside space-y-1 text-sm">
+              {instructions.steps.map((step, index) => (
+                <li key={index}>{step}</li>
+              ))}
+            </ol>
+          </div>
+        ),
+        duration: 8000,
+      });
+    } else if (result === true) {
       toast({
         title: "App instalado com sucesso!",
         description: isMobile 
           ? "O LYTOTEC foi adicionado à sua tela inicial"
           : "O LYTOTEC foi instalado no seu dispositivo",
       });
-    } else {
+    } else if (result === false) {
       toast({
         title: "Instalação cancelada",
         description: "Você pode tentar instalar novamente a qualquer momento",
@@ -45,9 +61,22 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
     }
   };
 
-  const tooltipText = isMobile 
-    ? "Instalar app na tela inicial"
-    : "Instalar LYTOTEC no dispositivo";
+  const getTooltipText = () => {
+    if (platform === 'ios') {
+      return "Adicionar à tela inicial do iOS";
+    }
+    if (platform === 'android') {
+      return "Instalar app no Android";
+    }
+    return isMobile ? "Instalar app na tela inicial" : "Instalar LYTOTEC no dispositivo";
+  };
+
+  const getIcon = () => {
+    if (platform === 'ios' || platform === 'android') {
+      return <Smartphone className="h-4 w-4 sm:h-5 sm:w-5" />;
+    }
+    return <Download className="h-4 w-4 sm:h-5 sm:w-5" />;
+  };
 
   if (variant === 'button') {
     return (
@@ -56,8 +85,10 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
         variant="outline"
         className={`flex items-center gap-2 ${className}`}
       >
-        <Download className="h-4 w-4" />
-        <span>Instalar App</span>
+        {getIcon()}
+        <span>
+          {platform === 'ios' ? 'Adicionar à Tela' : 'Instalar App'}
+        </span>
       </Button>
     );
   }
@@ -72,11 +103,11 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
             onClick={handleInstall}
             className={className}
           >
-            <Download className="h-4 w-4 sm:h-5 sm:w-5" />
+            {getIcon()}
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>{tooltipText}</p>
+          <p>{getTooltipText()}</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

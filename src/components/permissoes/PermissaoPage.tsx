@@ -5,8 +5,11 @@ import { usePermissao } from "@/hooks/usePermissao";
 import PermissaoHeaderActions from "./PermissaoHeaderActions";
 import PermissaoTable from "./PermissaoTable";
 import FuncaoPermissaoTable from "./FuncaoPermissaoTable";
+import UserProfilesTable from "./UserProfilesTable";
 import PermissaoFormModal from "./PermissaoFormModal";
 import FuncaoPermissaoFormModal from "./FuncaoPermissaoFormModal";
+import AssignPermissionModal from "./AssignPermissionModal";
+import UserDetailsModal from "./UserDetailsModal";
 import DeletePermissaoDialog from "./DeletePermissaoDialog";
 import DeleteFuncaoPermissaoDialog from "./DeleteFuncaoPermissaoDialog";
 import PermissionDebugPanel from "../debug/PermissionDebugPanel";
@@ -30,6 +33,15 @@ const PermissaoPage: React.FC = () => {
     isSubmitting,
     isDeleting,
     
+    // Novos estados para usuários
+    isAssignPermissionOpen,
+    isUserDetailsOpen,
+    currentProfile,
+    profileFilter,
+    profiles,
+    isProfilesLoading,
+    availableFunctions, // Nova propriedade
+    
     // Ações
     setIsPermissaoFormOpen,
     setIsFuncaoFormOpen,
@@ -48,8 +60,24 @@ const PermissaoPage: React.FC = () => {
     handleSavePermissao,
     handleSaveFuncaoPermissao,
     refetchPermissoes,
-    refetchFuncoesPermissao
+    refetchFuncoesPermissao,
+
+    // Novas ações para usuários
+    setIsAssignPermissionOpen,
+    setIsUserDetailsOpen,
+    handleProfileFilterChange,
+    resetProfileFilters,
+    openAssignPermission,
+    openUserDetails,
+    handleAssignPermission,
   } = usePermissao();
+
+  // Buscar nome da função de permissão para exibir nos detalhes
+  const getFuncaoPermissaoNome = (funcaoPermissaoId: string | null) => {
+    if (!funcaoPermissaoId || !funcoesPermissao) return undefined;
+    const funcao = funcoesPermissao.find(f => f.id === funcaoPermissaoId);
+    return funcao?.nome_funcao;
+  };
 
   return (
     <div className="space-y-6">
@@ -69,6 +97,7 @@ const PermissaoPage: React.FC = () => {
         <TabsList>
           <TabsTrigger value="permissions">Permissões</TabsTrigger>
           <TabsTrigger value="roles">Funções e Permissões</TabsTrigger>
+          <TabsTrigger value="users">Usuários Cadastrados</TabsTrigger>
         </TabsList>
         
         <TabsContent value="permissions" className="space-y-4">
@@ -94,11 +123,25 @@ const PermissaoPage: React.FC = () => {
             onResetFilters={resetFuncaoPermissaoFilters}
           />
         </TabsContent>
+
+        <TabsContent value="users" className="space-y-4">
+          <UserProfilesTable 
+            profiles={profiles || []}
+            isLoading={isProfilesLoading}
+            onAssignPermission={openAssignPermission}
+            onEditPermission={openAssignPermission}
+            onViewDetails={openUserDetails}
+            filters={profileFilter}
+            onFilterChange={handleProfileFilterChange}
+            onResetFilters={resetProfileFilters}
+          />
+        </TabsContent>
       </Tabs>
 
       {/* ⭐ NOVO: Debug Panel */}
       <PermissionDebugPanel />
       
+      {/* Modais existentes */}
       <PermissaoFormModal
         isOpen={isPermissaoFormOpen}
         onClose={() => setIsPermissaoFormOpen(false)}
@@ -114,6 +157,22 @@ const PermissaoPage: React.FC = () => {
         permissoes={allPermissoes || []}
         onSubmit={handleSaveFuncaoPermissao}
         isSubmitting={isSubmitting}
+      />
+
+      {/* Novos modais para usuários */}
+      <AssignPermissionModal
+        isOpen={isAssignPermissionOpen}
+        onClose={() => setIsAssignPermissionOpen(false)}
+        profile={currentProfile}
+        availableFunctions={availableFunctions || []}
+        onAssign={handleAssignPermission}
+        isSubmitting={isSubmitting}
+      />
+
+      <UserDetailsModal
+        isOpen={isUserDetailsOpen}
+        onClose={() => setIsUserDetailsOpen(false)}
+        profile={currentProfile}
       />
       
       <DeletePermissaoDialog
