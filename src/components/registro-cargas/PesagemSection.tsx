@@ -19,37 +19,40 @@ const PesagemSection: React.FC<PesagemSectionProps> = ({
   handleTicketSaidaChange,
   handleTicketRetornoChange,
 }) => {
-  // Função para calcular tonelada real com validação - corrigida para usar valores diretos
+  // Função para calcular tonelada real com validação - convertendo de kg para toneladas
   const calcularToneladaReal = (): string => {
     try {
-      const toneladaSaida = form.watch("tonelada_saida");
-      const toneladaRetorno = form.watch("tonelada_retorno");
+      const pesoSaidaKg = form.watch("tonelada_saida");
+      const pesoRetornoKg = form.watch("tonelada_retorno");
 
-      console.log("PesagemSection - Valores para cálculo:", { toneladaSaida, toneladaRetorno });
+      console.log("PesagemSection - Valores para cálculo (kg):", { pesoSaidaKg, pesoRetornoKg });
 
-      // Validar tonelada de saída - agora como número direto (sem conversão)
-      const saidaNum = Number(toneladaSaida);
-      if (isNaN(saidaNum) || saidaNum < 0) {
+      // Validar peso de saída - trabalhando em kg
+      const saidaKgNum = Number(pesoSaidaKg);
+      if (isNaN(saidaKgNum) || saidaKgNum <= 0) {
         return "0.0 t";
       }
 
-      // Validar tonelada de retorno (pode ser null ou undefined)
-      let retornoNum = 0;
-      if (toneladaRetorno !== null && toneladaRetorno !== undefined) {
-        retornoNum = Number(toneladaRetorno);
-        if (isNaN(retornoNum) || retornoNum < 0) {
-          retornoNum = 0;
+      // Validar peso de retorno (pode ser null, undefined ou vazio)
+      let retornoKgNum = 0;
+      if (pesoRetornoKg !== null && pesoRetornoKg !== undefined && pesoRetornoKg !== '') {
+        retornoKgNum = Number(pesoRetornoKg);
+        if (isNaN(retornoKgNum) || retornoKgNum < 0) {
+          retornoKgNum = 0;
         }
       }
 
-      const resultado = saidaNum - retornoNum;
-      console.log("PesagemSection - Resultado calculado:", resultado);
+      // Calcular a diferença em kg e converter para toneladas
+      const resultadoKg = saidaKgNum - retornoKgNum;
+      const resultadoToneladas = resultadoKg / 1000;
+      
+      console.log("PesagemSection - Resultado calculado:", { resultadoKg, resultadoToneladas });
 
-      // Exibir com 3 casas decimais para melhor precisão visual
-      return `${Math.max(0, resultado).toFixed(3)} t`;
+      // Exibir com 1 casa decimal para melhor legibilidade
+      return `${Math.max(0, resultadoToneladas).toFixed(1)} t`;
     } catch (error) {
       console.error("PesagemSection - Erro no cálculo:", error);
-      return "0.000 t";
+      return "0.0 t";
     }
   };
 
@@ -62,7 +65,7 @@ const PesagemSection: React.FC<PesagemSectionProps> = ({
           <WeightInput
             form={form}
             name="tonelada_saida"
-            label="Peso da Balança - Saída (toneladas)"
+            label="Peso da Balança - Saída (kg)"
           />
           
           <ImageUpload
@@ -80,7 +83,7 @@ const PesagemSection: React.FC<PesagemSectionProps> = ({
           <WeightInput
             form={form}
             name="tonelada_retorno"
-            label="Peso da Balança - Retorno (toneladas)"
+            label="Peso da Balança - Retorno (kg)"
             isRetorno={true}
           />
           
@@ -104,7 +107,7 @@ const PesagemSection: React.FC<PesagemSectionProps> = ({
           </div>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          Calculado automaticamente (Tonelada de Saída - Tonelada de Retorno)
+          Calculado automaticamente (Peso Saída - Peso Retorno) ÷ 1000
         </p>
         <p className="text-xs text-blue-600 mt-1">
           * Este valor é calculado pelo sistema após o salvamento

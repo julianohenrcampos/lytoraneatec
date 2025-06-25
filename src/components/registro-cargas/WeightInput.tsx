@@ -31,22 +31,23 @@ const WeightInput: React.FC<WeightInputProps> = ({
           <FormControl>
             <Input
               type="number"
-              step="0.001"
+              step="1"
               min="0"
-              placeholder={isRetorno ? "Ex: 2.540" : "Ex: 28.750"}
+              placeholder={isRetorno ? "Ex: 2500" : "Ex: 28700"}
               {...field}
               onChange={(e) => {
-                // Store the value directly as entered (in tons)
+                // Store the value directly as entered (in kg), allow empty value
                 const value = e.target.value;
-                field.onChange(value ? Number(value) : '');
+                field.onChange(value === '' ? '' : Number(value));
               }}
+              value={field.value === null || field.value === undefined ? '' : field.value}
             />
           </FormControl>
           <FormMessage />
           <p className="text-xs text-muted-foreground">
             {isRetorno 
-              ? "Peso do caminhão vazio (opcional)" 
-              : "Peso total do caminhão carregado"}
+              ? "Peso do caminhão vazio em quilogramas (opcional)" 
+              : "Peso total do caminhão carregado em quilogramas"}
           </p>
         </FormItem>
       )}

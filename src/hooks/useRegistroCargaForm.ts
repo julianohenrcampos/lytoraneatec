@@ -15,7 +15,7 @@ interface UseRegistroCargaFormProps {
 }
 
 // Função para validar e normalizar valores numéricos
-const safeNumber = (value: any, defaultValue: number = 0): number => {
+const safeNumber = (value: any, defaultValue?: number): number | undefined => {
   if (value === null || value === undefined || value === '') {
     return defaultValue;
   }
@@ -37,8 +37,8 @@ const validateFormData = (data: RegistroCargaFormValues): string | null => {
     return "Hora de saída é obrigatória";
   }
   
-  const toneladaSaida = safeNumber(data.tonelada_saida);
-  if (toneladaSaida <= 0) {
+  const toneladaSaida = Number(data.tonelada_saida);
+  if (isNaN(toneladaSaida) || toneladaSaida <= 0) {
     return "Tonelada de saída deve ser maior que zero";
   }
   
@@ -55,9 +55,9 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
   const form = useForm<RegistroCargaFormValues>({
     defaultValues: {
       data_saida: getCurrentBrazilianDate(),
-      temperatura_saida: 0,
-      tonelada_saida: 0,
-      tonelada_retorno: 0,
+      temperatura_saida: undefined, // Campo vazio por padrão
+      tonelada_saida: undefined, // Campo vazio por padrão (valor em kg)
+      tonelada_retorno: undefined, // Campo vazio por padrão (valor em kg)
       hora_saida: "",
       lista_entrega_id: "",
       programacao_id: "",
@@ -145,21 +145,25 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
         programacao_id: entrega.programacao_id || entrega.programacao_entrega_id || "",
         data_saida: getCurrentBrazilianDate(),
         hora_saida: "",
-        tonelada_saida: safeNumber(entrega.quantidade_massa / 1000), // Convert kg to tons for display
-        tonelada_retorno: 0,
-        temperatura_saida: 0,
+        tonelada_saida: undefined, // Campo vazio por padrão - usuário preencherá manualmente (em kg)
+        tonelada_retorno: undefined, // Campo vazio por padrão (em kg)
+        temperatura_saida: undefined, // Campo vazio por padrão
         status_registro: "Ativo" as const
       };
 
       if (existingRegistro) {
         console.log("initializeFromListaEntrega - Registro existente encontrado:", existingRegistro);
         
+        // Converter valores de toneladas para kg para exibição nos campos
+        const toneladaSaidaKg = existingRegistro.tonelada_saida ? existingRegistro.tonelada_saida * 1000 : undefined;
+        const toneladaRetornoKg = existingRegistro.tonelada_retorno ? existingRegistro.tonelada_retorno * 1000 : undefined;
+        
         defaultValues = {
           ...existingRegistro,
           data_saida: existingRegistro.data_saida || getCurrentBrazilianDate(),
-          temperatura_saida: safeNumber(existingRegistro.temperatura_saida),
-          tonelada_saida: safeNumber(existingRegistro.tonelada_saida),
-          tonelada_retorno: safeNumber(existingRegistro.tonelada_retorno),
+          temperatura_saida: existingRegistro.temperatura_saida || undefined,
+          tonelada_saida: toneladaSaidaKg || undefined, // Converter para kg
+          tonelada_retorno: toneladaRetornoKg || undefined, // Converter para kg
           hora_saida: existingRegistro.hora_saida || "",
           status_registro: (existingRegistro.status_registro as "Ativo" | "Concluído" | "Cancelado") || "Ativo"
         };
@@ -211,19 +215,23 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
 
     try {
       setIsLoading(true);
-      console.log("onSubmit - Dados recebidos:", data);
+      console.log("onSubmit - Dados recebidos (em kg):", data);
+
+      // Converter valores de kg para toneladas antes de salvar
+      const toneladaSaidaToneladas = data.tonelada_saida ? Number(data.tonelada_saida) / 1000 : 0;
+      const toneladaRetornoToneladas = data.tonelada_retorno ? Number(data.tonelada_retorno) / 1000 : null;
 
       const registroData = {
         ...data,
         lista_entrega_id: currentListaEntregaId,
         status_registro: data.status_registro || "Ativo" as const,
-        // Garantir que valores numéricos sejam normalizados
-        tonelada_saida: safeNumber(data.tonelada_saida),
-        tonelada_retorno: safeNumber(data.tonelada_retorno),
-        temperatura_saida: safeNumber(data.temperatura_saida),
+        // Converter de kg para toneladas antes de salvar no banco
+        tonelada_saida: toneladaSaidaToneladas,
+        tonelada_retorno: toneladaRetornoToneladas,
+        temperatura_saida: data.temperatura_saida == null || data.temperatura_saida === undefined ? null : Number(data.temperatura_saida),
       };
 
-      console.log("onSubmit - Dados para salvar:", registroData);
+      console.log("onSubmit - Dados para salvar (em toneladas):", registroData);
 
       // Check if updating existing or creating new
       const existingRegistro = await fetchRegistroCargaByListaEntregaId(currentListaEntregaId);
