@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -13,10 +12,9 @@ import DeleteApontamentoEquipeDialog from "@/components/apontamento-equipe/Delet
 import AvaliacaoDesempenhoForm from "@/components/apontamento-equipe/AvaliacaoDesempenhoForm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, Plus, Users } from "lucide-react";
+import { Download, Plus, Users, Shield, AlertCircle } from "lucide-react";
 import { useApontamentoEquipe } from "@/hooks/useApontamentoEquipe";
 import { fetchEquipes } from "@/services/equipe/fetchEquipes";
-import { fetchFuncionariosByRole } from "@/services/equipe/funcionarioQueries";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -71,13 +69,26 @@ const ApontamentoEquipe: React.FC = () => {
     handleDelete,
     handleExport,
     createMutation,
-    updateMutation
+    updateMutation,
+    allowedTeamIds,
+    userRole,
+    canAccessAllTeams
   } = useApontamentoEquipe();
 
-  const { data: equipes = [] } = useQuery({
+  // Fetch only allowed teams
+  const { data: allEquipes = [] } = useQuery({
     queryKey: ['equipes'],
     queryFn: () => fetchEquipes(),
+    enabled: allowedTeamIds.length >= 0,
   });
+
+  // Filter teams based on user access
+  const equipes = React.useMemo(() => {
+    if (canAccessAllTeams) {
+      return allEquipes;
+    }
+    return allEquipes.filter(equipe => allowedTeamIds.includes(equipe.id));
+  }, [allEquipes, allowedTeamIds, canAccessAllTeams]);
 
   const createAvaliacaoMutation = useMutation({
     mutationFn: (data: AvaliacaoEquipeFormValues) => createAvaliacaoEquipe(data),
@@ -210,6 +221,20 @@ const ApontamentoEquipe: React.FC = () => {
     });
   };
 
+  const canCreateApontamento = ['SuperAdm', 'AdmRH', 'Apontador', 'Encarregado'].includes(userRole || '');
+
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <div className="container py-6">
+          <div className="flex justify-center items-center py-8">
+            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
   return (
     <MainLayout>
       <div className="container mx-auto py-6 space-y-6 px-4 md:px-6">
@@ -221,21 +246,22 @@ const ApontamentoEquipe: React.FC = () => {
             </p>
           </div>
           <div className="flex gap-2 w-full sm:w-auto flex-row justify-end">
-            <Button 
-              onClick={() => openFormModal()} 
-              className="bg-blue-600 hover:bg-blue-700 text-white h-8 sm:h-10 px-2 sm:px-4 text-sm"
-              size="xs"
-              // Changed from { base: "xs", sm: "default" } to "xs" to fix type error
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              <span>Novo Apontamento</span>
-            </Button>
+            {canCreateApontamento && equipes.length > 0 && (
+              <Button 
+                onClick={() => openFormModal()} 
+                className="bg-blue-600 hover:bg-blue-700 text-white h-8 sm:h-10 px-2 sm:px-4 text-sm"
+                size="xs"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                <span>Novo Apontamento</span>
+              </Button>
+            )}
             <Button 
               variant="outline" 
               onClick={handleExport} 
               className="h-8 sm:h-10 px-2 sm:px-4 text-sm"
               size="xs"
-              // Changed from { base: "xs", sm: "default" } to "xs" to fix type error
+              disabled={apontamentos.length === 0}
             >
               <Download className="mr-2 h-4 w-4" />
               <span>Exportar</span>
@@ -243,61 +269,89 @@ const ApontamentoEquipe: React.FC = () => {
           </div>
         </div>
 
-        {isAvaliacaoObrigatoria && (
-          <Alert className="bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800">
-            <AlertTitle>Avaliação de desempenho obrigatória</AlertTitle>
+        {/* Security Status Alert */}
+        <Alert className="bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-300 border-green-200 dark:border-green-800">
+          <Shield className="h-4 w-4" />
+          <AlertTitle>Controle de Acesso Ativo</AlertTitle>
+          <AlertDescription>
+            <div className="flex flex-col gap-1">
+              <span>Role: <strong>{userRole}</strong></span>
+              <span>Acesso: {canAccessAllTeams ? 'Todas as equipes' : `${allowedTeamIds.length} equipes permitidas`}</span>
+              <span>Controle: <strong>Aplicado por equipe</strong> - Dados filtrados automaticamente</span>
+            </div>
+          </AlertDescription>
+        </Alert>
+
+        {/* No Access Warning */}
+        {allowedTeamIds.length === 0 && !canAccessAllTeams && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Sem Acesso a Equipes</AlertTitle>
             <AlertDescription>
-              Hoje é dia de avaliação obrigatória! Todos os colaboradores presentes precisam ser avaliados.
+              Você não tem permissão para acessar nenhuma equipe. Entre em contato com o administrador para solicitar as permissões necessárias.
             </AlertDescription>
           </Alert>
         )}
 
-        <ApontamentoEquipeFilters 
-          onFilter={(newFilters) => {
-            Object.entries(newFilters).forEach(([key, value]) => {
-              handleFilterChange(key as any, value);
-            });
-          }}
-          equipes={equipes}
-          isLoading={isLoading}
-          onOpenMobileFilters={() => setIsFilterDrawerOpen(true)}
-        />
-
-        <ApontamentoEquipeFilterDrawer
-          isOpen={isFilterDrawerOpen}
-          onClose={() => setIsFilterDrawerOpen(false)}
-          onApplyFilters={handleApplyFilters}
-          onClearFilters={resetFilters}
-          equipes={equipes}
-          isLoading={isLoading}
-        />
-
-        <Card>
-          <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
-            <CardTitle className="text-xl">Apontamentos de Equipe</CardTitle>
-            <div className="flex items-center gap-2 mt-2 sm:mt-0">
-              <Users className="h-5 w-5 text-muted-foreground" />
-              <span className="font-medium capitalize text-sm">{formattedDate}</span>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="flex justify-center items-center py-8">
-                <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
-              </div>
-            ) : (
-              <ApontamentoEquipeTable 
-                apontamentos={apontamentoSummaries} 
-                onViewDetails={openDetailsModal}
-                onEdit={openFormModal}
-                onDelete={confirmDelete}
-                onViewEquipe={handleViewEquipe}
-                onAvaliarColaborador={handleAvaliarColaborador}
-                avaliacaoStatusMap={avaliacaoStatusMap}
-              />
+        {equipes.length > 0 && (
+          <>
+            {isAvaliacaoObrigatoria && (
+              <Alert className="bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800">
+                <AlertTitle>Avaliação de desempenho obrigatória</AlertTitle>
+                <AlertDescription>
+                  Hoje é dia de avaliação obrigatória! Todos os colaboradores presentes precisam ser avaliados.
+                </AlertDescription>
+              </Alert>
             )}
-          </CardContent>
-        </Card>
+
+            <ApontamentoEquipeFilters 
+              onFilter={(newFilters) => {
+                Object.entries(newFilters).forEach(([key, value]) => {
+                  handleFilterChange(key as any, value);
+                });
+              }}
+              equipes={equipes}
+              isLoading={isLoading}
+              onOpenMobileFilters={() => setIsFilterDrawerOpen(true)}
+            />
+
+            <ApontamentoEquipeFilterDrawer
+              isOpen={isFilterDrawerOpen}
+              onClose={() => setIsFilterDrawerOpen(false)}
+              onApplyFilters={handleApplyFilters}
+              onClearFilters={resetFilters}
+              equipes={equipes}
+              isLoading={isLoading}
+            />
+
+            <Card>
+              <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
+                <CardTitle className="text-xl">Apontamentos de Equipe</CardTitle>
+                <div className="flex items-center gap-2 mt-2 sm:mt-0">
+                  <Users className="h-5 w-5 text-muted-foreground" />
+                  <span className="font-medium capitalize text-sm">{formattedDate}</span>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <div className="flex justify-center items-center py-8">
+                    <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+                  </div>
+                ) : (
+                  <ApontamentoEquipeTable 
+                    apontamentos={apontamentoSummaries} 
+                    onViewDetails={openDetailsModal}
+                    onEdit={openFormModal}
+                    onDelete={confirmDelete}
+                    onViewEquipe={handleViewEquipe}
+                    onAvaliarColaborador={handleAvaliarColaborador}
+                    avaliacaoStatusMap={avaliacaoStatusMap}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
 
         <ApontamentoEquipeForm 
           isOpen={isFormModalOpen}
@@ -360,4 +414,3 @@ const ApontamentoEquipe: React.FC = () => {
 };
 
 export default ApontamentoEquipe;
-

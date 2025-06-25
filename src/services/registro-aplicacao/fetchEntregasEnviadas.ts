@@ -6,13 +6,14 @@ import type { RegistroAplicacaoFilters } from "@/types/registroAplicacao";
 
 /**
  * Fetch entregas enviadas and entregues that are available for registro aplicacao
- * Now includes finalized deliveries for viewing and better debugging
+ * Now includes team-based access control and finalized deliveries for viewing
  */
 export const fetchEntregasEnviadas = async (
-  filters?: RegistroAplicacaoFilters
+  filters?: RegistroAplicacaoFilters,
+  allowedTeamIds?: string[]
 ): Promise<ListaProgramacaoEntrega[]> => {
   try {
-    console.log("🔍 Fetching entregas - Input filters:", filters);
+    console.log("🔍 Fetching entregas - Input filters:", filters, "Allowed teams:", allowedTeamIds);
     
     // Query principal nas tabelas ao invés da view, incluindo relações com centro de custo
     let query = supabase
@@ -44,6 +45,16 @@ export const fetchEntregasEnviadas = async (
           )
         )
       `);
+
+    // Apply team-based access control FIRST
+    if (allowedTeamIds && allowedTeamIds.length > 0) {
+      console.log("🛡️ Applying team-based filter for teams:", allowedTeamIds);
+      query = query.in("equipe_id", allowedTeamIds);
+    } else if (allowedTeamIds && allowedTeamIds.length === 0) {
+      // If allowedTeamIds is empty array, user has no team access
+      console.log("❌ No team access - returning empty result");
+      return [];
+    }
 
     // Apply status filter if provided
     if (filters?.status) {
@@ -262,19 +273,28 @@ export const fetchEntregasEnviadas = async (
     });
 
     console.log(`✅ Final processed entregas: ${entregas.length}`);
-    console.log("📋 Sample entrega with centro custo:", {
+    console.log("📋 Sample entrega with team info:", {
       logradouro: entregas[0]?.logradouro,
+      equipe_nome: entregas[0]?.equipe?.nome_equipe,
       centro_custo_nome: entregas[0]?.centro_custo_nome,
       data_entrega: entregas[0]?.data_entrega,
       status: entregas[0]?.status
     });
     
-    // Log estatísticas por status
+    // Log estatísticas por status e equipe
     const statusStats = entregas.reduce((acc, e) => {
       acc[e.status] = (acc[e.status] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
+    
+    const teamStats = entregas.reduce((acc, e) => {
+      const teamName = e.equipe?.nome_equipe || 'N/A';
+      acc[teamName] = (acc[teamName] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
     console.log("📊 Status distribution:", statusStats);
+    console.log("👥 Team distribution:", teamStats);
 
     return entregas;
   } catch (error) {

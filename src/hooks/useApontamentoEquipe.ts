@@ -1,7 +1,7 @@
-
 import { useState, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useUserDataAccess } from "@/hooks/useUserDataAccess";
 import { 
   fetchApontamentos,
   getApontamentoById,
@@ -35,6 +35,9 @@ export const useApontamentoEquipe = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
+  // Get user data access control
+  const { allowedTeamIds, userRole, canAccessAllTeams, isLoading: accessLoading } = useUserDataAccess();
+  
   const [filters, setFilters] = useState<ApontamentoEquipeFilters>({});
   const [currentApontamento, setCurrentApontamento] = useState<ApontamentoEquipe | null>(null);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -49,8 +52,9 @@ export const useApontamentoEquipe = () => {
     isError, 
     refetch 
   } = useQuery({
-    queryKey: ['apontamentos', filters],
-    queryFn: () => fetchApontamentos(filters),
+    queryKey: ['apontamentos', filters, allowedTeamIds],
+    queryFn: () => fetchApontamentos(filters, allowedTeamIds),
+    enabled: !accessLoading && allowedTeamIds.length >= 0, // Allow empty array (no access)
   });
   
   const groupedApontamentos = useMemo(() => {
@@ -245,8 +249,13 @@ export const useApontamentoEquipe = () => {
     
     apontamentos,
     apontamentoSummaries,
-    isLoading,
+    isLoading: isLoading || accessLoading,
     isError,
+    
+    // Access control data
+    allowedTeamIds,
+    userRole,
+    canAccessAllTeams,
     
     setFilters,
     setIsFormModalOpen,

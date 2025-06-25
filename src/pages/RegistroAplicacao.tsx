@@ -5,12 +5,13 @@ import MainLayout from "@/components/layout/MainLayout";
 import { useToast } from "@/hooks/use-toast";
 import RegistroAplicacaoFilters from "@/components/registro-aplicacao/RegistroAplicacaoFilters";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Info } from "lucide-react";
+import { RefreshCw, Info, Shield } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { fetchEntregasEnviadas } from "@/services/registro-aplicacao/fetchEntregasEnviadas";
 import { RegistroAplicacaoFilters as RegistroAplicacaoFiltersType } from "@/types/registroAplicacao";
 import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
 import { useAuthPermissions } from "@/hooks/useAuthPermissions";
+import { useUserDataAccess } from "@/hooks/useUserDataAccess";
 import { fetchCentrosCustoFiltered } from "@/services/centrosCustoFilteredService";
 import { fetchCaminhoesWithCapacity } from "@/services/caminhoesFilteredService";
 import EntregasEnviadasTable from "@/components/registro-aplicacao/EntregasEnviadasTable";
@@ -27,10 +28,11 @@ const RegistroAplicacao: React.FC = () => {
     // Não definir data_inicio por padrão para mostrar todas as entregas
   });
   
-  // Get user permissions and ID
+  // Get user permissions and data access control
   const { userId, isSuperAdmin } = useAuthPermissions();
+  const { allowedTeamIds, userRole, canAccessAllTeams, isLoading: accessLoading } = useUserDataAccess();
 
-  console.log("⚡️ RegistroAplicacao rendering - userId:", userId, "isSuperAdmin:", isSuperAdmin, "filters:", filters);
+  console.log("⚡️ RegistroAplicacao rendering - userId:", userId, "userRole:", userRole, "allowedTeams:", allowedTeamIds, "filters:", filters);
 
   const { 
     data: entregasEnviadas, 
@@ -38,19 +40,22 @@ const RegistroAplicacao: React.FC = () => {
     refetch,
     error: entregasError
   } = useQuery({
-    queryKey: ['entregasEnviadas', filters, userId, isSuperAdmin],
-    queryFn: () => fetchEntregasEnviadas(filters),
+    queryKey: ['entregasEnviadas', filters, allowedTeamIds],
+    queryFn: () => fetchEntregasEnviadas(filters, allowedTeamIds),
+    enabled: !accessLoading && allowedTeamIds.length >= 0, // Allow empty array (no access)
     refetchOnWindowFocus: false,
     retry: 2,
     retryDelay: 1000,
   });
 
-  // Load filter data - only once when component mounts
+  // Load filter data - only once when component mounts and access data is ready
   useEffect(() => {
     const loadData = async () => {
+      if (accessLoading || userId === null || isSuperAdmin === null) return;
+
       try {
         setIsLoading(true);
-        console.log("🔄 Loading filter data - userId:", userId, "isSuperAdmin:", isSuperAdmin);
+        console.log("🔄 Loading filter data - userId:", userId, "isSuperAdmin:", isSuperAdmin, "userRole:", userRole);
         
         // Load caminhões
         console.log("🚚 Fetching caminhões...");
@@ -77,11 +82,8 @@ const RegistroAplicacao: React.FC = () => {
       }
     };
 
-    // Only load data when userId and isSuperAdmin are available
-    if (userId !== null && isSuperAdmin !== null) {
-      loadData();
-    }
-  }, [userId, isSuperAdmin, toast]);
+    loadData();
+  }, [userId, isSuperAdmin, userRole, accessLoading, toast]);
 
   const handleFilter = useCallback((filters: RegistroAplicacaoFiltersType) => {
     console.log("🔍 Applying filters:", filters);
@@ -129,8 +131,22 @@ const RegistroAplicacao: React.FC = () => {
     entregas: entregasEnviadas?.length || 0,
     isLoading: isLoadingEntregas,
     hasError: !!entregasError,
-    hasActiveFilters
+    hasActiveFilters,
+    allowedTeams: allowedTeamIds.length,
+    canAccessAll: canAccessAllTeams
   });
+
+  if (accessLoading) {
+    return (
+      <MainLayout>
+        <div className="container py-6">
+          <div className="flex justify-center items-center py-8">
+            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -153,40 +169,66 @@ const RegistroAplicacao: React.FC = () => {
         </div>
 
         <div className="space-y-6">
+          {/* Security Status Alert */}
+          <Alert className="bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-300 border-green-200 dark:border-green-800">
+            <Shield className="h-4 w-4" />
+            <AlertDescription>
+              <div className="flex flex-col gap-1">
+                <span>Usuário: <strong>{userRole}</strong></span>
+                <span>Acesso: {canAccessAllTeams ? 'Todas as equipes' : `${allowedTeamIds.length} equipes permitidas`}</span>
+                <span>Controle: <strong>Aplicado por equipe</strong> - Dados filtrados automaticamente</span>
+              </div>
+            </AlertDescription>
+          </Alert>
+
+          {/* No Access Warning */}
+          {allowedTeamIds.length === 0 && !canAccessAllTeams && (
+            <Alert variant="destructive">
+              <Shield className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Sem Acesso a Equipes:</strong> Você não tem permissão para acessar nenhuma equipe. Entre em contato com o administrador para solicitar as permissões necessárias.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Informações sobre filtros */}
-          {!hasActiveFilters && (
+          {!hasActiveFilters && allowedTeamIds.length > 0 && (
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription>
-                <strong>Dica:</strong> Sem filtros aplicados - mostrando todas as entregas disponíveis. 
-                Use os filtros abaixo para refinar os resultados por data ou equipe.
+                <strong>Dica:</strong> Sem filtros aplicados - mostrando todas as entregas disponíveis para suas equipes. 
+                Use os filtros abaixo para refinar os resultados por data ou centro de custo.
               </AlertDescription>
             </Alert>
           )}
 
-          <RegistroAplicacaoFilters 
-            onFilter={handleFilter} 
-            caminhoesList={caminhoesList}
-            centrosCustoList={centrosCustoList}
-            hasActiveFilters={hasActiveFilters}
-            onClearFilters={handleClearFilters}
-          />
+          {(allowedTeamIds.length > 0 || canAccessAllTeams) && (
+            <>
+              <RegistroAplicacaoFilters 
+                onFilter={handleFilter} 
+                caminhoesList={caminhoesList}
+                centrosCustoList={centrosCustoList}
+                hasActiveFilters={hasActiveFilters}
+                onClearFilters={handleClearFilters}
+              />
 
-          {/* Mostrar erro se houver */}
-          {entregasError && (
-            <Alert variant="destructive">
-              <AlertDescription>
-                Erro ao carregar entregas: {entregasError instanceof Error ? entregasError.message : 'Erro desconhecido'}
-              </AlertDescription>
-            </Alert>
+              {/* Mostrar erro se houver */}
+              {entregasError && (
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    Erro ao carregar entregas: {entregasError instanceof Error ? entregasError.message : 'Erro desconhecido'}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <EntregasEnviadasTable
+                entregas={entregasEnviadas || []}
+                isLoading={isLoadingEntregas}
+                onEntregaSelect={handleEntregaSelect}
+                onRefresh={handleRefresh}
+              />
+            </>
           )}
-
-          <EntregasEnviadasTable
-            entregas={entregasEnviadas || []}
-            isLoading={isLoadingEntregas}
-            onEntregaSelect={handleEntregaSelect}
-            onRefresh={handleRefresh}
-          />
         </div>
 
         <NovoRegistroAplicacaoModal

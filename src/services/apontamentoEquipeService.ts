@@ -26,8 +26,11 @@ const normalizeDate = (date: Date | string): string => {
   return format(normalizedDate, "yyyy-MM-dd");
 };
 
-// Fetch apontamentos with filters
-export const fetchApontamentos = async (filters: ApontamentoEquipeFilters = {}): Promise<ApontamentoEquipe[]> => {
+// Fetch apontamentos with filters and team access control
+export const fetchApontamentos = async (
+  filters: ApontamentoEquipeFilters = {},
+  allowedTeamIds?: string[]
+): Promise<ApontamentoEquipe[]> => {
   let query = supabase
     .from("bd_apontamento_equipe")
     .select(`
@@ -43,6 +46,16 @@ export const fetchApontamentos = async (filters: ApontamentoEquipeFilters = {}):
       lista_entrega:lista_entrega_id (*)
     `)
     .order('data_registro', { ascending: false });
+  
+  // Apply team-based access control FIRST
+  if (allowedTeamIds && allowedTeamIds.length > 0) {
+    console.log("🛡️ Applying team-based filter for apontamentos. Allowed teams:", allowedTeamIds);
+    query = query.in("equipe_id", allowedTeamIds);
+  } else if (allowedTeamIds && allowedTeamIds.length === 0) {
+    // If allowedTeamIds is empty array, user has no team access
+    console.log("❌ No team access for apontamentos - returning empty result");
+    return [];
+  }
   
   // Apply filters
   if (filters.data_inicio) {
@@ -74,6 +87,7 @@ export const fetchApontamentos = async (filters: ApontamentoEquipeFilters = {}):
     throw error;
   }
   
+  console.log(`📊 Fetched ${data?.length || 0} apontamentos with team filter`);
   return data as unknown as ApontamentoEquipe[];
 };
 
