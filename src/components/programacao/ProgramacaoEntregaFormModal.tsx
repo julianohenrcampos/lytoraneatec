@@ -113,6 +113,28 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
     'nome_completo' in selectedEquipe.apontador ? 
       String(selectedEquipe.apontador.nome_completo || "Apontador da equipe") : "Apontador da equipe";
 
+  // Helper function to get truck display name with improved logic
+  const getTruckDisplayName = (item: any): string => {
+    console.log("Getting truck display for item:", item);
+    
+    // First, try to use the relation data from the database JOIN
+    if (item.caminhao && typeof item.caminhao === 'object') {
+      const truck = item.caminhao;
+      console.log("Using truck from relation:", truck);
+      return truck.placa || truck.modelo || 'Caminhão sem placa';
+    }
+    
+    // Fallback: search in the caminhoes list
+    const truck = caminhoes.find(c => c.id === item.caminhao_id);
+    if (truck) {
+      console.log("Using truck from list:", truck);
+      return truck.placa || truck.modelo || 'Caminhão sem placa';
+    }
+    
+    console.log("No truck found for item:", item.caminhao_id);
+    return 'Caminhão não encontrado';
+  };
+
   const handleItemSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -234,7 +256,7 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
               </Card>
             )}
 
-            {/* Seção de Entregas - Fixed display to show values in tons */}
+            {/* Seção de Entregas - Fixed display to show values in tons and correct truck names */}
             <Card>
               <CardHeader>
                 <div className="flex justify-between items-center">
@@ -280,10 +302,13 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                             ? (item.quantidade_massa > 100 ? item.quantidade_massa / 1000 : item.quantidade_massa)
                             : parseFloat(String(item.quantidade_massa || 0));
                           
+                          console.log("Rendering item with logradouro:", item.logradouro, "and centro_custo_nome:", item.centro_custo_nome);
+                          
                           return (
                             <TableRow key={index} className={item.cancelled ? "bg-red-50" : ""}>
                               <TableCell className="font-medium">
-                                {item.logradouro || item.centro_custo_nome}
+                                {/* Show the actual logradouro, not centro_custo_nome */}
+                                {item.logradouro || item.centro_custo_nome || "Logradouro não informado"}
                                 {item.cancelled && (
                                   <div className="mt-1 flex items-center text-xs text-red-600">
                                     <AlertCircle className="h-3 w-3 mr-1" />
@@ -295,7 +320,8 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                                 <Badge variant="secondary">{displayQuantity.toFixed(1)} t</Badge>
                               </TableCell>
                               <TableCell>
-                                {caminhoes.find(c => c.id === item.caminhao_id)?.placa || 'N/A'}
+                                {/* Use improved truck display logic */}
+                                {getTruckDisplayName(item)}
                               </TableCell>
                               <TableCell>
                                 {equipes.find(e => e.id === item.equipe_id)?.nome_equipe || 'N/A'}
@@ -345,7 +371,7 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
               </CardContent>
             </Card>
             
-            {/* Formulário de Adição de Item - keep existing code */}
+            {/* Formulário de Adição de Item */}
             {isAddingItem && (
               <Card className="border-blue-200 bg-blue-50">
                 <CardHeader>
@@ -353,24 +379,17 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <FormField control={itemForm.control} name="centro_custo_nome" render={({ field }) => (
+                    <FormField control={itemForm.control} name="logradouro" render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-sm font-medium">Centro de Custo *</FormLabel>
+                        <FormLabel className="text-sm font-medium">Logradouro *</FormLabel>
                         <FormControl>
                           <Input 
                             {...field} 
-                            readOnly 
-                            value={centroCustoNome} 
-                            placeholder="Centro de custo da requisição" 
-                            className="bg-gray-100" 
+                            placeholder="Nome da rua/logradouro" 
+                            className="bg-white" 
                           />
                         </FormControl>
                         <FormMessage />
-                        {!centroCustoNome && (
-                          <p className="text-xs text-red-500">
-                            Centro de custo não encontrado. Selecione uma requisição válida.
-                          </p>
-                        )}
                       </FormItem>
                     )} />
                     

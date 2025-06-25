@@ -19,7 +19,7 @@ const PesagemSection: React.FC<PesagemSectionProps> = ({
   handleTicketSaidaChange,
   handleTicketRetornoChange,
 }) => {
-  // Função para calcular tonelada real com validação - formato correto com 1 casa decimal
+  // Função para calcular tonelada real com validação - corrigida para usar valores diretos
   const calcularToneladaReal = (): string => {
     try {
       const toneladaSaida = form.watch("tonelada_saida");
@@ -27,7 +27,7 @@ const PesagemSection: React.FC<PesagemSectionProps> = ({
 
       console.log("PesagemSection - Valores para cálculo:", { toneladaSaida, toneladaRetorno });
 
-      // Validar tonelada de saída
+      // Validar tonelada de saída - agora como número direto (sem conversão)
       const saidaNum = Number(toneladaSaida);
       if (isNaN(saidaNum) || saidaNum < 0) {
         return "0.0 t";
@@ -45,11 +45,11 @@ const PesagemSection: React.FC<PesagemSectionProps> = ({
       const resultado = saidaNum - retornoNum;
       console.log("PesagemSection - Resultado calculado:", resultado);
 
-      // Formato correto: 1 casa decimal (ex: 2.5 t)
-      return `${Math.max(0, resultado).toFixed(1)} t`;
+      // Exibir com 3 casas decimais para melhor precisão visual
+      return `${Math.max(0, resultado).toFixed(3)} t`;
     } catch (error) {
       console.error("PesagemSection - Erro no cálculo:", error);
-      return "0.0 t";
+      return "0.000 t";
     }
   };
 
@@ -62,7 +62,7 @@ const PesagemSection: React.FC<PesagemSectionProps> = ({
           <WeightInput
             form={form}
             name="tonelada_saida"
-            label="Peso da Balança (kg)"
+            label="Peso da Balança - Saída (toneladas)"
           />
           
           <ImageUpload
@@ -80,7 +80,7 @@ const PesagemSection: React.FC<PesagemSectionProps> = ({
           <WeightInput
             form={form}
             name="tonelada_retorno"
-            label="Peso da Balança - Retorno (kg)"
+            label="Peso da Balança - Retorno (toneladas)"
             isRetorno={true}
           />
           
@@ -105,6 +105,9 @@ const PesagemSection: React.FC<PesagemSectionProps> = ({
         </div>
         <p className="text-xs text-muted-foreground mt-1">
           Calculado automaticamente (Tonelada de Saída - Tonelada de Retorno)
+        </p>
+        <p className="text-xs text-blue-600 mt-1">
+          * Este valor é calculado pelo sistema após o salvamento
         </p>
       </div>
     </div>

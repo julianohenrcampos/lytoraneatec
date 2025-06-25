@@ -12,7 +12,7 @@ const normalizeStatus = (status: string | null | undefined): 'Pendente' | 'Envia
   return 'Pendente';
 };
 
-// Get lista de programação entrega for the provided date
+// Get lista de programação entrega for the provided date - NOW INCLUDES BAIRRO
 export const fetchListaProgramacaoEntregaByDate = async (date: Date): Promise<ListaProgramacaoEntrega[]> => {
   try {
     // Format the date to ISO format (YYYY-MM-DD) for exact matching
@@ -41,12 +41,13 @@ export const fetchListaProgramacaoEntregaByDate = async (date: Date): Promise<Li
     
     console.log(`[fetchListaProgramacaoEntregaByDate] Found ${data?.length || 0} entregas`);
     
-    // Add centro_custo_nome to each entry
+    // Add centro_custo_nome to each entry and ensure bairro is included
     const processedData = (data || []).map(item => {
       const centroCustoNome = item.requisicao?.centro_custo?.nome_centro_custo || null;
       return {
         ...item,
         centro_custo_nome: centroCustoNome,
+        bairro: item.bairro || "", // Ensure bairro is always present
         status: normalizeStatus(item.status)
       };
     });
@@ -58,7 +59,7 @@ export const fetchListaProgramacaoEntregaByDate = async (date: Date): Promise<Li
   }
 };
 
-// Get lista de programação entrega with filters
+// Get lista de programação entrega with filters - NOW INCLUDES BAIRRO
 export const fetchListaProgramacaoEntregaFiltered = async (filters: RegistroCargaFilters): Promise<ListaProgramacaoEntrega[]> => {
   try {
     let query = supabase
@@ -99,12 +100,13 @@ export const fetchListaProgramacaoEntregaFiltered = async (filters: RegistroCarg
     
     console.log(`[fetchListaProgramacaoEntregaFiltered] Found ${data?.length || 0} entregas`);
     
-    // Add centro_custo_nome to each entry
+    // Add centro_custo_nome to each entry and ensure bairro is included
     const processedData = (data || []).map(item => {
       const centroCustoNome = item.requisicao?.centro_custo?.nome_centro_custo || null;
       return {
         ...item,
         centro_custo_nome: centroCustoNome,
+        bairro: item.bairro || "", // Ensure bairro is always present
         status: normalizeStatus(item.status)
       };
     });
@@ -132,10 +134,21 @@ export const fetchRegistroCargaByListaEntregaId = async (listaEntregaId: string)
   return data as RegistroCarga;
 };
 
-// Create new registro carga
+// Create new registro carga - FIXED: Remove tonelada_real from INSERT
 export const createRegistroCarga = async (values: RegistroCargaFormValues): Promise<RegistroCarga> => {
   try {
-    // Check if the entrega status allows registration (only Pendente status can be registered)
+    console.log("[createRegistroCarga] Starting with values:", values);
+
+    // Enhanced validation
+    if (!values.lista_entrega_id) {
+      throw new Error("ID da entrega é obrigatório");
+    }
+    
+    if (!values.tonelada_saida || Number(values.tonelada_saida) <= 0) {
+      throw new Error("Tonelada de saída deve ser maior que zero");
+    }
+
+    // Check if the entrega status allows registration
     const { data: entregaData, error: entregaError } = await supabase
       .from("bd_lista_programacao_entrega")
       .select("status")
@@ -151,41 +164,35 @@ export const createRegistroCarga = async (values: RegistroCargaFormValues): Prom
       throw new Error("Não é possível registrar uma entrega cancelada");
     }
     
-    if (entregaData.status === 'Enviada') {
-      console.log("Esta entrega já foi registrada. Atualizando o registro existente.");
-      const existingRegistro = await fetchRegistroCargaByListaEntregaId(values.lista_entrega_id);
-      if (existingRegistro) {
-        return await updateRegistroCarga(existingRegistro.id, values);
-      }
-    }
+    // Handle image uploads with better error handling
+    let imagemTicketSaidaUrl = "https://placeholder.com/registro-carga-sem-imagem.jpg";
+    let imagemTicketRetornoUrl: string | null = null;
     
-    // Handle image uploads if they are File objects
-    let imagemTicketSaidaUrl = values.imagem_ticket_saida;
-    let imagemTicketRetornoUrl = values.imagem_ticket_retorno;
+    console.log("[createRegistroCarga] Processing images...");
     
-    // If no imagem_ticket_saida has been provided, create a placeholder URL
-    // This is necessary because the database column is NOT NULL
-    if (!values.imagem_ticket_saida) {
-      imagemTicketSaidaUrl = "https://placeholder.com/registro-carga-sem-imagem.jpg";
-    } else if (values.imagem_ticket_saida instanceof File) {
+    if (values.imagem_ticket_saida && values.imagem_ticket_saida instanceof File) {
       try {
+        console.log("[createRegistroCarga] Uploading ticket saida...");
         imagemTicketSaidaUrl = await uploadImage(values.imagem_ticket_saida, "tickets");
+        console.log("[createRegistroCarga] Ticket saida uploaded:", imagemTicketSaidaUrl);
       } catch (error) {
         console.error("Error uploading ticket saida:", error);
-        // Use placeholder if upload fails
-        imagemTicketSaidaUrl = "https://placeholder.com/registro-carga-sem-imagem.jpg";
+        throw new Error("Erro ao fazer upload da imagem do ticket de saída");
       }
     }
     
-    if (values.imagem_ticket_retorno instanceof File) {
+    if (values.imagem_ticket_retorno && values.imagem_ticket_retorno instanceof File) {
       try {
+        console.log("[createRegistroCarga] Uploading ticket retorno...");
         imagemTicketRetornoUrl = await uploadImage(values.imagem_ticket_retorno, "tickets");
+        console.log("[createRegistroCarga] Ticket retorno uploaded:", imagemTicketRetornoUrl);
       } catch (error) {
         console.error("Error uploading ticket retorno:", error);
-        imagemTicketRetornoUrl = null; // Set to null if upload fails
+        throw new Error("Erro ao fazer upload da imagem do ticket de retorno");
       }
     }
     
+    // Prepare data WITHOUT tonelada_real (let database calculate it)
     const newRegistro = {
       lista_entrega_id: values.lista_entrega_id,
       programacao_id: values.programacao_id,
@@ -193,17 +200,20 @@ export const createRegistroCarga = async (values: RegistroCargaFormValues): Prom
       hora_saida: values.hora_saida,
       temperatura_saida: values.temperatura_saida || null,
       tonelada_saida: Number(values.tonelada_saida),
-      imagem_ticket_saida: imagemTicketSaidaUrl as string, // Type assertion to string
       tonelada_retorno: values.tonelada_retorno ? Number(values.tonelada_retorno) : null,
-      imagem_ticket_retorno: imagemTicketRetornoUrl as string | null, // Type assertion to string | null
+      // REMOVED: tonelada_real - let database calculate this automatically
+      imagem_ticket_saida: imagemTicketSaidaUrl,
+      imagem_ticket_retorno: imagemTicketRetornoUrl,
       status_registro: values.status_registro || "Ativo",
     };
     
-    // First check if the database already has a registro for this lista_entrega_id
+    console.log("[createRegistroCarga] Final registro data (without tonelada_real):", newRegistro);
+    
+    // Check for existing registro first
     const existingRegistro = await fetchRegistroCargaByListaEntregaId(values.lista_entrega_id);
     
     if (existingRegistro) {
-      // If there's already a registro, update it instead of creating a new one
+      console.log("[createRegistroCarga] Updating existing registro:", existingRegistro.id);
       return await updateRegistroCarga(existingRegistro.id, values);
     }
     
@@ -216,12 +226,10 @@ export const createRegistroCarga = async (values: RegistroCargaFormValues): Prom
     
     if (error) {
       console.error("Error creating registro carga:", error);
-      throw new Error(error.message);
+      throw new Error(`Erro ao criar registro: ${error.message}`);
     }
     
-    // The status update is now handled by the database trigger
-    // We don't need to manually update the status here
-    console.log("Registro created successfully. Status update will be handled by the database trigger.");
+    console.log("[createRegistroCarga] Successfully created registro:", data.id);
     
     return data as RegistroCarga;
   } catch (error) {
@@ -230,9 +238,11 @@ export const createRegistroCarga = async (values: RegistroCargaFormValues): Prom
   }
 };
 
-// Update existing registro carga
+// Update existing registro carga - FIXED: Remove tonelada_real from UPDATE
 export const updateRegistroCarga = async (id: string, values: RegistroCargaFormValues): Promise<RegistroCarga> => {
   try {
+    console.log("[updateRegistroCarga] Starting update for ID:", id, "with values:", values);
+
     // Handle image uploads if they are File objects
     let imagemTicketSaidaUrl = values.imagem_ticket_saida;
     let imagemTicketRetornoUrl = values.imagem_ticket_retorno;
@@ -242,28 +252,27 @@ export const updateRegistroCarga = async (id: string, values: RegistroCargaFormV
       imagemTicketSaidaUrl = "https://placeholder.com/registro-carga-sem-imagem.jpg";
     } else if (values.imagem_ticket_saida instanceof File) {
       try {
+        console.log("[updateRegistroCarga] Uploading new ticket saida...");
         imagemTicketSaidaUrl = await uploadImage(values.imagem_ticket_saida, "tickets");
+        console.log("[updateRegistroCarga] New ticket saida uploaded:", imagemTicketSaidaUrl);
       } catch (error) {
         console.error("Error uploading ticket saida:", error);
-        // Use placeholder if upload fails and no existing URL
-        if (typeof values.imagem_ticket_saida !== 'string') {
-          imagemTicketSaidaUrl = "https://placeholder.com/registro-carga-sem-imagem.jpg";
-        }
+        throw new Error("Erro ao fazer upload da imagem do ticket de saída");
       }
     }
     
     if (values.imagem_ticket_retorno instanceof File) {
       try {
+        console.log("[updateRegistroCarga] Uploading new ticket retorno...");
         imagemTicketRetornoUrl = await uploadImage(values.imagem_ticket_retorno, "tickets");
+        console.log("[updateRegistroCarga] New ticket retorno uploaded:", imagemTicketRetornoUrl);
       } catch (error) {
         console.error("Error uploading ticket retorno:", error);
-        // Keep the existing URL if upload fails and it's a string
-        if (typeof values.imagem_ticket_retorno !== 'string') {
-          imagemTicketRetornoUrl = null;
-        }
+        throw new Error("Erro ao fazer upload da imagem do ticket de retorno");
       }
     }
     
+    // Prepare data WITHOUT tonelada_real (let database calculate it)
     const updatedRegistro = {
       lista_entrega_id: values.lista_entrega_id,
       programacao_id: values.programacao_id,
@@ -271,11 +280,14 @@ export const updateRegistroCarga = async (id: string, values: RegistroCargaFormV
       hora_saida: values.hora_saida,
       temperatura_saida: values.temperatura_saida || null,
       tonelada_saida: Number(values.tonelada_saida),
-      imagem_ticket_saida: imagemTicketSaidaUrl as string,
       tonelada_retorno: values.tonelada_retorno ? Number(values.tonelada_retorno) : null,
+      // REMOVED: tonelada_real - let database calculate this automatically
+      imagem_ticket_saida: imagemTicketSaidaUrl as string,
       imagem_ticket_retorno: imagemTicketRetornoUrl as string | null,
       status_registro: values.status_registro || "Ativo",
     };
+    
+    console.log("[updateRegistroCarga] Final update data (without tonelada_real):", updatedRegistro);
     
     const { data, error } = await supabase
       .from("bd_registro_cargas")
@@ -286,7 +298,7 @@ export const updateRegistroCarga = async (id: string, values: RegistroCargaFormV
     
     if (error) {
       console.error("Error updating registro carga:", error);
-      throw new Error(error.message);
+      throw new Error(`Erro ao atualizar registro: ${error.message}`);
     }
     
     // Ensure the status is 'Enviada' in the bd_lista_programacao_entrega table
@@ -304,6 +316,8 @@ export const updateRegistroCarga = async (id: string, values: RegistroCargaFormV
     } catch (error) {
       console.error("Error handling status update:", error);
     }
+    
+    console.log("[updateRegistroCarga] Successfully updated registro:", data.id);
     
     return data as RegistroCarga;
   } catch (error) {

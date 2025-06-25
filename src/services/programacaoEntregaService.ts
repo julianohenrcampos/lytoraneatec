@@ -108,27 +108,30 @@ export const fetchProgramacaoById = async (id: string): Promise<ProgramacaoEntre
   
   console.log("Found items with corrected query:", itens);
 
-  // First, get the centro custo name for display
+  // Get the centro custo name for display
   let centroCustoName = "";
   if (programacao.centro_custo && typeof programacao.centro_custo === 'object') {
     centroCustoName = (programacao.centro_custo as any).nome_centro_custo || "";
   }
 
-  // Set the cancelled flag for UI based on status and normalize status values
+  // Process items correctly - don't override logradouro with centro_custo_nome
   const processedItems = (itens || []).map(item => {
+    console.log("Processing item logradouro:", item.logradouro);
     console.log("Processing item caminhao data:", item.caminhao);
     
     return {
       ...item,
       cancelled: normalizeStatus(item.status) === 'Cancelada',
       status: normalizeStatus(item.status),
-      centro_custo_nome: item.logradouro || centroCustoName, // Map logradouro to centro_custo_nome for UI display
+      // Keep the original logradouro from database, set centro_custo_nome separately
+      logradouro: item.logradouro || "", 
+      centro_custo_nome: centroCustoName, // Set centro custo name for UI context
       // Keep the tipo_lancamento exactly as stored in the database
       tipo_lancamento: item.tipo_lancamento || 'Manual'
     };
   }) as ListaProgramacaoEntrega[];
   
-  console.log("Processed items with caminhao data:", processedItems);
+  console.log("Processed items with logradouro and caminhao data:", processedItems);
 
   return {
     ...programacao,
@@ -173,7 +176,7 @@ export const createProgramacao = async (
       return {
         programacao_entrega_id: newProgramacao.id,
         requisicao_id: item.requisicao_id,
-        logradouro: item.centro_custo_nome || "", // Use centro_custo_nome as logradouro
+        logradouro: item.logradouro || item.centro_custo_nome || "", // Use logradouro first, then centro_custo_nome as fallback
         quantidade_massa: item.quantidade_massa,
         caminhao_id: item.caminhao_id,
         tipo_lancamento: safeType,  // Use the validated value for database
@@ -256,7 +259,7 @@ export const updateProgramacao = async (
         return {
           programacao_entrega_id: id,
           requisicao_id: item.requisicao_id,
-          logradouro: item.centro_custo_nome || "", // Use centro_custo_nome as logradouro
+          logradouro: item.logradouro || item.centro_custo_nome || "", // Use logradouro first, then centro_custo_nome as fallback
           quantidade_massa: item.quantidade_massa,
           caminhao_id: item.caminhao_id,
           tipo_lancamento: safeType,  // Use the validated value for database
@@ -379,14 +382,14 @@ export const downloadProgramacoesAsExcel = async (filters: ProgramacaoEntregaFil
   }
 };
 
-// Fetch caminhões that are operating
+// Fetch caminhões that are operating - improved to include more statuses for editing
 export const fetchOperatingVehicles = async () => {
   try {
     console.log("Iniciando a busca de veículos operando");
     const { data, error } = await supabase
       .from('bd_caminhoes_equipamentos')
-      .select('id, placa, modelo, frota, marca, tipo_veiculo, capacidade')
-      .eq('situacao', 'Operando');
+      .select('id, placa, modelo, frota, marca, tipo_veiculo, capacidade, situacao')
+      .in('situacao', ['Operando', 'Disponível']); // Include both for editing purposes
       
     if (error) {
       console.error('Error fetching operating vehicles:', error);

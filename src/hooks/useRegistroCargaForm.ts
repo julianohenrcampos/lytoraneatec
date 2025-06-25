@@ -8,6 +8,7 @@ import { RegistroCargaFormValues } from "@/types/registroCargas";
 import { 
   getCurrentBrazilianDate,
 } from "@/utils/timezoneUtils";
+import { createRegistroCarga, updateRegistroCarga, fetchRegistroCargaByListaEntregaId } from "@/services/registroCargaService";
 
 interface UseRegistroCargaFormProps {
   onSuccess?: () => void;
@@ -44,63 +45,6 @@ const validateFormData = (data: RegistroCargaFormValues): string | null => {
   return null;
 };
 
-const saveRegistroCarga = async (data: any) => {
-  // Normalizar dados numéricos antes de salvar
-  const normalizedData = {
-    ...data,
-    tonelada_saida: safeNumber(data.tonelada_saida),
-    tonelada_retorno: safeNumber(data.tonelada_retorno, 0),
-    temperatura_saida: safeNumber(data.temperatura_saida, 0),
-  };
-
-  console.log("saveRegistroCarga - Dados normalizados:", normalizedData);
-
-  const { data: existingData, error: selectError } = await supabase
-    .from('bd_registro_cargas')
-    .select('*')
-    .eq('lista_entrega_id', normalizedData.lista_entrega_id);
-
-  if (selectError) {
-    throw selectError;
-  }
-
-  if (existingData && existingData.length > 0) {
-    // Update existing record
-    const { error: updateError } = await supabase
-      .from('bd_registro_cargas')
-      .update(normalizedData)
-      .eq('lista_entrega_id', normalizedData.lista_entrega_id);
-
-    if (updateError) {
-      throw updateError;
-    }
-  } else {
-    // Insert new record
-    const { error: insertError } = await supabase
-      .from('bd_registro_cargas')
-      .insert(normalizedData);
-
-    if (insertError) {
-      throw insertError;
-    }
-  }
-};
-
-const fetchRegistroCargaByListaEntregaId = async (listaEntregaId: string) => {
-  const { data, error } = await supabase
-    .from('bd_registro_cargas')
-    .select('*')
-    .eq('lista_entrega_id', listaEntregaId)
-    .single();
-
-  if (error) {
-    console.error("Error fetching registro carga:", error);
-    return null;
-  }
-
-  return data;
-};
-
 export const useRegistroCargaForm = (onSuccess?: () => void) => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -126,6 +70,27 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
   const handleTicketSaidaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        toast({
+          title: "Tipo de arquivo inválido",
+          description: "Por favor, selecione uma imagem (JPEG, PNG ou WebP)",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: "Arquivo muito grande",
+          description: "O arquivo deve ter no máximo 5MB",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const reader = new FileReader();
       reader.onloadend = () => {
         setTicketSaidaPreview(reader.result as string);
@@ -138,6 +103,27 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
   const handleTicketRetornoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        toast({
+          title: "Tipo de arquivo inválido",
+          description: "Por favor, selecione uma imagem (JPEG, PNG ou WebP)",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: "Arquivo muito grande",
+          description: "O arquivo deve ter no máximo 5MB",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const reader = new FileReader();
       reader.onloadend = () => {
         setTicketRetornoPreview(reader.result as string);
@@ -156,10 +142,10 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
       
       let defaultValues: any = {
         lista_entrega_id: entrega.id,
-        programacao_id: entrega.programacao_id || "",
+        programacao_id: entrega.programacao_id || entrega.programacao_entrega_id || "",
         data_saida: getCurrentBrazilianDate(),
         hora_saida: "",
-        tonelada_saida: safeNumber(entrega.quantidade_massa),
+        tonelada_saida: safeNumber(entrega.quantidade_massa / 1000), // Convert kg to tons for display
         tonelada_retorno: 0,
         temperatura_saida: 0,
         status_registro: "Ativo" as const
@@ -177,19 +163,20 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
           hora_saida: existingRegistro.hora_saida || "",
           status_registro: (existingRegistro.status_registro as "Ativo" | "Concluído" | "Cancelado") || "Ativo"
         };
+
+        // Set image previews if they exist
+        if (existingRegistro.imagem_ticket_saida) {
+          setTicketSaidaPreview(existingRegistro.imagem_ticket_saida);
+        }
+        
+        if (existingRegistro.imagem_ticket_retorno) {
+          setTicketRetornoPreview(existingRegistro.imagem_ticket_retorno);
+        }
       }
 
       console.log("initializeFromListaEntrega - Valores padrão definidos:", defaultValues);
       form.reset(defaultValues);
       setCurrentListaEntregaId(entrega.id);
-      
-      if (existingRegistro?.imagem_ticket_saida) {
-        setTicketSaidaPreview(existingRegistro.imagem_ticket_saida);
-      }
-      
-      if (existingRegistro?.imagem_ticket_retorno) {
-        setTicketRetornoPreview(existingRegistro.imagem_ticket_retorno);
-      }
       
     } catch (error) {
       console.error("Error initializing form from lista entrega:", error);
@@ -238,7 +225,16 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
 
       console.log("onSubmit - Dados para salvar:", registroData);
 
-      await saveRegistroCarga(registroData);
+      // Check if updating existing or creating new
+      const existingRegistro = await fetchRegistroCargaByListaEntregaId(currentListaEntregaId);
+      
+      if (existingRegistro) {
+        console.log("onSubmit - Updating existing registro:", existingRegistro.id);
+        await updateRegistroCarga(existingRegistro.id, registroData);
+      } else {
+        console.log("onSubmit - Creating new registro");
+        await createRegistroCarga(registroData);
+      }
       
       toast({
         title: "Sucesso",
@@ -246,11 +242,11 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
       });
       
       onSuccess?.();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving registro:", error);
       toast({
-        title: "Erro",
-        description: "Erro ao salvar registro",
+        title: "Erro ao salvar",
+        description: error.message || "Erro interno do sistema",
         variant: "destructive",
       });
     } finally {
