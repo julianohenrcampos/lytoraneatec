@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { useConnectionStatus } from './useConnectionStatus';
 import { useToast } from './use-toast';
@@ -19,6 +18,7 @@ interface SyncStatus {
   lastSync: Date | null;
   pendingCount: number;
   errors: string[];
+  isServiceWorkerReady: boolean;
 }
 
 export const useOfflineSync = () => {
@@ -28,8 +28,67 @@ export const useOfflineSync = () => {
     isSyncing: false,
     lastSync: null,
     pendingCount: 0,
-    errors: []
+    errors: [],
+    isServiceWorkerReady: false
   });
+
+  // Check Service Worker registration
+  useEffect(() => {
+    const checkServiceWorker = async () => {
+      if ('serviceWorker' in navigator) {
+        try {
+          const registration = await navigator.serviceWorker.ready;
+          setSyncStatus(prev => ({ ...prev, isServiceWorkerReady: !!registration.active }));
+          
+          // Listen for Service Worker messages
+          navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
+        } catch (error) {
+          console.error('Service Worker check failed:', error);
+        }
+      }
+    };
+
+    checkServiceWorker();
+    
+    return () => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage);
+      }
+    };
+  }, []);
+
+  // Handle messages from Service Worker
+  const handleServiceWorkerMessage = useCallback((event: MessageEvent) => {
+    if (event.data?.type === 'SYNC_OFFLINE_DATA') {
+      console.log('🔄 Service Worker requesting offline data sync');
+      sincronizarTodos();
+    }
+  }, []);
+
+  // Register background sync when offline data is saved
+  const registerBackgroundSync = useCallback(async () => {
+    if ('serviceWorker' in navigator) {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        
+        // Check if background sync is supported
+        if ('sync' in registration) {
+          await (registration as any).sync.register('sync-offline-data');
+          console.log('📱 Background sync registered');
+        } else {
+          console.warn('Background sync not supported, using fallback');
+          // Fallback: schedule periodic sync check
+          setTimeout(() => {
+            if (navigator.onLine && isSupabaseConnected) {
+              sincronizarTodos();
+            }
+          }, 5000);
+        }
+      } catch (error) {
+        console.warn('Background sync registration failed:', error);
+      }
+    }
+  }, [isSupabaseConnected]);
 
   // Sincronizar um tipo específico de apontamento
   const sincronizarTipo = async (tipo: TipoApontamento): Promise<{ sucessos: number; erros: number }> => {
@@ -165,18 +224,23 @@ export const useOfflineSync = () => {
   const atualizarContagem = useCallback(() => {
     const count = contarRegistrosPendentes();
     setSyncStatus(prev => ({ ...prev, pendingCount: count }));
-  }, []);
+    
+    // Register background sync if there's pending data
+    if (count > 0) {
+      registerBackgroundSync();
+    }
+  }, [registerBackgroundSync]);
 
   // Efeito para sincronização automática quando conectar
   useEffect(() => {
-    if (isSupabaseConnected && !syncStatus.isSyncing) {
+    if (isSupabaseConnected && !syncStatus.isSyncing && syncStatus.isServiceWorkerReady) {
       const tiposComDados = obterTiposComDadosPendentes();
       if (tiposComDados.length > 0) {
         console.log('🔄 Conexão restaurada, iniciando sincronização automática...');
         setTimeout(sincronizarTodos, 1000); // Delay de 1s para estabilizar conexão
       }
     }
-  }, [isSupabaseConnected, sincronizarTodos, syncStatus.isSyncing]);
+  }, [isSupabaseConnected, sincronizarTodos, syncStatus.isSyncing, syncStatus.isServiceWorkerReady]);
 
   // Atualizar contagem periodicamente
   useEffect(() => {
@@ -191,6 +255,7 @@ export const useOfflineSync = () => {
     sincronizarTodos,
     sincronizarTipo,
     atualizarContagem,
-    isSupabaseConnected
+    isSupabaseConnected,
+    registerBackgroundSync
   };
 };

@@ -1976,6 +1976,10 @@ export type Database = {
       }
     }
     Functions: {
+      atualizar_status_equipamentos_nao_apontados: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
       calcular_massa_remanescente: {
         Args: { entrega_id: string }
         Returns: number

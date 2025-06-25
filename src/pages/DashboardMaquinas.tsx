@@ -10,6 +10,7 @@ import EquipamentosPorCentroCusto from "@/components/dashboard/maquinas/Equipame
 import UtilizacaoEficienciaRosca from "@/components/dashboard/maquinas/UtilizacaoEficienciaRosca";
 import SaudeFrota from "@/components/dashboard/maquinas/SaudeFrota";
 import ResumoCustos from "@/components/dashboard/maquinas/ResumoCustos";
+import UpdateEquipmentStatusButton from "@/components/dashboard/maquinas/UpdateEquipmentStatusButton";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -76,6 +77,13 @@ export default function DashboardMaquinas() {
     });
   };
 
+  const handleStatusUpdated = () => {
+    // Refetch KPIs e outros dados após atualização
+    kpisQuery.refetch();
+    statusOperacionalQuery.refetch();
+    distribuicaoCentroCustoQuery.refetch();
+  };
+
   const filtrosAtivos = useMemo(() => {
     let count = 0;
     if (filters.tipoVeiculo && filters.tipoVeiculo.length > 0) count++;
@@ -104,12 +112,17 @@ export default function DashboardMaquinas() {
     return (
       <MainLayout>
         <div className="flex flex-col gap-4 p-2">
-          {/* Header compacto */}
+          {/* Header compacto com botão de atualização */}
           <div className="flex flex-col gap-2">
-            <h1 className="text-xl font-bold">Gestão de Máquinas</h1>
-            <p className="text-sm text-muted-foreground">
-              Acompanhamento da frota
-            </p>
+            <div className="flex justify-between items-start">
+              <div>
+                <h1 className="text-xl font-bold">Gestão de Máquinas</h1>
+                <p className="text-sm text-muted-foreground">
+                  Acompanhamento da frota
+                </p>
+              </div>
+              <UpdateEquipmentStatusButton onStatusUpdated={handleStatusUpdated} />
+            </div>
           </div>
 
           {/* Filtros compactos */}
@@ -197,11 +210,16 @@ export default function DashboardMaquinas() {
   return (
     <MainLayout>
       <div className="flex flex-col gap-6 p-6">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold">Dashboard de Gestão de Máquinas</h1>
-          <p className="text-muted-foreground">
-            Acompanhamento completo da frota de caminhões e equipamentos
-          </p>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold">Dashboard de Gestão de Máquinas</h1>
+            <p className="text-muted-foreground">
+              Acompanhamento completo da frota de caminhões e equipamentos
+            </p>
+          </div>
+          
+          {/* Botão de atualização de status */}
+          <UpdateEquipmentStatusButton onStatusUpdated={handleStatusUpdated} />
         </div>
 
         <MaquinasFiltros

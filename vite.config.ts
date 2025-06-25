@@ -17,6 +17,13 @@ export default defineConfig(({ mode }) => ({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectManifest: {
+        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MB
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}']
+      },
       includeAssets: [
         'favicon.ico', 
         'icons/*.png', 
@@ -89,73 +96,6 @@ export default defineConfig(({ mode }) => ({
           }
         ]
       },
-      workbox: {
-        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10MB
-        globPatterns: [
-          '**/*.{js,css,html,ico,png,svg,webp,woff,woff2,ttf}'
-        ],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/api\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-api-cache',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
-              },
-              networkTimeoutSeconds: 10
-            }
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // 365 days
-              }
-            }
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-webfonts-cache',
-              expiration: {
-                maxEntries: 30,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // 365 days
-              }
-            }
-          },
-          {
-            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'images-cache',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
-              }
-            }
-          },
-          {
-            urlPattern: /\.(?:js|css)$/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'static-resources-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
-              }
-            }
-          }
-        ],
-        cleanupOutdatedCaches: true,
-        skipWaiting: true,
-        clientsClaim: true
-      },
       devOptions: {
         enabled: true,
         type: 'module'
@@ -175,12 +115,15 @@ export default defineConfig(({ mode }) => ({
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom'],
-          ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu'],
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-select', '@radix-ui/react-toast'],
           charts: ['recharts'],
           supabase: ['@supabase/supabase-js'],
           xlsx: ['xlsx'],
           'react-query': ['@tanstack/react-query'],
-          'date-utils': ['date-fns', 'date-fns-tz']
+          'date-utils': ['date-fns', 'date-fns-tz'],
+          'forms': ['react-hook-form', '@hookform/resolvers', 'zod'],
+          'routing': ['react-router-dom'],
+          'lucide': ['lucide-react']
         }
       }
     }

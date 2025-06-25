@@ -1,176 +1,279 @@
 
-import React, { useEffect } from "react";
-import { TabsContent } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { 
-  FormField, 
-  FormItem, 
-  FormLabel, 
-  FormControl, 
-  FormMessage 
-} from "@/components/ui/form";
+import React from "react";
+import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UseFormReturn } from "react-hook-form";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
+import { CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
-import { addDays, format, isValid } from "date-fns";
+  normalizeDateToBrazilianNoon, 
+  formatBrazilianDateToString, 
+  parseBrazilianDate 
+} from "@/utils/timezoneUtils";
+import { FuncionarioFormData } from "@/types/funcionario";
 
 interface ContratualTabProps {
-  form: UseFormReturn<any>;
+  form: UseFormReturn<FuncionarioFormData>;
   onClose: () => void;
   setActiveTab: (tab: string) => void;
 }
 
-const ContratualTab: React.FC<ContratualTabProps> = ({
-  form,
-  onClose,
-  setActiveTab
-}) => {
-  // Watch for changes to the admission date
-  const admissionDate = form.watch("data_admissao");
-
-  // Calculate vacation date when admission date changes
-  useEffect(() => {
-    if (admissionDate) {
-      try {
-        const admissionDateObj = new Date(admissionDate);
-        
-        // Only calculate if the date is valid
-        if (isValid(admissionDateObj)) {
-          const vacationDateObj = addDays(admissionDateObj, 365);
-          const vacationDateFormatted = format(vacationDateObj, "yyyy-MM-dd");
-          form.setValue("data_ferias", vacationDateFormatted);
-        }
-      } catch (error) {
-        console.error("Error calculating vacation date:", error);
-      }
+export default function ContratualTab({ form }: ContratualTabProps) {
+  const handleDateChange = (field: any, date: Date | undefined) => {
+    if (date) {
+      const normalizedDate = normalizeDateToBrazilianNoon(date);
+      const dateString = formatBrazilianDateToString(normalizedDate);
+      field.onChange(dateString);
+    } else {
+      field.onChange(null);
     }
-  }, [admissionDate, form]);
+  };
+
+  const getDateValue = (dateString: string | null) => {
+    if (!dateString) return undefined;
+    try {
+      return parseBrazilianDate(dateString);
+    } catch (error) {
+      console.error("Erro ao fazer parse da data:", error);
+      return undefined;
+    }
+  };
 
   return (
-    <TabsContent value="contratual" className="space-y-4">
+    <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Data de Admissão */}
         <FormField
           control={form.control}
           name="data_admissao"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Data de Admissão</FormLabel>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <FormControl>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full pl-3 text-left font-normal",
+                        !field.value && "text-muted-foreground"
+                      )}
+                    >
+                      {field.value ? (
+                        format(getDateValue(field.value) || new Date(), "dd/MM/yyyy", { locale: ptBR })
+                      ) : (
+                        "Selecione a data"
+                      )}
+                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                    </Button>
+                  </FormControl>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={getDateValue(field.value)}
+                    onSelect={(date) => handleDateChange(field, date)}
+                    disabled={(date) => date > new Date()}
+                    initialFocus
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Salário */}
+        <FormField
+          control={form.control}
+          name="salario"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Salário</FormLabel>
               <FormControl>
-                <Input 
-                  type="date" 
-                  {...field} 
-                  value={field.value || ""}
-                  onChange={(e) => {
-                    field.onChange(e.target.value || null);
-                  }}
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  {...field}
+                  onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
                 />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        
+
+        {/* Tipo de Contrato */}
+        <FormField
+          control={form.control}
+          name="tipo_contrato"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Tipo de Contrato</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value || ""}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o tipo" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="CLT">CLT</SelectItem>
+                  <SelectItem value="Terceirizado">Terceirizado</SelectItem>
+                  <SelectItem value="Temporário">Temporário</SelectItem>
+                  <SelectItem value="Estágio">Estágio</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Jornada de Trabalho */}
+        <FormField
+          control={form.control}
+          name="jornada_trabalho"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Jornada de Trabalho</FormLabel>
+              <FormControl>
+                <Input placeholder="Ex: 44h semanais" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Data de Férias */}
         <FormField
           control={form.control}
           name="data_ferias"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Data de Férias</FormLabel>
-              <FormControl>
-                <Input 
-                  type="date" 
-                  {...field} 
-                  value={field.value || ""}
-                  readOnly 
-                />
-              </FormControl>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <FormControl>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full pl-3 text-left font-normal",
+                        !field.value && "text-muted-foreground"
+                      )}
+                    >
+                      {field.value ? (
+                        format(getDateValue(field.value) || new Date(), "dd/MM/yyyy", { locale: ptBR })
+                      ) : (
+                        "Selecione a data"
+                      )}
+                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                    </Button>
+                  </FormControl>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={getDateValue(field.value)}
+                    onSelect={(date) => handleDateChange(field, date)}
+                    initialFocus
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
               <FormMessage />
             </FormItem>
           )}
         />
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <FormField
-          control={form.control}
-          name="data_demissao"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Data de Demissão</FormLabel>
-              <FormControl>
-                <Input 
-                  type="date" 
-                  {...field} 
-                  value={field.value || ""}
-                  onChange={(e) => {
-                    field.onChange(e.target.value || null);
-                  }}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
+
+        {/* Status */}
         <FormField
           control={form.control}
           name="status"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Status</FormLabel>
-              <FormControl>
-                <Select 
-                  onValueChange={field.onChange}
-                  value={field.value || "Ativo"}
-                >
+              <Select onValueChange={field.onChange} value={field.value || ""}>
+                <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o status" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Ativo">Ativo</SelectItem>
-                    <SelectItem value="Aviso Prévio">Aviso Prévio</SelectItem>
-                    <SelectItem value="Inativo">Inativo</SelectItem>
-                  </SelectContent>
-                </Select>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="Ativo">Ativo</SelectItem>
+                  <SelectItem value="Inativo">Inativo</SelectItem>
+                  <SelectItem value="Férias">Férias</SelectItem>
+                  <SelectItem value="Licença">Licença</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Data de Demissão */}
+        <FormField
+          control={form.control}
+          name="data_demissao"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Data de Demissão</FormLabel>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <FormControl>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full pl-3 text-left font-normal",
+                        !field.value && "text-muted-foreground"
+                      )}
+                    >
+                      {field.value ? (
+                        format(getDateValue(field.value) || new Date(), "dd/MM/yyyy", { locale: ptBR })
+                      ) : (
+                        "Selecione a data"
+                      )}
+                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                    </Button>
+                  </FormControl>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={getDateValue(field.value)}
+                    onSelect={(date) => handleDateChange(field, date)}
+                    disabled={(date) => date < new Date("1900-01-01")}
+                    initialFocus
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Motivo da Demissão */}
+        <FormField
+          control={form.control}
+          name="motivo_demissao"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Motivo da Demissão</FormLabel>
+              <FormControl>
+                <Input placeholder="Motivo da demissão" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
       </div>
-      
-      <div className="flex justify-between gap-2 pt-4">
-        <Button 
-          type="button" 
-          variant="outline" 
-          onClick={() => setActiveTab("profissional")}
-        >
-          Anterior
-        </Button>
-        <div className="flex gap-2">
-          <Button 
-            type="button" 
-            variant="outline" 
-            onClick={onClose}
-          >
-            Cancelar
-          </Button>
-          <Button 
-            type="button" 
-            onClick={() => setActiveTab("financeiro")}
-          >
-            Próximo
-          </Button>
-        </div>
-      </div>
-    </TabsContent>
+    </div>
   );
-};
-
-export default ContratualTab;
+}

@@ -29,11 +29,15 @@ const FuncionarioFormModal: React.FC<FuncionarioFormModalProps> = ({
     imageFile,
     setImageFile,
     isUploadingImage,
-    setIsUploadingImage
+    setIsUploadingImage,
+    onSubmit: handleFormSubmit
   } = useFuncionarioForm(funcionario, isOpen);
 
-  const handleSubmit = (data: FuncionarioFormData) => {
-    onSubmit(data);
+  const handleSubmit = async (data: FuncionarioFormData) => {
+    const success = await handleFormSubmit(data);
+    if (success) {
+      onClose();
+    }
   };
 
   return (

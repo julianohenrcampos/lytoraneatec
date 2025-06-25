@@ -31,7 +31,7 @@ const RegistroCargas: React.FC = () => {
   useEffect(() => {
     if (filters.data_inicio) {
       console.log("[RegistroCargas] Setting selected date from filter:", filters.data_inicio);
-      setSelectedDate(filters.data_inicio);
+      setSelectedDate(new Date(filters.data_inicio));
     } else {
       console.log("[RegistroCargas] Resetting to current date");
       setSelectedDate(new Date());

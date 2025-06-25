@@ -98,8 +98,8 @@ const RequisicaoPage: React.FC = () => {
       />
       
       <RequisicaoFormModal
-        isOpen={isFormModalOpen}
-        onClose={() => setIsFormModalOpen(false)}
+        open={isFormModalOpen}
+        onOpenChange={setIsFormModalOpen}
         onSuccess={() => refetch()}
         requisicao={currentRequisicao}
       />

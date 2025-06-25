@@ -39,6 +39,7 @@ export const fetchEntregasEnviadas = async (
           centro_custo_id,
           centro_custo:centro_custo_id(
             id,
+            codigo_centro_custo,
             nome_centro_custo
           )
         )
@@ -251,9 +252,9 @@ export const fetchEntregasEnviadas = async (
         requisicao: requisicaoData ? {
           id: requisicaoData.id,
           numero: requisicaoData.numero,
-          centro_custo_id: requisicaoData.centro_custo_id,
           centro_custo: centroCustoData ? {
             id: centroCustoData.id,
+            codigo_centro_custo: centroCustoData.codigo_centro_custo || '',
             nome_centro_custo: centroCustoData.nome_centro_custo
           } : undefined
         } : undefined

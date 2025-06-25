@@ -24,7 +24,8 @@ import {
   Calendar,
   ClipboardCheck,
   AlertTriangle,
-  Settings
+  Settings,
+  Activity
 } from "lucide-react";
 
 // Remove duplicate type declarations and use a single interface
@@ -64,6 +65,12 @@ export const menuStructure: MenuGroup[] = [
         href: "/gestao-maquinas/dashboard",
         icon: BarChart3,
         requiredPermission: "dashboard_maquinas_view"
+      },
+      {
+        name: "Dashboard CBUQ",
+        href: "/dashboard/requisicoes",
+        icon: Activity,
+        requiredPermission: "dashboard_logistica_view"
       }
     ]
   },

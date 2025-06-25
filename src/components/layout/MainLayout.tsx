@@ -8,6 +8,7 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
 import { PWAUpdateNotification } from "@/components/pwa/PWAUpdateNotification";
+import { OfflineIndicator } from "@/components/pwa/OfflineIndicator";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -75,6 +76,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
         </SidebarInset>
         
         {/* Componentes PWA */}
+        <OfflineIndicator />
         <PWAInstallBanner />
         <PWAUpdateNotification />
       </div>

@@ -49,14 +49,17 @@ export const useRequisicaoForm = (
   const [isAddingRua, setIsAddingRua] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [funcionarioId, setFuncionarioId] = useState<string | null>(null);
+  const [currentUserName, setCurrentUserName] = useState<string | null>(null);
   const [searchAttempts, setSearchAttempts] = useState(0);
   const [searchStatus, setSearchStatus] = useState<'searching' | 'found' | 'not_found' | 'error'>('searching');
+  const [funcionarioNotFound, setFuncionarioNotFound] = useState(false);
   
   // Enhanced employee search function
   const searchEmployee = async (user: any, attempt: number = 1) => {
     if (!user?.email) {
       console.log("🔍 REINALDO DEBUG: No user email available");
       setSearchStatus('error');
+      setFuncionarioNotFound(true);
       return null;
     }
 
@@ -74,6 +77,7 @@ export const useRequisicaoForm = (
       if (error) {
         console.error("🔍 REINALDO DEBUG: Error in exact search:", error);
         setSearchStatus('error');
+        setFuncionarioNotFound(true);
         return null;
       }
 
@@ -82,6 +86,8 @@ export const useRequisicaoForm = (
       if (funcionarios && funcionarios.length > 0) {
         console.log("🔍 REINALDO DEBUG: Found employee with exact match:", funcionarios[0]);
         setSearchStatus('found');
+        setCurrentUserName(funcionarios[0].nome_completo);
+        setFuncionarioNotFound(false);
         return funcionarios[0].id;
       }
 
@@ -95,6 +101,7 @@ export const useRequisicaoForm = (
       if (errorInsensitive) {
         console.error("🔍 REINALDO DEBUG: Error in case-insensitive search:", errorInsensitive);
         setSearchStatus('error');
+        setFuncionarioNotFound(true);
         return null;
       }
 
@@ -103,6 +110,8 @@ export const useRequisicaoForm = (
       if (funcionariosInsensitive && funcionariosInsensitive.length > 0) {
         console.log("🔍 REINALDO DEBUG: Found employee with case-insensitive match:", funcionariosInsensitive[0]);
         setSearchStatus('found');
+        setCurrentUserName(funcionariosInsensitive[0].nome_completo);
+        setFuncionarioNotFound(false);
         return funcionariosInsensitive[0].id;
       }
 
@@ -118,6 +127,7 @@ export const useRequisicaoForm = (
         if (errorPartial) {
           console.error("🔍 REINALDO DEBUG: Error in partial search:", errorPartial);
           setSearchStatus('error');
+          setFuncionarioNotFound(true);
           return null;
         }
 
@@ -126,6 +136,8 @@ export const useRequisicaoForm = (
         if (funcionariosPartial && funcionariosPartial.length > 0) {
           console.log("🔍 REINALDO DEBUG: Found employee with partial match:", funcionariosPartial[0]);
           setSearchStatus('found');
+          setCurrentUserName(funcionariosPartial[0].nome_completo);
+          setFuncionarioNotFound(false);
           return funcionariosPartial[0].id;
         }
       }
@@ -148,6 +160,8 @@ export const useRequisicaoForm = (
           if (funcionariosName && funcionariosName.length > 0) {
             console.log("🔍 REINALDO DEBUG: Found employee with name match:", funcionariosName[0]);
             setSearchStatus('found');
+            setCurrentUserName(funcionariosName[0].nome_completo);
+            setFuncionarioNotFound(false);
             return funcionariosName[0].id;
           }
         }
@@ -155,11 +169,13 @@ export const useRequisicaoForm = (
 
       console.log("🔍 REINALDO DEBUG: No employee found with any search method");
       setSearchStatus('not_found');
+      setFuncionarioNotFound(true);
       return null;
 
     } catch (error) {
       console.error("🔍 REINALDO DEBUG: Exception during employee search:", error);
       setSearchStatus('error');
+      setFuncionarioNotFound(true);
       return null;
     }
   };
@@ -169,6 +185,7 @@ export const useRequisicaoForm = (
     if (searchAttempts >= 3) {
       console.log("🔍 REINALDO DEBUG: Max search attempts reached");
       setSearchStatus('not_found');
+      setFuncionarioNotFound(true);
       return;
     }
 
@@ -176,6 +193,7 @@ export const useRequisicaoForm = (
     setSearchAttempts(newAttempts);
     
     console.log(`🔍 REINALDO DEBUG: Retrying search (attempt ${newAttempts})...`);
+    setSearchStatus('searching');
     
     // Wait a bit before retrying
     setTimeout(async () => {
@@ -215,10 +233,12 @@ export const useRequisicaoForm = (
         } else {
           console.log("🔍 REINALDO DEBUG: No current user found");
           setSearchStatus('error');
+          setFuncionarioNotFound(true);
         }
       } catch (error) {
         console.error("🔍 REINALDO DEBUG: Error loading current user:", error);
         setSearchStatus('error');
+        setFuncionarioNotFound(true);
       }
     };
     
@@ -282,12 +302,22 @@ export const useRequisicaoForm = (
     console.log("🔍 REINALDO DEBUG: funcionarioId state:", funcionarioId);
     console.log("🔍 REINALDO DEBUG: engenheiro_id from form:", data.engenheiro_id);
     
-    // Validation before submission
-    if (!data.engenheiro_id && !funcionarioId) {
-      console.error("🔍 REINALDO DEBUG: No engenheiro_id available for submission");
+    // Security validation: ensure the engineer ID matches the logged-in user
+    if (!funcionarioId || data.engenheiro_id !== funcionarioId) {
+      console.error("🔍 REINALDO DEBUG: Security violation: engineer ID mismatch");
       toast({
-        title: "Erro de validação",
-        description: "Não foi possível identificar o engenheiro responsável. Verifique se seu usuário está cadastrado no sistema.",
+        title: "Erro de segurança",
+        description: "Não é possível criar requisições em nome de terceiros. O engenheiro responsável deve ser o usuário logado.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Block submission if user not found
+    if (funcionarioNotFound) {
+      toast({
+        title: "Usuário não encontrado",
+        description: "Seu usuário não foi encontrado na tabela de funcionários. Entre em contato com o administrador.",
         variant: "destructive",
       });
       return;
@@ -296,16 +326,6 @@ export const useRequisicaoForm = (
     setIsSubmitting(true);
     
     try {
-      // Ensure we have the engineer ID
-      const finalEngenheiroId = data.engenheiro_id || funcionarioId;
-      console.log("🔍 REINALDO DEBUG: Final engenheiro_id for submission:", finalEngenheiroId);
-      
-      if (!finalEngenheiroId) {
-        throw new Error("Engenheiro ID não encontrado");
-      }
-      
-      data.engenheiro_id = finalEngenheiroId;
-      
       // Process streets data without area and volume fields
       const processedRuas = data.ruas.map(rua => ({
         logradouro: rua.logradouro,
@@ -397,7 +417,9 @@ export const useRequisicaoForm = (
     removeRua,
     currentUser,
     funcionarioId,
+    currentUserName,
     searchStatus,
+    funcionarioNotFound,
     retrySearch: () => currentUser && retrySearch(currentUser),
   };
 };

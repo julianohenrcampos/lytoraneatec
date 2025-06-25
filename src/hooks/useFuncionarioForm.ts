@@ -1,190 +1,207 @@
 
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
+import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { format, addDays } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 import { Funcionario, FuncionarioFormData } from "@/types/funcionario";
+import { 
+  normalizeDateToBrazilianNoon, 
+  formatBrazilianDateToString, 
+  getCurrentBrazilianDate 
+} from "@/utils/timezoneUtils";
 
-const formSchema = z.object({
-  // Dados Pessoais
-  imagem: z.string().optional(),
-  nome_completo: z.string().min(3, "Nome completo é obrigatório"),
-  cpf: z.string().min(11, "CPF é obrigatório"),
-  data_nascimento: z.string().optional().nullable(),
-  email: z.string().email("E-mail inválido").min(1, "E-mail é obrigatório"),
-  endereco_completo: z.string().min(1, "Endereço é obrigatório"),
-  escolaridade: z.string().min(1, "Escolaridade é obrigatória"),
-  genero: z.string().min(1, "Gênero é obrigatório"),
-  
-  // Dados Profissionais
-  funcao_id: z.string().nullable().optional(),
-  departamento_id: z.string().nullable().optional(),
-  centro_custo_id: z.string().nullable().optional(),
-  empresa_id: z.string().nullable().optional(),
-  equipe_id: z.string().nullable().optional(),
-  
-  // Dados Contratuais
+const funcionarioSchema = z.object({
+  nome_completo: z.string().min(1, { message: "Nome completo é obrigatório" }),
+  cpf: z.string().optional(),
+  rg: z.string().optional(),
+  data_nascimento: z.string().nullable().optional(),
+  estado_civil: z.string().optional(),
+  telefone: z.string().optional(),
+  email: z.string().email().optional().or(z.literal("")),
+  endereco: z.string().optional(),
+  funcao_id: z.string().min(1, { message: "Função é obrigatória" }),
+  departamento_id: z.string().optional(),
+  empresa_id: z.string().optional(),
   data_admissao: z.string().nullable().optional(),
+  salario: z.number().optional(),
+  tipo_contrato: z.string().optional(),
+  jornada_trabalho: z.string().optional(),
   data_ferias: z.string().nullable().optional(),
+  status: z.string().optional(),
   data_demissao: z.string().nullable().optional(),
-  status: z.string().default("Ativo"),
-  
-  // Dados Financeiros - Garantindo que todos sejam números, ou convertidos para 0 se forem inválidos
-  salario_base: z.coerce.number().default(0),
-  insalubridade: z.coerce.number().default(0),
-  periculosidade: z.coerce.number().default(0),
-  gratificacao: z.coerce.number().default(0),
-  adicional_noturno: z.coerce.number().default(0),
-  custo_passagem: z.coerce.number().default(0),
-  refeicao: z.coerce.number().default(0),
-  diarias: z.coerce.number().default(0),
+  motivo_demissao: z.string().optional(),
+  registro_profissional: z.string().optional(),
+  especialidade: z.string().optional(),
+  observacoes: z.string().optional(),
+  conta_banco: z.string().optional(),
+  agencia_banco: z.string().optional(),
+  banco: z.string().optional(),
+  pix: z.string().optional(),
+  beneficios: z.string().optional(),
+  desconto_vr: z.number().optional(),
+  desconto_va: z.number().optional(),
 });
 
-export function useFuncionarioForm(funcionario: Funcionario | null, isOpen: boolean) {
+export type FuncionarioFormSchema = z.infer<typeof funcionarioSchema>;
+
+export const useFuncionarioForm = (
+  funcionario: Funcionario | null,
+  isOpen: boolean
+) => {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("pessoal");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  
-  // Função para garantir que valores numéricos sejam sempre números
-  const ensureNumber = (value: any): number => {
-    if (value === null || value === undefined || value === "") {
-      return 0;
-    }
-    const numValue = Number(value);
-    return isNaN(numValue) ? 0 : numValue;
-  };
-  
-  // Calculate vacation date based on admission date
-  const calculateVacationDate = (admissionDateStr: string | undefined | null): string => {
-    if (!admissionDateStr) return "";
-    
-    try {
-      const admissionDate = new Date(admissionDateStr);
-      const vacationDate = addDays(admissionDate, 365);
-      return format(vacationDate, "yyyy-MM-dd");
-    } catch (error) {
-      console.error("Error calculating vacation date:", error);
-      return "";
-    }
-  };
-  
-  // Set initial form values
+
   const form = useForm<FuncionarioFormData>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(funcionarioSchema),
     defaultValues: {
-      imagem: funcionario?.imagem || "",
-      nome_completo: funcionario?.nome_completo || "",
-      cpf: funcionario?.cpf || "",
-      data_nascimento: funcionario?.data_nascimento 
-        ? format(new Date(funcionario.data_nascimento), "yyyy-MM-dd") 
-        : undefined,
-      email: funcionario?.email || "",
-      endereco_completo: funcionario?.endereco_completo || "",
-      escolaridade: funcionario?.escolaridade || "",
-      genero: funcionario?.genero || "",
-      funcao_id: funcionario?.funcao_id || undefined,
-      departamento_id: funcionario?.departamento_id || undefined,
-      centro_custo_id: funcionario?.centro_custo_id || undefined,
-      empresa_id: funcionario?.empresa_id || undefined,
-      equipe_id: funcionario?.equipe_id || undefined,
-      data_admissao: funcionario?.data_admissao 
-        ? format(new Date(funcionario.data_admissao), "yyyy-MM-dd") 
-        : undefined,
-      data_ferias: funcionario?.data_ferias 
-        ? format(new Date(funcionario.data_ferias), "yyyy-MM-dd") 
-        : undefined,
-      data_demissao: funcionario?.data_demissao 
-        ? format(new Date(funcionario.data_demissao), "yyyy-MM-dd") 
-        : undefined,
-      status: funcionario?.status || "Ativo",
-      // Garantindo que os valores financeiros sejam sempre números
-      salario_base: ensureNumber(funcionario?.salario_base),
-      insalubridade: ensureNumber(funcionario?.insalubridade),
-      periculosidade: ensureNumber(funcionario?.periculosidade),
-      gratificacao: ensureNumber(funcionario?.gratificacao),
-      adicional_noturno: ensureNumber(funcionario?.adicional_noturno),
-      custo_passagem: ensureNumber(funcionario?.custo_passagem),
-      refeicao: ensureNumber(funcionario?.refeicao),
-      diarias: ensureNumber(funcionario?.diarias),
+      nome_completo: "",
+      cpf: "",
+      rg: "",
+      data_nascimento: null,
+      estado_civil: "",
+      telefone: "",
+      email: "",
+      endereco: "",
+      funcao_id: "",
+      departamento_id: "",
+      empresa_id: "",
+      data_admissao: null,
+      salario: undefined,
+      tipo_contrato: "",
+      jornada_trabalho: "",
+      data_ferias: null,
+      status: "Ativo",
+      data_demissao: null,
+      motivo_demissao: "",
+      registro_profissional: "",
+      especialidade: "",
+      observacoes: "",
+      conta_banco: "",
+      agencia_banco: "",
+      banco: "",
+      pix: "",
+      beneficios: "",
+      desconto_vr: undefined,
+      desconto_va: undefined,
     },
   });
 
   useEffect(() => {
-    if (isOpen) {
-      console.log("Modal aberto, redefinindo o formulário", funcionario);
-      // Calculate vacation date if admission date exists but vacation date doesn't
-      let vacationDate: string | undefined = undefined;
-      if (funcionario?.data_admissao && !funcionario?.data_ferias) {
-        vacationDate = calculateVacationDate(funcionario.data_admissao);
-      } else if (funcionario?.data_ferias) {
-        vacationDate = format(new Date(funcionario.data_ferias), "yyyy-MM-dd");
-      }
-      
-      // Reset form values - certifique-se de que os campos financeiros são números válidos
+    if (funcionario) {
       form.reset({
-        imagem: funcionario?.imagem || "",
-        nome_completo: funcionario?.nome_completo || "",
-        cpf: funcionario?.cpf || "",
-        data_nascimento: funcionario?.data_nascimento 
-          ? format(new Date(funcionario.data_nascimento), "yyyy-MM-dd") 
-          : undefined,
-        email: funcionario?.email || "",
-        endereco_completo: funcionario?.endereco_completo || "",
-        escolaridade: funcionario?.escolaridade || "",
-        genero: funcionario?.genero || "",
-        funcao_id: funcionario?.funcao_id || undefined,
-        departamento_id: funcionario?.departamento_id || undefined,
-        centro_custo_id: funcionario?.centro_custo_id || undefined,
-        empresa_id: funcionario?.empresa_id || undefined,
-        equipe_id: funcionario?.equipe_id || undefined,
-        data_admissao: funcionario?.data_admissao 
-          ? format(new Date(funcionario.data_admissao), "yyyy-MM-dd") 
-          : undefined,
-        data_ferias: vacationDate,
-        data_demissao: funcionario?.data_demissao 
-          ? format(new Date(funcionario.data_demissao), "yyyy-MM-dd") 
-          : undefined,
-        status: funcionario?.status || "Ativo",
-        // Garantindo que os valores financeiros sejam sempre números válidos
-        salario_base: ensureNumber(funcionario?.salario_base),
-        insalubridade: ensureNumber(funcionario?.insalubridade),
-        periculosidade: ensureNumber(funcionario?.periculosidade),
-        gratificacao: ensureNumber(funcionario?.gratificacao),
-        adicional_noturno: ensureNumber(funcionario?.adicional_noturno),
-        custo_passagem: ensureNumber(funcionario?.custo_passagem),
-        refeicao: ensureNumber(funcionario?.refeicao),
-        diarias: ensureNumber(funcionario?.diarias),
+        nome_completo: funcionario.nome_completo || "",
+        cpf: funcionario.cpf || "",
+        rg: funcionario.rg || "",
+        data_nascimento: funcionario.data_nascimento || null,
+        estado_civil: funcionario.estado_civil || "",
+        telefone: funcionario.telefone || "",
+        email: funcionario.email || "",
+        endereco: funcionario.endereco || "",
+        funcao_id: funcionario.funcao_id || "",
+        departamento_id: funcionario.departamento_id || "",
+        empresa_id: funcionario.empresa_id || "",
+        data_admissao: funcionario.data_admissao || null,
+        salario: funcionario.salario || undefined,
+        tipo_contrato: funcionario.tipo_contrato || "",
+        jornada_trabalho: funcionario.jornada_trabalho || "",
+        data_ferias: funcionario.data_ferias || null,
+        status: funcionario.status || "Ativo",
+        data_demissao: funcionario.data_demissao || null,
+        motivo_demissao: funcionario.motivo_demissao || "",
+        registro_profissional: funcionario.registro_profissional || "",
+        especialidade: funcionario.especialidade || "",
+        observacoes: funcionario.observacoes || "",
+        conta_banco: funcionario.conta_banco || "",
+        agencia_banco: funcionario.agencia_banco || "",
+        banco: funcionario.banco || "",
+        pix: funcionario.pix || "",
+        beneficios: funcionario.beneficios || "",
+        desconto_vr: funcionario.desconto_vr || undefined,
+        desconto_va: funcionario.desconto_va || undefined,
       });
-      
-      console.log("Formulário redefinido com valores", form.getValues());
-      
-      // Reset other state
-      setActiveTab("pessoal");
-      
-      if (funcionario?.imagem) {
-        setImagePreview(funcionario.imagem);
-      } else {
-        setImagePreview(null);
-        setImageFile(null);
-      }
+      setUploadedImageUrl(funcionario.foto_url || null);
+      setImagePreview(funcionario.foto_url || null);
+    } else {
+      // Para novos funcionários, usar data atual brasileira como padrão para data de admissão
+      const hoje = getCurrentBrazilianDate();
+      form.setValue("data_admissao", hoje);
     }
-  }, [isOpen, funcionario, form]);
+  }, [funcionario, form]);
 
-  // Watch admission date changes to update vacation date
-  const admissionDate = form.watch("data_admissao");
+  // Reset tab when modal opens
   useEffect(() => {
-    if (admissionDate) {
-      const vacationDate = calculateVacationDate(admissionDate);
-      if (vacationDate) {
-        form.setValue("data_ferias", vacationDate);
-      }
+    if (isOpen) {
+      setActiveTab("pessoal");
     }
-  }, [admissionDate, form]);
+  }, [isOpen]);
+
+  const onSubmit = async (data: FuncionarioFormData) => {
+    setIsSubmitting(true);
+    try {
+      // Normalizar todas as datas antes de enviar
+      const normalizedData = {
+        ...data,
+        data_nascimento: data.data_nascimento ? formatBrazilianDateToString(normalizeDateToBrazilianNoon(data.data_nascimento)) : null,
+        data_admissao: data.data_admissao ? formatBrazilianDateToString(normalizeDateToBrazilianNoon(data.data_admissao)) : null,
+        data_ferias: data.data_ferias ? formatBrazilianDateToString(normalizeDateToBrazilianNoon(data.data_ferias)) : null,
+        data_demissao: data.data_demissao ? formatBrazilianDateToString(normalizeDateToBrazilianNoon(data.data_demissao)) : null,
+        foto_url: uploadedImageUrl,
+      };
+
+      if (funcionario && funcionario.id) {
+        const { error } = await supabase
+          .from('bd_funcionarios')
+          .update(normalizedData)
+          .eq('id', funcionario.id);
+
+        if (error) throw error;
+
+        toast({
+          title: "Funcionário atualizado",
+          description: "O funcionário foi atualizado com sucesso.",
+        });
+      } else {
+        const { error } = await supabase
+          .from('bd_funcionarios')
+          .insert(normalizedData);
+
+        if (error) throw error;
+
+        toast({
+          title: "Funcionário criado",
+          description: "O funcionário foi criado com sucesso.",
+        });
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['funcionarios'] });
+      return true;
+    } catch (error) {
+      console.error('Error saving funcionario:', error);
+      toast({
+        title: "Erro ao salvar",
+        description: "Ocorreu um erro ao salvar o funcionário. Tente novamente.",
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return {
     form,
+    isSubmitting,
+    uploadedImageUrl,
+    setUploadedImageUrl,
     activeTab,
     setActiveTab,
     imagePreview,
@@ -193,6 +210,6 @@ export function useFuncionarioForm(funcionario: Funcionario | null, isOpen: bool
     setImageFile,
     isUploadingImage,
     setIsUploadingImage,
-    formSchema
+    onSubmit,
   };
-}
+};

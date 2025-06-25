@@ -4,22 +4,23 @@
 ## Índice
 
 1. [Arquitetura Geral](#arquitetura-geral)
-2. [**Arquitetura Offline e Sincronização**](#arquitetura-offline-e-sincronização) 🔄 **NOVO**
-3. [Tecnologias Utilizadas](#tecnologias-utilizadas)
-4. [Estrutura do Projeto](#estrutura-do-projeto)
-5. [Padrões de Desenvolvimento](#padrões-de-desenvolvimento)
-6. [Sistema de Autenticação](#sistema-de-autenticação)
-7. [Gestão de Estado](#gestão-de-estado)
-8. [API e Banco de Dados](#api-e-banco-de-dados)
-9. [Componentes UI](#componentes-ui)
-10. [Performance e Otimizações](#performance-e-otimizações)
-11. [Segurança](#segurança)
-12. [Monitoramento](#monitoramento)
+2. [**Progressive Web App (PWA)**](#progressive-web-app-pwa) 📱 **NOVO**
+3. [**Arquitetura Offline e Sincronização**](#arquitetura-offline-e-sincronização) 🔄 **EXPANDIDO**
+4. [Tecnologias Utilizadas](#tecnologias-utilizadas)
+5. [Estrutura do Projeto](#estrutura-do-projeto)
+6. [Padrões de Desenvolvimento](#padrões-de-desenvolvimento)
+7. [Sistema de Autenticação](#sistema-de-autenticação)
+8. [Gestão de Estado](#gestão-de-estado)
+9. [API e Banco de Dados](#api-e-banco-de-dados)
+10. [Componentes UI](#componentes-ui)
+11. [Performance e Otimizações](#performance-e-otimizações)
+12. [Segurança](#segurança)
+13. [Monitoramento](#monitoramento)
 
 ## Arquitetura Geral
 
 ### Visão Geral
-O sistema é uma **Single Page Application (SPA)** construída com React, TypeScript e Vite, conectada ao Supabase como backend. A partir da versão 3.0, inclui **capacidade offline completa** com sincronização automática.
+O sistema é uma **Progressive Web Application (PWA)** construída com React, TypeScript e Vite, conectada ao Supabase como backend. A partir da versão 3.0, inclui **capacidade offline completa** com sincronização automática e funcionalidades nativas de aplicativo móvel.
 
 ### Stack Principal
 ```
@@ -27,14 +28,289 @@ Frontend:  React 18 + TypeScript + Vite + Tailwind CSS
 Backend:   Supabase (PostgreSQL + Auth + Storage + Realtime)
 UI:        Shadcn/UI + Radix UI + Lucide Icons
 State:     TanStack Query + React Hook Form + Zustand
-Offline:   localStorage + Service Worker + Background Sync ⭐ NOVO
+PWA:       Vite PWA Plugin + Service Worker + Web App Manifest ⭐ NOVO
+Offline:   localStorage + Service Worker + Background Sync ⭐ EXPANDIDO
 ```
 
 ### Fluxo de Dados
 ```
 User Input → React Hook Form → Validation → 
 → Connection Check → [Online: Supabase | Offline: localStorage] →
-→ TanStack Query Cache → UI Update → Background Sync (if offline)
+→ TanStack Query Cache → UI Update → Background Sync (if offline) →
+→ PWA Update Check → Service Worker Cache Management
+```
+
+## Progressive Web App (PWA) 📱
+
+### Visão Geral da Arquitetura PWA
+O sistema implementa uma **PWA completa** que oferece experiência nativa em dispositivos móveis e desktop, com capacidades offline, instalação, notificações e atualizações automáticas.
+
+### Componentes PWA Principais
+
+#### 1. **Configuração Vite PWA**
+```typescript
+// vite.config.ts - Configuração PWA
+import { VitePWA } from 'vite-plugin-pwa';
+
+export default defineConfig({
+  plugins: [
+    VitePWA({
+      registerType: 'autoUpdate',           // Atualizações automáticas
+      injectRegister: 'auto',               // Registro automático do SW
+      strategies: 'injectManifest',         // Service Worker customizado
+      srcDir: 'src',
+      filename: 'sw.ts',                    // Service Worker TypeScript
+      injectManifest: {
+        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MB
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}']
+      },
+      manifest: {
+        name: 'Lytorânea Construtora - Sistema ERP',
+        short_name: 'LYTOTEC ERP',
+        description: 'Sistema ERP completo para gestão de empresas de construção civil',
+        theme_color: '#3b82f6',
+        background_color: '#ffffff',
+        display: 'standalone',              // Fullscreen app experience
+        display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'],
+        orientation: 'portrait-primary',
+        scope: '/',
+        start_url: '/',
+        id: 'app.lytotec.erp',
+        launch_handler: {
+          client_mode: 'focus-existing'     // Foco em instância existente
+        }
+      }
+    })
+  ]
+});
+```
+
+#### 2. **Service Worker Customizado**
+```typescript
+// src/sw.ts - Service Worker com estratégias de cache
+import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
+import { registerRoute } from 'workbox-routing';
+import { NetworkFirst, CacheFirst, StaleWhileRevalidate } from 'workbox-strategies';
+
+declare const self: ServiceWorkerGlobalScope;
+
+// Estratégias de Cache Implementadas:
+
+// 1. Cache First para assets estáticos (JS, CSS, imagens)
+registerRoute(
+  ({ request }) => request.destination === 'script' || 
+                   request.destination === 'style' ||
+                   request.destination === 'image',
+  new CacheFirst({
+    cacheName: 'static-assets-v1',
+    plugins: [/* cache plugins */]
+  })
+);
+
+// 2. Network First para API calls
+registerRoute(
+  ({ url }) => url.origin.includes('supabase.co'),
+  new NetworkFirst({
+    cacheName: 'api-cache-v1',
+    plugins: [/* network plugins */]
+  })
+);
+
+// 3. Stale While Revalidate para fontes
+registerRoute(
+  ({ url }) => url.origin === 'https://fonts.googleapis.com',
+  new StaleWhileRevalidate({
+    cacheName: 'fonts-cache-v1'
+  })
+);
+```
+
+#### 3. **Web App Manifest**
+```json
+// public/manifest.json - Configuração do aplicativo
+{
+  "name": "Lytorânea Construtora - Sistema ERP",
+  "short_name": "LYTOTEC ERP",
+  "description": "Sistema ERP completo para gestão de empresas de construção civil",
+  "theme_color": "#3b82f6",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "scope": "/",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/maskable-icon-192x192.png",
+      "sizes": "192x192", 
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
+```
+
+### Funcionalidades PWA Implementadas
+
+#### 1. **Instalação da Aplicação**
+```typescript
+// src/components/pwa/PWAInstallBanner.tsx
+export const PWAInstallBanner = () => {
+  const { canInstall, install, isInstalled } = usePWAInstall();
+
+  return (
+    <Card className="fixed bottom-4 left-4 right-4 z-50">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Smartphone className="h-6 w-6 text-blue-600" />
+            <div>
+              <h3 className="font-semibold">Instalar App</h3>
+              <p className="text-sm text-muted-foreground">
+                Acesse offline e tenha uma experiência nativa
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex gap-2">
+            <Button size="sm" onClick={install}>
+              Instalar
+            </Button>
+            <Button size="sm" variant="outline" onClick={dismiss}>
+              Agora não
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+```
+
+#### 2. **Notificações de Atualização**
+```typescript
+// src/components/pwa/PWAUpdateNotification.tsx
+export const PWAUpdateNotification = () => {
+  const { needRefresh, updateServiceWorker } = usePWAUpdate();
+
+  if (!needRefresh) return null;
+
+  return (
+    <Alert className="fixed top-4 left-4 right-4 z-50">
+      <RefreshCw className="h-4 w-4" />
+      <AlertTitle>Nova versão disponível</AlertTitle>
+      <AlertDescription>
+        Uma nova versão do app está disponível. Clique para atualizar.
+      </AlertDescription>
+      <Button onClick={updateServiceWorker} size="sm" className="mt-2">
+        Atualizar Agora
+      </Button>
+    </Alert>
+  );
+};
+```
+
+#### 3. **Indicador de Status Offline**
+```typescript
+// src/components/pwa/OfflineIndicator.tsx
+export const OfflineIndicator = () => {
+  const { isOnline, isSupabaseConnected } = useConnectionStatus();
+  const { syncStatus, sincronizarTodos } = useOfflineSync();
+
+  return (
+    <div className="fixed top-4 right-4 z-50">
+      <Alert className={`border-${isOnline ? 'green' : 'orange'}-200`}>
+        <div className="flex items-center gap-2">
+          {isOnline ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
+          <Badge variant={isOnline ? "default" : "destructive"}>
+            {isOnline ? 'Online' : 'Offline'}
+          </Badge>
+        </div>
+        
+        {syncStatus.pendingCount > 0 && (
+          <div className="mt-2">
+            <p className="text-sm">
+              {syncStatus.pendingCount} itens aguardando sincronização
+            </p>
+            <Button size="sm" onClick={sincronizarTodos}>
+              Sincronizar Agora
+            </Button>
+          </div>
+        )}
+      </Alert>
+    </div>
+  );
+};
+```
+
+### Hooks PWA Customizados
+
+#### 1. **usePWAInstall Hook**
+```typescript
+// src/hooks/usePWAInstall.ts
+export const usePWAInstall = () => {
+  const [canInstall, setCanInstall] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setCanInstall(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const install = async () => {
+    if (!deferredPrompt) return;
+    
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    
+    if (outcome === 'accepted') {
+      setCanInstall(false);
+      setDeferredPrompt(null);
+    }
+  };
+
+  return { canInstall, install, isInstalled: !canInstall && !deferredPrompt };
+};
+```
+
+#### 2. **usePWAUpdate Hook**
+```typescript
+// src/hooks/usePWAUpdate.ts
+export const usePWAUpdate = () => {
+  const [needRefresh, setNeedRefresh] = useState(false);
+  const [updateServiceWorker, setUpdateServiceWorker] = useState<() => void>(() => {});
+
+  useEffect(() => {
+    const updateAvailable = (event: CustomEvent) => {
+      setNeedRefresh(true);
+      setUpdateServiceWorker(() => () => {
+        event.detail?.updateServiceWorker?.();
+        setNeedRefresh(false);
+      });
+    };
+
+    document.addEventListener('pwa-update-available', updateAvailable);
+    
+    return () => {
+      document.removeEventListener('pwa-update-available', updateAvailable);
+    };
+  }, []);
+
+  return { needRefresh, updateServiceWorker };
+};
 ```
 
 ## Arquitetura Offline e Sincronização 🔄
@@ -53,65 +329,422 @@ interface ConnectionStatus {
   lastCheck: Date;             // Última verificação
 }
 
-// Arquitetura:
+// Arquitetura de Verificação:
 Navigator.onLine → Basic Check → Supabase Ping → Real Status
+
+export const useConnectionStatus = () => {
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
+    isOnline: navigator.onLine,
+    isSupabaseConnected: false,
+    lastCheck: new Date()
+  });
+
+  const checkSupabaseConnection = async (): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .select('count', { count: 'exact', head: true });
+      return !error;
+    } catch {
+      return false;
+    }
+  };
+
+  // Verificação periódica a cada 30 segundos
+  useEffect(() => {
+    const intervalId = setInterval(updateConnectionStatus, 30000);
+    return () => clearInterval(intervalId);
+  }, []);
+
+  return { ...connectionStatus, refresh: updateConnectionStatus };
+};
 ```
 
 #### 2. **Offline Storage Layer**
 ```typescript
 // src/utils/salvarOffline.ts
-LocalStorage Schema:
-{
-  "offline_apontamento_equipe": [
-    {
-      id: "temp_uuid",           // ID temporário único
-      timestamp: "ISO_DATE",     // Momento da criação
-      data: { /* form data */ }, // Dados do formulário
-      tentativas: 0,             // Contador de tentativas
-      erro: null,                // Último erro
-      usuario_id: "uuid"         // Usuário criador
-    }
-  ]
+// LocalStorage Schema:
+interface DadosOffline {
+  id: string;           // temp_uuid_timestamp
+  timestamp: string;    // ISO date de criação
+  data: any;           // Dados do formulário original
+  tentativas: number;   // 0-3 tentativas de sync
+  erro?: string;       // Último erro encontrado
+  usuario_id?: string; // ID do usuário para auditoria
 }
+
+// Mapeamento de tipos para configurações
+export const TIPOS_APONTAMENTO = {
+  apontamento_equipe: {
+    tabela: 'bd_apontamento_equipe',
+    chaveLocalStorage: 'offline_apontamento_equipe',
+    nomeExibicao: 'Apontamento de Equipe'
+  },
+  apontamento_caminhoes: {
+    tabela: 'bd_apontamento_caminhoes',
+    chaveLocalStorage: 'offline_apontamento_caminhoes', 
+    nomeExibicao: 'Apontamento de Caminhões'
+  },
+  registro_aplicacao: {
+    tabela: 'bd_registros_aplicacao',
+    chaveLocalStorage: 'offline_registro_aplicacao',
+    nomeExibicao: 'Registro de Aplicação'
+  }
+} as const;
+
+export type TipoApontamento = keyof typeof TIPOS_APONTAMENTO;
 ```
 
 #### 3. **Synchronization Engine**
 ```typescript
 // src/hooks/useOfflineSync.ts
-Sync Flow:
-[Connection Detected] → [Enumerate Pending] → [Process Each Type] →
-→ [Validate Data] → [Send to Supabase] → [Handle Response] →
-→ [Update Status] → [Clean Cache] → [Notify User]
-```
+// Sync Flow Architecture:
+// [Connection Detected] → [Enumerate Pending] → [Process Each Type] →
+// → [Validate Data] → [Send to Supabase] → [Handle Response] →
+// → [Update Status] → [Clean Cache] → [Notify User]
 
-### Padrões de Implementação
-
-#### Hook Pattern para Módulos Offline
-```typescript
-// Padrão para hooks offline (ex: useApontamentoEquipeOffline)
-export const useModuleOffline = () => {
+export const useOfflineSync = () => {
   const { isSupabaseConnected } = useConnectionStatus();
   const { toast } = useToast();
-  const { userId } = useAuth();
+  
+  const sincronizarTipo = async (tipo: TipoApontamento) => {
+    const config = TIPOS_APONTAMENTO[tipo];
+    const dados = obterDadosOffline(tipo);
+    
+    let sucessos = 0;
+    let erros = 0;
+    
+    for (const item of dados) {
+      try {
+        const { id, timestamp, tentativas, erro, usuario_id, ...dadosLimpos } = item;
+        const dadosParaInserir = dadosLimpos.data;
+        
+        // Remover campos que podem conflitar
+        delete dadosParaInserir.id;
+        
+        const { error } = await supabase
+          .from(config.tabela)
+          .insert(dadosParaInserir);
 
-  const submitData = async (formData, onSuccess) => {
-    if (isSupabaseConnected) {
-      // Online: Direct to Supabase
-      await createService(formData);
-      toast({ title: "Registrado", variant: "default" });
-    } else {
-      // Offline: Save to localStorage
-      salvarApontamentoOffline(type, formData, userId);
-      toast({ title: "Salvo offline", variant: "default" });
+        if (error) {
+          incrementarTentativas(tipo, item.id, error.message);
+          erros++;
+        } else {
+          limparDadosOffline(tipo, [item.id]);
+          sucessos++;
+        }
+      } catch (error) {
+        incrementarTentativas(tipo, item.id, String(error));
+        erros++;
+      }
     }
-    onSuccess?.();
+    
+    return { sucessos, erros };
   };
 
-  return { submitData, isOffline: !isSupabaseConnected };
+  return { sincronizarTodos, sincronizarTipo, syncStatus };
 };
 ```
 
-#### Component Pattern para Forms Offline
+#### 4. **Background Sync API Integration**
+```typescript
+// src/types/background-sync.d.ts
+interface SyncManager {
+  register(tag: string): Promise<void>;
+  getTags(): Promise<string[]>;
+}
+
+interface ServiceWorkerRegistration {
+  sync: SyncManager;
+}
+
+// Service Worker Background Sync
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'sync-offline-data') {
+    event.waitUntil(syncOfflineData());
+  }
+});
+
+// Registration in main thread
+const registerBackgroundSync = async () => {
+  if ('serviceWorker' in navigator) {
+    const registration = await navigator.serviceWorker.ready;
+    if ('sync' in registration) {
+      await registration.sync.register('sync-offline-data');
+    }
+  }
+};
+```
+
+### Hooks Offline para Módulos Específicos
+
+#### 1. **useApontamentoEquipeOffline**
+```typescript
+// src/hooks/useApontamentoEquipeOffline.ts
+export const useApontamentoEquipeOffline = () => {
+  const { isSupabaseConnected } = useConnectionStatus();
+  const { toast } = useToast();
+  const { user } = useAuth();
+
+  const submitApontamento = async (formData: any, onSuccess?: () => void) => {
+    if (isSupabaseConnected) {
+      // Online: Direct to Supabase
+      const { error } = await supabase
+        .from('bd_apontamento_equipe')
+        .insert(formData);
+        
+      if (error) throw error;
+      
+      toast({
+        title: "Apontamento registrado",
+        description: "Dados salvos com sucesso",
+        variant: "default"
+      });
+    } else {
+      // Offline: Save to localStorage
+      salvarApontamentoOffline('apontamento_equipe', formData, user?.id);
+      
+      toast({
+        title: "Salvo offline",
+        description: "Dados serão sincronizados quando a conexão for restaurada",
+        variant: "default"
+      });
+    }
+    
+    onSuccess?.();
+  };
+
+  return {
+    submitApontamento,
+    isOffline: !isSupabaseConnected
+  };
+};
+```
+
+#### 2. **useApontamentoCaminhoesOffline**
+```typescript
+// src/hooks/useApontamentoCaminhoesOffline.ts
+export const useApontamentoCaminhoesOffline = () => {
+  const { isSupabaseConnected } = useConnectionStatus();
+  const { toast } = useToast();
+  const { user } = useAuth();
+
+  const submitApontamento = async (formData: any, onSuccess?: () => void) => {
+    if (isSupabaseConnected) {
+      const { error } = await supabase
+        .from('bd_apontamento_caminhoes')
+        .insert(formData);
+        
+      if (error) throw error;
+      
+      toast({
+        title: "Apontamento de caminhões registrado",
+        variant: "default"
+      });
+    } else {
+      salvarApontamentoOffline('apontamento_caminhoes', formData, user?.id);
+      
+      toast({
+        title: "Salvo offline",
+        description: "Apontamento será sincronizado automaticamente",
+        variant: "default"
+      });
+    }
+    
+    onSuccess?.();
+  };
+
+  return { submitApontamento, isOffline: !isSupabaseConnected };
+};
+```
+
+#### 3. **useRegistroAplicacaoOffline**
+```typescript
+// src/hooks/useRegistroAplicacaoOffline.ts
+export const useRegistroAplicacaoOffline = () => {
+  const { isSupabaseConnected } = useConnectionStatus();
+  const { toast } = useToast();
+  const { user } = useAuth();
+
+  const submitRegistro = async (formData: any, onSuccess?: () => void) => {
+    if (isSupabaseConnected) {
+      const { error } = await supabase
+        .from('bd_registros_aplicacao')
+        .insert(formData);
+        
+      if (error) throw error;
+      
+      toast({
+        title: "Registro de aplicação salvo",
+        variant: "default"
+      });
+    } else {
+      salvarApontamentoOffline('registro_aplicacao', formData, user?.id);
+      
+      toast({
+        title: "Salvo offline",
+        description: "Registro será sincronizado quando possível",
+        variant: "default"
+      });
+    }
+    
+    onSuccess?.();
+  };
+
+  return { submitRegistro, isOffline: !isSupabaseConnected };
+};
+```
+
+### Sistema de Cache Inteligente
+
+#### 1. **useOfflineData Hook**
+```typescript
+// src/hooks/useOfflineData.ts
+export const useOfflineData = <T>({
+  key,
+  fetcher,
+  enabled = true,
+  staleTime = 5 * 60 * 1000 // 5 minutes
+}: OfflineDataOptions) => {
+  const [data, setData] = useState<T | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const [isStale, setIsStale] = useState(false);
+  const { isSupabaseConnected } = useConnectionStatus();
+
+  // Cache data in Service Worker
+  const cacheData = useCallback(async (data: T) => {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: 'CACHE_DATA',
+        key,
+        data: { value: data, timestamp: Date.now() }
+      });
+    }
+    
+    // Fallback to localStorage
+    try {
+      localStorage.setItem(`offline_${key}`, JSON.stringify({
+        value: data,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      console.warn('Failed to cache in localStorage:', error);
+    }
+  }, [key]);
+
+  // Fetch fresh data or use cache
+  const fetchData = useCallback(async () => {
+    if (!enabled) return;
+    
+    try {
+      if (isSupabaseConnected) {
+        // Online: fetch fresh data
+        const freshData = await fetcher();
+        setData(freshData);
+        setIsStale(false);
+        await cacheData(freshData);
+      } else {
+        // Offline: use cached data
+        const cached = await getCachedData();
+        if (cached) {
+          const isDataStale = Date.now() - cached.timestamp > staleTime;
+          setData(cached.value);
+          setIsStale(isDataStale);
+        }
+      }
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [key, fetcher, enabled, isSupabaseConnected, staleTime]);
+
+  return { data, isLoading, error, isStale, isOffline: !isSupabaseConnected, refresh: fetchData };
+};
+```
+
+#### 2. **offlineQueries Utilities**
+```typescript
+// src/utils/offlineQueries.ts
+export const offlineQueries = {
+  // Funcionários
+  funcionarios: () => useOfflineQuery(
+    'funcionarios',
+    async () => {
+      const { data, error } = await supabase
+        .from('bd_funcionarios')
+        .select('*')
+        .eq('status', 'Ativo')
+        .order('nome_completo');
+      
+      if (error) throw error;
+      return data;
+    },
+    { staleTime: 10 * 60 * 1000 } // 10 minutos
+  ),
+
+  // Equipes
+  equipes: () => useOfflineQuery(
+    'equipes',
+    async () => {
+      const { data, error } = await supabase
+        .from('bd_equipes')
+        .select(`
+          *,
+          apontador:apontador_id(id, nome_completo),
+          encarregado:encarregado_id(id, nome_completo)
+        `)
+        .order('nome_equipe');
+      
+      if (error) throw error;
+      return data;
+    },
+    { staleTime: 15 * 60 * 1000 } // 15 minutos
+  ),
+
+  // Centros de Custo
+  centrosCusto: () => useOfflineQuery(
+    'centros-custo',
+    async () => {
+      const { data, error } = await supabase
+        .from('bd_centros_custo')
+        .select('*')
+        .eq('situacao', 'Ativo')
+        .order('nome_centro_custo');
+      
+      if (error) throw error;
+      return data;
+    },
+    { staleTime: 30 * 60 * 1000 } // 30 minutos
+  )
+};
+
+// Função para pré-carregar dados essenciais
+export const preloadEssentialData = async () => {
+  console.log('🔄 Pré-carregando dados essenciais...');
+  
+  const promises = [
+    supabase.from('bd_funcionarios').select('*').eq('status', 'Ativo'),
+    supabase.from('bd_equipes').select('*'),
+    supabase.from('bd_centros_custo').select('*').eq('situacao', 'Ativo'),
+    supabase.from('bd_caminhoes_equipamentos').select('*'),
+    supabase.from('bd_usinas').select('*')
+  ];
+
+  try {
+    const results = await Promise.allSettled(promises);
+    const successful = results.filter(r => r.status === 'fulfilled').length;
+    console.log(`✅ Pré-carregamento concluído: ${successful}/${promises.length} queries`);
+  } catch (error) {
+    console.error('Erro no pré-carregamento:', error);
+  }
+};
+```
+
+### Padrões de Implementação Offline
+
+#### 1. **Component Pattern para Forms Offline**
 ```typescript
 // Padrão para componentes com suporte offline
 const OfflineAwareForm = () => {
@@ -130,7 +763,7 @@ const OfflineAwareForm = () => {
         <Alert>
           <AlertTitle>Modo Offline</AlertTitle>
           <AlertDescription>
-            Dados serão sincronizados automaticamente
+            Dados serão sincronizados automaticamente quando a conexão for restaurada.
           </AlertDescription>
         </Alert>
       )}
@@ -143,380 +776,141 @@ const OfflineAwareForm = () => {
 };
 ```
 
-### Sincronização - Algoritmos e Estratégias
-
-#### 1. **Connection Detection Algorithm**
+#### 2. **Error Handling & Recovery**
 ```typescript
-// Verificação em camadas para máxima confiabilidade
-const checkConnection = async () => {
-  // Layer 1: Browser API (instant)
-  const browserOnline = navigator.onLine;
-  
-  if (!browserOnline) return { isOnline: false, isSupabaseConnected: false };
-  
-  // Layer 2: Supabase Connectivity (real check)
-  try {
-    const { error } = await supabase
-      .from('profiles')
-      .select('count', { count: 'exact', head: true });
-    
-    return {
-      isOnline: true,
-      isSupabaseConnected: !error
-    };
-  } catch {
-    return { isOnline: true, isSupabaseConnected: false };
-  }
-};
-```
-
-#### 2. **Retry Strategy**
-```typescript
-// Estratégia de tentativas com backoff exponencial
-const syncWithRetry = async (data, maxTentativas = 3) => {
-  for (let tentativa = 1; tentativa <= maxTentativas; tentativa++) {
-    try {
-      await sendToSupabase(data);
-      return { success: true };
-    } catch (error) {
-      if (tentativa === maxTentativas) {
-        return { success: false, error: error.message };
-      }
-      
-      // Backoff: 1s, 2s, 4s
-      const delay = Math.pow(2, tentativa - 1) * 1000;
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-};
-```
-
-#### 3. **Conflict Resolution**
-```typescript
-// Prevenção de conflitos com IDs únicos temporários
-const generateTempId = () => `temp_${uuidv4()}_${Date.now()}`;
-
-// Validação antes da inserção
-const validateBeforeInsert = (data) => {
-  // Remove campos que podem conflitar
-  const { id, created_at, updated_at, ...cleanData } = data;
-  
-  return {
-    ...cleanData,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  };
-};
-```
-
-### Data Flow Architecture
-
-#### 1. **Online Mode Flow**
-```
-User Input → Form Validation → Direct Supabase Call →
-→ Success/Error Response → TanStack Query Invalidation →
-→ UI Update → User Feedback (Toast)
-```
-
-#### 2. **Offline Mode Flow**
-```
-User Input → Form Validation → localStorage Write →
-→ Success Response → UI Update → User Feedback (Toast "Offline") →
-→ Background: Add to Sync Queue
-```
-
-#### 3. **Synchronization Flow**
-```
-Connection Detected → Enumerate localStorage → For Each Pending Item:
-→ Validate Data → Transform for API → Send to Supabase →
-→ Handle Response → [Success: Remove from localStorage | Error: Increment Attempts] →
-→ Update UI Counters → User Notification
-```
-
-### Storage Architecture
-
-#### 1. **localStorage Schema Design**
-```typescript
-// Estrutura padronizada para todos os tipos
-interface DadosOffline {
-  id: string;           // temp_uuid_timestamp
-  timestamp: string;    // ISO date de criação
-  data: any;           // Dados do formulário original
-  tentativas: number;   // 0-3 tentativas de sync
-  erro?: string;       // Último erro encontrado
-  usuario_id?: string; // ID do usuário para auditoria
-}
-
-// Mapeamento de tipos para configurações
-const TIPOS_APONTAMENTO = {
-  apontamento_equipe: {
-    tabela: 'bd_apontamento_equipe',
-    chaveLocalStorage: 'offline_apontamento_equipe',
-    nomeExibicao: 'Apontamento de Equipe'
-  },
-  // ... outros tipos
-};
-```
-
-#### 2. **Cache Management Strategy**
-```typescript
-// Limpeza automática após sincronização
-const cleanupAfterSync = (tipo: TipoApontamento, successIds: string[]) => {
-  const existing = obterDadosOffline(tipo);
-  const remaining = existing.filter(item => !successIds.includes(item.id));
-  
-  if (remaining.length === 0) {
-    localStorage.removeItem(TIPOS_APONTAMENTO[tipo].chaveLocalStorage);
-  } else {
-    localStorage.setItem(
-      TIPOS_APONTAMENTO[tipo].chaveLocalStorage,
-      JSON.stringify(remaining)
-    );
-  }
-};
-
-// Limite de tamanho e limpeza preventiva
-const preventOverflow = () => {
-  const maxSize = 10 * 1024 * 1024; // 10MB
-  let currentSize = 0;
-  
-  Object.keys(localStorage).forEach(key => {
-    if (key.startsWith('offline_')) {
-      currentSize += localStorage.getItem(key).length;
-    }
-  });
-  
-  if (currentSize > maxSize) {
-    // Limpar dados mais antigos primeiro
-    cleanupOldestEntries();
-  }
-};
-```
-
-### Error Handling & Recovery
-
-#### 1. **Error Classification**
-```typescript
+// Classificação e tratamento de erros de sincronização
 enum SyncErrorType {
-  NETWORK_ERROR = 'network',      // Problema de conectividade
-  AUTH_ERROR = 'auth',           // Token expirado/permissão
-  VALIDATION_ERROR = 'validation', // Dados inválidos
-  SERVER_ERROR = 'server',       // Erro interno do Supabase
-  QUOTA_ERROR = 'quota'          // Limite de localStorage
+  NETWORK_ERROR = 'network',
+  AUTH_ERROR = 'auth',
+  VALIDATION_ERROR = 'validation',
+  SERVER_ERROR = 'server',
+  QUOTA_ERROR = 'quota'
 }
 
-const classifyError = (error: any): SyncErrorType => {
-  if (error.message.includes('Permission denied')) return SyncErrorType.AUTH_ERROR;
-  if (error.message.includes('Network')) return SyncErrorType.NETWORK_ERROR;
-  if (error.message.includes('Quota')) return SyncErrorType.QUOTA_ERROR;
-  // ... outras classificações
-};
-```
-
-#### 2. **Recovery Strategies**
-```typescript
 const recoveryStrategies = {
   [SyncErrorType.AUTH_ERROR]: async () => {
-    // Renovar token de autenticação
     await supabase.auth.refreshSession();
     return true; // Pode tentar novamente
   },
   
   [SyncErrorType.NETWORK_ERROR]: async () => {
-    // Aguardar reconexão
-    return false; // Não tentar agora
+    return false; // Aguardar reconexão
   },
   
   [SyncErrorType.VALIDATION_ERROR]: async (data) => {
-    // Tentar corrigir dados automaticamente
     const correctedData = autoCorrectData(data);
     return !!correctedData;
   },
   
   [SyncErrorType.QUOTA_ERROR]: async () => {
-    // Forçar limpeza de cache
     await forceCleanupCache();
     return true;
   }
 };
 ```
 
-### Performance Optimizations
+### Performance e Otimizações
 
-#### 1. **Batching Strategy**
+#### 1. **Chunking Strategy no Vite**
 ```typescript
-// Processar em lotes para melhor performance
-const batchSyncData = async (items: DadosOffline[], batchSize = 10) => {
-  const batches = [];
-  for (let i = 0; i < items.length; i += batchSize) {
-    batches.push(items.slice(i, i + batchSize));
+// vite.config.ts - Otimizações de build
+export default defineConfig({
+  build: {
+    sourcemap: true,
+    assetsInlineLimit: 4096,
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu'],
+          charts: ['recharts'],
+          supabase: ['@supabase/supabase-js'],
+          xlsx: ['xlsx'],
+          'react-query': ['@tanstack/react-query'],
+          'date-utils': ['date-fns', 'date-fns-tz'],
+          'forms': ['react-hook-form', '@hookform/resolvers', 'zod'],
+          'routing': ['react-router-dom'],
+          'lucide': ['lucide-react']
+        }
+      }
+    }
   }
-  
-  for (const batch of batches) {
-    await Promise.allSettled(
-      batch.map(item => syncSingleItem(item))
-    );
-    
-    // Pequena pausa entre lotes
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
-};
+});
 ```
 
-#### 2. **Debounced Connection Checking**
+#### 2. **Service Worker Cache Strategies**
 ```typescript
-import { debounce } from 'lodash';
+// src/sw.ts - Estratégias de cache otimizadas
+// Cache names com versionamento
+const DATA_CACHE = 'lytotec-data-v1';
+const API_CACHE = 'lytotec-api-v1';
+const NAVIGATION_CACHE = 'lytotec-navigation-v1';
+const LARGE_FILES_CACHE = 'lytotec-large-files-v1';
 
-// Evitar verificações excessivas de conectividade
-const debouncedConnectionCheck = debounce(
-  checkConnection,
-  1000, // 1 segundo
-  { leading: true, trailing: true }
+// Cache para arquivos JavaScript grandes
+registerRoute(
+  ({ url, request }) => 
+    request.destination === 'script' && 
+    url.pathname.includes('/assets/') && 
+    url.pathname.endsWith('.js'),
+  new CacheFirst({
+    cacheName: LARGE_FILES_CACHE,
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({
+        maxEntries: 50,
+        maxAgeSeconds: 60 * 60 * 24 * 7, // 7 dias
+        purgeOnQuotaError: true
+      })
+    ]
+  })
+);
+
+// Cache para chamadas API com Network First
+registerRoute(
+  ({ url }) => url.origin === 'https://zczirljepectqohlloua.supabase.co',
+  new NetworkFirst({
+    cacheName: API_CACHE,
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({
+        maxEntries: 500,
+        maxAgeSeconds: 60 * 60 * 24, // 24 horas
+        purgeOnQuotaError: true
+      })
+    ]
+  })
 );
 ```
 
-#### 3. **Memoized UI Components**
+#### 3. **Preload Strategy**
 ```typescript
-// Evitar re-renders desnecessários do indicador de status
-const OfflineStatusIndicator = React.memo(() => {
-  const { isOnline, isSupabaseConnected } = useConnectionStatus();
-  const { syncStatus } = useOfflineSync();
-  
-  // Só renderizar se há algo importante para mostrar
-  if (isOnline && isSupabaseConnected && syncStatus.pendingCount === 0) {
-    return null;
-  }
-  
-  return <StatusCard />;
-});
-```
-
-### Monitoring & Analytics
-
-#### 1. **Sync Metrics Collection**
-```typescript
-interface SyncMetrics {
-  totalAttempts: number;
-  successfulSyncs: number;
-  failedSyncs: number;
-  averageSyncTime: number;
-  errorsByType: Record<SyncErrorType, number>;
-  largestBatchSize: number;
-  oldestPendingItem: Date;
-}
-
-const collectSyncMetrics = () => {
-  // Coletar métricas para análise e otimização
-  const metrics = calculateMetrics();
-  console.log('Sync Metrics:', metrics);
-  
-  // Enviar para analytics (quando online)
-  if (isSupabaseConnected) {
-    sendMetricsToAnalytics(metrics);
-  }
-};
-```
-
-#### 2. **User Behavior Analytics**
-```typescript
-// Rastrear padrões de uso offline
-const trackOfflineUsage = {
-  sessionStartOffline: () => track('offline_session_start'),
-  formSubmittedOffline: (type: string) => track('offline_form_submit', { type }),
-  syncCompleted: (itemCount: number) => track('sync_completed', { itemCount }),
-  syncFailed: (errorType: string) => track('sync_failed', { errorType }),
-};
-```
-
-### Security Considerations
-
-#### 1. **Data Sanitization**
-```typescript
-// Sanitizar dados antes de armazenar offline
-const sanitizeForOfflineStorage = (data: any) => {
-  const sensitiveFields = ['password', 'token', 'secret'];
-  const cleaned = { ...data };
-  
-  sensitiveFields.forEach(field => {
-    if (cleaned[field]) {
-      delete cleaned[field];
+// src/main.tsx - Inicialização otimizada
+const initializeApp = async () => {
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    try {
+      const registration = await navigator.serviceWorker.register('/sw.js', {
+        scope: '/',
+        type: 'module'
+      });
+      
+      console.log('🚀 Service Worker registered successfully');
+      
+      // Wait for service worker to be ready
+      await navigator.serviceWorker.ready;
+      
+      // Preload essential data for offline use
+      setTimeout(() => {
+        preloadEssentialData();
+      }, 2000); // Delay para não bloquear renderização inicial
+      
+    } catch (error) {
+      console.error('❌ Service Worker registration failed:', error);
     }
-  });
-  
-  return cleaned;
+  }
 };
-```
-
-#### 2. **Encryption (Future Enhancement)**
-```typescript
-// Placeholder para criptografia futura
-const encryptOfflineData = (data: string): string => {
-  // TODO: Implementar criptografia AES para dados sensíveis
-  return data; // Por enquanto, sem criptografia
-};
-```
-
-### Testing Strategy
-
-#### 1. **Connection Simulation**
-```typescript
-// Utilities para testes de conectividade
-export const mockOfflineMode = () => {
-  Object.defineProperty(navigator, 'onLine', {
-    writable: true,
-    value: false
-  });
-  
-  // Mock Supabase calls to fail
-  jest.spyOn(supabase, 'from').mockImplementation(() => {
-    throw new Error('Network error');
-  });
-};
-
-export const mockOnlineMode = () => {
-  Object.defineProperty(navigator, 'onLine', {
-    writable: true,
-    value: true
-  });
-  
-  // Restore Supabase functionality
-  jest.restoreAllMocks();
-};
-```
-
-#### 2. **Offline Data Testing**
-```typescript
-describe('Offline Functionality', () => {
-  beforeEach(() => {
-    localStorage.clear();
-    mockOfflineMode();
-  });
-
-  test('should save data offline when no connection', async () => {
-    const formData = { nome: 'Test', equipe_id: 'uuid' };
-    
-    await submitApontamento(formData);
-    
-    const offlineData = localStorage.getItem('offline_apontamento_equipe');
-    expect(JSON.parse(offlineData)).toHaveLength(1);
-  });
-
-  test('should sync data when connection restored', async () => {
-    // Setup offline data
-    const offlineData = [{ id: 'temp_1', data: { nome: 'Test' } }];
-    localStorage.setItem('offline_apontamento_equipe', JSON.stringify(offlineData));
-    
-    // Restore connection
-    mockOnlineMode();
-    
-    // Trigger sync
-    await sincronizarTodos();
-    
-    // Verify data was sent and cleaned
-    expect(mockSupabaseInsert).toHaveBeenCalled();
-    expect(localStorage.getItem('offline_apontamento_equipe')).toBeNull();
-  });
-});
 ```
 
 ## Tecnologias Utilizadas
@@ -524,8 +918,14 @@ describe('Offline Functionality', () => {
 ### Frontend Core
 - **React 18**: Framework principal com Concurrent Features
 - **TypeScript**: Tipagem estática e developer experience
-- **Vite**: Build tool e dev server
+- **Vite**: Build tool e dev server com PWA plugin
 - **React Router DOM**: Roteamento client-side
+
+### PWA & Offline ⭐ NOVO
+- **Vite PWA Plugin**: Plugin para geração automática de PWA
+- **Workbox**: Service Worker libraries para cache strategies
+- **Web App Manifest**: Configuração de aplicativo nativo
+- **Background Sync API**: Sincronização em segundo plano
 
 ### UI & Styling
 - **Tailwind CSS**: Utility-first CSS framework
@@ -561,39 +961,54 @@ src/
 ├── components/          # Componentes reutilizáveis
 │   ├── ui/             # Componentes base (shadcn/ui)
 │   ├── layout/         # Layout components
+│   ├── pwa/            # Componentes PWA ⭐ NOVO
+│   │   ├── PWAInstallBanner.tsx
+│   │   ├── PWAUpdateNotification.tsx
+│   │   └── OfflineIndicator.tsx
 │   ├── offline/        # Componentes offline ⭐ NOVO
+│   │   └── OfflineStatusIndicator.tsx
 │   └── [modules]/      # Componentes específicos por módulo
 ├── hooks/              # Custom hooks
-│   ├── offline/        # Hooks offline ⭐ NOVO
-│   └── [domain]/       # Hooks agrupados por domínio
+│   ├── usePWAInstall.ts          ⭐ NOVO
+│   ├── usePWAUpdate.ts           ⭐ NOVO
+│   ├── useConnectionStatus.ts    ⭐ NOVO
+│   ├── useOfflineSync.ts         ⭐ NOVO
+│   ├── useOfflineData.ts         ⭐ NOVO
+│   ├── useApontamentoEquipeOffline.ts    ⭐ NOVO
+│   ├── useApontamentoCaminhoesOffline.ts ⭐ NOVO
+│   ├── useRegistroAplicacaoOffline.ts    ⭐ NOVO
+│   └── [outros-hooks]
 ├── pages/              # Páginas da aplicação
 ├── services/           # Serviços de API
 ├── utils/              # Utilitários
-│   ├── salvarOffline.ts ⭐ NOVO
+│   ├── salvarOffline.ts         ⭐ NOVO
+│   ├── offlineQueries.ts        ⭐ NOVO
 │   └── [other-utils]
 ├── types/              # Definições TypeScript
+│   ├── background-sync.d.ts     ⭐ NOVO
+│   ├── service-worker.d.ts      ⭐ NOVO
+│   └── [other-types]
 ├── contexts/           # React Contexts
+├── sw.ts               # Service Worker customizado ⭐ NOVO
 └── integrations/       # Configurações de terceiros
     └── supabase/       # Cliente e tipos Supabase
 ```
 
-### Componentes Offline ⭐ NOVO
+### Arquivos PWA Específicos ⭐ NOVO
 ```
-src/components/offline/
-├── OfflineStatusIndicator.tsx    # Indicador visual principal
-├── ConnectionMonitor.tsx         # Monitor de conectividade
-└── SyncProgressModal.tsx        # Modal de progresso de sync
-```
-
-### Hooks Offline ⭐ NOVO
-```
-src/hooks/
-├── useConnectionStatus.ts        # Status de conectividade
-├── useOfflineSync.ts            # Engine de sincronização
-├── useApontamentoEquipeOffline.ts
-├── useApontamentoCaminhoesOffline.ts
-├── useRegistroAplicacaoOffline.ts
-└── [outros-modulos]Offline.ts
+public/
+├── manifest.json               # Web App Manifest
+├── browserconfig.xml          # Configuração IE/Edge
+├── sw.js                      # Service Worker compilado
+└── icons/                     # Ícones PWA
+    ├── icon-48x48.png
+    ├── icon-72x72.png
+    ├── icon-96x96.png
+    ├── icon-144x144.png
+    ├── icon-192x192.png
+    ├── icon-512x512.png
+    ├── maskable-icon-192x192.png
+    └── maskable-icon.png
 ```
 
 ## Padrões de Desenvolvimento
@@ -608,7 +1023,7 @@ interface ComponentProps {
 const Component: React.FC<ComponentProps> = ({ prop1, prop2 }) => {
   // 1. Hooks de estado
   // 2. Hooks de data fetching
-  // 3. Hooks customizados
+  // 3. Hooks customizados (incluindo offline)
   // 4. Event handlers
   // 5. Derived state/computed values
   // 6. Effects
@@ -623,9 +1038,10 @@ export default Component;
 
 ### Custom Hooks Pattern
 ```typescript
-// Hook para operações CRUD
+// Hook para operações CRUD com suporte offline
 export const useEntityOperations = () => {
   const queryClient = useQueryClient();
+  const { isSupabaseConnected } = useConnectionStatus();
   
   const createMutation = useMutation({
     mutationFn: createEntity,
@@ -637,7 +1053,7 @@ export const useEntityOperations = () => {
   return {
     create: createMutation.mutate,
     isCreating: createMutation.isPending,
-    // ... outras operações
+    isOffline: !isSupabaseConnected
   };
 };
 ```
@@ -665,9 +1081,7 @@ export const entityService = {
     
     if (error) throw error;
     return data;
-  },
-  
-  // ... outras operações
+  }
 };
 ```
 
@@ -686,12 +1100,10 @@ export const useAuth = () => {
   const [session, setSession] = useState<Session | null>(null);
   
   useEffect(() => {
-    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
     });
     
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session);
@@ -711,15 +1123,11 @@ export const useAuth = () => {
 
 ### Proteção de Rotas
 ```typescript
-// HOC para proteção de rotas
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
   
   if (isLoading) return <LoadingSpinner />;
-  
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
   
   return <>{children}</>;
 };
@@ -769,7 +1177,7 @@ export const useFuncionarios = (filters?: FuncionarioFilters) => {
   return useQuery({
     queryKey: ['funcionarios', filters],
     queryFn: () => funcionarioService.getAll(filters),
-    enabled: !!filters, // Só executa se filtros estão definidos
+    enabled: !!filters,
   });
 };
 ```
@@ -921,7 +1329,6 @@ export const useRealtimeFuncionarios = () => {
   --primary-foreground: 210 40% 98%;
   --muted: 210 40% 96%;
   --muted-foreground: 215.4 16.3% 46.9%;
-  // ... outras variáveis
 }
 
 // Componentes base tipados
@@ -973,20 +1380,6 @@ const DataTable = {
     </div>
   ),
 };
-
-// Uso
-<DataTable.Root>
-  <DataTable.Header>
-    <h3>Funcionários</h3>
-  </DataTable.Header>
-  <DataTable.Body>
-    {funcionarios.map(func => (
-      <DataTable.Row key={func.id}>
-        {func.nome_completo}
-      </DataTable.Row>
-    ))}
-  </DataTable.Body>
-</DataTable.Root>
 ```
 
 ## Performance e Otimizações
@@ -1134,7 +1527,6 @@ export const trackPerformance = (name: string, fn: () => void) => {
   
   console.log(`${name} took ${end - start} milliseconds`);
   
-  // Enviar métricas se necessário
   if (end - start > 1000) {
     console.warn(`Slow operation detected: ${name}`);
   }
@@ -1145,11 +1537,8 @@ export const trackPerformance = (name: string, fn: () => void) => {
 ```typescript
 // Tracking de eventos de usuário
 export const trackEvent = (event: string, properties?: any) => {
-  // Implementação básica
   console.log('Event:', event, properties);
-  
   // Em produção, integrar com serviço de analytics
-  // analytics.track(event, properties);
 };
 
 // Uso nos componentes
@@ -1159,9 +1548,223 @@ const handleFormSubmit = () => {
 };
 ```
 
+## Testing Strategy ⭐ NOVO
+
+### PWA Testing
+```typescript
+// Testes de funcionalidade PWA
+describe('PWA Functionality', () => {
+  test('should register service worker', async () => {
+    const registration = await navigator.serviceWorker.register('/sw.js');
+    expect(registration.active).toBeTruthy();
+  });
+
+  test('should show install banner when criteria met', async () => {
+    // Mock beforeinstallprompt event
+    const installEvent = new Event('beforeinstallprompt');
+    window.dispatchEvent(installEvent);
+    
+    expect(screen.getByText('Instalar App')).toBeInTheDocument();
+  });
+
+  test('should cache assets in service worker', async () => {
+    const cache = await caches.open('static-assets-v1');
+    const cachedResponse = await cache.match('/assets/main.js');
+    expect(cachedResponse).toBeTruthy();
+  });
+});
+```
+
+### Offline Testing
+```typescript
+// Utilities para testes de conectividade
+export const mockOfflineMode = () => {
+  Object.defineProperty(navigator, 'onLine', {
+    writable: true,
+    value: false
+  });
+  
+  jest.spyOn(supabase, 'from').mockImplementation(() => {
+    throw new Error('Network error');
+  });
+};
+
+export const mockOnlineMode = () => {
+  Object.defineProperty(navigator, 'onLine', {
+    writable: true,
+    value: true
+  });
+  
+  jest.restoreAllMocks();
+};
+
+describe('Offline Functionality', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mockOfflineMode();
+  });
+
+  test('should save data offline when no connection', async () => {
+    const formData = { nome: 'Test', equipe_id: 'uuid' };
+    
+    await submitApontamento(formData);
+    
+    const offlineData = localStorage.getItem('offline_apontamento_equipe');
+    expect(JSON.parse(offlineData)).toHaveLength(1);
+  });
+
+  test('should sync data when connection restored', async () => {
+    // Setup offline data
+    const offlineData = [{ id: 'temp_1', data: { nome: 'Test' } }];
+    localStorage.setItem('offline_apontamento_equipe', JSON.stringify(offlineData));
+    
+    // Restore connection
+    mockOnlineMode();
+    
+    // Trigger sync
+    await sincronizarTodos();
+    
+    // Verify data was sent and cleaned
+    expect(mockSupabaseInsert).toHaveBeenCalled();
+    expect(localStorage.getItem('offline_apontamento_equipe')).toBeNull();
+  });
+});
+```
+
+### Performance Testing
+```typescript
+// Testes de performance específicos para PWA
+describe('PWA Performance', () => {
+  test('should load initial page within 3 seconds', async () => {
+    const startTime = performance.now();
+    
+    render(<App />);
+    await waitFor(() => {
+      expect(screen.getByText('Dashboard')).toBeInTheDocument();
+    });
+    
+    const endTime = performance.now();
+    expect(endTime - startTime).toBeLessThan(3000);
+  });
+
+  test('should cache API responses for offline use', async () => {
+    const apiCall = () => supabase.from('funcionarios').select('*');
+    
+    // First call - should cache
+    await apiCall();
+    
+    // Mock offline
+    mockOfflineMode();
+    
+    // Second call - should use cache
+    const cachedData = await apiCall();
+    expect(cachedData).toBeTruthy();
+  });
+});
+```
+
+## Debugging & Tools ⭐ NOVO
+
+### PWA Debug Tools
+```typescript
+// Debug utilities para PWA
+export const PWADebugTools = {
+  // Verificar status do Service Worker
+  checkServiceWorker: async () => {
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.getRegistration();
+      console.log('SW Registration:', registration);
+      console.log('SW State:', registration?.active?.state);
+    }
+  },
+
+  // Listar caches disponíveis
+  listCaches: async () => {
+    const cacheNames = await caches.keys();
+    console.log('Available caches:', cacheNames);
+    
+    for (const cacheName of cacheNames) {
+      const cache = await caches.open(cacheName);
+      const requests = await cache.keys();
+      console.log(`Cache ${cacheName}:`, requests.map(r => r.url));
+    }
+  },
+
+  // Verificar dados offline
+  checkOfflineData: () => {
+    const offlineKeys = Object.keys(localStorage).filter(key => 
+      key.startsWith('offline_')
+    );
+    
+    console.log('Offline data:', offlineKeys.map(key => ({
+      key,
+      data: JSON.parse(localStorage.getItem(key) || '[]')
+    })));
+  },
+
+  // Simular modo offline
+  simulateOffline: () => {
+    Object.defineProperty(navigator, 'onLine', {
+      writable: true,
+      value: false
+    });
+    
+    window.dispatchEvent(new Event('offline'));
+    console.log('Offline mode simulated');
+  },
+
+  // Restaurar modo online
+  simulateOnline: () => {
+    Object.defineProperty(navigator, 'onLine', {
+      writable: true,
+      value: true
+    });
+    
+    window.dispatchEvent(new Event('online'));
+    console.log('Online mode restored');
+  }
+};
+
+// Expor no window para debug em desenvolvimento
+if (process.env.NODE_ENV === 'development') {
+  (window as any).PWADebug = PWADebugTools;
+}
+```
+
+### Console Commands para Debug
+```typescript
+// Comandos disponíveis no console do navegador:
+/*
+// Verificar Service Worker
+await PWADebug.checkServiceWorker()
+
+// Listar todos os caches
+await PWADebug.listCaches()
+
+// Ver dados offline
+PWADebug.checkOfflineData()
+
+// Simular offline/online
+PWADebug.simulateOffline()
+PWADebug.simulateOnline()
+
+// Forçar sincronização
+syncOfflineData()
+
+// Limpar cache específico
+await caches.delete('lytotec-api-v1')
+
+// Limpar todos os dados offline
+Object.keys(localStorage).forEach(key => {
+  if (key.startsWith('offline_')) {
+    localStorage.removeItem(key)
+  }
+})
+*/
+```
+
 ---
 
-**Versão da Documentação**: 3.0  
+**Versão da Documentação**: 4.0  
 **Última Atualização**: Janeiro 2025  
-**Novidades**: Arquitetura offline completa, sincronização automática e otimizações de performance
-
+**Novidades**: Arquitetura PWA completa, funcionalidades offline expandidas, estratégias de cache otimizadas, testes e debugging avançados

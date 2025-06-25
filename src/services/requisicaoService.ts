@@ -1,6 +1,8 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { Requisicao, RequisicaoWithRuas, RuaRequisicao, RequisicaoFilters } from "@/types/requisicao";
 import { debugLog, logSQLError, prettyStringify } from "@/lib/debug";
+import { getCurrentUser } from "@/lib/auth";
 
 // Get all requisitions with optional filters
 export const fetchRequisicoes = async (filters: RequisicaoFilters = {}) => {
@@ -83,6 +85,33 @@ export const fetchRequisicaoById = async (id: string): Promise<RequisicaoWithRua
   };
 };
 
+// Helper function to get and validate current user's funcionario ID
+const getCurrentUserFuncionarioId = async (): Promise<string> => {
+  const currentUser = await getCurrentUser();
+  
+  if (!currentUser?.email) {
+    throw new Error('Usuário não autenticado');
+  }
+
+  // Search for funcionario by email
+  const { data: funcionarios, error } = await supabase
+    .from('bd_funcionarios')
+    .select('id, nome_completo, email')
+    .eq('email', currentUser.email)
+    .limit(1);
+
+  if (error) {
+    console.error('Error finding funcionario:', error);
+    throw new Error('Erro ao buscar funcionário no sistema');
+  }
+
+  if (!funcionarios || funcionarios.length === 0) {
+    throw new Error('Usuário não encontrado na tabela de funcionários. Entre em contato com o administrador.');
+  }
+
+  return funcionarios[0].id;
+};
+
 // Create a new requisition with streets
 export const createRequisicao = async (
   requisicao: Omit<Requisicao, 'id' | 'numero' | 'created_at' | 'updated_at'>,
@@ -90,6 +119,13 @@ export const createRequisicao = async (
 ): Promise<string> => {
   debugLog("createRequisicao - Input requisicao", requisicao);
   debugLog("createRequisicao - Input ruas", ruas);
+  
+  // Security validation: ensure engenheiro_id matches current user
+  const currentUserFuncionarioId = await getCurrentUserFuncionarioId();
+  
+  if (requisicao.engenheiro_id !== currentUserFuncionarioId) {
+    throw new Error('Não é possível criar requisições em nome de terceiros. O engenheiro responsável deve ser o usuário logado.');
+  }
   
   // Generate a unique requisition number (format: YYYY + sequential number)
   const year = new Date().getFullYear();
@@ -179,6 +215,15 @@ export const updateRequisicao = async (
 ): Promise<void> => {
   debugLog("updateRequisicao - Input requisicao", requisicao);
   debugLog("updateRequisicao - Input ruas", ruas);
+  
+  // Security validation: ensure engenheiro_id matches current user (if being updated)
+  if (requisicao.engenheiro_id) {
+    const currentUserFuncionarioId = await getCurrentUserFuncionarioId();
+    
+    if (requisicao.engenheiro_id !== currentUserFuncionarioId) {
+      throw new Error('Não é possível alterar requisições para terceiros. O engenheiro responsável deve ser o usuário logado.');
+    }
+  }
   
   // Update the requisition
   const { error } = await supabase

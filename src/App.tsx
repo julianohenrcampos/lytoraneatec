@@ -16,6 +16,7 @@ import Dashboard from "./pages/Dashboard";
 import Dashboard1 from "./pages/Dashboard1";
 import DashboardRH from "./pages/DashboardRH";
 import DashboardMaquinas from "./pages/DashboardMaquinas";
+import DashboardRequisicoes from "./pages/DashboardRequisicoes";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -113,6 +114,14 @@ const App = () => {
                 <AuthGuard>
                   <RouteProtection requiredPermission="dashboard_maquinas_view">
                     <DashboardMaquinas />
+                  </RouteProtection>
+                </AuthGuard>
+              } />
+              
+              <Route path="/dashboard/requisicoes" element={
+                <AuthGuard>
+                  <RouteProtection requiredPermission="dashboard_logistica_view">
+                    <DashboardRequisicoes />
                   </RouteProtection>
                 </AuthGuard>
               } />

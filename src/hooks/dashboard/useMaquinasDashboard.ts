@@ -19,16 +19,16 @@ import {
 } from "@/types/maquinas";
 
 export const useMaquinasDashboard = (filters: MaquinasFilters) => {
-  // 1. KPIs Principais
+  // 1. KPIs Principais (CORRIGIDO - baseado na situação atual real)
   const kpisQuery = useQuery<MaquinasKpis>({
     queryKey: ["maquinas-kpis", filters],
     queryFn: async () => {
-      console.log("🔍 DEBUG useMaquinasDashboard - buscando KPIs");
+      console.log("🔍 DEBUG useMaquinasDashboard - buscando KPIs corrigidos baseados na situação real");
 
-      // Total de ativos
+      // Buscar todos os ativos com seus status reais do cadastro
       let ativosQuery = supabase
         .from("bd_caminhoes_equipamentos")
-        .select("*", { count: "exact", head: true });
+        .select("id, situacao");
 
       if (filters.tipoVeiculo && filters.tipoVeiculo.length > 0) {
         ativosQuery = ativosQuery.in("tipo_veiculo", filters.tipoVeiculo);
@@ -38,32 +38,62 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
         ativosQuery = ativosQuery.eq("empresa_id", filters.empresaId);
       }
 
-      const { count: totalAtivos } = await ativosQuery;
+      const { data: ativos } = await ativosQuery;
+      const totalAtivos = ativos?.length || 0;
 
-      // Status atual dos ativos (baseado no último apontamento)
-      const { data: ultimosApontamentos } = await supabase
+      // Buscar apenas apontamentos DO DIA ATUAL para identificar quem está operando HOJE
+      const hoje = new Date().toISOString().split('T')[0];
+      const { data: apontamentosHoje } = await supabase
         .from("bd_registro_apontamento_cam_equipa")
-        .select(`
-          caminhao_equipamento_id,
-          situacao,
-          data,
-          bd_caminhoes_equipamentos(id, tipo_veiculo, empresa_id)
-        `)
-        .gte("data", filters.periodStart)
-        .lte("data", filters.periodEnd)
-        .order("data", { ascending: false });
+        .select("caminhao_equipamento_id, situacao")
+        .eq("data", hoje)
+        .eq("situacao", "Operando");
 
-      // Agrupar por ativo e pegar o status mais recente
-      const statusAtivos = new Map();
-      ultimosApontamentos?.forEach(apontamento => {
-        if (!statusAtivos.has(apontamento.caminhao_equipamento_id)) {
-          statusAtivos.set(apontamento.caminhao_equipamento_id, apontamento.situacao);
+      // Criar Set dos equipamentos que estão operando hoje
+      const equipamentosOperandoHoje = new Set(
+        apontamentosHoje?.map(apt => apt.caminhao_equipamento_id) || []
+      );
+
+      console.log("📊 Apontamentos de hoje (Operando):", apontamentosHoje?.length || 0);
+      console.log("🚛 Equipamentos operando hoje:", equipamentosOperandoHoje.size);
+
+      // Calcular situações baseado na REALIDADE ATUAL
+      let ativosOperando = 0;
+      let ativosManutencao = 0;
+      let ativosDisponiveis = 0;
+
+      ativos?.forEach(ativo => {
+        // 1. Se está apontado como "Operando" hoje, é Operando
+        if (equipamentosOperandoHoje.has(ativo.id)) {
+          ativosOperando++;
+        }
+        // 2. Se está "Em Manutenção" no cadastro, é Manutenção (prioridade alta)
+        else if (ativo.situacao === 'Em Manutenção') {
+          ativosManutencao++;
+        }
+        // 3. Todos os outros são Disponíveis
+        else {
+          ativosDisponiveis++;
         }
       });
 
-      const ativosOperando = Array.from(statusAtivos.values()).filter(s => s === 'Operando').length;
-      const ativosManutencao = Array.from(statusAtivos.values()).filter(s => s === 'Em Manutenção').length;
-      const ativosDisponiveis = (totalAtivos || 0) - ativosOperando - ativosManutencao;
+      console.log("📈 KPIs calculados:", {
+        totalAtivos,
+        ativosOperando,
+        ativosManutencao,
+        ativosDisponiveis,
+        verificacao: ativosOperando + ativosManutencao + ativosDisponiveis
+      });
+
+      // Validação de consistência
+      const somaCalculada = ativosOperando + ativosManutencao + ativosDisponiveis;
+      if (somaCalculada !== totalAtivos) {
+        console.warn("⚠️ INCONSISTÊNCIA: Soma dos status não bate com total de ativos", {
+          total: totalAtivos,
+          soma: somaCalculada,
+          diferenca: totalAtivos - somaCalculada
+        });
+      }
 
       // Chamados abertos
       const { count: chamadosAbertos } = await supabase
@@ -90,7 +120,7 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
       }
 
       return {
-        totalAtivos: totalAtivos || 0,
+        totalAtivos,
         ativosOperando,
         ativosDisponiveis,
         ativosManutencao,
@@ -100,7 +130,7 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
     }
   });
 
-  // 2. Distribuição por Tipo de Veículo (melhorado)
+  // 2. Distribuição por Tipo de Veículo (mantém o existente)
   const tipoVeiculoQuery = useQuery<TipoVeiculoDistribution[]>({
     queryKey: ["maquinas-tipo-veiculo", filters],
     queryFn: async () => {
@@ -146,22 +176,40 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
     }
   });
 
-  // 3. Status Operacional (melhorado com detalhes)
+  // 3. Status Operacional (CORRIGIDO - baseado na situação real atual)
   const statusOperacionalQuery = useQuery<StatusOperacionalData[]>({
     queryKey: ["maquinas-status", filters],
     queryFn: async () => {
-      const { data: apontamentos } = await supabase
-        .from("bd_registro_apontamento_cam_equipa")
-        .select(`
-          caminhao_equipamento_id,
-          situacao,
-          data,
-          bd_caminhoes_equipamentos(id, frota, numero_frota, tipo_veiculo, modelo)
-        `)
-        .gte("data", filters.periodStart)
-        .lte("data", filters.periodEnd)
-        .order("data", { ascending: false });
+      console.log("🔍 DEBUG statusOperacionalQuery - buscando status real atual");
 
+      // Buscar todos os ativos com filtros aplicados
+      let ativosQuery = supabase
+        .from("bd_caminhoes_equipamentos")
+        .select("id, frota, numero_frota, tipo_veiculo, modelo, situacao");
+
+      if (filters.tipoVeiculo && filters.tipoVeiculo.length > 0) {
+        ativosQuery = ativosQuery.in("tipo_veiculo", filters.tipoVeiculo);
+      }
+
+      if (filters.empresaId) {
+        ativosQuery = ativosQuery.eq("empresa_id", filters.empresaId);
+      }
+
+      const { data: ativos } = await ativosQuery;
+
+      // Buscar apontamentos de hoje para identificar quem está operando
+      const hoje = new Date().toISOString().split('T')[0];
+      const { data: apontamentosHoje } = await supabase
+        .from("bd_registro_apontamento_cam_equipa")
+        .select("caminhao_equipamento_id, situacao")
+        .eq("data", hoje)
+        .eq("situacao", "Operando");
+
+      const equipamentosOperandoHoje = new Set(
+        apontamentosHoje?.map(apt => apt.caminhao_equipamento_id) || []
+      );
+
+      // Agrupar por status REAL
       const statusMap = new Map<string, Array<{
         id: string;
         frota: string;
@@ -170,40 +218,44 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
         modelo?: string;
       }>>();
 
-      const processedAtivos = new Set<string>();
+      ativos?.forEach(ativo => {
+        let statusFinal: string;
 
-      apontamentos?.forEach(apt => {
-        if (!processedAtivos.has(apt.caminhao_equipamento_id)) {
-          const status = apt.situacao || 'Disponível';
-          const caminhao = apt.bd_caminhoes_equipamentos as any;
-          
-          if (caminhao && !Array.isArray(caminhao)) {
-            if (!statusMap.has(status)) {
-              statusMap.set(status, []);
-            }
-            
-            statusMap.get(status)!.push({
-              id: caminhao.id,
-              frota: caminhao.frota || '',
-              numero_frota: caminhao.numero_frota || '',
-              tipo_veiculo: caminhao.tipo_veiculo || '',
-              modelo: caminhao.modelo
-            });
-            
-            processedAtivos.add(apt.caminhao_equipamento_id);
-          }
+        // Determinar status real
+        if (equipamentosOperandoHoje.has(ativo.id)) {
+          statusFinal = 'Operando';
+        } else if (ativo.situacao === 'Em Manutenção') {
+          statusFinal = 'Em Manutenção';
+        } else {
+          statusFinal = 'Disponível';
         }
+
+        if (!statusMap.has(statusFinal)) {
+          statusMap.set(statusFinal, []);
+        }
+
+        statusMap.get(statusFinal)!.push({
+          id: ativo.id,
+          frota: ativo.frota || '',
+          numero_frota: ativo.numero_frota || '',
+          tipo_veiculo: ativo.tipo_veiculo || '',
+          modelo: ativo.modelo
+        });
       });
 
-      return Array.from(statusMap.entries()).map(([status, ativos]) => ({
+      const resultado = Array.from(statusMap.entries()).map(([status, ativos]) => ({
         status,
         quantidade: ativos.length,
         ativos
       }));
+
+      console.log("📊 Status operacional calculado:", resultado);
+
+      return resultado;
     }
   });
 
-  // 4. Idade da Frota (melhorado com detalhes)
+  // 4. Idade da Frota (mantém o existente)
   const idadeFrotaQuery = useQuery<IdadeFrotaData[]>({
     queryKey: ["maquinas-idade", filters],
     queryFn: async () => {
@@ -259,7 +311,7 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
     }
   });
 
-  // 5. Equipamentos por Centro de Custo (NOVO)
+  // 5. Equipamentos por Centro de Custo (corrigido)
   const equipamentosPorCentroCustoQuery = useQuery<EquipamentosPorCentroCusto[]>({
     queryKey: ["equipamentos-centro-custo", filters],
     queryFn: async () => {

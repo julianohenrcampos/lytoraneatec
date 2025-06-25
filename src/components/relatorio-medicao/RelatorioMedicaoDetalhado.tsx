@@ -101,44 +101,44 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
     };
 
     return (
-      <table className="w-full text-xs border border-gray-300">
+      <table className="w-full text-sm border border-gray-300 print:text-base">
         <thead className="bg-gray-100">
           <tr className="text-left">
-            <th className="border border-gray-300 px-2 py-1" rowSpan={2}>DESCRIÇÃO DOS SERVIÇOS</th>
-            <th className="border border-gray-300 px-2 py-1 text-center" colSpan={3}>CONTRATO</th>
-            <th className="border border-gray-300 px-2 py-1 text-center" colSpan={6}>NO PERÍODO</th>
+            <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3" rowSpan={2}>DESCRIÇÃO DOS SERVIÇOS</th>
+            <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3 text-center" colSpan={3}>CONTRATO</th>
+            <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3 text-center" colSpan={6}>NO PERÍODO</th>
           </tr>
           <tr className="text-left">
-            <th className="border border-gray-300 px-2 py-1">QUANTIDADE (HORAS)</th>
-            <th className="border border-gray-300 px-2 py-1">VALOR UNIT. (R$/h)</th>
-            <th className="border border-gray-300 px-2 py-1">TOTAL MENSAL (R$)</th>
-            <th className="border border-gray-300 px-2 py-1">HORAS DISPONÍVEIS</th>
-            <th className="border border-gray-300 px-2 py-1">VALOR (R$)</th>
-            <th className="border border-gray-300 px-2 py-1">PRODUTIVIDADE</th>
-            <th className="border border-gray-300 px-2 py-1">ABASTECIMENTO</th>
-            <th className="border border-gray-300 px-2 py-1">MÉDIA ABAST.</th>
-            <th className="border border-gray-300 px-2 py-1">RASTREADOR</th>
+            <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">QUANTIDADE (HORAS)</th>
+            <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">VALOR UNIT. (R$/h)</th>
+            <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">TOTAL MENSAL (R$)</th>
+            <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">HORAS DISPONÍVEIS</th>
+            <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">VALOR (R$)</th>
+            <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">PRODUTIVIDADE</th>
+            <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">ABASTECIMENTO</th>
+            <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">MÉDIA ABAST.</th>
+            <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">RASTREADOR</th>
           </tr>
         </thead>
         <tbody>
           {equipmentData.map((item, i) => (
             <tr key={i}>
-              <td className="border border-gray-300 px-2 py-1">{item.label}</td>
-              <td className="border border-gray-300 px-2 py-1">{item.quantidadeHoras || 0} H</td>
-              <td className="border border-gray-300 px-2 py-1">{formatCurrency(item.valorUnitarioHora)}</td>
-              <td className="border border-gray-300 px-2 py-1">{formatCurrency(item.totalMensal)}</td>
-              <td className="border border-gray-300 px-2 py-1">{formatNumber(item.horasDisponiveis)} H</td>
-              <td className="border border-gray-300 px-2 py-1">{formatCurrency(item.valorPeriodo)}</td>
-              <td className="border border-gray-300 px-2 py-1">{formatNumber(item.produtividade)} H</td>
-              <td className="border border-gray-300 px-2 py-1">{formatNumber(item.abastecimento)} L</td>
-              <td className="border border-gray-300 px-2 py-1">{formatNumber(item.mediaAbastecimento)} L/H</td>
-              <td className="border border-gray-300 px-2 py-1">
+              <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{item.label}</td>
+              <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{item.quantidadeHoras || 0} H</td>
+              <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatCurrency(item.valorUnitarioHora)}</td>
+              <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatCurrency(item.totalMensal)}</td>
+              <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatNumber(item.horasDisponiveis)} H</td>
+              <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatCurrency(item.valorPeriodo)}</td>
+              <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatNumber(item.produtividade)} H</td>
+              <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatNumber(item.abastecimento)} L</td>
+              <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatNumber(item.mediaAbastecimento)} L/H</td>
+              <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">
                 <input
                   type="number"
                   step="0.01"
                   value={rastreadorValues[item.id] || 0}
                   onChange={e => handleRastreadorChange(item.id, e.target.value)}
-                  className="w-full bg-transparent border-none outline-none text-xs text-right"
+                  className="w-full bg-transparent border-none outline-none text-sm text-right print:text-base"
                   style={{ minWidth: '60px' }}
                 />
               </td>
@@ -146,16 +146,16 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
           ))}
           {/* Linha de totais SEM o total mensal */}
           <tr className="font-bold bg-gray-50">
-            <td className="border border-gray-300 px-2 py-1 text-right">TOTAIS</td>
-            <td className="border border-gray-300 px-2 py-1">-</td>
-            <td className="border border-gray-300 px-2 py-1">-</td>
-            <td className="border border-gray-300 px-2 py-1">-</td>
-            <td className="border border-gray-300 px-2 py-1">{formatNumber(totais.horasDisponiveis)} H</td>
-            <td className="border border-gray-300 px-2 py-1">{formatCurrency(totais.valorPeriodo)}</td>
-            <td className="border border-gray-300 px-2 py-1">{formatNumber(totais.produtividade)} H</td>
-            <td className="border border-gray-300 px-2 py-1">{formatNumber(totais.abastecimento)} L</td>
-            <td className="border border-gray-300 px-2 py-1">-</td>
-            <td className="border border-gray-300 px-2 py-1">{formatNumber(totais.rastreador)} H</td>
+            <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3 text-right">TOTAIS</td>
+            <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">-</td>
+            <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">-</td>
+            <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">-</td>
+            <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatNumber(totais.horasDisponiveis)} H</td>
+            <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatCurrency(totais.valorPeriodo)}</td>
+            <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatNumber(totais.produtividade)} H</td>
+            <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatNumber(totais.abastecimento)} L</td>
+            <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">-</td>
+            <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatNumber(totais.rastreador)} H</td>
           </tr>
         </tbody>
       </table>
@@ -181,36 +181,36 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
     console.log('renderTruckTable - totais:', totais);
 
     return (
-      <table className="w-full text-xs border border-gray-300">
+      <table className="w-full text-sm border border-gray-300 print:text-base">
         <thead className="bg-gray-100">
           <tr className="text-left">
-            <th className="border border-gray-300 px-2 py-1">DESCRIÇÃO DOS SERVIÇOS</th>
-            <th className="border border-gray-300 px-2 py-1">TOTAL MENSAL (R$)</th>
-            <th className="border border-gray-300 px-2 py-1">QTD/DIA</th>
-            <th className="border border-gray-300 px-2 py-1">VALOR (R$)</th>
-            <th className="border border-gray-300 px-2 py-1">PRODUTIVIDADE</th>
-            <th className="border border-gray-300 px-2 py-1">ABASTECIMENTO</th>
-            <th className="border border-gray-300 px-2 py-1">MÉDIA ARAST.</th>
-            <th className="border border-gray-300 px-2 py-1">RASTREADOR</th>
+            <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">DESCRIÇÃO DOS SERVIÇOS</th>
+            <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">TOTAL MENSAL (R$)</th>
+            <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">QTD/DIA</th>
+            <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">VALOR (R$)</th>
+            <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">PRODUTIVIDADE</th>
+            <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">ABASTECIMENTO</th>
+            <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">MÉDIA ARAST.</th>
+            <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">RASTREADOR</th>
           </tr>
         </thead>
         <tbody>
           {truckData.map((item, i) => (
             <tr key={i}>
-              <td className="border border-gray-300 px-2 py-1">{item.label}</td>
-              <td className="border border-gray-300 px-2 py-1">{formatCurrency(item.totalMensal)}</td>
-              <td className="border border-gray-300 px-2 py-1">{item.qtdDia || 0}</td>
-              <td className="border border-gray-300 px-2 py-1">{formatCurrency(item.valor)}</td>
-              <td className="border border-gray-300 px-2 py-1">{formatNumber(item.quilometragem)} km</td>
-              <td className="border border-gray-300 px-2 py-1">{formatNumber(item.abastecimento)} L</td>
-              <td className="border border-gray-300 px-2 py-1">{formatNumber(item.mediaAbastecimento)} L/KM</td>
-              <td className="border border-gray-300 px-2 py-1">
+              <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{item.label}</td>
+              <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatCurrency(item.totalMensal)}</td>
+              <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{item.qtdDia || 0}</td>
+              <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatCurrency(item.valor)}</td>
+              <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatNumber(item.quilometragem)} km</td>
+              <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatNumber(item.abastecimento)} L</td>
+              <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatNumber(item.mediaAbastecimento)} L/KM</td>
+              <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">
                 <input
                   type="number"
                   step="0.01"
                   value={rastreadorValues[item.id] || 0}
                   onChange={e => handleRastreadorChange(item.id, e.target.value)}
-                  className="w-full bg-transparent border-none outline-none text-xs text-right"
+                  className="w-full bg-transparent border-none outline-none text-sm text-right print:text-base"
                   style={{ minWidth: '60px' }}
                 />
               </td>
@@ -218,14 +218,14 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
           ))}
           {/* Linha de totais SEM o total mensal */}
           <tr className="font-bold bg-gray-50">
-            <td className="border border-gray-300 px-2 py-1 text-right">TOTAIS</td>
-            <td className="border border-gray-300 px-2 py-1">-</td>
-            <td className="border border-gray-300 px-2 py-1">{totais.qtdDia}</td>
-            <td className="border border-gray-300 px-2 py-1">{formatCurrency(totais.valor)}</td>
-            <td className="border border-gray-300 px-2 py-1">{formatNumber(totais.quilometragem)} km</td>
-            <td className="border border-gray-300 px-2 py-1">{formatNumber(totais.abastecimento)} L</td>
-            <td className="border border-gray-300 px-2 py-1">-</td>
-            <td className="border border-gray-300 px-2 py-1">{formatNumber(totais.rastreador)} km</td>
+            <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3 text-right">TOTAIS</td>
+            <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">-</td>
+            <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{totais.qtdDia}</td>
+            <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatCurrency(totais.valor)}</td>
+            <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatNumber(totais.quilometragem)} km</td>
+            <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatNumber(totais.abastecimento)} L</td>
+            <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">-</td>
+            <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatNumber(totais.rastreador)} km</td>
           </tr>
         </tbody>
       </table>
@@ -240,21 +240,21 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
       // Se não há dados de manutenção ou descontos, mostrar valores zerados
       if (!equipmentMaintenance || !equipmentMaintenance.descontos || equipmentMaintenance.descontos.length === 0) {
         return (
-          <table className="w-full text-xs border border-gray-300">
+          <table className="w-full text-sm border border-gray-300 print:text-base">
             <thead className="bg-gray-100">
               <tr>
-                <th className="border border-gray-300 px-2 py-1">TIPO DE DESCONTO</th>
-                <th className="border border-gray-300 px-2 py-1">VALOR UNIT. (R$)</th>
-                <th className="border border-gray-300 px-2 py-1">QTD/H</th>
-                <th className="border border-gray-300 px-2 py-1">VALOR (R$)</th>
+                <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">TIPO DE DESCONTO</th>
+                <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">VALOR UNIT. (R$)</th>
+                <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">QTD/H</th>
+                <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">VALOR (R$)</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td className="border border-gray-300 px-2 py-1">NENHUM DESCONTO APLICÁVEL</td>
-                <td className="border border-gray-300 px-2 py-1">{formatCurrency(0)}</td>
-                <td className="border border-gray-300 px-2 py-1">{formatNumber(0)}</td>
-                <td className="border border-gray-300 px-2 py-1">{formatCurrency(0)}</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">NENHUM DESCONTO APLICÁVEL</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatCurrency(0)}</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatNumber(0)}</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatCurrency(0)}</td>
               </tr>
             </tbody>
           </table>
@@ -262,30 +262,30 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
       }
       
       return (
-        <table className="w-full text-xs border border-gray-300">
+        <table className="w-full text-sm border border-gray-300 print:text-base">
           <thead className="bg-gray-100">
             <tr>
-              <th className="border border-gray-300 px-2 py-1">TIPO DE DESCONTO</th>
-              <th className="border border-gray-300 px-2 py-1">VALOR UNIT. (R$)</th>
-              <th className="border border-gray-300 px-2 py-1">QTD/H</th>
-              <th className="border border-gray-300 px-2 py-1">VALOR (R$)</th>
+              <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">TIPO DE DESCONTO</th>
+              <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">VALOR UNIT. (R$)</th>
+              <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">QTD/H</th>
+              <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">VALOR (R$)</th>
             </tr>
           </thead>
           <tbody>
             {equipmentMaintenance.descontos.map((desconto, index) => (
               <tr key={index}>
-                <td className="border border-gray-300 px-2 py-1 font-medium">{desconto.tipoDesconto}</td>
-                <td className="border border-gray-300 px-2 py-1">{formatCurrency(desconto.valorUnitario)}</td>
-                <td className="border border-gray-300 px-2 py-1">{formatNumber(desconto.qtdHoras || 0)}</td>
-                <td className="border border-gray-300 px-2 py-1">{formatCurrency(desconto.valor)}</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3 font-medium">{desconto.tipoDesconto}</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatCurrency(desconto.valorUnitario)}</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatNumber(desconto.qtdHoras || 0)}</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatCurrency(desconto.valor)}</td>
               </tr>
             ))}
             {equipmentMaintenance.descontos.length > 1 && (
               <tr className="font-bold bg-gray-50">
-                <td className="border border-gray-300 px-2 py-1 text-right">TOTAL DESCONTOS</td>
-                <td className="border border-gray-300 px-2 py-1">-</td>
-                <td className="border border-gray-300 px-2 py-1">{formatNumber(equipmentMaintenance.qtdHoras)}</td>
-                <td className="border border-gray-300 px-2 py-1">{formatCurrency(equipmentMaintenance.valor)}</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3 text-right">TOTAL DESCONTOS</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">-</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatNumber(equipmentMaintenance.qtdHoras)}</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatCurrency(equipmentMaintenance.valor)}</td>
               </tr>
             )}
           </tbody>
@@ -298,21 +298,21 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
       // Se não há dados de manutenção ou descontos, mostrar valores zerados
       if (!truckMaintenance || !truckMaintenance.descontos || truckMaintenance.descontos.length === 0) {
         return (
-          <table className="w-full text-xs border border-gray-300">
+          <table className="w-full text-sm border border-gray-300 print:text-base">
             <thead className="bg-gray-100">
               <tr>
-                <th className="border border-gray-300 px-2 py-1">TIPO DE DESCONTO</th>
-                <th className="border border-gray-300 px-2 py-1">VALOR UNIT. (R$)</th>
-                <th className="border border-gray-300 px-2 py-1">QTD/DIA</th>
-                <th className="border border-gray-300 px-2 py-1">VALOR (R$)</th>
+                <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">TIPO DE DESCONTO</th>
+                <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">VALOR UNIT. (R$)</th>
+                <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">QTD/DIA</th>
+                <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">VALOR (R$)</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td className="border border-gray-300 px-2 py-1">NENHUM DESCONTO APLICÁVEL</td>
-                <td className="border border-gray-300 px-2 py-1">{formatCurrency(0)}</td>
-                <td className="border border-gray-300 px-2 py-1">{formatNumber(0)}</td>
-                <td className="border border-gray-300 px-2 py-1">{formatCurrency(0)}</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">NENHUM DESCONTO APLICÁVEL</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatCurrency(0)}</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatNumber(0)}</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatCurrency(0)}</td>
               </tr>
             </tbody>
           </table>
@@ -320,30 +320,30 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
       }
       
       return (
-        <table className="w-full text-xs border border-gray-300">
+        <table className="w-full text-sm border border-gray-300 print:text-base">
           <thead className="bg-gray-100">
             <tr>
-              <th className="border border-gray-300 px-2 py-1">TIPO DE DESCONTO</th>
-              <th className="border border-gray-300 px-2 py-1">VALOR UNIT. (R$)</th>
-              <th className="border border-gray-300 px-2 py-1">QTD/DIA</th>
-              <th className="border border-gray-300 px-2 py-1">VALOR (R$)</th>
+              <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">TIPO DE DESCONTO</th>
+              <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">VALOR UNIT. (R$)</th>
+              <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">QTD/DIA</th>
+              <th className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">VALOR (R$)</th>
             </tr>
           </thead>
           <tbody>
             {truckMaintenance.descontos.map((desconto, index) => (
               <tr key={index}>
-                <td className="border border-gray-300 px-2 py-1 font-medium">{desconto.tipoDesconto}</td>
-                <td className="border border-gray-300 px-2 py-1">{formatCurrency(desconto.valorUnitario)}</td>
-                <td className="border border-gray-300 px-2 py-1">{formatNumber(desconto.qtdDias || 0)}</td>
-                <td className="border border-gray-300 px-2 py-1">{formatCurrency(desconto.valor)}</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3 font-medium">{desconto.tipoDesconto}</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatCurrency(desconto.valorUnitario)}</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatNumber(desconto.qtdDias || 0)}</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatCurrency(desconto.valor)}</td>
               </tr>
             ))}
             {truckMaintenance.descontos.length > 1 && (
               <tr className="font-bold bg-gray-50">
-                <td className="border border-gray-300 px-2 py-1 text-right">TOTAL DESCONTOS</td>
-                <td className="border border-gray-300 px-2 py-1">-</td>
-                <td className="border border-gray-300 px-2 py-1">{formatNumber(truckMaintenance.qtdDias)}</td>
-                <td className="border border-gray-300 px-2 py-1">{formatCurrency(truckMaintenance.valor)}</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3 text-right">TOTAL DESCONTOS</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">-</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatNumber(truckMaintenance.qtdDias)}</td>
+                <td className="border border-gray-300 px-3 py-2 print:px-4 print:py-3">{formatCurrency(truckMaintenance.valor)}</td>
               </tr>
             )}
           </tbody>
@@ -353,11 +353,11 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
   };
 
   return (
-    <div id="relatorio-medicao-detalhado" className="px-6 py-4 space-y-4 bg-white print:p-4 print:shadow-none">
+    <div id="relatorio-medicao-detalhado" className="px-8 py-6 space-y-6 bg-white print:p-6 print:shadow-none">
       {/* Header */}
-      <div className="flex items-start justify-between print:mb-4">
-        <div className="flex items-center space-x-4">
-          <div className="w-12 h-12 flex items-center justify-center print:w-12 print:h-12">
+      <div className="flex items-start justify-between print:mb-6">
+        <div className="flex items-center space-x-6">
+          <div className="w-16 h-16 flex items-center justify-center print:w-16 print:h-16">
             <img 
               src="/lovable-uploads/dcf6c980-f927-4180-b109-b425da1323ba.png" 
               alt="Lytorânea Logo" 
@@ -365,11 +365,11 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
             />
           </div>
           <div>
-            <p className="text-sm font-medium print:text-black">CONSTRUTORA LYTORÂNEA</p>
-            <h2 className="text-xl font-bold print:text-black">RELATÓRIO DE MEDIÇÃO</h2>
+            <p className="text-base font-medium print:text-black print:text-lg">CONSTRUTORA LYTORÂNEA</p>
+            <h2 className="text-2xl font-bold print:text-black print:text-3xl">RELATÓRIO DE MEDIÇÃO</h2>
           </div>
         </div>
-        <div className="text-right space-y-1 text-sm print:text-black">
+        <div className="text-right space-y-2 text-base print:text-black print:text-lg">
           <p><strong>PM nº:</strong> 9</p>
           <p><strong>Mês de Referência:</strong> {mesReferencia}</p>
           <p><strong>Período:</strong> {periodo}</p>
@@ -377,30 +377,30 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
       </div>
 
       {/* Contratada e Obra */}
-      <div className="grid grid-cols-2 gap-4 text-sm print:text-black print:mb-4">
+      <div className="grid grid-cols-2 gap-6 text-base print:text-black print:mb-6 print:text-lg">
         <p><strong>CONTRATADA:</strong> ABRA INFRAESTRUTURA</p>
         <p><strong>OBRA:</strong> {obra}</p>
       </div>
 
       {/* Tabela de Serviços Dinâmica */}
       <div className="overflow-auto print:overflow-visible">
-        <h3 className="text-sm font-bold mb-2 print:text-black">1. DESCRIÇÃO DOS SERVIÇOS</h3>
+        <h3 className="text-base font-bold mb-3 print:text-black print:text-lg">1. DESCRIÇÃO DOS SERVIÇOS</h3>
         {tipoVeiculo === "Equipamento" ? renderEquipmentTable() : renderTruckTable()}
       </div>
 
       {/* Tabela de Descontos - ATUALIZADA para múltiplos descontos */}
-      <div className="text-sm print:mb-4">
-        <p className="font-bold mb-2 print:text-black">2. DESCONTOS/ACRÉSCIMOS</p>
-        <p className="font-semibold mb-1 text-xs print:text-black">2.1 DESCONTOS APLICÁVEIS</p>
+      <div className="text-base print:mb-6">
+        <p className="font-bold mb-3 print:text-black print:text-lg">2. DESCONTOS/ACRÉSCIMOS</p>
+        <p className="font-semibold mb-2 text-sm print:text-black print:text-base">2.1 DESCONTOS APLICÁVEIS</p>
         {renderDescontos()}
       </div>
 
       {/* Observações */}
-      <div className="print:mb-4">
-        <label className="block text-sm font-bold mb-1 print:text-black">Observações:</label>
+      <div className="print:mb-6">
+        <label className="block text-base font-bold mb-2 print:text-black print:text-lg">Observações:</label>
         <textarea
-          className="w-full border border-gray-300 rounded-md p-2 text-sm print:border print:border-gray-400 print:min-h-[60px]"
-          rows={3}
+          className="w-full border border-gray-300 rounded-md p-3 text-base print:border print:border-gray-400 print:min-h-[80px] print:text-base"
+          rows={4}
           value={observacoes}
           onChange={e => setObservacoes(e.target.value)}
           placeholder="Digite suas observações aqui..."
@@ -408,22 +408,22 @@ const RelatorioMedicaoDetalhado: React.FC<RelatorioMedicaoDetalhadoProps> = ({
       </div>
 
       {/* Total do Período mostra apenas soma dos serviços (SEM descontos) */}
-      <div className="text-center text-lg font-bold print:text-black print:mb-6">
+      <div className="text-center text-xl font-bold print:text-black print:mb-8 print:text-2xl">
         <p>TOTAL NO PERÍODO: {formatCurrency(calculateTotalPeriodo())}</p>
       </div>
 
       {/* Assinaturas */}
-      <div className="grid grid-cols-3 gap-4 text-center text-sm pt-6 border-t mt-6 print:border-t print:border-gray-400 print:pt-8">
+      <div className="grid grid-cols-3 gap-6 text-center text-base pt-8 border-t mt-8 print:border-t print:border-gray-400 print:pt-10 print:text-lg">
         <div>
-          <div className="h-12 border-b border-gray-400 w-3/4 mx-auto mt-2 mb-2 print:border-b print:border-gray-400" />
+          <div className="h-16 border-b border-gray-400 w-3/4 mx-auto mt-3 mb-3 print:border-b print:border-gray-400 print:h-20" />
           <p className="font-semibold print:text-black">Medição e Controle</p>
         </div>
         <div>
-          <div className="h-12 border-b border-gray-400 w-3/4 mx-auto mt-2 mb-2 print:border-b print:border-gray-400" />
+          <div className="h-16 border-b border-gray-400 w-3/4 mx-auto mt-3 mb-3 print:border-b print:border-gray-400 print:h-20" />
           <p className="font-semibold print:text-black">Gestor de Contratos</p>
         </div>
         <div>
-          <div className="h-12 border-b border-gray-400 w-3/4 mx-auto mt-2 mb-2 print:border-b print:border-gray-400" />
+          <div className="h-16 border-b border-gray-400 w-3/4 mx-auto mt-3 mb-3 print:border-b print:border-gray-400 print:h-20" />
           <p className="font-semibold print:text-black">Contratada</p>
         </div>
       </div>

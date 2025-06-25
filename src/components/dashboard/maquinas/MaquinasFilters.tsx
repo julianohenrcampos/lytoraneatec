@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Filter, X, RefreshCw, Calendar, Truck } from "lucide-react";
+import { Filter, RefreshCw, Calendar } from "lucide-react";
 import { MaquinasFilters } from "@/types/maquinas";
 
 interface MaquinasFiltrosProps {
@@ -165,119 +165,107 @@ export default function MaquinasFiltros({
           </Button>
         </div>
 
-        {/* Primeira linha de filtros - Filtros Gerais */}
-        <div className="space-y-3">
-          <h4 className="text-sm font-medium text-muted-foreground">Filtros Gerais</h4>
-          <div className="flex flex-wrap items-center gap-4">
-            {/* Período */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted-foreground">Período</label>
-              <Select onValueChange={handlePeriodoChange}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Selecione o período" />
-                </SelectTrigger>
-                <SelectContent>
-                  {periodos.map(periodo => (
-                    <SelectItem key={periodo.value} value={periodo.value}>
-                      {periodo.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        {/* Filtros Unificados */}
+        <div className="flex flex-wrap items-end gap-4">
+          {/* Período */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground">Período</label>
+            <Select onValueChange={handlePeriodoChange}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Selecione o período" />
+              </SelectTrigger>
+              <SelectContent>
+                {periodos.map(periodo => (
+                  <SelectItem key={periodo.value} value={periodo.value}>
+                    {periodo.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-            {/* Tipo de Veículo */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted-foreground">Tipo de Veículo</label>
-              <Select 
-                value={filters.tipoVeiculo && filters.tipoVeiculo.length > 0 ? filters.tipoVeiculo[0] : "_all"} 
-                onValueChange={handleTipoVeiculoChange}
-              >
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Todos os tipos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_all">Todos os tipos</SelectItem>
-                  {tiposVeiculo.map(tipo => (
-                    <SelectItem key={tipo.value} value={tipo.value}>
-                      {tipo.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Tipo de Veículo */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground">Tipo de Veículo</label>
+            <Select 
+              value={filters.tipoVeiculo && filters.tipoVeiculo.length > 0 ? filters.tipoVeiculo[0] : "_all"} 
+              onValueChange={handleTipoVeiculoChange}
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Todos os tipos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">Todos os tipos</SelectItem>
+                {tiposVeiculo.map(tipo => (
+                  <SelectItem key={tipo.value} value={tipo.value}>
+                    {tipo.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-            {/* Empresa */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted-foreground">Empresa</label>
-              <Select 
-                value={filters.empresaId || "_all"} 
-                onValueChange={handleEmpresaChange}
-              >
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Todas as empresas" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_all">Todas as empresas</SelectItem>
-                  <SelectItem value="lytoranea">LYTORANEA</SelectItem>
-                  <SelectItem value="construtora-acam">CONSTRUTORA ACAM</SelectItem>
-                  <SelectItem value="abra">ABRA</SelectItem>
-                </SelectContent>
-              </Select>
+          {/* Empresa */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground">Empresa</label>
+            <Select 
+              value={filters.empresaId || "_all"} 
+              onValueChange={handleEmpresaChange}
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Todas as empresas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">Todas as empresas</SelectItem>
+                <SelectItem value="lytoranea">LYTORANEA</SelectItem>
+                <SelectItem value="construtora-acam">CONSTRUTORA ACAM</SelectItem>
+                <SelectItem value="abra">ABRA</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Período Rápido (Caminhões) */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground">Período Rápido</label>
+            <Select onValueChange={handlePeriodoPlanejamentoChange}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Próximos 7 dias" />
+              </SelectTrigger>
+              <SelectContent>
+                {periodosPlanejamento.map(periodo => (
+                  <SelectItem key={periodo.value} value={periodo.value}>
+                    {periodo.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Data Início */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground">Data Início</label>
+            <div className="relative">
+              <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground z-10" />
+              <Input
+                type="date"
+                value={filters.dataInicioPlanejamanento || ""}
+                onChange={(e) => onFilterChange({ dataInicioPlanejamanento: e.target.value })}
+                className="pl-8 w-48"
+              />
             </div>
           </div>
-        </div>
 
-        {/* Segunda linha - Filtros Específicos para Caminhões Programados */}
-        <div className="space-y-3 pt-3 border-t">
-          <div className="flex items-center gap-2">
-            <Truck className="h-4 w-4 text-blue-600" />
-            <h4 className="text-sm font-medium text-muted-foreground">Período dos Caminhões Programados</h4>
-          </div>
-          <div className="flex flex-wrap items-end gap-4">
-            {/* Período Pré-definido */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted-foreground">Período Rápido</label>
-              <Select onValueChange={handlePeriodoPlanejamentoChange}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Próximos 7 dias" />
-                </SelectTrigger>
-                <SelectContent>
-                  {periodosPlanejamento.map(periodo => (
-                    <SelectItem key={periodo.value} value={periodo.value}>
-                      {periodo.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Data Início Personalizada */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted-foreground">Data Início</label>
-              <div className="relative">
-                <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground z-10" />
-                <Input
-                  type="date"
-                  value={filters.dataInicioPlanejamanento || ""}
-                  onChange={(e) => onFilterChange({ dataInicioPlanejamanento: e.target.value })}
-                  className="pl-8 w-48"
-                />
-              </div>
-            </div>
-
-            {/* Data Fim Personalizada */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted-foreground">Data Fim</label>
-              <div className="relative">
-                <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground z-10" />
-                <Input
-                  type="date"
-                  value={filters.dataFimPlanejamento || ""}
-                  onChange={(e) => onFilterChange({ dataFimPlanejamento: e.target.value })}
-                  className="pl-8 w-48"
-                />
-              </div>
+          {/* Data Fim */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground">Data Fim</label>
+            <div className="relative">
+              <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground z-10" />
+              <Input
+                type="date"
+                value={filters.dataFimPlanejamento || ""}
+                onChange={(e) => onFilterChange({ dataFimPlanejamento: e.target.value })}
+                className="pl-8 w-48"
+              />
             </div>
           </div>
         </div>

@@ -1,4 +1,3 @@
-
 import { useAuthPermissions } from './useAuthPermissions';
 
 // Mapeamento de rotas para permissões necessárias - ATUALIZADO
@@ -6,7 +5,8 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   // Dashboard
   '/dashboard': ['dashboard_view'],
   '/gestao-rh/dashboard': ['dashboard_rh_view'],
-  '/gestao-maquinas/dashboard': ['dashboard_maquinas_view'], // ⭐ CORRIGIDO
+  '/gestao-maquinas/dashboard': ['dashboard_maquinas_view'],
+  '/dashboard/requisicoes': ['dashboard_logistica_view'], // ⭐ NOVO
 
   // Gestão de RH
   '/gestao-rh/empresas': ['gestao_rh_empresas_view'],
@@ -19,7 +19,7 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   // Gestão de Máquinas/Equipamentos
   '/gestao-maquinas/caminhoes-equipamentos': ['gestao_maquinas_caminhoes_view'],
   '/gestao-maquinas/usinas': ['gestao_maquinas_usinas_view'],
-  '/gestao-maquinas/relatorio-medicao': ['gestao_maquinas_relatorio_medicao_view'], // ⭐ CORRIGIDO
+  '/gestao-maquinas/relatorio-medicao': ['gestao_maquinas_relatorio_medicao_view'],
 
   // Requisições e Logística
   '/requisicoes/cadastro': ['requisicoes_cadastro_view'],
@@ -32,7 +32,7 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   '/requisicoes/gestao-os': ['requisicoes_gestao_os_view'],
 
   // Administração
-  '/admin/permissoes': ['admin_permissoes_view'], // ⭐ CORRIGIDO
+  '/admin/permissoes': ['admin_permissoes_view'],
 };
 
 export const useRouteAccess = () => {

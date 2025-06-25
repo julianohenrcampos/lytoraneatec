@@ -1,8 +1,7 @@
-
 import React, { useState, useMemo } from "react";
 import { useRhDashboardDataSecure } from "@/hooks/dashboard/useRhDashboardDataSecure";
 import { Card } from "@/components/ui/card";
-import { Users, UserCheck, Calendar, Group, PieChart, BarChart, TrendingDown } from "lucide-react";
+import { Users, UserCheck, Calendar, TrendingDown, PieChart, BarChart, DollarSign, Calculator } from "lucide-react";
 import { usePermissionGuard } from "@/hooks/usePermissionGuard";
 import RhDashboardFilters from "./RhDashboardFilters";
 import TopFuncionariosCards from "./TopFuncionariosCards";
@@ -158,51 +157,110 @@ export default function RhDashboardComplete() {
         filtrosAtivos={filtrosAtivos}
       />
       
-      {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="flex flex-col items-center p-4 gap-2">
-          <Users className="h-7 w-7 text-primary mb-1" />
-          <span className="text-xs text-muted-foreground mb-1">Total Funcionários</span>
-          <span className="text-2xl font-bold">{kpisQuery.data?.totalFuncionarios ?? 0}</span>
+      {/* KPIs Principais com Novo Design */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Total Funcionários - Azul */}
+        <Card className="relative overflow-hidden border-0 shadow-sm bg-gradient-to-br from-slate-50 to-slate-100/80">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-blue-600/10" />
+          <div className="relative flex flex-col items-center p-6 pb-3">
+            <div className="p-2 rounded-lg bg-blue-100 mb-3">
+              <Users className="h-4 w-4 text-blue-600" />
+            </div>
+            <span className="text-sm text-muted-foreground mb-2 text-center">Total Funcionários</span>
+            <span className="text-2xl font-bold text-blue-900">{kpisQuery.data?.totalFuncionarios ?? 0}</span>
+          </div>
         </Card>
-        <Card className="flex flex-col items-center p-4 gap-2">
-          <UserCheck className="h-7 w-7 text-green-600 mb-1" />
-          <span className="text-xs text-muted-foreground mb-1">Ativos</span>
-          <span className="text-2xl font-bold">{kpisQuery.data?.totalAtivos ?? 0}</span>
+
+        {/* Ativos - Verde Água */}
+        <Card className="relative overflow-hidden border-0 shadow-sm bg-gradient-to-br from-slate-50 to-slate-100/80">
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-emerald-600/10" />
+          <div className="relative flex flex-col items-center p-6 pb-3">
+            <div className="p-2 rounded-lg bg-emerald-100 mb-3">
+              <UserCheck className="h-4 w-4 text-emerald-600" />
+            </div>
+            <span className="text-sm text-muted-foreground mb-2 text-center">Funcionários Ativos</span>
+            <span className="text-2xl font-bold text-emerald-900">{kpisQuery.data?.totalAtivos ?? 0}</span>
+          </div>
         </Card>
-        <Card className="flex flex-col items-center p-4 gap-2">
-          <Calendar className="h-7 w-7 text-cyan-500 mb-1" />
-          <span className="text-xs text-muted-foreground mb-1">Tempo Médio de Empresa</span>
-          <span className="text-2xl font-bold">{(() => {
-            const n = kpisQuery.data?.tempoMedioMeses ?? 0;
-            if (!n || Number.isNaN(n)) return "-";
-            if (n < 12) return `${Math.round(n)} mês${n === 1 ? "" : "es"}`;
-            const anos = Math.floor(n / 12);
-            const meses = n % 12;
-            if (meses === 0) return `${anos} ano${anos === 1 ? "" : "s"}`;
-            return `${anos}a ${meses}m`;
-          })()}</span>
+
+        {/* Tempo Médio - Roxo */}
+        <Card className="relative overflow-hidden border-0 shadow-sm bg-gradient-to-br from-slate-50 to-slate-100/80">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-violet-600/10" />
+          <div className="relative flex flex-col items-center p-6 pb-3">
+            <div className="p-2 rounded-lg bg-violet-100 mb-3">
+              <Calendar className="h-4 w-4 text-violet-600" />
+            </div>
+            <span className="text-sm text-muted-foreground mb-2 text-center">Tempo Médio de Empresa</span>
+            <span className="text-2xl font-bold text-violet-900">{(() => {
+              const n = kpisQuery.data?.tempoMedioMeses ?? 0;
+              if (!n || Number.isNaN(n)) return "-";
+              if (n < 12) return `${Math.round(n)} mês${n === 1 ? "" : "es"}`;
+              const anos = Math.floor(n / 12);
+              const meses = n % 12;
+              if (meses === 0) return `${anos} ano${anos === 1 ? "" : "s"}`;
+              return `${anos}a ${meses}m`;
+            })()}</span>
+          </div>
         </Card>
-        <Card className="flex flex-col items-center p-4 gap-2">
-          <TrendingDown className="h-7 w-7 text-orange-500 mb-1" />
-          <span className="text-xs text-muted-foreground mb-1">Turnover ({period})</span>
-          <span className="text-2xl font-bold">
-            {turnover === 0 ? "0%" : `${turnover}%`}
-          </span>
+
+        {/* Turnover - Laranja/Âmbar */}
+        <Card className="relative overflow-hidden border-0 shadow-sm bg-gradient-to-br from-slate-50 to-slate-100/80">
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-amber-600/10" />
+          <div className="relative flex flex-col items-center p-6 pb-3">
+            <div className="p-2 rounded-lg bg-amber-100 mb-3">
+              <TrendingDown className="h-4 w-4 text-amber-600" />
+            </div>
+            <span className="text-sm text-muted-foreground mb-2 text-center">Turnover ({period})</span>
+            <span className="text-2xl font-bold text-amber-900">
+              {turnover === 0 ? "0%" : `${turnover}%`}
+            </span>
+          </div>
         </Card>
       </div>
       
-      {/* RESUMO FINANCEIRO */}
+      {/* Resumo Financeiro com Novo Design */}
       <div>
         {loadingFinanceiro ? (
           <div className="w-full flex justify-center items-center py-8 text-muted-foreground">Carregando dados financeiros...</div>
         ) : (
-          <FolhaPagamentoResumo
-            folhaTotal={financeiro.folhaTotal}
-            mediaSalarial={financeiro.mediaSalarial}
-            folhaPorFuncao={financeiro.folhaPorFuncao}
-            folhaTotalGeral={totalFinanceiro.folhaTotal}
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {/* Folha Total */}
+            <Card className="relative overflow-hidden border-0 shadow-sm bg-gradient-to-br from-slate-50 to-slate-100/80">
+              <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-green-600/10" />
+              <div className="relative flex flex-col items-center p-6 pb-3">
+                <div className="p-2 rounded-lg bg-green-100 mb-3">
+                  <DollarSign className="h-4 w-4 text-green-600" />
+                </div>
+                <span className="text-sm text-muted-foreground mb-2 text-center">
+                  Folha Total {totalFinanceiro.folhaTotal !== financeiro.folhaTotal && (
+                    <span className="block text-[10px] text-muted-foreground">
+                      (de R$ {totalFinanceiro.folhaTotal?.toLocaleString("pt-BR", { minimumFractionDigits: 2 })})
+                    </span>
+                  )}
+                </span>
+                <span className="text-2xl font-bold text-green-900">
+                  R$ {financeiro.folhaTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                </span>
+                {financeiro.folhaTotal === 0 && (
+                  <span className="text-[10px] text-muted-foreground mt-1">Sem salários cadastrados</span>
+                )}
+              </div>
+            </Card>
+
+            {/* Média Salarial */}
+            <Card className="relative overflow-hidden border-0 shadow-sm bg-gradient-to-br from-slate-50 to-slate-100/80">
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-indigo-600/10" />
+              <div className="relative flex flex-col items-center p-6 pb-3">
+                <div className="p-2 rounded-lg bg-indigo-100 mb-3">
+                  <Calculator className="h-4 w-4 text-indigo-600" />
+                </div>
+                <span className="text-sm text-muted-foreground mb-2 text-center">Média Salarial</span>
+                <span className="text-2xl font-bold text-indigo-900">
+                  R$ {financeiro.mediaSalarial.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            </Card>
+          </div>
         )}
       </div>
       
@@ -226,7 +284,7 @@ export default function RhDashboardComplete() {
       
       {/* Top 5 Equipes */}
       <div>
-        <h2 className="font-semibold text-lg mb-2 flex gap-2 items-center"><Group className="h-5 w-5" /> Melhores Equipes</h2>
+        <h2 className="font-semibold text-lg mb-2 flex gap-2 items-center"><Users className="h-5 w-5" /> Melhores Equipes</h2>
         <TopEquipesCards equipes={topEquipes} />
       </div>
       

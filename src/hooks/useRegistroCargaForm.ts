@@ -1,74 +1,94 @@
-
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { RegistroCargaFormValues, RegistroCarga } from "@/types/registroCargas";
-import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
-import { createRegistroCarga, updateRegistroCarga, fetchRegistroCargaByListaEntregaId } from "@/services/registroCargaService";
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
+import { RegistroCargaFormValues } from "@/types/registroCargas";
+import { 
+  getCurrentBrazilianDate,
+} from "@/utils/timezoneUtils";
 
-// Zod schema for form validation
-const registroCargaSchema = z.object({
-  lista_entrega_id: z.string().uuid(),
-  programacao_id: z.string().uuid(),
-  data_saida: z.string().min(1, "Data de saída é obrigatória"),
-  hora_saida: z.string().min(1, "Hora de saída é obrigatória"),
-  temperatura_saida: z.number().nullable().optional(),
-  tonelada_saida: z.number().min(0.1, "Valor deve ser maior que zero"),
-  imagem_ticket_saida: z.any(), // Allow either string (URL) or File or null
-  tonelada_retorno: z.number().nullable().optional(),
-  imagem_ticket_retorno: z.any().optional(), // Allow either string (URL) or File or undefined
-  status_registro: z.enum(["Ativo", "Cancelado", "Concluído"]).optional()
-});
+interface UseRegistroCargaFormProps {
+  onSuccess?: () => void;
+}
 
-type RegistroCargaSchema = z.infer<typeof registroCargaSchema>;
+const saveRegistroCarga = async (data: any) => {
+  const { data: existingData, error: selectError } = await supabase
+    .from('bd_registro_cargas')
+    .select('*')
+    .eq('lista_entrega_id', data.lista_entrega_id);
 
-export const useRegistroCargaForm = (
-  onSuccess?: () => void,
-  initialData?: RegistroCarga
-) => {
+  if (selectError) {
+    throw selectError;
+  }
+
+  if (existingData && existingData.length > 0) {
+    // Update existing record
+    const { error: updateError } = await supabase
+      .from('bd_registro_cargas')
+      .update(data)
+      .eq('lista_entrega_id', data.lista_entrega_id);
+
+    if (updateError) {
+      throw updateError;
+    }
+  } else {
+    // Insert new record
+    const { error: insertError } = await supabase
+      .from('bd_registro_cargas')
+      .insert(data);
+
+    if (insertError) {
+      throw insertError;
+    }
+  }
+};
+
+const fetchRegistroCargaByListaEntregaId = async (listaEntregaId: string) => {
+  const { data, error } = await supabase
+    .from('bd_registro_cargas')
+    .select('*')
+    .eq('lista_entrega_id', listaEntregaId)
+    .single();
+
+  if (error) {
+    console.error("Error fetching registro carga:", error);
+    return null;
+  }
+
+  return data;
+};
+
+export const useRegistroCargaForm = (onSuccess?: () => void) => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [ticketSaidaPreview, setTicketSaidaPreview] = useState<string | null>(initialData?.imagem_ticket_saida || null);
-  const [ticketRetornoPreview, setTicketRetornoPreview] = useState<string | null>(initialData?.imagem_ticket_retorno || null);
-  
-  // Initialize form with either initial data or defaults
-  const form = useForm<RegistroCargaSchema>({
-    resolver: zodResolver(registroCargaSchema),
-    defaultValues: initialData
-      ? {
-          ...initialData,
-          temperatura_saida: initialData.temperatura_saida || null,
-          tonelada_retorno: initialData.tonelada_retorno || null,
-        }
-      : {
-          lista_entrega_id: "",
-          programacao_id: "",
-          data_saida: format(new Date(), "yyyy-MM-dd"),
-          hora_saida: format(new Date(), "HH:mm"),
-          temperatura_saida: null,
-          tonelada_saida: 0,
-          imagem_ticket_saida: "",
-          tonelada_retorno: null,
-          imagem_ticket_retorno: "",
-          status_registro: "Ativo"
-        },
+  const [ticketSaidaPreview, setTicketSaidaPreview] = useState<string | null>(null);
+  const [ticketRetornoPreview, setTicketRetornoPreview] = useState<string | null>(null);
+  const [currentListaEntregaId, setCurrentListaEntregaId] = useState<string | null>(null);
+
+  const form = useForm<RegistroCargaFormValues>({
+    defaultValues: {
+      data_saida: getCurrentBrazilianDate(),
+      temperatura_saida: 0,
+      tonelada_saida: 0,
+      tonelada_retorno: 0,
+      hora_saida: "",
+      lista_entrega_id: "",
+      programacao_id: "",
+      imagem_ticket_saida: null,
+      imagem_ticket_retorno: null,
+      status_registro: "Ativo",
+    },
   });
 
-  // Handle file input changes
   const handleTicketSaidaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Preview the image
       const reader = new FileReader();
-      reader.onload = () => {
+      reader.onloadend = () => {
         setTicketSaidaPreview(reader.result as string);
       };
       reader.readAsDataURL(file);
-      
-      // Set the file in the form
       form.setValue("imagem_ticket_saida", file);
     }
   };
@@ -76,107 +96,96 @@ export const useRegistroCargaForm = (
   const handleTicketRetornoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Preview the image
       const reader = new FileReader();
-      reader.onload = () => {
+      reader.onloadend = () => {
         setTicketRetornoPreview(reader.result as string);
       };
       reader.readAsDataURL(file);
-      
-      // Set the file in the form
       form.setValue("imagem_ticket_retorno", file);
     }
   };
 
-  // Initialize form with data from a lista programacao entrega item
-  const initializeFromListaEntrega = async (item: ListaProgramacaoEntrega) => {
+  const initializeFromListaEntrega = useCallback(async (entrega: ListaProgramacaoEntrega) => {
     try {
-      // Check if there's already a registro carga for this lista entrega
-      const existingRegistro = await fetchRegistroCargaByListaEntregaId(item.id);
+      // Check if there's an existing registro for this entrega
+      const existingRegistro = await fetchRegistroCargaByListaEntregaId(entrega.id);
       
+      let defaultValues: any = {
+        lista_entrega_id: entrega.id,
+        programacao_id: entrega.programacao_id || "",
+        data_saida: getCurrentBrazilianDate(),
+        hora_saida: "",
+        tonelada_saida: entrega.quantidade_massa || 0,
+        tonelada_retorno: 0,
+        temperatura_saida: 0,
+        status_registro: "Ativo" as const
+      };
+
       if (existingRegistro) {
-        // Populate form with existing registro data
-        form.reset({
-          lista_entrega_id: existingRegistro.lista_entrega_id,
-          programacao_id: existingRegistro.programacao_id,
-          data_saida: existingRegistro.data_saida,
-          hora_saida: existingRegistro.hora_saida,
-          temperatura_saida: existingRegistro.temperatura_saida || null,
-          tonelada_saida: existingRegistro.tonelada_saida,
-          imagem_ticket_saida: existingRegistro.imagem_ticket_saida,
-          tonelada_retorno: existingRegistro.tonelada_retorno || null,
-          imagem_ticket_retorno: existingRegistro.imagem_ticket_retorno || "",
-          status_registro: existingRegistro.status_registro
-        });
-        
-        // Set image previews if they exist
-        setTicketSaidaPreview(existingRegistro.imagem_ticket_saida || null);
-        setTicketRetornoPreview(existingRegistro.imagem_ticket_retorno || null);
-        
-        return existingRegistro;
-      } else {
-        // Initialize new form with lista entrega data
-        form.reset({
-          lista_entrega_id: item.id,
-          programacao_id: item.programacao_entrega_id,
-          data_saida: format(new Date(), "yyyy-MM-dd"),
-          hora_saida: format(new Date(), "HH:mm"),
-          temperatura_saida: null,
-          tonelada_saida: 0,
-          imagem_ticket_saida: "",
-          tonelada_retorno: null,
-          imagem_ticket_retorno: "",
-          status_registro: "Ativo"
-        });
-        
-        // Clear image previews
-        setTicketSaidaPreview(null);
-        setTicketRetornoPreview(null);
-        
-        return null;
+        defaultValues = {
+          ...existingRegistro,
+          data_saida: existingRegistro.data_saida || getCurrentBrazilianDate(),
+          temperatura_saida: existingRegistro.temperatura_saida || 0,
+          tonelada_retorno: existingRegistro.tonelada_retorno || 0,
+          hora_saida: existingRegistro.hora_saida || "",
+          status_registro: (existingRegistro.status_registro as "Ativo" | "Concluído" | "Cancelado") || "Ativo"
+        };
       }
+
+      form.reset(defaultValues);
+      setCurrentListaEntregaId(entrega.id);
+      
+      if (existingRegistro?.imagem_ticket_saida) {
+        setTicketSaidaPreview(existingRegistro.imagem_ticket_saida);
+      }
+      
+      if (existingRegistro?.imagem_ticket_retorno) {
+        setTicketRetornoPreview(existingRegistro.imagem_ticket_retorno);
+      }
+      
     } catch (error) {
       console.error("Error initializing form from lista entrega:", error);
       toast({
         title: "Erro",
-        description: "Não foi possível carregar os dados do registro",
+        description: "Erro ao carregar dados da entrega",
         variant: "destructive",
       });
-      return null;
     }
-  };
+  }, [form, toast]);
 
-  // Form submission handler
-  const onSubmit = async (data: RegistroCargaSchema) => {
-    setIsLoading(true);
-    try {
-      if (initialData?.id) {
-        // Update existing registro
-        await updateRegistroCarga(initialData.id, data as RegistroCargaFormValues);
-        toast({
-          title: "Sucesso",
-          description: "Registro de carga atualizado com sucesso",
-        });
-      } else {
-        // Create new registro
-        await createRegistroCarga(data as RegistroCargaFormValues);
-        toast({
-          title: "Sucesso",
-          description: "Registro de carga criado com sucesso",
-        });
-      }
-      onSuccess?.();
-    } catch (error) {
-      console.error("Error saving registro carga:", error);
+  const onSubmit = useCallback(async (data: RegistroCargaFormValues) => {
+    if (!currentListaEntregaId) {
       toast({
         title: "Erro",
-        description: "Ocorreu um erro ao salvar o registro de carga",
+        description: "ID da entrega não encontrado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+
+      const registroData = {
+        ...data,
+        lista_entrega_id: currentListaEntregaId,
+        status_registro: data.status_registro || "Ativo" as const
+      };
+
+      await saveRegistroCarga(registroData);
+      
+      onSuccess?.();
+    } catch (error) {
+      console.error("Error saving registro:", error);
+      toast({
+        title: "Erro",
+        description: "Erro ao salvar registro",
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentListaEntregaId, toast, onSuccess]);
 
   return {
     form,
