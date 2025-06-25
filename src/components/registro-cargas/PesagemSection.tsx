@@ -19,7 +19,7 @@ const PesagemSection: React.FC<PesagemSectionProps> = ({
   handleTicketSaidaChange,
   handleTicketRetornoChange,
 }) => {
-  // Função para calcular tonelada real com validação
+  // Função para calcular tonelada real com validação - formato correto com 1 casa decimal
   const calcularToneladaReal = (): string => {
     try {
       const toneladaSaida = form.watch("tonelada_saida");
@@ -30,7 +30,7 @@ const PesagemSection: React.FC<PesagemSectionProps> = ({
       // Validar tonelada de saída
       const saidaNum = Number(toneladaSaida);
       if (isNaN(saidaNum) || saidaNum < 0) {
-        return "0.000 t";
+        return "0.0 t";
       }
 
       // Validar tonelada de retorno (pode ser null ou undefined)
@@ -45,10 +45,11 @@ const PesagemSection: React.FC<PesagemSectionProps> = ({
       const resultado = saidaNum - retornoNum;
       console.log("PesagemSection - Resultado calculado:", resultado);
 
-      return `${Math.max(0, resultado).toFixed(3)} t`;
+      // Formato correto: 1 casa decimal (ex: 2.5 t)
+      return `${Math.max(0, resultado).toFixed(1)} t`;
     } catch (error) {
       console.error("PesagemSection - Erro no cálculo:", error);
-      return "0.000 t";
+      return "0.0 t";
     }
   };
 

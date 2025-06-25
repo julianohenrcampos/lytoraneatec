@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Truck, Weight, Clock, User, MapPin, CalendarIcon } from "lucide-react";
+import { Truck, Clock, User, MapPin, CalendarIcon } from "lucide-react";
 import { RegistroCarga } from "@/types/registroCargas";
 import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
 import { format } from "date-fns";
@@ -93,34 +93,6 @@ export default function RegistroCargaHeader({
               <p className="text-sm text-muted-foreground">
                 {currentEntrega.bairro || "Bairro não informado"}
               </p>
-            </div>
-          </div>
-
-          {/* Informações da Massa */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Weight className="h-4 w-4" />
-              Massa
-            </div>
-            <div>
-              <div>
-                <Label htmlFor="tonelada_saida" className="text-xs">Saída (t)</Label>
-                <Input
-                  id="tonelada_saida"
-                  type="number"
-                  step="0.01"
-                  {...form.register("tonelada_saida")}
-                />
-              </div>
-              <div className="mt-2">
-                <Label htmlFor="tonelada_retorno" className="text-xs">Retorno (t)</Label>
-                <Input
-                  id="tonelada_retorno"
-                  type="number"
-                  step="0.01"
-                  {...form.register("tonelada_retorno")}
-                />
-              </div>
             </div>
           </div>
 

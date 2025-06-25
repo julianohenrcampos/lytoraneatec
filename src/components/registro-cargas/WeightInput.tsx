@@ -21,7 +21,7 @@ const WeightInput: React.FC<WeightInputProps> = ({
 }) => {
   // Função para validar se é um número válido
   const isValidNumber = (value: any): boolean => {
-    return value !== null && value !== undefined && !isNaN(Number(value)) && Number(value) >= 0;
+    return value !== null && value !== undefined && !isNaN(Number(value)) && Number(value) > 0;
   };
 
   // Função para converter kg para toneladas com validação
@@ -56,9 +56,14 @@ const WeightInput: React.FC<WeightInputProps> = ({
     onChange(toneladaValue);
   };
 
-  // Função para formatar o valor de exibição com validação
+  // Função para formatar o valor de exibição com validação - campo sempre limpo para Saída(t)
   const formatDisplayValue = (value: any): string => {
-    if (!isValidNumber(value) || value === 0) {
+    // Para o campo de saída, sempre iniciar limpo
+    if (name === "tonelada_saida" && (!value || value === 0)) {
+      return '';
+    }
+
+    if (!isValidNumber(value)) {
       return '';
     }
 
@@ -75,9 +80,9 @@ const WeightInput: React.FC<WeightInputProps> = ({
     }
   };
 
-  // Função para formatar texto de conversão com validação
+  // Função para formatar texto de conversão com validação - formato 1 casa decimal
   const formatConversionText = (value: any): string => {
-    if (!isValidNumber(value) || value === 0) {
+    if (!isValidNumber(value)) {
       return 'Digite o peso em kg para converter automaticamente';
     }
 
@@ -85,7 +90,8 @@ const WeightInput: React.FC<WeightInputProps> = ({
       const numValue = Number(value);
       if (isNaN(numValue)) return 'Valor inválido';
       
-      return `Convertido: ${numValue.toFixed(3)} toneladas`;
+      // Formato correto: 1 casa decimal
+      return `Convertido: ${numValue.toFixed(1)} toneladas`;
     } catch (error) {
       console.error("WeightInput - Erro ao formatar texto de conversão:", error);
       return 'Erro na conversão';
