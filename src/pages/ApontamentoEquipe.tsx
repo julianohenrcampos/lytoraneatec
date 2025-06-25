@@ -28,10 +28,16 @@ import {
   canCreateAvaliacaoForColaborador,
   checkAvaliacaoObrigatoria
 } from "@/services/apontamentoEquipeService";
+import { useOfflineEquipes } from "@/hooks/useOfflineEquipes";
+import { useOfflineNotifications } from "@/hooks/useOfflineNotifications";
 
 const ApontamentoEquipe: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  
+  // Usar notificações offline não intrusivas
+  useOfflineNotifications();
+  
   const [isAvaliacaoModalOpen, setIsAvaliacaoModalOpen] = useState(false);
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [selectedColaborador, setSelectedColaborador] = useState<{
@@ -75,12 +81,12 @@ const ApontamentoEquipe: React.FC = () => {
     canAccessAllTeams
   } = useApontamentoEquipe();
 
-  // Fetch only allowed teams
-  const { data: allEquipes = [] } = useQuery({
-    queryKey: ['equipes'],
-    queryFn: () => fetchEquipes(),
-    enabled: allowedTeamIds.length >= 0,
-  });
+  // Usar hook offline para equipes
+  const { 
+    data: allEquipes = [], 
+    isLoading: equipesLoading,
+    isFromCache: equipesFromCache 
+  } = useOfflineEquipes();
 
   // Filter teams based on user access
   const equipes = React.useMemo(() => {
@@ -223,7 +229,7 @@ const ApontamentoEquipe: React.FC = () => {
 
   const canCreateApontamento = ['SuperAdm', 'AdmRH', 'Apontador', 'Encarregado'].includes(userRole || '');
 
-  if (isLoading) {
+  if (isLoading || equipesLoading) {
     return (
       <MainLayout>
         <div className="container py-6">
@@ -278,6 +284,9 @@ const ApontamentoEquipe: React.FC = () => {
               <span>Role: <strong>{userRole}</strong></span>
               <span>Acesso: {canAccessAllTeams ? 'Todas as equipes' : `${allowedTeamIds.length} equipes permitidas`}</span>
               <span>Controle: <strong>Aplicado por equipe</strong> - Dados filtrados automaticamente</span>
+              {equipesFromCache && (
+                <span className="text-amber-600">📱 Dados carregados do cache offline</span>
+              )}
             </div>
           </AlertDescription>
         </Alert>

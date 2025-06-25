@@ -1,9 +1,11 @@
 
 import { useState, useEffect } from 'react';
+import { useToast } from './use-toast';
 
 export const usePWAUpdate = () => {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     if ('serviceWorker' in navigator) {
@@ -20,39 +22,29 @@ export const usePWAUpdate = () => {
               console.log('PWA: Nova versão encontrada');
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  console.log('PWA: Update disponível');
                   setUpdateAvailable(true);
+                  
+                  // Mostrar toast de atualização disponível (sem JSX no hook)
+                  toast({
+                    title: "Atualização disponível",
+                    description: "Uma nova versão está disponível. Clique em 'Atualizar' para aplicar as mudanças.",
+                    duration: 10000,
+                  });
                 }
               });
             }
           });
-
-          // Verificar updates periodicamente
-          setInterval(() => {
-            reg.update();
-          }, 60000); // Verificar a cada minuto
         })
         .catch((error) => {
           console.error('PWA: Erro ao registrar Service Worker:', error);
         });
-
-      // Listener para quando um novo service worker assume o controle
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        console.log('PWA: Nova versão ativada');
-        setUpdateAvailable(false);
-      });
     }
-  }, []);
+  }, [toast]);
 
-  const applyUpdate = async () => {
+  const applyUpdate = () => {
     if (registration && registration.waiting) {
-      // Enviar mensagem para o service worker waiting para assumir o controle
       registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-      
-      // Recarregar a página para aplicar a atualização
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+      window.location.reload();
     }
   };
 

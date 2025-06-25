@@ -6,9 +6,11 @@ import AppHeader from "./AppHeader";
 import { useSidebarState } from "@/hooks/useSidebarState";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePWAUpdate } from "@/hooks/usePWAUpdate";
 import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
 import { PWAUpdateNotification } from "@/components/pwa/PWAUpdateNotification";
 import { OfflineIndicator } from "@/components/pwa/OfflineIndicator";
+import { OfflineStatusBadge } from "@/components/pwa/OfflineStatusBadge";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -18,6 +20,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const { openGroups, setOpenGroups, toggleGroup } = useSidebarState();
   const { user, isLoading, updateUserImage } = useUserProfile();
   const isMobile = useIsMobile();
+  
+  // Inicializar PWA updates
+  usePWAUpdate();
 
   // Update document title
   useEffect(() => {

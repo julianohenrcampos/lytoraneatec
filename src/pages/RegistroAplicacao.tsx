@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import MainLayout from "@/components/layout/MainLayout";
@@ -16,14 +15,18 @@ import { fetchCentrosCustoFiltered } from "@/services/centrosCustoFilteredServic
 import { fetchCaminhoesWithCapacity } from "@/services/caminhoesFilteredService";
 import EntregasEnviadasTable from "@/components/registro-aplicacao/EntregasEnviadasTable";
 import NovoRegistroAplicacaoModal from "@/components/registro-aplicacao/NovoRegistroAplicacaoModal";
+import { useOfflineVeiculos } from "@/hooks/useOfflineVeiculos";
+import { useOfflineCentrosCusto } from "@/hooks/useOfflineCentrosCusto";
+import { useOfflineNotifications } from "@/hooks/useOfflineNotifications";
 
 const RegistroAplicacao: React.FC = () => {
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
-  const [caminhoesList, setCaminhoesList] = useState<any[]>([]);
-  const [centrosCustoList, setCentrosCustoList] = useState<any[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Usar notificações offline não intrusivas
+  useOfflineNotifications();
+  
   const [selectedEntrega, setSelectedEntrega] = useState<ListaProgramacaoEntrega | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [filters, setFilters] = useState<RegistroAplicacaoFiltersType>({
     // Não definir data_inicio por padrão para mostrar todas as entregas
   });
@@ -31,6 +34,19 @@ const RegistroAplicacao: React.FC = () => {
   // Get user permissions and data access control
   const { userId, isSuperAdmin } = useAuthPermissions();
   const { allowedTeamIds, userRole, canAccessAllTeams, isLoading: accessLoading } = useUserDataAccess();
+
+  // Usar hooks offline para dados dos formulários
+  const { 
+    data: caminhoesList = [], 
+    isLoading: caminhoesLoading,
+    isFromCache: caminhoesFromCache 
+  } = useOfflineVeiculos();
+  
+  const { 
+    data: centrosCustoList = [], 
+    isLoading: centrosLoading,
+    isFromCache: centrosFromCache 
+  } = useOfflineCentrosCusto();
 
   console.log("⚡️ RegistroAplicacao rendering - userId:", userId, "userRole:", userRole, "allowedTeams:", allowedTeamIds, "filters:", filters);
 
@@ -47,43 +63,6 @@ const RegistroAplicacao: React.FC = () => {
     retry: 2,
     retryDelay: 1000,
   });
-
-  // Load filter data - only once when component mounts and access data is ready
-  useEffect(() => {
-    const loadData = async () => {
-      if (accessLoading || userId === null || isSuperAdmin === null) return;
-
-      try {
-        setIsLoading(true);
-        console.log("🔄 Loading filter data - userId:", userId, "isSuperAdmin:", isSuperAdmin, "userRole:", userRole);
-        
-        // Load caminhões
-        console.log("🚚 Fetching caminhões...");
-        const caminhoesData = await fetchCaminhoesWithCapacity();
-        console.log("🚚 Fetched caminhões:", caminhoesData?.length || 0);
-        setCaminhoesList(caminhoesData || []);
-
-        // Load centros de custo
-        console.log("🏢 Fetching centros de custo...");
-        const centrosData = await fetchCentrosCustoFiltered(userId, isSuperAdmin);
-        console.log("🏢 Fetched centros de custo:", centrosData?.length || 0);
-        setCentrosCustoList(centrosData || []);
-        
-        console.log("✅ Filter data loaded successfully");
-      } catch (error) {
-        console.error("❌ Error loading filter data:", error);
-        toast({
-          title: "Erro",
-          description: "Não foi possível carregar os dados dos filtros",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadData();
-  }, [userId, isSuperAdmin, userRole, accessLoading, toast]);
 
   const handleFilter = useCallback((filters: RegistroAplicacaoFiltersType) => {
     console.log("🔍 Applying filters:", filters);
@@ -133,10 +112,12 @@ const RegistroAplicacao: React.FC = () => {
     hasError: !!entregasError,
     hasActiveFilters,
     allowedTeams: allowedTeamIds.length,
-    canAccessAll: canAccessAllTeams
+    canAccessAll: canAccessAllTeams,
+    caminhoesFromCache,
+    centrosFromCache
   });
 
-  if (accessLoading) {
+  if (accessLoading || caminhoesLoading || centrosLoading) {
     return (
       <MainLayout>
         <div className="container py-6">
@@ -177,6 +158,11 @@ const RegistroAplicacao: React.FC = () => {
                 <span>Usuário: <strong>{userRole}</strong></span>
                 <span>Acesso: {canAccessAllTeams ? 'Todas as equipes' : `${allowedTeamIds.length} equipes permitidas`}</span>
                 <span>Controle: <strong>Aplicado por equipe</strong> - Dados filtrados automaticamente</span>
+                {(caminhoesFromCache || centrosFromCache) && (
+                  <span className="text-amber-600">
+                    📱 {caminhoesFromCache && 'Caminhões'}{caminhoesFromCache && centrosFromCache && ' e '}{centrosFromCache && 'Centros de custo'} carregados do cache offline
+                  </span>
+                )}
               </div>
             </AlertDescription>
           </Alert>
