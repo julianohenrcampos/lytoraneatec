@@ -374,9 +374,7 @@ export default function RequisicaoFormModal({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="RR-1C">RR-1C</SelectItem>
-                          <SelectItem value="RR-2C">RR-2C</SelectItem>
-                          <SelectItem value="CM-30">CM-30</SelectItem>
-                          <SelectItem value="Não aplicável">Não aplicável</SelectItem>
+                          <SelectItem value="IMPRIMA">IMPRIMA</SelectItem>
                         </SelectContent>
                       </Select>
                       {ruaForm.formState.errors.pintura_ligacao && (
@@ -396,10 +394,9 @@ export default function RequisicaoFormModal({
                           <SelectValue placeholder="Selecione" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Faixa I">Faixa I</SelectItem>
-                          <SelectItem value="Faixa II">Faixa II</SelectItem>
-                          <SelectItem value="Faixa III">Faixa III</SelectItem>
-                          <SelectItem value="PMF">PMF</SelectItem>
+                          <SelectItem value="4C">4C</SelectItem>
+                          <SelectItem value="5A">5A</SelectItem>
+                          <SelectItem value="BINDER">BINDER</SelectItem>
                         </SelectContent>
                       </Select>
                       {ruaForm.formState.errors.traco && (
