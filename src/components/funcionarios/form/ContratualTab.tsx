@@ -24,7 +24,7 @@ interface ContratualTabProps {
   setActiveTab: (tab: string) => void;
 }
 
-export default function ContratualTab({ form }: ContratualTabProps) {
+export default function ContratualTab({ form, onClose, setActiveTab }: ContratualTabProps) {
   const handleDateChange = (field: any, date: Date | undefined) => {
     if (date) {
       const normalizedDate = normalizeDateToBrazilianNoon(date);
@@ -129,6 +129,7 @@ export default function ContratualTab({ form }: ContratualTabProps) {
                   <SelectItem value="Terceirizado">Terceirizado</SelectItem>
                   <SelectItem value="Temporário">Temporário</SelectItem>
                   <SelectItem value="Estágio">Estágio</SelectItem>
+                  <SelectItem value="PJ">Pessoa Jurídica</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -208,6 +209,7 @@ export default function ContratualTab({ form }: ContratualTabProps) {
                 <SelectContent>
                   <SelectItem value="Ativo">Ativo</SelectItem>
                   <SelectItem value="Inativo">Inativo</SelectItem>
+                  <SelectItem value="Aviso Prévio">Aviso Prévio</SelectItem>
                   <SelectItem value="Férias">Férias</SelectItem>
                   <SelectItem value="Licença">Licença</SelectItem>
                 </SelectContent>
@@ -273,6 +275,32 @@ export default function ContratualTab({ form }: ContratualTabProps) {
             </FormItem>
           )}
         />
+      </div>
+
+      {/* Navegação */}
+      <div className="flex justify-between gap-2 pt-4">
+        <Button 
+          type="button" 
+          variant="outline" 
+          onClick={() => setActiveTab("profissional")}
+        >
+          Anterior
+        </Button>
+        <div className="flex gap-2">
+          <Button 
+            type="button" 
+            variant="outline" 
+            onClick={onClose}
+          >
+            Cancelar
+          </Button>
+          <Button 
+            type="button" 
+            onClick={() => setActiveTab("financeiro")}
+          >
+            Próximo
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -19,6 +19,39 @@ const PesagemSection: React.FC<PesagemSectionProps> = ({
   handleTicketSaidaChange,
   handleTicketRetornoChange,
 }) => {
+  // Função para calcular tonelada real com validação
+  const calcularToneladaReal = (): string => {
+    try {
+      const toneladaSaida = form.watch("tonelada_saida");
+      const toneladaRetorno = form.watch("tonelada_retorno");
+
+      console.log("PesagemSection - Valores para cálculo:", { toneladaSaida, toneladaRetorno });
+
+      // Validar tonelada de saída
+      const saidaNum = Number(toneladaSaida);
+      if (isNaN(saidaNum) || saidaNum < 0) {
+        return "0.000 t";
+      }
+
+      // Validar tonelada de retorno (pode ser null ou undefined)
+      let retornoNum = 0;
+      if (toneladaRetorno !== null && toneladaRetorno !== undefined) {
+        retornoNum = Number(toneladaRetorno);
+        if (isNaN(retornoNum) || retornoNum < 0) {
+          retornoNum = 0;
+        }
+      }
+
+      const resultado = saidaNum - retornoNum;
+      console.log("PesagemSection - Resultado calculado:", resultado);
+
+      return `${Math.max(0, resultado).toFixed(3)} t`;
+    } catch (error) {
+      console.error("PesagemSection - Erro no cálculo:", error);
+      return "0.000 t";
+    }
+  };
+
   return (
     <div>
       <h3 className="text-lg font-medium mb-4">Dados da Pesagem</h3>
@@ -66,7 +99,7 @@ const PesagemSection: React.FC<PesagemSectionProps> = ({
         <div className="flex justify-between items-center">
           <h4 className="text-sm font-medium">Tonelada Real (Aplicada)</h4>
           <div className="text-xl font-bold">
-            {(form.watch("tonelada_saida") - (form.watch("tonelada_retorno") || 0)).toFixed(3)} t
+            {calcularToneladaReal()}
           </div>
         </div>
         <p className="text-xs text-muted-foreground mt-1">

@@ -19,17 +19,76 @@ const WeightInput: React.FC<WeightInputProps> = ({
   placeholder = "Digite o peso em kg",
   isRetorno = false,
 }) => {
-  // Função para converter kg para toneladas
+  // Função para validar se é um número válido
+  const isValidNumber = (value: any): boolean => {
+    return value !== null && value !== undefined && !isNaN(Number(value)) && Number(value) >= 0;
+  };
+
+  // Função para converter kg para toneladas com validação
   const handleWeightChange = (value: string, onChange: (value: number | null) => void) => {
-    if (value) {
-      const kgValue = parseFloat(value);
-      if (!isNaN(kgValue)) {
-        // Converte kg para toneladas (divide por 1000)
-        const toneladaValue = kgValue / 1000;
-        onChange(toneladaValue);
-      }
-    } else {
+    console.log("WeightInput - Input recebido:", value);
+    
+    if (!value || value.trim() === "") {
+      console.log("WeightInput - Valor vazio, definindo como null/0");
       onChange(isRetorno ? null : 0);
+      return;
+    }
+
+    // Remove caracteres não numéricos exceto ponto e vírgula
+    const cleanValue = value.replace(/[^\d.,]/g, '').replace(',', '.');
+    
+    if (cleanValue === "") {
+      onChange(isRetorno ? null : 0);
+      return;
+    }
+
+    const kgValue = parseFloat(cleanValue);
+    
+    if (isNaN(kgValue) || kgValue < 0) {
+      console.warn("WeightInput - Valor inválido:", cleanValue);
+      onChange(isRetorno ? null : 0);
+      return;
+    }
+
+    // Converte kg para toneladas (divide por 1000)
+    const toneladaValue = kgValue / 1000;
+    console.log("WeightInput - Convertendo:", kgValue, "kg para", toneladaValue, "toneladas");
+    onChange(toneladaValue);
+  };
+
+  // Função para formatar o valor de exibição com validação
+  const formatDisplayValue = (value: any): string => {
+    if (!isValidNumber(value) || value === 0) {
+      return '';
+    }
+
+    try {
+      const numValue = Number(value);
+      if (isNaN(numValue)) return '';
+      
+      // Converte toneladas para kg para exibição
+      const kgValue = numValue * 1000;
+      return kgValue.toString();
+    } catch (error) {
+      console.error("WeightInput - Erro ao formatar valor:", error);
+      return '';
+    }
+  };
+
+  // Função para formatar texto de conversão com validação
+  const formatConversionText = (value: any): string => {
+    if (!isValidNumber(value) || value === 0) {
+      return 'Digite o peso em kg para converter automaticamente';
+    }
+
+    try {
+      const numValue = Number(value);
+      if (isNaN(numValue)) return 'Valor inválido';
+      
+      return `Convertido: ${numValue.toFixed(3)} toneladas`;
+    } catch (error) {
+      console.error("WeightInput - Erro ao formatar texto de conversão:", error);
+      return 'Erro na conversão';
     }
   };
 
@@ -44,14 +103,15 @@ const WeightInput: React.FC<WeightInputProps> = ({
             <Input 
               type="number" 
               step="1"
+              min="0"
               placeholder={placeholder}
               onChange={(e) => handleWeightChange(e.target.value, field.onChange)}
-              value={field.value ? (field.value * 1000).toString() : ''}
+              value={formatDisplayValue(field.value)}
             />
           </FormControl>
           <FormMessage />
           <p className="text-xs text-muted-foreground">
-            {field.value ? `Convertido: ${field.value.toFixed(3)} toneladas` : 'Digite o peso em kg para converter automaticamente'}
+            {formatConversionText(field.value)}
           </p>
         </FormItem>
       )}

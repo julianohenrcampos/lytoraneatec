@@ -3,6 +3,7 @@ import React from "react";
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { UseFormReturn } from "react-hook-form";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -31,7 +32,7 @@ interface PessoalTabProps {
   setIsUploadingImage: (uploading: boolean) => void;
 }
 
-export default function PessoalTab({ form }: PessoalTabProps) {
+export default function PessoalTab({ form, onClose, setActiveTab }: PessoalTabProps) {
   const handleDateChange = (field: any, date: Date | undefined) => {
     if (date) {
       const normalizedDate = normalizeDateToBrazilianNoon(date);
@@ -95,6 +96,31 @@ export default function PessoalTab({ form }: PessoalTabProps) {
               <FormControl>
                 <Input placeholder="00.000.000-0" {...field} />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Gênero */}
+        <FormField
+          control={form.control}
+          name="genero"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Gênero</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value || ""}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="Masculino">Masculino</SelectItem>
+                  <SelectItem value="Feminino">Feminino</SelectItem>
+                  <SelectItem value="Outro">Outro</SelectItem>
+                  <SelectItem value="Prefiro não informar">Prefiro não informar</SelectItem>
+                </SelectContent>
+              </Select>
               <FormMessage />
             </FormItem>
           )}
@@ -168,6 +194,36 @@ export default function PessoalTab({ form }: PessoalTabProps) {
           )}
         />
 
+        {/* Escolaridade */}
+        <FormField
+          control={form.control}
+          name="escolaridade"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Escolaridade</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value || ""}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="Ensino Fundamental Incompleto">Ensino Fundamental Incompleto</SelectItem>
+                  <SelectItem value="Ensino Fundamental Completo">Ensino Fundamental Completo</SelectItem>
+                  <SelectItem value="Ensino Médio Incompleto">Ensino Médio Incompleto</SelectItem>
+                  <SelectItem value="Ensino Médio Completo">Ensino Médio Completo</SelectItem>
+                  <SelectItem value="Ensino Superior Incompleto">Ensino Superior Incompleto</SelectItem>
+                  <SelectItem value="Ensino Superior Completo">Ensino Superior Completo</SelectItem>
+                  <SelectItem value="Pós-graduação">Pós-graduação</SelectItem>
+                  <SelectItem value="Mestrado">Mestrado</SelectItem>
+                  <SelectItem value="Doutorado">Doutorado</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         {/* Telefone */}
         <FormField
           control={form.control}
@@ -197,21 +253,45 @@ export default function PessoalTab({ form }: PessoalTabProps) {
             </FormItem>
           )}
         />
+      </div>
 
-        {/* Endereço */}
-        <FormField
-          control={form.control}
-          name="endereco"
-          render={({ field }) => (
-            <FormItem className="md:col-span-2">
-              <FormLabel>Endereço</FormLabel>
-              <FormControl>
-                <Input placeholder="Rua, número, bairro, cidade - CEP" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+      {/* Endereço Completo */}
+      <FormField
+        control={form.control}
+        name="endereco_completo"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Endereço Completo</FormLabel>
+            <FormControl>
+              <Textarea 
+                placeholder="Rua, número, complemento, bairro, cidade - CEP" 
+                className="min-h-[80px]"
+                {...field} 
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      {/* Navegação */}
+      <div className="flex justify-between gap-2 pt-4">
+        <div></div>
+        <div className="flex gap-2">
+          <Button 
+            type="button" 
+            variant="outline" 
+            onClick={onClose}
+          >
+            Cancelar
+          </Button>
+          <Button 
+            type="button" 
+            onClick={() => setActiveTab("profissional")}
+          >
+            Próximo
+          </Button>
+        </div>
       </div>
     </div>
   );

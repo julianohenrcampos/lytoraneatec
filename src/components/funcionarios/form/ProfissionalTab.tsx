@@ -1,7 +1,5 @@
 
 import React from "react";
-import { TabsContent } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
 import { 
   FormField, 
   FormItem, 
@@ -10,6 +8,7 @@ import {
   FormMessage 
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   Select, 
   SelectContent, 
@@ -17,6 +16,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { UseFormReturn } from "react-hook-form";
 import { useFuncionarioEquipe } from "@/hooks/funcionarios/useFuncionarioEquipe";
@@ -53,14 +53,14 @@ const ProfissionalTab: React.FC<ProfissionalTabProps> = ({
   const { data: nomeEquipe, isLoading: isLoadingEquipe } = useFuncionarioEquipe(funcionarioId);
 
   return (
-    <TabsContent value="profissional" className="space-y-4">
+    <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <FormField
           control={form.control}
           name="funcao_id"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Função</FormLabel>
+              <FormLabel>Função *</FormLabel>
               <Select 
                 onValueChange={(value) => field.onChange(value || null)}
                 value={field.value || undefined}
@@ -197,6 +197,38 @@ const ProfissionalTab: React.FC<ProfissionalTabProps> = ({
           )}
         />
       </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Registro Profissional */}
+        <FormField
+          control={form.control}
+          name="registro_profissional"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Registro Profissional</FormLabel>
+              <FormControl>
+                <Input placeholder="Ex: CREA, CRM, OAB..." {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Especialidade */}
+        <FormField
+          control={form.control}
+          name="especialidade"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Especialidade</FormLabel>
+              <FormControl>
+                <Input placeholder="Área de especialização" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
       
       <FormField
         control={form.control}
@@ -219,6 +251,25 @@ const ProfissionalTab: React.FC<ProfissionalTabProps> = ({
             <p className="text-xs text-muted-foreground">
               A equipe é definida automaticamente pelo sistema de gerenciamento de equipes
             </p>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      {/* Observações */}
+      <FormField
+        control={form.control}
+        name="observacoes"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Observações</FormLabel>
+            <FormControl>
+              <Textarea 
+                placeholder="Observações gerais sobre o funcionário" 
+                className="min-h-[80px]"
+                {...field} 
+              />
+            </FormControl>
             <FormMessage />
           </FormItem>
         )}
@@ -248,7 +299,7 @@ const ProfissionalTab: React.FC<ProfissionalTabProps> = ({
           </Button>
         </div>
       </div>
-    </TabsContent>
+    </div>
   );
 };
 

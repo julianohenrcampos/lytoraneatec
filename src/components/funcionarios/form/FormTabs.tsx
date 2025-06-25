@@ -1,7 +1,7 @@
 
 import React from "react";
 import { Form } from "@/components/ui/form";
-import { Tabs } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { UseFormReturn } from "react-hook-form";
 import { FuncionarioFormData, Funcionario } from "@/types/funcionario";
 import PessoalTab from "./PessoalTab";
@@ -97,46 +97,61 @@ const FormTabs: React.FC<FormTabsProps> = ({
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <PessoalTab
-            form={form}
-            funcionario={funcionario}
-            onClose={onClose}
-            setActiveTab={setActiveTab}
-            imagePreview={imagePreview}
-            setImagePreview={setImagePreview}
-            imageFile={imageFile}
-            setImageFile={setImageFile}
-            isUploadingImage={isUploadingImage}
-            setIsUploadingImage={setIsUploadingImage}
-          />
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="pessoal">Pessoal</TabsTrigger>
+            <TabsTrigger value="profissional">Profissional</TabsTrigger>
+            <TabsTrigger value="contratual">Contratual</TabsTrigger>
+            <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
+          </TabsList>
           
-          <ProfissionalTab
-            form={form}
-            onClose={onClose}
-            setActiveTab={setActiveTab}
-            funcoes={funcoes}
-            departamentos={departamentos}
-            centrosCusto={centrosCusto}
-            empresas={empresas}
-            isLoadingFuncoes={isLoadingFuncoes}
-            isLoadingDepartamentos={isLoadingDepartamentos}
-            isLoadingCentrosCusto={isLoadingCentrosCusto}
-            isLoadingEmpresas={isLoadingEmpresas}
-            funcionarioId={funcionarioId}
-          />
+          <TabsContent value="pessoal">
+            <PessoalTab
+              form={form}
+              funcionario={funcionario}
+              onClose={onClose}
+              setActiveTab={setActiveTab}
+              imagePreview={imagePreview}
+              setImagePreview={setImagePreview}
+              imageFile={imageFile}
+              setImageFile={setImageFile}
+              isUploadingImage={isUploadingImage}
+              setIsUploadingImage={setIsUploadingImage}
+            />
+          </TabsContent>
           
-          <ContratualTab
-            form={form}
-            onClose={onClose}
-            setActiveTab={setActiveTab}
-          />
+          <TabsContent value="profissional">
+            <ProfissionalTab
+              form={form}
+              onClose={onClose}
+              setActiveTab={setActiveTab}
+              funcoes={funcoes}
+              departamentos={departamentos}
+              centrosCusto={centrosCusto}
+              empresas={empresas}
+              isLoadingFuncoes={isLoadingFuncoes}
+              isLoadingDepartamentos={isLoadingDepartamentos}
+              isLoadingCentrosCusto={isLoadingCentrosCusto}
+              isLoadingEmpresas={isLoadingEmpresas}
+              funcionarioId={funcionarioId}
+            />
+          </TabsContent>
           
-          <FinanceiroTab
-            form={form}
-            onClose={onClose}
-            setActiveTab={setActiveTab}
-            isSubmitting={isSubmitting}
-          />
+          <TabsContent value="contratual">
+            <ContratualTab
+              form={form}
+              onClose={onClose}
+              setActiveTab={setActiveTab}
+            />
+          </TabsContent>
+          
+          <TabsContent value="financeiro">
+            <FinanceiroTab
+              form={form}
+              onClose={onClose}
+              setActiveTab={setActiveTab}
+              isSubmitting={isSubmitting}
+            />
+          </TabsContent>
         </Tabs>
       </form>
     </Form>

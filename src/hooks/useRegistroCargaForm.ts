@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,11 +13,52 @@ interface UseRegistroCargaFormProps {
   onSuccess?: () => void;
 }
 
+// Função para validar e normalizar valores numéricos
+const safeNumber = (value: any, defaultValue: number = 0): number => {
+  if (value === null || value === undefined || value === '') {
+    return defaultValue;
+  }
+  const num = Number(value);
+  return isNaN(num) ? defaultValue : Math.max(0, num);
+};
+
+// Função para validar dados antes do submit
+const validateFormData = (data: RegistroCargaFormValues): string | null => {
+  if (!data.lista_entrega_id) {
+    return "ID da entrega é obrigatório";
+  }
+  
+  if (!data.data_saida) {
+    return "Data de saída é obrigatória";
+  }
+  
+  if (!data.hora_saida) {
+    return "Hora de saída é obrigatória";
+  }
+  
+  const toneladaSaida = safeNumber(data.tonelada_saida);
+  if (toneladaSaida <= 0) {
+    return "Tonelada de saída deve ser maior que zero";
+  }
+  
+  return null;
+};
+
 const saveRegistroCarga = async (data: any) => {
+  // Normalizar dados numéricos antes de salvar
+  const normalizedData = {
+    ...data,
+    tonelada_saida: safeNumber(data.tonelada_saida),
+    tonelada_retorno: safeNumber(data.tonelada_retorno, 0),
+    temperatura_saida: safeNumber(data.temperatura_saida, 0),
+  };
+
+  console.log("saveRegistroCarga - Dados normalizados:", normalizedData);
+
   const { data: existingData, error: selectError } = await supabase
     .from('bd_registro_cargas')
     .select('*')
-    .eq('lista_entrega_id', data.lista_entrega_id);
+    .eq('lista_entrega_id', normalizedData.lista_entrega_id);
 
   if (selectError) {
     throw selectError;
@@ -26,8 +68,8 @@ const saveRegistroCarga = async (data: any) => {
     // Update existing record
     const { error: updateError } = await supabase
       .from('bd_registro_cargas')
-      .update(data)
-      .eq('lista_entrega_id', data.lista_entrega_id);
+      .update(normalizedData)
+      .eq('lista_entrega_id', normalizedData.lista_entrega_id);
 
     if (updateError) {
       throw updateError;
@@ -36,7 +78,7 @@ const saveRegistroCarga = async (data: any) => {
     // Insert new record
     const { error: insertError } = await supabase
       .from('bd_registro_cargas')
-      .insert(data);
+      .insert(normalizedData);
 
     if (insertError) {
       throw insertError;
@@ -107,6 +149,8 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
 
   const initializeFromListaEntrega = useCallback(async (entrega: ListaProgramacaoEntrega) => {
     try {
+      console.log("initializeFromListaEntrega - Iniciando com entrega:", entrega);
+      
       // Check if there's an existing registro for this entrega
       const existingRegistro = await fetchRegistroCargaByListaEntregaId(entrega.id);
       
@@ -115,23 +159,27 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
         programacao_id: entrega.programacao_id || "",
         data_saida: getCurrentBrazilianDate(),
         hora_saida: "",
-        tonelada_saida: entrega.quantidade_massa || 0,
+        tonelada_saida: safeNumber(entrega.quantidade_massa),
         tonelada_retorno: 0,
         temperatura_saida: 0,
         status_registro: "Ativo" as const
       };
 
       if (existingRegistro) {
+        console.log("initializeFromListaEntrega - Registro existente encontrado:", existingRegistro);
+        
         defaultValues = {
           ...existingRegistro,
           data_saida: existingRegistro.data_saida || getCurrentBrazilianDate(),
-          temperatura_saida: existingRegistro.temperatura_saida || 0,
-          tonelada_retorno: existingRegistro.tonelada_retorno || 0,
+          temperatura_saida: safeNumber(existingRegistro.temperatura_saida),
+          tonelada_saida: safeNumber(existingRegistro.tonelada_saida),
+          tonelada_retorno: safeNumber(existingRegistro.tonelada_retorno),
           hora_saida: existingRegistro.hora_saida || "",
           status_registro: (existingRegistro.status_registro as "Ativo" | "Concluído" | "Cancelado") || "Ativo"
         };
       }
 
+      console.log("initializeFromListaEntrega - Valores padrão definidos:", defaultValues);
       form.reset(defaultValues);
       setCurrentListaEntregaId(entrega.id);
       
@@ -163,16 +211,39 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
       return;
     }
 
+    // Validar dados antes do submit
+    const validationError = validateFormData(data);
+    if (validationError) {
+      toast({
+        title: "Erro de Validação",
+        description: validationError,
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setIsLoading(true);
+      console.log("onSubmit - Dados recebidos:", data);
 
       const registroData = {
         ...data,
         lista_entrega_id: currentListaEntregaId,
-        status_registro: data.status_registro || "Ativo" as const
+        status_registro: data.status_registro || "Ativo" as const,
+        // Garantir que valores numéricos sejam normalizados
+        tonelada_saida: safeNumber(data.tonelada_saida),
+        tonelada_retorno: safeNumber(data.tonelada_retorno),
+        temperatura_saida: safeNumber(data.temperatura_saida),
       };
 
+      console.log("onSubmit - Dados para salvar:", registroData);
+
       await saveRegistroCarga(registroData);
+      
+      toast({
+        title: "Sucesso",
+        description: "Registro salvo com sucesso",
+      });
       
       onSuccess?.();
     } catch (error) {
