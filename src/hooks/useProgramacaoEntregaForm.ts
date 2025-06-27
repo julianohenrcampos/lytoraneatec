@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -42,12 +43,12 @@ export const useProgramacaoEntregaForm = (
     },
   });
 
-  // Initialize the item form with ItemFormValues type - quantidade_massa starts at 0
+  // Initialize the item form with ItemFormValues type - removed logradouro as required field
   const itemForm = useForm<ItemFormValues>({
     resolver: zodResolver(itemSchema),
     defaultValues: {
       requisicao_id: "",
-      centro_custo_nome: "",
+      centro_custo_nome: "", // This will be the main identifier during programming
       quantidade_massa: 0, // Starts empty (0) - will be in KG from NumberInput
       caminhao_id: "",
       tipo_lancamento: "",
@@ -99,20 +100,6 @@ export const useProgramacaoEntregaForm = (
           centro_custo:bd_centros_custo(id, nome_centro_custo, codigo_centro_custo)
         `)
         .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data || [];
-    }
-  });
-
-  const { data: logradouros = [] } = useQuery({
-    queryKey: ['logradouros', selectedRequisicaoId],
-    enabled: !!selectedRequisicaoId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('bd_ruas_requisicao')
-        .select('*')
-        .eq('requisicao_id', selectedRequisicaoId);
 
       if (error) throw error;
       return data || [];
@@ -247,7 +234,7 @@ export const useProgramacaoEntregaForm = (
     }
   }, [watchedDataEntrega, isAddingItem, itemForm]);
 
-  // Effect for resetting item form when adding new item
+  // Effect for resetting item form when adding new item - removed logradouro field
   useEffect(() => {
     if (isAddingItem) {
       const currentDataEntrega = form.getValues().data_entrega || getCurrentDate();
@@ -256,7 +243,7 @@ export const useProgramacaoEntregaForm = (
       
       itemForm.reset({
         requisicao_id: form.getValues().requisicao_id || "",
-        centro_custo_nome: centroCustoNome, // Ensure centro_custo_nome is set
+        centro_custo_nome: centroCustoNome, // Required field for programming
         quantidade_massa: 0, // Always start at 0 (empty) - in KG
         caminhao_id: "",
         tipo_lancamento: "",
@@ -293,7 +280,6 @@ export const useProgramacaoEntregaForm = (
     showCancelDialog,
     itemToCancel,
     requisicoes,
-    logradouros,
     equipes,
     usinas,
     caminhoes,

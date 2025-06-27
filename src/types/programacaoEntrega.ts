@@ -94,11 +94,11 @@ export interface ProgramacaoEntregaFilters {
   data_fim?: Date;
 }
 
-// Item form values for programacao entrega - updated to include logradouro field
+// Item form values for programacao entrega - updated to make logradouro optional for programming phase
 export interface ItemFormValues {
   id?: string;
   requisicao_id?: string;
-  logradouro: string; // Primary field for street name
+  logradouro?: string; // Optional during programming phase - will be filled during application
   bairro?: string;
   quantidade_massa: number;
   caminhao_id: string;
@@ -107,7 +107,7 @@ export interface ItemFormValues {
   equipe_id: string;
   tipo_lancamento: string;
   status?: string;
-  centro_custo_nome?: string; // Secondary field for context/display
+  centro_custo_nome: string; // Required field for programming phase
   cancelled?: boolean;
   data_entrega?: string;
 }

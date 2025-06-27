@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from "react";
@@ -256,7 +257,7 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
               </Card>
             )}
 
-            {/* Seção de Entregas - Fixed display to show values in tons and correct truck names */}
+            {/* Seção de Entregas - Updated to show Centro de Custo instead of Logradouro */}
             <Card>
               <CardHeader>
                 <div className="flex justify-between items-center">
@@ -284,7 +285,7 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Logradouro</TableHead>
+                          <TableHead>Centro de Custo</TableHead>
                           <TableHead>Quantidade</TableHead>
                           <TableHead>Caminhão</TableHead>
                           <TableHead>Equipe</TableHead>
@@ -302,13 +303,13 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                             ? (item.quantidade_massa > 100 ? item.quantidade_massa / 1000 : item.quantidade_massa)
                             : parseFloat(String(item.quantidade_massa || 0));
                           
-                          console.log("Rendering item with logradouro:", item.logradouro, "and centro_custo_nome:", item.centro_custo_nome);
+                          console.log("Rendering item with centro_custo_nome:", item.centro_custo_nome);
                           
                           return (
                             <TableRow key={index} className={item.cancelled ? "bg-red-50" : ""}>
                               <TableCell className="font-medium">
-                                {/* Show the actual logradouro, not centro_custo_nome */}
-                                {item.logradouro || item.centro_custo_nome || "Logradouro não informado"}
+                                {/* Show the centro_custo_nome during programming phase */}
+                                {item.centro_custo_nome || "Centro de custo não informado"}
                                 {item.cancelled && (
                                   <div className="mt-1 flex items-center text-xs text-red-600">
                                     <AlertCircle className="h-3 w-3 mr-1" />
@@ -371,7 +372,7 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
               </CardContent>
             </Card>
             
-            {/* Formulário de Adição de Item */}
+            {/* Formulário de Adição de Item - Removed Logradouro field */}
             {isAddingItem && (
               <Card className="border-blue-200 bg-blue-50">
                 <CardHeader>
@@ -379,17 +380,22 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <FormField control={itemForm.control} name="logradouro" render={({ field }) => (
+                    {/* Centro de Custo field (read-only, populated from requisição) */}
+                    <FormField control={itemForm.control} name="centro_custo_nome" render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-sm font-medium">Logradouro *</FormLabel>
+                        <FormLabel className="text-sm font-medium">Centro de Custo *</FormLabel>
                         <FormControl>
                           <Input 
                             {...field} 
-                            placeholder="Nome da rua/logradouro" 
-                            className="bg-white" 
+                            readOnly
+                            className="bg-gray-100 cursor-not-allowed" 
+                            placeholder="Será preenchido automaticamente"
                           />
                         </FormControl>
                         <FormMessage />
+                        <p className="text-xs text-muted-foreground">
+                          Preenchido automaticamente com base na requisição selecionada.
+                        </p>
                       </FormItem>
                     )} />
                     
@@ -418,11 +424,8 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                           <VehicleCombobox 
                             value={field.value} 
                             onChange={field.onChange} 
-                            placeholder="Selecione o caminhão" 
-                            searchPlaceholder="Buscar caminhão..." 
-                            emptyText="Nenhum caminhão disponível" 
-                            onlyTrucks={true} 
-                            situationFilter={["Disponível", "Operando"]} 
+                            placeholder="Selecione um caminhão" 
+                            className="bg-white" 
                           />
                         </FormControl>
                         <FormMessage />
@@ -432,14 +435,14 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                     <FormField control={itemForm.control} name="tipo_lancamento" render={({ field }) => (
                       <FormItem>
                         <FormLabel className="text-sm font-medium">Tipo de Lançamento *</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
+                        <Select value={field.value} onValueChange={field.onChange}>
                           <FormControl>
                             <SelectTrigger className="bg-white">
                               <SelectValue placeholder="Selecione o tipo" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {tipoLancamentoOptions.map(option => (
+                            {tipoLancamentoOptions.map((option) => (
                               <SelectItem key={option.value} value={option.value}>
                                 {option.label}
                               </SelectItem>
@@ -467,21 +470,12 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                       </FormItem>
                     )} />
                     
-                    <FormField control={itemForm.control} name="apontador_id" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-medium">Apontador *</FormLabel>
-                        <FormControl>
-                          <Input 
-                            {...field} 
-                            disabled 
-                            placeholder="Apontador da equipe" 
-                            value={apontadorNome} 
-                            className="bg-gray-100" 
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
+                    {selectedEquipeId && (
+                      <div className="bg-blue-100 p-3 rounded-md">
+                        <p className="text-sm font-medium text-blue-800">Apontador da Equipe:</p>
+                        <p className="text-sm text-blue-700">{apontadorNome}</p>
+                      </div>
+                    )}
                     
                     <FormField control={itemForm.control} name="usina_id" render={({ field }) => (
                       <FormItem>
@@ -499,78 +493,42 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                         <FormMessage />
                       </FormItem>
                     )} />
-                    
-                    <FormField control={itemForm.control} name="data_entrega" render={({ field }) => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel className="text-sm font-medium">Data de Entrega *</FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button 
-                                variant={"outline"} 
-                                className={cn("w-full pl-3 text-left font-normal bg-white", !field.value && "text-muted-foreground")}
-                              >
-                                {field.value ? formatBrazilianDateForDisplay(field.value) : <span>Selecione uma data</span>}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar 
-                              mode="single" 
-                              selected={field.value ? parseBrazilianDate(field.value) : new Date()} 
-                              onSelect={date => {
-                                if (date) {
-                                  const normalizedDate = normalizeDateToBrazilianNoon(date);
-                                  const formattedDate = formatBrazilianDateToString(normalizedDate);
-                                  console.log("Item date selected in calendar:", date, "normalized Brazilian:", normalizedDate, "formatted:", formattedDate);
-                                  field.onChange(formattedDate);
-                                }
-                              }} 
-                              initialFocus 
-                              className="pointer-events-auto"
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
                   </div>
-                  
-                  <div className="flex justify-end gap-2 pt-4 border-t">
-                    <Button type="button" variant="outline" onClick={() => setIsAddingItem(false)}>
-                      Cancelar
+
+                  <div className="flex gap-2 pt-4">
+                    <Button type="button" onClick={handleItemSubmit} className="bg-green-600 hover:bg-green-700">
+                      Adicionar Item
                     </Button>
-                    <Button type="button" className="bg-blue-500 hover:bg-blue-600" onClick={handleItemSubmit}>
-                      Adicionar
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => setIsAddingItem(false)}
+                    >
+                      Cancelar
                     </Button>
                   </div>
                 </CardContent>
               </Card>
             )}
 
-            {/* Cancel Item Dialog */}
-            <CancelItemDialog
-              isOpen={showCancelDialog}
-              onClose={closeCancelDialog}
-              onConfirm={confirmCancel}
-            />
-            
-            <DialogFooter className="flex justify-end gap-2 pt-6">
-              <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+            {/* Botões de ação */}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={isSubmitting || watchItens.length === 0} className="bg-blue-500 hover:bg-blue-600">
-                {isSubmitting ? (
-                  <>
-                    <div className="animate-spin h-4 w-4 mr-2 border-2 border-current border-t-transparent rounded-full" />
-                    Salvando...
-                  </>
-                ) : programacao ? "Atualizar" : "Salvar"}
+              <Button type="submit" disabled={isSubmitting || watchItens.length === 0}>
+                {isSubmitting ? "Salvando..." : programacao ? "Atualizar" : "Criar Programação"}
               </Button>
             </DialogFooter>
           </form>
         </Form>
+
+        {/* Dialog de cancelamento */}
+        <CancelItemDialog
+          isOpen={showCancelDialog}
+          onClose={closeCancelDialog}
+          onConfirm={confirmCancel}
+        />
       </DialogContent>
     </Dialog>
   );

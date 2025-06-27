@@ -22,6 +22,8 @@ export const useItemManagement = (
     const newItem = {
       requisicao_id: data.requisicao_id || form.getValues().requisicao_id || "",
       centro_custo_nome: data.centro_custo_nome || "",
+      // Use centro_custo_nome as logradouro placeholder for programming phase
+      logradouro: data.centro_custo_nome || "Centro de Custo",
       quantidade_massa: data.quantidade_massa || 0,
       caminhao_id: data.caminhao_id || "",
       tipo_lancamento: displayTipoLancamento || "",
