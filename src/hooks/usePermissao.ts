@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -120,20 +119,20 @@ export const usePermissao = () => {
     }
   });
 
-  // Query CORRIGIDA com RLS funcionando
+  // Query CORRIGIDA - Agora com as políticas RLS adequadas
   const {
     data: allProfiles,
     isLoading: isProfilesLoading,
     refetch: refetchProfiles,
     error: profilesError
   } = useQuery({
-    queryKey: ['all-profiles-with-rls'],
+    queryKey: ['all-profiles-corrected'],
     queryFn: async () => {
-      console.log('🚀 ====== BUSCA COM RLS HABILITADO ======');
+      console.log('🚀 ====== BUSCA CORRIGIDA COM POLÍTICAS RLS ======');
       console.log('📅 Timestamp:', new Date().toISOString());
       
       try {
-        // Query simples que respeita as políticas RLS
+        // Query otimizada que funciona com as novas políticas RLS
         const { data: users, error, count } = await supabase
           .from('profiles')
           .select(`
@@ -147,16 +146,16 @@ export const usePermissao = () => {
           .order('created_at', { ascending: false });
         
         if (error) {
-          console.error('💥 ERRO na query com RLS:', error);
+          console.error('💥 ERRO na query corrigida:', error);
           throw error;
         }
         
-        console.log('📊 DADOS COM RLS:');
-        console.log(`📈 Count: ${count}`);
+        console.log('📊 DADOS CORRIGIDOS:');
+        console.log(`📈 Total de usuários encontrados: ${count}`);
         console.log(`📝 Array length: ${users?.length || 0}`);
         
-        // Log dos usuários encontrados
-        console.log('👥 ==== USUÁRIOS ENCONTRADOS COM RLS ====');
+        // Log detalhado dos usuários
+        console.log('👥 ==== TODOS OS USUÁRIOS ENCONTRADOS ====');
         users?.forEach((user, index) => {
           console.log(`👤 ${index + 1}/${users.length}:`, {
             id: user.id?.substring(0, 8) + '...',
@@ -167,18 +166,21 @@ export const usePermissao = () => {
           });
         });
         
-        console.log('✅ QUERY COM RLS EXECUTADA - RETORNANDO:', users?.length || 0, 'usuários');
+        console.log('✅ LISTAGEM CORRIGIDA - RETORNANDO:', users?.length || 0, 'usuários');
         return users as ProfileType[] || [];
         
       } catch (err) {
-        console.error('🔥 ERRO FATAL na busca com RLS:', err);
+        console.error('🔥 ERRO na busca corrigida:', err);
         throw err;
       }
     },
     staleTime: 30000, // Cache por 30 segundos
     refetchOnMount: true,
     refetchOnWindowFocus: false,
-    retry: 2
+    retry: (failureCount, error) => {
+      console.log(`🔄 Tentativa ${failureCount + 1} de busca de usuários`);
+      return failureCount < 2;
+    }
   });
 
   // Processar filtros nos dados retornados
@@ -255,7 +257,6 @@ export const usePermissao = () => {
       setIsPermissaoFormOpen(false);
       queryClient.invalidateQueries({ queryKey: ['permissoes'] });
       queryClient.invalidateQueries({ queryKey: ['allPermissoes'] });
-      // CORREÇÃO: Invalidar cache de permissões do usuário
       invalidatePermissionCache();
     },
     onError: (error: any) => {
@@ -277,7 +278,6 @@ export const usePermissao = () => {
       setIsPermissaoFormOpen(false);
       queryClient.invalidateQueries({ queryKey: ['permissoes'] });
       queryClient.invalidateQueries({ queryKey: ['allPermissoes'] });
-      // CORREÇÃO: Invalidar cache de permissões do usuário
       invalidatePermissionCache();
     },
     onError: (error: any) => {
@@ -299,7 +299,6 @@ export const usePermissao = () => {
       setIsDeletePermissaoOpen(false);
       queryClient.invalidateQueries({ queryKey: ['permissoes'] });
       queryClient.invalidateQueries({ queryKey: ['allPermissoes'] });
-      // CORREÇÃO: Invalidar cache de permissões do usuário
       invalidatePermissionCache();
     },
     onError: (error: any) => {
@@ -320,7 +319,6 @@ export const usePermissao = () => {
       });
       setIsFuncaoFormOpen(false);
       queryClient.invalidateQueries({ queryKey: ['funcoesPermissao'] });
-      // CORREÇÃO: Invalidar cache de permissões do usuário
       invalidatePermissionCache();
     },
     onError: (error: any) => {
@@ -341,7 +339,6 @@ export const usePermissao = () => {
       });
       setIsFuncaoFormOpen(false);
       queryClient.invalidateQueries({ queryKey: ['funcoesPermissao'] });
-      // CORREÇÃO PRINCIPAL: Invalidar cache de permissões do usuário após mudança em função
       console.log('🔄 Função atualizada - invalidando cache de permissões');
       invalidatePermissionCache();
       refetchUserPermissions();
@@ -364,7 +361,6 @@ export const usePermissao = () => {
       });
       setIsDeleteFuncaoPermissaoOpen(false);
       queryClient.invalidateQueries({ queryKey: ['funcoesPermissao'] });
-      // CORREÇÃO: Invalidar cache de permissões do usuário
       invalidatePermissionCache();
     },
     onError: (error: any) => {
@@ -376,26 +372,40 @@ export const usePermissao = () => {
     }
   });
 
-  // Mutation para atribuir permissões
+  // Mutation CORRIGIDA para atribuir permissões
   const assignPermissionMutation = useMutation({
     mutationFn: async ({ profileId, funcaoString }: { profileId: string; funcaoString: string }) => {
+      console.log('🔄 Atribuindo permissão:', { profileId, funcaoString });
+      
       const { data: profile, error: fetchError } = await supabase
         .from('profiles')
         .select('funcoes')
         .eq('id', profileId)
         .single();
       
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        console.error('❌ Erro ao buscar perfil:', fetchError);
+        throw fetchError;
+      }
       
       const currentFuncoes = profile?.funcoes || ['user'];
-      const newFuncoes = [...new Set([...currentFuncoes, funcaoString])];
+      // Filtrar 'user' se estiver presente e adicionar nova função
+      const filteredFuncoes = currentFuncoes.filter(f => f !== 'user');
+      const newFuncoes = [...new Set([...filteredFuncoes, funcaoString])];
+      
+      console.log('📝 Atualizando funções:', { currentFuncoes, newFuncoes });
       
       const { error } = await supabase
         .from('profiles')
         .update({ funcoes: newFuncoes })
         .eq('id', profileId);
       
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro ao atualizar perfil:', error);
+        throw error;
+      }
+      
+      console.log('✅ Permissão atribuída com sucesso');
       return { profileId, funcaoString };
     },
     onSuccess: () => {
@@ -405,9 +415,8 @@ export const usePermissao = () => {
       });
       setIsAssignPermissionOpen(false);
       // Invalidar cache para atualizar dados
-      queryClient.invalidateQueries({ queryKey: ['all-profiles-with-rls'] });
+      queryClient.invalidateQueries({ queryKey: ['all-profiles-corrected'] });
       queryClient.invalidateQueries({ queryKey: ['availableFunctions'] });
-      // CORREÇÃO: Invalidar cache de permissões do usuário se for o próprio usuário
       invalidatePermissionCache();
     },
     onError: (error: any) => {
@@ -457,7 +466,7 @@ export const usePermissao = () => {
   const resetProfileFilters = () => {
     console.log('🔄 Resetando todos os filtros de profile');
     setProfileFilter({});
-    queryClient.invalidateQueries({ queryKey: ['all-profiles-with-rls'] });
+    queryClient.invalidateQueries({ queryKey: ['all-profiles-corrected'] });
   };
   
   // Form handlers mantidos
