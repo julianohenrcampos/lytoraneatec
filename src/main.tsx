@@ -21,7 +21,6 @@ const initializeApp = async () => {
       
       // Preload essential data for offline use
       setTimeout(() => {
-        console.log('📱 Iniciando carregamento de dados essenciais para offline...');
         preloadEssentialData();
       }, 2000);
       
@@ -36,5 +35,4 @@ const root = createRoot(document.getElementById("root")!)
 root.render(<App />)
 
 // Initialize PWA features
-console.log('🔧 Iniciando recursos PWA...');
 initializeApp();

@@ -23,8 +23,8 @@ export const useUserProfile = () => {
     loadUser();
   }, []);
 
-  const handleUpdateUserImage = async (file: File): Promise<void> => {
-    if (!user) return;
+  const handleUpdateUserImage = async (file: File): Promise<string> => {
+    if (!user) return '';
     
     try {
       const imageUrl = await updateUserProfileImage(user.id, file);
@@ -32,6 +32,7 @@ export const useUserProfile = () => {
         ...user,
         imagem_url: imageUrl
       });
+      return imageUrl || ''; // Ensure we always return a string, even if imageUrl is undefined
     } catch (error) {
       console.error("Error updating user image:", error);
       toast({
@@ -39,6 +40,8 @@ export const useUserProfile = () => {
         description: "There was a problem updating your profile image.",
         variant: "destructive",
       });
+      // Return empty string instead of throwing to match the Promise<string> return type
+      return '';
     }
   };
 
