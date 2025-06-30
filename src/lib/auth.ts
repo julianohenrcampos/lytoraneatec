@@ -84,6 +84,17 @@ export const loginUser = async (email: string, password: string): Promise<AuthRe
         };
       }
       
+      // Tratamento específico para erros de conexão
+      if (error.message.includes("connection") || error.message.includes("network") || error.message.includes("fetch")) {
+        return {
+          success: false,
+          error: {
+            message: "Erro de conexão. Verifique sua internet e tente novamente.",
+            code: error.code
+          }
+        };
+      }
+      
       return {
         success: false,
         error: {
@@ -150,6 +161,12 @@ export const registerUser = async (
       };
     }
     
+    // Determina a URL de redirecionamento baseada no ambiente
+    const isLocalhost = window.location.hostname === 'localhost';
+    const redirectTo = isLocalhost ? `${window.location.origin}/` : "https://lytotec.com.br/";
+    
+    console.log("📧 URL de redirecionamento para registro:", redirectTo);
+    
     // Registra o usuário
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -159,7 +176,8 @@ export const registerUser = async (
           nome_completo,
           email,
           email_verified: false
-        }
+        },
+        emailRedirectTo: redirectTo
       }
     });
     
@@ -226,7 +244,12 @@ export const logoutUser = async (): Promise<AuthResult> => {
 export const resetPassword = async (email: string): Promise<AuthResult> => {
   try {
     // Determina a URL de redirecionamento baseada no ambiente
-    const redirectTo = window.location.origin + "/reset-password";
+    const isLocalhost = window.location.hostname === 'localhost';
+    const redirectTo = isLocalhost 
+      ? `${window.location.origin}/reset-password`
+      : "https://lytotec.com.br/reset-password";
+    
+    console.log("🔐 URL de redirecionamento para reset de senha:", redirectTo);
     
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo

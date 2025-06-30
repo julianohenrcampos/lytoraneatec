@@ -6,13 +6,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import AuthLayout from "@/components/AuthLayout";
 import { loginUser } from "@/lib/auth";
+import { confirmSpecificUserEmail } from "@/services/adminService";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, CheckCircle } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email("Email inválido").min(1, "Email é obrigatório"),
@@ -27,6 +28,7 @@ const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [emailNotConfirmedError, setEmailNotConfirmedError] = useState<string | null>(null);
+  const [isConfirmingEmail, setIsConfirmingEmail] = useState(false);
 
   // Verificar se já existe uma sessão ativa
   useEffect(() => {
@@ -49,6 +51,35 @@ const Login: React.FC = () => {
       password: "",
     },
   });
+
+  const handleConfirmEmail = async (email: string) => {
+    setIsConfirmingEmail(true);
+    try {
+      await confirmSpecificUserEmail();
+      toast({
+        title: "Email confirmado com sucesso! ✅",
+        description: "Agora você pode fazer login normalmente.",
+      });
+      setEmailNotConfirmedError(null);
+      
+      // Tentar login automaticamente após confirmação
+      const password = form.getValues("password");
+      if (password) {
+        setTimeout(() => {
+          onSubmit({ email, password });
+        }, 1000);
+      }
+    } catch (error: any) {
+      console.error("Erro ao confirmar email:", error);
+      toast({
+        title: "Erro ao confirmar email",
+        description: "Entre em contato com o suporte técnico.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsConfirmingEmail(false);
+    }
+  };
 
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
@@ -105,11 +136,34 @@ const Login: React.FC = () => {
             <Alert>
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                <strong>Email não confirmado:</strong> {emailNotConfirmedError}
-                <br />
-                <span className="text-sm text-muted-foreground mt-2 block">
-                  Entre em contato com o administrador do sistema para confirmar seu email e poder acessar o sistema.
-                </span>
+                <div className="space-y-3">
+                  <div>
+                    <strong>Email não confirmado:</strong> {emailNotConfirmedError}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Clique no botão abaixo para confirmar automaticamente seu email e poder acessar o sistema.
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleConfirmEmail(emailNotConfirmedError)}
+                    disabled={isConfirmingEmail}
+                    className="w-full"
+                  >
+                    {isConfirmingEmail ? (
+                      <>
+                        <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full mr-2"></div>
+                        Confirmando email...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Confirmar Email Automaticamente
+                      </>
+                    )}
+                  </Button>
+                </div>
               </AlertDescription>
             </Alert>
           )}
