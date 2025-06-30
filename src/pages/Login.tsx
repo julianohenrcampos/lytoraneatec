@@ -10,7 +10,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
+import { AlertTriangle } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email("Email inválido").min(1, "Email é obrigatório"),
@@ -24,6 +26,7 @@ const Login: React.FC = () => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
+  const [emailNotConfirmedError, setEmailNotConfirmedError] = useState<string | null>(null);
 
   // Verificar se já existe uma sessão ativa
   useEffect(() => {
@@ -49,10 +52,17 @@ const Login: React.FC = () => {
 
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
+    setEmailNotConfirmedError(null);
+    
     try {
       const result = await loginUser(data.email, data.password);
       
       if (result.error) {
+        // Verificar se é erro de email não confirmado
+        if (result.error.message.includes("Email não confirmado")) {
+          setEmailNotConfirmedError(data.email);
+          return;
+        }
         throw new Error(result.error.message);
       }
       
@@ -91,6 +101,19 @@ const Login: React.FC = () => {
     <AuthLayout title="Acesso ao Sistema">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          {emailNotConfirmedError && (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Email não confirmado:</strong> {emailNotConfirmedError}
+                <br />
+                <span className="text-sm text-muted-foreground mt-2 block">
+                  Entre em contato com o administrador do sistema para confirmar seu email e poder acessar o sistema.
+                </span>
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <FormField
             control={form.control}
             name="email"

@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { RegistroAplicacaoDetalhes, RegistroAplicacaoDetalhesFormValues } from "@/types/registroAplicacaoDetalhes";
@@ -12,7 +11,8 @@ import {
 export const useAplicacoesMultiplas = (
   registroAplicacaoId?: string,
   registroCargaId?: string,
-  listaEntregaId?: string
+  listaEntregaId?: string,
+  onDataChange?: () => void // Novo callback para notificar mudanças
 ) => {
   const [aplicacoes, setAplicacoes] = useState<RegistroAplicacaoDetalhes[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -113,6 +113,9 @@ export const useAplicacoesMultiplas = (
         description: "Aplicação adicionada com sucesso",
       });
 
+      // Notificar componente pai sobre mudança nos dados
+      onDataChange?.();
+
       return novaAplicacao;
     } catch (error) {
       console.error("Erro ao adicionar aplicação:", error);
@@ -147,6 +150,10 @@ export const useAplicacoesMultiplas = (
       });
 
       setEditingAplicacao(null);
+
+      // Notificar componente pai sobre mudança nos dados
+      onDataChange?.();
+
       return aplicacaoAtualizada;
     } catch (error) {
       console.error("Erro ao atualizar aplicação:", error);
@@ -177,6 +184,9 @@ export const useAplicacoesMultiplas = (
         title: "Sucesso",
         description: "Aplicação removida com sucesso",
       });
+
+      // Notificar componente pai sobre mudança nos dados
+      onDataChange?.();
     } catch (error) {
       console.error("Erro ao remover aplicação:", error);
       toast({

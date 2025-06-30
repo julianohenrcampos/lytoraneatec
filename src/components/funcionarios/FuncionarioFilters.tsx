@@ -12,13 +12,13 @@ import { useIsSmallScreen, useIsMobile } from "@/hooks/use-mobile";
 interface FuncionarioFiltersProps {
   filters: FuncionarioFilter;
   onFilterChange: (field: keyof FuncionarioFilter, value: any) => void;
-  onResetFilters: () => void;
+  onReset: () => void;
 }
 
 const FuncionarioFilters: React.FC<FuncionarioFiltersProps> = ({
   filters,
   onFilterChange,
-  onResetFilters,
+  onReset,
 }) => {
   const isSmallScreen = useIsSmallScreen();
   const isMobile = useIsMobile();
@@ -112,7 +112,7 @@ const FuncionarioFilters: React.FC<FuncionarioFiltersProps> = ({
         <div className="flex justify-end">
           <Button 
             variant="outline" 
-            onClick={onResetFilters} 
+            onClick={onReset} 
             className="gap-2"
             size={isSmallScreen ? "xs" : isMobile ? "mobile-sm" : "default"}
           >

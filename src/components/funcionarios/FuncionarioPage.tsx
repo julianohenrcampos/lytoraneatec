@@ -1,23 +1,24 @@
 
-import React from "react";
-import { Users } from "lucide-react";
+import React, { useState } from "react";
+import { Users, Download, Upload, UserCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useFuncionarioActions } from "@/hooks/useFuncionarioActions";
+import FuncionarioTable from "./FuncionarioTable";
+import FuncionarioFilters from "./FuncionarioFilters";
 import FuncionarioFormModal from "./FuncionarioFormModal";
 import FuncionarioDetailsModal from "./FuncionarioDetailsModal";
-import ImportFuncionariosModal from "./ImportFuncionariosModal";
-import FuncionarioFilters from "./FuncionarioFilters";
-import FuncionarioTable from "./FuncionarioTable";
+import FuncionarioImportModal from "./FuncionarioImportModal";
 import DeleteFuncionarioDialog from "./DeleteFuncionarioDialog";
-import FuncionarioHeaderActions from "./FuncionarioHeaderActions";
-import { Funcionario } from "@/types/funcionario";
+import EmailConfirmationModal from "./EmailConfirmationModal";
 
 interface FuncionarioPageProps {
-  openImageModal?: (funcionario: Funcionario) => void;
+  openImageModal?: (funcionario: any) => void;
 }
 
 const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => {
+  const [isEmailConfirmationOpen, setIsEmailConfirmationOpen] = useState(false);
+  
   const {
-    // Estado
     filters,
     currentFuncionario,
     isFormModalOpen,
@@ -32,8 +33,6 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
     funcionarios,
     isLoading,
     isError,
-    
-    // Ações
     setIsFormModalOpen,
     setIsDetailsModalOpen,
     setIsImportModalOpen,
@@ -55,61 +54,95 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <Users className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Cadastro de Funcionários</h1>
+          <h1 className="text-2xl font-bold">Funcionários</h1>
         </div>
         
-        <FuncionarioHeaderActions 
-          onNew={() => openFormModal()}
-          onExport={exportToExcel}
-          onImport={() => setIsImportModalOpen(true)}
-        />
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsEmailConfirmationOpen(true)}
+            className="flex items-center gap-2"
+          >
+            <UserCheck className="h-4 w-4" />
+            Confirmar Email
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={exportToExcel}
+            disabled={isLoading || !funcionarios?.length}
+            className="flex items-center gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Exportar
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsImportModalOpen(true)}
+            className="flex items-center gap-2"
+          >
+            <Upload className="h-4 w-4" />
+            Importar
+          </Button>
+          <Button onClick={() => openFormModal()}>
+            Novo Funcionário
+          </Button>
+        </div>
       </div>
-      
-      <FuncionarioFilters 
+
+      <FuncionarioFilters
         filters={filters}
         onFilterChange={handleFilterChange}
-        onResetFilters={resetFilters}
+        onReset={resetFilters}
       />
-      
-      <FuncionarioTable 
+
+      <FuncionarioTable
         funcionarios={funcionarios || []}
         isLoading={isLoading}
         isError={isError}
         onEdit={openFormModal}
-        onView={openDetailsModal}
         onDelete={confirmDelete}
+        onViewDetails={openDetailsModal}
+        onRefetch={refetch}
         openImageModal={openImageModal}
       />
-      
+
       <FuncionarioFormModal
         isOpen={isFormModalOpen}
         onClose={() => setIsFormModalOpen(false)}
         funcionario={currentFuncionario}
-        onSubmit={handleSaveFuncionario} 
+        onSubmit={handleSaveFuncionario}
         isSubmitting={isSubmitting}
       />
-      
+
       <FuncionarioDetailsModal
         isOpen={isDetailsModalOpen}
         onClose={() => setIsDetailsModalOpen(false)}
         funcionario={currentFuncionario}
       />
-      
-      <ImportFuncionariosModal
+
+      <FuncionarioImportModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onImport={handleImport}
         isImporting={isImporting}
       />
-      
+
       <DeleteFuncionarioDialog
         isOpen={isDeleteModalOpen}
-        isDeleting={isDeleting}
-        funcionarioId={deletingFuncionario?.id}
-        funcionarioNome={deletingFuncionario?.nome_completo}
         onClose={() => setIsDeleteModalOpen(false)}
         onConfirm={handleDelete}
+        funcionarioId={deletingFuncionario?.id}
+        funcionarioNome={deletingFuncionario?.nome_completo}
+        isDeleting={isDeleting}
         errorMessage={deleteErrorMessage}
+      />
+
+      <EmailConfirmationModal
+        isOpen={isEmailConfirmationOpen}
+        onClose={() => setIsEmailConfirmationOpen(false)}
       />
     </div>
   );

@@ -55,7 +55,7 @@ export const getCurrentUser = async () => {
 };
 
 /**
- * Realiza o login do usuário
+ * Realiza o login do usuário com tratamento melhorado para emails não confirmados
  * @param email Email do usuário
  * @param password Senha do usuário
  * @returns Objeto com o resultado da operação
@@ -72,6 +72,18 @@ export const loginUser = async (email: string, password: string): Promise<AuthRe
     
     if (error) {
       console.error("Erro no supabase login:", error);
+      
+      // Tratamento específico para email não confirmado
+      if (error.message.includes("Email not confirmed")) {
+        return {
+          success: false,
+          error: {
+            message: "Email não confirmado. Entre em contato com o administrador para confirmar seu email.",
+            code: error.code
+          }
+        };
+      }
+      
       return {
         success: false,
         error: {

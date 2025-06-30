@@ -8,24 +8,36 @@ export function useFuncionarioEquipe(funcionarioId?: string) {
     queryFn: async () => {
       if (!funcionarioId) return null;
       
-      const { data, error } = await supabase
+      // Primeiro buscar o funcionário para pegar o equipe_id
+      const { data: funcionario, error: funcionarioError } = await supabase
         .from("bd_funcionarios")
-        .select(`
-          equipe_id,
-          bd_equipes:equipe_id(nome_equipe)
-        `)
+        .select("equipe_id")
         .eq("id", funcionarioId)
         .single();
         
-      if (error) {
-        console.error("Erro ao buscar equipe do funcionário:", error);
+      if (funcionarioError) {
+        console.error("Erro ao buscar funcionário:", funcionarioError);
         return null;
       }
       
-      // Verificar se bd_equipes é um objeto válido e tem nome_equipe
-      return data?.bd_equipes && typeof data.bd_equipes === 'object' && 'nome_equipe' in data.bd_equipes
-        ? data.bd_equipes.nome_equipe 
-        : null;
+      // Se não tem equipe_id, retornar null
+      if (!funcionario?.equipe_id) {
+        return null;
+      }
+      
+      // Agora buscar o nome da equipe
+      const { data: equipe, error: equipeError } = await supabase
+        .from("bd_equipes")
+        .select("nome_equipe")
+        .eq("id", funcionario.equipe_id)
+        .single();
+        
+      if (equipeError) {
+        console.error("Erro ao buscar equipe:", equipeError);
+        return null;
+      }
+      
+      return equipe?.nome_equipe || null;
     },
     enabled: !!funcionarioId,
     staleTime: 1000 * 60 * 5, // 5 minutos

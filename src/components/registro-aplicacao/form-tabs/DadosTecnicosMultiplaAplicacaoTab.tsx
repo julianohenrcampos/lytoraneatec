@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef } from "react";
 import { UseFormReturn } from "react-hook-form";
 import { Button } from "@/components/ui/button";
@@ -45,7 +44,7 @@ const DadosTecnicosMultiplaAplicacaoTab: React.FC<DadosTecnicosMultiplaAplicacao
   const initializationRef = useRef(false);
 
   // Hook para informações da carga
-  const { cargaInfo } = useMultipleApplications(registroCarga?.id);
+  const { cargaInfo, refetch: refetchCargaInfo } = useMultipleApplications(registroCarga?.id);
 
   const massaTotalCarga = registroCarga?.tonelada_real || 0;
   const massaRemanescente = cargaInfo ? cargaInfo.massaRemanescente : massaTotalCarga;
@@ -154,7 +153,7 @@ const DadosTecnicosMultiplaAplicacaoTab: React.FC<DadosTecnicosMultiplaAplicacao
     initializeRegistro();
   }, [currentRegistroId, entrega, registroCarga, listaEntregaId, form, onRegistroCreated, toast, isReadOnly]);
 
-  // Hook para gerenciar aplicações múltiplas
+  // Hook para gerenciar aplicações múltiplas com callback para atualizar massa remanescente
   const {
     aplicacoes,
     isLoading: isLoadingAplicacoes,
@@ -169,7 +168,12 @@ const DadosTecnicosMultiplaAplicacaoTab: React.FC<DadosTecnicosMultiplaAplicacao
   } = useAplicacoesMultiplas(
     currentRegistroId,
     registroCarga?.id,
-    listaEntregaId
+    listaEntregaId,
+    // Callback para atualizar massa remanescente quando aplicações mudarem
+    () => {
+      console.log("🔄 Atualizando massa remanescente após mudança nas aplicações");
+      refetchCargaInfo();
+    }
   );
 
   // Log para debug
@@ -178,7 +182,8 @@ const DadosTecnicosMultiplaAplicacaoTab: React.FC<DadosTecnicosMultiplaAplicacao
     aplicacoesCount: aplicacoes.length,
     isLoadingRegistro,
     isLoadingAplicacoes,
-    isReadOnly
+    isReadOnly,
+    massaRemanescente
   });
 
   // Salvar nova aplicação

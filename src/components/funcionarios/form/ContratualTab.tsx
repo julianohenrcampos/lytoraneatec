@@ -90,62 +90,21 @@ export default function ContratualTab({ form, onClose, setActiveTab }: Contratua
           )}
         />
 
-        {/* Salário */}
+        {/* Salário Base */}
         <FormField
           control={form.control}
-          name="salario"
+          name="salario_base"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Salário</FormLabel>
+              <FormLabel>Salário Base</FormLabel>
               <FormControl>
                 <Input
                   type="number"
                   step="0.01"
                   placeholder="0.00"
                   {...field}
-                  onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                  onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
                 />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* Tipo de Contrato */}
-        <FormField
-          control={form.control}
-          name="tipo_contrato"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Tipo de Contrato</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value || ""}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o tipo" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="CLT">CLT</SelectItem>
-                  <SelectItem value="Terceirizado">Terceirizado</SelectItem>
-                  <SelectItem value="Temporário">Temporário</SelectItem>
-                  <SelectItem value="Estágio">Estágio</SelectItem>
-                  <SelectItem value="PJ">Pessoa Jurídica</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* Jornada de Trabalho */}
-        <FormField
-          control={form.control}
-          name="jornada_trabalho"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Jornada de Trabalho</FormLabel>
-              <FormControl>
-                <Input placeholder="Ex: 44h semanais" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -210,8 +169,6 @@ export default function ContratualTab({ form, onClose, setActiveTab }: Contratua
                   <SelectItem value="Ativo">Ativo</SelectItem>
                   <SelectItem value="Inativo">Inativo</SelectItem>
                   <SelectItem value="Aviso Prévio">Aviso Prévio</SelectItem>
-                  <SelectItem value="Férias">Férias</SelectItem>
-                  <SelectItem value="Licença">Licença</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -256,21 +213,6 @@ export default function ContratualTab({ form, onClose, setActiveTab }: Contratua
                   />
                 </PopoverContent>
               </Popover>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* Motivo da Demissão */}
-        <FormField
-          control={form.control}
-          name="motivo_demissao"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Motivo da Demissão</FormLabel>
-              <FormControl>
-                <Input placeholder="Motivo da demissão" {...field} />
-              </FormControl>
               <FormMessage />
             </FormItem>
           )}

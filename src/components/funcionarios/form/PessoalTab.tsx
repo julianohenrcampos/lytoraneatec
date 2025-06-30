@@ -86,21 +86,6 @@ export default function PessoalTab({ form, onClose, setActiveTab }: PessoalTabPr
           )}
         />
 
-        {/* RG */}
-        <FormField
-          control={form.control}
-          name="rg"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>RG</FormLabel>
-              <FormControl>
-                <Input placeholder="00.000.000-0" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
         {/* Gênero */}
         <FormField
           control={form.control}
@@ -168,32 +153,6 @@ export default function PessoalTab({ form, onClose, setActiveTab }: PessoalTabPr
           )}
         />
 
-        {/* Estado Civil */}
-        <FormField
-          control={form.control}
-          name="estado_civil"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Estado Civil</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value || ""}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="Solteiro">Solteiro</SelectItem>
-                  <SelectItem value="Casado">Casado</SelectItem>
-                  <SelectItem value="Divorciado">Divorciado</SelectItem>
-                  <SelectItem value="Viúvo">Viúvo</SelectItem>
-                  <SelectItem value="União Estável">União Estável</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
         {/* Escolaridade */}
         <FormField
           control={form.control}
@@ -219,21 +178,6 @@ export default function PessoalTab({ form, onClose, setActiveTab }: PessoalTabPr
                   <SelectItem value="Doutorado">Doutorado</SelectItem>
                 </SelectContent>
               </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* Telefone */}
-        <FormField
-          control={form.control}
-          name="telefone"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Telefone</FormLabel>
-              <FormControl>
-                <Input placeholder="(00) 00000-0000" {...field} />
-              </FormControl>
               <FormMessage />
             </FormItem>
           )}

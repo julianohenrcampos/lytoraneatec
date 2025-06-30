@@ -14,8 +14,9 @@ interface FuncionarioTableProps {
   isLoading: boolean;
   isError: boolean;
   onEdit: (funcionario: Funcionario) => void;
-  onView: (funcionario: Funcionario) => void;
+  onViewDetails: (funcionario: Funcionario) => void;
   onDelete: (funcionario: Funcionario) => void;
+  onRefetch: () => void;
   openImageModal?: (funcionario: Funcionario) => void;
 }
 
@@ -24,8 +25,9 @@ const FuncionarioTable: React.FC<FuncionarioTableProps> = ({
   isLoading,
   isError,
   onEdit,
-  onView,
+  onViewDetails,
   onDelete,
+  onRefetch,
   openImageModal
 }) => {
   const pagination = usePagination(funcionarios, { pageSize: 10 });
@@ -81,7 +83,7 @@ const FuncionarioTable: React.FC<FuncionarioTableProps> = ({
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => onView(funcionario)}
+                      onClick={() => onViewDetails(funcionario)}
                       title="Visualizar"
                     >
                       <Eye className="h-4 w-4" />

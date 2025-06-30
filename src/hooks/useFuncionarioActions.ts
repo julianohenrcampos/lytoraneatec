@@ -21,14 +21,23 @@ export function useFuncionarioActions() {
     deleteMutation
   } = useFuncionarioQueries(
     state.filters,
-    () => state.setIsFormModalOpen(false),
-    () => state.setIsFormModalOpen(false),
+    () => {
+      console.log("useFuncionarioActions: Fechando modal após criação bem-sucedida");
+      state.setIsFormModalOpen(false);
+    },
+    () => {
+      console.log("useFuncionarioActions: Fechando modal após atualização bem-sucedida");
+      state.setIsFormModalOpen(false);
+    },
     () => {
       state.setIsDeleteModalOpen(false);
       state.setDeletingFuncionario(null);
       setDeleteErrorMessage(undefined);
     },
-    () => state.setIsSubmitting(false),
+    () => {
+      console.log("useFuncionarioActions: Finalizando estado de submissão");
+      state.setIsSubmitting(false);
+    },
     () => state.setIsDeleting(false)
   );
 
@@ -101,13 +110,20 @@ export function useFuncionarioActions() {
     sanitizedData.refeicao = ensureNumber(data.refeicao);
     sanitizedData.diarias = ensureNumber(data.diarias);
     
-    console.log("Dados sanitizados:", sanitizedData);
+    console.log("useFuncionarioActions: Dados sanitizados:", sanitizedData);
     return sanitizedData;
   };
 
   // Handler para salvar funcionário (criar ou atualizar)
   const handleSaveFuncionario = useCallback((data: FuncionarioFormData) => {
-    console.log("Iniciando salvamento do funcionário", data);
+    console.log("useFuncionarioActions: Iniciando salvamento do funcionário", data);
+    
+    // Verificar se a função é obrigatória e está presente
+    if (!data.funcao_id || data.funcao_id.trim() === "") {
+      console.error("useFuncionarioActions: Função é obrigatória");
+      return;
+    }
+    
     state.setIsSubmitting(true);
     
     try {
@@ -116,15 +132,15 @@ export function useFuncionarioActions() {
       
       if (state.currentFuncionario) {
         // Atualizar funcionário existente
-        console.log("Atualizando funcionário existente:", sanitizedData);
+        console.log("useFuncionarioActions: Atualizando funcionário existente ID:", state.currentFuncionario.id);
         updateMutation.mutate({ id: state.currentFuncionario.id, data: sanitizedData });
       } else {
         // Criar novo funcionário
-        console.log("Criando novo funcionário:", sanitizedData);
+        console.log("useFuncionarioActions: Criando novo funcionário");
         createMutation.mutate(sanitizedData);
       }
     } catch (error) {
-      console.error("Erro ao processar dados do funcionário:", error);
+      console.error("useFuncionarioActions: Erro ao processar dados do funcionário:", error);
       state.setIsSubmitting(false);
     }
   }, [state, createMutation, updateMutation]);

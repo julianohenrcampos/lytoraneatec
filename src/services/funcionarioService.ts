@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { Funcionario, FuncionarioFormData, FuncionarioFilter } from "@/types/funcionario";
 import { addDays } from "date-fns";
@@ -78,7 +79,26 @@ export const fetchFuncionarios = async (filters: FuncionarioFilter = {}): Promis
 
     if (error) throw new Error(error.message);
     
-    return data as unknown as Funcionario[];
+    // Buscar as equipes separadamente para evitar conflito de relacionamentos múltiplos
+    const funcionariosComEquipes = await Promise.all(
+      (data || []).map(async (funcionario) => {
+        if (funcionario.equipe_id) {
+          const { data: equipe } = await supabase
+            .from("bd_equipes")
+            .select("*")
+            .eq("id", funcionario.equipe_id)
+            .single();
+          
+          return {
+            ...funcionario,
+            bd_equipes: equipe
+          };
+        }
+        return funcionario;
+      })
+    );
+    
+    return funcionariosComEquipes as unknown as Funcionario[];
   } catch (error) {
     console.error("Error fetching funcionarios:", error);
     throw error;
@@ -102,7 +122,22 @@ export const getFuncionarioById = async (id: string): Promise<Funcionario> => {
 
     if (error) throw new Error(error.message);
     
-    return data as unknown as Funcionario;
+    // Buscar a equipe separadamente para evitar conflito de relacionamentos múltiplos
+    let funcionarioComEquipe = data;
+    if (data.equipe_id) {
+      const { data: equipe } = await supabase
+        .from("bd_equipes")
+        .select("*")
+        .eq("id", data.equipe_id)
+        .single();
+      
+      funcionarioComEquipe = {
+        ...data,
+        bd_equipes: equipe
+      };
+    }
+    
+    return funcionarioComEquipe as unknown as Funcionario;
   } catch (error) {
     console.error(`Error fetching funcionario with id ${id}:`, error);
     throw error;

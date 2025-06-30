@@ -6,15 +6,11 @@ export interface Funcionario {
   foto_url?: string;
   nome_completo: string;
   cpf?: string;
-  rg?: string;
   data_nascimento?: string;
   email?: string;
-  endereco?: string;
   endereco_completo?: string;
   escolaridade?: string;
   genero?: string;
-  estado_civil?: string;
-  telefone?: string;
   funcao_id?: string;
   departamento_id?: string;
   centro_custo_id?: string;
@@ -24,21 +20,7 @@ export interface Funcionario {
   data_ferias?: string;
   data_demissao?: string;
   status?: 'Ativo' | 'Aviso Prévio' | 'Inativo';
-  salario?: number;
   salario_base?: number;
-  tipo_contrato?: string;
-  jornada_trabalho?: string;
-  motivo_demissao?: string;
-  registro_profissional?: string;
-  especialidade?: string;
-  observacoes?: string;
-  conta_banco?: string;
-  agencia_banco?: string;
-  banco?: string;
-  pix?: string;
-  beneficios?: string;
-  desconto_vr?: number;
-  desconto_va?: number;
   insalubridade?: number;
   periculosidade?: number;
   gratificacao?: number;
@@ -67,6 +49,10 @@ export interface Funcionario {
     id: string;
     nome_empresa: string;
   };
+  bd_equipes?: {
+    id: string;
+    nome_equipe: string;
+  };
 }
 
 // Form data for creating or updating a funcionario
@@ -74,15 +60,11 @@ export interface FuncionarioFormData {
   imagem?: string;
   nome_completo: string;
   cpf?: string;
-  rg?: string;
   data_nascimento?: string | null;
   email?: string;
-  endereco?: string;
   endereco_completo?: string;
   escolaridade?: string;
   genero?: string;
-  estado_civil?: string;
-  telefone?: string;
   funcao_id?: string;
   departamento_id?: string;
   centro_custo_id?: string;
@@ -92,21 +74,7 @@ export interface FuncionarioFormData {
   data_ferias?: string | null;
   data_demissao?: string | null;
   status?: string;
-  salario?: number;
   salario_base?: number;
-  tipo_contrato?: string;
-  jornada_trabalho?: string;
-  motivo_demissao?: string;
-  registro_profissional?: string;
-  especialidade?: string;
-  observacoes?: string;
-  conta_banco?: string;
-  agencia_banco?: string;
-  banco?: string;
-  pix?: string;
-  beneficios?: string;
-  desconto_vr?: number;
-  desconto_va?: number;
   insalubridade?: number;
   periculosidade?: number;
   gratificacao?: number;
