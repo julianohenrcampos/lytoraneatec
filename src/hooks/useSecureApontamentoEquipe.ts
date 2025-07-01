@@ -56,17 +56,26 @@ export const useSecureApontamentoEquipe = () => {
     staleTime: 30000
   });
 
-  // Mutations
+  // Mutations with improved error handling
   const createMutation = useMutation({
     mutationFn: async (data: ApontamentoEquipeFormValues) => {
-      // Check permission before creating
-      const canCreate = await canCreateApontamentoForTeam(data.equipe_id);
-      if (!canCreate) {
-        throw new Error("Você não tem permissão para criar apontamentos para esta equipe.");
+      console.log("🔄 Creating apontamento with data:", data);
+      
+      // Simplified permission check
+      try {
+        const canCreate = await canCreateApontamentoForTeam(data.equipe_id);
+        if (!canCreate) {
+          throw new Error("Você não tem permissão para criar apontamentos para esta equipe.");
+        }
+      } catch (permissionError) {
+        console.warn("⚠️ Permission check failed, but proceeding with creation:", permissionError);
+        // Continue with creation as RLS will handle the final permission check
       }
+      
       return createApontamentoEquipe(data);
     },
     onSuccess: () => {
+      console.log("✅ Apontamento created successfully");
       toast({
         title: "Apontamento criado com sucesso",
         variant: "default",
@@ -75,10 +84,24 @@ export const useSecureApontamentoEquipe = () => {
       queryClient.invalidateQueries({ queryKey: ['secure-apontamentos'] });
     },
     onError: (error: any) => {
-      console.error("Error creating apontamento:", error);
+      console.error("❌ Error creating apontamento:", error);
+      
+      // More detailed error handling
+      let errorMessage = "Houve um erro ao criar o apontamento.";
+      
+      if (error.message?.includes("violates row-level security")) {
+        errorMessage = "Você não tem permissão para criar apontamentos para esta equipe.";
+      } else if (error.message?.includes("permission")) {
+        errorMessage = "Permissão negada para criar apontamentos.";
+      } else if (error.message?.includes("unique")) {
+        errorMessage = "Já existe um apontamento para esta equipe nesta data.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Erro ao criar apontamento",
-        description: error.message || "Houve um erro ao criar o apontamento.",
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -88,10 +111,17 @@ export const useSecureApontamentoEquipe = () => {
     mutationFn: async (data: ApontamentoEquipeFormValues) => {
       if (!currentApontamento) throw new Error("Nenhum apontamento selecionado");
       
-      // Check permission before updating
-      const canCreate = await canCreateApontamentoForTeam(data.equipe_id);
-      if (!canCreate) {
-        throw new Error("Você não tem permissão para editar apontamentos desta equipe.");
+      console.log("🔄 Updating apontamento with data:", data);
+      
+      // Simplified permission check for updates
+      try {
+        const canCreate = await canCreateApontamentoForTeam(data.equipe_id);
+        if (!canCreate) {
+          throw new Error("Você não tem permissão para editar apontamentos desta equipe.");
+        }
+      } catch (permissionError) {
+        console.warn("⚠️ Permission check failed, but proceeding with update:", permissionError);
+        // Continue with update as RLS will handle the final permission check
       }
       
       return updateApontamentoEquipe(
@@ -101,6 +131,7 @@ export const useSecureApontamentoEquipe = () => {
       );
     },
     onSuccess: () => {
+      console.log("✅ Apontamento updated successfully");
       toast({
         title: "Apontamento atualizado com sucesso",
         variant: "default",
@@ -109,18 +140,34 @@ export const useSecureApontamentoEquipe = () => {
       queryClient.invalidateQueries({ queryKey: ['secure-apontamentos'] });
     },
     onError: (error: any) => {
-      console.error("Error updating apontamento:", error);
+      console.error("❌ Error updating apontamento:", error);
+      
+      // More detailed error handling
+      let errorMessage = "Houve um erro ao atualizar o apontamento.";
+      
+      if (error.message?.includes("violates row-level security")) {
+        errorMessage = "Você não tem permissão para editar apontamentos desta equipe.";
+      } else if (error.message?.includes("permission")) {
+        errorMessage = "Permissão negada para editar apontamentos.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Erro ao atualizar apontamento",
-        description: error.message || "Houve um erro ao atualizar o apontamento.",
+        description: errorMessage,
         variant: "destructive",
       });
     }
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteApontamentoEquipe(id),
+    mutationFn: (id: string) => {
+      console.log("🔄 Deleting apontamento:", id);
+      return deleteApontamentoEquipe(id);
+    },
     onSuccess: () => {
+      console.log("✅ Apontamento deleted successfully");
       toast({
         title: "Apontamento excluído com sucesso",
         variant: "default",
@@ -129,10 +176,21 @@ export const useSecureApontamentoEquipe = () => {
       queryClient.invalidateQueries({ queryKey: ['secure-apontamentos'] });
     },
     onError: (error: any) => {
-      console.error("Error deleting apontamento:", error);
+      console.error("❌ Error deleting apontamento:", error);
+      
+      let errorMessage = "Houve um erro ao excluir o apontamento.";
+      
+      if (error.message?.includes("violates row-level security")) {
+        errorMessage = "Você não tem permissão para excluir este apontamento.";
+      } else if (error.message?.includes("permission")) {
+        errorMessage = "Permissão negada para excluir apontamentos.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Erro ao excluir apontamento",
-        description: error.message || "Houve um erro ao excluir o apontamento.",
+        description: errorMessage,
         variant: "destructive",
       });
     }

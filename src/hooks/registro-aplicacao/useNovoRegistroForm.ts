@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -70,107 +69,95 @@ export const useNovoRegistroForm = (
   const [calculatedEspessura, setCalculatedEspessura] = useState<number | null>(null);
   const [registroAplicacaoId, setRegistroAplicacaoId] = useState<string | null>(null);
   const [registroExistente, setRegistroExistente] = useState<any>(null);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   const form = useForm<NovoRegistroFormData>({
     resolver: zodResolver(novoRegistroSchema),
     defaultValues: getCleanDefaultValues(),
-    mode: "onChange", // Validação em tempo real
+    mode: "onChange",
   });
 
   // Watch para cálculos automáticos
   const comprimento = form.watch("comprimento");
   const largura = form.watch("largura_media");
   const toneladaAplicada = form.watch("tonelada_aplicada");
+  const horaChegadaLocal = form.watch("hora_chegada_local");
+  const horaSaidaCaminhao = form.watch("hora_saida_caminhao");
+  const temperaturaChegada = form.watch("temperatura_chegada");
 
-  // Função para limpar completamente o formulário
-  const clearForm = () => {
-    console.log("🧹 Limpando formulário completamente");
-    const cleanValues = getCleanDefaultValues();
-    
-    // Reset com valores limpos
-    form.reset(cleanValues);
-    
-    // Limpar estados
-    setCalculatedArea(null);
-    setCalculatedEspessura(null);
-    setRegistroExistente(null);
-    setRegistroAplicacaoId(null);
-    
-    console.log("✅ Formulário limpo com sucesso");
-  };
-
-  // Limpar formulário quando entrega muda
-  useEffect(() => {
-    if (entrega?.id) {
-      console.log("🔄 Nova entrega detectada - limpando formulário:", entrega.id);
-      clearForm();
-      
-      // Definir o logradouro da entrega atual
-      form.setValue("logradouro_nome", entrega.logradouro || "");
-    }
-  }, [entrega?.id, form]);
-
-  // Buscar registro existente apenas APÓS limpar o formulário
+  // Buscar registro existente com controle de estado
   useEffect(() => {
     const buscarRegistroExistente = async () => {
-      if (!entrega?.id) return;
+      if (!entrega?.id || dataLoaded) return;
 
-      // Aguardar um tick para garantir que o formulário foi limpo
-      setTimeout(async () => {
-        try {
-          console.log("🔍 Buscando registro existente para entrega:", entrega.id);
-          
-          const { data: registros, error } = await supabase
-            .from("bd_registro_apontamento_aplicacao")
-            .select("*")
-            .eq("lista_entrega_id", entrega.id)
-            .order("created_at", { ascending: false })
-            .limit(1);
+      setIsLoadingData(true);
+      console.log("🔍 Buscando registro existente para entrega:", entrega.id);
 
-          if (error) {
-            console.error("Erro ao buscar registro existente:", error);
-            return;
-          }
+      try {
+        const { data: registros, error } = await supabase
+          .from("bd_registro_apontamento_aplicacao")
+          .select("*")
+          .eq("lista_entrega_id", entrega.id)
+          .order("created_at", { ascending: false })
+          .limit(1);
 
-          if (registros && registros.length > 0) {
-            const registro = registros[0];
-            setRegistroExistente(registro);
-            setRegistroAplicacaoId(registro.id);
-            
-            console.log("📄 Registro existente encontrado:", registro);
-            
-            // Preencher formulário APENAS com dados desta entrega específica
-            const formData = {
-              data_aplicacao: registro.data_aplicacao || format(new Date(), "yyyy-MM-dd"),
-              hora_chegada_local: registro.hora_chegada_local || "",
-              hora_saida_caminhao: registro.hora_saida_caminhao || "",
-              temperatura_chegada: registro.temperatura_chegada || null,
-              anotacoes_apontador: registro.anotacoes_apontador || "",
-              observacoes_aplicacao: registro.observacoes_gerais || "",
-              logradouro_nome: entrega?.logradouro || "",
-              comprimento: registro.comprimento || null,
-              largura_media: registro.largura_media || null,
-              area_aplicada: registro.area_calculada || null,
-              tonelada_aplicada: registro.tonelada_aplicada || null,
-              espessura_aplicada: registro.espessura_calculada || null,
-              bordo: registro.bordo || null,
-              temperatura_aplicacao: registro.temperatura_aplicacao || null,
-              estaca_inicial: registro.estaca_inicial || null,
-              estaca_final: registro.estaca_final || null,
-            };
-
-            form.reset(formData);
-            console.log("✅ Formulário preenchido com dados da entrega específica");
-          } else {
-            console.log("ℹ️ Nenhum registro existente encontrado - mantendo formulário limpo");
-          }
-        } catch (error) {
+        if (error) {
           console.error("Erro ao buscar registro existente:", error);
+          return;
         }
-      }, 100);
+
+        if (registros && registros.length > 0) {
+          const registro = registros[0];
+          setRegistroExistente(registro);
+          setRegistroAplicacaoId(registro.id);
+          
+          console.log("📄 Registro existente encontrado:", registro);
+          
+          // Preencher formulário com dados existentes
+          const formData = {
+            data_aplicacao: registro.data_aplicacao || format(new Date(), "yyyy-MM-dd"),
+            hora_chegada_local: registro.hora_chegada_local || "",
+            hora_saida_caminhao: registro.hora_saida_caminhao || "",
+            temperatura_chegada: registro.temperatura_chegada || null,
+            anotacoes_apontador: registro.anotacoes_apontador || "",
+            observacoes_aplicacao: registro.observacoes_gerais || "",
+            logradouro_nome: entrega?.logradouro || "",
+            comprimento: registro.comprimento || null,
+            largura_media: registro.largura_media || null,
+            area_aplicada: registro.area_calculada || null,
+            tonelada_aplicada: registro.tonelada_aplicada || null,
+            espessura_aplicada: registro.espessura_calculada || null,
+            bordo: registro.bordo || null,
+            temperatura_aplicacao: registro.temperatura_aplicacao || null,
+            estaca_inicial: registro.estaca_inicial || null,
+            estaca_final: registro.estaca_final || null,
+          };
+
+          // Reset do formulário com os dados carregados
+          form.reset(formData);
+          console.log("✅ Formulário preenchido com dados existentes");
+        } else {
+          console.log("ℹ️ Nenhum registro existente encontrado - usando valores padrão");
+          // Apenas definir o logradouro da entrega atual
+          form.setValue("logradouro_nome", entrega?.logradouro || "");
+        }
+
+        setDataLoaded(true);
+      } catch (error) {
+        console.error("Erro ao buscar registro existente:", error);
+      } finally {
+        setIsLoadingData(false);
+      }
     };
 
-    buscarRegistroExistente();
+    // Reset do estado quando entrega muda
+    if (entrega?.id) {
+      setDataLoaded(false);
+      setRegistroExistente(null);
+      setRegistroAplicacaoId(null);
+      buscarRegistroExistente();
+    }
   }, [entrega?.id, form]);
 
   // Calcular área automaticamente
@@ -232,6 +219,8 @@ export const useNovoRegistroForm = (
 
     setIsLoading(true);
     try {
+      let registroSalvo = null;
+
       if (registroExistente) {
         // Atualizar registro existente
         console.log("📝 Atualizando registro existente:", registroExistente.id);
@@ -244,6 +233,7 @@ export const useNovoRegistroForm = (
           anotacoes_apontador: data.anotacoes_apontador || null,
           observacoes_gerais: data.observacoes_aplicacao || null,
           status_aplicacao: 'Finalizada',
+          tonelada_aplicada: registroCarga.tonelada_real, // Usar toda a massa da carga
           updated_at: new Date().toISOString()
         };
 
@@ -261,6 +251,7 @@ export const useNovoRegistroForm = (
           throw new Error(`Erro ao atualizar registro: ${updateError.message}`);
         }
 
+        registroSalvo = registroAtualizado;
         console.log("✅ Registro atualizado:", registroAtualizado);
       } else {
         // Criar novo registro
@@ -276,6 +267,7 @@ export const useNovoRegistroForm = (
           anotacoes_apontador: data.anotacoes_apontador || null,
           observacoes_gerais: data.observacoes_aplicacao || null,
           status_aplicacao: 'Finalizada',
+          tonelada_aplicada: registroCarga.tonelada_real, // Usar toda a massa da carga
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
@@ -293,9 +285,53 @@ export const useNovoRegistroForm = (
           throw new Error(`Erro ao criar registro: ${createError.message}`);
         }
 
+        registroSalvo = novoRegistroCreated;
         console.log("✅ Novo registro criado:", novoRegistroCreated);
         setRegistroExistente(novoRegistroCreated);
         setRegistroAplicacaoId(novoRegistroCreated.id);
+      }
+
+      // Criar/atualizar detalhe de aplicação usando a nova função
+      if (registroSalvo) {
+        console.log("📄 Sincronizando detalhes da aplicação");
+        
+        try {
+          const { error: syncError } = await supabase.rpc(
+            'sincronizar_aplicacao_formulario_novo',
+            {
+              registro_aplicacao_id: registroSalvo.id,
+              tonelada_aplicada_formulario: registroCarga.tonelada_real
+            }
+          );
+
+          if (syncError) {
+            console.warn("Aviso ao sincronizar detalhes:", syncError);
+            // Não falha por causa disso, apenas logga
+          } else {
+            console.log("✅ Detalhes sincronizados com sucesso");
+          }
+        } catch (syncError) {
+          console.warn("Erro ao sincronizar detalhes, mas continuando:", syncError);
+        }
+      }
+
+      // Atualizar status da entrega manualmente para "Entregue"
+      if (data.hora_saida_caminhao?.trim()) {
+        console.log("🔄 Atualizando status da entrega para 'Entregue'");
+        try {
+          const { error: statusError } = await supabase
+            .from("bd_lista_programacao_entrega")
+            .update({ status: 'Entregue' })
+            .eq("id", entrega.id);
+
+          if (statusError) {
+            console.warn("⚠️ Erro ao atualizar status, mas registro foi salvo:", statusError);
+          } else {
+            console.log("✅ Status da entrega atualizado para 'Entregue'");
+          }
+        } catch (statusError) {
+          console.warn("⚠️ Erro ao atualizar status, mas registro foi salvo:", statusError);
+        }
       }
 
       toast({
@@ -327,12 +363,13 @@ export const useNovoRegistroForm = (
   return {
     form,
     isLoading,
+    isLoadingData,
+    dataLoaded,
     calculatedArea,
     calculatedEspessura,
     registroAplicacaoId,
     registroExistente,
     setRegistroAplicacaoId,
-    clearForm,
     onSubmit: form.handleSubmit(onSubmit),
   };
 };

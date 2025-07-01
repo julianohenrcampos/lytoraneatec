@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -40,8 +41,15 @@ const NovoRegistroAplicacaoModal: React.FC<NovoRegistroAplicacaoModalProps> = ({
   // Use multiple applications hook to get real-time data
   const { cargaInfo, refetch: refetchCargaInfo } = useMultipleApplications(registroCarga?.id);
 
-  // Use form hook only if not in read-only mode
-  const { form, isLoading, onSubmit } = useNovoRegistroForm(
+  // Use form hook with new loading states
+  const { 
+    form, 
+    isLoading, 
+    isLoadingData, 
+    dataLoaded, 
+    registroExistente,
+    onSubmit 
+  } = useNovoRegistroForm(
     entrega,
     registroCarga,
     () => {
@@ -127,6 +135,9 @@ const NovoRegistroAplicacaoModal: React.FC<NovoRegistroAplicacaoModalProps> = ({
     return "Novo Registro de Aplicação";
   };
 
+  // Mostrar loading enquanto carrega dados da carga ou dados do formulário
+  const isLoadingAllData = loadingCarga || isLoadingData;
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
@@ -140,12 +151,19 @@ const NovoRegistroAplicacaoModal: React.FC<NovoRegistroAplicacaoModalProps> = ({
               Esta entrega está finalizada e os dados são somente para visualização.
             </p>
           )}
+          {registroExistente && !isReadOnlyMode && (
+            <p className="text-sm text-blue-600">
+              Registro existente carregado. Você pode modificar e salvar as alterações.
+            </p>
+          )}
         </DialogHeader>
 
-        {loadingCarga ? (
+        {isLoadingAllData ? (
           <div className="flex items-center justify-center p-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            <span className="ml-2">Carregando dados da carga...</span>
+            <span className="ml-2">
+              {loadingCarga ? "Carregando dados da carga..." : "Carregando dados do registro..."}
+            </span>
           </div>
         ) : (
           <>
@@ -206,6 +224,7 @@ const NovoRegistroAplicacaoModal: React.FC<NovoRegistroAplicacaoModalProps> = ({
                   isLoading={isLoading}
                   isReadOnly={isReadOnlyMode}
                   cargaInfo={cargaInfo}
+                  registroExistente={registroExistente}
                 />
               </TabsContent>
             </Tabs>

@@ -91,9 +91,9 @@ export const useApontamentoEquipe = () => {
   
   const createMutation = useMutation({
     mutationFn: (data: ApontamentoEquipeFormValues) => {
+      console.log("🔄 Creating apontamento with normalized data:", data);
       let formattedData = { ...data };
       if (formattedData.data_registro) {
-        // Fixed the instanceof check by checking type instead
         if (typeof formattedData.data_registro === 'object') {
           formattedData.data_registro = normalizeDate(formattedData.data_registro as Date);
         } else if (typeof formattedData.data_registro === 'string') {
@@ -103,6 +103,7 @@ export const useApontamentoEquipe = () => {
       return createApontamentoEquipe(formattedData);
     },
     onSuccess: () => {
+      console.log("✅ Apontamento created successfully");
       queryClient.invalidateQueries({ queryKey: ['apontamentos'] });
       toast({
         title: "Apontamento criado",
@@ -110,11 +111,24 @@ export const useApontamentoEquipe = () => {
       });
       setIsFormModalOpen(false);
     },
-    onError: (error) => {
-      console.error("Error creating apontamento:", error);
+    onError: (error: any) => {
+      console.error("❌ Error creating apontamento:", error);
+      
+      let errorMessage = "Houve um erro ao criar o apontamento de equipe";
+      
+      if (error.message?.includes("violates row-level security")) {
+        errorMessage = "Você não tem permissão para criar apontamentos para esta equipe.";
+      } else if (error.message?.includes("permission")) {
+        errorMessage = "Permissão negada para criar apontamentos.";
+      } else if (error.message?.includes("unique")) {
+        errorMessage = "Já existe um apontamento para esta equipe nesta data.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Erro ao criar apontamento",
-        description: "Houve um erro ao criar o apontamento de equipe",
+        description: errorMessage,
         variant: "destructive"
       });
     }
@@ -122,9 +136,9 @@ export const useApontamentoEquipe = () => {
   
   const updateMutation = useMutation({
     mutationFn: (data: ApontamentoEquipeFormValues) => {
+      console.log("🔄 Updating apontamento with normalized data:", data);
       let formattedData = { ...data };
       if (formattedData.data_registro) {
-        // Fixed the instanceof check by checking type instead
         if (typeof formattedData.data_registro === 'object') {
           formattedData.data_registro = normalizeDate(formattedData.data_registro as Date);
         } else if (typeof formattedData.data_registro === 'string') {
@@ -137,6 +151,7 @@ export const useApontamentoEquipe = () => {
       return updateApontamentoEquipe(formattedData.equipe_id, formattedData.data_registro, formattedData);
     },
     onSuccess: () => {
+      console.log("✅ Apontamento updated successfully");
       queryClient.invalidateQueries({ queryKey: ['apontamentos'] });
       toast({
         title: "Apontamento atualizado",
@@ -144,19 +159,34 @@ export const useApontamentoEquipe = () => {
       });
       setIsFormModalOpen(false);
     },
-    onError: (error) => {
-      console.error("Error updating apontamento:", error);
+    onError: (error: any) => {
+      console.error("❌ Error updating apontamento:", error);
+      
+      let errorMessage = "Houve um erro ao atualizar o apontamento de equipe";
+      
+      if (error.message?.includes("violates row-level security")) {
+        errorMessage = "Você não tem permissão para editar apontamentos desta equipe.";
+      } else if (error.message?.includes("permission")) {
+        errorMessage = "Permissão negada para editar apontamentos.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Erro ao atualizar apontamento",
-        description: "Houve um erro ao atualizar o apontamento de equipe",
+        description: errorMessage,
         variant: "destructive"
       });
     }
   });
   
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteApontamentoEquipe(id),
+    mutationFn: (id: string) => {
+      console.log("🔄 Deleting apontamento:", id);
+      return deleteApontamentoEquipe(id);
+    },
     onSuccess: () => {
+      console.log("✅ Apontamento deleted successfully");
       queryClient.invalidateQueries({ queryKey: ['apontamentos'] });
       toast({
         title: "Apontamento excluído",
@@ -166,11 +196,22 @@ export const useApontamentoEquipe = () => {
       setDeletingApontamento(null);
       setIsDeleting(false);
     },
-    onError: (error) => {
-      console.error("Error deleting apontamento:", error);
+    onError: (error: any) => {
+      console.error("❌ Error deleting apontamento:", error);
+      
+      let errorMessage = "Houve um erro ao excluir o apontamento de equipe";
+      
+      if (error.message?.includes("violates row-level security")) {
+        errorMessage = "Você não tem permissão para excluir este apontamento.";
+      } else if (error.message?.includes("permission")) {
+        errorMessage = "Permissão negada para excluir apontamentos.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Erro ao excluir apontamento",
-        description: "Houve um erro ao excluir o apontamento de equipe",
+        description: errorMessage,
         variant: "destructive"
       });
       setIsDeleting(false);
@@ -193,7 +234,6 @@ export const useApontamentoEquipe = () => {
       const currentApontamento = { ...apontamento };
       if (typeof currentApontamento.data_registro === 'string') {
         const [year, month, day] = currentApontamento.data_registro.split('-').map(Number);
-        // Fixed Type error by assigning a Date object
         currentApontamento.data_registro = new Date(year, month - 1, day, 12, 0, 0) as any;
       }
       setCurrentApontamento(currentApontamento);
@@ -222,7 +262,6 @@ export const useApontamentoEquipe = () => {
   
   const handleExport = useCallback(() => {
     try {
-      // Use the updated export function that includes both apontamentos and avaliações
       exportApontamentoAndAvaliacoes(filters);
       toast({
         title: "Exportação concluída",

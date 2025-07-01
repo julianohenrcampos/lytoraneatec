@@ -130,6 +130,23 @@ const ApontamentoEquipeFormOffline: React.FC<ApontamentoEquipeFormOfflineProps> 
     }
   }, [isEditing, apontamentosCarregados, form]);
 
+  // Validação simplificada para permitir salvamento básico
+  const canSaveBasicAppointment = () => {
+    const formValues = form.getValues();
+    const colaboradoresPresentes = formValues.colaboradores?.filter(col => col.presente) || [];
+    
+    return (
+      formValues.equipe_id && 
+      colaboradoresPresentes.length > 0 &&
+      !isLoading && 
+      !isLoadingMembers && 
+      !loadingEquipeError &&
+      !(apontamentoExistente && !currentApontamento)
+    );
+  };
+
+  const isButtonDisabled = !canSaveBasicAppointment();
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[700px] w-full max-h-[90vh] overflow-y-auto">
@@ -216,13 +233,7 @@ const ApontamentoEquipeFormOffline: React.FC<ApontamentoEquipeFormOfflineProps> 
               </Button>
               <Button 
                 type="submit" 
-                disabled={
-                  isLoading || 
-                  isLoadingMembers || 
-                  (apontamentoExistente && !currentApontamento) || 
-                  (!todosColaboradoresAvaliados && !currentApontamento && isAvaliacaoObrigatoria) ||
-                  !!loadingEquipeError
-                }
+                disabled={isButtonDisabled}
                 className="bg-blue-500 hover:bg-blue-600 w-full sm:w-auto h-12 sm:h-10"
               >
                 {isLoading ? (

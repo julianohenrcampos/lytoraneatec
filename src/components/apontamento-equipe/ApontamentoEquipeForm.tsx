@@ -122,6 +122,34 @@ const ApontamentoEquipeForm: React.FC<ApontamentoEquipeFormProps> = ({
     }
   }, [isEditing, apontamentosCarregados, form]);
 
+  // Validação simplificada para permitir salvamento básico
+  const canSaveBasicAppointment = () => {
+    const formValues = form.getValues();
+    
+    // Verificar se há pelo menos um colaborador selecionado
+    const colaboradoresPresentes = formValues.colaboradores?.filter(col => col.presente) || [];
+    
+    console.log("🔍 Validando salvamento:", {
+      equipeId: formValues.equipe_id,
+      colaboradoresPresentes: colaboradoresPresentes.length,
+      isLoading,
+      isLoadingMembers,
+      loadingEquipeError,
+      apontamentoExistente: !!apontamentoExistente && !currentApontamento
+    });
+    
+    return (
+      formValues.equipe_id && 
+      colaboradoresPresentes.length > 0 &&
+      !isLoading && 
+      !isLoadingMembers && 
+      !loadingEquipeError &&
+      !(apontamentoExistente && !currentApontamento)
+    );
+  };
+
+  const isButtonDisabled = !canSaveBasicAppointment();
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[700px] w-full max-h-[90vh] overflow-y-auto">
@@ -181,13 +209,7 @@ const ApontamentoEquipeForm: React.FC<ApontamentoEquipeFormProps> = ({
               </Button>
               <Button 
                 type="submit" 
-                disabled={
-                  isLoading || 
-                  isLoadingMembers || 
-                  (apontamentoExistente && !currentApontamento) || 
-                  (!todosColaboradoresAvaliados && !currentApontamento && isAvaliacaoObrigatoria) ||
-                  !!loadingEquipeError
-                }
+                disabled={isButtonDisabled}
                 className="bg-blue-500 hover:bg-blue-600 w-full sm:w-auto h-12 sm:h-10"
               >
                 {isLoading ? (

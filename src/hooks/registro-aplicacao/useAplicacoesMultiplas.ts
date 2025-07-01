@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { RegistroAplicacaoDetalhes, RegistroAplicacaoDetalhesFormValues } from "@/types/registroAplicacaoDetalhes";
@@ -7,6 +8,7 @@ import {
   updateAplicacaoDetalhe,
   deleteAplicacaoDetalhe 
 } from "@/services/registroAplicacaoDetalhesService";
+import { forceUpdateDeliveryStatus } from "@/services/registro-aplicacao/statusIntegrityService";
 
 export const useAplicacoesMultiplas = (
   registroAplicacaoId?: string,
@@ -90,6 +92,19 @@ export const useAplicacoesMultiplas = (
     }
   }, [registroAplicacaoId, loadAplicacoes, clearCache]);
 
+  // Função para forçar atualização de status após mudanças
+  const forceUpdateStatus = useCallback(async () => {
+    if (listaEntregaId) {
+      console.log("🔄 Forçando atualização de status para entrega:", listaEntregaId);
+      try {
+        await forceUpdateDeliveryStatus(listaEntregaId);
+        console.log("✅ Status da entrega atualizado com sucesso");
+      } catch (error) {
+        console.error("❌ Erro ao atualizar status da entrega:", error);
+      }
+    }
+  }, [listaEntregaId]);
+
   // Adicionar nova aplicação
   const adicionarAplicacao = async (dadosAplicacao: RegistroAplicacaoDetalhesFormValues) => {
     if (!registroAplicacaoId || !registroCargaId || !listaEntregaId) {
@@ -107,6 +122,9 @@ export const useAplicacoesMultiplas = (
 
       setAplicacoes(prev => [...prev, novaAplicacao]);
       clearCache(registroAplicacaoId);
+      
+      // Forçar atualização de status após adicionar aplicação
+      await forceUpdateStatus();
       
       toast({
         title: "Sucesso",
@@ -144,6 +162,9 @@ export const useAplicacoesMultiplas = (
         clearCache(registroAplicacaoId);
       }
 
+      // Forçar atualização de status após editar aplicação
+      await forceUpdateStatus();
+
       toast({
         title: "Sucesso",
         description: "Aplicação atualizada com sucesso",
@@ -180,6 +201,9 @@ export const useAplicacoesMultiplas = (
         clearCache(registroAplicacaoId);
       }
 
+      // Forçar atualização de status após remover aplicação
+      await forceUpdateStatus();
+
       toast({
         title: "Sucesso",
         description: "Aplicação removida com sucesso",
@@ -205,12 +229,10 @@ export const useAplicacoesMultiplas = (
     setEditingAplicacao(aplicacao);
   };
 
-  // Cancelar edição
   const cancelarEdicao = () => {
     setEditingAplicacao(null);
   };
 
-  // Converter aplicação para formato de formulário
   const aplicacaoParaFormulario = (aplicacao: RegistroAplicacaoDetalhes): RegistroAplicacaoDetalhesFormValues => {
     return {
       logradouro_nome: aplicacao.logradouro_nome,
@@ -273,6 +295,7 @@ export const useAplicacoesMultiplas = (
     cancelarEdicao,
     aplicacaoParaFormulario,
     forceReloadAplicacoes,
-    clearCache
+    clearCache,
+    forceUpdateStatus
   };
 };
