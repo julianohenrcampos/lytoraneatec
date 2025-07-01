@@ -1,327 +1,281 @@
-
-import { useState, useEffect, useCallback } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useState, useCallback, useEffect } from "react";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Funcionario } from "@/types/funcionario";
-import { apontamentoEquipeSchema, ApontamentoEquipeSchema } from "@/validations/apontamentoEquipeSchema";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { 
-  getCurrentBrazilianDate,
-  formatBrazilianDateToString 
-} from "@/utils/timezoneUtils";
-
-interface ApontamentoEquipeData {
-  id?: string;
-  equipe_id: string;
-  data_registro: string;
-  lista_entrega_id?: string;
-  colaboradores: {
-    colaborador_id: string;
-    nome_colaborador: string;
-    hora_inicio?: string;
-    hora_fim?: string;
-    presente: boolean;
-  }[];
-}
-
-interface AlertMessage {
-  colaboradorId: string;
-  message: string;
-  type: "error" | "info";
-}
+  ApontamentoEquipe, 
+  ApontamentoEquipeFormValues,
+  ApontamentoEquipeApiData
+} from "@/types/apontamentoEquipe";
+import { apontamentoEquipeSchema } from "@/validations/apontamentoEquipeSchema";
+import { fetchEquipeMembers } from "@/services/equipe/fetchEquipeMembers";
+import { format } from "date-fns";
 
 interface UseApontamentoEquipeFormProps {
-  currentApontamento?: any;
-  onSubmit?: (data: any) => void;
+  currentApontamento: ApontamentoEquipe | null;
+  onSubmit: (data: ApontamentoEquipeFormValues) => void; // Keep as FormValues for internal use
   avaliacaoStatusMap?: Map<string, {canCreate: boolean, daysRemaining: number}>;
   isAvaliacaoObrigatoria?: boolean;
 }
 
-export const useApontamentoEquipeForm = (props?: UseApontamentoEquipeFormProps) => {
-  const { currentApontamento, onSubmit, avaliacaoStatusMap = new Map(), isAvaliacaoObrigatoria = false } = props || {};
+export const useApontamentoEquipeForm = ({
+  currentApontamento,
+  onSubmit,
+  avaliacaoStatusMap = new Map(),
+  isAvaliacaoObrigatoria = false
+}: UseApontamentoEquipeFormProps) => {
   const { toast } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [colaboradores, setColaboradores] = useState<Funcionario[]>([]);
-  const [equipes, setEquipes] = useState<any[]>([]);
-  const [entregas, setEntregas] = useState<any[]>([]);
-  const [equipeMembers, setEquipeMembers] = useState<Funcionario[]>([]);
+  
+  // Estados
+  const [equipeMembers, setEquipeMembers] = useState<any[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [loadingEquipeError, setLoadingEquipeError] = useState<string | null>(null);
   const [apontamentoExistente, setApontamentoExistente] = useState<any>(null);
   const [avaliacoesPendentes, setAvaliacoesPendentes] = useState<Set<string>>(new Set());
   const [avaliacoesCompletas, setAvaliacoesCompletas] = useState<Set<string>>(new Set());
-  const [todosColaboradoresAvaliados, setTodosColaboradoresAvaliados] = useState(true); // Iniciar como true para não bloquear
-  const [alertMessage, setAlertMessage] = useState<AlertMessage>({ colaboradorId: "", message: "", type: "info" });
+  const [todosColaboradoresAvaliados, setTodosColaboradoresAvaliados] = useState(false);
+  const [alertMessage, setAlertMessage] = useState<{
+    colaboradorId: string;
+    message: string;
+    type: "info" | "error";
+  } | null>(null);
   const [apontamentosCarregados, setApontamentosCarregados] = useState(false);
-  const [loadingEquipeError, setLoadingEquipeError] = useState<string>("");
 
-  const form = useForm<ApontamentoEquipeSchema>({
+  // Form setup
+  const form = useForm<ApontamentoEquipeFormValues>({
     resolver: zodResolver(apontamentoEquipeSchema),
     defaultValues: {
-      equipe_id: currentApontamento?.equipe_id || "",
-      data_registro: currentApontamento?.data_registro || getCurrentBrazilianDate(),
-      lista_entrega_id: currentApontamento?.lista_entrega_id || "",
-      colaboradores: currentApontamento?.colaboradores || []
+      equipe_id: "",
+      data_registro: new Date(), // Default to current date
+      lista_entrega_id: "",
+      colaboradores: []
     }
   });
 
-  const { fields, append, remove, update } = useFieldArray({
-    control: form.control,
-    name: "colaboradores"
-  });
-
-  // Load initial data
-  useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        // Load equipes
-        const { data: equipesData, error: equipesError } = await supabase
-          .from('bd_equipes')
-          .select(`
-            id,
-            nome_equipe,
-            apontador:apontador_id(id, nome_completo)
-          `);
-
-        if (equipesError) throw equipesError;
-        setEquipes(equipesData || []);
-
-        // Load entregas
-        const { data: entregasData, error: entregasError } = await supabase
-          .from('bd_lista_programacao_entrega')
-          .select(`
-            id,
-            logradouro,
-            data_entrega,
-            equipe_id,
-            status
-          `)
-          .eq('status', 'Ativa');
-
-        if (entregasError) throw entregasError;
-        setEntregas(entregasData || []);
-
-      } catch (error) {
-        console.error('Error loading initial data:', error);
-        toast({
-          title: "Erro",
-          description: "Erro ao carregar dados iniciais",
-          variant: "destructive",
-        });
-      }
-    };
-
-    loadInitialData();
-  }, [toast]);
-
+  // Carregar membros da equipe
   const loadEquipeMembers = useCallback(async (equipeId: string) => {
     if (!equipeId) {
       setEquipeMembers([]);
-      setLoadingEquipeError("");
       return;
     }
 
+    console.log("🔍 Carregando membros da equipe:", equipeId);
     setIsLoadingMembers(true);
-    setLoadingEquipeError("");
-    
+    setLoadingEquipeError(null);
+
     try {
-      console.log("🔄 Carregando membros da equipe:", equipeId);
+      const members = await fetchEquipeMembers(equipeId);
+      console.log("✅ Membros carregados:", members);
       
-      const { data: colaboradoresData, error: colaboradoresError } = await supabase
-        .from('bd_funcionarios')
-        .select('*')
-        .eq('equipe_id', equipeId)
-        .eq('status', 'Ativo');
-
-      if (colaboradoresError) throw colaboradoresError;
-
-      console.log("✅ Membros carregados:", colaboradoresData?.length);
-
-      // Convert string salario to number for type compatibility
-      const processedColaboradores = (colaboradoresData || []).map(funcionario => ({
-        ...funcionario,
-        salario: funcionario.salario ? parseFloat(String(funcionario.salario)) : undefined,
-        salario_base: funcionario.salario_base ? parseFloat(String(funcionario.salario_base)) : undefined,
-        insalubridade: funcionario.insalubridade ? parseFloat(String(funcionario.insalubridade)) : undefined,
-        periculosidade: funcionario.periculosidade ? parseFloat(String(funcionario.periculosidade)) : undefined,
-        gratificacao: funcionario.gratificacao ? parseFloat(String(funcionario.gratificacao)) : undefined,
-        adicional_noturno: funcionario.adicional_noturno ? parseFloat(String(funcionario.adicional_noturno)) : undefined,
-        custo_passagem: funcionario.custo_passagem ? parseFloat(String(funcionario.custo_passagem)) : undefined,
-        refeicao: funcionario.refeicao ? parseFloat(String(funcionario.refeicao)) : undefined,
-        diarias: funcionario.diarias ? parseFloat(String(funcionario.diarias)) : undefined
-      }));
-
-      setEquipeMembers(processedColaboradores);
-      setColaboradores(processedColaboradores);
-
-      // Auto-populate colaboradores if not editing existing data
-      if (!currentApontamento && processedColaboradores.length > 0) {
-        const colaboradoresForm = processedColaboradores.map(col => ({
-          colaborador_id: col.id,
-          nome_colaborador: col.nome_completo,
+      setEquipeMembers(members);
+      
+      // Se não estiver editando, inicializar colaboradores
+      if (!currentApontamento) {
+        const colaboradoresIniciais = members.map(member => ({
+          colaborador_id: member.id || "", // Garantir que não seja undefined
+          nome_colaborador: member.nome_completo || "",
           presente: false,
           hora_inicio: "",
           hora_fim: ""
         }));
         
-        form.setValue("colaboradores", colaboradoresForm);
+        console.log("🔄 Inicializando colaboradores:", colaboradoresIniciais);
+        form.setValue("colaboradores", colaboradoresIniciais);
       }
-
+      
     } catch (error) {
-      console.error('❌ Error loading colaboradores:', error);
-      setLoadingEquipeError("Erro ao carregar colaboradores da equipe");
+      console.error("❌ Erro ao carregar membros:", error);
+      const errorMessage = error instanceof Error ? error.message : "Erro ao carregar membros da equipe";
+      setLoadingEquipeError(errorMessage);
+      
       toast({
         title: "Erro",
-        description: "Erro ao carregar colaboradores da equipe",
-        variant: "destructive",
+        description: errorMessage,
+        variant: "destructive"
       });
     } finally {
       setIsLoadingMembers(false);
     }
-  }, [form, toast, currentApontamento]);
+  }, [form, currentApontamento, toast]);
 
+  // Carregar apontamento existente
   const loadExistingApontamento = useCallback(async (equipeId: string, dataRegistro: Date) => {
-    try {
-      console.log("🔍 Verificando apontamento existente:", { equipeId, dataRegistro });
-      
-      // Check if apontamento already exists for this team and date
-      const { data: existingData, error } = await supabase
-        .from('bd_apontamento_equipe')
-        .select('*')
-        .eq('equipe_id', equipeId)
-        .eq('data_registro', formatBrazilianDateToString(dataRegistro));
+    if (!equipeId || !dataRegistro) return;
 
-      if (error) throw error;
+    console.log("🔍 Verificando apontamento existente para:", { equipeId, dataRegistro });
+
+    try {
+      const dataFormatada = format(dataRegistro, "yyyy-MM-dd");
+      
+      const { data: existingData, error } = await supabase
+        .from("bd_apontamento_equipe")
+        .select("*")
+        .eq("equipe_id", equipeId)
+        .eq("data_registro", dataFormatada);
+
+      if (error) {
+        console.error("❌ Erro ao verificar apontamento existente:", error);
+        return;
+      }
 
       if (existingData && existingData.length > 0) {
-        console.log("✅ Apontamento existente encontrado:", existingData.length, "registros");
-        setApontamentoExistente(existingData);
+        console.log("📄 Apontamento existente encontrado:", existingData);
+        setApontamentoExistente(existingData[0]);
         
-        // Populate form with existing data
-        const colaboradoresForm = existingData.map(item => ({
-          colaborador_id: item.colaborador_id,
-          nome_colaborador: item.nome_colaborador,
-          presente: item.presente,
+        // Preparar dados para o formulário
+        const colaboradoresDoApontamento = existingData.map(item => ({
+          colaborador_id: item.colaborador_id || "", // Garantir que não seja null
+          nome_colaborador: item.nome_colaborador || "",
+          presente: item.presente || false,
           hora_inicio: item.hora_inicio || "",
           hora_fim: item.hora_fim || ""
         }));
         
-        form.setValue("colaboradores", colaboradoresForm);
-        setApontamentosCarregados(true);
+        // Combinar com membros da equipe para garantir que todos apareçam
+        const colaboradoresCombinados = equipeMembers.map(member => {
+          const apontamentoExistente = colaboradoresDoApontamento.find(
+            col => col.colaborador_id === member.id
+          );
+          
+          return apontamentoExistente || {
+            colaborador_id: member.id || "",
+            nome_colaborador: member.nome_completo || "",
+            presente: false,
+            hora_inicio: "",
+            hora_fim: ""
+          };
+        });
+        
+        console.log("🔄 Atualizando formulário com dados existentes:", colaboradoresCombinados);
+        form.setValue("colaboradores", colaboradoresCombinados);
+        
+        // Atualizar outros campos do formulário
+        if (existingData[0].lista_entrega_id) {
+          form.setValue("lista_entrega_id", existingData[0].lista_entrega_id);
+        }
       } else {
         console.log("ℹ️ Nenhum apontamento existente encontrado");
         setApontamentoExistente(null);
-        setApontamentosCarregados(true);
       }
-    } catch (error) {
-      console.error('❌ Error loading existing apontamento:', error);
+      
       setApontamentosCarregados(true);
+      
+    } catch (error) {
+      console.error("❌ Erro ao carregar apontamento existente:", error);
     }
-  }, [form]);
+  }, [equipeMembers, form]);
 
-  // Monitorar mudanças nas avaliações para atualizar o estado
-  useEffect(() => {
-    const formValues = form.getValues();
-    const colaboradoresPresentes = formValues.colaboradores?.filter(col => col.presente) || [];
+  // Calcular estatísticas de avaliação
+  const calcularEstatisticasAvaliacao = useCallback(() => {
+    const colaboradoresPresentes = form.getValues().colaboradores?.filter(col => col.presente) || [];
     
-    // Para permitir salvamento básico, apenas verificar se há colaboradores presentes
-    // A validação de avaliações é opcional
-    if (colaboradoresPresentes.length > 0) {
-      setTodosColaboradoresAvaliados(true);
-    }
+    const pendentes = new Set<string>();
+    const completas = new Set<string>();
     
-    console.log("📊 Status das avaliações:", {
-      colaboradoresPresentes: colaboradoresPresentes.length,
-      avaliacoesCompletas: avaliacoesCompletas.size,
-      todosColaboradoresAvaliados: true, // Sempre true para permitir salvamento
-      isAvaliacaoObrigatoria
+    colaboradoresPresentes.forEach(colaborador => {
+      if (colaborador.colaborador_id) {
+        const status = avaliacaoStatusMap.get(colaborador.colaborador_id);
+        if (status?.canCreate || !status) {
+          pendentes.add(colaborador.colaborador_id);
+        } else {
+          completas.add(colaborador.colaborador_id);
+        }
+      }
     });
-  }, [form.watch("colaboradores"), avaliacoesCompletas, isAvaliacaoObrigatoria]);
+    
+    setAvaliacoesPendentes(pendentes);
+    setAvaliacoesCompletas(completas);
+    setTodosColaboradoresAvaliados(pendentes.size === 0 && colaboradoresPresentes.length > 0);
+    
+    // Definir mensagem de alerta
+    if (isAvaliacaoObrigatoria && pendentes.size > 0) {
+      setAlertMessage({
+        colaboradorId: "",
+        message: `Avaliação obrigatória! ${pendentes.size} colaborador(es) precisam ser avaliados hoje.`,
+        type: "error"
+      });
+    } else if (pendentes.size > 0) {
+      setAlertMessage({
+        colaboradorId: "",
+        message: `${pendentes.size} colaborador(es) podem ser avaliados.`,
+        type: "info"
+      });
+    } else if (completas.size > 0) {
+      setAlertMessage({
+        colaboradorId: "",
+        message: `Todos os ${completas.size} colaborador(es) já foram avaliados recentemente.`,
+        type: "info"
+      });
+    } else {
+      setAlertMessage(null);
+    }
+  }, [form, avaliacaoStatusMap, isAvaliacaoObrigatoria]);
 
-  const handleFormSubmit = useCallback(async (data: ApontamentoEquipeSchema) => {
-    setIsSubmitting(true);
+  // Efeito para recalcular estatísticas quando dados mudam
+  useEffect(() => {
+    calcularEstatisticasAvaliacao();
+  }, [calcularEstatisticasAvaliacao]);
+
+  // Efeito para carregar apontamento existente quando equipe e membros mudam
+  useEffect(() => {
+    const equipeId = form.getValues().equipe_id;
+    const dataRegistro = form.getValues().data_registro;
+    
+    if (equipeId && dataRegistro && equipeMembers.length > 0 && !currentApontamento) {
+      loadExistingApontamento(equipeId, dataRegistro);
+    }
+  }, [form, equipeMembers, currentApontamento, loadExistingApontamento]);
+
+  // Handle form submission - keep as FormValues
+  const handleFormSubmit = useCallback((data: ApontamentoEquipeFormValues) => {
+    console.log("📤 Submetendo formulário:", data);
     
     try {
-      console.log("🚀 Iniciando salvamento do apontamento:", data);
+      // Validar dados antes de submeter
+      const colaboradoresPresentes = data.colaboradores?.filter(col => col.presente) || [];
       
-      if (onSubmit) {
-        await onSubmit(data);
-      } else {
-        const colaboradoresPresentes = data.colaboradores.filter(col => col.presente);
-        
-        if (colaboradoresPresentes.length === 0) {
-          toast({
-            title: "Erro",
-            description: "Selecione pelo menos um colaborador presente",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        console.log("💾 Salvando apontamento com", colaboradoresPresentes.length, "colaboradores presentes");
-
-        // Prepare data for database
-        const apontamentoData = colaboradoresPresentes.map(col => ({
-          equipe_id: data.equipe_id,
-          colaborador_id: col.colaborador_id,
-          nome_colaborador: col.nome_colaborador,
-          data_registro: data.data_registro,
-          lista_entrega_id: data.lista_entrega_id || null,
-          hora_inicio: col.hora_inicio || null,
-          hora_fim: col.hora_fim || null,
-          presente: col.presente
-        }));
-
-        // Save to database
-        const { error } = await supabase
-          .from('bd_apontamento_equipe')
-          .insert(apontamentoData);
-
-        if (error) throw error;
-
-        console.log("✅ Apontamento salvo com sucesso");
-
+      if (colaboradoresPresentes.length === 0) {
         toast({
-          title: "Sucesso",
-          description: "Apontamento de equipe salvo com sucesso",
+          title: "Erro de Validação",
+          description: "Pelo menos um colaborador deve estar presente.",
+          variant: "destructive"
         });
-
-        // Reset form
-        form.reset();
+        return;
       }
+      
+      // Validar se colaboradores presentes têm IDs válidos
+      const colaboradoresSemId = colaboradoresPresentes.filter(col => !col.colaborador_id || col.colaborador_id.trim() === "");
+      if (colaboradoresSemId.length > 0) {
+        console.warn("⚠️ Colaboradores sem ID encontrados:", colaboradoresSemId);
+        toast({
+          title: "Erro de Validação",
+          description: "Todos os colaboradores presentes devem ter identificação válida.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      console.log("✅ Dados validados para submissão:", data);
+      onSubmit(data); // Pass FormValues directly
+      
     } catch (error) {
-      console.error('❌ Error saving apontamento:', error);
+      console.error("❌ Erro ao processar submissão:", error);
       toast({
         title: "Erro",
-        description: "Erro ao salvar apontamento de equipe",
-        variant: "destructive",
+        description: "Erro ao processar dados do formulário",
+        variant: "destructive"
       });
-    } finally {
-      setIsSubmitting(false);
     }
-  }, [form, toast, onSubmit]);
-
-  // Load colaboradores when equipe changes
-  const watchedEquipeId = form.watch("equipe_id");
-  
-  useEffect(() => {
-    if (watchedEquipeId) {
-      loadEquipeMembers(watchedEquipeId);
-    }
-  }, [watchedEquipeId, loadEquipeMembers]);
+  }, [toast, onSubmit]);
 
   return {
     form,
-    fields,
-    append,
-    remove,
-    update,
-    isSubmitting,
-    colaboradores,
-    equipes,
-    entregas,
+    handleFormSubmit,
     equipeMembers,
     isLoadingMembers,
+    loadingEquipeError,
     apontamentoExistente,
     avaliacoesPendentes,
     avaliacoesCompletas,
@@ -329,9 +283,6 @@ export const useApontamentoEquipeForm = (props?: UseApontamentoEquipeFormProps) 
     alertMessage,
     loadEquipeMembers,
     loadExistingApontamento,
-    apontamentosCarregados,
-    loadingEquipeError,
-    handleFormSubmit,
-    onSubmit: form.handleSubmit(handleFormSubmit)
+    apontamentosCarregados
   };
 };

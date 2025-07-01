@@ -11,7 +11,7 @@ import {
 import { 
   ApontamentoEquipe, 
   ApontamentoEquipeFilters, 
-  ApontamentoEquipeFormValues 
+  ApontamentoEquipeApiData
 } from "@/types/apontamentoEquipe";
 import { 
   createApontamentoEquipe,
@@ -58,7 +58,7 @@ export const useSecureApontamentoEquipe = () => {
 
   // Mutations with improved error handling
   const createMutation = useMutation({
-    mutationFn: async (data: ApontamentoEquipeFormValues) => {
+    mutationFn: async (data: ApontamentoEquipeApiData) => {
       console.log("🔄 Creating apontamento with data:", data);
       
       // Simplified permission check
@@ -108,7 +108,7 @@ export const useSecureApontamentoEquipe = () => {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (data: ApontamentoEquipeFormValues) => {
+    mutationFn: async (data: ApontamentoEquipeApiData) => {
       if (!currentApontamento) throw new Error("Nenhum apontamento selecionado");
       
       console.log("🔄 Updating apontamento with data:", data);

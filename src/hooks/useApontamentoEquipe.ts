@@ -13,7 +13,7 @@ import {
 import { 
   ApontamentoEquipe, 
   ApontamentoEquipeFilters,
-  ApontamentoEquipeFormValues
+  ApontamentoEquipeApiData
 } from "@/types/apontamentoEquipe";
 import { format } from "date-fns";
 
@@ -90,17 +90,9 @@ export const useApontamentoEquipe = () => {
   }, [groupedApontamentos]);
   
   const createMutation = useMutation({
-    mutationFn: (data: ApontamentoEquipeFormValues) => {
+    mutationFn: (data: ApontamentoEquipeApiData) => {
       console.log("🔄 Creating apontamento with normalized data:", data);
-      let formattedData = { ...data };
-      if (formattedData.data_registro) {
-        if (typeof formattedData.data_registro === 'object') {
-          formattedData.data_registro = normalizeDate(formattedData.data_registro as Date);
-        } else if (typeof formattedData.data_registro === 'string') {
-          formattedData.data_registro = normalizeDate(formattedData.data_registro);
-        }
-      }
-      return createApontamentoEquipe(formattedData);
+      return createApontamentoEquipe(data);
     },
     onSuccess: () => {
       console.log("✅ Apontamento created successfully");
@@ -135,20 +127,12 @@ export const useApontamentoEquipe = () => {
   });
   
   const updateMutation = useMutation({
-    mutationFn: (data: ApontamentoEquipeFormValues) => {
+    mutationFn: (data: ApontamentoEquipeApiData) => {
       console.log("🔄 Updating apontamento with normalized data:", data);
-      let formattedData = { ...data };
-      if (formattedData.data_registro) {
-        if (typeof formattedData.data_registro === 'object') {
-          formattedData.data_registro = normalizeDate(formattedData.data_registro as Date);
-        } else if (typeof formattedData.data_registro === 'string') {
-          formattedData.data_registro = normalizeDate(formattedData.data_registro);
-        }
-      }
       
-      console.log(`Updating apontamento for team ${formattedData.equipe_id} on date ${formattedData.data_registro}`);
+      console.log(`Updating apontamento for team ${data.equipe_id} on date ${data.data_registro}`);
       
-      return updateApontamentoEquipe(formattedData.equipe_id, formattedData.data_registro, formattedData);
+      return updateApontamentoEquipe(data.equipe_id, data.data_registro, data);
     },
     onSuccess: () => {
       console.log("✅ Apontamento updated successfully");
@@ -183,6 +167,8 @@ export const useApontamentoEquipe = () => {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => {
       console.log("🔄 Deleting apontamento:", id);
+      console.log("🔍 Current user role:", userRole);
+      console.log("🔍 User authenticated:", !!allowedTeamIds);
       return deleteApontamentoEquipe(id);
     },
     onSuccess: () => {
@@ -198,6 +184,7 @@ export const useApontamentoEquipe = () => {
     },
     onError: (error: any) => {
       console.error("❌ Error deleting apontamento:", error);
+      console.error("❌ Full error object:", JSON.stringify(error, null, 2));
       
       let errorMessage = "Houve um erro ao excluir o apontamento de equipe";
       
@@ -231,12 +218,7 @@ export const useApontamentoEquipe = () => {
   
   const openFormModal = useCallback((apontamento?: ApontamentoEquipe) => {
     if (apontamento) {
-      const currentApontamento = { ...apontamento };
-      if (typeof currentApontamento.data_registro === 'string') {
-        const [year, month, day] = currentApontamento.data_registro.split('-').map(Number);
-        currentApontamento.data_registro = new Date(year, month - 1, day, 12, 0, 0) as any;
-      }
-      setCurrentApontamento(currentApontamento);
+      setCurrentApontamento(apontamento);
     } else {
       setCurrentApontamento(null);
     }
@@ -253,12 +235,34 @@ export const useApontamentoEquipe = () => {
     setIsDeleteModalOpen(true);
   }, [setDeletingApontamento, setIsDeleteModalOpen]);
   
-  const handleDelete = useCallback(async () => {
-    if (!deletingApontamento) return;
+  const handleDelete = useCallback(() => {
+    if (!deletingApontamento?.id) {
+      console.error("❌ No apontamento to delete or missing ID");
+      toast({
+        title: "Erro",
+        description: "Nenhum apontamento selecionado para exclusão",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    console.log("🗑️ Starting delete process for apontamento:", deletingApontamento.id);
+    console.log("🔍 Deleting apontamento details:", {
+      id: deletingApontamento.id,
+      equipe: deletingApontamento.equipe?.nome_equipe,
+      data: deletingApontamento.data_registro
+    });
     
     setIsDeleting(true);
-    await deleteMutation.mutateAsync(deletingApontamento.id);
-  }, [deletingApontamento, deleteMutation]);
+    
+    // Use mutate instead of mutateAsync for better error handling
+    deleteMutation.mutate(deletingApontamento.id, {
+      onSettled: () => {
+        // This will run regardless of success or error
+        setIsDeleting(false);
+      }
+    });
+  }, [deletingApontamento, deleteMutation, toast]);
   
   const handleExport = useCallback(() => {
     try {

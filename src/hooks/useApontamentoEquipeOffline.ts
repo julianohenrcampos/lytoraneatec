@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useConnectionStatus } from './useConnectionStatus';
 import { useToast } from './use-toast';
 import { salvarApontamentoOffline } from '@/utils/salvarOffline';
-import { ApontamentoEquipeFormValues } from '@/types/apontamentoEquipe';
+import { ApontamentoEquipeApiData } from '@/types/apontamentoEquipe';
 import { createApontamentoEquipe } from '@/services/apontamentoEquipeService';
 import { useAuth } from './useAuth';
 
@@ -11,10 +11,10 @@ export const useApontamentoEquipeOffline = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { isSupabaseConnected } = useConnectionStatus();
   const { toast } = useToast();
-  const { userId } = useAuth(); // Fixed property name
+  const { userId } = useAuth();
 
   const submitApontamento = async (
-    formData: ApontamentoEquipeFormValues,
+    formData: ApontamentoEquipeApiData,
     onSuccess?: () => void
   ) => {
     setIsLoading(true);
@@ -40,7 +40,7 @@ export const useApontamentoEquipeOffline = () => {
         const id = salvarApontamentoOffline(
           'apontamento_equipe',
           formData,
-          userId // Fixed property name
+          userId
         );
         
         toast({

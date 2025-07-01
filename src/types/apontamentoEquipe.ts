@@ -43,9 +43,24 @@ export interface AvaliacaoEquipe {
   equipe?: Equipe;
 }
 
+// Form type - uses Date for form handling
 export interface ApontamentoEquipeFormValues {
   lista_entrega_id?: string;
-  data_registro: string;
+  data_registro: Date; // Form uses Date object
+  equipe_id: string;
+  colaboradores: {
+    colaborador_id?: string;
+    nome_colaborador: string;
+    hora_inicio?: string;
+    hora_fim?: string;
+    presente: boolean;
+  }[];
+}
+
+// API type - uses string for API calls
+export interface ApontamentoEquipeApiData {
+  lista_entrega_id?: string;
+  data_registro: string; // API uses string
   equipe_id: string;
   colaboradores: {
     colaborador_id?: string;

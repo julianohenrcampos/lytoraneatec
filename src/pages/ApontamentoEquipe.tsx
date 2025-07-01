@@ -20,7 +20,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   AvaliacaoEquipe, 
-  AvaliacaoEquipeFormValues 
+  AvaliacaoEquipeFormValues,
+  ApontamentoEquipeApiData
 } from "@/types/apontamentoEquipe";
 import { 
   getLastAvaliacaoForColaborador, 
@@ -356,7 +357,7 @@ const ApontamentoEquipe: React.FC = () => {
         <ApontamentoEquipeForm 
           isOpen={isFormModalOpen}
           onClose={() => setIsFormModalOpen(false)}
-          onSubmit={(data) => currentApontamento ? updateMutation.mutate(data) : createMutation.mutate(data)}
+          onSubmit={(data: ApontamentoEquipeApiData) => currentApontamento ? updateMutation.mutate(data) : createMutation.mutate(data)}
           currentApontamento={currentApontamento}
           equipes={equipes}
           isLoading={createMutation.isPending || updateMutation.isPending}

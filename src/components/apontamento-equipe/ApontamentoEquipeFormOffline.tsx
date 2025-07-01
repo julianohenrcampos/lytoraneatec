@@ -1,4 +1,3 @@
-
 import React, { useEffect } from "react";
 import { 
   Dialog, 
@@ -13,11 +12,12 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, Wifi, WifiOff } from "lucide-react";
-import { ApontamentoEquipe, ApontamentoEquipeFormValues } from "@/types/apontamentoEquipe";
+import { ApontamentoEquipe, ApontamentoEquipeApiData, ApontamentoEquipeFormValues } from "@/types/apontamentoEquipe";
 import { Equipe } from "@/types/equipe";
 import { useApontamentoEquipeForm } from "@/hooks/useApontamentoEquipeForm";
 import { useApontamentoEquipeOffline } from "@/hooks/useApontamentoEquipeOffline";
 import { useConnectionStatus } from "@/hooks/useConnectionStatus";
+import { format } from "date-fns";
 import ApontamentoFormHeader from "./ApontamentoFormHeader";
 import ApontamentoFormAlerts from "./ApontamentoFormAlerts";
 import ColaboradoresSection from "./ColaboradoresSection";
@@ -50,9 +50,20 @@ const ApontamentoEquipeFormOffline: React.FC<ApontamentoEquipeFormOfflineProps> 
   const { isSupabaseConnected } = useConnectionStatus();
   const { submitApontamento, isLoading: offlineLoading, isOffline } = useApontamentoEquipeOffline();
   
+  // Create a wrapper function to convert FormValues to ApiData
+  const handleFormSubmit = (data: ApontamentoEquipeFormValues) => {
+    // Convert FormValues to ApiData
+    const apiData: ApontamentoEquipeApiData = {
+      ...data,
+      data_registro: format(data.data_registro, "yyyy-MM-dd")
+    };
+    
+    submitApontamento(apiData, onSuccess);
+  };
+  
   const {
     form,
-    handleFormSubmit,
+    handleFormSubmit: formSubmitHandler,
     equipeMembers,
     isLoadingMembers,
     apontamentoExistente,
@@ -66,9 +77,7 @@ const ApontamentoEquipeFormOffline: React.FC<ApontamentoEquipeFormOfflineProps> 
     loadingEquipeError
   } = useApontamentoEquipeForm({
     currentApontamento,
-    onSubmit: (data: ApontamentoEquipeFormValues) => {
-      submitApontamento(data, onSuccess);
-    },
+    onSubmit: handleFormSubmit, // Pass the wrapper function
     avaliacaoStatusMap,
     isAvaliacaoObrigatoria
   });
@@ -88,7 +97,7 @@ const ApontamentoEquipeFormOffline: React.FC<ApontamentoEquipeFormOfflineProps> 
               const [year, month, day] = currentApontamento.data_registro.split('-').map(Number);
               dateObject = new Date(year, month - 1, day, 12, 0, 0);
             } else {
-              dateObject = currentApontamento.data_registro;
+              dateObject = new Date(currentApontamento.data_registro);
               dateObject.setHours(12, 0, 0, 0);
             }
             
@@ -179,7 +188,7 @@ const ApontamentoEquipeFormOffline: React.FC<ApontamentoEquipeFormOfflineProps> 
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(values => handleFormSubmit(values))} className="space-y-6">
+          <form onSubmit={form.handleSubmit(formSubmitHandler)} className="space-y-6">
             <ApontamentoFormHeader 
               form={form} 
               equipes={equipes} 
@@ -208,7 +217,7 @@ const ApontamentoEquipeFormOffline: React.FC<ApontamentoEquipeFormOfflineProps> 
             )}
             
             <ApontamentoFormAlerts 
-              apontamentoExistente={apontamentoExistente} 
+              apontamentoExistente={!!apontamentoExistente} 
               isEditing={isEditing} 
               avaliacoesPendentes={avaliacoesPendentes} 
             />

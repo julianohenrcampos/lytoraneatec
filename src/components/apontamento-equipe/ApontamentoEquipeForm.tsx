@@ -1,4 +1,3 @@
-
 import React, { useEffect } from "react";
 import { 
   Dialog, 
@@ -13,17 +12,18 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
-import { ApontamentoEquipe, ApontamentoEquipeFormValues } from "@/types/apontamentoEquipe";
+import { ApontamentoEquipe, ApontamentoEquipeFormValues, ApontamentoEquipeApiData } from "@/types/apontamentoEquipe";
 import { Equipe } from "@/types/equipe";
 import { useApontamentoEquipeForm } from "@/hooks/useApontamentoEquipeForm";
 import ApontamentoFormHeader from "./ApontamentoFormHeader";
 import ApontamentoFormAlerts from "./ApontamentoFormAlerts";
 import ColaboradoresSection from "./ColaboradoresSection";
+import { format } from "date-fns";
 
 interface ApontamentoEquipeFormProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: ApontamentoEquipeFormValues) => void;
+  onSubmit: (data: ApontamentoEquipeApiData) => void;
   currentApontamento: ApontamentoEquipe | null;
   equipes: Equipe[];
   isLoading: boolean;
@@ -61,7 +61,14 @@ const ApontamentoEquipeForm: React.FC<ApontamentoEquipeFormProps> = ({
     loadingEquipeError
   } = useApontamentoEquipeForm({
     currentApontamento,
-    onSubmit,
+    onSubmit: (data: ApontamentoEquipeFormValues) => {
+      // Convert Date to string for API
+      const dataFormatted: ApontamentoEquipeApiData = {
+        ...data,
+        data_registro: format(data.data_registro, "yyyy-MM-dd")
+      };
+      onSubmit(dataFormatted);
+    },
     avaliacaoStatusMap,
     isAvaliacaoObrigatoria
   });
@@ -80,7 +87,7 @@ const ApontamentoEquipeForm: React.FC<ApontamentoEquipeFormProps> = ({
               const [year, month, day] = currentApontamento.data_registro.split('-').map(Number);
               dateObject = new Date(year, month - 1, day, 12, 0, 0);
             } else {
-              dateObject = currentApontamento.data_registro;
+              dateObject = new Date(currentApontamento.data_registro);
               dateObject.setHours(12, 0, 0, 0);
             }
             
@@ -184,7 +191,7 @@ const ApontamentoEquipeForm: React.FC<ApontamentoEquipeFormProps> = ({
             )}
             
             <ApontamentoFormAlerts 
-              apontamentoExistente={apontamentoExistente} 
+              apontamentoExistente={!!apontamentoExistente} 
               isEditing={isEditing} 
               avaliacoesPendentes={avaliacoesPendentes} 
             />
