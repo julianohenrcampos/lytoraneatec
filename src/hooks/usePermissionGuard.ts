@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 interface PermissionGuardOptions {
   requiredPermission?: string;
   requiredPermissions?: string[];
-  requireAny?: boolean; // Se true, requer qualquer uma das permissões. Se false, requer todas
+  requireAny?: boolean;
   redirectTo?: string;
   showToast?: boolean;
 }
@@ -19,7 +19,7 @@ export const usePermissionGuard = ({
   redirectTo = '/dashboard',
   showToast = true
 }: PermissionGuardOptions) => {
-  const { isSuperAdmin, permissions, isLoading, userId } = useAuthPermissions();
+  const { isSuperAdmin, permissions, isLoading, userId, userRole } = useAuthPermissions();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -28,10 +28,27 @@ export const usePermissionGuard = ({
     : requiredPermissions;
 
   const hasPermission = () => {
-    if (!userId) return false;
-    if (isSuperAdmin) return true;
+    if (!userId) {
+      console.log('🔒 PermissionGuard - Usuário não autenticado');
+      return false;
+    }
     
-    if (permissionsToCheck.length === 0) return true;
+    if (isSuperAdmin) {
+      console.log('🚀 PermissionGuard - SuperAdmin detectado - acesso total');
+      return true;
+    }
+    
+    // Verificar funções administrativas válidas
+    const validRoles = ['AdmRH', 'AdmEquipamentos', 'AdmLogistica', 'AdmRequisicoes', 'Apontador', 'Encarregado', 'Engenheiro Civil', 'Administrador'];
+    if (userRole && validRoles.includes(userRole)) {
+      console.log('✅ PermissionGuard - Função administrativa válida:', userRole);
+      return true;
+    }
+    
+    if (permissionsToCheck.length === 0) {
+      console.log('✅ PermissionGuard - Sem permissões específicas requeridas');
+      return true;
+    }
     
     if (requireAny) {
       return permissionsToCheck.some(perm => permissions.includes(perm));
@@ -43,23 +60,35 @@ export const usePermissionGuard = ({
   const canAccess = hasPermission();
 
   useEffect(() => {
-    if (!isLoading && userId && !canAccess) {
+    // TIMEOUT DE SEGURANÇA: não redirecionar imediatamente se ainda carregando
+    if (isLoading) return;
+    
+    if (!userId) {
+      console.log('🔄 PermissionGuard - Redirecionando para login');
+      navigate('/login', { replace: true });
+      return;
+    }
+
+    if (!canAccess) {
+      console.log('🔄 PermissionGuard - Acesso negado, redirecionando para waiting-approval');
+      console.log('Debug - isSuperAdmin:', isSuperAdmin, 'userRole:', userRole, 'permissions:', permissions);
+      
       if (showToast) {
         toast({
-          title: 'Acesso Negado',
-          description: 'Você não tem permissão para acessar esta área.',
-          variant: 'destructive',
+          title: 'Aguardando Aprovação',
+          description: 'Sua conta precisa ser aprovada por um administrador.',
+          variant: 'default',
         });
       }
-      navigate(redirectTo, { replace: true });
+      navigate('/waiting-approval', { replace: true });
     }
-  }, [isLoading, canAccess, navigate, redirectTo, showToast, toast, userId]);
+  }, [isLoading, canAccess, navigate, redirectTo, showToast, toast, userId, isSuperAdmin, userRole]);
 
   return {
     canAccess,
     isLoading,
     isSuperAdmin,
-    userRole: useAuthPermissions().userRole,
+    userRole,
     userId
   };
 };

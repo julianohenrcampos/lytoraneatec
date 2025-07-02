@@ -1988,9 +1988,17 @@ export type Database = {
         Args: { carga_id: string }
         Returns: number
       }
+      check_is_super_admin: {
+        Args: { user_id: string }
+        Returns: boolean
+      }
       corrigir_status_entregas_inconsistentes: {
         Args: Record<PropertyKey, never>
         Returns: number
+      }
+      debug_user_access: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
       }
       finalizar_aplicacao_carga: {
         Args: { carga_id: string }

@@ -14,6 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertTriangle, CheckCircle } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 const loginSchema = z.object({
   email: z.string().email("Email inválido").min(1, "Email é obrigatório"),
@@ -25,6 +26,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [emailNotConfirmedError, setEmailNotConfirmedError] = useState<string | null>(null);
@@ -35,7 +37,7 @@ const Login: React.FC = () => {
     const checkSession = async () => {
       const { data } = await supabase.auth.getSession();
       if (data.session) {
-        // Se já estiver logado, redirecionar para o dashboard
+        console.log('🔐 Sessão ativa detectada, redirecionando para dashboard');
         navigate("/dashboard");
       }
       setAuthChecked(true);
@@ -62,7 +64,6 @@ const Login: React.FC = () => {
       });
       setEmailNotConfirmedError(null);
       
-      // Tentar login automaticamente após confirmação
       const password = form.getValues("password");
       if (password) {
         setTimeout(() => {
@@ -86,10 +87,11 @@ const Login: React.FC = () => {
     setEmailNotConfirmedError(null);
     
     try {
+      console.log('🔐 Iniciando processo de login para:', data.email);
+      
       const result = await loginUser(data.email, data.password);
       
       if (result.error) {
-        // Verificar se é erro de email não confirmado
         if (result.error.message.includes("Email não confirmado")) {
           setEmailNotConfirmedError(data.email);
           return;
@@ -97,17 +99,48 @@ const Login: React.FC = () => {
         throw new Error(result.error.message);
       }
       
+      console.log('🚀 Login bem-sucedido! Executando limpeza completa...');
+      
+      // LIMPEZA COMPLETA E OTIMIZADA
+      try {
+        // Limpar todos os storages
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        // Limpar cache do React Query
+        queryClient.clear();
+        console.log('🧹 Cache do React Query limpo');
+        
+        // Limpar cache do navegador (service worker)
+        if ('caches' in window) {
+          const cacheNames = await caches.keys();
+          await Promise.all(cacheNames.map(cacheName => caches.delete(cacheName)));
+          console.log('🧹 Cache do navegador limpo');
+        }
+        
+      } catch (cacheError) {
+        console.warn('⚠️ Erro na limpeza de cache:', cacheError);
+        // Não bloquear o login por erro de cache
+      }
+      
       toast({
-        title: "Login realizado com sucesso",
-        description: "Você será redirecionado para o dashboard",
+        title: "Login realizado com sucesso ✅",
+        description: "Redirecionando para o dashboard...",
       });
       
-      // Garantir que a navegação aconteça após o login ser bem sucedido
+      // Redirecionamento otimizado
       setTimeout(() => {
-        navigate("/dashboard");
-      }, 500);
+        console.log('🎯 Redirecionando para dashboard...');
+        navigate("/dashboard", { replace: true });
+        
+        // Forçar reload para garantir estado limpo
+        setTimeout(() => {
+          window.location.reload();
+        }, 100);
+      }, 300);
+      
     } catch (error: any) {
-      console.error("Erro no login:", error);
+      console.error("❌ Erro no login:", error);
       toast({
         title: "Falha no login",
         description: error.message || "Verifique suas credenciais e tente novamente",
@@ -200,7 +233,14 @@ const Login: React.FC = () => {
             </Link>
           </div>
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Entrando..." : "Entrar"}
+            {isLoading ? (
+              <>
+                <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></div>
+                Entrando...
+              </>
+            ) : (
+              "Entrar"
+            )}
           </Button>
         </form>
       </Form>

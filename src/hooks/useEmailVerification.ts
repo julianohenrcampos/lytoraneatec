@@ -26,14 +26,17 @@ export const useEmailVerification = () => {
     try {
       console.log("🔍 Verificando autorização do email:", email);
       
+      // Verificação principal: bd_funcionarios
       const { data, error } = await supabase
         .from("bd_funcionarios")
-        .select("email")
+        .select("email, nome_completo, status")
         .eq("email", email)
-        .maybeSingle();
+        .single();
 
       if (error) {
         console.error("❌ Erro ao verificar email:", error);
+        
+        // Fallback: tentar contagem
         const { count, error: countError } = await supabase
           .from("bd_funcionarios")
           .select("*", { count: "exact", head: true })
@@ -53,16 +56,28 @@ export const useEmailVerification = () => {
         setVerificationState({ 
           isAuthorized, 
           isChecking: false, 
-          error: isAuthorized ? null : "Email não autorizado para cadastro" 
+          error: isAuthorized ? null : "Email não está autorizado para cadastro" 
         });
         return isAuthorized;
       }
 
-      const isAuthorized = !!data;
+      // Verificar se funcionário está ativo
+      const isActive = !data.status || data.status === 'Ativo';
+      const isAuthorized = !!data && isActive;
+      
+      let errorMessage = null;
+      if (!isAuthorized) {
+        if (!isActive) {
+          errorMessage = "Funcionário não está ativo no sistema";
+        } else {
+          errorMessage = "Este email não está autorizado para cadastro";
+        }
+      }
+      
       setVerificationState({ 
         isAuthorized, 
         isChecking: false, 
-        error: isAuthorized ? null : "Este email não está autorizado para cadastro" 
+        error: errorMessage 
       });
       
       console.log(`✅ Email ${email} ${isAuthorized ? 'autorizado' : 'não autorizado'}`);

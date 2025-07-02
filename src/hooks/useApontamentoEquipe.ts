@@ -38,7 +38,9 @@ export const useApontamentoEquipe = () => {
   // Get user data access control
   const { allowedTeamIds, userRole, canAccessAllTeams, isLoading: accessLoading } = useUserDataAccess();
   
-  const [filters, setFilters] = useState<ApontamentoEquipeFilters>({});
+  const [filters, setFilters] = useState<ApontamentoEquipeFilters>({
+    // Remover filtro padrão de data para mostrar todos os dados
+  });
   const [currentApontamento, setCurrentApontamento] = useState<ApontamentoEquipe | null>(null);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);

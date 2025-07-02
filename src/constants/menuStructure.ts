@@ -1,76 +1,47 @@
-import { 
-  LayoutDashboard,
-  Building2, 
-  Building, 
-  HardHat, 
-  Bookmark, 
-  UserCircle, 
-  Users,
-  Truck,
-  Factory,
-  FileText,
-  Package,
-  BarChart3,
-  ClipboardList,
-  Wrench,
-  PackageOpen,
-  UserPlus,
-  Shield,
-  PieChart,
-  FileSpreadsheet,
+
+import {
   Home,
-  DollarSign,
-  Briefcase,
-  Calendar,
-  ClipboardCheck,
-  AlertTriangle,
+  FileText,
+  Truck,
+  Users,
+  CalendarDays,
+  Wrench,
+  ClipboardList,
+  Building2,
+  UserCheck,
   Settings,
-  Activity
+  BarChart3,
+  Package,
+  Map
 } from "lucide-react";
 
-// Remove duplicate type declarations and use a single interface
-interface MenuItem {
-  name: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  requiredPermission?: string;
-  requiredPermissions?: string[];
-  requireAny?: boolean;
-}
-
-interface MenuGroup {
-  title: string;
-  items: MenuItem[];
-}
-
-// Estrutura do menu com permissões atualizadas
-export const menuStructure: MenuGroup[] = [
+export const menuStructure = [
   {
     title: "Dashboard",
     items: [
       {
-        name: "Dashboard Principal",
+        name: "Dashboard Geral",
         href: "/dashboard",
         icon: Home,
-        requiredPermission: "dashboard_view"
+        // Sem permissão requerida - todos podem acessar
       },
       {
         name: "Dashboard RH",
-        href: "/gestao-rh/dashboard",
-        icon: Users,
+        href: "/dashboard-rh",
+        icon: BarChart3,
         requiredPermission: "dashboard_rh_view"
       },
       {
-        name: "Dashboard de Máquinas",
-        href: "/gestao-maquinas/dashboard",
-        icon: BarChart3,
+        name: "Dashboard Máquinas",
+        href: "/dashboard-maquinas",
+        icon: Truck,
         requiredPermission: "dashboard_maquinas_view"
       },
       {
         name: "Dashboard CBUQ",
-        href: "/dashboard/requisicoes",
-        icon: Activity,
-        requiredPermission: "dashboard_logistica_view"
+        href: "/dashboard-cbuq",
+        icon: BarChart3,
+        requiredPermission: "dashboard_cbuq_view"
       }
     ]
   },
@@ -86,19 +57,19 @@ export const menuStructure: MenuGroup[] = [
       {
         name: "Departamentos",
         href: "/gestao-rh/departamentos",
-        icon: Building,
+        icon: Building2,
         requiredPermission: "gestao_rh_departamentos_view"
       },
       {
         name: "Centros de Custo",
         href: "/gestao-rh/centros-custo",
-        icon: DollarSign,
+        icon: Package,
         requiredPermission: "gestao_rh_centros_custo_view"
       },
       {
         name: "Funções",
         href: "/gestao-rh/funcoes",
-        icon: Briefcase,
+        icon: UserCheck,
         requiredPermission: "gestao_rh_funcoes_view"
       },
       {
@@ -120,26 +91,26 @@ export const menuStructure: MenuGroup[] = [
     items: [
       {
         name: "Caminhões e Equipamentos",
-        href: "/gestao-maquinas/caminhoes-equipamentos",
+        href: "/gestao-maquinas/caminhoes",
         icon: Truck,
         requiredPermission: "gestao_maquinas_caminhoes_view"
       },
       {
         name: "Usinas",
         href: "/gestao-maquinas/usinas",
-        icon: Factory,
+        icon: Building2,
         requiredPermission: "gestao_maquinas_usinas_view"
       },
       {
         name: "Relatório de Medição",
         href: "/gestao-maquinas/relatorio-medicao",
-        icon: FileText,
+        icon: BarChart3,
         requiredPermission: "gestao_maquinas_relatorio_medicao_view"
       }
     ]
   },
   {
-    title: "Requisições e Logística",
+    title: "Requisições",
     items: [
       {
         name: "Cadastro de Requisições",
@@ -149,21 +120,21 @@ export const menuStructure: MenuGroup[] = [
       },
       {
         name: "Programação de Entrega",
-        href: "/requisicoes/programacao-entrega",
-        icon: Calendar,
-        requiredPermission: "requisicoes_programacao_entrega_view"
+        href: "/programacao-entrega",
+        icon: CalendarDays,
+        requiredPermission: "programacao_entrega_view"
+      },
+      {
+        name: "Registro de Aplicação",
+        href: "/registro-aplicacao",
+        icon: FileText,
+        requiredPermission: "registro_aplicacao_view"
       },
       {
         name: "Registro de Cargas",
         href: "/requisicoes/registro-cargas",
         icon: Package,
         requiredPermission: "requisicoes_registro_cargas_view"
-      },
-      {
-        name: "Registro de Aplicação",
-        href: "/requisicoes/registro-aplicacao",
-        icon: ClipboardCheck,
-        requiredPermission: "requisicoes_registro_aplicacao_view"
       },
       {
         name: "Apontamento de Equipe",
@@ -178,15 +149,15 @@ export const menuStructure: MenuGroup[] = [
         requiredPermission: "requisicoes_apontamento_caminhoes_view"
       },
       {
-        name: "Chamados para OS",
+        name: "Chamados e OS",
         href: "/requisicoes/chamados-os",
-        icon: AlertTriangle,
+        icon: Wrench,
         requiredPermission: "requisicoes_chamados_os_view"
       },
       {
         name: "Gestão de OS",
         href: "/requisicoes/gestao-os",
-        icon: Settings,
+        icon: ClipboardList,
         requiredPermission: "requisicoes_gestao_os_view"
       }
     ]
@@ -197,24 +168,9 @@ export const menuStructure: MenuGroup[] = [
       {
         name: "Gestão de Permissões",
         href: "/admin/permissoes",
-        icon: Shield,
+        icon: Settings,
         requiredPermission: "admin_permissoes_view"
       }
     ]
   }
 ];
-
-export function getVisibleMenuItems(menuItems: MenuItem[], userPermissions: string[]): MenuItem[] {
-  return menuItems.filter(item => {
-    if (item.requiredPermission) {
-      return userPermissions.includes(item.requiredPermission);
-    }
-    if (item.requiredPermissions) {
-      return item.requiredPermissions.some(permission => userPermissions.includes(permission));
-    }
-    if (item.requireAny) {
-      return userPermissions.some(permission => item.requiredPermissions?.includes(permission));
-    }
-    return true;
-  });
-}

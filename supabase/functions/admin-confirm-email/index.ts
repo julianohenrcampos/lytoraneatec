@@ -9,6 +9,7 @@ const corsHeaders = {
 
 interface ConfirmEmailRequest {
   email: string;
+  setTemporaryPassword?: boolean;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -28,7 +29,7 @@ const handler = async (req: Request): Promise<Response> => {
       }
     );
 
-    const { email }: ConfirmEmailRequest = await req.json();
+    const { email, setTemporaryPassword = false }: ConfirmEmailRequest = await req.json();
 
     if (!email) {
       return new Response(
@@ -40,11 +41,13 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    console.log(`🔧 [ADMIN-CONFIRM-EMAIL] Processando: ${email}`);
+
     // Buscar o usuário pelo email
     const { data: users, error: getUserError } = await supabaseAdmin.auth.admin.listUsers();
     
     if (getUserError) {
-      console.error("Erro ao buscar usuários:", getUserError);
+      console.error("❌ Erro ao buscar usuários:", getUserError);
       return new Response(
         JSON.stringify({ error: "Erro ao buscar usuário" }),
         {
@@ -58,13 +61,15 @@ const handler = async (req: Request): Promise<Response> => {
     
     if (!user) {
       return new Response(
-        JSON.stringify({ error: "Usuário não encontrado" }),
+        JSON.stringify({ error: "Usuário não encontrado no Auth" }),
         {
           status: 404,
           headers: { "Content-Type": "application/json", ...corsHeaders },
         }
       );
     }
+
+    console.log(`✅ [ADMIN-CONFIRM-EMAIL] Usuário encontrado: ${user.id}`);
 
     // Confirmar o email do usuário
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
@@ -73,7 +78,7 @@ const handler = async (req: Request): Promise<Response> => {
     );
 
     if (updateError) {
-      console.error("Erro ao confirmar email:", updateError);
+      console.error("❌ Erro ao confirmar email:", updateError);
       return new Response(
         JSON.stringify({ error: "Erro ao confirmar email" }),
         {
@@ -83,11 +88,35 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    console.log(`✅ [ADMIN-CONFIRM-EMAIL] Email confirmado para: ${email}`);
+
+    // Se solicitado, definir senha temporária
+    let temporaryPassword = null;
+    if (setTemporaryPassword) {
+      // Gerar senha temporária segura
+      temporaryPassword = `Temp${Math.random().toString(36).slice(2)}${Date.now().toString().slice(-4)}!`;
+      
+      const { error: passwordError } = await supabaseAdmin.auth.admin.updateUserById(
+        user.id,
+        { password: temporaryPassword }
+      );
+
+      if (passwordError) {
+        console.error("❌ Erro ao definir senha temporária:", passwordError);
+        // Não falhar completamente, apenas avisar
+        console.warn("⚠️ Email confirmado, mas senha temporária não foi definida");
+      } else {
+        console.log(`🔑 [ADMIN-CONFIRM-EMAIL] Senha temporária definida para: ${email}`);
+      }
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
         message: `Email ${email} confirmado com sucesso`,
-        user_id: user.id
+        user_id: user.id,
+        temporary_password: temporaryPassword,
+        has_password: temporaryPassword ? true : false
       }),
       {
         status: 200,
@@ -96,7 +125,7 @@ const handler = async (req: Request): Promise<Response> => {
     );
 
   } catch (error: any) {
-    console.error("Erro na função admin-confirm-email:", error);
+    console.error("❌ Erro na função admin-confirm-email:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
       {

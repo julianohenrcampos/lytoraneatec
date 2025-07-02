@@ -1,277 +1,254 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { TimezoneProvider } from "@/contexts/TimezoneContext";
-import RouteProtection from "@/components/routing/RouteProtection";
-import AuthGuard from "@/components/routing/AuthGuard";
-import { OfflineStatusIndicator } from "@/components/offline/OfflineStatusIndicator";
-import { useOfflineSync } from "@/hooks/useOfflineSync";
-import { useConnectionStatus } from "@/hooks/useConnectionStatus";
-import { useEffect } from "react";
+import { ThemeProvider } from "next-themes";
 
-// Import all pages
-import Dashboard from "./pages/Dashboard";
-import Dashboard1 from "./pages/Dashboard1";
-import DashboardRH from "./pages/DashboardRH";
-import DashboardMaquinas from "./pages/DashboardMaquinas";
-import DashboardRequisicoes from "./pages/DashboardRequisicoes";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
-import WaitingApproval from "./pages/WaitingApproval";
-import NotFound from "./pages/NotFound";
-import GestaoEmpresas from "./pages/GestaoEmpresas";
-import GestaoDepartamentos from "./pages/GestaoDepartamentos";
-import GestaoCentrosCusto from "./pages/GestaoCentrosCusto";
-import GestaoFuncoes from "./pages/GestaoFuncoes";
-import GestaoFuncionarios from "./pages/GestaoFuncionarios";
-import GestaoEquipes from "./pages/GestaoEquipes";
-import GestaoCaminhoes from "./pages/GestaoCaminhoes";
-import GestaoUsinas from "./pages/GestaoUsinas";
-import GestaoRequisicoes from "./pages/GestaoRequisicoes";
-import ProgramacaoEntrega from "./pages/ProgramacaoEntrega";
-import RegistroCargas from "./pages/RegistroCargas";
+// Simple Auth Components
+import SimpleAuthGuard from "@/components/routing/SimpleAuthGuard";
+import SimplePermissionGuard from "@/components/routing/SimplePermissionGuard";
+
+// Pages
+import SimpleLogin from "@/pages/SimpleLogin";
+import Dashboard from "@/pages/Dashboard";
+import WaitingApproval from "@/pages/WaitingApproval";
+import Register from "@/pages/Register";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
+
+// Gestão RH - using correct file names
+import DashboardRH from "@/pages/DashboardRH";
+import GestaoEmpresas from "@/pages/GestaoEmpresas";
+import GestaoDepartamentos from "@/pages/GestaoDepartamentos";
+import GestaoCentrosCusto from "@/pages/GestaoCentrosCusto";
+import GestaoFuncoes from "@/pages/GestaoFuncoes";
+import GestaoFuncionarios from "@/pages/GestaoFuncionarios";
+import GestaoEquipes from "@/pages/GestaoEquipes";
+
+// Gestão Máquinas - using correct file names
+import DashboardMaquinas from "@/pages/DashboardMaquinas";
+import GestaoCaminhoes from "@/pages/GestaoCaminhoes";
+import GestaoUsinas from "@/pages/GestaoUsinas";
+import RelatorioMedicao from "@/pages/RelatorioMedicao";
+
+// Dashboard CBUQ
+import DashboardRequisicoes from "@/pages/DashboardRequisicoes";
+
+// Requisições - using correct file names
+import GestaoRequisicoes from "@/pages/GestaoRequisicoes";
+import ProgramacaoEntrega from "@/pages/ProgramacaoEntrega";
+import RegistroCargas from "@/pages/RegistroCargas";
 import RegistroAplicacao from "@/pages/RegistroAplicacao";
 import ApontamentoEquipe from "@/pages/ApontamentoEquipe";
 import ApontamentoCaminhoes from "@/pages/ApontamentoCaminhoes";
 import ChamadosOS from "@/pages/ChamadosOS";
 import GestaoOrdemServico from "@/pages/GestaoOrdemServico";
-import GestaoPermissoes from "@/pages/GestaoPermissoes";
-import RelatorioMedicao from "@/pages/RelatorioMedicao";
 
-// Create a new query client with better retry settings
+// Admin - using correct file names
+import GestaoPermissoes from "@/pages/GestaoPermissoes";
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutos
       retry: 1,
-      refetchOnWindowFocus: false,
-      staleTime: 30000,
     },
   },
 });
 
-// Componente para gerenciar sincronização offline global
-const OfflineSyncManager: React.FC = () => {
-  const { isSupabaseConnected } = useConnectionStatus();
-  const { syncStatus } = useOfflineSync();
-
-  useEffect(() => {
-    if (isSupabaseConnected && syncStatus.pendingCount > 0) {
-      console.log('🔄 Conexão detectada, sincronização automática será iniciada...');
-    }
-  }, [isSupabaseConnected, syncStatus.pendingCount]);
-
-  return null;
-};
-
 const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <TimezoneProvider>
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
         <TooltipProvider>
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            {/* Componentes para gestão offline global */}
-            <OfflineSyncManager />
-            <OfflineStatusIndicator />
-            
             <Routes>
-              {/* PUBLIC ROUTES - No authentication required */}
-              <Route path="/login" element={<Login />} />
+              {/* Rotas públicas */}
+              <Route path="/login" element={<SimpleLogin />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/waiting-approval" element={<WaitingApproval />} />
               
-              {/* PRIVATE ROUTES - Authentication required */}
-              <Route path="/" element={
-                <AuthGuard>
-                  <Dashboard />
-                </AuthGuard>
-              } />
+              {/* Redirect root to dashboard */}
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
               
+              {/* Rotas protegidas - Dashboards */}
               <Route path="/dashboard" element={
-                <AuthGuard>
-                  <RouteProtection requiredPermission="dashboard_view">
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
                     <Dashboard />
-                  </RouteProtection>
-                </AuthGuard>
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
               } />
               
-              <Route path="/gestao-rh/dashboard" element={
-                <AuthGuard>
-                  <RouteProtection requiredPermission="dashboard_rh_view">
+              <Route path="/dashboard-rh" element={
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
                     <DashboardRH />
-                  </RouteProtection>
-                </AuthGuard>
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
               } />
               
-              <Route path="/gestao-maquinas/dashboard" element={
-                <AuthGuard>
-                  <RouteProtection requiredPermission="dashboard_maquinas_view">
+              <Route path="/dashboard-maquinas" element={
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
                     <DashboardMaquinas />
-                  </RouteProtection>
-                </AuthGuard>
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
               } />
               
-              <Route path="/dashboard/requisicoes" element={
-                <AuthGuard>
-                  <RouteProtection requiredPermission="dashboard_logistica_view">
+              <Route path="/dashboard-cbuq" element={
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
                     <DashboardRequisicoes />
-                  </RouteProtection>
-                </AuthGuard>
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
               } />
               
-              <Route path="/dashboard1" element={
-                <AuthGuard>
-                  <Dashboard1 />
-                </AuthGuard>
-              } />
-              
-              {/* Gestão RH routes */}
+              {/* Gestão RH */}
               <Route path="/gestao-rh/empresas" element={
-                <AuthGuard>
-                  <RouteProtection requiredPermission="gestao_rh_empresas_view">
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
                     <GestaoEmpresas />
-                  </RouteProtection>
-                </AuthGuard>
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
               } />
               <Route path="/gestao-rh/departamentos" element={
-                <AuthGuard>
-                  <RouteProtection requiredPermission="gestao_rh_departamentos_view">
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
                     <GestaoDepartamentos />
-                  </RouteProtection>
-                </AuthGuard>
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
               } />
               <Route path="/gestao-rh/centros-custo" element={
-                <AuthGuard>
-                  <RouteProtection requiredPermission="gestao_rh_centros_custo_view">
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
                     <GestaoCentrosCusto />
-                  </RouteProtection>
-                </AuthGuard>
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
               } />
               <Route path="/gestao-rh/funcoes" element={
-                <AuthGuard>
-                  <RouteProtection requiredPermission="gestao_rh_funcoes_view">
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
                     <GestaoFuncoes />
-                  </RouteProtection>
-                </AuthGuard>
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
               } />
               <Route path="/gestao-rh/funcionarios" element={
-                <AuthGuard>
-                  <RouteProtection requiredPermission="gestao_rh_funcionarios_view">
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
                     <GestaoFuncionarios />
-                  </RouteProtection>
-                </AuthGuard>
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
               } />
               <Route path="/gestao-rh/equipes" element={
-                <AuthGuard>
-                  <RouteProtection requiredPermission="gestao_rh_equipes_view">
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
                     <GestaoEquipes />
-                  </RouteProtection>
-                </AuthGuard>
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
               } />
               
-              {/* Gestão Máquinas routes */}
-              <Route path="/gestao-maquinas/caminhoes-equipamentos" element={
-                <AuthGuard>
-                  <RouteProtection requiredPermission="gestao_maquinas_caminhoes_view">
+              {/* Gestão Máquinas */}
+              <Route path="/gestao-maquinas/caminhoes" element={
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
                     <GestaoCaminhoes />
-                  </RouteProtection>
-                </AuthGuard>
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
               } />
               <Route path="/gestao-maquinas/usinas" element={
-                <AuthGuard>
-                  <RouteProtection requiredPermission="gestao_maquinas_usinas_view">
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
                     <GestaoUsinas />
-                  </RouteProtection>
-                </AuthGuard>
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
               } />
               <Route path="/gestao-maquinas/relatorio-medicao" element={
-                <AuthGuard>
-                  <RouteProtection requiredPermission="gestao_maquinas_relatorio_medicao_view">
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
                     <RelatorioMedicao />
-                  </RouteProtection>
-                </AuthGuard>
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
               } />
               
-              {/* Requisições routes */}
-              <Route path="/requisicoes/cadastro" element={
-                <AuthGuard>
-                  <RouteProtection requiredPermission="requisicoes_cadastro_view">
-                    <GestaoRequisicoes />
-                  </RouteProtection>
-                </AuthGuard>
-              } />
-              <Route path="/requisicoes/programacao-entrega" element={
-                <AuthGuard>
-                  <RouteProtection requiredPermission="requisicoes_programacao_entrega_view">
+              {/* Requisições - Rota única de Programação de Entrega */}
+              <Route path="/programacao-entrega" element={
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
                     <ProgramacaoEntrega />
-                  </RouteProtection>
-                </AuthGuard>
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
+              } />
+              
+              <Route path="/registro-aplicacao" element={
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
+                    <RegistroAplicacao />
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
+              } />
+              
+              <Route path="/requisicoes/cadastro" element={
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
+                    <GestaoRequisicoes />
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
               } />
               <Route path="/requisicoes/registro-cargas" element={
-                <AuthGuard>
-                  <RouteProtection requiredPermission="requisicoes_registro_cargas_view">
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
                     <RegistroCargas />
-                  </RouteProtection>
-                </AuthGuard>
-              } />
-              <Route path="/requisicoes/registro-aplicacao" element={
-                <AuthGuard>
-                  <RouteProtection requiredPermission="requisicoes_registro_aplicacao_view">
-                    <RegistroAplicacao />
-                  </RouteProtection>
-                </AuthGuard>
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
               } />
               <Route path="/requisicoes/apontamento-equipe" element={
-                <AuthGuard>
-                  <RouteProtection requiredPermission="requisicoes_apontamento_equipe_view">
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
                     <ApontamentoEquipe />
-                  </RouteProtection>
-                </AuthGuard>
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
               } />
               <Route path="/requisicoes/apontamento-caminhoes" element={
-                <AuthGuard>
-                  <RouteProtection requiredPermission="requisicoes_apontamento_caminhoes_view">
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
                     <ApontamentoCaminhoes />
-                  </RouteProtection>
-                </AuthGuard>
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
               } />
               <Route path="/requisicoes/chamados-os" element={
-                <AuthGuard>
-                  <RouteProtection requiredPermission="requisicoes_chamados_os_view">
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
                     <ChamadosOS />
-                  </RouteProtection>
-                </AuthGuard>
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
               } />
               <Route path="/requisicoes/gestao-os" element={
-                <AuthGuard>
-                  <RouteProtection requiredPermission="requisicoes_gestao_os_view">
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
                     <GestaoOrdemServico />
-                  </RouteProtection>
-                </AuthGuard>
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
               } />
               
-              {/* Admin routes */}
+              {/* Admin */}
               <Route path="/admin/permissoes" element={
-                <AuthGuard>
-                  <RouteProtection requiredPermission="admin_permissoes_view">
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
                     <GestaoPermissoes />
-                  </RouteProtection>
-                </AuthGuard>
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
               } />
-              
-              {/* Fallback route for any unknown paths */}
-              <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
         </TooltipProvider>
-      </TimezoneProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 };

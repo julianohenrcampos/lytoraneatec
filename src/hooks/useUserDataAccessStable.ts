@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface UserDataAccess {
@@ -9,79 +9,61 @@ interface UserDataAccess {
   isLoading: boolean;
 }
 
-const TEAMS_CACHE_KEY = 'user_teams_cache';
-const TEAMS_CACHE_DURATION = 10 * 60 * 1000; // 10 minutos
-
-export const useUserDataAccessStable = (userId?: string | null, userRole?: string | null, isSuperAdmin?: boolean): UserDataAccess => {
-  const [dataAccess, setDataAccess] = useState<UserDataAccess>({
+export const useUserDataAccessStable = (
+  userId: string | null, 
+  userRole: string | null, 
+  isSuperAdmin: boolean
+): UserDataAccess => {
+  const [state, setState] = useState<UserDataAccess>({
     allowedTeamIds: [],
     userRole: null,
     canAccessAllTeams: false,
     isLoading: true,
   });
 
-  const loadingRef = useRef(false);
-  const timeoutRef = useRef<NodeJS.Timeout>();
-
   useEffect(() => {
-    if (!userId || !userRole || loadingRef.current) return;
-    loadingRef.current = true;
+    const loadUserAccess = async () => {
+      if (!userId) {
+        setState({
+          allowedTeamIds: [],
+          userRole: null,
+          canAccessAllTeams: false,
+          isLoading: false,
+        });
+        return;
+      }
 
-    const loadTeamAccess = async () => {
       try {
-        // Verificar cache
-        const cacheKey = `${TEAMS_CACHE_KEY}_${userId}`;
-        const cached = sessionStorage.getItem(cacheKey);
-        if (cached) {
-          const { data, timestamp } = JSON.parse(cached);
-          if (Date.now() - timestamp < TEAMS_CACHE_DURATION) {
-            console.log('🛡️ Using cached team access');
-            setDataAccess({ ...data, isLoading: false });
-            loadingRef.current = false;
-            return;
-          }
-        }
+        console.log('🔑 STABLE - Carregando acesso de dados para:', { userId, userRole, isSuperAdmin });
 
-        // Timeout de segurança
-        timeoutRef.current = setTimeout(() => {
-          console.warn('⏰ Team access timeout - sem acesso');
-          setDataAccess({
-            allowedTeamIds: [],
-            userRole,
-            canAccessAllTeams: false,
-            isLoading: false,
-          });
-          loadingRef.current = false;
-        }, 2000);
-
-        const canAccessAll = isSuperAdmin || userRole === 'AdmRH' || userRole === 'Administrador';
-
-        if (canAccessAll) {
-          const { data: allTeams } = await supabase
-            .from('bd_equipes')
-            .select('id');
-          
-          clearTimeout(timeoutRef.current);
-          
-          const finalData = {
-            allowedTeamIds: allTeams?.map(team => team.id) || [],
+        // SuperAdmin pode acessar tudo - SEM FILTROS
+        if (isSuperAdmin) {
+          console.log('🔓 STABLE - SuperAdmin: Acesso total liberado - SEM FILTROS');
+          setState({
+            allowedTeamIds: [], // Array vazio indica "sem filtros" para SuperAdmin
             userRole,
             canAccessAllTeams: true,
             isLoading: false,
-          };
-
-          // Cache
-          sessionStorage.setItem(cacheKey, JSON.stringify({
-            data: finalData,
-            timestamp: Date.now()
-          }));
-
-          setDataAccess(finalData);
-          loadingRef.current = false;
+          });
           return;
         }
 
-        // Para outros usuários, buscar por email
+        // Administradores RH também podem acessar tudo
+        if (userRole === 'AdmRH' || userRole === 'Administrador') {
+          console.log('🔓 STABLE - Admin role: Acesso total liberado');
+          setState({
+            allowedTeamIds: [],
+            userRole,
+            canAccessAllTeams: true,
+            isLoading: false,
+          });
+          return;
+        }
+
+        // Para outros usuários, buscar equipes específicas
+        console.log('🔍 STABLE - Buscando equipes específicas do usuário');
+
+        // Buscar o funcionário pelo email
         const { data: profile } = await supabase
           .from('profiles')
           .select('email')
@@ -89,85 +71,75 @@ export const useUserDataAccessStable = (userId?: string | null, userRole?: strin
           .single();
 
         if (!profile?.email) {
-          clearTimeout(timeoutRef.current);
-          setDataAccess({
+          console.log('⚠️ STABLE - Email não encontrado no perfil');
+          setState({
             allowedTeamIds: [],
             userRole,
             canAccessAllTeams: false,
             isLoading: false,
           });
-          loadingRef.current = false;
           return;
         }
 
-        // Query otimizada para equipes do usuário
-        const { data: teams } = await supabase
+        // Buscar funcionário pelo email
+        const { data: funcionario } = await supabase
+          .from('bd_funcionarios')
+          .select('id')
+          .eq('email', profile.email)
+          .single();
+
+        if (!funcionario) {
+          console.log('⚠️ STABLE - Funcionário não encontrado');
+          setState({
+            allowedTeamIds: [],
+            userRole,
+            canAccessAllTeams: false,
+            isLoading: false,
+          });
+          return;
+        }
+
+        // Buscar equipes onde o usuário é apontador ou encarregado
+        const { data: equipes, error } = await supabase
           .from('bd_equipes')
-          .select(`
-            id,
-            apontador:apontador_id(email),
-            encarregado:encarregado_id(email)
-          `);
+          .select('id')
+          .or(`apontador_id.eq.${funcionario.id},encarregado_id.eq.${funcionario.id}`);
 
-        const allowedTeams = teams?.filter(team => {
-          // Lidar com arrays ou objetos únicos retornados pelo Supabase
-          // Usar type assertion para resolver o problema de tipos
-          const apontadorEmail = Array.isArray(team.apontador) 
-            ? (team.apontador as any)?.[0]?.email 
-            : (team.apontador as any)?.email;
-          const encarregadoEmail = Array.isArray(team.encarregado) 
-            ? (team.encarregado as any)?.[0]?.email 
-            : (team.encarregado as any)?.email;
-          
-          return apontadorEmail === profile.email || encarregadoEmail === profile.email;
-        }).map(team => team.id) || [];
+        if (error) {
+          console.error('❌ STABLE - Erro ao buscar equipes:', error);
+          setState({
+            allowedTeamIds: [],
+            userRole,
+            canAccessAllTeams: false,
+            isLoading: false,
+          });
+          return;
+        }
 
-        clearTimeout(timeoutRef.current);
+        const teamIds = equipes?.map(eq => eq.id) || [];
+        
+        console.log('✅ STABLE - Equipes encontradas:', teamIds);
 
-        const finalData = {
-          allowedTeamIds: allowedTeams,
+        setState({
+          allowedTeamIds: teamIds,
           userRole,
           canAccessAllTeams: false,
           isLoading: false,
-        };
-
-        // Cache
-        sessionStorage.setItem(cacheKey, JSON.stringify({
-          data: finalData,
-          timestamp: Date.now()
-        }));
-
-        setDataAccess(finalData);
-        loadingRef.current = false;
-
-        console.log('✅ Team access loaded:', {
-          teams: allowedTeams.length,
-          canAccessAll: false
         });
 
       } catch (error) {
-        console.error('❌ Error loading team access:', error);
-        clearTimeout(timeoutRef.current);
-        
-        setDataAccess({
+        console.error('❌ STABLE - Erro ao carregar acesso:', error);
+        setState({
           allowedTeamIds: [],
           userRole,
           canAccessAllTeams: false,
           isLoading: false,
         });
-        loadingRef.current = false;
       }
     };
 
-    loadTeamAccess();
-
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      loadingRef.current = false;
-    };
+    loadUserAccess();
   }, [userId, userRole, isSuperAdmin]);
 
-  return dataAccess;
+  return state;
 };

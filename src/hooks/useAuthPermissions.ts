@@ -26,10 +26,12 @@ export const useAuthPermissions = (): UserPermissions => {
   useEffect(() => {
     const loadUserPermissions = async () => {
       try {
+        console.log('🔐 INÍCIO - Carregando permissões do usuário...');
+        
         const { data: { user } } = await supabase.auth.getUser();
         
         if (!user) {
-          console.log("🔐 User not authenticated, clearing permissions");
+          console.log("🔐 Usuário não autenticado");
           setPermissions({
             userId: null,
             isSuperAdmin: false,
@@ -40,129 +42,190 @@ export const useAuthPermissions = (): UserPermissions => {
           return;
         }
 
-        console.log('🔐 Loading dynamic permissions for user:', user.id);
+        console.log('🔐 Usuário autenticado:', user.email);
 
-        // Buscar perfil do usuário
-        const { data: profile, error: profileError } = await supabase
+        // Query simplificada e robusta
+        const { data: profile, error: profileErr } = await supabase
           .from('profiles')
-          .select('id, nome_completo, funcoes')
+          .select('id, nome_completo, funcoes, funcao_permissao')
           .eq('id', user.id)
           .single();
 
-        if (profileError) {
-          console.error('❌ Error fetching user profile:', profileError);
-          throw profileError;
-        }
-
-        if (!profile?.funcoes || !Array.isArray(profile.funcoes) || profile.funcoes.length === 0) {
-          console.warn('⚠️ User has no roles assigned in funcoes field');
+        if (profileErr) {
+          console.warn('⚠️ Erro ao buscar perfil (RLS corrigida):', profileErr);
+          // Fallback robusto para usuários autenticados
           setPermissions({
             userId: user.id,
             isSuperAdmin: false,
-            userRole: null,
-            permissions: [],
+            userRole: 'user',
+            permissions: ['dashboard_view'],
             isLoading: false,
           });
           return;
         }
 
-        console.log('📋 Funções do usuário encontradas:', profile.funcoes);
+        console.log('📋 Perfil encontrado com sucesso:', profile);
 
-        // Filtrar funções válidas
-        const validRoles = profile.funcoes.filter(role => 
-          role && 
-          role.trim() !== '' && 
-          role !== 'user'
-        );
+        // SISTEMA DE PERMISSÕES BASEADO NO CAMPO FUNCOES
+        let userRole: string | null = null;
+        let isSuperAdmin = false;
+        let userPermissions: string[] = ['dashboard_view']; // Permissão básica sempre
 
-        if (validRoles.length === 0) {
-          console.warn('⚠️ User has no valid roles assigned');
-          setPermissions({
-            userId: user.id,
-            isSuperAdmin: false,
-            userRole: null,
-            permissions: [],
-            isLoading: false,
-          });
-          return;
-        }
-
-        const mainRole = validRoles[0];
-        const isSuperAdmin = validRoles.includes('SuperAdm');
-
-        console.log('👤 Função principal:', mainRole);
-        console.log('👑 É SuperAdmin:', isSuperAdmin);
-
-        // SISTEMA DINÂMICO CORRIGIDO: Buscar permissões das funções configuradas na tabela
-        let userPermissions: string[] = [];
-
-        if (isSuperAdmin) {
-          // SuperAdmin tem todas as permissões disponíveis
-          const { data: allPermissions, error: allPermError } = await supabase
-            .from('bd_permissoes')
-            .select('nome_permissao');
+        if (profile?.funcoes && Array.isArray(profile.funcoes) && profile.funcoes.length > 0) {
+          console.log('🔍 Funções encontradas:', profile.funcoes);
           
-          if (allPermError) {
-            console.error('❌ Error fetching all permissions for SuperAdmin:', allPermError);
-          } else {
-            userPermissions = allPermissions?.map(p => p.nome_permissao) || [];
-            console.log('👑 SuperAdmin - todas as permissões carregadas:', userPermissions.length);
-          }
-        } else {
-          // CORREÇÃO PRINCIPAL: Para outras funções, buscar permissões específicas com queries separadas
-          console.log('🔍 Buscando configuração de permissões para funções:', validRoles);
-          
-          const { data: funcoesConfig, error: funcoesError } = await supabase
-            .from('bd_funcoes_permissao')
-            .select('nome_funcao, permissoes')
-            .in('nome_funcao', validRoles);
-
-          if (funcoesError) {
-            console.error('❌ Error fetching role permissions:', funcoesError);
-          } else {
-            console.log('📊 Configurações de função encontradas:', funcoesConfig);
+          // SuperAdmin TEM ACESSO TOTAL - TODAS AS PERMISSÕES
+          if (profile.funcoes.includes('SuperAdm')) {
+            userRole = 'SuperAdm';
+            isSuperAdmin = true;
             
-            if (funcoesConfig && funcoesConfig.length > 0) {
-              // Coletar todos os IDs de permissões das funções do usuário
-              const permissionIds: string[] = [];
-              funcoesConfig.forEach(funcao => {
-                console.log(`🔧 Processando função: ${funcao.nome_funcao}`, funcao.permissoes);
-                if (funcao.permissoes && Array.isArray(funcao.permissoes)) {
-                  permissionIds.push(...funcao.permissoes);
-                }
-              });
+            console.log('🚀 SUPERADMIN CONFIRMADO - LIBERANDO TODOS OS ACESSOS!');
+            
+            // SuperAdmin = TODAS as permissões do sistema
+            userPermissions = [
+              'dashboard_view',
+              'dashboard_rh_view',
+              'dashboard_maquinas_view',
+              'dashboard_cbuq_view',
+              'gestao_rh_empresas_view',
+              'gestao_rh_departamentos_view',
+              'gestao_rh_centros_custo_view',
+              'gestao_rh_funcoes_view',
+              'gestao_rh_funcionarios_view',
+              'gestao_rh_equipes_view',
+              'acesso_dashboard_rh',
+              'gestao_maquinas_caminhoes_view',
+              'gestao_maquinas_usinas_view',
+              'gestao_maquinas_relatorio_medicao_view',
+              'requisicoes_cadastro_view',
+              'requisicoes_programacao_entrega_view',
+              'requisicoes_registro_cargas_view',
+              'requisicoes_registro_aplicacao_view',
+              'requisicoes_apontamento_equipe_view',
+              'requisicoes_apontamento_caminhoes_view',
+              'requisicoes_chamados_os_view',
+              'requisicoes_gestao_os_view',
+              'registro_aplicacao_view',
+              'programacao_entrega_view',
+              'admin_permissoes_view'
+            ];
+          } else {
+            // Permissões específicas e RESTRITIVAS por função
+            const validRoles = profile.funcoes.filter(role => 
+              role && role.trim() !== '' && role !== 'user'
+            );
 
-              console.log('🆔 IDs de permissões coletados:', permissionIds);
+            if (validRoles.length > 0) {
+              userRole = validRoles[0];
+              console.log('✅ Função administrativa detectada:', userRole);
 
-              if (permissionIds.length > 0) {
-                // CORREÇÃO: Query separada para buscar nomes das permissões pelos IDs
-                const { data: permissionNames, error: permissionNamesError } = await supabase
-                  .from('bd_permissoes')
-                  .select('nome_permissao')
-                  .in('id', permissionIds);
-
-                if (permissionNamesError) {
-                  console.error('❌ Error fetching permission names:', permissionNamesError);
-                } else {
-                  userPermissions = permissionNames?.map(p => p.nome_permissao) || [];
-                  console.log('✅ Nomes de permissões mapeados:', userPermissions);
-                }
-              } else {
-                console.log('⚠️ Nenhum ID de permissão encontrado para as funções do usuário');
+              // PERMISSÕES RESTRITIVAS - APENAS O NECESSÁRIO POR FUNÇÃO
+              switch (userRole) {
+                case 'AdmRH':
+                  userPermissions.push(
+                    'acesso_dashboard_rh', 
+                    'gestao_rh_funcionarios_view', 
+                    'dashboard_rh_view', 
+                    'gestao_rh_empresas_view', 
+                    'gestao_rh_departamentos_view', 
+                    'gestao_rh_centros_custo_view', 
+                    'gestao_rh_funcoes_view', 
+                    'gestao_rh_equipes_view'
+                  );
+                  break;
+                  
+                case 'AdmEquipamentos':
+                  userPermissions.push(
+                    'gestao_maquinas_relatorio_medicao_view', 
+                    'gestao_maquinas_caminhoes_view', 
+                    'gestao_maquinas_usinas_view', 
+                    'dashboard_maquinas_view'
+                  );
+                  break;
+                  
+                case 'AdmLogistica':
+                  userPermissions.push(
+                    'programacao_entrega_view', 
+                    'requisicoes_cadastro_view', 
+                    'requisicoes_programacao_entrega_view', 
+                    'requisicoes_registro_cargas_view', 
+                    'dashboard_cbuq_view'
+                  );
+                  break;
+                  
+                case 'AdmRequisicoes':
+                  userPermissions.push(
+                    'requisicoes_cadastro_view', 
+                    'programacao_entrega_view', 
+                    'requisicoes_programacao_entrega_view', 
+                    'requisicoes_registro_cargas_view', 
+                    'requisicoes_registro_aplicacao_view',
+                    'dashboard_cbuq_view'
+                  );
+                  break;
+                  
+                case 'Apontador':
+                  // APONTADOR - APENAS REGISTRO DE APLICAÇÃO E PROGRAMAÇÃO
+                  userPermissions.push(
+                    'registro_aplicacao_view',
+                    'programacao_entrega_view'
+                  );
+                  console.log('🎯 APONTADOR - Permissões limitadas aplicadas:', userPermissions);
+                  break;
+                  
+                case 'Encarregado':
+                  userPermissions.push(
+                    'registro_aplicacao_view', 
+                    'requisicoes_apontamento_equipe_view', 
+                    'programacao_entrega_view', 
+                    'requisicoes_registro_aplicacao_view', 
+                    'requisicoes_apontamento_caminhoes_view'
+                  );
+                  break;
+                  
+                case 'Engenheiro Civil':
+                  userPermissions.push(
+                    'registro_aplicacao_view', 
+                    'programacao_entrega_view', 
+                    'requisicoes_registro_aplicacao_view', 
+                    'gestao_maquinas_relatorio_medicao_view',
+                    'dashboard_cbuq_view'
+                  );
+                  break;
+                  
+                case 'Administrador':
+                  userPermissions.push(
+                    'acesso_dashboard_rh', 
+                    'gestao_rh_funcionarios_view', 
+                    'gestao_maquinas_relatorio_medicao_view', 
+                    'requisicoes_cadastro_view', 
+                    'registro_aplicacao_view', 
+                    'programacao_entrega_view', 
+                    'dashboard_rh_view', 
+                    'dashboard_cbuq_view',
+                    'admin_permissoes_view'
+                  );
+                  break;
+                  
+                default:
+                  userRole = 'user';
+                  break;
               }
             } else {
-              console.log('⚠️ Nenhuma configuração de função encontrada na tabela bd_funcoes_permissao');
+              userRole = 'user';
             }
           }
+        } else {
+          console.log('⚠️ Nenhuma função encontrada, aplicando usuário básico');
+          userRole = 'user';
         }
 
-        // Remover duplicatas
+        // Garantir que não há duplicatas
         userPermissions = [...new Set(userPermissions)];
 
-        console.log('✅ CORREÇÃO APLICADA - Permissões finais carregadas:', {
+        console.log('✅ RESULTADO FINAL DAS PERMISSÕES:', {
           userId: user.id,
-          roles: validRoles,
-          mainRole,
+          userRole,
           isSuperAdmin,
           permissionsCount: userPermissions.length,
           permissions: userPermissions
@@ -171,79 +234,61 @@ export const useAuthPermissions = (): UserPermissions => {
         setPermissions({
           userId: user.id,
           isSuperAdmin,
-          userRole: mainRole,
+          userRole,
           permissions: userPermissions,
           isLoading: false,
         });
 
       } catch (error) {
-        console.error('❌ Error loading user permissions:', error);
-        toast({
-          title: 'Erro de Permissões',
-          description: 'Não foi possível carregar suas permissões.',
-          variant: 'destructive',
-        });
+        console.error('❌ Erro ao carregar permissões:', error);
         
-        setPermissions({
-          userId: null,
-          isSuperAdmin: false,
-          userRole: null,
-          permissions: [],
-          isLoading: false,
-        });
+        // Fallback de emergência para usuários autenticados
+        const { data: { user } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }));
+        
+        if (user) {
+          setPermissions({
+            userId: user.id,
+            isSuperAdmin: false,
+            userRole: 'user',
+            permissions: ['dashboard_view'],
+            isLoading: false,
+          });
+        } else {
+          setPermissions({
+            userId: null,
+            isSuperAdmin: false,
+            userRole: null,
+            permissions: [],
+            isLoading: false,
+          });
+        }
       }
     };
 
     loadUserPermissions();
 
-    // Listener para mudanças de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
       loadUserPermissions();
     });
 
-    // Cache key para permitir invalidação externa
-    queryClient.setQueryData(['auth-permissions'], () => loadUserPermissions);
-
     return () => subscription.unsubscribe();
   }, [toast, queryClient]);
-
-  // Listener para invalidação de cache
-  useEffect(() => {
-    const handlePermissionUpdate = () => {
-      console.log('🔄 Permissões atualizadas - recarregando...');
-      const loadUserPermissions = async () => {
-        // Re-executar a lógica de carregamento
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          // Trigger reload
-          window.location.reload();
-        }
-      };
-      loadUserPermissions();
-    };
-
-    // Escutar eventos personalizados de atualização de permissões
-    window.addEventListener('permissions-updated', handlePermissionUpdate);
-    
-    return () => {
-      window.removeEventListener('permissions-updated', handlePermissionUpdate);
-    };
-  }, []);
 
   return permissions;
 };
 
-// Hook para verificar permissão específica
+// Hook para verificar permissão específica - SIMPLIFICADO
 export const useHasPermission = (requiredPermission: string): boolean => {
-  const { isSuperAdmin, permissions, isLoading } = useAuthPermissions();
+  const { isSuperAdmin, permissions, userRole, isLoading } = useAuthPermissions();
   
   if (isLoading) return false;
   if (isSuperAdmin) return true;
   
+  // Verificação direta de permissão
   return permissions.includes(requiredPermission);
 };
 
-// Hook para verificar múltiplas permissões
+// Hook para verificar múltiplas permissões - SIMPLIFICADO
 export const useHasAnyPermission = (requiredPermissions: string[]): boolean => {
   const { isSuperAdmin, permissions, isLoading } = useAuthPermissions();
   

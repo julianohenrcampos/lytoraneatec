@@ -55,6 +55,7 @@ export interface ApontamentoEquipeFormValues {
     hora_fim?: string;
     presente: boolean;
   }[];
+  registrado_por?: string;
 }
 
 // API type - uses string for API calls
@@ -69,6 +70,7 @@ export interface ApontamentoEquipeApiData {
     hora_fim?: string;
     presente: boolean;
   }[];
+  registrado_por?: string;
 }
 
 export interface AvaliacaoEquipeFormValues {

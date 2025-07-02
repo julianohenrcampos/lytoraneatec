@@ -1,12 +1,13 @@
+
 import { useAuthPermissions } from './useAuthPermissions';
 
-// Mapeamento de rotas para permissões necessárias - ATUALIZADO
+// Mapeamento de rotas para permissões necessárias - CORRIGIDO
 const ROUTE_PERMISSIONS: Record<string, string[]> = {
   // Dashboard
   '/dashboard': ['dashboard_view'],
-  '/gestao-rh/dashboard': ['dashboard_rh_view'],
-  '/gestao-maquinas/dashboard': ['dashboard_maquinas_view'],
-  '/dashboard/requisicoes': ['dashboard_logistica_view'], // ⭐ NOVO
+  '/dashboard-rh': ['dashboard_rh_view'],
+  '/dashboard-maquinas': ['dashboard_maquinas_view'],
+  '/dashboard-cbuq': ['dashboard_cbuq_view'],
 
   // Gestão de RH
   '/gestao-rh/empresas': ['gestao_rh_empresas_view'],
@@ -17,15 +18,17 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   '/gestao-rh/equipes': ['gestao_rh_equipes_view'],
 
   // Gestão de Máquinas/Equipamentos
-  '/gestao-maquinas/caminhoes-equipamentos': ['gestao_maquinas_caminhoes_view'],
+  '/gestao-maquinas/caminhoes': ['gestao_maquinas_caminhoes_view'],
   '/gestao-maquinas/usinas': ['gestao_maquinas_usinas_view'],
   '/gestao-maquinas/relatorio-medicao': ['gestao_maquinas_relatorio_medicao_view'],
 
+  // Rotas diretas - CORRIGIDA para usar apenas uma rota
+  '/registro-aplicacao': ['registro_aplicacao_view'],
+  '/programacao-entrega': ['programacao_entrega_view'],
+
   // Requisições e Logística
   '/requisicoes/cadastro': ['requisicoes_cadastro_view'],
-  '/requisicoes/programacao-entrega': ['requisicoes_programacao_entrega_view'],
   '/requisicoes/registro-cargas': ['requisicoes_registro_cargas_view'],
-  '/requisicoes/registro-aplicacao': ['requisicoes_registro_aplicacao_view'],
   '/requisicoes/apontamento-equipe': ['requisicoes_apontamento_equipe_view'],
   '/requisicoes/apontamento-caminhoes': ['requisicoes_apontamento_caminhoes_view'],
   '/requisicoes/chamados-os': ['requisicoes_chamados_os_view'],
@@ -77,7 +80,7 @@ export const useRouteAccess = () => {
   return {
     canAccessRoute,
     getAccessibleRoutes,
-    debugRouteAccess, // ⭐ NOVO
+    debugRouteAccess,
     isLoading,
     isSuperAdmin
   };

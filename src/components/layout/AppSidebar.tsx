@@ -17,61 +17,121 @@ import {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const location = useLocation()
-  const { isSuperAdmin, permissions, isLoading } = useAuthPermissions()
+  const { isSuperAdmin, userRole, permissions, isLoading } = useAuthPermissions()
 
+  console.log('🎯 SIDEBAR DEBUG - Estado atual:', {
+    isLoading,
+    isSuperAdmin,
+    userRole,
+    permissions,
+    permissionsCount: permissions?.length || 0,
+    currentPath: location.pathname
+  })
+
+  // Função para verificar se pode acessar um item baseado nas permissões reais
   const canAccessItem = (item: any) => {
-    if (isLoading) return false
-    if (isSuperAdmin) return true
+    console.log(`🔍 Verificando acesso para: ${item.name}`)
     
-    // Se não há permissão requerida, permitir acesso
-    if (!item.requiredPermission && !item.requiredPermissions?.length) {
+    // 🚀 REGRA ABSOLUTA: SuperAdmin pode ver TUDO
+    if (isSuperAdmin) {
+      console.log(`🔓 SuperAdmin - Acesso TOTAL para: ${item.name}`)
       return true
     }
 
-    // Verificar permissão única
+    // 🔓 Se não há permissão requerida, permitir acesso (itens públicos como Dashboard)
+    if (!item.requiredPermission && !item.requiredPermissions?.length) {
+      console.log(`🔓 Item público - Acesso para: ${item.name}`)
+      return true
+    }
+
+    // Verificar permissão específica requerida
     if (item.requiredPermission) {
-      return permissions.includes(item.requiredPermission)
+      const hasPermission = permissions.includes(item.requiredPermission)
+      console.log(`${hasPermission ? '✅' : '❌'} Permissão "${item.requiredPermission}" para "${item.name}": ${hasPermission}`)
+      return hasPermission
     }
 
-    // Verificar múltiplas permissões
+    // Verificar múltiplas permissões (se pelo menos uma for atendida)
     if (item.requiredPermissions?.length) {
-      if (item.requireAny) {
-        return item.requiredPermissions.some((perm: string) => permissions.includes(perm))
-      } else {
-        return item.requiredPermissions.every((perm: string) => permissions.includes(perm))
-      }
+      const hasAnyPermission = item.requiredPermissions.some((perm: string) => permissions.includes(perm))
+      console.log(`${hasAnyPermission ? '✅' : '❌'} Alguma permissão de ${JSON.stringify(item.requiredPermissions)} para "${item.name}": ${hasAnyPermission}`)
+      return hasAnyPermission
     }
 
+    console.log(`❌ Sem critério de acesso definido para: ${item.name}`)
     return false
   }
 
   const getVisibleItems = (items: any[]) => {
-    return items.filter(canAccessItem)
+    const visibleItems = items.filter(canAccessItem)
+    console.log(`📋 Itens visíveis no grupo:`, visibleItems.map(item => item.name))
+    return visibleItems
   }
 
   const getVisibleGroups = () => {
-    return menuStructure
+    const visibleGroups = menuStructure
       .map(group => ({
         ...group,
         items: getVisibleItems(group.items)
       }))
       .filter(group => group.items.length > 0)
+    
+    console.log(`📋 Grupos visíveis:`, visibleGroups.map(g => `${g.title} (${g.items.length} itens)`))
+    return visibleGroups
   }
 
+  // Loading state
   if (isLoading) {
     return (
       <Sidebar {...props}>
         <SidebarContent>
-          <div className="flex items-center justify-center p-4">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-            <span className="ml-2 text-sm">Carregando...</span>
-          </div>
+          <SidebarGroup>
+            <SidebarGroupLabel>Carregando...</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <div className="flex items-center justify-center p-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                <span className="ml-2 text-sm">Carregando menu...</span>
+              </div>
+            </SidebarGroupContent>
+          </SidebarGroup>
         </SidebarContent>
       </Sidebar>
     )
   }
 
   const visibleGroups = getVisibleGroups()
+
+  console.log('🎯 RESULTADO FINAL - Renderizando sidebar:', {
+    isSuperAdmin,
+    userRole,
+    totalGroups: visibleGroups.length,
+    groupDetails: visibleGroups.map(g => `${g.title}: ${g.items.length} itens`)
+  })
+
+  // Se não tem grupos visíveis, mostrar apenas Dashboard básico
+  if (visibleGroups.length === 0) {
+    console.log('⚠️ Nenhum grupo visível - aplicando fallback básico')
+    return (
+      <Sidebar {...props}>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupLabel>Menu Básico</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location.pathname === '/dashboard'}>
+                    <Link to="/dashboard">
+                      <span>Dashboard</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+      </Sidebar>
+    )
+  }
 
   return (
     <Sidebar {...props}>
@@ -95,16 +155,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
-        
-        {visibleGroups.length === 0 && (
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <div className="p-4 text-sm text-muted-foreground text-center">
-                Nenhum menu disponível para seu perfil.
-              </div>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
       </SidebarContent>
     </Sidebar>
   )

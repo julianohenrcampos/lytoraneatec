@@ -222,13 +222,17 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
       const toneladaRetornoToneladas = data.tonelada_retorno ? Number(data.tonelada_retorno) / 1000 : null;
 
       const registroData = {
-        ...data,
         lista_entrega_id: currentListaEntregaId,
+        programacao_id: data.programacao_id || "",
+        data_saida: data.data_saida || getCurrentBrazilianDate(),
+        hora_saida: data.hora_saida || "",
         status_registro: data.status_registro || "Ativo" as const,
         // Converter de kg para toneladas antes de salvar no banco
         tonelada_saida: toneladaSaidaToneladas,
         tonelada_retorno: toneladaRetornoToneladas,
         temperatura_saida: data.temperatura_saida == null || data.temperatura_saida === undefined ? null : Number(data.temperatura_saida),
+        imagem_ticket_saida: data.imagem_ticket_saida,
+        imagem_ticket_retorno: data.imagem_ticket_retorno,
       };
 
       console.log("onSubmit - Dados para salvar (em toneladas):", registroData);

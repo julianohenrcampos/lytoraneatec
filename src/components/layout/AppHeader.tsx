@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, Maximize, ChevronDown, User, Settings, LogOut, Menu } from "lucide-react";
@@ -32,15 +31,18 @@ const AppHeader: React.FC<AppHeaderProps> = ({
 
   const handleLogout = async () => {
     try {
+      console.log('🚪 Iniciando logout...');
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+      
       toast({
         title: "Logout realizado com sucesso",
         description: "Você foi desconectado do sistema"
       });
-      navigate("/login");
+      
+      navigate("/login", { replace: true });
     } catch (error) {
-      console.error("Error during logout:", error);
+      console.error("❌ Erro durante logout:", error);
       toast({
         title: "Erro ao realizar logout",
         description: "Ocorreu um erro ao tentar desconectar",
@@ -61,6 +63,13 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     }
   };
 
+  // Garantir que sempre temos dados básicos do usuário
+  const displayUser = user || { 
+    nome_completo: 'Usuário', 
+    email: 'usuario@email.com',
+    funcoes: []
+  };
+
   const NotificationDropdown = () => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -78,25 +87,12 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           <DropdownMenuItem className="p-3 cursor-default">
             <div className="flex flex-col gap-1">
               <div className="flex justify-between items-start">
-                <span className="font-medium text-sm">Atualização do Sistema</span>
-                <span className="text-xs text-muted-foreground">2h atrás</span>
+                <span className="font-medium text-sm">Sistema Online</span>
+                <span className="text-xs text-muted-foreground">Agora</span>
               </div>
-              <p className="text-xs sm:text-sm text-muted-foreground">Nova versão do sistema disponível com melhorias...</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">Sistema funcionando normalmente</p>
             </div>
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem className="p-3 cursor-default">
-            <div className="flex flex-col gap-1">
-              <div className="flex justify-between items-start">
-                <span className="font-medium text-sm">Novo funcionário cadastrado</span>
-                <span className="text-xs text-muted-foreground">5h atrás</span>
-              </div>
-              <p className="text-xs sm:text-sm text-muted-foreground">João Silva foi adicionado ao sistema...</p>
-            </div>
-          </DropdownMenuItem>
-        </div>
-        <div className="p-2 border-t text-center">
-          <Button variant="ghost" size="sm" className="w-full text-sm">Ver todas</Button>
         </div>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -107,20 +103,24 @@ const AppHeader: React.FC<AppHeaderProps> = ({
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="flex items-center gap-2 px-2 sm:px-3">
           <Avatar className="h-6 w-6 sm:h-8 sm:w-8">
-            {user.imagem_url ? (
-              <AvatarImage src={user.imagem_url} />
+            {displayUser.imagem_url ? (
+              <AvatarImage src={displayUser.imagem_url} />
             ) : (
               <>
-                <AvatarImage src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user.nome_completo || user.email)}&background=random`} />
-                <AvatarFallback>{user.nome_completo?.[0] || user.email?.[0] || 'U'}</AvatarFallback>
+                <AvatarImage src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayUser.nome_completo || displayUser.email)}&background=random`} />
+                <AvatarFallback>{displayUser.nome_completo?.[0] || displayUser.email?.[0] || 'U'}</AvatarFallback>
               </>
             )}
           </Avatar>
           {!isMobile && (
             <>
               <div className="flex flex-col items-start">
-                <span className="text-sm font-medium truncate max-w-24 lg:max-w-32">{user.nome_completo || user.email}</span>
-                <span className="text-xs text-muted-foreground">{user.funcoes?.includes('admin') ? 'Administrador' : 'Usuário'}</span>
+                <span className="text-sm font-medium truncate max-w-24 lg:max-w-32">
+                  {displayUser.nome_completo || displayUser.email}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {displayUser.funcoes?.includes('SuperAdm') ? 'Administrador' : 'Usuário'}
+                </span>
               </div>
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </>
@@ -134,7 +134,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setIsImageUploadModalOpen(true)}>
           <Settings className="mr-2 h-4 w-4" />
-          <span>Configurações de Conta</span>
+          <span>Configurações</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout}>
@@ -218,19 +218,65 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         
         <NotificationDropdown />
         
-        {isMobile ? <MobileMenu /> : user && <UserDropdown />}
+        {/* Sempre mostrar o menu do usuário */}
+        {isMobile ? (
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-80">
+              <div className="flex flex-col gap-4 pt-4">
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted">
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayUser.nome_completo || displayUser.email)}&background=random`} />
+                    <AvatarFallback>{displayUser.nome_completo?.[0] || displayUser.email?.[0] || 'U'}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex flex-col">
+                    <span className="font-medium">{displayUser.nome_completo || displayUser.email}</span>
+                    <span className="text-sm text-muted-foreground">
+                      {displayUser.funcoes?.includes('SuperAdm') ? 'Administrador' : 'Usuário'}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col gap-2">
+                  <Button variant="ghost" className="justify-start" onClick={() => setIsProfileModalOpen(true)}>
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Perfil</span>
+                  </Button>
+                  <Button variant="ghost" className="justify-start" onClick={() => setIsImageUploadModalOpen(true)}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Configurações</span>
+                  </Button>
+                  <Button variant="ghost" className="justify-start" onClick={toggleFullScreen}>
+                    <Maximize className="mr-2 h-4 w-4" />
+                    <span>Tela Cheia</span>
+                  </Button>
+                  <Button variant="ghost" className="justify-start text-red-600" onClick={handleLogout}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Sair</span>
+                  </Button>
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
+        ) : (
+          <UserDropdown />
+        )}
       </div>
 
       <UserProfileModal 
         isOpen={isProfileModalOpen} 
         onClose={() => setIsProfileModalOpen(false)} 
-        user={user} 
+        user={displayUser} 
       />
 
       <UserImageUploadModal 
         isOpen={isImageUploadModalOpen} 
         onClose={() => setIsImageUploadModalOpen(false)} 
-        currentImage={user?.imagem_url} 
+        currentImage={displayUser?.imagem_url} 
         onImageUpdated={file => updateUserImage(file)} 
       />
     </header>
