@@ -90,6 +90,11 @@ const FormTabs: React.FC<FormTabsProps> = ({
   });
 
   const handleFormSubmit = (data: FuncionarioFormData) => {
+    if (!data.funcao_id || data.funcao_id.trim() === "") {
+      setActiveTab("profissional");
+      return;
+    }
+    
     onSubmit(data);
   };
 

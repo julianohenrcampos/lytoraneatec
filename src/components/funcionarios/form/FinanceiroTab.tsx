@@ -26,14 +26,14 @@ const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
   isSubmitting
 }) => {
   // Função para tratar valores de entrada numéricos
-  const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>, onChange: (value: number) => void) => {
+  const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>, onChange: (value: number | undefined) => void) => {
     const value = e.target.value;
-    if (value === "" || value === null) {
-      onChange(0);
+    if (value === "" || value === null || value === undefined) {
+      onChange(undefined);
     } else {
       // Converte para número e garante que seja um valor válido
       const numValue = parseFloat(value);
-      onChange(isNaN(numValue) ? 0 : numValue);
+      onChange(isNaN(numValue) ? undefined : numValue);
     }
   };
 
@@ -53,7 +53,7 @@ const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
                   step="0.01" 
                   placeholder="0,00"
                   onChange={(e) => handleNumberChange(e, field.onChange)} 
-                  value={field.value || 0} 
+                  value={field.value || ""}
                 />
               </FormControl>
               <FormMessage />
@@ -73,7 +73,7 @@ const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
                   step="0.01" 
                   placeholder="0,00"
                   onChange={(e) => handleNumberChange(e, field.onChange)} 
-                  value={field.value || 0} 
+                  value={field.value || ""}
                 />
               </FormControl>
               <FormMessage />
@@ -95,7 +95,7 @@ const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
                   step="0.01" 
                   placeholder="0,00"
                   onChange={(e) => handleNumberChange(e, field.onChange)} 
-                  value={field.value || 0} 
+                  value={field.value || ""}
                 />
               </FormControl>
               <FormMessage />
@@ -115,7 +115,7 @@ const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
                   step="0.01" 
                   placeholder="0,00"
                   onChange={(e) => handleNumberChange(e, field.onChange)} 
-                  value={field.value || 0} 
+                  value={field.value || ""}
                 />
               </FormControl>
               <FormMessage />
@@ -137,7 +137,7 @@ const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
                   step="0.01" 
                   placeholder="0,00"
                   onChange={(e) => handleNumberChange(e, field.onChange)} 
-                  value={field.value || 0} 
+                  value={field.value || ""}
                 />
               </FormControl>
               <FormMessage />
@@ -157,7 +157,7 @@ const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
                   step="0.01" 
                   placeholder="0,00"
                   onChange={(e) => handleNumberChange(e, field.onChange)} 
-                  value={field.value || 0} 
+                  value={field.value || ""}
                 />
               </FormControl>
               <FormMessage />
@@ -179,7 +179,7 @@ const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
                   step="0.01" 
                   placeholder="0,00"
                   onChange={(e) => handleNumberChange(e, field.onChange)} 
-                  value={field.value || 0} 
+                  value={field.value || ""}
                 />
               </FormControl>
               <FormMessage />
@@ -199,7 +199,7 @@ const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
                   step="0.01" 
                   placeholder="0,00"
                   onChange={(e) => handleNumberChange(e, field.onChange)} 
-                  value={field.value || 0} 
+                  value={field.value || ""}
                 />
               </FormControl>
               <FormMessage />

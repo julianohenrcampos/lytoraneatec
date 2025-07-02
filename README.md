@@ -1,7 +1,7 @@
 
 # Sistema de Gestão Integrada de Pavimentação Asfáltica 🛣️
 
-[![Versão](https://img.shields.io/badge/versão-2.1.0-blue.svg)](CHANGELOG.md)
+[![Versão](https://img.shields.io/badge/versão-3.2.0-blue.svg)](CHANGELOG.md)
 [![React](https://img.shields.io/badge/React-18.0+-61DAFB.svg)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6.svg)](https://www.typescriptlang.org/)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-00D588.svg)](https://supabase.com/)
@@ -9,10 +9,12 @@
 
 ## 📋 Sobre o Projeto
 
-Sistema completo de gestão para empresas de pavimentação asfáltica, integrando recursos humanos, equipamentos, logística e **relatórios de medição para contratos de locação**. Desenvolvido com tecnologias modernas para máxima eficiência e confiabilidade.
+Sistema completo de gestão para empresas de pavimentação asfáltica, integrando recursos humanos, equipamentos, logística e **relatórios de medição para contratos de locação**. **Progressive Web App (PWA)** com **modo offline completo** e sincronização automática. Desenvolvido com tecnologias modernas para máxima eficiência e confiabilidade.
 
 ### ✨ Principais Funcionalidades
 
+- 📱 **Progressive Web App (PWA)**: Instalação nativa e notificações
+- 🔄 **Modo Offline Completo**: Trabalhe sem internet com sincronização automática
 - 👥 **Gestão de RH**: Cadastro, apontamentos e avaliações
 - 🚛 **Gestão de Máquinas**: Controle de veículos e equipamentos
 - 📦 **Logística**: Requisições, programação e aplicação de asfalto
@@ -20,8 +22,27 @@ Sistema completo de gestão para empresas de pavimentação asfáltica, integran
 - 🔧 **Ordens de Serviço**: Chamados e manutenção
 - 📈 **Dashboard**: KPIs e métricas em tempo real
 - 📑 **Exportações**: Excel e PDF com formatação profissional
+- 📱 **Mobile First**: Interface responsiva otimizada para tablet e smartphone
 
-### 🆕 Novidades da Versão 2.1
+### 🆕 Novidades da Versão 3.2
+
+- **📱 Progressive Web App (PWA) Completo**
+  - Instalação nativa em qualquer dispositivo
+  - Funcionamento offline total com sincronização automática
+  - Notificações push e atualizações automáticas
+  - Cache inteligente para performance máxima
+
+- **🔄 Sistema Offline Revolucionário**
+  - Continue trabalhando sem internet em todas as funcionalidades
+  - Sincronização automática quando conexão retorna
+  - Zero perda de dados com armazenamento local seguro
+  - Indicadores visuais de status de conexão
+
+- **📱 Interface Mobile Otimizada**
+  - Design responsivo otimizado para tablets e smartphones
+  - Navegação touch-friendly com gestos intuitivos
+  - Layouts adaptativos para diferentes tamanhos de tela
+  - Performance otimizada para dispositivos móveis
 
 - **🎯 Módulo de Relatório de Medição Completo**
   - Cálculos automáticos para equipamentos (200h/mês) e caminhões
@@ -30,16 +51,11 @@ Sistema completo de gestão para empresas de pavimentação asfáltica, integran
   - Exportação para Excel com múltiplas abas
   - Fórmulas validadas conforme contratos de locação
 
-- **📊 Cálculos Avançados**
-  - Equipamentos: R$/hora baseado em 200h mensais
-  - Caminhões: R$/dia baseado no aluguel mensal
-  - Descontos automáticos por apontamentos de manutenção
-  - Opção de desconto por desmobilização
-
-- **🔐 Melhorias de Segurança**
-  - Row Level Security (RLS) implementado
-  - Controle granular de permissões
-  - Validações aprimoradas
+- **🔐 Segurança Avançada**
+  - Row Level Security (RLS) com políticas granulares
+  - Controle de permissões por função e módulo
+  - Auditoria completa de ações do usuário
+  - Validações server-side robustas
 
 ## 🚀 Tecnologias Utilizadas
 

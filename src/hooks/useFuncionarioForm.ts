@@ -16,24 +16,24 @@ const funcionarioSchema = z.object({
   data_nascimento: z.string().nullable().optional(),
   genero: z.string().optional(),
   escolaridade: z.string().optional(),
-  email: z.string().email().optional().or(z.literal("")),
+  email: z.string().email({ message: "Email inválido" }).optional().or(z.literal("")),
   endereco_completo: z.string().optional(),
-  funcao_id: z.string().min(1, { message: "Função é obrigatória" }),
+  funcao_id: z.string().optional(),
   departamento_id: z.string().optional(),
   empresa_id: z.string().optional(),
   centro_custo_id: z.string().optional(),
   data_admissao: z.string().nullable().optional(),
-  salario_base: z.number().optional(),
+  salario_base: z.number().min(0, { message: "Salário deve ser positivo" }).optional(),
   data_ferias: z.string().nullable().optional(),
   status: z.string().optional(),
   data_demissao: z.string().nullable().optional(),
-  insalubridade: z.number().optional(),
-  periculosidade: z.number().optional(),
-  gratificacao: z.number().optional(),
-  adicional_noturno: z.number().optional(),
-  custo_passagem: z.number().optional(),
-  refeicao: z.number().optional(),
-  diarias: z.number().optional(),
+  insalubridade: z.number().min(0, { message: "Valor deve ser positivo" }).optional(),
+  periculosidade: z.number().min(0, { message: "Valor deve ser positivo" }).optional(),
+  gratificacao: z.number().min(0, { message: "Valor deve ser positivo" }).optional(),
+  adicional_noturno: z.number().min(0, { message: "Valor deve ser positivo" }).optional(),
+  custo_passagem: z.number().min(0, { message: "Valor deve ser positivo" }).optional(),
+  refeicao: z.number().min(0, { message: "Valor deve ser positivo" }).optional(),
+  diarias: z.number().min(0, { message: "Valor deve ser positivo" }).optional(),
   equipe_id: z.string().optional(),
 });
 
@@ -81,7 +81,6 @@ export const useFuncionarioForm = (
 
   useEffect(() => {
     if (funcionario) {
-      console.log("useFuncionarioForm: Carregando dados do funcionário:", funcionario);
       form.reset({
         nome_completo: funcionario.nome_completo || "",
         cpf: funcionario.cpf || "",
@@ -111,7 +110,6 @@ export const useFuncionarioForm = (
       setUploadedImageUrl(funcionario.foto_url || null);
       setImagePreview(funcionario.foto_url || null);
     } else {
-      // Para novos funcionários, usar data atual brasileira como padrão para data de admissão
       const hoje = getCurrentBrazilianDate();
       form.setValue("data_admissao", hoje);
     }

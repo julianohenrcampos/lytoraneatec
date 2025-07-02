@@ -22,11 +22,9 @@ export function useFuncionarioActions() {
   } = useFuncionarioQueries(
     state.filters,
     () => {
-      console.log("useFuncionarioActions: Fechando modal após criação bem-sucedida");
       state.setIsFormModalOpen(false);
     },
     () => {
-      console.log("useFuncionarioActions: Fechando modal após atualização bem-sucedida");
       state.setIsFormModalOpen(false);
     },
     () => {
@@ -35,7 +33,6 @@ export function useFuncionarioActions() {
       setDeleteErrorMessage(undefined);
     },
     () => {
-      console.log("useFuncionarioActions: Finalizando estado de submissão");
       state.setIsSubmitting(false);
     },
     () => state.setIsDeleting(false)
@@ -110,37 +107,21 @@ export function useFuncionarioActions() {
     sanitizedData.refeicao = ensureNumber(data.refeicao);
     sanitizedData.diarias = ensureNumber(data.diarias);
     
-    console.log("useFuncionarioActions: Dados sanitizados:", sanitizedData);
     return sanitizedData;
   };
 
-  // Handler para salvar funcionário (criar ou atualizar)
   const handleSaveFuncionario = useCallback((data: FuncionarioFormData) => {
-    console.log("useFuncionarioActions: Iniciando salvamento do funcionário", data);
-    
-    // Verificar se a função é obrigatória e está presente
-    if (!data.funcao_id || data.funcao_id.trim() === "") {
-      console.error("useFuncionarioActions: Função é obrigatória");
-      return;
-    }
-    
     state.setIsSubmitting(true);
     
     try {
-      // Sanitize data to ensure all financial fields are valid numbers
       const sanitizedData = sanitizeFinancialData(data);
       
       if (state.currentFuncionario) {
-        // Atualizar funcionário existente
-        console.log("useFuncionarioActions: Atualizando funcionário existente ID:", state.currentFuncionario.id);
         updateMutation.mutate({ id: state.currentFuncionario.id, data: sanitizedData });
       } else {
-        // Criar novo funcionário
-        console.log("useFuncionarioActions: Criando novo funcionário");
         createMutation.mutate(sanitizedData);
       }
     } catch (error) {
-      console.error("useFuncionarioActions: Erro ao processar dados do funcionário:", error);
       state.setIsSubmitting(false);
     }
   }, [state, createMutation, updateMutation]);

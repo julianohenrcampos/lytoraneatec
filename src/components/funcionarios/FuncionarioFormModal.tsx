@@ -33,7 +33,6 @@ const FuncionarioFormModal: React.FC<FuncionarioFormModalProps> = ({
   } = useFuncionarioForm(funcionario, isOpen);
 
   const handleSubmit = (data: FuncionarioFormData) => {
-    console.log("FuncionarioFormModal: Iniciando submit com dados:", data);
     onSubmit(data);
   };
 

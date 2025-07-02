@@ -214,7 +214,7 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[700px]">
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{veiculo ? "Editar Veículo" : "Cadastrar Novo Veículo/Equipamento"}</DialogTitle>
           <DialogDescription>

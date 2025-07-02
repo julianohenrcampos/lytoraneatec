@@ -39,13 +39,13 @@ const VeiculoFormTabs: React.FC<VeiculoFormTabsProps> = ({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full max-h-full flex flex-col">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="details">Dados Básicos</TabsTrigger>
             <TabsTrigger value="specifications">Especificações</TabsTrigger>
           </TabsList>
           
-          <TabsContent value="details" className="space-y-4 pt-4">
+          <TabsContent value="details" className="space-y-4 pt-4 flex-1 overflow-y-auto">
             <VeiculoDetailsTab 
               form={form} 
               departamentos={departamentos}
@@ -55,7 +55,7 @@ const VeiculoFormTabs: React.FC<VeiculoFormTabsProps> = ({
             />
             
             {/* Botão Seguir na aba de Dados Básicos */}
-            <div className="flex justify-end pt-4">
+            <div className="flex justify-end pt-4 sticky bottom-0 bg-background border-t mt-4 pt-4">
               <Button type="button" onClick={handleNextTab} className="gap-2">
                 Seguir
                 <ChevronRight className="h-4 w-4" />
@@ -63,11 +63,11 @@ const VeiculoFormTabs: React.FC<VeiculoFormTabsProps> = ({
             </div>
           </TabsContent>
           
-          <TabsContent value="specifications" className="space-y-4 pt-4">
+          <TabsContent value="specifications" className="space-y-4 pt-4 flex-1 overflow-y-auto">
             <VeiculoSpecificationsTab form={form} />
             
             {/* Botões de cancelar e salvar na aba de Especificações */}
-            <DialogFooter className="pt-4">
+            <DialogFooter className="pt-4 sticky bottom-0 bg-background border-t mt-4">
               <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
                 Cancelar
               </Button>
