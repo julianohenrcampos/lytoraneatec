@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import MainLayout from "@/components/layout/MainLayout";
 import { ResponsiveContainer } from "@/components/layout/ResponsiveContainer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import SystemFixedNotification from "@/components/system/SystemFixedNotification";
 
 // Dashboard Sections
 import RhSection from "@/components/dashboard/RhSection";
@@ -125,6 +126,7 @@ export default function Dashboard() {
   return (
     <MainLayout>
       <ResponsiveContainer className="pt-6 pb-10">
+        <SystemFixedNotification onRefresh={() => window.location.reload()} />
         <div className="flex flex-col space-y-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>

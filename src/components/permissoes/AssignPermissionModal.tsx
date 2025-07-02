@@ -18,7 +18,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { ProfileType } from "@/types/permissao";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AssignPermissionModalProps {
   isOpen: boolean;
@@ -39,6 +42,25 @@ const AssignPermissionModal: React.FC<AssignPermissionModalProps> = ({
 }) => {
   const [selectedFuncao, setSelectedFuncao] = React.useState<string>("");
 
+  // Buscar funções da tabela bd_funcoes_permissao
+  const { data: funcoesDB } = useQuery({
+    queryKey: ['funcoes-permissao-para-atribuicao'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('bd_funcoes_permissao')
+        .select('id, nome_funcao, descricao')
+        .order('nome_funcao');
+      
+      if (error) {
+        console.error('❌ Erro ao buscar funções:', error);
+        return [];
+      }
+      
+      return data || [];
+    },
+    enabled: isOpen
+  });
+
   React.useEffect(() => {
     if (isOpen && profile) {
       // Limpar seleção ao abrir o modal
@@ -49,6 +71,7 @@ const AssignPermissionModal: React.FC<AssignPermissionModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (profile && selectedFuncao) {
+      console.log('📤 Enviando atribuição:', { profileId: profile.id, funcao: selectedFuncao });
       onAssign(profile.id, selectedFuncao);
     }
   };
@@ -61,6 +84,13 @@ const AssignPermissionModal: React.FC<AssignPermissionModalProps> = ({
     (currentFunctions.length > 1 || (currentFunctions.length === 1 && currentFunctions[0] !== 'user'));
   
   const isEditing = hasPermissions;
+
+  // Combinar funções do BD com funções padrão
+  const allAvailableFunctions = React.useMemo(() => {
+    const functionsFromDB = funcoesDB?.map(f => f.nome_funcao) || [];
+    const combined = [...new Set([...availableFunctions, ...functionsFromDB])];
+    return combined.sort();
+  }, [availableFunctions, funcoesDB]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -120,22 +150,39 @@ const AssignPermissionModal: React.FC<AssignPermissionModalProps> = ({
                 <SelectValue placeholder="Selecione uma função" />
               </SelectTrigger>
               <SelectContent>
-                {availableFunctions.map((funcao) => (
-                  <SelectItem 
-                    key={funcao} 
-                    value={funcao}
-                    disabled={currentFunctions.includes(funcao)}
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <span>{funcao}</span>
-                      {currentFunctions.includes(funcao) && (
-                        <span className="text-xs text-muted-foreground ml-2">(já possui)</span>
-                      )}
-                    </div>
-                  </SelectItem>
-                ))}
+                {allAvailableFunctions.map((funcao) => {
+                  const isAlreadyAssigned = currentFunctions.includes(funcao);
+                  const funcaoFromDB = funcoesDB?.find(f => f.nome_funcao === funcao);
+                  
+                  return (
+                    <SelectItem 
+                      key={funcao} 
+                      value={funcao}
+                      disabled={isAlreadyAssigned}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-2">
+                          <span>{funcao}</span>
+                          {funcaoFromDB && (
+                            <Badge variant="outline" className="text-xs">
+                              Formal
+                            </Badge>
+                          )}
+                        </div>
+                        {isAlreadyAssigned && (
+                          <span className="text-xs text-muted-foreground ml-2">(já possui)</span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
+            {selectedFuncao && funcoesDB?.find(f => f.nome_funcao === selectedFuncao)?.descricao && (
+              <p className="text-xs text-muted-foreground">
+                {funcoesDB.find(f => f.nome_funcao === selectedFuncao)?.descricao}
+              </p>
+            )}
           </div>
 
           <DialogFooter>

@@ -14,6 +14,7 @@ import { ProfileType } from "@/types/permissao";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { validateFunctionRemoval, cleanFunctionArray } from "@/utils/permissionValidation";
 
 interface UserDetailsModalProps {
   isOpen: boolean;
@@ -49,33 +50,53 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
   const handleRemoveFunction = async (funcaoToRemove: string) => {
     setIsRemoving(true);
     try {
-      const newFuncoes = currentFunctions.filter(f => f !== funcaoToRemove);
+      console.log('🗑️ Removendo função:', funcaoToRemove, 'do usuário:', profile.id);
+      console.log('📋 Funções atuais:', currentFunctions);
       
-      // Se não sobrar nenhuma função ou só sobrar 'user', garantir que 'user' esteja presente
-      const finalFuncoes = newFuncoes.length === 0 || 
-        (newFuncoes.length === 1 && newFuncoes[0] === 'user') 
-        ? ['user'] 
-        : newFuncoes;
+      // Validar remoção
+      const validation = validateFunctionRemoval(currentFunctions, funcaoToRemove);
+      if (!validation.isValid) {
+        toast({
+          title: "Erro de validação",
+          description: validation.message,
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      const newFuncoes = currentFunctions.filter(f => f !== funcaoToRemove);
+      const finalFuncoes = cleanFunctionArray(newFuncoes);
+      
+      console.log('✅ Funções finais para salvar:', finalFuncoes);
 
       const { error } = await supabase
         .from('profiles')
         .update({ funcoes: finalFuncoes })
         .eq('id', profile.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro ao remover função:', error);
+        throw error;
+      }
 
+      console.log('✅ Função removida com sucesso');
+      
       toast({
         title: "Função removida com sucesso",
+        description: `A função "${funcaoToRemove}" foi removida do usuário.`,
         variant: "default",
       });
 
-      // Atualizar os dados locais
+      // Atualizar múltiplos caches para garantir sincronização
+      queryClient.invalidateQueries({ queryKey: ['all-profiles-corrected'] });
       queryClient.invalidateQueries({ queryKey: ['profiles'] });
+      queryClient.invalidateQueries({ queryKey: ['availableFunctions'] });
       
     } catch (error: any) {
+      console.error('❌ Erro ao remover função:', error);
       toast({
         title: "Erro ao remover função",
-        description: error.message,
+        description: error.message || "Não foi possível remover a função.",
         variant: "destructive",
       });
     } finally {

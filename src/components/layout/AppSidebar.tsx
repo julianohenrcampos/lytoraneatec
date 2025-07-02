@@ -2,7 +2,7 @@
 import * as React from "react"
 import { Link, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
-import { useAuthPermissions } from "@/hooks/useAuthPermissions"
+import { useRobustPermissions } from "@/hooks/useRobustPermissions"
 import { menuStructure } from "@/constants/menuStructure"
 import {
   Sidebar,
@@ -17,7 +17,7 @@ import {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const location = useLocation()
-  const { isSuperAdmin, userRole, permissions, isLoading } = useAuthPermissions()
+  const { isSuperAdmin, userRole, permissions, isLoading } = useRobustPermissions()
 
   console.log('🎯 SIDEBAR DEBUG - Estado atual:', {
     isLoading,

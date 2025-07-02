@@ -268,10 +268,29 @@ export const useAuthPermissions = (): UserPermissions => {
     loadUserPermissions();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      console.log('🔐 Auth state changed - reloading permissions');
       loadUserPermissions();
     });
 
-    return () => subscription.unsubscribe();
+    // Listener para mudanças na tabela profiles
+    const profilesSubscription = supabase
+      .channel('profiles-changes')
+      .on('postgres_changes', 
+        { event: 'UPDATE', schema: 'public', table: 'profiles' }, 
+        async (payload) => {
+          console.log('🔄 Profiles table changed, reloading permissions:', payload);
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user && (payload.new.id === user.id || payload.old.id === user.id)) {
+            loadUserPermissions();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+      profilesSubscription.unsubscribe();
+    };
   }, [toast, queryClient]);
 
   return permissions;

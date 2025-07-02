@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { useSimplePermissions } from '@/hooks/useSimplePermissions';
+import { useRobustPermissions } from '@/hooks/useRobustPermissions';
 import { Navigate } from 'react-router-dom';
 
 interface SimplePermissionGuardProps {
@@ -8,7 +8,7 @@ interface SimplePermissionGuardProps {
 }
 
 const SimplePermissionGuard: React.FC<SimplePermissionGuardProps> = ({ children }) => {
-  const { canAccessDashboard, isLoading, isSuperAdmin, userRole } = useSimplePermissions();
+  const { canAccessDashboard, isLoading, isSuperAdmin, userRole } = useRobustPermissions();
 
   console.log('🔐 [SimplePermissionGuard] Estado atual:', { 
     canAccessDashboard, 

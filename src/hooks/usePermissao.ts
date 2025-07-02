@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissionCacheInvalidation } from "@/hooks/usePermissionCacheInvalidation";
+import { validateFunctionAssignment, cleanFunctionArray } from "@/utils/permissionValidation";
 import { 
   Permissao, 
   PermissaoFilter, 
@@ -377,9 +378,23 @@ export const usePermissao = () => {
     mutationFn: async ({ profileId, funcaoString }: { profileId: string; funcaoString: string }) => {
       console.log('🔄 Atribuindo permissão:', { profileId, funcaoString });
       
+      // Verificar se a função existe na tabela bd_funcoes_permissao
+      const { data: funcaoExists, error: funcaoError } = await supabase
+        .from('bd_funcoes_permissao')
+        .select('id, nome_funcao')
+        .eq('nome_funcao', funcaoString)
+        .single();
+      
+      if (funcaoError || !funcaoExists) {
+        console.warn('⚠️ Função não encontrada na tabela bd_funcoes_permissao:', funcaoString);
+        // Continuar com a atribuição mesmo que não esteja na tabela de funções
+      } else {
+        console.log('✅ Função válida encontrada:', funcaoExists);
+      }
+      
       const { data: profile, error: fetchError } = await supabase
         .from('profiles')
-        .select('funcoes')
+        .select('funcoes, funcao_permissao')
         .eq('id', profileId)
         .single();
       
@@ -389,15 +404,31 @@ export const usePermissao = () => {
       }
       
       const currentFuncoes = profile?.funcoes || ['user'];
+      
+      // Validar atribuição usando utilitário
+      const validation = validateFunctionAssignment(currentFuncoes, funcaoString);
+      if (!validation.isValid) {
+        throw new Error(validation.message);
+      }
+      
       // Filtrar 'user' se estiver presente e adicionar nova função
       const filteredFuncoes = currentFuncoes.filter(f => f !== 'user');
-      const newFuncoes = [...new Set([...filteredFuncoes, funcaoString])];
+      const newFuncoes = cleanFunctionArray([...filteredFuncoes, funcaoString]);
       
       console.log('📝 Atualizando funções:', { currentFuncoes, newFuncoes });
       
+      // Atualizar tanto o array funcoes quanto funcao_permissao para consistência
+      const updateData: any = { funcoes: newFuncoes };
+      
+      // Se existe a função na tabela bd_funcoes_permissao, vincular no campo funcao_permissao também
+      if (funcaoExists) {
+        updateData.funcao_permissao = funcaoExists.id;
+        console.log('🔗 Vinculando funcao_permissao:', funcaoExists.id);
+      }
+      
       const { error } = await supabase
         .from('profiles')
-        .update({ funcoes: newFuncoes })
+        .update(updateData)
         .eq('id', profileId);
       
       if (error) {
@@ -408,21 +439,24 @@ export const usePermissao = () => {
       console.log('✅ Permissão atribuída com sucesso');
       return { profileId, funcaoString };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast({
         title: "Permissão atribuída com sucesso",
+        description: `A função "${data.funcaoString}" foi atribuída ao usuário.`,
         variant: "default",
       });
       setIsAssignPermissionOpen(false);
+      setCurrentProfile(null);
       // Invalidar cache para atualizar dados
       queryClient.invalidateQueries({ queryKey: ['all-profiles-corrected'] });
       queryClient.invalidateQueries({ queryKey: ['availableFunctions'] });
       invalidatePermissionCache();
     },
     onError: (error: any) => {
+      console.error('❌ Erro ao atribuir permissão:', error);
       toast({
         title: "Erro ao atribuir permissão",
-        description: error.message,
+        description: error.message || "Não foi possível atribuir a permissão.",
         variant: "destructive",
       });
     }
