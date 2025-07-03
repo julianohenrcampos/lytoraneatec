@@ -89,8 +89,6 @@ export const useDynamicPermissions = (): DynamicPermissions => {
           'requisicoes_apontamento_caminhoes_view',
           'requisicoes_chamados_os_view',
           'requisicoes_gestao_os_view',
-          'registro_aplicacao_view',
-          'programacao_entrega_view',
           'admin_permissoes_view'
         ];
         
@@ -195,7 +193,7 @@ export const useDynamicPermissions = (): DynamicPermissions => {
                   userPermissions.push('dashboard_rh_view', 'dashboard_maquinas_view', 'gestao_rh_equipes_view');
                 }
                 if (userRole.includes('Apontador')) {
-                  userPermissions.push('registro_aplicacao_view', 'programacao_entrega_view');
+                  userPermissions.push('requisicoes_registro_aplicacao_view', 'requisicoes_programacao_entrega_view', 'requisicoes_registro_cargas_view');
                 }
               }
             }

@@ -122,13 +122,13 @@ export const menuStructure = [
         name: "Programação de Entrega",
         href: "/programacao-entrega",
         icon: CalendarDays,
-        requiredPermission: "programacao_entrega_view"
+        requiredPermission: "requisicoes_programacao_entrega_view"
       },
       {
         name: "Registro de Aplicação",
         href: "/registro-aplicacao",
         icon: FileText,
-        requiredPermission: "registro_aplicacao_view"
+        requiredPermission: "requisicoes_registro_aplicacao_view"
       },
       {
         name: "Registro de Cargas",

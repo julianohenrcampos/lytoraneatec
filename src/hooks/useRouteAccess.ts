@@ -22,9 +22,9 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   '/gestao-maquinas/usinas': ['gestao_maquinas_usinas_view'],
   '/gestao-maquinas/relatorio-medicao': ['gestao_maquinas_relatorio_medicao_view'],
 
-  // Rotas diretas - CORRIGIDA para usar apenas uma rota
-  '/registro-aplicacao': ['registro_aplicacao_view'],
-  '/programacao-entrega': ['programacao_entrega_view'],
+  // Rotas diretas - CORRIGIDAS para usar as permissões corretas
+  '/registro-aplicacao': ['requisicoes_registro_aplicacao_view'],
+  '/programacao-entrega': ['requisicoes_programacao_entrega_view'],
 
   // Requisições e Logística
   '/requisicoes/cadastro': ['requisicoes_cadastro_view'],
