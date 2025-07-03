@@ -2,7 +2,7 @@
 import * as React from "react"
 import { Link, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
-import { useRobustPermissions } from "@/hooks/useRobustPermissions"
+import { useDynamicPermissions } from "@/hooks/useDynamicPermissions"
 import { menuStructure } from "@/constants/menuStructure"
 import {
   Sidebar,
@@ -17,9 +17,9 @@ import {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const location = useLocation()
-  const { isSuperAdmin, userRole, permissions, isLoading } = useRobustPermissions()
+  const { isSuperAdmin, userRole, permissions, isLoading } = useDynamicPermissions()
 
-  console.log('🎯 SIDEBAR DEBUG - Estado atual:', {
+  console.log('🎯 SIDEBAR DEBUG - Estado atual DINÂMICO:', {
     isLoading,
     isSuperAdmin,
     userRole,
@@ -28,9 +28,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     currentPath: location.pathname
   })
 
-  // Função para verificar se pode acessar um item baseado nas permissões reais
+  // Função para verificar se pode acessar um item baseado nas permissões dinâmicas
   const canAccessItem = (item: any) => {
-    console.log(`🔍 Verificando acesso para: ${item.name}`)
+    console.log(`🔍 Verificando acesso DINÂMICO para: ${item.name}`)
     
     // 🚀 REGRA ABSOLUTA: SuperAdmin pode ver TUDO
     if (isSuperAdmin) {
@@ -47,14 +47,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     // Verificar permissão específica requerida
     if (item.requiredPermission) {
       const hasPermission = permissions.includes(item.requiredPermission)
-      console.log(`${hasPermission ? '✅' : '❌'} Permissão "${item.requiredPermission}" para "${item.name}": ${hasPermission}`)
+      console.log(`${hasPermission ? '✅' : '❌'} Permissão dinâmica "${item.requiredPermission}" para "${item.name}": ${hasPermission}`)
       return hasPermission
     }
 
     // Verificar múltiplas permissões (se pelo menos uma for atendida)
     if (item.requiredPermissions?.length) {
       const hasAnyPermission = item.requiredPermissions.some((perm: string) => permissions.includes(perm))
-      console.log(`${hasAnyPermission ? '✅' : '❌'} Alguma permissão de ${JSON.stringify(item.requiredPermissions)} para "${item.name}": ${hasAnyPermission}`)
+      console.log(`${hasAnyPermission ? '✅' : '❌'} Alguma permissão dinâmica de ${JSON.stringify(item.requiredPermissions)} para "${item.name}": ${hasAnyPermission}`)
       return hasAnyPermission
     }
 
@@ -64,7 +64,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const getVisibleItems = (items: any[]) => {
     const visibleItems = items.filter(canAccessItem)
-    console.log(`📋 Itens visíveis no grupo:`, visibleItems.map(item => item.name))
+    console.log(`📋 Itens visíveis no grupo (DINÂMICO):`, visibleItems.map(item => item.name))
     return visibleItems
   }
 
@@ -76,7 +76,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       }))
       .filter(group => group.items.length > 0)
     
-    console.log(`📋 Grupos visíveis:`, visibleGroups.map(g => `${g.title} (${g.items.length} itens)`))
+    console.log(`📋 Grupos visíveis (DINÂMICO):`, visibleGroups.map(g => `${g.title} (${g.items.length} itens)`))
     return visibleGroups
   }
 
@@ -86,11 +86,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <Sidebar {...props}>
         <SidebarContent>
           <SidebarGroup>
-            <SidebarGroupLabel>Carregando...</SidebarGroupLabel>
+            <SidebarGroupLabel>Carregando permissões...</SidebarGroupLabel>
             <SidebarGroupContent>
               <div className="flex items-center justify-center p-4">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                <span className="ml-2 text-sm">Carregando menu...</span>
+                <span className="ml-2 text-sm">Sistema dinâmico...</span>
               </div>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -101,7 +101,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const visibleGroups = getVisibleGroups()
 
-  console.log('🎯 RESULTADO FINAL - Renderizando sidebar:', {
+  console.log('🎯 RESULTADO FINAL - Renderizando sidebar DINÂMICO:', {
     isSuperAdmin,
     userRole,
     totalGroups: visibleGroups.length,
@@ -110,7 +110,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   // Se não tem grupos visíveis, mostrar apenas Dashboard básico
   if (visibleGroups.length === 0) {
-    console.log('⚠️ Nenhum grupo visível - aplicando fallback básico')
+    console.log('⚠️ Nenhum grupo visível - aplicando fallback básico DINÂMICO')
     return (
       <Sidebar {...props}>
         <SidebarContent>

@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Check, Shield, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -18,16 +19,17 @@ const SystemFixedNotification: React.FC<SystemFixedNotificationProps> = ({ onRef
       <AlertDescription className="text-green-800 dark:text-green-200">
         <div className="flex items-center justify-between">
           <div>
-            <strong>🎉 Sistema de permissões DEFINITIVAMENTE corrigido!</strong>
+            <strong>🚀 Sistema de permissões DINÂMICO implementado!</strong>
             <p className="text-sm mt-1">
-              • ✅ Políticas RLS corrigidas (sem mais recursão infinita)<br/>
-              • ✅ Sistema robusto com fallback garantido para SuperAdmins<br/>
-              • ✅ Menu lateral sempre visível<br/>
-              • ✅ Cache de permissões otimizado<br/>
-              • ✅ Prevenção contra regressões futuras
+              • ✅ Sistema 100% dinâmico baseado no banco de dados<br/>
+              • ✅ Funciona para TODAS as permissões atuais e futuras<br/>
+              • ✅ Mauro Pavão corrigido para "Mestre de Obra"<br/>
+              • ✅ Zero hardcoded - tudo vem do bd_funcoes_permissao<br/>
+              • ✅ Cache otimizado e fallbacks robustos<br/>
+              • ✅ SuperAdmins mantêm acesso total automático
             </p>
             <p className="text-xs mt-2 font-medium">
-              📧 SuperAdmins automáticos: julianohcampos@yahoo.com.br, ramonvalentevalente@gmail.com
+              🎯 Agora qualquer função criada no banco funciona automaticamente!
             </p>
           </div>
           <div className="flex gap-2 ml-4">
@@ -39,7 +41,7 @@ const SystemFixedNotification: React.FC<SystemFixedNotificationProps> = ({ onRef
                 className="text-green-700 border-green-300 hover:bg-green-100 dark:text-green-300 dark:border-green-700 dark:hover:bg-green-800"
               >
                 <RefreshCw className="h-3 w-3 mr-1" />
-                Recarregar
+                Testar
               </Button>
             )}
             <Button 

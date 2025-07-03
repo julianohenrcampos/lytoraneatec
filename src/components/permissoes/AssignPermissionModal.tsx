@@ -85,12 +85,10 @@ const AssignPermissionModal: React.FC<AssignPermissionModalProps> = ({
   
   const isEditing = hasPermissions;
 
-  // Combinar funções do BD com funções padrão
-  const allAvailableFunctions = React.useMemo(() => {
-    const functionsFromDB = funcoesDB?.map(f => f.nome_funcao) || [];
-    const combined = [...new Set([...availableFunctions, ...functionsFromDB])];
-    return combined.sort();
-  }, [availableFunctions, funcoesDB]);
+  // Combinar funções do BD com funções padrão - calculado diretamente
+  const functionsFromDB = funcoesDB?.map(f => f.nome_funcao) || [];
+  const combined = [...new Set([...availableFunctions, ...functionsFromDB])];
+  const allAvailableFunctions = combined.sort();
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
