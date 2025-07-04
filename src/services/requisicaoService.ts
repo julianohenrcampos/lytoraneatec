@@ -275,18 +275,86 @@ export const updateRequisicao = async (
   }
 };
 
-// Delete a requisition
+// Check if requisition can be deleted (no cargo records exist)
+export const checkRequisicaoCanBeDeleted = async (requisicaoId: string): Promise<{
+  canDelete: boolean;
+  reason?: string;
+  details: {
+    totalProgramacoes: number;
+    totalEntregas: number;
+    totalCargas: number;
+  }
+}> => {
+  debugLog("checkRequisicaoCanBeDeleted - Checking requisicao", requisicaoId);
+  
+  // Query to check dependencies through the relationship chain
+  const { data: programacoes, error } = await supabase
+    .from('bd_programacao_entrega')
+    .select(`
+      id,
+      bd_lista_programacao_entrega(
+        id,
+        bd_registro_cargas(id)
+      )
+    `)
+    .eq('requisicao_id', requisicaoId);
+
+  if (error) {
+    logSQLError(error, "checking requisicao dependencies");
+    throw error;
+  }
+
+  const totalProgramacoes = programacoes?.length || 0;
+  const totalEntregas = programacoes?.reduce((sum, prog) => 
+    sum + (prog.bd_lista_programacao_entrega?.length || 0), 0) || 0;
+  const totalCargas = programacoes?.reduce((sum, prog) => 
+    sum + (prog.bd_lista_programacao_entrega?.reduce((subSum, entrega) => 
+      subSum + (entrega.bd_registro_cargas?.length || 0), 0) || 0), 0) || 0;
+
+  debugLog("checkRequisicaoCanBeDeleted - Dependencies found", {
+    totalProgramacoes,
+    totalEntregas, 
+    totalCargas
+  });
+
+  const canDelete = totalCargas === 0;
+  const reason = totalCargas > 0 ? 
+    `Não é possível excluir: existem ${totalCargas} registro(s) de carga relacionados. Para excluir esta requisição, primeiro remova todos os registros de carga.` : 
+    undefined;
+
+  return {
+    canDelete,
+    reason,
+    details: { totalProgramacoes, totalEntregas, totalCargas }
+  };
+};
+
+// Delete a requisition with validation
 export const deleteRequisicao = async (id: string): Promise<void> => {
-  // Due to ON DELETE CASCADE, deleting the requisition will automatically delete all streets
+  debugLog("deleteRequisicao - Starting deletion process for", id);
+  
+  // First, validate if deletion is allowed
+  const validation = await checkRequisicaoCanBeDeleted(id);
+  
+  if (!validation.canDelete) {
+    debugLog("deleteRequisicao - Deletion blocked", validation.reason);
+    throw new Error(validation.reason || 'Não é possível excluir esta requisição');
+  }
+
+  debugLog("deleteRequisicao - Validation passed, proceeding with deletion", validation.details);
+
+  // Proceed with deletion - CASCADE will handle related records
   const { error } = await supabase
     .from('bd_requisicoes')
     .delete()
     .eq('id', id);
 
   if (error) {
-    console.error('Error deleting requisicao:', error);
+    logSQLError(error, "deleting requisicao");
     throw error;
   }
+
+  debugLog("deleteRequisicao - Successfully deleted requisicao", id);
 };
 
 // Import requisitions from CSV/Excel

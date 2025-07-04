@@ -1,61 +1,60 @@
 
 # Sistema de Gestão Integrada de Pavimentação Asfáltica 🛣️
 
-[![Versão](https://img.shields.io/badge/versão-3.2.0-blue.svg)](CHANGELOG.md)
-[![React](https://img.shields.io/badge/React-18.0+-61DAFB.svg)](https://reactjs.org/)
+[![Versão](https://img.shields.io/badge/versão-4.0.0-blue.svg)](CHANGELOG.md)
+[![React](https://img.shields.io/badge/React-18.3+-61DAFB.svg)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6.svg)](https://www.typescriptlang.org/)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-00D588.svg)](https://supabase.com/)
-[![Licença](https://img.shields.io/badge/licença-MIT-green.svg)](LICENSE)
+[![PWA](https://img.shields.io/badge/PWA-Ready-orange.svg)](docs/PWA.md)
 
 ## 📋 Sobre o Projeto
 
-Sistema completo de gestão para empresas de pavimentação asfáltica, integrando recursos humanos, equipamentos, logística e **relatórios de medição para contratos de locação**. **Progressive Web App (PWA)** com **modo offline completo** e sincronização automática. Desenvolvido com tecnologias modernas para máxima eficiência e confiabilidade.
+Sistema **completo e avançado** de gestão para empresas de pavimentação asfáltica, integrando recursos humanos, equipamentos, logística e controle operacional. **Progressive Web App (PWA)** com **modo offline completo**, sincronização automática e **fluxo integrado de retorno de massa**. Desenvolvido com tecnologias modernas para máxima eficiência e confiabilidade.
 
 ### ✨ Principais Funcionalidades
 
 - 📱 **Progressive Web App (PWA)**: Instalação nativa e notificações
 - 🔄 **Modo Offline Completo**: Trabalhe sem internet com sincronização automática
-- 👥 **Gestão de RH**: Cadastro, apontamentos e avaliações
-- 🚛 **Gestão de Máquinas**: Controle de veículos e equipamentos
-- 📦 **Logística**: Requisições, programação e aplicação de asfalto
-- 📊 **Relatórios de Medição**: Cálculos automáticos para contratos de locação ⭐
-- 🔧 **Ordens de Serviço**: Chamados e manutenção
-- 📈 **Dashboard**: KPIs e métricas em tempo real
+- 👥 **Gestão de RH Completa**: Cadastro, apontamentos, avaliações e controle salarial
+- 🚛 **Gestão de Máquinas**: Controle total de veículos, equipamentos e manutenção
+- 📦 **Logística Integrada**: Requisições, programação, registro de cargas e aplicação
+- 🔄 **Fluxo de Retorno de Massa**: Integração automática entre aplicação e pesagem ⭐
+- 📊 **Relatórios de Medição**: Cálculos automáticos para contratos de locação
+- 🔧 **Ordens de Serviço**: Sistema completo de chamados e manutenção
+- 📈 **Dashboards Avançados**: KPIs e métricas em tempo real com 4 dashboards especializados
 - 📑 **Exportações**: Excel e PDF com formatação profissional
 - 📱 **Mobile First**: Interface responsiva otimizada para tablet e smartphone
+- 🔐 **Segurança Avançada**: Sistema de permissões granulares com RLS
 
-### 🆕 Novidades da Versão 3.2
+### 🆕 Novidades da Versão 4.0
 
-- **📱 Progressive Web App (PWA) Completo**
-  - Instalação nativa em qualquer dispositivo
-  - Funcionamento offline total com sincronização automática
-  - Notificações push e atualizações automáticas
-  - Cache inteligente para performance máxima
+- **🔄 Fluxo Integrado de Retorno de Massa**
+  - Detecção automática de massa remanescente após aplicação
+  - Botão "Retorno de Massa" no finalização da aplicação
+  - Navegação contextual para registro de cargas com foco automático
+  - Modo visual destacado para campo de retorno
+  - Rastreabilidade completa do material
 
-- **🔄 Sistema Offline Revolucionário**
-  - Continue trabalhando sem internet em todas as funcionalidades
-  - Sincronização automática quando conexão retorna
-  - Zero perda de dados com armazenamento local seguro
+- **🛡️ Sistema de Proteção contra Erros**
+  - GlobalErrorBoundary interceptando erros da plataforma
+  - SafeToast com fallback silencioso para erros TypeID
+  - SafeModalWrapper protegendo todos os modais críticos
+  - SafeFormWrapper com retry automático em formulários
+  - Isolamento completo de erros externos
+
+- **📱 PWA Avançado**
+  - Service Worker otimizado com cache inteligente
+  - Modo offline completo em todos os módulos
+  - Sincronização automática em background
   - Indicadores visuais de status de conexão
+  - Notificações push para atualizações
 
-- **📱 Interface Mobile Otimizada**
-  - Design responsivo otimizado para tablets e smartphones
-  - Navegação touch-friendly com gestos intuitivos
-  - Layouts adaptativos para diferentes tamanhos de tela
-  - Performance otimizada para dispositivos móveis
-
-- **🎯 Módulo de Relatório de Medição Completo**
-  - Cálculos automáticos para equipamentos (200h/mês) e caminhões
-  - Sistema de descontos (manutenção e desmobilização)
-  - Distribuição proporcional por centro de custo
-  - Exportação para Excel com múltiplas abas
-  - Fórmulas validadas conforme contratos de locação
-
-- **🔐 Segurança Avançada**
-  - Row Level Security (RLS) com políticas granulares
-  - Controle de permissões por função e módulo
-  - Auditoria completa de ações do usuário
-  - Validações server-side robustas
+- **🎯 Interface Aprimorada**
+  - 4 Dashboards especializados (Geral, RH, Máquinas, CBUQ)
+  - Navegação contextual entre módulos
+  - Validação de data em tempo real
+  - Modo "Retorno de Massa" com destaque visual
+  - Design system consistente com tokens semânticos
 
 ## 🚀 Tecnologias Utilizadas
 

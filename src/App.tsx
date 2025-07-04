@@ -1,10 +1,10 @@
 
-import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
+import GlobalErrorBoundary from "@/components/error/GlobalErrorBoundary";
 
 // Simple Auth Components
 import SimpleAuthGuard from "@/components/routing/SimpleAuthGuard";
@@ -49,6 +49,13 @@ import GestaoOrdemServico from "@/pages/GestaoOrdemServico";
 // Admin - using correct file names
 import GestaoPermissoes from "@/pages/GestaoPermissoes";
 
+// Security Components
+import SecureRouteGuard from "@/components/routing/SecureRouteGuard";
+
+// PWA Components
+import { PWAUpdateNotification } from "@/components/pwa/PWAUpdateNotification";
+import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -60,12 +67,12 @@ const queryClient = new QueryClient({
 
 const App = () => {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
+    <GlobalErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+          <TooltipProvider>
+            <Sonner />
+            <BrowserRouter>
             <Routes>
               {/* Rotas públicas */}
               <Route path="/login" element={<SimpleLogin />} />
@@ -181,7 +188,9 @@ const App = () => {
               <Route path="/programacao-entrega" element={
                 <SimpleAuthGuard>
                   <SimplePermissionGuard>
-                    <ProgramacaoEntrega />
+                    <SecureRouteGuard requiredPermission="requisicoes_programacao_entrega_view">
+                      <ProgramacaoEntrega />
+                    </SecureRouteGuard>
                   </SimplePermissionGuard>
                 </SimpleAuthGuard>
               } />
@@ -189,7 +198,9 @@ const App = () => {
               <Route path="/registro-aplicacao" element={
                 <SimpleAuthGuard>
                   <SimplePermissionGuard>
-                    <RegistroAplicacao />
+                    <SecureRouteGuard requiredPermission="requisicoes_registro_aplicacao_view">
+                      <RegistroAplicacao />
+                    </SecureRouteGuard>
                   </SimplePermissionGuard>
                 </SimpleAuthGuard>
               } />
@@ -241,15 +252,20 @@ const App = () => {
               <Route path="/admin/permissoes" element={
                 <SimpleAuthGuard>
                   <SimplePermissionGuard>
-                    <GestaoPermissoes />
+                    <SecureRouteGuard requiredPermission="admin_permissoes_view">
+                      <GestaoPermissoes />
+                    </SecureRouteGuard>
                   </SimplePermissionGuard>
                 </SimpleAuthGuard>
               } />
             </Routes>
+            <PWAUpdateNotification />
+            <PWAInstallBanner />
           </BrowserRouter>
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
+    </GlobalErrorBoundary>
   );
 };
 

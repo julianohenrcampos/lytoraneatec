@@ -13,6 +13,8 @@ import { useItemManagement } from "./programacao/useItemManagement";
 import { useToast } from "@/hooks/use-toast";
 import { fetchCentroCustoForProgramacao } from "@/services/centroCustoRegistroService";
 import { getCurrentBrazilianDate, formatBrazilianDateToString } from "@/utils/timezoneUtils";
+import { useProgramacaoProgress } from "@/hooks/useProgramacaoProgress";
+import { buscarRequisicoesDisponiveis } from "@/services/programacao/massaControlService";
 
 export const useProgramacaoEntregaForm = (
   programacao: ProgramacaoEntregaWithItems | null,
@@ -71,39 +73,17 @@ export const useProgramacaoEntregaForm = (
 
   const { isSubmitting, onSubmit } = useFormSubmission(programacao, onSuccess);
 
-  const {
-    addItem,
-    removeItem,
-    openCancelDialog,
-    closeCancelDialog,
-    confirmCancel,
-    showCancelDialog,
-    itemToCancel,
-    calculateProgrammedQuantity
-  } = useItemManagement(form);
-
   // Queries for required data
   const { data: caminhoes = [] } = useQuery({
     queryKey: ['operatingVehicles'],
     queryFn: fetchOperatingVehicles,
   });
 
+  // Buscar apenas requisições que ainda podem receber programação
   const { data: requisicoes = [] } = useQuery({
-    queryKey: ['requisicoes'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('bd_requisicoes')
-        .select(`
-          id,
-          numero,
-          centro_custo_id,
-          centro_custo:bd_centros_custo(id, nome_centro_custo, codigo_centro_custo)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data || [];
-    }
+    queryKey: ['requisicoes-disponiveis'],
+    queryFn: buscarRequisicoesDisponiveis,
+    staleTime: 30000, // Cache por 30 segundos
   });
 
   const { data: equipes = [] } = useQuery({
@@ -143,6 +123,23 @@ export const useProgramacaoEntregaForm = (
   const watchedCaminhaoId = itemForm.watch("caminhao_id");
   const watchItens = form.watch("itens") || [];
   const watchedDataEntrega = form.watch("data_entrega");
+
+  // Hook de progresso inteligente
+  const progressHook = useProgramacaoProgress({ 
+    requisicaoId: selectedRequisicaoId,
+    enabled: !!selectedRequisicaoId 
+  });
+
+  const {
+    addItem,
+    removeItem,
+    openCancelDialog,
+    closeCancelDialog,
+    confirmCancel,
+    showCancelDialog,
+    itemToCancel,
+    calculateProgrammedQuantity
+  } = useItemManagement(form, progressHook);
 
   // Effect for handling requisição changes
   useEffect(() => {
@@ -289,6 +286,7 @@ export const useProgramacaoEntregaForm = (
     requisicaoDetails,
     calculateProgrammedQuantity,
     watchItens,
-    centroCustoNome
+    centroCustoNome,
+    progressHook
   };
 };

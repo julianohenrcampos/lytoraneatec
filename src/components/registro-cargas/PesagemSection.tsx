@@ -10,6 +10,11 @@ interface PesagemSectionProps {
   ticketRetornoPreview: string | null;
   handleTicketSaidaChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleTicketRetornoChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  modoRetorno?: {
+    ativo: boolean;
+    entregaId: string;
+    massaEsperada: number;
+  } | null;
 }
 
 const PesagemSection: React.FC<PesagemSectionProps> = ({
@@ -18,6 +23,7 @@ const PesagemSection: React.FC<PesagemSectionProps> = ({
   ticketRetornoPreview,
   handleTicketSaidaChange,
   handleTicketRetornoChange,
+  modoRetorno = null,
 }) => {
   // Função para calcular tonelada real com validação - convertendo de kg para toneladas
   const calcularToneladaReal = (): string => {
@@ -80,12 +86,28 @@ const PesagemSection: React.FC<PesagemSectionProps> = ({
         </div>
         
         <div className="space-y-4">
-          <WeightInput
-            form={form}
-            name="tonelada_retorno"
-            label="Peso da Balança - Retorno (kg)"
-            isRetorno={true}
-          />
+          {/* Campo de retorno com destaque especial se estiver em modo retorno */}
+          <div className={modoRetorno?.ativo ? "p-3 border-2 border-orange-300 bg-orange-50 rounded-md" : ""}>
+            {modoRetorno?.ativo && (
+              <div className="mb-3 flex items-center gap-2">
+                <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium text-orange-800">
+                  CAMPO PRIORITÁRIO - Retorno de Massa
+                </span>
+                <span className="text-xs text-orange-600 ml-auto">
+                  Esperado: ~{(modoRetorno.massaEsperada * 1000).toFixed(0)}kg
+                </span>
+              </div>
+            )}
+            
+            <WeightInput
+              form={form}
+              name="tonelada_retorno"
+              label={modoRetorno?.ativo ? "🎯 Peso da Balança - Retorno (kg) - PRIORIDADE" : "Peso da Balança - Retorno (kg)"}
+              isRetorno={true}
+              className={modoRetorno?.ativo ? "border-orange-400 focus:border-orange-500 bg-white" : ""}
+            />
+          </div>
           
           <ImageUpload
             form={form}

@@ -1,15 +1,16 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Clock, Thermometer, Calendar, Truck, Users, Building, Eye } from "lucide-react";
+import { Clock, Thermometer, Calendar, Truck, Users, Building, Eye, AlertTriangle } from "lucide-react";
 import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
 import { RegistroCarga } from "@/types/registroCargas";
 import { UseFormReturn } from "react-hook-form";
+import { isDateAllowed, formatDateForDisplay } from "@/utils/dateValidation";
 
 interface NovoRegistroDadosIniciaisTabProps {
   form: UseFormReturn<any>;
@@ -38,6 +39,20 @@ const NovoRegistroDadosIniciaisTab: React.FC<NovoRegistroDadosIniciaisTabProps> 
   const horaChegadaLocal = watch("hora_chegada_local");
   const temperaturaChegada = watch("temperatura_chegada");
 
+  // Estado para validação de data
+  const [dateValidation, setDateValidation] = useState<{
+    isValid: boolean;
+    message?: string;
+  }>({ isValid: true });
+
+  // Validar data em tempo real
+  useEffect(() => {
+    if (dataAplicacao) {
+      const validation = isDateAllowed(dataAplicacao);
+      setDateValidation(validation);
+    }
+  }, [dataAplicacao]);
+
   // Garantir que o logradouro seja definido corretamente para esta entrega
   useEffect(() => {
     if (entrega?.logradouro) {
@@ -45,7 +60,7 @@ const NovoRegistroDadosIniciaisTab: React.FC<NovoRegistroDadosIniciaisTabProps> 
     }
   }, [entrega?.logradouro, setValue]);
 
-  const isFormValid = dataAplicacao && horaChegadaLocal;
+  const isFormValid = dataAplicacao && horaChegadaLocal && dateValidation.isValid;
 
   return (
     <div className="space-y-6">
@@ -150,12 +165,25 @@ const NovoRegistroDadosIniciaisTab: React.FC<NovoRegistroDadosIniciaisTabProps> 
                 {...register("data_aplicacao")}
                 required
                 disabled={isReadOnly}
-                className={isReadOnly ? "bg-muted" : ""}
+                className={`${isReadOnly ? "bg-muted" : ""} ${
+                  !dateValidation.isValid ? "border-red-500 focus:border-red-500" : ""
+                }`}
               />
               {errors.data_aplicacao && (
                 <span className="text-sm text-red-500">
                   {String(errors.data_aplicacao.message)}
                 </span>
+              )}
+              {!dateValidation.isValid && dateValidation.message && (
+                <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-2 rounded-md">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span>{dateValidation.message}</span>
+                </div>
+              )}
+              {dataAplicacao && dateValidation.isValid && (
+                <div className="text-sm text-green-600 bg-green-50 p-2 rounded-md">
+                  ✓ Data válida: {formatDateForDisplay(dataAplicacao)}
+                </div>
               )}
             </div>
 
@@ -210,7 +238,10 @@ const NovoRegistroDadosIniciaisTab: React.FC<NovoRegistroDadosIniciaisTabProps> 
           {!isFormValid && !isReadOnly && (
             <Alert>
               <AlertDescription>
-                Preencha todos os campos obrigatórios (*) antes de prosseguir.
+                {!dateValidation.isValid 
+                  ? "Data inválida: escolha uma data entre ontem e amanhã."
+                  : "Preencha todos os campos obrigatórios (*) antes de prosseguir."
+                }
               </AlertDescription>
             </Alert>
           )}
@@ -220,8 +251,8 @@ const NovoRegistroDadosIniciaisTab: React.FC<NovoRegistroDadosIniciaisTabProps> 
             <h5 className="font-medium text-gray-700 mb-2">Status dos Campos:</h5>
             <div className="space-y-1 text-sm">
               <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${dataAplicacao ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                <span>Data: {dataAplicacao || "Não informada"}</span>
+                <span className={`w-2 h-2 rounded-full ${dataAplicacao && dateValidation.isValid ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                <span>Data: {dataAplicacao ? (dateValidation.isValid ? formatDateForDisplay(dataAplicacao) : "Data inválida") : "Não informada"}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full ${horaChegadaLocal ? 'bg-green-500' : 'bg-red-500'}`}></span>

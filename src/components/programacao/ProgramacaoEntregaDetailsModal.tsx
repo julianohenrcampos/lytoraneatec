@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
+import ProgressBar from "./ProgressBar";
 
 interface ProgramacaoEntregaDetailsModalProps {
   isOpen: boolean;
@@ -97,6 +98,15 @@ const ProgramacaoEntregaDetailsModal: React.FC<ProgramacaoEntregaDetailsModalPro
               </CardContent>
             </Card>
           </div>
+
+          {/* Progresso da Massa */}
+          {programacao.requisicao_id && (
+            <ProgressBar 
+              requisicaoId={programacao.requisicao_id}
+              showDetailed={true}
+              className="w-full"
+            />
+          )}
 
           {/* Card de resumo das entregas */}
           <Card className="bg-blue-50 border-blue-200">

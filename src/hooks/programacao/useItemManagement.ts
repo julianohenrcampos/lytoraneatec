@@ -5,13 +5,30 @@ import { useToast } from "@/hooks/use-toast";
 import { ItemFormValues, ProgramacaoFormValues } from "@/validations/programacaoSchema";
 
 export const useItemManagement = (
-  form: UseFormReturn<ProgramacaoFormValues>
+  form: UseFormReturn<ProgramacaoFormValues>,
+  progressHook?: any
 ) => {
   const { toast } = useToast();
   const [itemToCancel, setItemToCancel] = useState<number | null>(null);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
 
   const addItem = useCallback((data: ItemFormValues) => {
+    // Validação inteligente de massa
+    if (progressHook) {
+      const quantidade = data.quantidade_massa || 0;
+      const quantidadeToneladas = quantidade > 100 ? quantidade / 1000 : quantidade;
+      
+      const validacao = progressHook.validarQuantidadeProgramacao(quantidadeToneladas);
+      if (!validacao.valida) {
+        toast({
+          title: "Quantidade inválida",
+          description: validacao.motivo,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     // Ensure tipo_lancamento is correctly mapped for UI display
     let displayTipoLancamento = data.tipo_lancamento;
     if (data.tipo_lancamento === 'Mecânico') {
@@ -43,14 +60,45 @@ export const useItemManagement = (
       title: "Item adicionado",
       description: "Item adicionado com sucesso à programação",
     });
-  }, [form, toast]);
 
-  const removeItem = useCallback((index: number) => {
-    const currentItems = form.getValues().itens || [];
-    const newItems = [...currentItems];
-    newItems.splice(index, 1);
-    form.setValue("itens", newItems, { shouldValidate: true });
-  }, [form]);
+    // Atualizar progresso
+    if (progressHook) {
+      progressHook.refetch();
+    }
+  }, [form, toast, progressHook]);
+
+  const removeItem = useCallback(
+    (index: number) => {
+      const currentItems = form.getValues().itens || [];
+      const item = currentItems[index];
+
+      if (!item) return;
+
+      // Prevent removal of already sent or delivered items
+      if (item.status === "Enviada" || item.status === "Entregue") {
+        toast({
+          title: "Operação não permitida",
+          description:
+            "Não é possível excluir uma entrega que já foi enviada ou entregue.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Basic confirmation to avoid accidental deletion
+      if (typeof window !== "undefined") {
+        const confirmDelete = window.confirm(
+          "Deseja realmente remover esta entrega da lista?"
+        );
+        if (!confirmDelete) return;
+      }
+
+      const newItems = [...currentItems];
+      newItems.splice(index, 1);
+      form.setValue("itens", newItems, { shouldValidate: true });
+    },
+    [form, toast]
+  );
 
   const openCancelDialog = useCallback((index: number) => {
     const currentItems = form.getValues().itens || [];

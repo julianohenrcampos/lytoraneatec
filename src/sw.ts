@@ -40,9 +40,12 @@ registerRoute(
   })
 );
 
-// Cache API calls with Network First strategy
+// Cache API calls with Network First strategy - Dynamic Supabase URL
 registerRoute(
-  ({ url }) => url.origin === 'https://zczirljepectqohlloua.supabase.co' && url.pathname.startsWith('/rest/v1/'),
+  ({ url }) => {
+    const supabasePattern = /^https:\/\/[a-z]+\.supabase\.co/;
+    return supabasePattern.test(url.origin) && url.pathname.startsWith('/rest/v1/');
+  },
   new NetworkFirst({
     cacheName: API_CACHE,
     plugins: [
@@ -50,17 +53,20 @@ registerRoute(
         statuses: [0, 200],
       }),
       new ExpirationPlugin({
-        maxEntries: 500,
-        maxAgeSeconds: 60 * 60 * 24, // 24 hours
+        maxEntries: 300,
+        maxAgeSeconds: 60 * 60 * 12, // 12 hours - reduced
         purgeOnQuotaError: true,
       }),
     ],
   })
 );
 
-// Cache authentication requests
+// Cache authentication requests - Dynamic Supabase URL
 registerRoute(
-  ({ url }) => url.origin === 'https://zczirljepectqohlloua.supabase.co' && url.pathname.startsWith('/auth/v1/'),
+  ({ url }) => {
+    const supabasePattern = /^https:\/\/[a-z]+\.supabase\.co/;
+    return supabasePattern.test(url.origin) && url.pathname.startsWith('/auth/v1/');
+  },
   new NetworkFirst({
     cacheName: 'lytotec-auth-v1',
     plugins: [
@@ -68,8 +74,8 @@ registerRoute(
         statuses: [0, 200],
       }),
       new ExpirationPlugin({
-        maxEntries: 50,
-        maxAgeSeconds: 60 * 30, // 30 minutes
+        maxEntries: 30,
+        maxAgeSeconds: 60 * 15, // 15 minutes - reduced
       }),
     ],
   })
@@ -228,8 +234,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Handle API requests
-  if (event.request.url.includes('supabase.co/rest/v1/')) {
+  // Handle API requests - Dynamic pattern
+  const supabasePattern = /\.supabase\.co\/rest\/v1\//;
+  if (supabasePattern.test(event.request.url)) {
     event.respondWith(
       fetch(event.request).catch(async () => {
         const cachedResponse = await caches.match(event.request);

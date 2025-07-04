@@ -1,13 +1,14 @@
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { UseFormReturn } from "react-hook-form";
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Truck, MapPin, Clock, Thermometer } from "lucide-react";
+import { Calendar, Truck, MapPin, Clock, Thermometer, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { isDateAllowed, formatDateForDisplay } from "@/utils/dateValidation";
 
 interface RegistroCargaHeaderProps {
   form: UseFormReturn<any>;
@@ -20,6 +21,22 @@ const RegistroCargaHeader: React.FC<RegistroCargaHeaderProps> = ({
   currentEntrega,
   centroCustoInfo,
 }) => {
+  // Estado para validação de data
+  const [dateValidation, setDateValidation] = useState<{
+    isValid: boolean;
+    message?: string;
+  }>({ isValid: true });
+
+  // Watch data_saida para validação em tempo real
+  const dataSaida = form.watch("data_saida");
+
+  // Validar data em tempo real
+  useEffect(() => {
+    if (dataSaida) {
+      const validation = isDateAllowed(dataSaida);
+      setDateValidation(validation);
+    }
+  }, [dataSaida]);
   // Helper function to format truck info
   const getTruckInfo = (): string => {
     if (currentEntrega.caminhao && typeof currentEntrega.caminhao === 'object') {
@@ -115,12 +132,27 @@ const RegistroCargaHeader: React.FC<RegistroCargaHeaderProps> = ({
             <FormItem>
               <FormLabel className="flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
-                Data de Saída
+                Data de Saída *
               </FormLabel>
               <FormControl>
-                <Input type="date" {...field} />
+                <Input 
+                  type="date" 
+                  {...field}
+                  className={!dateValidation.isValid ? "border-red-500 focus:border-red-500" : ""}
+                />
               </FormControl>
               <FormMessage />
+              {!dateValidation.isValid && dateValidation.message && (
+                <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-2 rounded-md">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span>{dateValidation.message}</span>
+                </div>
+              )}
+              {dataSaida && dateValidation.isValid && (
+                <div className="text-sm text-green-600 bg-green-50 p-2 rounded-md">
+                  ✓ Data válida: {formatDateForDisplay(dataSaida)}
+                </div>
+              )}
             </FormItem>
           )}
         />

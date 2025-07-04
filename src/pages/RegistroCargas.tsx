@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import MainLayout from "@/components/layout/MainLayout";
@@ -20,6 +21,7 @@ import * as XLSX from "xlsx";
 
 const RegistroCargas: React.FC = () => {
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedEntrega, setSelectedEntrega] = useState<ListaProgramacaoEntrega | null>(null);
@@ -27,6 +29,36 @@ const RegistroCargas: React.FC = () => {
   const [filters, setFilters] = useState<RegistroCargaFilters>({});
   const [isFiltered, setIsFiltered] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [modoRetorno, setModoRetorno] = useState<{
+    ativo: boolean;
+    entregaId: string;
+    massaEsperada: number;
+  } | null>(null);
+
+  // Verificar parâmetros de URL para modo retorno
+  useEffect(() => {
+    const retornoParam = searchParams.get('retorno');
+    const massaParam = searchParams.get('massa');
+    
+    if (retornoParam && massaParam) {
+      console.log('🔄 Modo Retorno de Massa ativado:', { entregaId: retornoParam, massa: massaParam });
+      
+      setModoRetorno({
+        ativo: true,
+        entregaId: retornoParam,
+        massaEsperada: parseFloat(massaParam)
+      });
+
+      toast({
+        title: "Modo Retorno de Massa",
+        description: `${massaParam}t aguardando pesagem de retorno`,
+        variant: "default",
+      });
+
+      // Limpar parâmetros da URL após processar
+      setSearchParams({});
+    }
+  }, [searchParams, setSearchParams, toast]);
 
   useEffect(() => {
     if (filters.data_inicio) {
@@ -82,7 +114,6 @@ const RegistroCargas: React.FC = () => {
   );
 
   const handleEntregaClick = async (entrega: ListaProgramacaoEntrega) => {
-    // Remove the check that blocks clicking on "Enviada" status items
     try {
       setSelectedEntrega(entrega);
       
@@ -101,6 +132,18 @@ const RegistroCargas: React.FC = () => {
       });
     }
   };
+
+  // Auto-abrir formulário se estiver em modo retorno
+  useEffect(() => {
+    if (modoRetorno && entregas.length > 0) {
+      const entregaRetorno = entregas.find(e => e.id === modoRetorno.entregaId);
+      if (entregaRetorno) {
+        console.log('🎯 Auto-abrindo formulário para retorno de massa');
+        handleEntregaClick(entregaRetorno);
+        setModoRetorno(null); // Limpar após usar
+      }
+    }
+  }, [modoRetorno, entregas]);
 
   const handleFilter = (filterData: RegistroCargaFilters) => {
     console.log("[RegistroCargas] Applying filters:", filterData);
@@ -198,7 +241,10 @@ const RegistroCargas: React.FC = () => {
         {isFormOpen && (
           <RegistroCargaForm
             isOpen={isFormOpen}
-            onClose={() => setIsFormOpen(false)}
+            onClose={() => {
+              setIsFormOpen(false);
+              setModoRetorno(null); // Limpar modo retorno ao fechar
+            }}
             form={form}
             isLoading={isLoading}
             onSubmit={onSubmit}
@@ -208,6 +254,7 @@ const RegistroCargas: React.FC = () => {
             handleTicketRetornoChange={handleTicketRetornoChange}
             currentEntrega={selectedEntrega}
             existingRegistro={existingRegistro}
+            modoRetorno={modoRetorno}
           />
         )}
       </div>

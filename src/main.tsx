@@ -2,7 +2,7 @@
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
-import { preloadEssentialData } from './utils/offlineQueries'
+import { preloadEssentialData, clearOldCache } from './utils/offlineQueries'
 
 // Initialize PWA and preload essential data
 const initializeApp = async () => {
@@ -21,6 +21,7 @@ const initializeApp = async () => {
       
       // Preload essential data for offline use
       setTimeout(() => {
+        clearOldCache(); // Limpar cache antigo primeiro
         preloadEssentialData();
       }, 2000);
       

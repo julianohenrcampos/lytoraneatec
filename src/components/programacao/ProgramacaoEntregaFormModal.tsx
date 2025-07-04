@@ -30,6 +30,9 @@ import {
 } from "@/utils/timezoneUtils";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import CancelItemDialog from "./CancelItemDialog";
+import ProgressBar from "./ProgressBar";
+import MassaControlAlert from "./MassaControlAlert";
+import { checkCancellationPermission } from "@/services/programacao/permissionService";
 
 interface ProgramacaoEntregaFormModalProps {
   isOpen: boolean;
@@ -67,7 +70,8 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
     requisicaoDetails,
     calculateProgrammedQuantity,
     watchItens,
-    centroCustoNome
+    centroCustoNome,
+    progressHook
   } = useProgramacaoEntregaForm(programacao, onSuccess);
 
   const requisicaoOptions = requisicoes.map(req => {
@@ -228,33 +232,21 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
               </CardContent>
             </Card>
 
-            {/* Resumo da Requisição - Fixed to show tons correctly */}
+            {/* Barra de Progresso Inteligente */}
             {selectedRequisicaoId && (
-              <Card className="bg-blue-50 border-blue-200">
-                <CardHeader>
-                  <CardTitle className="text-base text-blue-800">Resumo da Requisição</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-blue-700">{requisicaoDetails.totalRuas}</div>
-                      <div className="text-sm text-blue-600">Total de Ruas</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-blue-700">{requisicaoDetails.areaTotal.toFixed(2)}</div>
-                      <div className="text-sm text-blue-600">Área Total (m²)</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-blue-700">{Math.round(requisicaoDetails.pesoTotal)}</div>
-                      <div className="text-sm text-blue-600">Peso Total (t)</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-green-700">{calculateProgrammedQuantity().toFixed(1)}</div>
-                      <div className="text-sm text-green-600">Programado (t)</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <ProgressBar 
+                requisicaoId={selectedRequisicaoId} 
+                showDetailed={true}
+                className="mb-4"
+              />
+            )}
+
+            {/* Alerta de Controle de Massa */}
+            {selectedRequisicaoId && (
+              <MassaControlAlert 
+                requisicaoId={selectedRequisicaoId}
+                className="mb-4"
+              />
             )}
 
             {/* Seção de Entregas - Updated to show Centro de Custo instead of Logradouro */}
@@ -414,6 +406,14 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                         <p className="text-xs text-muted-foreground">
                           Digite o peso em kg (ex: 26750). Será convertido para toneladas automaticamente.
                         </p>
+                        {/* Alerta de validação de quantidade em tempo real */}
+                        {field.value && selectedRequisicaoId && (
+                          <MassaControlAlert 
+                            requisicaoId={selectedRequisicaoId}
+                            quantidadeTentativa={field.value > 100 ? field.value / 1000 : field.value}
+                            className="mt-2"
+                          />
+                        )}
                       </FormItem>
                     )} />
                     

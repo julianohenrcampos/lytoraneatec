@@ -1,7 +1,6 @@
 
 import { useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
 import { RegistroCargaFormValues } from "@/types/registroCargas";
@@ -9,6 +8,7 @@ import {
   getCurrentBrazilianDate,
 } from "@/utils/timezoneUtils";
 import { createRegistroCarga, updateRegistroCarga, fetchRegistroCargaByListaEntregaId } from "@/services/registroCargaService";
+import { isDateAllowed } from "@/utils/dateValidation";
 
 interface UseRegistroCargaFormProps {
   onSuccess?: () => void;
@@ -31,6 +31,12 @@ const validateFormData = (data: RegistroCargaFormValues): string | null => {
   
   if (!data.data_saida) {
     return "Data de saída é obrigatória";
+  }
+
+  // Validar data de saída
+  const dateValidation = isDateAllowed(data.data_saida);
+  if (!dateValidation.isValid) {
+    return dateValidation.message || "Data de saída inválida";
   }
   
   if (!data.hora_saida) {
@@ -55,9 +61,9 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
   const form = useForm<RegistroCargaFormValues>({
     defaultValues: {
       data_saida: getCurrentBrazilianDate(),
-      temperatura_saida: undefined, // Campo vazio por padrão
-      tonelada_saida: undefined, // Campo vazio por padrão (valor em kg)
-      tonelada_retorno: undefined, // Campo vazio por padrão (valor em kg)
+      temperatura_saida: undefined,
+      tonelada_saida: undefined,
+      tonelada_retorno: undefined,
       hora_saida: "",
       lista_entrega_id: "",
       programacao_id: "",
@@ -70,7 +76,7 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
   const handleTicketSaidaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validate file type
+      // Validar tipo de arquivo
       const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
       if (!allowedTypes.includes(file.type)) {
         toast({
@@ -81,7 +87,7 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
         return;
       }
 
-      // Validate file size (max 5MB)
+      // Validar tamanho (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         toast({
           title: "Arquivo muito grande",
@@ -103,7 +109,7 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
   const handleTicketRetornoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validate file type
+      // Validar tipo de arquivo
       const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
       if (!allowedTypes.includes(file.type)) {
         toast({
@@ -114,7 +120,7 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
         return;
       }
 
-      // Validate file size (max 5MB)
+      // Validar tamanho (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         toast({
           title: "Arquivo muito grande",
@@ -135,9 +141,9 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
 
   const initializeFromListaEntrega = useCallback(async (entrega: ListaProgramacaoEntrega) => {
     try {
-      console.log("initializeFromListaEntrega - Iniciando com entrega:", entrega);
+      console.log("📋 [CARGA] Inicializando formulário com entrega:", entrega);
       
-      // Check if there's an existing registro for this entrega
+      // Verificar se existe registro existente
       const existingRegistro = await fetchRegistroCargaByListaEntregaId(entrega.id);
       
       let defaultValues: any = {
@@ -145,16 +151,16 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
         programacao_id: entrega.programacao_id || entrega.programacao_entrega_id || "",
         data_saida: getCurrentBrazilianDate(),
         hora_saida: "",
-        tonelada_saida: undefined, // Campo vazio por padrão - usuário preencherá manualmente (em kg)
-        tonelada_retorno: undefined, // Campo vazio por padrão (em kg)
-        temperatura_saida: undefined, // Campo vazio por padrão
+        tonelada_saida: undefined,
+        tonelada_retorno: undefined,
+        temperatura_saida: undefined,
         status_registro: "Ativo" as const
       };
 
       if (existingRegistro) {
-        console.log("initializeFromListaEntrega - Registro existente encontrado:", existingRegistro);
+        console.log("🔄 [CARGA] Registro existente encontrado:", existingRegistro);
         
-        // Converter valores de toneladas para kg para exibição nos campos
+        // Converter valores de toneladas para kg para exibição
         const toneladaSaidaKg = existingRegistro.tonelada_saida ? existingRegistro.tonelada_saida * 1000 : undefined;
         const toneladaRetornoKg = existingRegistro.tonelada_retorno ? existingRegistro.tonelada_retorno * 1000 : undefined;
         
@@ -162,13 +168,13 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
           ...existingRegistro,
           data_saida: existingRegistro.data_saida || getCurrentBrazilianDate(),
           temperatura_saida: existingRegistro.temperatura_saida || undefined,
-          tonelada_saida: toneladaSaidaKg || undefined, // Converter para kg
-          tonelada_retorno: toneladaRetornoKg || undefined, // Converter para kg
+          tonelada_saida: toneladaSaidaKg || undefined,
+          tonelada_retorno: toneladaRetornoKg || undefined,
           hora_saida: existingRegistro.hora_saida || "",
           status_registro: (existingRegistro.status_registro as "Ativo" | "Concluído" | "Cancelado") || "Ativo"
         };
 
-        // Set image previews if they exist
+        // Definir previews de imagens se existirem
         if (existingRegistro.imagem_ticket_saida) {
           setTicketSaidaPreview(existingRegistro.imagem_ticket_saida);
         }
@@ -178,12 +184,12 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
         }
       }
 
-      console.log("initializeFromListaEntrega - Valores padrão definidos:", defaultValues);
+      console.log("✅ [CARGA] Valores iniciais definidos:", defaultValues);
       form.reset(defaultValues);
       setCurrentListaEntregaId(entrega.id);
       
     } catch (error) {
-      console.error("Error initializing form from lista entrega:", error);
+      console.error("❌ [CARGA] Erro ao inicializar formulário:", error);
       toast({
         title: "Erro",
         description: "Erro ao carregar dados da entrega",
@@ -215,7 +221,7 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
 
     try {
       setIsLoading(true);
-      console.log("onSubmit - Dados recebidos (em kg):", data);
+      console.log("📤 [CARGA] Dados para envio (em kg):", data);
 
       // Converter valores de kg para toneladas antes de salvar
       const toneladaSaidaToneladas = data.tonelada_saida ? Number(data.tonelada_saida) / 1000 : 0;
@@ -227,7 +233,7 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
         data_saida: data.data_saida || getCurrentBrazilianDate(),
         hora_saida: data.hora_saida || "",
         status_registro: data.status_registro || "Ativo" as const,
-        // Converter de kg para toneladas antes de salvar no banco
+        // Converter de kg para toneladas antes de salvar
         tonelada_saida: toneladaSaidaToneladas,
         tonelada_retorno: toneladaRetornoToneladas,
         temperatura_saida: data.temperatura_saida == null || data.temperatura_saida === undefined ? null : Number(data.temperatura_saida),
@@ -235,27 +241,28 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
         imagem_ticket_retorno: data.imagem_ticket_retorno,
       };
 
-      console.log("onSubmit - Dados para salvar (em toneladas):", registroData);
+      console.log("💾 [CARGA] Dados para salvar (em toneladas):", registroData);
 
-      // Check if updating existing or creating new
+      // Verificar se é atualização ou criação
       const existingRegistro = await fetchRegistroCargaByListaEntregaId(currentListaEntregaId);
       
       if (existingRegistro) {
-        console.log("onSubmit - Updating existing registro:", existingRegistro.id);
+        console.log("🔄 [CARGA] Atualizando registro existente:", existingRegistro.id);
         await updateRegistroCarga(existingRegistro.id, registroData);
       } else {
-        console.log("onSubmit - Creating new registro");
+        console.log("✨ [CARGA] Criando novo registro");
         await createRegistroCarga(registroData);
       }
       
       toast({
         title: "Sucesso",
-        description: "Registro salvo com sucesso",
+        description: "Registro de carga salvo com sucesso",
       });
       
       onSuccess?.();
+      
     } catch (error: any) {
-      console.error("Error saving registro:", error);
+      console.error("❌ [CARGA] Erro ao salvar registro:", error);
       toast({
         title: "Erro ao salvar",
         description: error.message || "Erro interno do sistema",

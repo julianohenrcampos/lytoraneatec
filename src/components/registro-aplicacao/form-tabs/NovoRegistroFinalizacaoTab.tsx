@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Clock, FileText, CheckCircle, AlertTriangle, Eye, Save, Calculator, Database } from "lucide-react";
+import { Clock, FileText, CheckCircle, AlertTriangle, Eye, Save, Calculator, Database, Scale, TrendingDown } from "lucide-react";
+import { safeToast } from "@/utils/safeToast";
 import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
 import { RegistroCarga } from "@/types/registroCargas";
 import { UseFormReturn } from "react-hook-form";
@@ -39,6 +41,7 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
   cargaInfo,
   registroExistente
 }) => {
+  const navigate = useNavigate();
   const {
     register,
     formState: { errors },
@@ -66,6 +69,49 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
 
   // Hook para calcular espessura média das aplicações da carga
   const espessuraInfo = useEspessuraMedia(cargaInfo?.detalhesAplicacoes || []);
+
+  // Calcular massa remanescente
+  const massaRemanescente = React.useMemo(() => {
+    if (!registroCarga || !cargaInfo) return 0;
+    
+    const massaTotal = registroCarga.tonelada_real || 0; // em toneladas
+    const totalAplicado = cargaInfo.totalAplicado || 0; // em toneladas
+    const remanescente = massaTotal - totalAplicado;
+    
+    return Math.max(0, remanescente);
+  }, [registroCarga, cargaInfo]);
+
+  // Verificar se já existe registro de retorno no banco
+  const [temRetornoRegistrado, setTemRetornoRegistrado] = React.useState(false);
+  
+  React.useEffect(() => {
+    // Verificar se há peso de retorno registrado no registro de carga
+    if (registroCarga?.tonelada_retorno && registroCarga.tonelada_retorno > 0) {
+      setTemRetornoRegistrado(true);
+    }
+  }, [registroCarga]);
+
+  // Mostrar botão de retorno de massa apenas se:
+  // 1. Há massa remanescente significativa (> 0.001t)
+  // 2. Ainda não foi registrado retorno
+  // 3. Não está em modo somente leitura
+  const mostrarBotaoRetorno = massaRemanescente > 0.001 && !temRetornoRegistrado && !isReadOnly;
+
+  // Handler para navegação para o registro de cargas
+  const handleRetornoMassa = () => {
+    if (!entrega?.id) {
+      safeToast.error("ID da entrega não encontrado");
+      return;
+    }
+
+    safeToast.info(`Redirecionando para pesagem de retorno: ${massaRemanescente.toFixed(2)}t`);
+    
+    // Fechar modal atual
+    onClose();
+    
+    // Navegar para registro de cargas com parâmetro de retorno
+    navigate(`/requisicoes/registro-cargas?retorno=${entrega.id}&massa=${massaRemanescente.toFixed(3)}`);
+  };
 
   // Handler para o submit com validação adaptada
   const handleSaveClick = () => {
@@ -310,25 +356,69 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
           {/* Informações da carga */}
           {registroCarga && (
             <div className="bg-blue-50 p-4 rounded-lg">
-              <h4 className="font-medium text-blue-900 mb-2">Informações da Carga</h4>
-              <div className="text-sm space-y-1">
-                <div>
+              <h4 className="font-medium text-blue-900 mb-3">Resumo da Carga</h4>
+              <div className="text-sm space-y-2">
+                <div className="flex justify-between">
                   <span className="text-blue-600">Massa total da carga:</span>
-                  <span className="ml-2 font-medium">{registroCarga.tonelada_real?.toFixed(2)}t</span>
+                  <span className="font-medium">{registroCarga.tonelada_real?.toFixed(2)}t</span>
                 </div>
                 {cargaInfo && (
                   <>
-                    <div>
+                    <div className="flex justify-between">
                       <span className="text-blue-600">Aplicações registradas:</span>
-                      <span className="ml-2 font-medium">{cargaInfo.aplicacoes?.length || 0}</span>
+                      <span className="font-medium">{cargaInfo.aplicacoes?.length || 0}</span>
                     </div>
-                    <div>
+                    <div className="flex justify-between">
                       <span className="text-blue-600">Total aplicado:</span>
-                      <span className="ml-2 font-medium">{cargaInfo.totalAplicado?.toFixed(2) || '0.00'}t</span>
+                      <span className="font-medium">{cargaInfo.totalAplicado?.toFixed(2) || '0.00'}t</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-2">
+                      <span className="text-blue-600 font-medium">Massa remanescente:</span>
+                      <span className={`font-bold ${massaRemanescente > 0.001 ? 'text-orange-600' : 'text-green-600'}`}>
+                        {massaRemanescente.toFixed(2)}t
+                      </span>
                     </div>
                   </>
                 )}
               </div>
+
+              {/* Botão de Retorno de Massa */}
+              {mostrarBotaoRetorno && (
+                <div className="mt-4 pt-3 border-t border-blue-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <p className="text-sm text-orange-700 font-medium mb-1">
+                        ⚠️ Massa Remanescente Detectada
+                      </p>
+                      <p className="text-xs text-orange-600">
+                        {massaRemanescente.toFixed(2)}t precisa ser pesada como retorno
+                      </p>
+                    </div>
+                    <Button
+                      onClick={handleRetornoMassa}
+                      variant="outline"
+                      size="sm"
+                      className="ml-3 border-orange-300 text-orange-700 hover:bg-orange-50 hover:border-orange-400"
+                    >
+                      <Scale className="h-4 w-4 mr-2" />
+                      <TrendingDown className="h-3 w-3 mr-1" />
+                      Retorno de Massa
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Indicador de retorno já registrado */}
+              {temRetornoRegistrado && (
+                <div className="mt-4 pt-3 border-t border-blue-200">
+                  <div className="flex items-center gap-2 text-green-700">
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="text-sm font-medium">
+                      Retorno já registrado: {registroCarga.tonelada_retorno?.toFixed(2)}t
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

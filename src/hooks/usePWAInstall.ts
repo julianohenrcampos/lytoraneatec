@@ -6,24 +6,13 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
 }
 
-// Função para detectar se é dispositivo iOS
-const isIOS = () => {
-  const userAgent = window.navigator.userAgent.toLowerCase();
-  const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
-  const isIOSSafari = /safari/.test(userAgent) && !/chrome|crios|fxios/.test(userAgent);
-  return isIOSDevice || (isIOSSafari && 'standalone' in window.navigator);
-};
-
-// Função para detectar se é dispositivo Android
-const isAndroid = () => {
-  const userAgent = window.navigator.userAgent.toLowerCase();
-  return /android/.test(userAgent);
-};
-
-// Função para detectar Samsung Internet
-const isSamsungInternet = () => {
-  const userAgent = window.navigator.userAgent.toLowerCase();
-  return /samsungbrowser/.test(userAgent);
+// Função para detectar plataforma - Simplificada
+const detectPlatform = () => {
+  const userAgent = navigator.userAgent.toLowerCase();
+  
+  if (/iphone|ipad|ipod/.test(userAgent)) return 'ios';
+  if (/android/.test(userAgent)) return 'android';
+  return 'desktop';
 };
 
 // Função para verificar se já está instalado
@@ -47,31 +36,19 @@ export const usePWAInstall = () => {
   const [platform, setPlatform] = useState<'ios' | 'android' | 'desktop' | 'unknown'>('unknown');
 
   useEffect(() => {
-    // Detectar plataforma
-    if (isIOS()) {
-      setPlatform('ios');
-    } else if (isAndroid()) {
-      setPlatform('android');
-    } else {
-      setPlatform('desktop');
-    }
+    // Detectar plataforma simplificada
+    const detectedPlatform = detectPlatform();
+    setPlatform(detectedPlatform);
 
     // Verificar se já está instalado
     const installed = checkIfInstalled();
     setIsInstalled(installed);
 
-    console.log('PWA: Plataforma detectada:', platform);
-    console.log('PWA: Já instalado:', installed);
+    console.log('PWA: Plataforma:', detectedPlatform, 'Instalado:', installed);
 
-    // Para iOS Safari, mostrar instruções manuais se não estiver instalado
-    if (isIOS() && !installed) {
-      const isInSafari = /safari/.test(window.navigator.userAgent.toLowerCase()) && 
-                        !/chrome|crios|fxios/.test(window.navigator.userAgent.toLowerCase());
-      
-      if (isInSafari) {
-        console.log('PWA: iOS Safari detectado - instalação manual disponível');
-        setIsInstallable(true);
-      }
+    // Para iOS, sempre mostrar opção de instalação se não instalado
+    if (detectedPlatform === 'ios' && !installed) {
+      setIsInstallable(true);
     }
 
     // Listener para o evento de instalação (Android/Desktop)
@@ -106,10 +83,15 @@ export const usePWAInstall = () => {
     window.addEventListener('appinstalled', handleAppInstalled);
     mediaQuery.addEventListener('change', handleDisplayModeChange);
 
-    // Verificação adicional para Samsung Internet
-    if (isSamsungInternet() && !installed) {
-      console.log('PWA: Samsung Internet detectado');
-      setIsInstallable(true);
+    // Para Android, aguardar beforeinstallprompt ou forçar se necessário
+    if (detectedPlatform === 'android' && !installed) {
+      // Timeout para mostrar instalação mesmo sem prompt
+      setTimeout(() => {
+        if (!deferredPrompt && !installed) {
+          console.log('PWA: Forçando instalação Android sem prompt');
+          setIsInstallable(true);
+        }
+      }, 3000);
     }
 
     return () => {

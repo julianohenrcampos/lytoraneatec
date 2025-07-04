@@ -10,6 +10,7 @@ interface WeightInputProps {
   name: string;
   label: string;
   isRetorno?: boolean;
+  className?: string;
 }
 
 const WeightInput: React.FC<WeightInputProps> = ({
@@ -17,6 +18,7 @@ const WeightInput: React.FC<WeightInputProps> = ({
   name,
   label,
   isRetorno = false,
+  className = "",
 }) => {
   return (
     <FormField
@@ -34,6 +36,7 @@ const WeightInput: React.FC<WeightInputProps> = ({
               step="1"
               min="0"
               placeholder={isRetorno ? "Ex: 2500" : "Ex: 28700"}
+              className={className}
               {...field}
               onChange={(e) => {
                 // Store the value directly as entered (in kg), allow empty value

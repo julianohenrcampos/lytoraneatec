@@ -7,6 +7,7 @@ import {
   createRequisicao, 
   updateRequisicao, 
   deleteRequisicao,
+  checkRequisicaoCanBeDeleted,
   exportRequisicoes
 } from "@/services/requisicaoService";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -102,21 +103,33 @@ export const useRequisicaoActions = () => {
     },
   });
   
-  // Mutation to delete a requisition
+  // Mutation to delete a requisition with validation
   const { mutate: deleteMutation, isPending: isDeleting } = useMutation({
-    mutationFn: (id: string) => deleteRequisicao(id),
-    onSuccess: () => {
+    mutationFn: async (id: string) => {
+      // First validate if deletion is allowed
+      const validation = await checkRequisicaoCanBeDeleted(id);
+      
+      if (!validation.canDelete) {
+        throw new Error(validation.reason || 'Não é possível excluir esta requisição');
+      }
+      
+      // Proceed with deletion
+      return deleteRequisicao(id);
+    },
+    onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ['requisicoes'] });
       toast({
         title: "Requisição excluída",
-        description: "A requisição foi excluída com sucesso.",
+        description: "A requisição e todos os seus dados relacionados foram excluídos com sucesso.",
       });
       setIsDeleteModalOpen(false);
+      setDeletingRequisicao(null);
     },
     onError: (error) => {
+      console.error('Error deleting requisicao:', error);
       toast({
-        title: "Erro ao excluir requisição",
-        description: `Ocorreu um erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+        title: "Não foi possível excluir a requisição",
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
         variant: "destructive",
       });
     }

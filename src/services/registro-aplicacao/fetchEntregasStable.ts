@@ -13,15 +13,9 @@ interface SupabaseCaminhao {
   numero_frota?: string;
 }
 
-interface SupabaseApontador {
-  id: string;
-  nome_completo: string;
-}
-
 interface SupabaseEquipe {
   id: string;
   nome_equipe: string;
-  apontador?: SupabaseApontador | SupabaseApontador[] | null;
 }
 
 interface SupabaseUsina {
@@ -72,17 +66,6 @@ function extractFirst<T>(data: T | T[] | null | undefined): T | undefined {
   return data;
 }
 
-// Função para processar apontador com type safety
-function processApontador(apontadorData: SupabaseApontador | SupabaseApontador[] | null | undefined) {
-  const apontador = extractFirst(apontadorData);
-  if (!apontador) return undefined;
-  
-  return {
-    id: apontador.id || '',
-    nome_completo: apontador.nome_completo || ''
-  };
-}
-
 // Função para processar centro de custo
 function processCentroCusto(centroCustoData: SupabaseCentroCusto | SupabaseCentroCusto[] | null | undefined) {
   const centroCusto = extractFirst(centroCustoData);
@@ -103,7 +86,7 @@ export const fetchEntregasStable = async (
     console.log("🔍 STABLE - Fetching entregas with filters:", filters);
     console.log("🔍 STABLE - Allowed teams:", allowedTeamIds);
     
-    // Query principal com tipagem explícita
+    // Query principal com tipagem explícita - REMOVIDO o embed problemático do apontador
     let query = supabase
       .from("bd_lista_programacao_entrega")
       .select(`
@@ -131,11 +114,7 @@ export const fetchEntregasStable = async (
         ),
         equipe:bd_equipes(
           id,
-          nome_equipe,
-          apontador:bd_funcionarios(
-            id,
-            nome_completo
-          )
+          nome_equipe
         ),
         usina:bd_usinas(
           id,
@@ -187,7 +166,7 @@ export const fetchEntregasStable = async (
 
     if (error) {
       console.error("❌ STABLE - Erro ao buscar entregas:", error);
-      throw error;
+      throw new Error(`Erro na consulta: ${error.message}`);
     }
 
     console.log(`📊 STABLE - Entregas encontradas: ${rawData?.length || 0}`);
@@ -216,11 +195,10 @@ export const fetchEntregasStable = async (
           const rawEquipe = extractFirst(entrega.equipe);
           const rawRequisicao = extractFirst(entrega.requisicao);
 
-          // Processar equipe
+          // Processar equipe (SEM apontador para evitar ambiguidade)
           const processedEquipe = rawEquipe ? {
             id: rawEquipe.id || '',
-            nome_equipe: rawEquipe.nome_equipe || '',
-            apontador: processApontador(rawEquipe.apontador)
+            nome_equipe: rawEquipe.nome_equipe || ''
           } : undefined;
 
           // Processar requisição
@@ -261,6 +239,8 @@ export const fetchEntregasStable = async (
           console.error(`❌ STABLE - Erro ao processar entrega ${entrega.id}:`, error);
           
           // Fallback seguro mantendo estrutura básica
+          const fallbackEquipe = extractFirst(entrega.equipe);
+          
           const fallbackEntrega: ListaProgramacaoEntrega = {
             id: entrega.id,
             programacao_entrega_id: entrega.programacao_entrega_id,
@@ -281,7 +261,7 @@ export const fetchEntregasStable = async (
             massa_remanescente: entrega.quantidade_massa || 0,
             massa_total_carga: entrega.quantidade_massa,
             caminhao: extractFirst(entrega.caminhao),
-            equipe: undefined,
+            equipe: fallbackEquipe ? { id: fallbackEquipe.id, nome_equipe: fallbackEquipe.nome_equipe } : undefined,
             usina: extractFirst(entrega.usina),
             requisicao: undefined
           };
@@ -305,6 +285,10 @@ export const fetchEntregasStable = async (
     return entregasProcessadas;
   } catch (error) {
     console.error("💥 STABLE - Erro inesperado ao buscar entregas:", error);
-    throw error;
+    // Lançar erro mais específico
+    if (error instanceof Error) {
+      throw new Error(`Falha ao carregar entregas: ${error.message}`);
+    }
+    throw new Error("Falha ao carregar entregas: Erro de conexão com o banco de dados");
   }
 };

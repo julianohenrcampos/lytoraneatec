@@ -1,7 +1,6 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
 
 interface DynamicPermissions {
   userId: string | null;
@@ -18,10 +17,10 @@ const SUPER_ADMIN_EMAILS = [
   'ramonvalentevalente@gmail.com'
 ];
 
-// Cache local para evitar consultas desnecessárias
+// Cache local otimizado com TTL maior
 let permissionsCache: DynamicPermissions | null = null;
 let lastCacheTime = 0;
-const CACHE_DURATION = 30000; // 30 segundos
+const CACHE_DURATION = 60000; // 1 minuto para reduzir consultas
 
 export const useDynamicPermissions = (): DynamicPermissions => {
   const [permissions, setPermissions] = useState<DynamicPermissions>({
@@ -32,16 +31,15 @@ export const useDynamicPermissions = (): DynamicPermissions => {
     isLoading: true,
     canAccessDashboard: true, // SEMPRE true como fallback
   });
-  const { toast } = useToast();
 
   const loadDynamicPermissions = async () => {
     try {
-      console.log('🔐 [DYNAMIC] Carregando permissões dinâmicas...');
+      console.log('🔐 [DYNAMIC] Carregando permissões otimizadas...');
       
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
-        console.log('🔐 [DYNAMIC] Usuário não autenticado');
+        console.log('⚠️ [DYNAMIC] Usuário não autenticado');
         setPermissions({
           userId: null,
           isSuperAdmin: false,
@@ -53,43 +51,22 @@ export const useDynamicPermissions = (): DynamicPermissions => {
         return;
       }
 
-      console.log('🔐 [DYNAMIC] Usuário autenticado:', user.email);
+      console.log('👤 [DYNAMIC] Usuário autenticado:', user.email);
 
-      // FALLBACK 1: Verificar se é SuperAdmin por email
+      // FALLBACK 1: Verificar SuperAdmin por email (MAIS RÁPIDO)
       const isSuperAdminByEmail = SUPER_ADMIN_EMAILS.includes(user.email || '');
       
       if (isSuperAdminByEmail) {
         console.log('🚀 [DYNAMIC] SuperAdmin detectado por EMAIL - ACESSO TOTAL!');
         
-        // Buscar TODAS as permissões do banco para SuperAdmin
-        const { data: todasPermissoes } = await supabase
-          .from('bd_permissoes')
-          .select('nome_permissao');
-
-        const allPermissions = todasPermissoes?.map(p => p.nome_permissao) || [
-          'dashboard_view',
-          'dashboard_rh_view',
-          'dashboard_maquinas_view',
-          'dashboard_cbuq_view',
-          'gestao_rh_empresas_view',
-          'gestao_rh_departamentos_view',
-          'gestao_rh_centros_custo_view',
-          'gestao_rh_funcoes_view',
-          'gestao_rh_funcionarios_view',
-          'gestao_rh_equipes_view',
-          'acesso_dashboard_rh',
-          'gestao_maquinas_caminhoes_view',
-          'gestao_maquinas_usinas_view',
-          'gestao_maquinas_relatorio_medicao_view',
-          'requisicoes_cadastro_view',
-          'requisicoes_programacao_entrega_view',
-          'requisicoes_registro_cargas_view',
-          'requisicoes_registro_aplicacao_view',
-          'requisicoes_apontamento_equipe_view',
-          'requisicoes_apontamento_caminhoes_view',
-          'requisicoes_chamados_os_view',
-          'requisicoes_gestao_os_view',
-          'admin_permissoes_view'
+        const allPermissions = [
+          'dashboard_view', 'dashboard_rh_view', 'dashboard_maquinas_view', 'dashboard_cbuq_view',
+          'gestao_rh_empresas_view', 'gestao_rh_departamentos_view', 'gestao_rh_centros_custo_view',
+          'gestao_rh_funcoes_view', 'gestao_rh_funcionarios_view', 'gestao_rh_equipes_view',
+          'gestao_maquinas_caminhoes_view', 'gestao_maquinas_usinas_view', 'gestao_maquinas_relatorio_medicao_view',
+          'requisicoes_cadastro_view', 'requisicoes_programacao_entrega_view', 'requisicoes_registro_cargas_view',
+          'requisicoes_registro_aplicacao_view', 'requisicoes_apontamento_equipe_view', 'requisicoes_apontamento_caminhoes_view',
+          'requisicoes_chamados_os_view', 'requisicoes_gestao_os_view', 'admin_permissoes_view'
         ];
         
         const superAdminPermissions = {
@@ -107,7 +84,7 @@ export const useDynamicPermissions = (): DynamicPermissions => {
         return;
       }
 
-      // FALLBACK 2: Buscar perfil do usuário com timeout
+      // FALLBACK 2: Buscar perfil com timeout otimizado
       console.log('🔍 [DYNAMIC] Buscando perfil do usuário...');
       
       const profilePromise = supabase
@@ -116,9 +93,9 @@ export const useDynamicPermissions = (): DynamicPermissions => {
         .eq('id', user.id)
         .single();
 
-      // Timeout de 5 segundos para evitar travamentos
+      // Timeout menor para evitar travamentos
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout')), 5000)
+        setTimeout(() => reject(new Error('Timeout')), 3000)
       );
 
       try {
@@ -133,25 +110,27 @@ export const useDynamicPermissions = (): DynamicPermissions => {
 
         console.log('📋 [DYNAMIC] Perfil carregado:', profile);
 
-        // SISTEMA DINÂMICO: Buscar permissões baseadas na função do usuário
+        // Sistema de permissões simplificado
         let userRole: string | null = 'user';
         let isSuperAdmin = false;
         let userPermissions: string[] = ['dashboard_view'];
 
         if (profile?.funcoes && Array.isArray(profile.funcoes) && profile.funcoes.length > 0) {
-          // Verificar se é SuperAdmin pelo banco
+          // Verificar SuperAdmin pelo banco
           if (profile.funcoes.includes('SuperAdm')) {
             userRole = 'SuperAdm';
             isSuperAdmin = true;
-            
-            // Buscar TODAS as permissões para SuperAdmin
-            const { data: todasPermissoes } = await supabase
-              .from('bd_permissoes')
-              .select('nome_permissao');
-
-            userPermissions = todasPermissoes?.map(p => p.nome_permissao) || [];
+            userPermissions = [
+              'dashboard_view', 'dashboard_rh_view', 'dashboard_maquinas_view', 'dashboard_cbuq_view',
+              'gestao_rh_empresas_view', 'gestao_rh_departamentos_view', 'gestao_rh_centros_custo_view',
+              'gestao_rh_funcoes_view', 'gestao_rh_funcionarios_view', 'gestao_rh_equipes_view',
+              'gestao_maquinas_caminhoes_view', 'gestao_maquinas_usinas_view', 'gestao_maquinas_relatorio_medicao_view',
+              'requisicoes_cadastro_view', 'requisicoes_programacao_entrega_view', 'requisicoes_registro_cargas_view',
+              'requisicoes_registro_aplicacao_view', 'requisicoes_apontamento_equipe_view', 'requisicoes_apontamento_caminhoes_view',
+              'requisicoes_chamados_os_view', 'requisicoes_gestao_os_view', 'admin_permissoes_view'
+            ];
           } else {
-            // BUSCA DINÂMICA: Para usuários normais, buscar permissões da função
+            // Permissões baseadas na primeira função válida
             const validRoles = profile.funcoes.filter(role => 
               role && role.trim() !== '' && role !== 'user'
             );
@@ -160,48 +139,48 @@ export const useDynamicPermissions = (): DynamicPermissions => {
               userRole = validRoles[0];
               console.log('✅ [DYNAMIC] Função detectada:', userRole);
 
-              // Buscar função na tabela bd_funcoes_permissao
-              const { data: funcaoPermissao, error: funcaoError } = await supabase
-                .from('bd_funcoes_permissao')
-                .select('nome_funcao, permissoes')
-                .eq('nome_funcao', userRole)
-                .single();
-
-              if (!funcaoError && funcaoPermissao?.permissoes) {
-                console.log('🔍 [DYNAMIC] Permissões da função encontradas:', funcaoPermissao.permissoes);
-                
-                // Buscar nomes das permissões baseado nos IDs
-                const { data: permissoesDetalhes, error: permissoesError } = await supabase
-                  .from('bd_permissoes')
-                  .select('nome_permissao')
-                  .in('id', funcaoPermissao.permissoes);
-
-                if (!permissoesError && permissoesDetalhes) {
-                  userPermissions.push(...permissoesDetalhes.map(p => p.nome_permissao));
-                  console.log('✅ [DYNAMIC] Permissões dinâmicas carregadas:', userPermissions);
-                } else {
-                  console.warn('⚠️ [DYNAMIC] Erro ao buscar detalhes das permissões:', permissoesError);
-                }
-              } else {
-                console.warn('⚠️ [DYNAMIC] Função não encontrada no banco:', userRole);
-                
-                // FALLBACK: Permissões básicas para funções não cadastradas
-                if (userRole.includes('Adm') || userRole.includes('Administrador')) {
-                  userPermissions.push('acesso_dashboard_rh', 'gestao_rh_funcionarios_view');
-                }
-                if (userRole.includes('Mestre') || userRole.includes('Encarregado')) {
-                  userPermissions.push('dashboard_rh_view', 'dashboard_maquinas_view', 'gestao_rh_equipes_view');
-                }
-                if (userRole.includes('Apontador')) {
-                  userPermissions.push('requisicoes_registro_aplicacao_view', 'requisicoes_programacao_entrega_view', 'requisicoes_registro_cargas_view');
-                }
-              }
+            // 🔒 SISTEMA RESTRITIVO DE PERMISSÕES POR FUNÇÃO
+            console.log('🔐 [SECURE] Aplicando permissões específicas para:', userRole);
+            
+            // Limpar permissões básicas para aplicar apenas as específicas
+            userPermissions = ['dashboard_view'];
+            
+            if (userRole.includes('Adm') || userRole.includes('Administrador')) {
+              userPermissions.push(
+                'dashboard_rh_view', 
+                'gestao_rh_funcionarios_view', 
+                'gestao_rh_equipes_view',
+                'gestao_rh_empresas_view',
+                'gestao_rh_departamentos_view',
+                'gestao_rh_centros_custo_view',
+                'gestao_rh_funcoes_view'
+              );
+            } else if (userRole.includes('Mestre') || userRole.includes('Encarregado')) {
+              userPermissions.push(
+                'dashboard_rh_view', 
+                'dashboard_maquinas_view', 
+                'gestao_rh_equipes_view',
+                'requisicoes_apontamento_equipe_view',
+                'requisicoes_apontamento_caminhoes_view'
+              );
+            } else if (userRole.includes('Apontador')) {
+              // 🚫 APONTADOR: ACESSO RESTRITO - SEM PROGRAMAÇÃO DE ENTREGA
+              userPermissions.push(
+                'requisicoes_registro_aplicacao_view',
+                'requisicoes_apontamento_equipe_view', 
+                'requisicoes_apontamento_caminhoes_view'
+              );
+              console.log('🔒 [APONTADOR] Permissões restritas aplicadas:', userPermissions);
+            } else {
+              // Usuário básico - apenas dashboard
+              console.log('👤 [USER] Usuário básico - apenas dashboard');
+            }
             }
           }
         }
 
-        // Garantir que não há duplicatas e sempre incluir dashboard_view
-        userPermissions = [...new Set(['dashboard_view', ...userPermissions])];
+        // Garantir permissões únicas
+        userPermissions = [...new Set(userPermissions)];
 
         const finalPermissions = {
           userId: user.id,
@@ -212,15 +191,15 @@ export const useDynamicPermissions = (): DynamicPermissions => {
           canAccessDashboard: true,
         };
 
-        console.log('✅ [DYNAMIC] Permissões finais dinâmicas:', finalPermissions);
+        console.log('✅ [DYNAMIC] Permissões finais otimizadas:', finalPermissions);
         setPermissions(finalPermissions);
         permissionsCache = finalPermissions;
         lastCacheTime = Date.now();
 
       } catch (dbError) {
-        console.warn('⚠️ [DYNAMIC] Erro no banco, usando fallback:', dbError);
+        console.warn('⚠️ [DYNAMIC] Erro no banco, usando fallback seguro:', dbError);
         
-        // FALLBACK 3: Usuário autenticado básico
+        // FALLBACK 3: Usuário autenticado com permissões básicas
         const fallbackPermissions = {
           userId: user.id,
           isSuperAdmin: false,
@@ -264,23 +243,25 @@ export const useDynamicPermissions = (): DynamicPermissions => {
   };
 
   useEffect(() => {
-    // Verificar cache primeiro
+    // Cache otimizado
     const now = Date.now();
     if (permissionsCache && (now - lastCacheTime) < CACHE_DURATION) {
-      console.log('📦 [DYNAMIC] Usando cache de permissões');
+      console.log('📦 [DYNAMIC] Cache válido - usando permissões armazenadas');
       setPermissions(permissionsCache);
       return;
     }
 
     loadDynamicPermissions();
 
-    // Listener para mudanças de auth
+    // Listener otimizado para mudanças de auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       console.log('🔄 [DYNAMIC] Auth state changed:', event);
-      // Limpar cache ao mudar auth
-      permissionsCache = null;
-      lastCacheTime = 0;
-      loadDynamicPermissions();
+      if (event === 'SIGNED_OUT' || event === 'SIGNED_IN') {
+        // Limpar cache apenas em mudanças significativas
+        permissionsCache = null;
+        lastCacheTime = 0;
+        loadDynamicPermissions();
+      }
     });
 
     return () => {
@@ -291,7 +272,7 @@ export const useDynamicPermissions = (): DynamicPermissions => {
   return permissions;
 };
 
-// Hook para verificar permissão específica
+// Hook otimizado para verificar permissão específica
 export const useHasPermissionDynamic = (requiredPermission: string): boolean => {
   const { isSuperAdmin, permissions, isLoading } = useDynamicPermissions();
   
@@ -301,7 +282,7 @@ export const useHasPermissionDynamic = (requiredPermission: string): boolean => 
   return permissions.includes(requiredPermission);
 };
 
-// Hook para verificar múltiplas permissões
+// Hook otimizado para múltiplas permissões
 export const useHasAnyPermissionDynamic = (requiredPermissions: string[]): boolean => {
   const { isSuperAdmin, permissions, isLoading } = useDynamicPermissions();
   

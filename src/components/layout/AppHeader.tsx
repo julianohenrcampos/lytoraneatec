@@ -11,6 +11,9 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import UserProfileModal from "@/components/user/UserProfileModal";
 import UserImageUploadModal from "@/components/user/UserImageUploadModal";
 import { PWAInstallButton } from "@/components/pwa/PWAInstallButton";
+import { PWAStatusIndicator } from "@/components/pwa/PWAStatusIndicator";
+import UserRoleIndicator from "@/components/debug/UserRoleIndicator";
+import PermissionDebugModal from "@/components/debug/PermissionDebugModal";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AppHeaderProps {
@@ -207,8 +210,11 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         <h1 className="text-base font-bold sm:hidden">LYTOTEC</h1>
       </div>
       
-      <div className="flex items-center gap-1 sm:gap-3">
-        <PWAInstallButton />
+        <div className="flex items-center gap-1 sm:gap-3">
+          <PWAStatusIndicator />
+          <PWAInstallButton />
+          <UserRoleIndicator />
+          <PermissionDebugModal />
         
         {!isMobile && (
           <Button variant="ghost" size="icon" onClick={toggleFullScreen}>
