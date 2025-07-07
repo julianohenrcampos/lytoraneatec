@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -66,7 +65,7 @@ export const useDynamicPermissions = (): DynamicPermissions => {
           'gestao_maquinas_caminhoes_view', 'gestao_maquinas_usinas_view', 'gestao_maquinas_relatorio_medicao_view',
           'requisicoes_cadastro_view', 'requisicoes_programacao_entrega_view', 'requisicoes_registro_cargas_view',
           'requisicoes_registro_aplicacao_view', 'requisicoes_apontamento_equipe_view', 'requisicoes_apontamento_caminhoes_view',
-          'requisicoes_chamados_os_view', 'requisicoes_gestao_os_view', 'admin_permissoes_view'
+          'requisicoes_chamados_os_view', 'requisicoes_gestao_os_view', 'admin_permissoes_view', 'relatorio_aplicacao_view'
         ];
         
         const superAdminPermissions = {
@@ -127,7 +126,7 @@ export const useDynamicPermissions = (): DynamicPermissions => {
               'gestao_maquinas_caminhoes_view', 'gestao_maquinas_usinas_view', 'gestao_maquinas_relatorio_medicao_view',
               'requisicoes_cadastro_view', 'requisicoes_programacao_entrega_view', 'requisicoes_registro_cargas_view',
               'requisicoes_registro_aplicacao_view', 'requisicoes_apontamento_equipe_view', 'requisicoes_apontamento_caminhoes_view',
-              'requisicoes_chamados_os_view', 'requisicoes_gestao_os_view', 'admin_permissoes_view'
+              'requisicoes_chamados_os_view', 'requisicoes_gestao_os_view', 'admin_permissoes_view', 'relatorio_aplicacao_view'
             ];
           } else {
             // Permissões baseadas na primeira função válida
@@ -139,42 +138,45 @@ export const useDynamicPermissions = (): DynamicPermissions => {
               userRole = validRoles[0];
               console.log('✅ [DYNAMIC] Função detectada:', userRole);
 
-            // 🔒 SISTEMA RESTRITIVO DE PERMISSÕES POR FUNÇÃO
-            console.log('🔐 [SECURE] Aplicando permissões específicas para:', userRole);
-            
-            // Limpar permissões básicas para aplicar apenas as específicas
-            userPermissions = ['dashboard_view'];
-            
-            if (userRole.includes('Adm') || userRole.includes('Administrador')) {
-              userPermissions.push(
-                'dashboard_rh_view', 
-                'gestao_rh_funcionarios_view', 
-                'gestao_rh_equipes_view',
-                'gestao_rh_empresas_view',
-                'gestao_rh_departamentos_view',
-                'gestao_rh_centros_custo_view',
-                'gestao_rh_funcoes_view'
-              );
-            } else if (userRole.includes('Mestre') || userRole.includes('Encarregado')) {
-              userPermissions.push(
-                'dashboard_rh_view', 
-                'dashboard_maquinas_view', 
-                'gestao_rh_equipes_view',
-                'requisicoes_apontamento_equipe_view',
-                'requisicoes_apontamento_caminhoes_view'
-              );
-            } else if (userRole.includes('Apontador')) {
-              // 🚫 APONTADOR: ACESSO RESTRITO - SEM PROGRAMAÇÃO DE ENTREGA
-              userPermissions.push(
-                'requisicoes_registro_aplicacao_view',
-                'requisicoes_apontamento_equipe_view', 
-                'requisicoes_apontamento_caminhoes_view'
-              );
-              console.log('🔒 [APONTADOR] Permissões restritas aplicadas:', userPermissions);
-            } else {
-              // Usuário básico - apenas dashboard
-              console.log('👤 [USER] Usuário básico - apenas dashboard');
-            }
+              // 🔒 SISTEMA RESTRITIVO DE PERMISSÕES POR FUNÇÃO
+              console.log('🔐 [SECURE] Aplicando permissões específicas para:', userRole);
+              
+              // Limpar permissões básicas para aplicar apenas as específicas
+              userPermissions = ['dashboard_view'];
+              
+              if (userRole.includes('Adm') || userRole.includes('Administrador')) {
+                userPermissions.push(
+                  'dashboard_rh_view', 
+                  'gestao_rh_funcionarios_view', 
+                  'gestao_rh_equipes_view',
+                  'gestao_rh_empresas_view',
+                  'gestao_rh_departamentos_view',
+                  'gestao_rh_centros_custo_view',
+                  'gestao_rh_funcoes_view'
+                  // 🚫 REMOVIDO: relatorio_aplicacao_view - Apenas SuperAdm
+                );
+              } else if (userRole.includes('Mestre') || userRole.includes('Encarregado')) {
+                userPermissions.push(
+                  'dashboard_rh_view', 
+                  'dashboard_maquinas_view', 
+                  'gestao_rh_equipes_view',
+                  'requisicoes_apontamento_equipe_view',
+                  'requisicoes_apontamento_caminhoes_view'
+                  // 🚫 REMOVIDO: relatorio_aplicacao_view - Apenas SuperAdm
+                );
+              } else if (userRole.includes('Apontador')) {
+                // 🚫 APONTADOR: ACESSO RESTRITO - SEM RELATÓRIOS ESPECIAIS
+                userPermissions.push(
+                  'requisicoes_registro_aplicacao_view',
+                  'requisicoes_apontamento_equipe_view', 
+                  'requisicoes_apontamento_caminhoes_view'
+                  // 🚫 REMOVIDO: relatorio_aplicacao_view - Apenas SuperAdm
+                );
+                console.log('🔒 [APONTADOR] Permissões restritas aplicadas:', userPermissions);
+              } else {
+                // Usuário básico - apenas dashboard
+                console.log('👤 [USER] Usuário básico - apenas dashboard');
+              }
             }
           }
         }

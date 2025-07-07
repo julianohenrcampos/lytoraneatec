@@ -72,7 +72,8 @@ export const useSecureApontamentoEquipe = () => {
         // Continue with creation as RLS will handle the final permission check
       }
       
-      return createApontamentoEquipe(data);
+      const result = await createApontamentoEquipe(data);
+      return Array.isArray(result) ? result[0] : result;
     },
     onSuccess: () => {
       console.log("✅ Apontamento created successfully");

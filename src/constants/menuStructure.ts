@@ -159,6 +159,12 @@ export const menuStructure = [
         href: "/requisicoes/gestao-os",
         icon: ClipboardList,
         requiredPermission: "requisicoes_gestao_os_view"
+      },
+      {
+        name: "Relatório de Aplicação Diária",
+        href: "/relatorio-aplicacao-diaria",
+        icon: BarChart3,
+        requiredPermission: "relatorio_aplicacao_view"
       }
     ]
   },

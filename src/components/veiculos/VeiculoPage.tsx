@@ -11,7 +11,11 @@ import DeleteVeiculoDialog from "./DeleteVeiculoDialog";
 import VeiculoHeaderActions from "./VeiculoHeaderActions";
 import { VeiculoFormData } from "@/types/veiculo";
 
-const VeiculoPage: React.FC = () => {
+interface VeiculoPageProps {
+  initialSituacaoFilter?: string | null;
+}
+
+const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
   const [isSuccessMessageVisible, setIsSuccessMessageVisible] = useState(false);
   
   const {
@@ -41,7 +45,7 @@ const VeiculoPage: React.FC = () => {
     handleDelete,
     handleSaveVeiculo,
     handleImport
-  } = useVeiculoActions();
+  } = useVeiculoActions(initialSituacaoFilter);
 
   const handleImportSuccess = async () => {
     await refetch();

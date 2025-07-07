@@ -15,6 +15,9 @@ interface MaquinasSectionProps {
 }
 
 const MaquinasSection: React.FC<MaquinasSectionProps> = ({ navigateTo, period, statusColors }) => {
+  const handleSituacaoClick = (situacao: string) => {
+    navigateTo(`/gestao-maquinas/caminhoes?situacao=${encodeURIComponent(situacao)}`);
+  };
   // Máquinas & Equipamentos Module Queries
   const { data: veiculosData, isLoading: loadingVeiculos } = useQuery({
     queryKey: ['veiculos-distribution', period],
@@ -127,7 +130,7 @@ const MaquinasSection: React.FC<MaquinasSectionProps> = ({ navigateTo, period, s
           data={veiculosData?.distribuicao || []}
           colors={statusColors}
           isLoading={loadingVeiculos}
-          onClick={() => navigateTo("/gestao-maquinas/caminhoes-equipamentos")}
+          onClick={() => navigateTo("/gestao-maquinas/caminhoes")}
         />
 
         {/* Situação Operacional dos Veículos */}
@@ -137,7 +140,8 @@ const MaquinasSection: React.FC<MaquinasSectionProps> = ({ navigateTo, period, s
           data={veiculosData?.situacao || []}
           colors={statusColors}
           isLoading={loadingVeiculos}
-          onClick={() => navigateTo("/gestao-maquinas/caminhoes-equipamentos")}
+          onClick={() => navigateTo("/gestao-maquinas/caminhoes")}
+          onBarClick={handleSituacaoClick}
           tooltipContent={CustomSituacaoTooltip}
         />
       </ResponsiveGrid>

@@ -2,9 +2,15 @@
 import { useState } from "react";
 import { Veiculo, VeiculoFilterParams } from "@/types/veiculo";
 
-export const useVeiculoState = () => {
+export const useVeiculoState = (initialSituacaoFilter?: string | null) => {
   // State management
-  const [filters, setFilters] = useState<VeiculoFilterParams>({});
+  const [filters, setFilters] = useState<VeiculoFilterParams>(() => {
+    const initialFilters: VeiculoFilterParams = {};
+    if (initialSituacaoFilter) {
+      initialFilters.situacao = initialSituacaoFilter;
+    }
+    return initialFilters;
+  });
   const [currentVeiculo, setCurrentVeiculo] = useState<Veiculo | null>(null);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);

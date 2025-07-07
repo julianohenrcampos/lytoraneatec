@@ -14,7 +14,7 @@ import { DateRange } from "react-day-picker";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import MainLayout from "@/components/layout/MainLayout";
-import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { usePermissionGuard } from "@/hooks/usePermissionGuard";
 import { supabase } from "@/integrations/supabase/client";
 import { downloadExcel } from "@/lib/excel";
 import { CentroCusto } from "@/types/centroCusto";
@@ -100,12 +100,11 @@ const RelatorioMedicao: React.FC = () => {
   const [showEmptyState, setShowEmptyState] = useState(false);
   
   const { toast } = useToast();
-  const { userRoles, isSuperAdmin } = useUserPermissions();
   
-  const canAccessPage = isSuperAdmin || 
-    userRoles.includes('AdmLogistica') || 
-    userRoles.includes('Encarregado') || 
-    userRoles.includes('SuperAdm');
+  // 🔒 PROTEÇÃO DE PÁGINA: Verificar permissão específica
+  const { canAccess, isLoading: permissionLoading } = usePermissionGuard({
+    requiredPermission: "gestao_maquinas_relatorio_medicao_view"
+  });
 
   useEffect(() => {
     fetchVehicleTypes().then(types => {
@@ -844,7 +843,19 @@ const RelatorioMedicao: React.FC = () => {
     }
   };
 
-  if (!canAccessPage) {
+  // Verificação de permissão
+  if (permissionLoading) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <span className="ml-2">Verificando permissões...</span>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (!canAccess) {
     return (
       <MainLayout>
         <div className="flex items-center justify-center h-full">

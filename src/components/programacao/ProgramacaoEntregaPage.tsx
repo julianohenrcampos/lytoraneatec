@@ -33,6 +33,11 @@ const ProgramacaoEntregaPage: React.FC = () => {
     refetch
   } = useProgramacaoEntregaActions();
 
+  const handleModalSuccess = async () => {
+    await refetch();
+    setIsFormModalOpen(false);
+  };
+
   if (isError) {
     return (
       <div className="container py-6">
@@ -71,7 +76,7 @@ const ProgramacaoEntregaPage: React.FC = () => {
       <ProgramacaoEntregaFormModal 
         isOpen={isFormModalOpen}
         onClose={() => setIsFormModalOpen(false)}
-        onSuccess={refetch}
+        onSuccess={handleModalSuccess}
         programacao={currentProgramacao}
       />
 

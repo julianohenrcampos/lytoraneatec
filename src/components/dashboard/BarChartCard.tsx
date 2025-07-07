@@ -32,6 +32,7 @@ interface BarChartCardProps {
   colors: Record<string, string>;
   isLoading?: boolean;
   onClick?: () => void;
+  onBarClick?: (barName: string) => void;
   // Correct the tooltip content type to match what Recharts expects
   tooltipContent?: React.FC<TooltipProps<ValueType, NameType>>;
 }
@@ -43,8 +44,14 @@ const BarChartCard: React.FC<BarChartCardProps> = ({
   colors,
   isLoading = false,
   onClick,
+  onBarClick,
   tooltipContent
 }) => {
+  const handleBarClick = (data: any) => {
+    if (onBarClick && data?.activePayload?.[0]?.payload?.name) {
+      onBarClick(data.activePayload[0].payload.name);
+    }
+  };
   return (
     <Card 
       className="hover:shadow-md transition-shadow cursor-pointer"
@@ -66,6 +73,7 @@ const BarChartCard: React.FC<BarChartCardProps> = ({
                 data={data}
                 layout="vertical"
                 margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                onClick={onBarClick ? handleBarClick : undefined}
               >
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                 <XAxis type="number" />

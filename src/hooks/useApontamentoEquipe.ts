@@ -92,9 +92,10 @@ export const useApontamentoEquipe = () => {
   }, [groupedApontamentos]);
   
   const createMutation = useMutation({
-    mutationFn: (data: ApontamentoEquipeApiData) => {
+    mutationFn: async (data: ApontamentoEquipeApiData) => {
       console.log("🔄 Creating apontamento with normalized data:", data);
-      return createApontamentoEquipe(data);
+      const result = await createApontamentoEquipe(data);
+      return Array.isArray(result) ? result[0] : result;
     },
     onSuccess: () => {
       console.log("✅ Apontamento created successfully");

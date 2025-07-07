@@ -45,6 +45,7 @@ import ApontamentoEquipe from "@/pages/ApontamentoEquipe";
 import ApontamentoCaminhoes from "@/pages/ApontamentoCaminhoes";
 import ChamadosOS from "@/pages/ChamadosOS";
 import GestaoOrdemServico from "@/pages/GestaoOrdemServico";
+import RelatorioAplicacaoDiaria from "@/pages/RelatorioAplicacaoDiaria";
 
 // Admin - using correct file names
 import GestaoPermissoes from "@/pages/GestaoPermissoes";
@@ -244,6 +245,17 @@ const App = () => {
                 <SimpleAuthGuard>
                   <SimplePermissionGuard>
                     <GestaoOrdemServico />
+                  </SimplePermissionGuard>
+                </SimpleAuthGuard>
+              } />
+              
+              {/* Relatório de Aplicação Diária */}
+              <Route path="/relatorio-aplicacao-diaria" element={
+                <SimpleAuthGuard>
+                  <SimplePermissionGuard>
+                    <SecureRouteGuard requiredPermission="relatorio_aplicacao_view">
+                      <RelatorioAplicacaoDiaria />
+                    </SecureRouteGuard>
                   </SimplePermissionGuard>
                 </SimpleAuthGuard>
               } />

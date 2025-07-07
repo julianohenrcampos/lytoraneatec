@@ -110,7 +110,7 @@ export const getApontamentoById = async (id: string): Promise<ApontamentoEquipe 
 
 export const createApontamentoEquipe = async (
   apontamento: ApontamentoEquipeApiData
-): Promise<ApontamentoEquipe> => {
+): Promise<ApontamentoEquipe[]> => {
   try {
     // Transform API data to match database structure
     const colaboradores = apontamento.colaboradores || [];
@@ -131,15 +131,14 @@ export const createApontamentoEquipe = async (
     const { data, error } = await supabase
       .from("bd_apontamento_equipe")
       .insert(records)
-      .select()
-      .single();
+      .select();
 
     if (error) {
       console.error("Error creating apontamento equipe:", error);
       throw error;
     }
 
-    return data;
+    return data?.[0] || data;
   } catch (error) {
     console.error("Unexpected error in createApontamentoEquipe:", error);
     throw error;

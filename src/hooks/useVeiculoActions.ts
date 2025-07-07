@@ -8,7 +8,7 @@ import { useVeiculoUtils } from "./vehicles/useVeiculoActions";
 import { getEmpresasDropdown } from "@/services/veiculo";
 import { useQuery } from "@tanstack/react-query";
 
-export const useVeiculoActions = () => {
+export const useVeiculoActions = (initialSituacaoFilter?: string | null) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const {
@@ -31,7 +31,7 @@ export const useVeiculoActions = () => {
     openFormModal,
     openDetailsModal,
     confirmDelete,
-  } = useVeiculoState();
+  } = useVeiculoState(initialSituacaoFilter);
 
   const {
     veiculos,
