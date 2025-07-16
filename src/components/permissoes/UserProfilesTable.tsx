@@ -15,6 +15,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ProfileType } from "@/types/permissao";
+import { 
+  getHybridPermissionStatus, 
+  getUserDisplayFunction, 
+  userHasAnyPermission,
+  isUserSuperAdmin 
+} from "@/utils/hybridPermissions";
 
 interface UserProfilesTableProps {
   profiles: ProfileType[];
@@ -44,30 +50,19 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
   profilesError,
   refetchProfiles,
 }) => {
-  // Função para detectar status de permissão
+  // Função para detectar status de permissão usando sistema híbrido
   const getPermissionStatus = (profile: ProfileType) => {
-    const funcoes = profile.funcoes || [];
+    const hasPermission = userHasAnyPermission(profile);
     
-    const hasValidFunctions = funcoes.some(funcao => 
-      funcao && 
-      funcao.trim() !== '' && 
-      funcao !== 'user'
-    );
-    
-    return hasValidFunctions 
+    return hasPermission 
       ? { label: "Com Permissão", variant: "default" as const }
       : { label: "Sem Permissão", variant: "destructive" as const };
   };
 
-  // Função para exibir as funções do usuário
+  // Função para exibir as funções do usuário usando sistema híbrido
   const displayUserFunctions = (profile: ProfileType) => {
-    const funcoes = profile.funcoes || [];
-    const validFunctions = funcoes.filter(f => f && f.trim() !== '' && f !== 'user');
-    
-    if (validFunctions.length === 0) {
-      return "Nenhuma";
-    }
-    return validFunctions.join(', ');
+    const displayName = getUserDisplayFunction(profile);
+    return displayName === 'Sem permissão' ? 'Nenhuma' : displayName;
   };
 
   // Mostrar erro se houver

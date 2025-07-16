@@ -17,56 +17,89 @@ const normalizeDate = (date: Date | string): string => {
   return normalizedDate.toISOString().split('T')[0];
 };
 
-// Fetch apontamentos with automatic RLS filtering
+// Fetch apontamentos with automatic RLS filtering and retry logic
 export const fetchSecureApontamentos = async (filters: ApontamentoEquipeFilters = {}): Promise<ApontamentoEquipe[]> => {
-  try {
-    console.log('🔐 Fetching apontamentos with RLS filtering...');
-    
-    let query = supabase
-      .from("bd_apontamento_equipe")
-      .select(`
-        *,
-        equipe:equipe_id (
+  const maxRetries = 3;
+  let retryCount = 0;
+
+  while (retryCount < maxRetries) {
+    try {
+      console.log(`🔐 Fetching apontamentos with RLS filtering (tentativa ${retryCount + 1})...`);
+      
+      let query = supabase
+        .from("bd_apontamento_equipe")
+        .select(`
           *,
-          encarregado:encarregado_id (id, nome_completo),
-          apontador:apontador_id (id, nome_completo)
-        ),
-        colaborador:colaborador_id (
-          id, nome_completo
-        ),
-        lista_entrega:lista_entrega_id (*)
-      `)
-      .order('data_registro', { ascending: false });
-    
-    // Apply filters
-    if (filters.data_inicio) {
-      const formattedDate = normalizeDate(filters.data_inicio);
-      query = query.gte("data_registro", formattedDate);
+          equipe:bd_equipes!bd_apontamento_equipe_equipe_id_fkey(
+            id,
+            nome_equipe,
+            encarregado:bd_funcionarios!bd_equipes_encarregado_id_fkey(
+              id,
+              nome_completo
+            ),
+            apontador:bd_funcionarios!bd_equipes_apontador_id_fkey(
+              id,
+              nome_completo
+            )
+          ),
+          colaborador:bd_funcionarios!bd_apontamento_equipe_colaborador_id_fkey(
+            id, 
+            nome_completo
+          ),
+          lista_entrega:bd_lista_programacao_entrega!bd_apontamento_equipe_lista_entrega_id_fkey(
+            id,
+            logradouro
+          )
+        `)
+        .order('data_registro', { ascending: false });
+      
+      // Apply filters
+      if (filters.data_inicio) {
+        const formattedDate = normalizeDate(filters.data_inicio);
+        query = query.gte("data_registro", formattedDate);
+      }
+      
+      if (filters.data_fim) {
+        const formattedDate = normalizeDate(filters.data_fim);
+        query = query.lte("data_registro", formattedDate);
+      }
+      
+      if (filters.equipe_id && filters.equipe_id !== 'all') {
+        query = query.eq("equipe_id", filters.equipe_id);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) {
+        // Se é erro de RLS/permissão e ainda há tentativas, retry
+        if ((error.message?.includes('policy') || error.message?.includes('permission') || error.code === 'PGRST116') && retryCount < maxRetries - 1) {
+          console.warn(`⚠️ RLS error, retrying (${retryCount + 1}/${maxRetries}):`, error);
+          retryCount++;
+          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+          continue;
+        }
+        
+        console.error("❌ Error fetching secure apontamentos:", error);
+        throw error;
+      }
+      
+      console.log(`✅ Fetched ${data?.length || 0} apontamentos with RLS filtering`);
+      return data as unknown as ApontamentoEquipe[];
+      
+    } catch (error) {
+      if (retryCount >= maxRetries - 1) {
+        console.error("❌ Final error in fetchSecureApontamentos:", error);
+        throw error;
+      }
+      
+      console.warn(`🔄 Retry ${retryCount + 1}/${maxRetries} after error:`, error);
+      retryCount++;
+      await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
     }
-    
-    if (filters.data_fim) {
-      const formattedDate = normalizeDate(filters.data_fim);
-      query = query.lte("data_registro", formattedDate);
-    }
-    
-    if (filters.equipe_id && filters.equipe_id !== 'all') {
-      query = query.eq("equipe_id", filters.equipe_id);
-    }
-    
-    const { data, error } = await query;
-    
-    if (error) {
-      console.error("❌ Error fetching secure apontamentos:", error);
-      throw error;
-    }
-    
-    console.log(`✅ Fetched ${data?.length || 0} apontamentos with RLS filtering`);
-    return data as unknown as ApontamentoEquipe[];
-    
-  } catch (error) {
-    console.error("❌ Error in fetchSecureApontamentos:", error);
-    throw error;
   }
+
+  // Fallback que nunca deve ser alcançado
+  throw new Error('Unexpected end of retry loop');
 };
 
 // Fetch teams with automatic RLS filtering
@@ -78,8 +111,14 @@ export const fetchSecureEquipes = async () => {
       .from('bd_equipes')
       .select(`
         *,
-        encarregado:encarregado_id (id, nome_completo),
-        apontador:apontador_id (id, nome_completo)
+        encarregado:bd_funcionarios!bd_equipes_encarregado_id_fkey(
+          id, 
+          nome_completo
+        ),
+        apontador:bd_funcionarios!bd_equipes_apontador_id_fkey(
+          id, 
+          nome_completo
+        )
       `)
       .order('nome_equipe');
     

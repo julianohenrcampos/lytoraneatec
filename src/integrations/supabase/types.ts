@@ -1801,7 +1801,7 @@ export type Database = {
         Row: {
           created_at: string | null
           email: string | null
-          funcao_permissao: string | null
+          funcao_permissao: string
           funcoes: string[] | null
           id: string
           imagem_url: string | null
@@ -1810,7 +1810,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           email?: string | null
-          funcao_permissao?: string | null
+          funcao_permissao: string
           funcoes?: string[] | null
           id: string
           imagem_url?: string | null
@@ -1819,7 +1819,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           email?: string | null
-          funcao_permissao?: string | null
+          funcao_permissao?: string
           funcoes?: string[] | null
           id?: string
           imagem_url?: string | null
@@ -1981,6 +1981,10 @@ export type Database = {
       }
     }
     Functions: {
+      apontador_pode_acessar_equipe: {
+        Args: { user_id: string; target_equipe_id: string }
+        Returns: boolean
+      }
       atualizar_status_equipamentos_nao_apontados: {
         Args: Record<PropertyKey, never>
         Returns: number
@@ -1997,6 +2001,14 @@ export type Database = {
         Args: { user_id: string }
         Returns: boolean
       }
+      check_is_super_admin_hybrid: {
+        Args: { user_id: string }
+        Returns: boolean
+      }
+      check_is_super_admin_new: {
+        Args: { user_id: string }
+        Returns: boolean
+      }
       corrigir_status_entregas_inconsistentes: {
         Args: Record<PropertyKey, never>
         Returns: number
@@ -2004,6 +2016,16 @@ export type Database = {
       debug_user_access: {
         Args: Record<PropertyKey, never>
         Returns: Json
+      }
+      debug_usuario_equipe: {
+        Args: { user_id: string }
+        Returns: {
+          user_email: string
+          user_funcoes: string[]
+          equipe_nome: string
+          eh_apontador: boolean
+          eh_encarregado: boolean
+        }[]
       }
       finalizar_aplicacao_carga: {
         Args: { carga_id: string }
@@ -2017,9 +2039,41 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_ultimo_horimetro_privilegiado: {
+        Args: { caminhao_id: string }
+        Returns: number
+      }
       get_user_allowed_teams: {
         Args: Record<PropertyKey, never>
         Returns: string[]
+      }
+      get_user_permissions: {
+        Args: { user_id: string }
+        Returns: string[]
+      }
+      get_user_permissions_hybrid: {
+        Args: { user_id: string }
+        Returns: string[]
+      }
+      user_has_permission: {
+        Args: { user_id: string; permission_name: string }
+        Returns: boolean
+      }
+      user_has_permission_hybrid: {
+        Args: { user_id: string; permission_name: string }
+        Returns: boolean
+      }
+      usuario_acessa_equipe: {
+        Args: { _user_id: string; _equipe_id: string }
+        Returns: boolean
+      }
+      usuario_gerencia_funcionario: {
+        Args: { user_id: string; funcionario_id: string }
+        Returns: boolean
+      }
+      usuario_tem_permissao: {
+        Args: { user_id: string; rota: string; registro_owner_id: string }
+        Returns: boolean
       }
     }
     Enums: {

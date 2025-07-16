@@ -31,6 +31,9 @@ interface AplicacaoData {
     };
     equipe_id?: {
       nome_equipe: string;
+      encarregado_id?: {
+        nome_completo: string;
+      };
     };
     apontador_id?: {
       nome_completo: string;
@@ -106,45 +109,56 @@ export const useRelatorioAplicacao = () => {
         .eq('id', filtros.centro_custo_id)
         .single();
 
-      // Buscar dados de aplicação
+      // Buscar dados de aplicação com JOIN das tabelas de aplicação e detalhes
       let query = supabase
-        .from('bd_registro_apontamento_aplicacao')
+        .from('bd_registro_aplicacao_detalhes')
         .select(`
           id,
           data_aplicacao,
-          logradouro_aplicado,
-          hora_chegada_local,
-          hora_saida_caminhao,
+          logradouro_nome,
           estaca_inicial,
           estaca_final,
           bordo,
           tonelada_aplicada,
           comprimento,
           largura_media,
-          espessura,
-          area_calculada,
-          anotacoes_apontador,
-          lista_entrega_id(
-            caminhao_id(
-              frota,
-              numero_frota,
-              placa
-            ),
-            equipe_id(
-              nome_equipe
-            ),
-            apontador_id(
-              nome_completo
-            ),
-            requisicao_id(
-              centro_custo_id
+          espessura_aplicada,
+          area_aplicada,
+          hora_inicio_aplicacao,
+          hora_fim_aplicacao,
+          observacoes_aplicacao,
+          temperatura_aplicacao,
+          numero_passadas,
+          equipamento_compactacao,
+          registro_aplicacao_id(
+            hora_chegada_local,
+            hora_saida_caminhao,
+            anotacoes_apontador,
+            lista_entrega_id(
+              caminhao_id(
+                frota,
+                numero_frota,
+                placa
+              ),
+              equipe_id(
+                nome_equipe,
+                encarregado_id(
+                  nome_completo
+                )
+              ),
+              apontador_id(
+                nome_completo
+              ),
+              requisicao_id(
+                centro_custo_id
+              )
             )
           )
         `)
         .eq('data_aplicacao', filtros.data_aplicacao)
-        .eq('lista_entrega_id.requisicao_id.centro_custo_id', filtros.centro_custo_id);
+        .eq('registro_aplicacao_id.lista_entrega_id.requisicao_id.centro_custo_id', filtros.centro_custo_id);
 
-      // Filtrar por turno se especificado
+      // Filtrar por turno se especificado (baseado no hora_inicio_aplicacao)
       if (filtros.turno) {
         const turnoHours = {
           'Manhã': ['06:00', '13:59'],
@@ -156,11 +170,11 @@ export const useRelatorioAplicacao = () => {
           const [inicio, fim] = turnoHours[filtros.turno as keyof typeof turnoHours];
           if (filtros.turno === 'Noite') {
             // Noite: 22:00 até 05:59 do dia seguinte
-            query = query.or(`hora_chegada_local.gte.${inicio},hora_chegada_local.lte.${fim}`);
+            query = query.or(`hora_inicio_aplicacao.gte.${inicio},hora_inicio_aplicacao.lte.${fim}`);
           } else {
             query = query
-              .gte('hora_chegada_local', inicio)
-              .lte('hora_chegada_local', fim);
+              .gte('hora_inicio_aplicacao', inicio)
+              .lte('hora_inicio_aplicacao', fim);
           }
         }
       }
@@ -171,8 +185,21 @@ export const useRelatorioAplicacao = () => {
 
       // Transformar dados para a estrutura esperada
       const aplicacoes: AplicacaoData[] = (aplicacoesData || []).map((item: any) => ({
-        ...item,
-        lista_entrega_id: Array.isArray(item.lista_entrega_id) ? item.lista_entrega_id[0] : item.lista_entrega_id
+        id: item.id,
+        data_aplicacao: item.data_aplicacao,
+        logradouro_aplicado: item.logradouro_nome,
+        hora_chegada_local: item.registro_aplicacao_id?.hora_chegada_local,
+        hora_saida_caminhao: item.registro_aplicacao_id?.hora_saida_caminhao,
+        estaca_inicial: item.estaca_inicial,
+        estaca_final: item.estaca_final,
+        bordo: item.bordo,
+        tonelada_aplicada: item.tonelada_aplicada,
+        comprimento: item.comprimento,
+        largura_media: item.largura_media,
+        espessura: item.espessura_aplicada,
+        area_calculada: item.area_aplicada,
+        anotacoes_apontador: item.registro_aplicacao_id?.anotacoes_apontador,
+        lista_entrega_id: item.registro_aplicacao_id?.lista_entrega_id
       }));
       
       const totalMassaDiaria = aplicacoes.reduce((sum, app) => sum + (app.tonelada_aplicada || 0), 0);

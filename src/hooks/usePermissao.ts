@@ -71,52 +71,58 @@ export const usePermissao = () => {
     queryFn: () => fetchPermissoes({})
   });
 
-  // Query para buscar funções únicas
+  // Query para buscar funções únicas usando sistema híbrido
   const { data: availableFunctionsFromDB } = useQuery({
     queryKey: ['availableFunctions'],
     queryFn: async () => {
       console.log('🔍 Buscando todas as funções disponíveis...');
       
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('funcoes')
-        .not('funcoes', 'is', null);
-      
-      if (error) {
-        console.error('❌ Erro ao buscar funções:', error);
-        throw error;
-      }
-      
-      const allFunctions = new Set<string>();
-      data?.forEach(profile => {
-        if (profile.funcoes && Array.isArray(profile.funcoes)) {
-          profile.funcoes.forEach(funcao => {
-            if (funcao && funcao.trim() !== '') {
-              allFunctions.add(funcao);
-            }
-          });
+      try {
+        // Buscar funções do campo funcoes (array)
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('funcoes')
+          .not('funcoes', 'is', null);
+        
+        // Buscar funções da tabela bd_funcoes_permissao
+        const { data: funcoesData, error: funcoesError } = await supabase
+          .from('bd_funcoes_permissao')
+          .select('nome_funcao');
+        
+        if (profilesError && funcoesError) {
+          console.error('❌ Erro ao buscar funções:', { profilesError, funcoesError });
+          throw profilesError || funcoesError;
         }
-      });
-      
-      const defaultFunctions = [
-        'SuperAdm',
-        'Administrador', 
-        'Operador',
-        'Visualizador',
-        'Encarregado',
-        'Apontador',
-        'AdmRH',
-        'Engenheiro Civil',
-        'AdmLogistica',
-        'AdmEquipamentos'
-      ];
-      
-      defaultFunctions.forEach(func => allFunctions.add(func));
-      
-      const finalFunctions = Array.from(allFunctions).sort();
-      console.log('✅ Funções disponíveis encontradas:', finalFunctions);
-      
-      return finalFunctions;
+        
+        const allFunctions = new Set<string>();
+        
+        // Adicionar funções do array funcoes
+        profilesData?.forEach(profile => {
+          if (profile.funcoes && Array.isArray(profile.funcoes)) {
+            profile.funcoes.forEach(funcao => {
+              if (funcao && funcao.trim() !== '') {
+                allFunctions.add(funcao);
+              }
+            });
+          }
+        });
+        
+        // Adicionar funções da tabela bd_funcoes_permissao
+        funcoesData?.forEach(funcao => {
+          if (funcao.nome_funcao && funcao.nome_funcao.trim() !== '') {
+            allFunctions.add(funcao.nome_funcao);
+          }
+        });
+        
+        const finalFunctions = Array.from(allFunctions).sort();
+        console.log('✅ Funções disponíveis encontradas:', finalFunctions);
+        
+        return finalFunctions;
+      } catch (error) {
+        console.error('❌ Erro ao buscar funções:', error);
+        // Retornar funções padrão em caso de erro
+        return ['SuperAdm', 'Administrador', 'Operador', 'Visualizador', 'Encarregado', 'Apontador', 'AdmRH', 'Engenheiro Civil', 'AdmLogistica', 'AdmEquipamentos'];
+      }
     }
   });
 
@@ -133,7 +139,7 @@ export const usePermissao = () => {
       console.log('📅 Timestamp:', new Date().toISOString());
       
       try {
-        // Query otimizada que funciona com as novas políticas RLS
+        // Query híbrida que funciona com ambos os sistemas
         const { data: users, error, count } = await supabase
           .from('profiles')
           .select(`
@@ -142,16 +148,22 @@ export const usePermissao = () => {
             nome_completo,
             imagem_url,
             funcoes,
+            funcao_permissao,
+            bd_funcoes_permissao:funcao_permissao (
+              id,
+              nome_funcao,
+              descricao
+            ),
             created_at
           `, { count: 'exact' })
           .order('created_at', { ascending: false });
         
         if (error) {
-          console.error('💥 ERRO na query corrigida:', error);
+          console.error('💥 ERRO na query híbrida:', error);
           throw error;
         }
         
-        console.log('📊 DADOS CORRIGIDOS:');
+        console.log('📊 DADOS HÍBRIDOS:');
         console.log(`📈 Total de usuários encontrados: ${count}`);
         console.log(`📝 Array length: ${users?.length || 0}`);
         
@@ -163,15 +175,17 @@ export const usePermissao = () => {
             nome: user.nome_completo || 'SEM NOME',
             email: user.email || 'SEM EMAIL',
             funcoes: user.funcoes || 'SEM FUNCOES',
+            funcao_permissao: user.funcao_permissao || 'SEM FUNCAO_PERMISSAO',
+            bd_funcoes_permissao: user.bd_funcoes_permissao || 'SEM BD_FUNCOES_PERMISSAO',
             created_at: user.created_at
           });
         });
         
-        console.log('✅ LISTAGEM CORRIGIDA - RETORNANDO:', users?.length || 0, 'usuários');
+        console.log('✅ LISTAGEM HÍBRIDA - RETORNANDO:', users?.length || 0, 'usuários');
         return users as ProfileType[] || [];
         
       } catch (err) {
-        console.error('🔥 ERRO na busca corrigida:', err);
+        console.error('🔥 ERRO na busca híbrida:', err);
         throw err;
       }
     },
@@ -216,15 +230,30 @@ export const usePermissao = () => {
       if (profileFilter.status === 'sem_permissao') {
         filteredData = filteredData.filter(profile => {
           const funcoes = profile.funcoes || [];
-          const temApenasUser = funcoes.length === 0 || 
-                               funcoes.every(f => !f || f.trim() === '' || f === 'user');
-          return temApenasUser;
+          const funcaoPermissao = (profile as any).bd_funcoes_permissao;
+          
+          // Verificar se tem permissão via funcoes array
+          const temFuncaoArray = funcoes.some(f => f && f.trim() !== '' && f !== 'user');
+          
+          // Verificar se tem permissão via funcao_permissao
+          const temFuncaoPermissao = funcaoPermissao && funcaoPermissao.nome_funcao;
+          
+          // Sem permissão = não tem nem funcao array nem funcao_permissao válida
+          return !temFuncaoArray && !temFuncaoPermissao;
         });
       } else if (profileFilter.status === 'com_permissao') {
         filteredData = filteredData.filter(profile => {
           const funcoes = profile.funcoes || [];
-          const temPermissaoValida = funcoes.some(f => f && f.trim() !== '' && f !== 'user');
-          return temPermissaoValida;
+          const funcaoPermissao = (profile as any).bd_funcoes_permissao;
+          
+          // Verificar se tem permissão via funcoes array
+          const temFuncaoArray = funcoes.some(f => f && f.trim() !== '' && f !== 'user');
+          
+          // Verificar se tem permissão via funcao_permissao
+          const temFuncaoPermissao = funcaoPermissao && funcaoPermissao.nome_funcao;
+          
+          // Com permissão = tem funcao array OU funcao_permissao válida
+          return temFuncaoArray || temFuncaoPermissao;
         });
       }
       

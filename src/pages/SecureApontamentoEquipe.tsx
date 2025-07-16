@@ -48,6 +48,13 @@ const SecureApontamentoEquipe: React.FC = () => {
     isDeleting
   } = useSecureApontamentoEquipe();
 
+  // Debug logs
+  console.log("🔍 Debug SecureApontamentoEquipe - allowedTeamIds:", allowedTeamIds);
+  console.log("🔍 Debug SecureApontamentoEquipe - userRole:", userRole);
+  console.log("🔍 Debug SecureApontamentoEquipe - apontamentos count:", apontamentos.length);
+  console.log("🔍 Debug SecureApontamentoEquipe - summaries count:", apontamentoSummaries.length);
+  console.log("🔍 Debug SecureApontamentoEquipe - sample summary:", apontamentoSummaries[0]);
+
   const handleViewEquipe = (equipeId: string) => {
     navigate(`/gestao-rh/equipes?id=${equipeId}`);
   };

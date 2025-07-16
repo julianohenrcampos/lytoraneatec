@@ -14,7 +14,8 @@ import {
   updateApontamento,
   deleteApontamento,
   getUltimoHorimetro,
-  uploadFotoAvaria
+  uploadFotoAvaria,
+  fetchFuncionariosOperacionais
 } from '@/services/apontamentoCaminhoesService';
 import { getCurrentUser } from '@/lib/auth';
 import { fetchCaminhoes, Caminhao } from '@/services/caminhoesService';
@@ -31,6 +32,7 @@ export const useApontamentoCaminhoes = () => {
   const [apontamentos, setApontamentos] = useState<ApontamentoCaminhao[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [veiculosDropdown, setVeiculosDropdown] = useState<VeiculoDropdownItem[]>([]);
+  const [operadoresDropdown, setOperadoresDropdown] = useState<Array<{id: string, label: string}>>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [apontamentoToDelete, setApontamentoToDelete] = useState<string | null>(null);
@@ -50,6 +52,7 @@ export const useApontamentoCaminhoes = () => {
       setIsInitialized(true);
       loadApontamentos();
       loadVeiculos();
+      loadOperadores();
       loadCurrentUser();
     }
   }, [isInitialized]);
@@ -92,6 +95,22 @@ export const useApontamentoCaminhoes = () => {
       toast({
         title: "Erro ao carregar veículos",
         description: "Não foi possível carregar a lista de veículos.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const loadOperadores = async () => {
+    try {
+      console.log("🔍 Carregando operadores...");
+      const operadores = await fetchFuncionariosOperacionais();
+      console.log("✅ Operadores carregados:", operadores);
+      setOperadoresDropdown(operadores);
+    } catch (error) {
+      console.error("❌ Erro ao carregar operadores:", error);
+      toast({
+        title: "Erro ao carregar operadores",
+        description: "Não foi possível carregar a lista de operadores.",
         variant: "destructive",
       });
     }
@@ -270,14 +289,35 @@ export const useApontamentoCaminhoes = () => {
 
   const handleGetUltimoHorimetro = async (caminhaoId: string): Promise<number | null> => {
     try {
+      console.log(`🚀 Hook - Iniciando busca do último horímetro para: ${caminhaoId}`);
+      
+      if (!caminhaoId) {
+        console.log('⚠️ Hook - ID do caminhão não fornecido');
+        return null;
+      }
+
       const ultimoHorimetro = await getUltimoHorimetro(caminhaoId);
-      console.log(`Último horímetro para caminhão ${caminhaoId}:`, ultimoHorimetro);
+      
+      if (ultimoHorimetro !== null) {
+        console.log(`✅ Hook - Último horímetro encontrado: ${ultimoHorimetro}`);
+        toast({
+          title: "Horímetro carregado",
+          description: `Último horímetro: ${ultimoHorimetro}`,
+        });
+      } else {
+        console.log('ℹ️ Hook - Nenhum horímetro anterior encontrado');
+        toast({
+          title: "Sem histórico",
+          description: "Nenhum apontamento anterior encontrado para este veículo. Informe o valor manualmente.",
+        });
+      }
+      
       return ultimoHorimetro;
     } catch (error) {
-      console.error('Erro ao buscar último horímetro:', error);
+      console.error('❌ Hook - Erro ao buscar último horímetro:', error);
       toast({
         title: "Erro ao buscar horímetro",
-        description: "Não foi possível buscar o último horímetro registrado.",
+        description: "Não foi possível buscar o último horímetro registrado. Você pode informar o valor manualmente.",
         variant: "destructive",
       });
       return null;
@@ -359,6 +399,7 @@ export const useApontamentoCaminhoes = () => {
     apontamentos,
     isLoading,
     veiculosDropdown,
+    operadoresDropdown,
     currentUser,
     isDeleteModalOpen,
     setIsDeleteModalOpen,

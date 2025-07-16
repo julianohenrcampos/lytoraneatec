@@ -51,6 +51,6 @@ export interface ProfileType {
   nome_completo?: string;
   imagem_url?: string;
   funcoes?: string[];
-  funcao_permissao?: string | null;
+  funcao_permissao: string;
   created_at?: string;
 }

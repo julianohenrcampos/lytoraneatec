@@ -19,16 +19,19 @@ interface AplicacaoData {
   espessura?: number;
   area_calculada?: number;
   anotacoes_apontador?: string;
-  lista_entrega?: {
-    caminhao?: {
+  lista_entrega_id?: {
+    caminhao_id?: {
       frota?: string;
       numero_frota?: string;
       placa?: string;
     };
-    equipe?: {
+    equipe_id?: {
       nome_equipe: string;
+      encarregado_id?: {
+        nome_completo: string;
+      };
     };
-    apontador?: {
+    apontador_id?: {
       nome_completo: string;
     };
   };
@@ -65,10 +68,13 @@ const RelatorioAplicacaoTabela: React.FC<RelatorioAplicacaoTabelaProps> = ({ dad
     return `${frota}${numero} - ${placa}`.trim();
   };
 
+  const getPrimeiroNome = (nomeCompleto: string) => {
+    if (!nomeCompleto) return '-';
+    return nomeCompleto.split(' ')[0];
+  };
+
   const getEncarregado = (equipe: any) => {
-    // Aqui você pode implementar a lógica para buscar o encarregado da equipe
-    // Por ora, vamos mostrar o nome da equipe
-    return equipe?.nome_equipe || '-';
+    return getPrimeiroNome(equipe?.encarregado_id?.nome_completo);
   };
 
   if (!dados || dados.length === 0) {
@@ -130,7 +136,7 @@ const RelatorioAplicacaoTabela: React.FC<RelatorioAplicacaoTabelaProps> = ({ dad
                       {aplicacao.logradouro_aplicado || '-'}
                     </TableCell>
                     <TableCell className="text-center font-mono text-sm">
-                      {getVehicleLabel(aplicacao.lista_entrega?.caminhao)}
+                      {getVehicleLabel(aplicacao.lista_entrega_id?.caminhao_id)}
                     </TableCell>
                     <TableCell className="text-center">
                       {formatNumber(aplicacao.estaca_inicial, 0)}
@@ -157,10 +163,10 @@ const RelatorioAplicacaoTabela: React.FC<RelatorioAplicacaoTabelaProps> = ({ dad
                       {formatNumber(aplicacao.area_calculada)}
                     </TableCell>
                     <TableCell className="text-center">
-                      {getEncarregado(aplicacao.lista_entrega?.equipe)}
+                      {getEncarregado(aplicacao.lista_entrega_id?.equipe_id)}
                     </TableCell>
                     <TableCell className="text-center">
-                      {aplicacao.lista_entrega?.apontador?.nome_completo || '-'}
+                      {getPrimeiroNome(aplicacao.lista_entrega_id?.apontador_id?.nome_completo)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -191,7 +197,7 @@ const RelatorioAplicacaoTabela: React.FC<RelatorioAplicacaoTabelaProps> = ({ dad
             <div>
               <span className="text-muted-foreground">Veículos Únicos:</span>
               <span className="ml-2 font-semibold">
-                {new Set(dados.map(app => app.lista_entrega?.caminhao?.placa).filter(Boolean)).size}
+                {new Set(dados.map(app => app.lista_entrega_id?.caminhao_id?.placa).filter(Boolean)).size}
               </span>
             </div>
           </div>

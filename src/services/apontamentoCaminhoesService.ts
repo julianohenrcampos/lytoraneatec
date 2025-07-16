@@ -490,24 +490,86 @@ export const deleteApontamento = async (id: string): Promise<void> => {
 
 export const getUltimoHorimetro = async (caminhaoId: string): Promise<number | null> => {
   try {
-    const { data, error } = await supabase
-      .from('bd_registro_apontamento_cam_equipa')
-      .select('horimetro_final')
-      .eq('caminhao_equipamento_id', caminhaoId)
-      .order('data', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    console.log(`🔍 Buscando último horímetro para caminhão/equipamento: ${caminhaoId}`);
+    
+    // Usar função privilegiada para contornar RLS
+    const { data, error } = await supabase.rpc('get_ultimo_horimetro_privilegiado', {
+      caminhao_id: caminhaoId
+    });
 
     if (error) {
-      console.error('Erro ao buscar último horímetro:', error);
-      throw error;
+      console.error('❌ Erro ao buscar último horímetro:', error);
+      return null;
     }
 
-    return data?.horimetro_final || null;
-  } catch (error) {
-    console.error('Erro ao buscar último horímetro:', error);
+    if (data !== null && data > 0) {
+      console.log(`✅ Último horímetro encontrado: ${data}`);
+      return data;
+    }
+
+    console.log('ℹ️ Nenhum horímetro anterior encontrado para este veículo');
     return null;
+  } catch (error) {
+    console.error('❌ Erro ao buscar último horímetro:', error);
+    return null;
+  }
+};
+
+// Função para buscar funcionários operacionais baseado em permissões
+export const fetchFuncionariosOperacionais = async (): Promise<Array<{id: string, label: string}>> => {
+  try {
+    console.log('🔍 Buscando funcionários operacionais...');
+    
+    const { data, error } = await supabase
+      .from('bd_funcionarios')
+      .select(`
+        id,
+        nome_completo,
+        status,
+        bd_funcoes (nome_funcao)
+      `)
+      .eq('status', 'Ativo')
+      .not('bd_funcoes.nome_funcao', 'is', null)
+      .in('bd_funcoes.nome_funcao', ['Operador', 'Encarregado', 'Apontador', 'Mestre de Obra'])
+      .order('nome_completo');
+
+    if (error) {
+      console.error('❌ Erro ao buscar funcionários operacionais:', error);
+      console.error('❌ Detalhes do erro:', error.message, error.details);
+      
+      // Se erro for de RLS, tentar uma busca mais básica
+      if (error.message.includes('RLS') || error.message.includes('policy')) {
+        console.log('⚠️ Erro de RLS detectado, tentando busca básica...');
+        
+        const { data: basicData, error: basicError } = await supabase
+          .from('bd_funcionarios')
+          .select('id, nome_completo')
+          .eq('status', 'Ativo')
+          .order('nome_completo');
+          
+        if (basicError) {
+          console.error('❌ Erro na busca básica:', basicError);
+          return [];
+        }
+        
+        console.log(`✅ Encontrados ${basicData?.length || 0} funcionários ativos (busca básica)`);
+        return (basicData || []).map(func => ({
+          id: func.id,
+          label: func.nome_completo
+        }));
+      }
+      
+      return [];
+    }
+
+    console.log(`✅ Encontrados ${data?.length || 0} funcionários operacionais`);
+    return (data || []).map(func => ({
+      id: func.id,
+      label: func.nome_completo
+    }));
+  } catch (error) {
+    console.error('❌ Erro ao buscar funcionários operacionais:', error);
+    return [];
   }
 };
 

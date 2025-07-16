@@ -16,7 +16,15 @@ export const fetchApontamentosEquipe = async (
         *,
         equipe:bd_equipes(
           id,
-          nome_equipe
+          nome_equipe,
+          encarregado:encarregado_id (
+            id, 
+            nome_completo
+          ),
+          apontador:apontador_id (
+            id, 
+            nome_completo
+          )
         ),
         colaborador:bd_funcionarios(
           id,
@@ -86,7 +94,15 @@ export const getApontamentoById = async (id: string): Promise<ApontamentoEquipe 
         *,
         equipe:bd_equipes(
           id,
-          nome_equipe
+          nome_equipe,
+          encarregado:encarregado_id (
+            id, 
+            nome_completo
+          ),
+          apontador:apontador_id (
+            id, 
+            nome_completo
+          )
         ),
         colaborador:bd_funcionarios(
           id,

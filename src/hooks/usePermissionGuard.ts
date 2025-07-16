@@ -39,7 +39,7 @@ export const usePermissionGuard = ({
     }
     
     // Verificar funções administrativas válidas
-    const validRoles = ['AdmRH', 'AdmEquipamentos', 'AdmLogistica', 'AdmRequisicoes', 'Apontador', 'Encarregado', 'Engenheiro Civil', 'Administrador'];
+    const validRoles = ['AdmRH', 'AdmEquipamentos', 'AdmLogistica', 'AdmRequisicoes', 'Apontador', 'Encarregado', 'Engenheiro Civil', 'Administrador', 'SuperAdm'];
     if (userRole && validRoles.includes(userRole)) {
       console.log('✅ PermissionGuard - Função administrativa válida:', userRole);
       return true;

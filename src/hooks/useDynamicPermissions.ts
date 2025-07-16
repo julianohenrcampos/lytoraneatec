@@ -88,7 +88,17 @@ export const useDynamicPermissions = (): DynamicPermissions => {
       
       const profilePromise = supabase
         .from('profiles')
-        .select('id, nome_completo, funcoes, funcao_permissao')
+        .select(`
+          id, 
+          nome_completo, 
+          funcao_permissao,
+          bd_funcoes_permissao:funcao_permissao (
+            id,
+            nome_funcao,
+            descricao,
+            permissoes
+          )
+        `)
         .eq('id', user.id)
         .single();
 
@@ -109,16 +119,19 @@ export const useDynamicPermissions = (): DynamicPermissions => {
 
         console.log('📋 [DYNAMIC] Perfil carregado:', profile);
 
-        // Sistema de permissões simplificado
+        // Sistema de permissões simplificado baseado no novo sistema
         let userRole: string | null = 'user';
         let isSuperAdmin = false;
         let userPermissions: string[] = ['dashboard_view'];
 
-        if (profile?.funcoes && Array.isArray(profile.funcoes) && profile.funcoes.length > 0) {
-          // Verificar SuperAdmin pelo banco
-          if (profile.funcoes.includes('SuperAdm')) {
-            userRole = 'SuperAdm';
-            isSuperAdmin = true;
+        if (profile?.bd_funcoes_permissao) {
+          const funcaoPermissao = profile.bd_funcoes_permissao as any;
+          userRole = funcaoPermissao.nome_funcao;
+          isSuperAdmin = funcaoPermissao.nome_funcao === 'SuperAdm';
+          
+          console.log('✅ [DYNAMIC] Função detectada:', userRole);
+
+          if (isSuperAdmin) {
             userPermissions = [
               'dashboard_view', 'dashboard_rh_view', 'dashboard_maquinas_view', 'dashboard_cbuq_view',
               'gestao_rh_empresas_view', 'gestao_rh_departamentos_view', 'gestao_rh_centros_custo_view',
@@ -129,54 +142,27 @@ export const useDynamicPermissions = (): DynamicPermissions => {
               'requisicoes_chamados_os_view', 'requisicoes_gestao_os_view', 'admin_permissoes_view', 'relatorio_aplicacao_view'
             ];
           } else {
-            // Permissões baseadas na primeira função válida
-            const validRoles = profile.funcoes.filter(role => 
-              role && role.trim() !== '' && role !== 'user'
-            );
+            // Buscar permissões específicas da função
+            if (funcaoPermissao.permissoes && funcaoPermissao.permissoes.length > 0) {
+              try {
+                const { data: permissoesList, error: permissoesError } = await supabase
+                  .from('bd_permissoes')
+                  .select('*')
+                  .in('id', funcaoPermissao.permissoes);
 
-            if (validRoles.length > 0) {
-              userRole = validRoles[0];
-              console.log('✅ [DYNAMIC] Função detectada:', userRole);
-
-              // 🔒 SISTEMA RESTRITIVO DE PERMISSÕES POR FUNÇÃO
-              console.log('🔐 [SECURE] Aplicando permissões específicas para:', userRole);
-              
-              // Limpar permissões básicas para aplicar apenas as específicas
-              userPermissions = ['dashboard_view'];
-              
-              if (userRole.includes('Adm') || userRole.includes('Administrador')) {
-                userPermissions.push(
-                  'dashboard_rh_view', 
-                  'gestao_rh_funcionarios_view', 
-                  'gestao_rh_equipes_view',
-                  'gestao_rh_empresas_view',
-                  'gestao_rh_departamentos_view',
-                  'gestao_rh_centros_custo_view',
-                  'gestao_rh_funcoes_view'
-                  // 🚫 REMOVIDO: relatorio_aplicacao_view - Apenas SuperAdm
-                );
-              } else if (userRole.includes('Mestre') || userRole.includes('Encarregado')) {
-                userPermissions.push(
-                  'dashboard_rh_view', 
-                  'dashboard_maquinas_view', 
-                  'gestao_rh_equipes_view',
-                  'requisicoes_apontamento_equipe_view',
-                  'requisicoes_apontamento_caminhoes_view'
-                  // 🚫 REMOVIDO: relatorio_aplicacao_view - Apenas SuperAdm
-                );
-              } else if (userRole.includes('Apontador')) {
-                // 🚫 APONTADOR: ACESSO RESTRITO - SEM RELATÓRIOS ESPECIAIS
-                userPermissions.push(
-                  'requisicoes_registro_aplicacao_view',
-                  'requisicoes_apontamento_equipe_view', 
-                  'requisicoes_apontamento_caminhoes_view'
-                  // 🚫 REMOVIDO: relatorio_aplicacao_view - Apenas SuperAdm
-                );
-                console.log('🔒 [APONTADOR] Permissões restritas aplicadas:', userPermissions);
-              } else {
-                // Usuário básico - apenas dashboard
-                console.log('👤 [USER] Usuário básico - apenas dashboard');
+                if (permissoesError) {
+                  console.error('❌ [DYNAMIC] Erro ao buscar permissões:', permissoesError);
+                } else {
+                  userPermissions = [
+                    'dashboard_view',
+                    ...permissoesList.map(p => p.nome_permissao)
+                  ];
+                }
+              } catch (error) {
+                console.error('❌ [DYNAMIC] Erro na consulta de permissões:', error);
               }
+            } else {
+              console.log('⚠️ [DYNAMIC] Função sem permissões específicas atribuídas');
             }
           }
         }

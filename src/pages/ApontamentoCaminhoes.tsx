@@ -22,6 +22,7 @@ const ApontamentoCaminhoes: React.FC = () => {
     apontamentos,
     isLoading,
     veiculosDropdown,
+    operadoresDropdown,
     currentUser,
     isFormModalOpen,
     setIsFormModalOpen,
@@ -41,8 +42,6 @@ const ApontamentoCaminhoes: React.FC = () => {
     handleGetUltimoHorimetro,
     handleUploadFoto,
   } = useApontamentoCaminhoes();
-
-  const operadoresOptions = currentUser ? [{ id: currentUser.id, label: currentUser.email }] : [];
   const centrosCustoOptions = centrosCusto.map(centro => ({
     id: centro.id,
     label: centro.codigo_centro_custo
@@ -79,7 +78,7 @@ const ApontamentoCaminhoes: React.FC = () => {
           onApplyFilters={handleApplyFilters}
           onClearFilters={handleClearFilters}
           veiculosOptions={veiculosDropdown}
-          operadoresOptions={operadoresOptions}
+          operadoresOptions={operadoresDropdown}
           centrosCustoOptions={centrosCustoOptions}
           isLoading={isLoading}
         />
@@ -113,7 +112,7 @@ const ApontamentoCaminhoes: React.FC = () => {
         onSubmit={handleCreateOrUpdate}
         currentApontamento={currentApontamento}
         veiculosOptions={veiculosDropdown}
-        operadoresOptions={operadoresOptions}
+        operadoresOptions={operadoresDropdown}
         centrosCustoOptions={centrosCustoOptions}
         isLoading={isLoading}
         currentUser={currentUser}

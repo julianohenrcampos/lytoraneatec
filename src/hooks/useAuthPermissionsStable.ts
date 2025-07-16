@@ -40,10 +40,20 @@ export const useAuthPermissionsStable = (): AuthPermissionsState => {
 
         console.log('🔐 STABLE - Usuário autenticado:', user.email);
 
-        // Query para buscar o perfil
+        // Query para buscar o perfil com novo sistema
         const { data: profile, error: profileErr } = await supabase
           .from('profiles')
-          .select('id, nome_completo, funcoes')
+          .select(`
+            id, 
+            nome_completo, 
+            funcao_permissao,
+            bd_funcoes_permissao:funcao_permissao (
+              id,
+              nome_funcao,
+              descricao,
+              permissoes
+            )
+          `)
           .eq('id', user.id)
           .single();
 
@@ -62,19 +72,19 @@ export const useAuthPermissionsStable = (): AuthPermissionsState => {
 
         console.log('📋 STABLE - Perfil encontrado:', profile);
 
-        // Sistema de permissões baseado no campo funcoes
+        // Sistema de permissões baseado no novo sistema unificado
         let userRole: string | null = null;
         let isSuperAdmin = false;
         let userPermissions: string[] = ['dashboard_view'];
 
-        if (profile?.funcoes && Array.isArray(profile.funcoes) && profile.funcoes.length > 0) {
-          console.log('🔍 STABLE - Funções encontradas:', profile.funcoes);
+        if (profile?.bd_funcoes_permissao) {
+          const funcaoPermissao = profile.bd_funcoes_permissao as any;
+          userRole = funcaoPermissao.nome_funcao;
+          isSuperAdmin = funcaoPermissao.nome_funcao === 'SuperAdm';
           
-          // SuperAdmin TEM ACESSO TOTAL
-          if (profile.funcoes.includes('SuperAdm')) {
-            userRole = 'SuperAdm';
-            isSuperAdmin = true;
-            
+          console.log('🔍 STABLE - Função encontrada:', userRole);
+          
+          if (isSuperAdmin) {
             console.log('🚀 STABLE - SUPERADMIN CONFIRMADO - LIBERANDO TODOS OS ACESSOS!');
             
             // SuperAdmin = TODAS as permissões do sistema
@@ -103,93 +113,27 @@ export const useAuthPermissionsStable = (): AuthPermissionsState => {
               'admin_permissoes_view'
             ];
           } else {
-            // Outras funções com permissões específicas
-            const validRoles = profile.funcoes.filter(role => 
-              role && role.trim() !== '' && role !== 'user'
-            );
+            // Buscar permissões específicas da função
+            if (funcaoPermissao.permissoes && funcaoPermissao.permissoes.length > 0) {
+              try {
+                const { data: permissoesList, error: permissoesError } = await supabase
+                  .from('bd_permissoes')
+                  .select('*')
+                  .in('id', funcaoPermissao.permissoes);
 
-            if (validRoles.length > 0) {
-              userRole = validRoles[0];
-              console.log('✅ STABLE - Função detectada:', userRole);
-
-              // Permissões por função
-              switch (userRole) {
-                case 'AdmRH':
-                  userPermissions.push(
-                    'dashboard_rh_view', 
-                    'gestao_rh_empresas_view', 
-                    'gestao_rh_departamentos_view', 
-                    'gestao_rh_centros_custo_view', 
-                    'gestao_rh_funcoes_view', 
-                    'gestao_rh_funcionarios_view',
-                    'gestao_rh_equipes_view'
-                  );
-                  break;
-                  
-                case 'AdmEquipamentos':
-                  userPermissions.push(
-                    'gestao_maquinas_relatorio_medicao_view', 
-                    'gestao_maquinas_caminhoes_view', 
-                    'gestao_maquinas_usinas_view', 
-                    'dashboard_maquinas_view'
-                  );
-                  break;
-                  
-                case 'AdmLogistica':
-                case 'AdmRequisicoes':
-                  userPermissions.push(
-                    'programacao_entrega_view', 
-                    'requisicoes_cadastro_view', 
-                    'requisicoes_registro_cargas_view', 
-                    'dashboard_cbuq_view'
-                  );
-                  break;
-                  
-                case 'Apontador':
-                  userPermissions.push(
-                    'registro_aplicacao_view',
-                    'programacao_entrega_view',
-                    'requisicoes_apontamento_equipe_view'
-                  );
-                  break;
-                  
-                case 'Encarregado':
-                  userPermissions.push(
-                    'registro_aplicacao_view', 
-                    'requisicoes_apontamento_equipe_view', 
-                    'programacao_entrega_view', 
-                    'requisicoes_apontamento_caminhoes_view'
-                  );
-                  break;
-                  
-                case 'Engenheiro Civil':
-                  userPermissions.push(
-                    'registro_aplicacao_view', 
-                    'programacao_entrega_view', 
-                    'gestao_maquinas_relatorio_medicao_view',
-                    'dashboard_cbuq_view'
-                  );
-                  break;
-                  
-                case 'Administrador':
-                  userPermissions.push(
-                    'dashboard_rh_view', 
-                    'gestao_rh_funcionarios_view', 
-                    'gestao_maquinas_relatorio_medicao_view', 
-                    'requisicoes_cadastro_view', 
-                    'registro_aplicacao_view', 
-                    'programacao_entrega_view', 
-                    'dashboard_cbuq_view',
-                    'admin_permissoes_view'
-                  );
-                  break;
-                  
-                default:
-                  userRole = 'user';
-                  break;
+                if (permissoesError) {
+                  console.error('❌ STABLE - Erro ao buscar permissões:', permissoesError);
+                } else {
+                  userPermissions = [
+                    'dashboard_view',
+                    ...permissoesList.map(p => p.nome_permissao)
+                  ];
+                }
+              } catch (error) {
+                console.error('❌ STABLE - Erro na consulta de permissões:', error);
               }
             } else {
-              userRole = 'user';
+              console.log('⚠️ STABLE - Função sem permissões específicas atribuídas');
             }
           }
         } else {

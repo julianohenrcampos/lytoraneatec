@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useUserDataAccess } from "@/hooks/useUserDataAccess";
@@ -40,20 +40,29 @@ export const useSecureApontamentoEquipe = () => {
     isLoading: isApontamentosLoading,
     refetch: refetchApontamentos
   } = useQuery({
-    queryKey: ['secure-apontamentos', filters, allowedTeamIds],
-    queryFn: () => fetchSecureApontamentos(filters),
+    queryKey: ['secure-apontamentos-v2', filters, allowedTeamIds],
+    queryFn: () => {
+      console.log("🚀 useSecureApontamentoEquipe - Fetching secure apontamentos with allowedTeamIds:", allowedTeamIds);
+      console.log("🚀 useSecureApontamentoEquipe - Using filters:", filters);
+      return fetchSecureApontamentos(filters);
+    },
     enabled: !accessLoading && allowedTeamIds.length > 0,
-    staleTime: 30000
+    staleTime: 30000,
+    retry: 2
   });
 
   const {
     data: equipes = [],
     isLoading: isEquipesLoading
   } = useQuery({
-    queryKey: ['secure-equipes', allowedTeamIds],
-    queryFn: fetchSecureEquipes,
+    queryKey: ['secure-equipes-v2', allowedTeamIds],
+    queryFn: () => {
+      console.log("🚀 useSecureApontamentoEquipe - Fetching secure equipes");
+      return fetchSecureEquipes();
+    },
     enabled: !accessLoading,
-    staleTime: 30000
+    staleTime: 30000,
+    retry: 2
   });
 
   // Mutations with improved error handling
@@ -238,21 +247,39 @@ export const useSecureApontamentoEquipe = () => {
   };
 
   // Process apontamentos for summary view
-  const apontamentoSummaries = apontamentos.reduce((acc, apontamento) => {
-    const key = `${apontamento.equipe_id}-${apontamento.data_registro}`;
-    if (!acc[key]) {
-      acc[key] = {
-        ...apontamento,
-        colaboradores: []
+  const apontamentoSummaries = useMemo(() => {
+    // Group apontamentos by equipe_id and data_registro
+    const groups = apontamentos.reduce((acc, apontamento) => {
+      const key = `${apontamento.equipe_id}-${apontamento.data_registro}`;
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(apontamento);
+      return acc;
+    }, {} as Record<string, ApontamentoEquipe[]>);
+
+    // Create summaries with proper encarregado and apontador data
+    return Object.values(groups).map(group => {
+      const first = group[0];
+      const presencaPercentage = Math.round((group.filter(a => a.presente).length / group.length) * 100);
+      
+      return {
+        equipe_id: first.equipe_id,
+        equipe_nome: first.equipe?.nome_equipe || 'Equipe não encontrada',
+        data_registro: first.data_registro,
+        encarregado: first.equipe?.encarregado?.nome_completo || 'Não definido',
+        apontador: first.equipe?.apontador?.nome_completo || 'Não definido',
+        presenca_percentage: presencaPercentage,
+        total_colaboradores: group.length,
+        colaboradores: group
       };
-    }
-    return acc;
-  }, {} as Record<string, any>);
+    });
+  }, [apontamentos]);
 
   return {
     // Data
     apontamentos,
-    apontamentoSummaries: Object.values(apontamentoSummaries),
+    apontamentoSummaries,
     equipes,
     allowedTeamIds,
     userRole,
