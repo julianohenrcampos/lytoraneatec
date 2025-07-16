@@ -1,4 +1,3 @@
-
 import React from "react";
 import {
   Dialog,
@@ -69,122 +68,92 @@ const FuncionarioDetailsModal: React.FC<FuncionarioDetailsModalProps> = ({
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Dados Pessoais</h3>
             <Separator />
-            
+
             <div>
               <p className="text-sm text-muted-foreground">CPF</p>
               <p>{funcionario.cpf}</p>
             </div>
-            
+
             <div>
               <p className="text-sm text-muted-foreground">E-mail</p>
               <p>{funcionario.email || "-"}</p>
             </div>
-            
+
             <div>
               <p className="text-sm text-muted-foreground">Data de Nascimento</p>
               <p>{formatDate(funcionario.data_nascimento)}</p>
             </div>
-            
+
             <div>
               <p className="text-sm text-muted-foreground">Gênero</p>
               <p>{funcionario.genero || "-"}</p>
             </div>
-            
+
             <div>
               <p className="text-sm text-muted-foreground">Escolaridade</p>
               <p>{funcionario.escolaridade || "-"}</p>
             </div>
-            
+
             <div>
               <p className="text-sm text-muted-foreground">Endereço</p>
               <p>{funcionario.endereco_completo || "-"}</p>
             </div>
+
+            <div>
+              <p className="text-sm text-muted-foreground">Equipe</p>
+              <p>{funcionario.bd_equipes?.nome_equipe || "-"}</p>
+            </div>
           </div>
-          
+
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Dados Profissionais</h3>
             <Separator />
-            
+
             <div>
               <p className="text-sm text-muted-foreground">Empresa</p>
               <p>{funcionario.bd_empresas?.nome_empresa || "-"}</p>
             </div>
-            
+
             <div>
               <p className="text-sm text-muted-foreground">Departamento</p>
               <p>{funcionario.bd_departamentos?.nome_departamento || "-"}</p>
             </div>
-            
+
             <div>
               <p className="text-sm text-muted-foreground">Centro de Custo</p>
               <p>{funcionario.bd_centros_custo?.nome_centro_custo || "-"}</p>
             </div>
-            
+
             <div>
               <p className="text-sm text-muted-foreground">Status</p>
               <p>{funcionario.status || "-"}</p>
             </div>
-            
+
             <div>
               <p className="text-sm text-muted-foreground">Data de Admissão</p>
               <p>{formatDate(funcionario.data_admissao)}</p>
             </div>
-            
+
             <div>
               <p className="text-sm text-muted-foreground">Data de Férias</p>
               <p>{formatDate(funcionario.data_ferias)}</p>
             </div>
-            
+
             <div>
               <p className="text-sm text-muted-foreground">Data de Demissão</p>
               <p>{formatDate(funcionario.data_demissao)}</p>
             </div>
           </div>
         </div>
-        
+
         <div className="mt-6 space-y-4">
           <h3 className="text-lg font-semibold">Dados Financeiros</h3>
           <Separator />
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             <div>
               <p className="text-sm text-muted-foreground">Salário Base</p>
               <p>{formatCurrency(funcionario.salario_base)}</p>
-            </div>
-            
-            <div>
-              <p className="text-sm text-muted-foreground">Insalubridade</p>
-              <p>{formatCurrency(funcionario.insalubridade)}</p>
-            </div>
-            
-            <div>
-              <p className="text-sm text-muted-foreground">Periculosidade</p>
-              <p>{formatCurrency(funcionario.periculosidade)}</p>
-            </div>
-            
-            <div>
-              <p className="text-sm text-muted-foreground">Gratificação</p>
-              <p>{formatCurrency(funcionario.gratificacao)}</p>
-            </div>
-            
-            <div>
-              <p className="text-sm text-muted-foreground">Adicional Noturno</p>
-              <p>{formatCurrency(funcionario.adicional_noturno)}</p>
-            </div>
-            
-            <div>
-              <p className="text-sm text-muted-foreground">Custo Passagem</p>
-              <p>{formatCurrency(funcionario.custo_passagem)}</p>
-            </div>
-            
-            <div>
-              <p className="text-sm text-muted-foreground">Refeição</p>
-              <p>{formatCurrency(funcionario.refeicao)}</p>
-            </div>
-            
-            <div>
-              <p className="text-sm text-muted-foreground">Diárias</p>
-              <p>{formatCurrency(funcionario.diarias)}</p>
             </div>
           </div>
         </div>

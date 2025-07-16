@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,13 +10,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
+// Remova esta linha se você não a usar para outros fins que não o Combobox simples
+// import { Input } from "@/components/ui/input"; // Esta importação não é mais usada para o Combobox
 import { DateRange } from "react-day-picker";
 import { ApontamentoFilterParams } from "@/services/apontamentoCaminhoesService";
 import { format } from "date-fns";
-import { FilterX, Search, SlidersHorizontal } from "lucide-react";
+import { FilterX, Search, SlidersHorizontal, Check } from "lucide-react"; // Adicionado Check para o Combobox
 import { useIsSmallScreen, useIsMobile } from "@/hooks/use-mobile";
 import ApontamentoCaminhoesFilterDrawer from "./ApontamentoCaminhoesFilterDrawer";
+
+// IMPORTAÇÕES NECESSÁRIAS PARA O COMBOBOX (DIGITAR E SELECIONAR)
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput, // Componente para digitar e buscar
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command"; // Verifique o caminho correto para seus componentes cmdk/command
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"; // Usado para o pop-up do Combobox
+import { cn } from "@/lib/utils"; // Utilitário para concatenar classes, se você tiver (ex: de shadcn)
 
 interface ApontamentoCaminhoesFiltersProps {
   onApplyFilters: (filters: ApontamentoFilterParams) => void;
@@ -44,7 +57,11 @@ const ApontamentoCaminhoesFilters: React.FC<ApontamentoCaminhoesFiltersProps> = 
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const isMobile = useIsMobile();
 
-  // Apply filters whenever any filter value changes
+  // Estados para o Combobox de Caminhão/Equipamento (para digitar e selecionar)
+  const [openCaminhaoCombobox, setOpenCaminhaoCombobox] = useState(false);
+  const [caminhaoSearchTerm, setCaminhaoSearchTerm] = useState("");
+
+  // Aplica os filtros sempre que qualquer valor de filtro muda
   useEffect(() => {
     if (!isMobile) {
       applyFilters();
@@ -91,6 +108,16 @@ const ApontamentoCaminhoesFilters: React.FC<ApontamentoCaminhoesFiltersProps> = 
     }
   };
 
+  // Funções de filtro e ordenação para as opções do Combobox de Veículos
+  // A lista é filtrada pelo termo de busca E ordenada alfabeticamente
+  const filteredVeiculos = veiculosOptions
+    .filter((option) =>
+      option.label.toLowerCase().includes(caminhaoSearchTerm.toLowerCase())
+    )
+    .sort((a, b) => 
+      a.label.localeCompare(b.label, 'pt-BR', { sensitivity: 'base' })
+    );
+
   if (isMobile) {
     return (
       <>
@@ -134,27 +161,78 @@ const ApontamentoCaminhoesFilters: React.FC<ApontamentoCaminhoesFiltersProps> = 
 
           <div className="space-y-2">
             <Label htmlFor="caminhao" className="font-medium text-gray-700">Caminhão/Equipamento</Label>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Select value={caminhaoId} onValueChange={setCaminhaoId}>
-                <SelectTrigger id="caminhao" className="pl-8 border border-slate-300 bg-white">
-                  <SelectValue placeholder="Selecione um veículo" />
-                </SelectTrigger>
-                <SelectContent className="bg-white">
-                  <SelectItem value="_all">Todos</SelectItem>
-                  {veiculosOptions.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* INÍCIO DO COMBOBOX PARA CAMINHÃO/EQUIPAMENTO: Permite digitar E selecionar, e está em ordem alfabética */}
+            <Popover open={openCaminhaoCombobox} onOpenChange={setOpenCaminhaoCombobox}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={openCaminhaoCombobox}
+                  className="w-full justify-between border border-slate-300 bg-white"
+                >
+                  {caminhaoId
+                    ? veiculosOptions.find((option) => option.id === caminhaoId)?.label
+                    : "Selecione um veículo..."}
+                  <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                <Command>
+                  <CommandInput
+                    placeholder="Buscar veículo..."
+                    value={caminhaoSearchTerm}
+                    onValueChange={setCaminhaoSearchTerm}
+                  />
+                  <CommandList>
+                    <CommandEmpty>Nenhum veículo encontrado.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="_all" // Valor para a busca interna do Command, pode ser qualquer string única
+                        onSelect={() => {
+                          setCaminhaoId("_all");
+                          setOpenCaminhaoCombobox(false);
+                          setCaminhaoSearchTerm(""); // Limpa o termo de busca ao selecionar
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            caminhaoId === "_all" ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        Todos
+                      </CommandItem>
+                      {filteredVeiculos.map((option) => (
+                        <CommandItem
+                          key={option.id}
+                          value={option.label} // Use o label para a busca interna do Command
+                          onSelect={() => {
+                            setCaminhaoId(option.id);
+                            setOpenCaminhaoCombobox(false);
+                            setCaminhaoSearchTerm(""); // Limpa o termo de busca ao selecionar
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              caminhaoId === option.id ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {option.label}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            {/* FIM DO COMBOBOX PARA CAMINHÃO/EQUIPAMENTO */}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="operador" className="font-medium text-gray-700">Operador</Label>
             <div className="relative">
+              {/* Este campo permanece como um Select padrão (somente seleção, sem digitação) */}
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Select value={operadorId} onValueChange={setOperadorId}>
                 <SelectTrigger id="operador" className="pl-8 border border-slate-300 bg-white">
@@ -162,6 +240,7 @@ const ApontamentoCaminhoesFilters: React.FC<ApontamentoCaminhoesFiltersProps> = 
                 </SelectTrigger>
                 <SelectContent className="bg-white">
                   <SelectItem value="_all">Todos</SelectItem>
+                  {/* Opcional: Se quiser ordenar operadores também, adicione o .sort aqui */}
                   {operadoresOptions.map((option) => (
                     <SelectItem key={option.id} value={option.id}>
                       {option.label}
@@ -175,6 +254,7 @@ const ApontamentoCaminhoesFilters: React.FC<ApontamentoCaminhoesFiltersProps> = 
           <div className="space-y-2">
             <Label htmlFor="centro-custo" className="font-medium text-gray-700">Centro de Custo</Label>
             <div className="relative">
+              {/* Este campo permanece como um Select padrão (somente seleção, sem digitação) */}
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Select value={centroCustoId} onValueChange={setCentroCustoId}>
                 <SelectTrigger id="centro-custo" className="pl-8 border border-slate-300 bg-white">
@@ -182,6 +262,7 @@ const ApontamentoCaminhoesFilters: React.FC<ApontamentoCaminhoesFiltersProps> = 
                 </SelectTrigger>
                 <SelectContent className="bg-white">
                   <SelectItem value="_all">Todos</SelectItem>
+                  {/* Opcional: Se quiser ordenar centros de custo também, adicione o .sort aqui */}
                   {centrosCustoOptions.map((option) => (
                     <SelectItem key={option.id} value={option.id}>
                       {option.label}
