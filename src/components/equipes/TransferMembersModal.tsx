@@ -1,10 +1,14 @@
-
 import React, { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Combobox } from "@/components/ui/combobox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ArrowRight, Users } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -87,15 +91,13 @@ const TransferMembersModal: React.FC<TransferMembersModalProps> = ({
     try {
       setIsTransferring(true);
 
-      // Obter dados da equipe de destino
       const targetEquipe = allEquipes.find(eq => eq.id === targetEquipeId);
       if (!targetEquipe) {
         throw new Error("Equipe de destino não encontrada");
       }
 
-      // Remover membros da equipe de origem
       const newSourceMembers = sourceEquipe.equipe?.filter(id => !selectedMembers.includes(id)) || [];
-      
+
       await updateEquipe(sourceEquipe.id, {
         nome_equipe: sourceEquipe.nome_equipe,
         encarregado_id: sourceEquipe.encarregado_id,
@@ -103,9 +105,8 @@ const TransferMembersModal: React.FC<TransferMembersModalProps> = ({
         equipe: newSourceMembers
       });
 
-      // Adicionar membros à equipe de destino
       const newTargetMembers = [...(targetEquipe.equipe || []), ...selectedMembers];
-      
+
       await updateEquipe(targetEquipeId, {
         nome_equipe: targetEquipe.nome_equipe,
         encarregado_id: targetEquipe.encarregado_id,
@@ -120,7 +121,7 @@ const TransferMembersModal: React.FC<TransferMembersModalProps> = ({
 
       queryClient.invalidateQueries({ queryKey: ['equipes'] });
       queryClient.invalidateQueries({ queryKey: ['funcionarios'] });
-      
+
       onClose();
       setSelectedMembers([]);
       setTargetEquipeId("");
@@ -150,14 +151,18 @@ const TransferMembersModal: React.FC<TransferMembersModalProps> = ({
         <div className="space-y-4">
           <div>
             <label className="text-sm font-medium">Equipe de Destino</label>
-            <Combobox
-              options={targetEquipeOptions}
+            <select
               value={targetEquipeId}
-              onChange={setTargetEquipeId}
-              placeholder="Selecione a equipe de destino"
-              searchPlaceholder="Buscar equipe..."
-              emptyText="Nenhuma equipe disponível"
-            />
+              onChange={(e) => setTargetEquipeId(e.target.value)}
+              className="w-full border border-gray-300 rounded-md p-2 text-sm"
+            >
+              <option value="">Selecione a equipe de destino</option>
+              {targetEquipeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>

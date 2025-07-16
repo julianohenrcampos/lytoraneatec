@@ -442,14 +442,31 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="caminhao_equipamento_id">Caminhão/Equipamento</Label>
-                  <ComboboxCaminhao
-                    value={formData.apontamento.caminhao_equipamento_id || ''}
-                    onChange={(value) => handleSelectChange(value, 'caminhao_equipamento_id')}
-                    includeEquipamentos={true}
-                    disabled={isEditing}
-                  />
+                  <Label htmlFor="caminhao_equipamento_id">Caminhão/Equipamento *</Label>
+                  <div>
+                    <Input
+                      list="veiculosList"
+                      placeholder="Digite para pesquisar"
+                      value={
+                        veiculosOptions.find(opt => opt.id === formData.apontamento.caminhao_equipamento_id)?.label || ''
+                      }
+                      onChange={(e) => {
+                        const selected = veiculosOptions.find(opt => opt.label === e.target.value);
+                        handleSelectChange(selected?.id || '', 'caminhao_equipamento_id');
+                      }}
+                      disabled={isEditing}
+                    />
+                    <datalist id="veiculosList">
+                      {veiculosOptions.map((veiculo) => (
+                        <option
+                          key={veiculo.id}
+                          value={veiculo.label}
+                        />
+                      ))}
+                    </datalist>
+                  </div>
                 </div>
+
                 
                 <div className="space-y-2">
                   <Label htmlFor="centro_custo_id">Centro de Custo</Label>
