@@ -1,36 +1,21 @@
-"use client";
 
 import React from "react";
-import {
-  FormField,
-  FormItem,
-  FormLabel,
-  FormControl,
-  FormMessage,
-} from "@/components/ui/form";
+import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { UseFormReturn } from "react-hook-form";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { CalendarIcon } from "lucide-react";
-import { ptBR } from "date-fns/locale";
 import { format } from "date-fns";
-import { DayPicker } from "react-day-picker";
-import "react-day-picker/dist/style.css";
-
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import {
-  normalizeDateToBrazilianNoon,
-  formatBrazilianDateToString,
-  parseBrazilianDate,
+import { 
+  normalizeDateToBrazilianNoon, 
+  formatBrazilianDateToString, 
+  parseBrazilianDate 
 } from "@/utils/timezoneUtils";
 import { FuncionarioFormData, Funcionario } from "@/types/funcionario";
 
@@ -47,16 +32,12 @@ interface PessoalTabProps {
   setIsUploadingImage: (uploading: boolean) => void;
 }
 
-export default function PessoalTab({
-  form,
-  onClose,
-  setActiveTab,
-}: PessoalTabProps) {
+export default function PessoalTab({ form, onClose, setActiveTab }: PessoalTabProps) {
   const handleDateChange = (field: any, date: Date | undefined) => {
     if (date) {
-      const normalized = normalizeDateToBrazilianNoon(date);
-      const formatted = formatBrazilianDateToString(normalized);
-      field.onChange(formatted);
+      const normalizedDate = normalizeDateToBrazilianNoon(date);
+      const dateString = formatBrazilianDateToString(normalizedDate);
+      field.onChange(dateString);
     } else {
       field.onChange(null);
     }
@@ -66,8 +47,8 @@ export default function PessoalTab({
     if (!dateString) return undefined;
     try {
       return parseBrazilianDate(dateString);
-    } catch (err) {
-      console.error("Erro ao fazer parse da data:", err);
+    } catch (error) {
+      console.error("Erro ao fazer parse da data:", error);
       return undefined;
     }
   };
@@ -130,7 +111,7 @@ export default function PessoalTab({
           )}
         />
 
-        {/* Data de Nascimento com react-day-picker */}
+        {/* Data de Nascimento */}
         <FormField
           control={form.control}
           name="data_nascimento"
@@ -147,27 +128,23 @@ export default function PessoalTab({
                         !field.value && "text-muted-foreground"
                       )}
                     >
-                      {field.value
-                        ? format(getDateValue(field.value) || new Date(), "dd/MM/yyyy", {
-                            locale: ptBR,
-                          })
-                        : "Selecione a data"}
+                      {field.value ? (
+                        format(getDateValue(field.value) || new Date(), "dd/MM/yyyy", { locale: ptBR })
+                      ) : (
+                        "Selecione a data"
+                      )}
                       <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                     </Button>
                   </FormControl>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <DayPicker
+                  <Calendar
                     mode="single"
                     selected={getDateValue(field.value)}
                     onSelect={(date) => handleDateChange(field, date)}
-                    locale={ptBR}
-                    captionLayout="dropdown"
-                    fromYear={1900}
-                    toYear={new Date().getFullYear()}
-                    disabled={(date) =>
-                      date > new Date() || date < new Date("1900-01-01")
-                    }
+                    disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                    initialFocus
+                    className="pointer-events-auto"
                   />
                 </PopoverContent>
               </Popover>
@@ -230,10 +207,10 @@ export default function PessoalTab({
           <FormItem>
             <FormLabel>Endereço Completo</FormLabel>
             <FormControl>
-              <Textarea
-                placeholder="Rua, número, complemento, bairro, cidade - CEP"
+              <Textarea 
+                placeholder="Rua, número, complemento, bairro, cidade - CEP" 
                 className="min-h-[80px]"
-                {...field}
+                {...field} 
               />
             </FormControl>
             <FormMessage />
@@ -245,10 +222,17 @@ export default function PessoalTab({
       <div className="flex justify-between gap-2 pt-4">
         <div></div>
         <div className="flex gap-2">
-          <Button type="button" variant="outline" onClick={onClose}>
+          <Button 
+            type="button" 
+            variant="outline" 
+            onClick={onClose}
+          >
             Cancelar
           </Button>
-          <Button type="button" onClick={() => setActiveTab("profissional")}>
+          <Button 
+            type="button" 
+            onClick={() => setActiveTab("profissional")}
+          >
             Próximo
           </Button>
         </div>

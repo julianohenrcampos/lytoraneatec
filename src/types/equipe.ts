@@ -1,5 +1,5 @@
 
-// Define o tipo base da Equipe
+// Define the base Equipe type
 export interface Equipe {
   id: string;
   nome_equipe: string;
@@ -8,25 +8,23 @@ export interface Equipe {
   equipe: string[];
   created_at?: string;
   updated_at?: string;
-
-  // Relações (populadas por JOINs no Supabase)
+  
+  // Relations (populated by Supabase joins)
   encarregado?: {
     id: string;
     nome_completo: string;
-  } | null;
-
+  };
   apontador?: {
     id: string;
     nome_completo: string;
-  } | null;
-
+  };
   membros?: {
     id: string;
     nome_completo: string;
-  }[] | null;
+  }[];
 }
 
-// Dados do formulário para criar ou atualizar uma equipe
+// Form data for creating or updating a team
 export interface EquipeFormData {
   nome_equipe: string;
   encarregado_id: string;
@@ -34,7 +32,7 @@ export interface EquipeFormData {
   equipe: string[];
 }
 
-// Opções de filtro para equipes
+// Filter options for teams
 export interface EquipeFilter {
   nome_equipe?: string;
   encarregado_id?: string;
