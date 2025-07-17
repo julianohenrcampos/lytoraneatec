@@ -43,6 +43,11 @@ const validateFormData = (data: RegistroCargaFormValues): string | null => {
     return "Hora de saída é obrigatória";
   }
   
+  // Validar imagem ticket de saída obrigatória
+  if (!data.imagem_ticket_saida) {
+    return "Imagem do ticket de saída é obrigatória";
+  }
+  
   const toneladaSaida = Number(data.tonelada_saida);
   if (isNaN(toneladaSaida) || toneladaSaida <= 0) {
     return "Tonelada de saída deve ser maior que zero";
@@ -199,7 +204,12 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
   }, [form, toast]);
 
   const onSubmit = useCallback(async (data: RegistroCargaFormValues) => {
+    console.log("🚀 [CARGA] Iniciando submit do formulário");
+    console.log("📋 [CARGA] Dados recebidos:", data);
+    console.log("🆔 [CARGA] Lista entrega ID atual:", currentListaEntregaId);
+    
     if (!currentListaEntregaId) {
+      console.error("❌ [CARGA] ID da entrega não encontrado");
       toast({
         title: "Erro",
         description: "ID da entrega não encontrado",
@@ -209,8 +219,10 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
     }
 
     // Validar dados antes do submit
+    console.log("🔍 [CARGA] Iniciando validação dos dados");
     const validationError = validateFormData(data);
     if (validationError) {
+      console.error("❌ [CARGA] Erro de validação:", validationError);
       toast({
         title: "Erro de Validação",
         description: validationError,
@@ -218,6 +230,7 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
       });
       return;
     }
+    console.log("✅ [CARGA] Validação dos dados concluída com sucesso");
 
     try {
       setIsLoading(true);

@@ -6,9 +6,8 @@ import { Input } from "@/components/ui/input";
 import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, Truck, MapPin, Clock, Thermometer, AlertTriangle } from "lucide-react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { isDateAllowed, formatDateForDisplay } from "@/utils/dateValidation";
+import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 
 interface RegistroCargaHeaderProps {
   form: UseFormReturn<any>;
@@ -49,14 +48,9 @@ const RegistroCargaHeader: React.FC<RegistroCargaHeaderProps> = ({
     return 'Caminhão não informado';
   };
 
-  // Helper function to format date
+  // Helper function to format date - usando a mesma função da tabela
   const formatEntregaDate = (dateString: string): string => {
-    try {
-      const date = new Date(dateString);
-      return format(date, "dd/MM/yyyy", { locale: ptBR });
-    } catch {
-      return dateString;
-    }
+    return formatBrazilianDateForDisplay(dateString);
   };
 
   return (
