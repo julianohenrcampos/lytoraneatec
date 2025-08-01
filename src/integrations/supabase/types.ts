@@ -474,7 +474,15 @@ export type Database = {
           nome_departamento?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_departamento_empresa"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "bd_empresas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       bd_empresas: {
         Row: {
