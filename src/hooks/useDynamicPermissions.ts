@@ -53,38 +53,7 @@ export const useDynamicPermissions = (): DynamicPermissions => {
 
       console.log('👤 [DYNAMIC] Usuário autenticado:', user.email);
 
-      // FALLBACK 1: Verificar SuperAdmin por email (MAIS RÁPIDO)
-      const isSuperAdminByEmail = SUPER_ADMIN_EMAILS.includes(user.email || '');
-      
-      if (isSuperAdminByEmail) {
-        console.log('🚀 [DYNAMIC] SuperAdmin detectado por EMAIL - ACESSO TOTAL!');
-        
-        const allPermissions = [
-          'dashboard_view', 'dashboard_rh_view', 'dashboard_maquinas_view', 'dashboard_cbuq_view',
-          'gestao_rh_empresas_view', 'gestao_rh_departamentos_view', 'gestao_rh_centros_custo_view',
-          'gestao_rh_funcoes_view', 'gestao_rh_funcionarios_view', 'gestao_rh_equipes_view',
-          'gestao_maquinas_caminhoes_view', 'gestao_maquinas_usinas_view', 'gestao_maquinas_relatorio_medicao_view',
-          'requisicoes_cadastro_view', 'requisicoes_programacao_entrega_view', 'requisicoes_registro_cargas_view',
-          'requisicoes_registro_aplicacao_view', 'requisicoes_apontamento_equipe_view', 'requisicoes_apontamento_caminhoes_view',
-          'requisicoes_chamados_os_view', 'requisicoes_gestao_os_view', 'admin_permissoes_view', 'relatorio_aplicacao_view'
-        ];
-        
-        const superAdminPermissions = {
-          userId: user.id,
-          isSuperAdmin: true,
-          userRole: 'SuperAdm',
-          permissions: allPermissions,
-          isLoading: false,
-          canAccessDashboard: true,
-        };
-        
-        setPermissions(superAdminPermissions);
-        permissionsCache = superAdminPermissions;
-        lastCacheTime = Date.now();
-        return;
-      }
-
-      // FALLBACK 2: Buscar perfil com timeout otimizado
+      // PRIORIDADE 1: Buscar perfil no banco SEMPRE primeiro
       console.log('🔍 [DYNAMIC] Buscando perfil do usuário...');
       
       const profilePromise = supabase
@@ -119,6 +88,26 @@ export const useDynamicPermissions = (): DynamicPermissions => {
         }
 
         console.log('📋 [DYNAMIC] Perfil carregado:', profile);
+
+        // VERIFICAÇÃO CRÍTICA: Se funcao_permissao é NULL, usuário precisa aguardar aprovação
+        if (!profile?.funcao_permissao) {
+          console.log('⚠️ [DYNAMIC] Usuário sem funcao_permissao - AGUARDANDO APROVAÇÃO');
+          
+          // Só permitir fallback SuperAdmin em caso de emergência crítica (banco fora do ar)
+          const isEmergencyAdmin = false; // Removido fallback automático por email
+          
+          setPermissions({
+            userId: user.id,
+            isSuperAdmin: isEmergencyAdmin,
+            userRole: null,
+            permissions: [],
+            isLoading: false,
+            canAccessDashboard: false, // BLOQUEAR acesso até aprovação
+          });
+          
+          permissionsCache = null; // Não fazer cache de usuários não aprovados
+          return;
+        }
 
         // Sistema de permissões simplificado baseado no novo sistema
         let userRole: string | null = 'user';
@@ -195,20 +184,44 @@ export const useDynamicPermissions = (): DynamicPermissions => {
         );
 
       } catch (dbError) {
-        console.warn('⚠️ [DYNAMIC] Erro no banco, usando fallback seguro:', dbError);
+        console.warn('⚠️ [DYNAMIC] Erro no banco, usando fallback de emergência:', dbError);
         
-        // FALLBACK 3: Usuário autenticado com permissões básicas
-        const fallbackPermissions = {
-          userId: user.id,
-          isSuperAdmin: false,
-          userRole: 'user',
-          permissions: ['dashboard_view'],
-          isLoading: false,
-          canAccessDashboard: true,
-        };
+        // FALLBACK DE EMERGÊNCIA: Só para falhas críticas do banco
+        // Em caso de erro de banco, usar SuperAdmin emails como última opção
+        const isEmergencySuperAdmin = SUPER_ADMIN_EMAILS.includes(user.email || '');
         
-        setPermissions(fallbackPermissions);
-        permissionsCache = fallbackPermissions;
+        if (isEmergencySuperAdmin) {
+          console.log('🚨 [DYNAMIC] Fallback de emergência para SuperAdmin:', user.email);
+          const emergencyPermissions = {
+            userId: user.id,
+            isSuperAdmin: true,
+            userRole: 'SuperAdm',
+            permissions: [
+              'dashboard_view', 'dashboard_rh_view', 'dashboard_maquinas_view', 'dashboard_cbuq_view',
+              'gestao_rh_empresas_view', 'gestao_rh_departamentos_view', 'gestao_rh_centros_custo_view',
+              'gestao_rh_funcoes_view', 'gestao_rh_funcionarios_view', 'gestao_rh_equipes_view',
+              'gestao_maquinas_caminhoes_view', 'gestao_maquinas_usinas_view', 'gestao_maquinas_relatorio_medicao_view',
+              'requisicoes_cadastro_view', 'requisicoes_programacao_entrega_view', 'requisicoes_registro_cargas_view',
+              'requisicoes_registro_aplicacao_view', 'requisicoes_apontamento_equipe_view', 'requisicoes_apontamento_caminhoes_view',
+              'requisicoes_chamados_os_view', 'requisicoes_gestao_os_view', 'admin_permissoes_view', 'relatorio_aplicacao_view'
+            ],
+            isLoading: false,
+            canAccessDashboard: true,
+          };
+          setPermissions(emergencyPermissions);
+          permissionsCache = emergencyPermissions;
+        } else {
+          // Usuários normais ficam bloqueados até o banco voltar
+          console.log('🚨 [DYNAMIC] Banco fora do ar - bloqueando usuário comum');
+          setPermissions({
+            userId: user.id,
+            isSuperAdmin: false,
+            userRole: null,
+            permissions: [],
+            isLoading: false,
+            canAccessDashboard: false,
+          });
+        }
         lastCacheTime = Date.now();
       }
 
