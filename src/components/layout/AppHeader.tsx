@@ -13,7 +13,6 @@ import UserImageUploadModal from "@/components/user/UserImageUploadModal";
 import { PWAInstallButton } from "@/components/pwa/PWAInstallButton";
 import { PWAStatusIndicator } from "@/components/pwa/PWAStatusIndicator";
 import UserRoleIndicator from "@/components/debug/UserRoleIndicator";
-import PermissionDebugModal from "@/components/debug/PermissionDebugModal";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AppHeaderProps {
@@ -214,7 +213,6 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           <PWAStatusIndicator />
           <PWAInstallButton />
           <UserRoleIndicator />
-          <PermissionDebugModal />
         
         {!isMobile && (
           <Button variant="ghost" size="icon" onClick={toggleFullScreen}>

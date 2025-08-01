@@ -1,6 +1,6 @@
 
 import React, { useState } from "react";
-import { Users, Download, Upload, UserCheck, Bug } from "lucide-react";
+import { Users, Download, Upload, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useFuncionarioActions } from "@/hooks/useFuncionarioActions";
 import FuncionarioTable from "./FuncionarioTable";
@@ -10,7 +10,6 @@ import FuncionarioDetailsModal from "./FuncionarioDetailsModal";
 import FuncionarioImportModal from "./FuncionarioImportModal";
 import DeleteFuncionarioDialog from "./DeleteFuncionarioDialog";
 import EmailConfirmationModal from "./EmailConfirmationModal";
-import AuthDebugPanel from "./AuthDebugPanel";
 
 interface FuncionarioPageProps {
   openImageModal?: (funcionario: any) => void;
@@ -18,7 +17,6 @@ interface FuncionarioPageProps {
 
 const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => {
   const [isEmailConfirmationOpen, setIsEmailConfirmationOpen] = useState(false);
-  const [showDebugPanel, setShowDebugPanel] = useState(false);
   
   const {
     filters,
@@ -63,15 +61,6 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setShowDebugPanel(!showDebugPanel)}
-            className="flex items-center gap-2"
-          >
-            <Bug className="h-4 w-4" />
-            Debug Auth
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
             onClick={() => setIsEmailConfirmationOpen(true)}
             className="flex items-center gap-2"
           >
@@ -109,9 +98,6 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
         onReset={resetFilters}
       />
 
-      {showDebugPanel && (
-        <AuthDebugPanel />
-      )}
 
       <FuncionarioTable
         funcionarios={funcionarios || []}
