@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useConnectionStatus } from './useConnectionStatus';
 import { useToast } from './use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { asAny, isValidTable } from '@/utils/typeWorkaround';
 import {
   TipoApontamento,
   TIPOS_APONTAMENTO,
@@ -12,6 +13,7 @@ import {
   contarRegistrosPendentes,
   DadosOffline
 } from '@/utils/salvarOffline';
+import { canAccessOfflineModule } from '@/utils/offlinePermissions';
 
 interface SyncStatus {
   isSyncing: boolean;
@@ -107,6 +109,13 @@ export const useOfflineSync = () => {
 
     for (const item of dados) {
       try {
+        // Verificar permissão antes de sincronizar
+        if (!canAccessOfflineModule(tipo)) {
+          console.warn(`❌ Sem permissão para sincronizar ${tipo}, removendo do cache`);
+          idsParaRemover.push(item.id);
+          continue;
+        }
+        
         // Preparar dados para inserção (remover campos temporários)
         const { id, timestamp, tentativas, erro, usuario_id, ...dadosLimpos } = item;
         const dadosParaInserir = dadosLimpos.data;
@@ -114,8 +123,15 @@ export const useOfflineSync = () => {
         // Remover campos que podem conflitar
         delete dadosParaInserir.id;
         
-        // Tentar inserir no Supabase
-        const { error } = await supabase
+        // Tentar inserir no Supabase - use type workaround for invalid tables
+        if (!isValidTable(config.tabela)) {
+          console.warn(`Tabela ${config.tabela} não encontrada no schema`);
+          incrementarTentativas(tipo, item.id, `Tabela ${config.tabela} não existe`);
+          erros++;
+          continue;
+        }
+        
+        const { error } = await (supabase as any)
           .from(config.tabela)
           .insert(dadosParaInserir);
 

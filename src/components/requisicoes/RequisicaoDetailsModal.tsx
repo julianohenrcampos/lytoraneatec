@@ -18,7 +18,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { format } from "date-fns";
+import { formatMassaDisplay, kgToToneladas } from "@/utils/massaConversionUtils";
+import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 
 interface RequisicaoDetailsModalProps {
   isOpen: boolean;
@@ -56,9 +57,7 @@ const RequisicaoDetailsModal: React.FC<RequisicaoDetailsModalProps> = ({
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground">Data da Requisição</h3>
                 <p className="text-base">
-                  {requisicao.data_requisicao 
-                    ? format(new Date(requisicao.data_requisicao), "dd/MM/yyyy") 
-                    : "-"}
+                  {formatBrazilianDateForDisplay(requisicao.data_requisicao)}
                 </p>
               </div>
               
@@ -106,7 +105,7 @@ const RequisicaoDetailsModal: React.FC<RequisicaoDetailsModalProps> = ({
                           <TableCell>{rua.pintura_ligacao}</TableCell>
                           <TableCell>{rua.traco}</TableCell>
                           <TableCell>{(rua.area || 0).toFixed(2)}</TableCell>
-                          <TableCell>{(rua.volume || 0).toFixed(2)}</TableCell>
+                          <TableCell>{formatMassaDisplay(kgToToneladas(rua.volume || 0))}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -126,7 +125,7 @@ const RequisicaoDetailsModal: React.FC<RequisicaoDetailsModalProps> = ({
                           <span className="text-muted-foreground">Volume Total:</span>
                         </div>
                         <div>
-                          <span className="font-medium">{totalVolume.toFixed(2)} t</span>
+                          <span className="font-medium">{formatMassaDisplay(kgToToneladas(totalVolume))}</span>
                         </div>
                       </div>
                     </div>

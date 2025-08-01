@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { getEspessuraCalculadaStatus, getEspessuraCalculadaStatusText } from '@/utils/aplicacaoCalculations';
 import { formatBrazilianDateForDisplay } from '@/utils/timezoneUtils';
 import EmptyStateMessage from './EmptyStateMessage';
+import { formatMassaFromDatabase } from '@/utils/massaConversionUtils';
 
 interface RegistroAplicacaoTableProps {
   registros: RegistroAplicacao[];
@@ -110,10 +111,13 @@ const RegistroAplicacaoTable: React.FC<RegistroAplicacaoTableProps> = ({
                 registro.lista_entrega?.requisicao?.centro_custo?.nome_centro_custo ||
                 "N/A";
 
-              // Get the quantity from registro_carga.tonelada_real
-              const qtdMassa = registro.registro_carga?.tonelada_real || 
-                              registro.tonelada_aplicada || 
-                              "N/A";
+              // Get the quantity from registro_carga.tonelada_real (convert from kg to tonnes)
+              const qtdMassaRaw = registro.registro_carga?.tonelada_real || registro.tonelada_aplicada;
+              const qtdMassa = qtdMassaRaw 
+                ? (registro.registro_carga?.tonelada_real 
+                    ? formatMassaFromDatabase(registro.registro_carga.tonelada_real, 'bd_registro_cargas', 'tonelada_real')
+                    : qtdMassaRaw)
+                : "N/A";
 
               // Get tipo_lancamento from lista_entrega
               const tipoLancamento = registro.lista_entrega?.tipo_lancamento || "N/A";
@@ -137,7 +141,7 @@ const RegistroAplicacaoTable: React.FC<RegistroAplicacaoTableProps> = ({
                       "N/A"}
                   </TableCell>
                   <TableCell>
-                    {typeof qtdMassa === 'number' ? qtdMassa.toFixed(2) : qtdMassa}
+                    {typeof qtdMassa === 'number' ? `${qtdMassa.toFixed(1)}t` : qtdMassa}
                   </TableCell>
                   <TableCell>{tipoLancamento}</TableCell>
                   <TableCell>{getStatusDisplay(registro)}</TableCell>

@@ -13,6 +13,61 @@ export interface StatusIntegrityReport {
 }
 
 /**
+ * Calculate massa remanescente using RPC function
+ */
+export const calcularMassaRemanescente = async (entregaId: string): Promise<number> => {
+  try {
+    const { data, error } = await supabase.rpc('calcular_massa_remanescente', {
+      entrega_id: entregaId
+    });
+    
+    if (error) {
+      console.error('❌ [MASSA] Erro ao calcular massa remanescente:', error);
+      return 0;
+    }
+    
+    return data || 0;
+    
+  } catch (error) {
+    console.error('❌ [MASSA] Erro crítico no cálculo:', error);
+    return 0;
+  }
+};
+
+/**
+ * Update delivery status automatically with new triggers
+ */
+export const atualizarStatusEntregaAutomatico = async (
+  listaId: string, 
+  novoStatus: string,
+  percentualAplicado: number = 0,
+  massaRemanescente: number = 0
+): Promise<boolean> => {
+  try {
+    console.log(`🔄 [AUTO] Atualizando status da entrega ${listaId} para ${novoStatus}`);
+    
+    const { data, error } = await supabase.rpc('atualizar_status_entrega_automatico', {
+      lista_id: listaId,
+      novo_status: novoStatus,
+      percentual_aplicado: percentualAplicado,
+      massa_remanescente: massaRemanescente
+    });
+    
+    if (error) {
+      console.error('❌ [AUTO] Erro ao atualizar status:', error);
+      return false;
+    }
+    
+    console.log(`✅ [AUTO] Status atualizado com sucesso: ${data}`);
+    return data;
+    
+  } catch (error) {
+    console.error('❌ [AUTO] Erro crítico na atualização:', error);
+    return false;
+  }
+};
+
+/**
  * Check and fix status inconsistencies in deliveries
  */
 export const checkAndFixStatusIntegrity = async (): Promise<StatusIntegrityReport> => {
@@ -115,26 +170,20 @@ export const forceUpdateDeliveryStatus = async (entregaId: string): Promise<bool
   try {
     console.log(`🔄 Force updating status for delivery: ${entregaId}`);
     
-    // Calculate massa remanescente
-    const { data: massaResult, error: massaError } = await supabase
-      .rpc('calcular_massa_remanescente', { entrega_id: entregaId });
-    
-    if (massaError) {
-      console.error("❌ Error calculating massa remanescente:", massaError);
-      return false;
-    }
-    
-    const massaRemanescente = massaResult || 0;
+    // Calculate massa remanescente using new RPC function
+    const massaRemanescente = await calcularMassaRemanescente(entregaId);
     const novoStatus = massaRemanescente <= 0.001 ? 'Entregue' : 'Enviada';
     
-    // Update status
-    const { error: updateError } = await supabase
-      .from("bd_lista_programacao_entrega")
-      .update({ status: novoStatus })
-      .eq("id", entregaId);
+    // Use new automatic status update function
+    const updated = await atualizarStatusEntregaAutomatico(
+      entregaId,
+      novoStatus,
+      massaRemanescente > 0 ? ((1 - massaRemanescente) * 100) : 100,
+      massaRemanescente
+    );
     
-    if (updateError) {
-      console.error("❌ Error updating delivery status:", updateError);
+    if (!updated) {
+      console.error("❌ Error using automatic status update");
       return false;
     }
     

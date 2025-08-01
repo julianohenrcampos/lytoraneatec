@@ -24,35 +24,69 @@ const safeNumber = (value: any, defaultValue?: number): number | undefined => {
 };
 
 // Função para validar dados antes do submit
-const validateFormData = (data: RegistroCargaFormValues): string | null => {
+const validateFormData = (data: RegistroCargaFormValues, ticketSaidaPreview: string | null): string | null => {
+  console.log("🔍 [VALIDAÇÃO] Iniciando validação dos dados:", data);
+  console.log("🖼️ [VALIDAÇÃO] Preview da imagem:", ticketSaidaPreview ? "PRESENTE" : "AUSENTE");
+  console.log("📎 [VALIDAÇÃO] Arquivo no formulário:", data.imagem_ticket_saida ? "PRESENTE" : "AUSENTE");
+  
   if (!data.lista_entrega_id) {
+    console.log("❌ [VALIDAÇÃO] ID da entrega é obrigatório");
     return "ID da entrega é obrigatório";
   }
   
   if (!data.data_saida) {
+    console.log("❌ [VALIDAÇÃO] Data de saída é obrigatória");
     return "Data de saída é obrigatória";
   }
 
   // Validar data de saída
   const dateValidation = isDateAllowed(data.data_saida);
   if (!dateValidation.isValid) {
+    console.log("❌ [VALIDAÇÃO] Data de saída inválida:", dateValidation.message);
     return dateValidation.message || "Data de saída inválida";
   }
   
   if (!data.hora_saida) {
+    console.log("❌ [VALIDAÇÃO] Hora de saída é obrigatória");
     return "Hora de saída é obrigatória";
   }
   
-  // Validar imagem ticket de saída obrigatória
-  if (!data.imagem_ticket_saida) {
+  // Validação aprimorada da imagem do ticket de saída
+  console.log("🔍 [VALIDAÇÃO] Detalhes da imagem:", {
+    arquivoType: typeof data.imagem_ticket_saida,
+    arquivoInstance: data.imagem_ticket_saida instanceof File ? "File" : "Other",
+    arquivoNull: data.imagem_ticket_saida === null,
+    arquivoUndefined: data.imagem_ticket_saida === undefined,
+    previewPresente: !!ticketSaidaPreview,
+    previewValue: ticketSaidaPreview
+  });
+  
+  // Verificar se é um arquivo File válido ou se existe preview/URL
+  const isValidFile = data.imagem_ticket_saida instanceof File && data.imagem_ticket_saida.size > 0;
+  const isValidUrl = typeof data.imagem_ticket_saida === 'string' && data.imagem_ticket_saida.length > 0;
+  const hasValidPreview = typeof ticketSaidaPreview === 'string' && ticketSaidaPreview.length > 0;
+  
+  const hasTicketImage = isValidFile || isValidUrl || hasValidPreview;
+  
+  console.log("🔍 [VALIDAÇÃO] Resultado da verificação:", {
+    isValidFile,
+    isValidUrl,
+    hasValidPreview,
+    hasTicketImage
+  });
+  
+  if (!hasTicketImage) {
+    console.log("❌ [VALIDAÇÃO] Imagem do ticket de saída é obrigatória");
     return "Imagem do ticket de saída é obrigatória";
   }
   
   const toneladaSaida = Number(data.tonelada_saida);
   if (isNaN(toneladaSaida) || toneladaSaida <= 0) {
+    console.log("❌ [VALIDAÇÃO] Tonelada de saída deve ser maior que zero");
     return "Tonelada de saída deve ser maior que zero";
   }
   
+  console.log("✅ [VALIDAÇÃO] Todos os dados válidos");
   return null;
 };
 
@@ -80,10 +114,13 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
 
   const handleTicketSaidaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    console.log("📸 [IMAGEM] Arquivo selecionado:", file ? `${file.name} (${file.size} bytes)` : "Nenhum");
+    
     if (file) {
       // Validar tipo de arquivo
       const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
       if (!allowedTypes.includes(file.type)) {
+        console.log("❌ [IMAGEM] Tipo inválido:", file.type);
         toast({
           title: "Tipo de arquivo inválido",
           description: "Por favor, selecione uma imagem (JPEG, PNG ou WebP)",
@@ -94,6 +131,7 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
 
       // Validar tamanho (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
+        console.log("❌ [IMAGEM] Arquivo muito grande:", file.size);
         toast({
           title: "Arquivo muito grande",
           description: "O arquivo deve ter no máximo 5MB",
@@ -102,12 +140,29 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
         return;
       }
 
+      console.log("✅ [IMAGEM] Arquivo válido, criando preview...");
       const reader = new FileReader();
       reader.onloadend = () => {
+        console.log("📸 [IMAGEM] Preview criado com sucesso");
         setTicketSaidaPreview(reader.result as string);
       };
+      reader.onerror = () => {
+        console.log("❌ [IMAGEM] Erro ao criar preview");
+        toast({
+          title: "Erro",
+          description: "Erro ao processar a imagem",
+          variant: "destructive",
+        });
+      };
       reader.readAsDataURL(file);
-      form.setValue("imagem_ticket_saida", file);
+      
+      // Definir o arquivo no formulário
+      console.log("📝 [IMAGEM] Definindo arquivo no formulário");
+      form.setValue("imagem_ticket_saida", file, { shouldValidate: true });
+    } else {
+      console.log("🗑️ [IMAGEM] Removendo arquivo e preview");
+      setTicketSaidaPreview(null);
+      form.setValue("imagem_ticket_saida", null);
     }
   };
 
@@ -165,16 +220,13 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
       if (existingRegistro) {
         console.log("🔄 [CARGA] Registro existente encontrado:", existingRegistro);
         
-        // Converter valores de toneladas para kg para exibição
-        const toneladaSaidaKg = existingRegistro.tonelada_saida ? existingRegistro.tonelada_saida * 1000 : undefined;
-        const toneladaRetornoKg = existingRegistro.tonelada_retorno ? existingRegistro.tonelada_retorno * 1000 : undefined;
-        
+        // Preservar valores originais do banco (já em kg)
         defaultValues = {
           ...existingRegistro,
           data_saida: existingRegistro.data_saida || getCurrentBrazilianDate(),
           temperatura_saida: existingRegistro.temperatura_saida || undefined,
-          tonelada_saida: toneladaSaidaKg || undefined,
-          tonelada_retorno: toneladaRetornoKg || undefined,
+          tonelada_saida: existingRegistro.tonelada_saida || undefined,
+          tonelada_retorno: existingRegistro.tonelada_retorno || undefined,
           hora_saida: existingRegistro.hora_saida || "",
           status_registro: (existingRegistro.status_registro as "Ativo" | "Concluído" | "Cancelado") || "Ativo"
         };
@@ -220,7 +272,10 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
 
     // Validar dados antes do submit
     console.log("🔍 [CARGA] Iniciando validação dos dados");
-    const validationError = validateFormData(data);
+    console.log("📋 [CARGA] Estado atual do formulário:", form.getValues());
+    console.log("🖼️ [CARGA] Previews atuais:", { ticketSaidaPreview, ticketRetornoPreview });
+    
+    const validationError = validateFormData(data, ticketSaidaPreview);
     if (validationError) {
       console.error("❌ [CARGA] Erro de validação:", validationError);
       toast({
@@ -234,11 +289,7 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
 
     try {
       setIsLoading(true);
-      console.log("📤 [CARGA] Dados para envio (em kg):", data);
-
-      // Converter valores de kg para toneladas antes de salvar
-      const toneladaSaidaToneladas = data.tonelada_saida ? Number(data.tonelada_saida) / 1000 : 0;
-      const toneladaRetornoToneladas = data.tonelada_retorno ? Number(data.tonelada_retorno) / 1000 : null;
+      console.log("📤 [CARGA] Dados para envio (preservando valores originais):", data);
 
       const registroData = {
         lista_entrega_id: currentListaEntregaId,
@@ -246,25 +297,54 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
         data_saida: data.data_saida || getCurrentBrazilianDate(),
         hora_saida: data.hora_saida || "",
         status_registro: data.status_registro || "Ativo" as const,
-        // Converter de kg para toneladas antes de salvar
-        tonelada_saida: toneladaSaidaToneladas,
-        tonelada_retorno: toneladaRetornoToneladas,
+        // Manter valores originais como inseridos (preservando kg)
+        tonelada_saida: data.tonelada_saida ? Number(data.tonelada_saida) : 0,
+        tonelada_retorno: data.tonelada_retorno ? Number(data.tonelada_retorno) : null,
         temperatura_saida: data.temperatura_saida == null || data.temperatura_saida === undefined ? null : Number(data.temperatura_saida),
         imagem_ticket_saida: data.imagem_ticket_saida,
         imagem_ticket_retorno: data.imagem_ticket_retorno,
       };
 
-      console.log("💾 [CARGA] Dados para salvar (em toneladas):", registroData);
+      console.log("💾 [CARGA] Dados para salvar (valores originais):", registroData);
+
+      // Fazer upload das imagens antes de salvar no banco
+      let imagemTicketSaidaUrl = registroData.imagem_ticket_saida;
+      let imagemTicketRetornoUrl = registroData.imagem_ticket_retorno;
+      
+      // Upload da imagem de saída (obrigatória)
+      if (imagemTicketSaidaUrl instanceof File) {
+        console.log("📤 [CARGA] Fazendo upload da imagem de saída...");
+        const { uploadImage } = await import("@/services/storageService");
+        imagemTicketSaidaUrl = await uploadImage(imagemTicketSaidaUrl, "tickets");
+        console.log("✅ [CARGA] Upload da imagem de saída concluído:", imagemTicketSaidaUrl);
+      }
+      
+      // Upload da imagem de retorno (opcional)
+      if (imagemTicketRetornoUrl instanceof File) {
+        console.log("📤 [CARGA] Fazendo upload da imagem de retorno...");
+        const { uploadImage } = await import("@/services/storageService");
+        imagemTicketRetornoUrl = await uploadImage(imagemTicketRetornoUrl, "tickets");
+        console.log("✅ [CARGA] Upload da imagem de retorno concluído:", imagemTicketRetornoUrl);
+      }
+      
+      // Atualizar dados com URLs das imagens
+      const finalRegistroData = {
+        ...registroData,
+        imagem_ticket_saida: imagemTicketSaidaUrl,
+        imagem_ticket_retorno: imagemTicketRetornoUrl
+      };
+      
+      console.log("🔄 [CARGA] Dados finais para salvar:", finalRegistroData);
 
       // Verificar se é atualização ou criação
       const existingRegistro = await fetchRegistroCargaByListaEntregaId(currentListaEntregaId);
       
       if (existingRegistro) {
         console.log("🔄 [CARGA] Atualizando registro existente:", existingRegistro.id);
-        await updateRegistroCarga(existingRegistro.id, registroData);
+        await updateRegistroCarga(existingRegistro.id, finalRegistroData);
       } else {
         console.log("✨ [CARGA] Criando novo registro");
-        await createRegistroCarga(registroData);
+        await createRegistroCarga(finalRegistroData);
       }
       
       toast({
@@ -284,7 +364,7 @@ export const useRegistroCargaForm = (onSuccess?: () => void) => {
     } finally {
       setIsLoading(false);
     }
-  }, [currentListaEntregaId, toast, onSuccess]);
+  }, [currentListaEntregaId, toast, onSuccess, ticketSaidaPreview, ticketRetornoPreview, form]);
 
   return {
     form,

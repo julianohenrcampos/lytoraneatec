@@ -36,9 +36,9 @@ export const useUserDataAccessStable = (
       try {
         console.log('🔑 STABLE - Carregando acesso de dados para:', { userId, userRole, isSuperAdmin });
 
-        // SuperAdmin pode acessar tudo - SEM FILTROS
+        // SISTEMA HÍBRIDO - SuperAdmin pode acessar tudo - SEM FILTROS
         if (isSuperAdmin) {
-          console.log('🔓 STABLE - SuperAdmin: Acesso total liberado - SEM FILTROS');
+          console.log('🚀 STABLE - SISTEMA HÍBRIDO: SuperAdmin detectado - ACESSO TOTAL A TODAS AS EQUIPES!');
           setState({
             allowedTeamIds: [], // Array vazio indica "sem filtros" para SuperAdmin
             userRole,

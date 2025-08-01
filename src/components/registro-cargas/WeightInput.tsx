@@ -35,7 +35,7 @@ const WeightInput: React.FC<WeightInputProps> = ({
               type="number"
               step="1"
               min="0"
-              placeholder={isRetorno ? "Ex: 2500" : "Ex: 28700"}
+              placeholder={isRetorno ? "Ex: 2500" : "Ex: 26000"}
               className={className}
               {...field}
               onChange={(e) => {

@@ -1,15 +1,18 @@
 
 import { useState, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 import { createProgramacao, updateProgramacao } from "@/services/programacaoEntregaService";
 import { ProgramacaoEntregaWithItems } from "@/types/programacaoEntrega";
 import { ProgramacaoFormValues, ItemFormValues } from "@/validations/programacaoSchema";
+import { prepareMassaForDatabase } from "@/utils/massaConversionUtils";
 
 export const useFormSubmission = (
   programacao: ProgramacaoEntregaWithItems | null,
   onSuccess: () => void
 ) => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const onSubmit = useCallback(async (data: ProgramacaoFormValues) => {
@@ -35,12 +38,11 @@ export const useFormSubmission = (
       const itensWithRequiredFields = data.itens.map(item => {
         console.log("Original item data:", item);
         
-        // Convert kg to tons: divide by 1000
-        // O NumberInput já fornece o valor em kg, então precisamos converter para toneladas
-        const quantidadeEmKg = Number(item.quantidade_massa || 0);
-        const quantidadeEmToneladas = quantidadeEmKg / 1000;
+        // Usar nova função padronizada para conversão de massa
+        const quantidadeOriginal = Number(item.quantidade_massa || 0);
+        const quantidadeEmToneladas = prepareMassaForDatabase(quantidadeOriginal);
         
-        console.log("Quantidade conversion - Original (kg):", quantidadeEmKg, "→ Tons:", quantidadeEmToneladas);
+        console.log("Quantidade conversion - Original:", quantidadeOriginal, "→ Tons:", quantidadeEmToneladas);
         
         // Garantir que o logradouro não seja vazio
         const logradouroValue = item.centro_custo_nome || item.logradouro || "";
@@ -87,6 +89,11 @@ export const useFormSubmission = (
           description: "A programação foi criada com sucesso",
         });
       }
+      
+      // Invalidar cache de progresso para a requisição específica
+      await queryClient.invalidateQueries({ 
+        queryKey: ['programacao-progress', programacaoData.requisicao_id] 
+      });
       
       onSuccess();
     } catch (error) {

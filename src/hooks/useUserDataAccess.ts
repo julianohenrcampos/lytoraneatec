@@ -11,6 +11,8 @@ interface UserDataAccess {
 }
 
 export const useUserDataAccess = (): UserDataAccess => {
+  // Emails SuperAdmin automáticos
+  const SUPER_ADMIN_EMAILS = ['julianohcampos@yahoo.com.br', 'ramonvalentevalente@gmail.com'];
   const { userRole, isSuperAdmin, isLoading: authLoading } = useAuthPermissions();
   const [allowedTeamIds, setAllowedTeamIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -42,6 +44,17 @@ export const useUserDataAccess = (): UserDataAccess => {
 
         if (!profile?.email) {
           setAllowedTeamIds([]);
+          return;
+        }
+
+        // Fallback: se email é SuperAdmin, dar acesso total
+        if (SUPER_ADMIN_EMAILS.includes(profile.email)) {
+          const { data: allTeams, error } = await supabase
+            .from('bd_equipes')
+            .select('id');
+          
+          if (error) throw error;
+          setAllowedTeamIds(allTeams?.map(team => team.id) || []);
           return;
         }
 
@@ -77,10 +90,29 @@ export const useUserDataAccess = (): UserDataAccess => {
     fetchAllowedTeams();
   }, [userRole, isSuperAdmin, authLoading]);
 
+  // Verificar se email é SuperAdmin para canAccessAllTeams
+  const checkEmailSuperAdmin = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email && SUPER_ADMIN_EMAILS.includes(user.email)) {
+        return true;
+      }
+    } catch (error) {
+      console.error('Error checking email SuperAdmin:', error);
+    }
+    return false;
+  };
+
+  const [emailIsSuperAdmin, setEmailIsSuperAdmin] = useState(false);
+
+  useEffect(() => {
+    checkEmailSuperAdmin().then(setEmailIsSuperAdmin);
+  }, []);
+
   return {
     allowedTeamIds,
     userRole,
-    canAccessAllTeams: isSuperAdmin || userRole === 'AdmRH' || userRole === 'Administrador',
+    canAccessAllTeams: isSuperAdmin || emailIsSuperAdmin || userRole === 'AdmRH' || userRole === 'Administrador',
     isLoading: isLoading || authLoading
   };
 };

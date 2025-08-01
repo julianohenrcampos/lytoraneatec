@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { ProgramacaoEntregaWithItems } from "@/types/programacaoEntrega";
 import { fetchOperatingVehicles, fetchApontadorByEquipeId } from "@/services/programacaoEntregaService";
+import { fetchEquipes } from "@/services/equipe/fetchEquipes";
 import { supabase } from "@/integrations/supabase/client";
 import { programacaoSchema, itemSchema, ProgramacaoFormValues, ItemFormValues } from "@/validations/programacaoSchema";
 import { useFormInitialization } from "./programacao/useFormInitialization";
@@ -88,20 +89,7 @@ export const useProgramacaoEntregaForm = (
 
   const { data: equipes = [] } = useQuery({
     queryKey: ['equipes'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('bd_equipes')
-        .select(`
-          id, 
-          nome_equipe,
-          apontador_id,
-          apontador:bd_funcionarios!bd_equipes_apontador_id_fkey(id, nome_completo)
-        `)
-        .order('nome_equipe');
-
-      if (error) throw error;
-      return data || [];
-    }
+    queryFn: () => fetchEquipes(),
   });
 
   const { data: usinas = [] } = useQuery({

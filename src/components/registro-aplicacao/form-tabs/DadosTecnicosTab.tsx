@@ -3,6 +3,7 @@ import React from "react";
 import { UseFormReturn } from "react-hook-form";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -54,12 +55,13 @@ const DadosTecnicosTab: React.FC<DadosTecnicosTabProps> = ({
     if (value === null) return "";
     
     if (typeof value === 'number') {
-      return value.toFixed(3);
+      // Limitar a 2 casas decimais para evitar números excessivamente longos
+      return Number(value.toFixed(2)).toString();
     }
     
     // Try to convert string to number and format it
-    const numValue = parseFloat(value);
-    return isNaN(numValue) ? String(value) : numValue.toFixed(3);
+    const numValue = parseFloat(String(value));
+    return isNaN(numValue) ? String(value) : Number(numValue.toFixed(2)).toString();
   };
 
   // Format values in the format "X.X t" for toneladas display
@@ -69,33 +71,12 @@ const DadosTecnicosTab: React.FC<DadosTecnicosTabProps> = ({
     const numValue = typeof value === 'number' ? value : parseFloat(String(value));
     if (isNaN(numValue)) return String(value);
     
-    // Format with 1 decimal place for toneladas
-    return `${numValue.toFixed(1)}`;
+    // Format with 1 decimal place for toneladas, removing excessive decimals
+    return Number(numValue.toFixed(1)).toString();
   };
 
-  // Controle COMPLETAMENTE simplificado do checkbox
-  const checkboxValue = form.watch("usar_massa_total_para_espessura");
-  const isChecked = Boolean(checkboxValue);
-  
-  console.log("🔍 Checkbox DEBUG:", { 
-    watchValue: checkboxValue, 
-    isChecked: isChecked,
-    formValue: form.getValues("usar_massa_total_para_espessura")
-  });
-
-  // Handler ultra-simplificado
-  const toggleCheckbox = () => {
-    const newValue = !isChecked;
-    console.log("🔄 Toggling checkbox:", { from: isChecked, to: newValue });
-    
-    form.setValue("usar_massa_total_para_espessura", newValue);
-    
-    // Verificação imediata
-    setTimeout(() => {
-      const updatedValue = form.getValues("usar_massa_total_para_espessura");
-      console.log("✅ Checkbox updated:", updatedValue);
-    }, 0);
-  };
+  // Campo removido - usar_massa_total_para_espessura não existe mais na tabela
+  // Removendo toda a lógica do checkbox que não é mais necessária
 
   return (
     <div className="space-y-4">
@@ -178,18 +159,22 @@ const DadosTecnicosTab: React.FC<DadosTecnicosTabProps> = ({
         </div>
         <div className="space-y-2">
           <Label htmlFor="comprimento">Comprimento (m)</Label>
-          <Input
+          <NumberInput
             id="comprimento"
-            type="number"
-            {...form.register("comprimento", { valueAsNumber: true })}
+            value={form.watch("comprimento") || 0}
+            onChange={(value) => form.setValue("comprimento", value)}
+            decimalPlaces={2}
+            placeholder="Ex: 100"
           />
         </div>
         <div className="space-y-2">
           <Label htmlFor="largura_media">Largura Média (m)</Label>
-          <Input
+          <NumberInput
             id="largura_media"
-            type="number"
-            {...form.register("largura_media", { valueAsNumber: true })}
+            value={form.watch("largura_media") || 0}
+            onChange={(value) => form.setValue("largura_media", value)}
+            decimalPlaces={2}
+            placeholder="Ex: 3"
           />
         </div>
         <div className="space-y-2">
@@ -231,60 +216,9 @@ const DadosTecnicosTab: React.FC<DadosTecnicosTabProps> = ({
       {/* Seção de cálculo de espessura */}
       <div className="border-t pt-4">
         <div className="space-y-4">
-          {/* Checkbox - versão ultra-simplificada e funcional */}
-          <div className="flex flex-row items-center space-x-3 space-y-0">
-            <div 
-              className="flex items-center space-x-3 cursor-pointer"
-              onClick={toggleCheckbox}
-            >
-              <Checkbox
-                id="usar_massa_total_para_espessura"
-                checked={isChecked}
-                onCheckedChange={(checked) => {
-                  const newValue = checked === true;
-                  console.log("🔄 Checkbox onCheckedChange:", newValue);
-                  form.setValue("usar_massa_total_para_espessura", newValue);
-                }}
-              />
-              <Label 
-                htmlFor="usar_massa_total_para_espessura" 
-                className="text-sm font-medium cursor-pointer"
-              >
-                Calcular Espessura com Massa Total
-              </Label>
-            </div>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <InfoIcon className="h-4 w-4 text-gray-400" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="max-w-xs">
-                    Quando marcado, a espessura será calculada usando a quantidade total de massa da balança em vez da tonelada aplicada
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-          
-          {/* Texto explicativo dinâmico */}
-          <p className="text-xs text-muted-foreground">
-            {isChecked 
-              ? "Usando quantidade total de massa da balança para cálculo"
-              : "Usando tonelada aplicada tradicional para cálculo"
-            }
-          </p>
-          
           {/* Campo único de espessura */}
           <div className="space-y-2">
-            <div className="flex items-center space-x-2">
-              <Label>Espessura (cm)</Label>
-              {isChecked && (
-                <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                  Modo Massa Total
-                </span>
-              )}
-            </div>
+            <Label>Espessura (cm)</Label>
             <Input
               type="text"
               value={formatValue(calculatedEspessura)}

@@ -18,16 +18,20 @@ const NumberInput = React.forwardRef<HTMLInputElement, NumberInputProps>(
     const formatNumber = (num: number): string => {
       if (isNaN(num) || num === 0) return "";
       
+      // Limitar a um número razoável de casas decimais para evitar números muito longos
+      const maxDecimals = Math.min(decimalPlaces ?? 3, 3);
+      const roundedNum = Number(num.toFixed(maxDecimals));
+      
       // Custom formatting with dots as thousand separators
-      const numStr = num.toString();
+      const numStr = roundedNum.toString();
       const parts = numStr.split('.');
       const integerPart = parts[0];
       
       // Add dots every 3 digits from right to left
       const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
       
-      if (decimalPlaces > 0 && parts[1]) {
-        const decimalPart = parts[1].padEnd(decimalPlaces, '0').slice(0, decimalPlaces);
+      if (maxDecimals > 0 && parts[1]) {
+        const decimalPart = parts[1];
         return `${formattedInteger},${decimalPart}`;
       }
       

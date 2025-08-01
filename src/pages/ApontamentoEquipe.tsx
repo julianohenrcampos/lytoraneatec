@@ -164,7 +164,7 @@ const ApontamentoEquipe: React.FC = () => {
       }
       
       const lastAvaliacao = await getLastAvaliacaoForColaborador(colaboradorId);
-      setLastAvaliacaoData(lastAvaliacao);
+      setLastAvaliacaoData(lastAvaliacao as any);
       
       setSelectedColaborador({
         id: colaboradorId,

@@ -3,18 +3,13 @@ import React, { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import MainLayout from "@/components/layout/MainLayout";
 import VeiculoPage from "@/components/veiculos/VeiculoPage";
-import { setupVeiculosStorage } from "@/integrations/supabase/setupStorage";
+// Storage já configurado via migration
 
 const GestaoCaminhoes: React.FC = () => {
   const [searchParams] = useSearchParams();
   const situacaoFilter = searchParams.get('situacao');
 
-  // Initialize storage when the component mounts
-  useEffect(() => {
-    setupVeiculosStorage().catch(error => {
-      console.error("Failed to setup storage for vehicles:", error);
-    });
-  }, []);
+  // Storage já configurado via migration
 
   return (
     <MainLayout>

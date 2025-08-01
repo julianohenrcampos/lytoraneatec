@@ -14,6 +14,7 @@ import { Clipboard, TruckIcon, CheckCircle, Calendar, FileEdit, Eye } from "luci
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatNumber } from "@/lib/utils";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
+import { formatMassaDisplay } from "@/utils/massaConversionUtils";
 import { usePagination } from "@/hooks/usePagination";
 import TablePagination from "@/components/ui/table-pagination";
 
@@ -75,7 +76,7 @@ const EntregasTable: React.FC<EntregasTableProps> = ({ entregas, onEntregaClick 
                       "N/A"}
                   </TableCell>
                   <TableCell>
-                    {formatNumber(entrega.quantidade_massa, 2)} t
+                    {formatMassaDisplay(entrega.quantidade_massa, 2)}
                   </TableCell>
                   <TableCell>
                     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor(entrega.status)}`}>

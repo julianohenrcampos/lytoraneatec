@@ -23,6 +23,7 @@ import {
   getCurrentBrazilianDate 
 } from "@/utils/timezoneUtils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { formatMassaDisplay, kgToToneladas } from "@/utils/massaConversionUtils";
 
 interface RequisicaoFormModalProps {
   open: boolean;
@@ -318,7 +319,7 @@ export default function RequisicaoFormModal({
                       <div>Pintura: {rua.pintura_ligacao}</div>
                       <div>Traço: {rua.traco}</div>
                       <div>Espessura: {rua.espessura}cm</div>
-                      <div>Volume: {rua.volume?.toFixed(2)}t</div>
+                      <div>Volume: {rua.volume ? formatMassaDisplay(kgToToneladas(rua.volume)) : '0.0t'}</div>
                     </div>
                   </div>
                 ))}

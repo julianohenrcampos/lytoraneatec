@@ -27,48 +27,119 @@ const validateAndFormatHora = (hora: string | null | undefined): string | null =
 };
 
 /**
- * Criar novo registro de aplicação
+ * Verificar se o usuário pode criar registros para esta entrega
+ */
+const verificarPermissaoEntrega = async (listaEntregaId: string, userId: string): Promise<boolean> => {
+  try {
+    console.log("🔒 Verificando permissão para entrega:", listaEntregaId, "usuário:", userId);
+    
+    // Buscar informações da entrega e do usuário
+    const { data: entrega, error: entregaError } = await supabase
+      .from("bd_lista_programacao_entrega")
+      .select(`
+        id,
+        equipe_id,
+        apontador_id
+      `)
+      .eq("id", listaEntregaId)
+      .single();
+
+    if (entregaError || !entrega) {
+      console.error("Erro ao buscar entrega:", entregaError);
+      return false;
+    }
+
+    // Buscar perfil do usuário
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("funcoes")
+      .eq("id", userId)
+      .single();
+
+    if (profileError || !profile) {
+      console.error("Erro ao buscar perfil:", profileError);
+      return false;
+    }
+
+    // SuperAdmin pode tudo
+    if (profile.funcoes && profile.funcoes.includes('SuperAdm')) {
+      console.log("✅ Usuário é SuperAdmin - permissão concedida");
+      return true;
+    }
+
+    // Verificar se é apontador da equipe da entrega
+    const { data: funcionario } = await supabase
+      .from("bd_funcionarios")
+      .select("id, equipe_id")
+      .eq("email", (await supabase.from("profiles").select("email").eq("id", userId).single()).data?.email)
+      .single();
+
+    if (funcionario) {
+      // Verificar se é apontador da entrega ou da equipe
+      if (entrega.apontador_id === funcionario.id || entrega.equipe_id === funcionario.equipe_id) {
+        console.log("✅ Usuário é apontador da entrega/equipe - permissão concedida");
+        return true;
+      }
+    }
+
+    console.log("❌ Usuário não tem permissão para esta entrega");
+    return false;
+  } catch (error) {
+    console.error("Erro ao verificar permissão:", error);
+    return false;
+  }
+};
+
+/**
+ * Criar novo registro de aplicação - GARANTINDO created_by
  */
 export const createRegistroAplicacao = async (data: RegistroAplicacaoFormValues & {
   observacoes_gerais?: string | null;
   data_fim_aplicacao?: string | null;
+  created_by?: string;
 }) => {
   try {
-    console.log("Criando registro de aplicação com dados:", data);
+    console.log("📋 [CREATE] Iniciando criação de registro de aplicação");
+    console.log("📋 [CREATE] Dados recebidos:", data);
     
-    // Validar e formatar dados
+    // Obter o ID do usuário atual
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error("Usuário não autenticado");
+    }
+    
+    console.log("🔐 [CREATE] Usuário autenticado:", user.id);
+    
+    // CRÍTICO: Garantir que created_by seja sempre definido
+    const createdBy = data.created_by || user.id;
+    console.log("🔐 [CREATE] created_by será definido como:", createdBy);
+    
+    // Verificar permissão para esta entrega
+    const temPermissao = await verificarPermissaoEntrega(data.lista_entrega_id, user.id);
+    if (!temPermissao) {
+      throw new Error("Usuário não tem permissão para criar registros para esta entrega");
+    }
+    
+    // Validar e formatar dados - APENAS CAMPOS QUE EXISTEM NA TABELA
     const registroData = {
       lista_entrega_id: data.lista_entrega_id,
       registro_carga_id: data.registro_carga_id,
       data_aplicacao: data.data_aplicacao,
       hora_chegada_local: validateAndFormatHora(data.hora_chegada_local) || "08:00:00",
       temperatura_chegada: typeof data.temperatura_chegada === 'number' ? data.temperatura_chegada : null,
-      hora_aplicacao: validateAndFormatHora(data.hora_aplicacao),
-      temperatura_aplicacao: data.temperatura_aplicacao || null,
-      bordo: data.bordo || null,
-      estaca_inicial: data.estaca_inicial || null,
-      comprimento: data.comprimento || null,
-      largura_media: data.largura_media || null,
-      area_calculada: data.area_calculada || null,
-      tonelada_aplicada: data.tonelada_aplicada || null,
-      espessura: data.espessura || null,
-      espessura_calculada: data.espessura_calculada || null,
-      hora_saida_caminhao: validateAndFormatHora(data.hora_saida_caminhao),
-      estaca_final: data.estaca_final || null,
-      anotacoes_apontador: data.anotacoes_apontador || null,
-      observacoes_gerais: data.observacoes_gerais || null,
-      data_fim_aplicacao: data.data_fim_aplicacao || null,
-      usar_massa_total_para_espessura: data.usar_massa_total_para_espessura || false,
-      aplicacao_sequencia: data.aplicacao_sequencia || 1,
-      media_espessura_cm: data.media_espessura_cm || null,
-      carga_finalizada: data.carga_finalizada || false,
-      massa_remanescente_antes_aplicacao: data.massa_remanescente_antes_aplicacao || null,
-      carga_origem_id: data.carga_origem_id || null,
-      logradouro_aplicado: data.logradouro_aplicado || null,
-      logradouro_id: data.logradouro_id || null,
+      status_aplicacao: 'Em Andamento',
+      carga_finalizada: false,
+      percentual_aplicado: 0,
+      tonelada_aplicada: 0,
+      // CRÍTICO: Sempre definir created_by com ID do usuário atual
+      created_by: createdBy,
     };
 
-    console.log("Dados formatados para inserção:", registroData);
+    console.log("💾 [CREATE] Dados formatados para inserção:");
+    console.log("💾 [CREATE] created_by:", registroData.created_by);
+    console.log("💾 [CREATE] lista_entrega_id:", registroData.lista_entrega_id);
+    console.log("💾 [CREATE] registro_carga_id:", registroData.registro_carga_id);
 
     const { data: registro, error } = await supabase
       .from("bd_registro_apontamento_aplicacao")
@@ -77,48 +148,74 @@ export const createRegistroAplicacao = async (data: RegistroAplicacaoFormValues 
       .single();
 
     if (error) {
-      console.error("Erro do Supabase ao criar registro:", error);
+      console.error("❌ [CREATE] Erro do Supabase:", error);
+      console.error("❌ [CREATE] Detalhes do erro:", error.details);
+      console.error("❌ [CREATE] Hint do erro:", error.hint);
+      console.error("❌ [CREATE] Código do erro:", error.code);
       throw new Error(`Erro ao criar registro: ${error.message}`);
     }
 
-    console.log("Registro criado com sucesso:", registro);
+    console.log("✅ [CREATE] Registro criado com sucesso:", registro);
+    console.log("✅ [CREATE] created_by no registro criado:", registro.created_by);
     return registro;
   } catch (error) {
-    console.error("Erro ao criar registro de aplicação:", error);
+    console.error("❌ [CREATE] Erro ao criar registro de aplicação:", error);
     throw error;
   }
 };
 
 /**
  * Update an existing registro aplicação entry
- * @param id Record ID to update
- * @param values Form values to update
- * @returns Updated registro aplicação
  */
 export const updateRegistroAplicacao = async (
   id: string,
   values: Partial<RegistroAplicacaoFormValues>
 ): Promise<RegistroAplicacao> => {
   try {
-    console.log("Updating registro aplicação with ID:", id, "Values:", values);
+    console.log("📋 [UPDATE] Iniciando atualização de registro:", id);
+    console.log("📋 [UPDATE] Valores recebidos:", values);
+    
+    // Obter o ID do usuário atual para auditoria
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error("Usuário não autenticado");
+    }
+    
+    console.log("🔐 [UPDATE] Usuário autenticado:", user.id);
+    
+    // Preparar dados para atualização
+    const updateData = {
+      ...values,
+      hora_chegada_local: validateAndFormatHora(values.hora_chegada_local),
+      hora_aplicacao: validateAndFormatHora(values.hora_aplicacao),
+      hora_saida_caminhao: validateAndFormatHora(values.hora_saida_caminhao),
+      updated_at: new Date().toISOString(),
+    };
+    
+    console.log("💾 [UPDATE] Dados para atualização:", updateData);
     
     // Update the record
     const { data, error } = await supabase
       .from("bd_registro_apontamento_aplicacao")
-      .update(values)
+      .update(updateData)
       .eq("id", id)
       .select()
       .single();
     
     if (error) {
-      console.error("Error updating registro aplicação:", error);
+      console.error("❌ [UPDATE] Erro do Supabase:", error);
       throw error;
     }
     
-    console.log("Updated registro aplicação:", data);
+    if (!data) {
+      throw new Error("Nenhum dado retornado após atualização");
+    }
+    
+    console.log("✅ [UPDATE] Registro atualizado com sucesso:", data);
     return data as RegistroAplicacao;
   } catch (error) {
-    console.error("Unexpected error updating registro aplicação:", error);
+    console.error("❌ [UPDATE] Erro inesperado:", error);
     throw error;
   }
 };

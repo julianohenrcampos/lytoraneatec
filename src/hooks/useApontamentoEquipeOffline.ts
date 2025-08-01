@@ -5,13 +5,13 @@ import { useToast } from './use-toast';
 import { salvarApontamentoOffline } from '@/utils/salvarOffline';
 import { ApontamentoEquipeApiData } from '@/types/apontamentoEquipe';
 import { createApontamentoEquipe } from '@/services/apontamentoEquipeService';
-import { useAuth } from './useAuth';
+import { useDynamicPermissions } from './useDynamicPermissions';
 
 export const useApontamentoEquipeOffline = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { isSupabaseConnected } = useConnectionStatus();
   const { toast } = useToast();
-  const { userId } = useAuth();
+  const { userId, isSuperAdmin, permissions } = useDynamicPermissions();
 
   const submitApontamento = async (
     formData: ApontamentoEquipeApiData,
@@ -20,6 +20,17 @@ export const useApontamentoEquipeOffline = () => {
     setIsLoading(true);
     
     try {
+      // Verificar permissão antes de salvar (online ou offline)
+      const canAccessApontamentos = isSuperAdmin || permissions.includes('apontamentos_view');
+      
+      if (!canAccessApontamentos) {
+        toast({
+          title: "Acesso negado",
+          description: "Você não tem permissão para salvar apontamentos",
+          variant: "destructive"
+        });
+        return;
+      }
       if (isSupabaseConnected) {
         // Modo online - enviar diretamente para Supabase
         console.log('📡 Enviando apontamento online para Supabase...');

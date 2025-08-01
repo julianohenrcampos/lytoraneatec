@@ -8,6 +8,7 @@ import { RegistroCarga } from "@/types/registroCargas";
 import { CargaComAplicacoes } from "@/hooks/registro-aplicacao/useMultipleApplications";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatPesoParaToneladas, formatMassaFromDatabase } from "@/utils/massaConversionUtils";
 interface EntregaHeaderProps {
   entrega: ListaProgramacaoEntrega;
   registroCarga: RegistroCarga | null;
@@ -32,8 +33,12 @@ const EntregaHeader: React.FC<EntregaHeaderProps> = ({
   };
   const percentualAplicado = cargaInfo?.percentualAplicado || 0;
   const statusAplicacao = cargaInfo?.statusAplicacao || 'Iniciada';
-  const massaRemanescente = cargaInfo?.massaRemanescente || registroCarga?.tonelada_real || 0;
-  const massaTotal = cargaInfo?.massaTotal || registroCarga?.tonelada_real || 0;
+  // CORREÇÃO: Converter tonelada_real de kg para toneladas
+  const massaTotalRaw = registroCarga?.tonelada_real 
+    ? formatMassaFromDatabase(registroCarga.tonelada_real, 'bd_registro_cargas', 'tonelada_real')
+    : 0;
+  const massaRemanescente = cargaInfo?.massaRemanescente || massaTotalRaw;
+  const massaTotal = cargaInfo?.massaTotal || massaTotalRaw;
   const totalAplicado = cargaInfo?.totalAplicado || 0;
   return <Card className="mb-6">
       <CardContent className="p-6">
@@ -127,11 +132,11 @@ const EntregaHeader: React.FC<EntregaHeaderProps> = ({
                 </div>
                 <div>
                   <span className="text-gray-600">Ton. Saída:</span>
-                  <span className="ml-1 font-medium">{registroCarga.tonelada_saida}t</span>
+                  <span className="ml-1 font-medium">{formatPesoParaToneladas(registroCarga.tonelada_saida)}</span>
                 </div>
                 {registroCarga.tonelada_retorno && <div>
                     <span className="text-gray-600">Ton. Retorno:</span>
-                    <span className="ml-1 font-medium">{registroCarga.tonelada_retorno}t</span>
+                    <span className="ml-1 font-medium">{formatPesoParaToneladas(registroCarga.tonelada_retorno)}</span>
                   </div>}
               </div>
             </div>}

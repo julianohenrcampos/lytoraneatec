@@ -28,19 +28,15 @@ export const getFormDefaultValues = (initialData?: any): RegistroAplicacaoSchema
     estaca_inicial: initialData?.estaca_inicial || null,
     comprimento: initialData?.comprimento || null,
     largura_media: initialData?.largura_media || null,
-    area_calculada: initialData?.area_calculada || null,
+    // area_calculada: removido - não existe na tabela
     tonelada_aplicada: initialData?.tonelada_aplicada || null,
     espessura: initialData?.espessura || initialData?.espessura_calculada || null,
     hora_saida_caminhao: initialData?.hora_saida_caminhao || null,
     estaca_final: initialData?.estaca_final || null,
     anotacoes_apontador: initialData?.anotacoes_apontador || null,
-    usar_massa_total_para_espessura: initialData?.usar_massa_total_para_espessura === true ? true : false,
-    // Novos campos para múltiplas aplicações
+    // Campos removidos - não existem mais na tabela
     aplicacao_sequencia: initialData?.aplicacao_sequencia || 1,
-    media_espessura_cm: initialData?.media_espessura_cm || null,
     carga_finalizada: initialData?.carga_finalizada === true ? true : false,
-    massa_remanescente_antes_aplicacao: initialData?.massa_remanescente_antes_aplicacao || null,
-    carga_origem_id: initialData?.carga_origem_id || initialData?.registro_carga_id || "",
   };
 };
 
@@ -67,19 +63,10 @@ export const initializeFormFromEntrega = async (
     form.setValue("data_aplicacao", today);
     form.setValue("hora_chegada_local", currentTime);
     
-    // Garantir que o checkbox seja inicializado como false de forma explícita
-    form.setValue("usar_massa_total_para_espessura", false);
-    
     // Configurar campos para múltiplas aplicações
     form.setValue("aplicacao_sequencia", aplicacaoSequencia);
-    form.setValue("carga_origem_id", regCarga.id);
     
-    // Se não for a primeira aplicação, armazenar massa remanescente anterior
-    if (aplicacaoSequencia > 1 && massaRemanescenteAnterior !== undefined) {
-      form.setValue("massa_remanescente_antes_aplicacao", massaRemanescenteAnterior);
-    }
-    
-    console.log("✅ Form initialized - checkbox value:", form.getValues("usar_massa_total_para_espessura"));
+    console.log("✅ Form initialized - aplicacao_sequencia:", aplicacaoSequencia);
     console.log("✅ Form initialized - aplicacao_sequencia:", aplicacaoSequencia);
     
     return true;

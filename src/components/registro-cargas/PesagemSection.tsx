@@ -82,6 +82,7 @@ const PesagemSection: React.FC<PesagemSectionProps> = ({
             preview={ticketSaidaPreview}
             onImageChange={handleTicketSaidaChange}
             icon="camera"
+            required={true}
           />
         </div>
         
@@ -112,11 +113,12 @@ const PesagemSection: React.FC<PesagemSectionProps> = ({
           <ImageUpload
             form={form}
             name="imagem_ticket_retorno"
-            label="Imagem do Ticket (Retorno)"
+            label="Imagem do Ticket (Retorno - Opcional)"
             inputId="ticketRetorno"
             preview={ticketRetornoPreview}
             onImageChange={handleTicketRetornoChange}
             icon="upload"
+            required={false}
           />
         </div>
       </div>

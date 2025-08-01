@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Eye, Pencil, Trash2 } from "lucide-react";
 import { Requisicao } from "@/types/requisicao";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format } from "date-fns";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePagination } from "@/hooks/usePagination";
 import TablePagination from "@/components/ui/table-pagination";
+import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 
 interface RequisicaoTableProps {
   requisicoes: any[];
@@ -99,7 +99,7 @@ const RequisicaoTable: React.FC<RequisicaoTableProps> = ({
                 <div className="flex justify-between pb-1">
                   <span className="text-muted-foreground">Data:</span>
                   <span>
-                    {requisicao.data_requisicao ? format(new Date(requisicao.data_requisicao), 'dd/MM/yyyy') : '-'}
+                    {formatBrazilianDateForDisplay(requisicao.data_requisicao)}
                   </span>
                 </div>
               </div>
@@ -135,7 +135,7 @@ const RequisicaoTable: React.FC<RequisicaoTableProps> = ({
                 <TableCell>{requisicao.centro_custo?.nome_centro_custo || '-'}</TableCell>
                 <TableCell>{requisicao.engenheiro?.nome_completo || '-'}</TableCell>
                 <TableCell>
-                  {requisicao.data_requisicao ? format(new Date(requisicao.data_requisicao), 'dd/MM/yyyy') : '-'}
+                  {formatBrazilianDateForDisplay(requisicao.data_requisicao)}
                 </TableCell>
                 <TableCell className="text-right space-x-1 py-0 px-0">
                   <Button variant="outline" size="icon" onClick={() => onView(requisicao)} title="Visualizar">

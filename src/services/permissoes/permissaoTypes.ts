@@ -95,6 +95,8 @@ export interface ProfileType {
   nome_completo?: string;
   imagem_url?: string;
   funcoes?: string[];
-  funcao_permissao: string;
+  funcao_sistema?: string;
+  funcionario_id?: string;
   created_at?: string;
+  updated_at?: string;
 }

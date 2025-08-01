@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Truck, Users, Package, Eye, Edit, RefreshCw, AlertCircle } from "lucide-react";
 import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
+import { formatMassaDisplay } from "@/utils/massaConversionUtils";
 import { usePagination } from "@/hooks/usePagination";
 import TablePagination from "@/components/ui/table-pagination";
 
@@ -197,7 +198,7 @@ const EntregasEnviadasTable: React.FC<EntregasEnviadasTableProps> = ({
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">
-                        {entrega.quantidade_massa.toFixed(1)} t
+                        {formatMassaDisplay(entrega.quantidade_massa)}
                       </Badge>
                     </TableCell>
                     <TableCell>

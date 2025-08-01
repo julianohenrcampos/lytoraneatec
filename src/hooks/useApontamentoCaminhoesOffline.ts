@@ -3,14 +3,14 @@ import { useState } from 'react';
 import { useConnectionStatus } from './useConnectionStatus';
 import { useToast } from './use-toast';
 import { salvarApontamentoOffline } from '@/utils/salvarOffline';
-import { createApontamento } from '@/services/apontamentoCaminhoesService'; // Fixed import
-import { useAuth } from './useAuth';
+import { createApontamento } from '@/services/apontamentoCaminhoesService';
+import { useDynamicPermissions } from './useDynamicPermissions';
 
 export const useApontamentoCaminhoesOffline = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { isSupabaseConnected } = useConnectionStatus();
   const { toast } = useToast();
-  const { userId } = useAuth(); // Fixed property name
+  const { userId, isSuperAdmin, permissions } = useDynamicPermissions();
 
   const submitApontamento = async (
     formData: any,
@@ -19,6 +19,17 @@ export const useApontamentoCaminhoesOffline = () => {
     setIsLoading(true);
     
     try {
+      // Verificar permissão antes de salvar (online ou offline)
+      const canAccessCaminhoes = isSuperAdmin || permissions.includes('apontamentos_caminhoes_view');
+      
+      if (!canAccessCaminhoes) {
+        toast({
+          title: "Acesso negado",
+          description: "Você não tem permissão para salvar apontamentos de caminhões",
+          variant: "destructive"
+        });
+        return;
+      }
       if (isSupabaseConnected) {
         // Modo online - enviar diretamente para Supabase
         console.log('📡 Enviando apontamento de caminhões online...');

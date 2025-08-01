@@ -11,6 +11,8 @@ import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
 import { RegistroCarga } from "@/types/registroCargas";
 import { UseFormReturn } from "react-hook-form";
 import { isDateAllowed, formatDateForDisplay } from "@/utils/dateValidation";
+import { TooltipHelper } from "../TooltipHelper";
+import { formatMassaFromDatabase } from "@/utils/massaConversionUtils";
 
 interface NovoRegistroDadosIniciaisTabProps {
   form: UseFormReturn<any>;
@@ -120,24 +122,60 @@ const NovoRegistroDadosIniciaisTab: React.FC<NovoRegistroDadosIniciaisTabProps> 
           </div>
 
           {registroCarga && (
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <h4 className="font-medium text-blue-900 mb-2">Informações da Carga</h4>
+            <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+              <h4 className="font-medium text-blue-900 mb-3 flex items-center gap-2">
+                <Truck className="h-4 w-4" />
+                Informações da Carga
+              </h4>
               <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-blue-600">Massa Programada:</span>
-                  <span className="ml-2 font-medium">{entrega.quantidade_massa}t</span>
+                <div className="bg-white/70 p-3 rounded-md">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-blue-600 font-medium">Massa Programada</span>
+                    <Badge variant="outline" className="text-xs">Planejado</Badge>
+                  </div>
+                  <div className="text-lg font-bold text-blue-800">{entrega.quantidade_massa}t</div>
                 </div>
-                <div>
-                  <span className="text-blue-600">Massa Real:</span>
-                  <span className="ml-2 font-medium">{registroCarga.tonelada_real?.toFixed(2)}t</span>
+                <div className="bg-white/70 p-3 rounded-md">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-green-600 font-medium">Massa Real</span>
+                    <Badge variant="outline" className="text-xs">Pesado</Badge>
+                  </div>
+                  <div className="text-lg font-bold text-green-800">
+                    {registroCarga.tonelada_real 
+                      ? `${formatMassaFromDatabase(registroCarga.tonelada_real, 'bd_registro_cargas', 'tonelada_real').toFixed(1)}t`
+                      : "N/A"
+                    }
+                  </div>
+                  {registroCarga.tonelada_real && entrega.quantidade_massa && (() => {
+                    const massaRealConvertida = formatMassaFromDatabase(registroCarga.tonelada_real, 'bd_registro_cargas', 'tonelada_real');
+                    return (
+                      <div className={`text-xs mt-1 ${
+                        massaRealConvertida > entrega.quantidade_massa 
+                          ? 'text-orange-600' 
+                          : massaRealConvertida < entrega.quantidade_massa 
+                          ? 'text-yellow-600' 
+                          : 'text-green-600'
+                      }`}>
+                        {massaRealConvertida > entrega.quantidade_massa ? '↑' : 
+                         massaRealConvertida < entrega.quantidade_massa ? '↓' : '='}
+                        {' '}
+                        {Math.abs(massaRealConvertida - entrega.quantidade_massa).toFixed(1)}t vs programado
+                      </div>
+                    );
+                  })()}
                 </div>
-                <div>
-                  <span className="text-blue-600">Data Saída:</span>
-                  <span className="ml-2 font-medium">{registroCarga.data_saida}</span>
+                <div className="bg-white/70 p-3 rounded-md">
+                  <span className="text-blue-600 font-medium">Data Saída</span>
+                  <div className="font-medium text-gray-800">{registroCarga.data_saida}</div>
                 </div>
-                <div>
-                  <span className="text-blue-600">Temperatura Saída:</span>
-                  <span className="ml-2 font-medium">{registroCarga.temperatura_saida || "N/A"}°C</span>
+                <div className="bg-white/70 p-3 rounded-md">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Thermometer className="h-3 w-3 text-orange-500" />
+                    <span className="text-orange-600 font-medium">Temp. Saída</span>
+                  </div>
+                  <div className="font-medium text-gray-800">
+                    {registroCarga.temperatura_saida ? `${registroCarga.temperatura_saida}°C` : "Não informado"}
+                  </div>
                 </div>
               </div>
             </div>
@@ -158,6 +196,9 @@ const NovoRegistroDadosIniciaisTab: React.FC<NovoRegistroDadosIniciaisTabProps> 
               <Label htmlFor="data_aplicacao" className="flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
                 Data da Aplicação *
+                <TooltipHelper 
+                  content="Data em que o asfalto será aplicado. Aceita datas entre ontem e amanhã para flexibilidade no apontamento."
+                />
               </Label>
               <Input
                 id="data_aplicacao"
@@ -191,6 +232,9 @@ const NovoRegistroDadosIniciaisTab: React.FC<NovoRegistroDadosIniciaisTabProps> 
               <Label htmlFor="hora_chegada_local" className="flex items-center gap-2">
                 <Clock className="h-4 w-4" />
                 Hora de Chegada * (Manual)
+                <TooltipHelper 
+                  content="Hora real de chegada do caminhão no local da aplicação. Deve ser informada manualmente pelo apontador."
+                />
               </Label>
               <Input
                 id="hora_chegada_local"
@@ -215,6 +259,9 @@ const NovoRegistroDadosIniciaisTab: React.FC<NovoRegistroDadosIniciaisTabProps> 
               <Label htmlFor="temperatura_chegada" className="flex items-center gap-2">
                 <Thermometer className="h-4 w-4" />
                 Temperatura de Chegada (°C)
+                <TooltipHelper 
+                  content="Temperatura do asfalto ao chegar no local de aplicação. Campo opcional mas importante para controle de qualidade."
+                />
               </Label>
               <Input
                 id="temperatura_chegada"
@@ -246,23 +293,54 @@ const NovoRegistroDadosIniciaisTab: React.FC<NovoRegistroDadosIniciaisTabProps> 
             </Alert>
           )}
 
-          {/* Indicador visual dos valores atuais */}
-          <div className="bg-gray-50 p-3 rounded-lg">
-            <h5 className="font-medium text-gray-700 mb-2">Status dos Campos:</h5>
-            <div className="space-y-1 text-sm">
-              <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${dataAplicacao && dateValidation.isValid ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                <span>Data: {dataAplicacao ? (dateValidation.isValid ? formatDateForDisplay(dataAplicacao) : "Data inválida") : "Não informada"}</span>
+          {/* Status Visual Aprimorado */}
+          <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-4 rounded-lg border">
+            <h5 className="font-medium text-gray-700 mb-3 flex items-center gap-2">
+              <Eye className="h-4 w-4" />
+              Status dos Campos
+            </h5>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+              <div className="flex items-center gap-3 p-2 bg-white rounded-md">
+                <div className={`w-3 h-3 rounded-full flex-shrink-0 ${dataAplicacao && dateValidation.isValid ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-gray-700">Data da Aplicação</div>
+                  <div className="text-xs text-gray-500 truncate">
+                    {dataAplicacao ? (dateValidation.isValid ? formatDateForDisplay(dataAplicacao) : "Data inválida") : "Obrigatório"}
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${horaChegadaLocal ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                <span>Hora de Chegada: {horaChegadaLocal || "Não informada"}</span>
+              <div className="flex items-center gap-3 p-2 bg-white rounded-md">
+                <div className={`w-3 h-3 rounded-full flex-shrink-0 ${horaChegadaLocal ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-gray-700">Hora de Chegada</div>
+                  <div className="text-xs text-gray-500 truncate">
+                    {horaChegadaLocal || "Obrigatório"}
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${temperaturaChegada ? 'bg-green-500' : 'bg-gray-400'}`}></span>
-                <span>Temperatura: {temperaturaChegada ? `${temperaturaChegada}°C` : "Opcional"}</span>
+              <div className="flex items-center gap-3 p-2 bg-white rounded-md">
+                <div className={`w-3 h-3 rounded-full flex-shrink-0 ${temperaturaChegada ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-gray-700">Temperatura</div>
+                  <div className="text-xs text-gray-500 truncate">
+                    {temperaturaChegada ? `${temperaturaChegada}°C` : "Opcional"}
+                  </div>
+                </div>
               </div>
             </div>
+            {!isFormValid && !isReadOnly && (
+              <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+                <div className="flex items-center gap-2 text-yellow-800">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span className="text-sm font-medium">
+                    {!dateValidation.isValid 
+                      ? "Data inválida: escolha uma data entre ontem e amanhã."
+                      : "Complete os campos obrigatórios para continuar."
+                    }
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

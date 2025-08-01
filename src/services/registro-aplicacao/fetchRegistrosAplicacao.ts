@@ -92,7 +92,7 @@ export const fetchRegistrosAplicacao = async (
       });
     }
     
-    return filteredData as RegistroAplicacao[];
+    return filteredData as any;
   } catch (error) {
     console.error("💥 Unexpected error fetching registros aplicação:", error);
     throw error;

@@ -3,6 +3,7 @@ import { useCallback, useState } from "react";
 import { UseFormReturn } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { ItemFormValues, ProgramacaoFormValues } from "@/validations/programacaoSchema";
+import { normalizeToToneladas, formatMassaFromDatabase } from "@/utils/massaConversionUtils";
 
 export const useItemManagement = (
   form: UseFormReturn<ProgramacaoFormValues>,
@@ -16,7 +17,7 @@ export const useItemManagement = (
     // Validação inteligente de massa
     if (progressHook) {
       const quantidade = data.quantidade_massa || 0;
-      const quantidadeToneladas = quantidade > 100 ? quantidade / 1000 : quantidade;
+      const quantidadeToneladas = normalizeToToneladas(quantidade);
       
       const validacao = progressHook.validarQuantidadeProgramacao(quantidadeToneladas);
       if (!validacao.valida) {
@@ -154,12 +155,10 @@ export const useItemManagement = (
     return itens.reduce((sum, item) => {
       if (item.cancelled) return sum;
       
-      // Convert values correctly for calculation:
-      // If value is > 100, it's in kg and needs conversion to tons
-      // If value is <= 100, it's already in tons
+      // Usar função padronizada para conversão
       const quantity = typeof item.quantidade_massa === 'number' 
-        ? (item.quantidade_massa > 100 ? item.quantidade_massa / 1000 : item.quantidade_massa)
-        : parseFloat(String(item.quantidade_massa || 0));
+        ? normalizeToToneladas(item.quantidade_massa)
+        : normalizeToToneladas(parseFloat(String(item.quantidade_massa || 0)));
       
       return sum + quantity;
     }, 0);

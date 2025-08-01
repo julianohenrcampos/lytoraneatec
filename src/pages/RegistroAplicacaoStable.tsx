@@ -95,23 +95,25 @@ const RegistroAplicacaoStable: React.FC = () => {
   }, []);
 
   const handleEntregaSelect = useCallback((entrega: ListaProgramacaoEntrega) => {
-    console.log("📋 Entrega selected:", entrega.logradouro);
+    console.log("📋 [PAGE] Entrega selecionada:", entrega.logradouro);
     setSelectedEntrega(entrega);
     setIsModalOpen(true);
   }, []);
 
   const handleModalClose = useCallback(() => {
+    console.log("🔄 [PAGE] Fechando modal");
     setIsModalOpen(false);
     setSelectedEntrega(null);
   }, []);
 
   const handleModalSuccess = useCallback(() => {
+    console.log("🎯 [PAGE] Sucesso no modal - atualizando lista");
+    
+    // Forçar atualização da lista com invalidação da query
     refetch();
-    toast({
-      title: "Sucesso",
-      description: "Registro de aplicação salvo com sucesso!",
-    });
-  }, [refetch, toast]);
+    
+    console.log("✅ [PAGE] Lista atualizada");
+  }, [refetch]);
 
   const handleRefresh = useCallback(() => {
     console.log("🔄 Manual refresh");
@@ -170,7 +172,7 @@ const RegistroAplicacaoStable: React.FC = () => {
               <div className="flex flex-col gap-1">
                 <span>Usuário: <strong>{teamAccess.userRole}</strong></span>
                 <span>Acesso: {teamAccess.canAccessAllTeams ? 'Todas as equipes' : `${teamAccess.allowedTeamIds.length} equipes`}</span>
-                <span className="text-xs text-green-600">Sistema estabilizado ✅</span>
+                <span className="text-xs text-green-600">Sistema definitivamente corrigido - created_by garantido ✅</span>
               </div>
             </AlertDescription>
           </Alert>

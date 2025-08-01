@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { updateUserOfflineContext } from '@/utils/offlinePermissions';
 
 interface DynamicPermissions {
   userId: string | null;
@@ -183,6 +184,15 @@ export const useDynamicPermissions = (): DynamicPermissions => {
         setPermissions(finalPermissions);
         permissionsCache = finalPermissions;
         lastCacheTime = Date.now();
+        
+        // Sincronizar contexto offline para PWA
+        updateUserOfflineContext(
+          user.id,
+          user.email || null,
+          isSuperAdmin,
+          userPermissions,
+          userRole
+        );
 
       } catch (dbError) {
         console.warn('⚠️ [DYNAMIC] Erro no banco, usando fallback seguro:', dbError);

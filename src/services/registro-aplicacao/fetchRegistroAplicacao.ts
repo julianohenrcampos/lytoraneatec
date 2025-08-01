@@ -22,7 +22,7 @@ export const fetchRegistroAplicacaoById = async (id: string): Promise<RegistroAp
     }
     
     console.log("Fetched registro aplicação:", data);
-    return data as RegistroAplicacao;
+    return data as any;
   } catch (error) {
     console.error("Unexpected error fetching registro aplicação:", error);
     throw error;
@@ -48,7 +48,7 @@ export const fetchRegistroAplicacaoByListaEntregaId = async (listaEntregaId: str
     }
     
     console.log("Fetched registro aplicação by lista_entrega_id:", data);
-    return data as RegistroAplicacao | null;
+    return data as any;
   } catch (error) {
     console.error("Unexpected error fetching registro aplicação by lista_entrega_id:", error);
     throw error;

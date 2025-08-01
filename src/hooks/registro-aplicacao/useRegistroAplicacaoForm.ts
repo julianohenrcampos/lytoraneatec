@@ -12,9 +12,10 @@ import {
 import { getFormDefaultValues } from "@/utils/registroAplicacaoFormUtils";
 import { useCalculations } from "./useCalculations";
 import { useFormInitialization } from "./useFormInitialization";
-import { useFormSubmission } from "./useFormSubmission";
 import { useMultipleApplications } from "./useMultipleApplications";
 import { useToast } from "@/hooks/use-toast";
+import { handleFormSubmission } from "@/utils/registroAplicacaoSubmit";
+import { supabase } from "@/integrations/supabase/client";
 
 /**
  * Main hook for the registro aplicacao form - now supports multiple applications
@@ -34,7 +35,27 @@ export const useRegistroAplicacaoForm = (
   const [registroCarga, setRegistroCarga] = useState<RegistroCarga | null>(null);
   const [selectedLogradouroId, setSelectedLogradouroId] = useState<string | null>(null);
   const [logradouroAplicado, setLogradouroAplicado] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  
+  // Verificar autenticação no início
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      console.log("🔐 [FORM_HOOK] Verificando autenticação - User:", user?.id);
+      
+      if (!user) {
+        console.warn("⚠️ [FORM_HOOK] Usuário não autenticado");
+        toast({
+          title: "Aviso",
+          description: "Sessão expirada. Faça login novamente.",
+          variant: "destructive",
+        });
+      }
+    };
+    
+    checkAuth();
+  }, [toast]);
   
   // Initialize form with either initial data or defaults
   const form = useForm<RegistroAplicacaoSchema>({
@@ -45,7 +66,8 @@ export const useRegistroAplicacaoForm = (
   // Watch form values for calculations
   const comprimento = form.watch("comprimento");
   const largura = form.watch("largura_media");
-  const usarMassaTotal = form.watch("usar_massa_total_para_espessura");
+  // Campo removido - usar_massa_total_para_espessura não existe mais
+  const usarMassaTotal = false;
   const aplicacaoSequencia = form.watch("aplicacao_sequencia") || 1;
 
   // Use multiple applications hook for carga management
@@ -73,7 +95,7 @@ export const useRegistroAplicacaoForm = (
   // Update form values when calculations change
   useEffect(() => {
     if (calculatedArea !== null) {
-      form.setValue("area_calculada", calculatedArea);
+      // area_calculada: removido - não existe na tabela
     }
     
     if (calculatedToneladaAplicada !== null) {
@@ -92,7 +114,7 @@ export const useRegistroAplicacaoForm = (
   // Initialize form with existing data when editing
   useEffect(() => {
     if (initialData) {
-      console.log("Initializing form with existing data:", initialData);
+      console.log("📋 [FORM_HOOK] Initializing form with existing data:", initialData);
       
       // Set the registro carga for calculations if available
       if (initialData.registro_carga) {
@@ -116,7 +138,7 @@ export const useRegistroAplicacaoForm = (
   // Initialize form with pre-selected data from the modal
   useEffect(() => {
     if (preSelectedData && !initialData) {
-      console.log("Initializing form with pre-selected data:", preSelectedData);
+      console.log("📋 [FORM_HOOK] Initializing form with pre-selected data:", preSelectedData);
       
       // Set the registro carga for calculations
       setRegistroCarga(preSelectedData.registroCarga);
@@ -139,11 +161,7 @@ export const useRegistroAplicacaoForm = (
       // Set sequencing information for multiple applications
       const sequencia = preSelectedData.aplicacaoSequencia || 1;
       form.setValue("aplicacao_sequencia", sequencia);
-      form.setValue("carga_origem_id", preSelectedData.registroCarga.id);
-      
-      if (preSelectedData.massaRemanescenteAnterior !== undefined) {
-        form.setValue("massa_remanescente_antes_aplicacao", preSelectedData.massaRemanescenteAnterior);
-      }
+      // Campos removidos - não existem mais na tabela
       
       // Initialize the form with entrega data
       initializeFromEntregaHandler(
@@ -156,7 +174,18 @@ export const useRegistroAplicacaoForm = (
   }, [preSelectedData, initialData, form]);
   
   const { initializeFromEntrega } = useFormInitialization();
-  const { isLoading, onSubmit } = useFormSubmission(onSuccess, initialData?.id);
+
+  // Form submission handler
+  const onSubmit = async (data: RegistroAplicacaoSchema) => {
+    setIsLoading(true);
+    try {
+      await handleFormSubmission(data, toast, onSuccess);
+    } catch (error) {
+      console.error("Erro no envio:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Initialize form with data from a lista programacao entrega and registro carga
   const initializeFromEntregaHandler = async (
@@ -165,6 +194,8 @@ export const useRegistroAplicacaoForm = (
     logradouroId?: string,
     logradouroName?: string
   ) => {
+    console.log("🔄 [FORM_HOOK] Initializing from entrega:", entrega.id);
+    
     // Set the registro carga for calculations
     setRegistroCarga(regCarga);
     
@@ -183,7 +214,7 @@ export const useRegistroAplicacaoForm = (
     form.setValue("lista_entrega_id", entrega.id);
     form.setValue("registro_carga_id", regCarga.id);
     form.setValue("aplicacao_sequencia", 1);
-    form.setValue("carga_origem_id", regCarga.id);
+    // Campo removido - carga_origem_id não existe mais na tabela
     
     // Initialize the form using the standard initializeFromEntrega function
     return await initializeFromEntrega(form, entrega, regCarga, toast);
@@ -198,7 +229,7 @@ export const useRegistroAplicacaoForm = (
     massaRemanescente,
     espessuraStatus,
     exceededAvailableMass,
-    onSubmit,
+    onSubmit: form.handleSubmit(onSubmit),
     initializeFromEntrega: initializeFromEntregaHandler,
     selectedLogradouroId,
     logradouroAplicado,

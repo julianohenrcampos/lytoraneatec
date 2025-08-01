@@ -40,14 +40,16 @@ export const useAuthPermissionsStable = (): AuthPermissionsState => {
 
         console.log('🔐 STABLE - Usuário autenticado:', user.email);
 
-        // Query para buscar o perfil com novo sistema
+        // Buscar perfil com SISTEMA HÍBRIDO
         const { data: profile, error: profileErr } = await supabase
           .from('profiles')
           .select(`
-            id, 
-            nome_completo, 
+            id,
+            nome_completo,
+            funcao_sistema,
             funcao_permissao,
-            bd_funcoes_permissao:funcao_permissao (
+            funcoes,
+            bd_funcoes_permissao (
               id,
               nome_funcao,
               descricao,
@@ -70,75 +72,112 @@ export const useAuthPermissionsStable = (): AuthPermissionsState => {
           return;
         }
 
-        console.log('📋 STABLE - Perfil encontrado:', profile);
+        console.log('📋 STABLE - Perfil encontrado:', {
+          id: profile.id,
+          nome_completo: profile.nome_completo,
+          funcao_sistema: profile.funcao_sistema,
+          funcoes: profile.funcoes,
+          funcao_permissao: profile.funcao_permissao,
+          bd_funcoes_permissao: profile.bd_funcoes_permissao
+        });
 
-        // Sistema de permissões baseado no novo sistema unificado
-        let userRole: string | null = null;
+        // SISTEMA HÍBRIDO - Verificar SuperAdmin por múltiplos critérios
         let isSuperAdmin = false;
-        let userPermissions: string[] = ['dashboard_view'];
+        let userRole = 'user';
+        let functionName = 'user';
 
-        if (profile?.bd_funcoes_permissao) {
-          const funcaoPermissao = profile.bd_funcoes_permissao as any;
-          userRole = funcaoPermissao.nome_funcao;
-          isSuperAdmin = funcaoPermissao.nome_funcao === 'SuperAdm';
-          
-          console.log('🔍 STABLE - Função encontrada:', userRole);
-          
-          if (isSuperAdmin) {
-            console.log('🚀 STABLE - SUPERADMIN CONFIRMADO - LIBERANDO TODOS OS ACESSOS!');
-            
-            // SuperAdmin = TODAS as permissões do sistema
-            userPermissions = [
-              'dashboard_view',
-              'dashboard_rh_view',
-              'dashboard_maquinas_view',
-              'dashboard_cbuq_view',
-              'gestao_rh_empresas_view',
-              'gestao_rh_departamentos_view',
-              'gestao_rh_centros_custo_view',
-              'gestao_rh_funcoes_view',
-              'gestao_rh_funcionarios_view',
-              'gestao_rh_equipes_view',
-              'gestao_maquinas_caminhoes_view',
-              'gestao_maquinas_usinas_view',
-              'gestao_maquinas_relatorio_medicao_view',
-              'requisicoes_cadastro_view',
-              'requisicoes_registro_cargas_view',
-              'requisicoes_apontamento_equipe_view',
-              'requisicoes_apontamento_caminhoes_view',
-              'requisicoes_chamados_os_view',
-              'requisicoes_gestao_os_view',
-              'registro_aplicacao_view',
-              'programacao_entrega_view',
-              'admin_permissoes_view'
-            ];
-          } else {
-            // Buscar permissões específicas da função
-            if (funcaoPermissao.permissoes && funcaoPermissao.permissoes.length > 0) {
-              try {
-                const { data: permissoesList, error: permissoesError } = await supabase
-                  .from('bd_permissoes')
-                  .select('*')
-                  .in('id', funcaoPermissao.permissoes);
-
-                if (permissoesError) {
-                  console.error('❌ STABLE - Erro ao buscar permissões:', permissoesError);
-                } else {
-                  userPermissions = [
-                    'dashboard_view',
-                    ...permissoesList.map(p => p.nome_permissao)
-                  ];
-                }
-              } catch (error) {
-                console.error('❌ STABLE - Erro na consulta de permissões:', error);
-              }
-            } else {
-              console.log('⚠️ STABLE - Função sem permissões específicas atribuídas');
-            }
+        // 1. Verificar por email (fallback principal)
+        const superAdminEmails = ['julianohcampos@yahoo.com.br', 'ramonvalentevalente@gmail.com'];
+        if (user.email && superAdminEmails.includes(user.email)) {
+          console.log('🚀 STABLE - SuperAdmin detectado por EMAIL!');
+          isSuperAdmin = true;
+          functionName = 'SuperAdm';
+          userRole = 'SuperAdm';
+        }
+        // 2. Verificar array funcoes
+        else if (profile.funcoes && Array.isArray(profile.funcoes) && profile.funcoes.includes('SuperAdm')) {
+          console.log('🚀 STABLE - SuperAdmin detectado por ARRAY funcoes!');
+          isSuperAdmin = true;
+          functionName = 'SuperAdm';
+          userRole = 'SuperAdm';
+        }
+        // 3. Verificar funcao_permissao
+        else if (profile.bd_funcoes_permissao && profile.bd_funcoes_permissao.nome_funcao === 'SuperAdm') {
+          console.log('🚀 STABLE - SuperAdmin detectado por FUNCAO_PERMISSAO!');
+          isSuperAdmin = true;
+          functionName = 'SuperAdm';
+          userRole = 'SuperAdm';
+        }
+        // 4. Verificar funcao_sistema (fallback)
+        else if (profile.funcao_sistema === 'SuperAdm') {
+          console.log('🚀 STABLE - SuperAdmin detectado por FUNCAO_SISTEMA!');
+          isSuperAdmin = true;
+          functionName = 'SuperAdm';
+          userRole = 'SuperAdm';
+        }
+        // 5. Usar dados do sistema híbrido para outros casos
+        else {
+          // Se tem funcao_permissao, usar ela
+          if (profile.bd_funcoes_permissao && profile.bd_funcoes_permissao.nome_funcao) {
+            functionName = profile.bd_funcoes_permissao.nome_funcao;
+            userRole = profile.bd_funcoes_permissao.nome_funcao;
+            console.log('🔍 STABLE - Usando funcao_permissao:', functionName);
           }
+          // Se tem funcoes array válido, usar o primeiro
+          else if (profile.funcoes && Array.isArray(profile.funcoes) && profile.funcoes.length > 0 && profile.funcoes[0] !== 'user') {
+            functionName = profile.funcoes[0];
+            userRole = profile.funcoes[0];
+            console.log('🔍 STABLE - Usando funcoes array:', functionName);
+          }
+          // Fallback para funcao_sistema
+          else if (profile.funcao_sistema && profile.funcao_sistema !== 'Usuário') {
+            functionName = profile.funcao_sistema;
+            userRole = profile.funcao_sistema;
+            console.log('🔍 STABLE - Usando funcao_sistema:', functionName);
+          }
+          
+          console.log('⚠️ STABLE - Usuário não-SuperAdmin:', {
+            functionName,
+            userRole,
+            isSuperAdmin: false
+          });
+        }
+
+        // Determinar permissões
+        let userPermissions: string[] = ['dashboard_view'];
+        
+        if (isSuperAdmin) {
+          console.log('🚀 STABLE - SUPERADMIN CONFIRMADO - LIBERANDO TODOS OS ACESSOS!');
+          
+          // SuperAdmin = TODAS as permissões do sistema
+          userPermissions = [
+            'dashboard_view',
+            'dashboard_rh_view',
+            'dashboard_maquinas_view',
+            'dashboard_cbuq_view',
+            'gestao_rh_empresas_view',
+            'gestao_rh_departamentos_view',
+            'gestao_rh_centros_custo_view',
+            'gestao_rh_funcoes_view',
+            'gestao_rh_funcionarios_view',
+            'gestao_rh_equipes_view',
+            'gestao_maquinas_caminhoes_view',
+            'gestao_maquinas_usinas_view',
+            'gestao_maquinas_relatorio_medicao_view',
+            'requisicoes_cadastro_view',
+            'requisicoes_programacao_entrega_view',
+            'requisicoes_registro_cargas_view',
+            'requisicoes_registro_aplicacao_view',
+            'requisicoes_apontamento_equipe_view',
+            'requisicoes_apontamento_caminhoes_view',
+            'requisicoes_chamados_os_view',
+            'requisicoes_gestao_os_view',
+            'admin_permissoes_view',
+            'relatorio_aplicacao_view'
+          ];
         } else {
-          console.log('⚠️ STABLE - Nenhuma função encontrada, aplicando usuário básico');
-          userRole = 'user';
+          console.log('⚠️ STABLE - Usuário não-SuperAdmin, aplicando permissões básicas para:', userRole);
+          userPermissions = ['dashboard_view'];
         }
 
         // Remover duplicatas
@@ -148,6 +187,7 @@ export const useAuthPermissionsStable = (): AuthPermissionsState => {
           userId: user.id,
           userRole,
           isSuperAdmin,
+          functionName,
           permissionsCount: userPermissions.length,
           permissions: userPermissions
         });

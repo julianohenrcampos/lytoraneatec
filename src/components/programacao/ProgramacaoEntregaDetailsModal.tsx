@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
+import { formatMassaDisplay } from "@/utils/massaConversionUtils";
 import ProgressBar from "./ProgressBar";
 
 interface ProgramacaoEntregaDetailsModalProps {
@@ -172,7 +173,7 @@ const ProgramacaoEntregaDetailsModal: React.FC<ProgramacaoEntregaDetailsModalPro
                           </TableCell>
                           <TableCell>
                             <Badge variant="secondary" className="font-mono">
-                              {typeof item.quantidade_massa === 'number' ? item.quantidade_massa.toFixed(1) : '0.0'} t
+                              {formatMassaDisplay(typeof item.quantidade_massa === 'number' ? item.quantidade_massa : 0)}
                             </Badge>
                           </TableCell>
                           <TableCell>

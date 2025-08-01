@@ -179,7 +179,7 @@ const AplicacoesRegistradasList: React.FC<AplicacoesRegistradasListProps> = memo
                       </TableCell>
                       <TableCell>
                         {aplicacao.espessura_aplicada ? (
-                          <span className="font-medium">{(aplicacao.espessura_aplicada * 100).toFixed(1)}</span>
+                          <span className="font-medium">{aplicacao.espessura_aplicada.toFixed(1)}</span>
                         ) : (
                           <span className="text-gray-400">-</span>
                         )}

@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { calculateMassaPercentual, kgToToneladas } from "@/utils/massaConversionUtils";
 
 export interface MassaProgressInfo {
   totalRequisicao: number;
@@ -26,7 +27,12 @@ export const calcularProgressoMassa = async (requisicaoId: string): Promise<Mass
 
     if (ruasError) throw ruasError;
 
-    const totalRequisicao = ruas?.reduce((acc, rua) => acc + (rua.volume || 0), 0) || 0;
+    // Converter volumes de kg (bd_ruas_requisicao sempre em kg) para toneladas
+    const totalRequisicao = ruas?.reduce((acc, rua) => {
+      const volumeInToneladas = kgToToneladas(rua.volume || 0);
+      console.log(`🔄 Convertendo volume: ${rua.volume}kg → ${volumeInToneladas}t`);
+      return acc + volumeInToneladas;
+    }, 0) || 0;
 
     // 2. Calcular massa já aplicada (registro de aplicação)
     const { data: aplicacoes, error: aplicacoesError } = await supabase
@@ -56,9 +62,9 @@ export const calcularProgressoMassa = async (requisicaoId: string): Promise<Mass
     // 4. Calcular disponível
     const massaDisponivel = Math.max(0, totalRequisicao - massaAplicada - massaProgramada);
 
-    // 5. Calcular percentuais
-    const percentualAplicado = totalRequisicao > 0 ? (massaAplicada / totalRequisicao) * 100 : 0;
-    const percentualProgramado = totalRequisicao > 0 ? (massaProgramada / totalRequisicao) * 100 : 0;
+    // 5. Calcular percentuais usando função padronizada
+    const percentualAplicado = calculateMassaPercentual(massaAplicada, totalRequisicao);
+    const percentualProgramado = calculateMassaPercentual(massaProgramada, totalRequisicao);
 
     // 6. Determinar status
     const isCompleto = massaAplicada >= totalRequisicao;

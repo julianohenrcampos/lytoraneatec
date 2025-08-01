@@ -1,11 +1,12 @@
 
 import { useMemo } from "react";
 import { RegistroAplicacaoDetalhes } from "@/types/registroAplicacaoDetalhes";
+import { validateEspessuraLYTEC, EspessuraStatus } from "@/utils/espessuraValidation";
 
 export interface EspessuraMediaInfo {
   espessuraMedia: number;
   numeroAplicacoes: number;
-  statusEspessura: 'success' | 'warning' | 'error' | null;
+  statusEspessura: EspessuraStatus;
   descricaoStatus: string;
 }
 
@@ -20,7 +21,7 @@ export const useEspessuraMedia = (aplicacoes: RegistroAplicacaoDetalhes[]): Espe
       };
     }
 
-    // Primeira tentativa: usar espessura_aplicada salva no banco (converter metros para centímetros)
+    // Primeira tentativa: usar espessura_aplicada salva no banco (já em centímetros)
     const aplicacoesComEspessuraSalva = aplicacoes.filter(app => 
       app.espessura_aplicada && app.espessura_aplicada > 0
     );
@@ -29,11 +30,11 @@ export const useEspessuraMedia = (aplicacoes: RegistroAplicacaoDetalhes[]): Espe
     let numeroAplicacoesUsadas = 0;
 
     if (aplicacoesComEspessuraSalva.length > 0) {
-      console.log("📏 useEspessuraMedia: Usando espessura_aplicada salva (convertendo m → cm)");
+    console.log("📏 useEspessuraMedia: Usando espessura_aplicada salva (já em cm)");
       const somaEspessuras = aplicacoesComEspessuraSalva.reduce(
         (soma, app) => {
-          const espessuraCm = (app.espessura_aplicada || 0) * 100; // Converter metros para centímetros
-          console.log(`📏 useEspessuraMedia: ${app.espessura_aplicada}m = ${espessuraCm}cm`);
+          const espessuraCm = (app.espessura_aplicada || 0); // Já está em centímetros
+          console.log(`📏 useEspessuraMedia: ${espessuraCm}cm`);
           return soma + espessuraCm;
         }, 
         0
@@ -52,6 +53,7 @@ export const useEspessuraMedia = (aplicacoes: RegistroAplicacaoDetalhes[]): Espe
       if (aplicacoesCalculaveis.length > 0) {
         const somaEspessuras = aplicacoesCalculaveis.reduce(
           (soma, app) => {
+            // Usar densidade correta: 2400 kg/m³ = 2.4 t/m³
             const espessuraCalculada = ((app.tonelada_aplicada || 0) / (app.area_aplicada || 0) / 2.4) * 100;
             console.log(`📏 useEspessuraMedia: Calculada: ${app.tonelada_aplicada}t / ${app.area_aplicada}m² / 2.4 = ${espessuraCalculada.toFixed(2)}cm`);
             return soma + espessuraCalculada;
@@ -71,31 +73,16 @@ export const useEspessuraMedia = (aplicacoes: RegistroAplicacaoDetalhes[]): Espe
       }
     }
 
-    // Determinar status baseado na espessura média
-    let statusEspessura: 'success' | 'warning' | 'error';
-    let descricaoStatus: string;
-
-    if (espessuraMediaCm >= 3 && espessuraMediaCm <= 8) {
-      statusEspessura = 'success';
-      descricaoStatus = "Dentro do padrão técnico";
-    } else if (espessuraMediaCm >= 2 && espessuraMediaCm < 3) {
-      statusEspessura = 'warning';
-      descricaoStatus = "Abaixo do recomendado";
-    } else if (espessuraMediaCm > 8 && espessuraMediaCm <= 10) {
-      statusEspessura = 'warning';
-      descricaoStatus = "Acima do recomendado";
-    } else {
-      statusEspessura = 'error';
-      descricaoStatus = "Fora do padrão técnico";
-    }
+    // Determinar status baseado na espessura média usando padrão LYTEC
+    const validationResult = validateEspessuraLYTEC(espessuraMediaCm);
 
     console.log(`📏 useEspessuraMedia: Resultado final: ${espessuraMediaCm.toFixed(1)}cm (${numeroAplicacoesUsadas} aplicações)`);
 
     return {
       espessuraMedia: Number(espessuraMediaCm.toFixed(1)),
       numeroAplicacoes: numeroAplicacoesUsadas,
-      statusEspessura,
-      descricaoStatus
+      statusEspessura: validationResult.status,
+      descricaoStatus: validationResult.description
     };
   }, [aplicacoes]);
 };

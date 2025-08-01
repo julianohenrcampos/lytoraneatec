@@ -177,7 +177,7 @@ export const fetchApontamentoById = async (id: string): Promise<{apontamento: Ap
 
     return {
       apontamento: formattedApontamento,
-      inspecao: inspecao as ApontamentoInspecao
+      inspecao: inspecao as unknown as ApontamentoInspecao
     };
   } catch (error) {
     console.error('Erro ao buscar detalhes do apontamento:', error);
@@ -493,7 +493,7 @@ export const getUltimoHorimetro = async (caminhaoId: string): Promise<number | n
     console.log(`🔍 Buscando último horímetro para caminhão/equipamento: ${caminhaoId}`);
     
     // Usar função privilegiada para contornar RLS
-    const { data, error } = await supabase.rpc('get_ultimo_horimetro_privilegiado', {
+    const { data, error } = await (supabase as any).rpc('get_ultimo_horimetro_privilegiado', {
       caminhao_id: caminhaoId
     });
 

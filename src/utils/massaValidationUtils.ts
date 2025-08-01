@@ -3,6 +3,8 @@
  * Utility functions for mass validation and consistency checks
  */
 
+import { formatMassaDisplay, calculateMassaPercentual } from "./massaConversionUtils";
+
 export interface MassaValidationResult {
   isValid: boolean;
   percentualAplicado: number;
@@ -17,7 +19,7 @@ export const validateMassaAplicada = (
   totalAplicado: number,
   massaTotal: number
 ): MassaValidationResult => {
-  const percentualAplicado = massaTotal > 0 ? (totalAplicado / massaTotal) * 100 : 0;
+  const percentualAplicado = calculateMassaPercentual(totalAplicado, massaTotal);
   const exceededMass = totalAplicado > massaTotal;
   
   return {
@@ -25,7 +27,7 @@ export const validateMassaAplicada = (
     percentualAplicado: Math.min(percentualAplicado, 100), // Cap at 100% for display
     exceededMass,
     message: exceededMass 
-      ? `Total aplicado (${totalAplicado.toFixed(2)}t) excede massa total (${massaTotal.toFixed(2)}t)`
+      ? `Total aplicado (${formatMassaDisplay(totalAplicado)}) excede massa total (${formatMassaDisplay(massaTotal)})`
       : undefined
   };
 };
@@ -40,7 +42,7 @@ export const validateNovaAplicacao = (
   if (toneladaAplicar > massaRemanescente) {
     return {
       isValid: false,
-      message: `Aplicação de ${toneladaAplicar.toFixed(2)}t excede massa remanescente de ${massaRemanescente.toFixed(2)}t`
+      message: `Aplicação de ${formatMassaDisplay(toneladaAplicar)} excede massa remanescente de ${formatMassaDisplay(massaRemanescente)}`
     };
   }
   

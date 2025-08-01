@@ -17,16 +17,31 @@ export const calculateArea = (
 };
 
 /**
- * Calcula tonelada aplicada baseada na área
- * Fórmula: area_calculada × 0.05 × 2.4
+ * Calcula massa aplicada baseada na área e espessura
+ * Fórmula correta: Volume (m³) × Densidade (kg/m³) ÷ 1000 = Massa (t)
+ * Volume = area (m²) × espessura (m)
+ * Densidade CBUQ = 2400 kg/m³
+ * 
+ * @param area - Área em m²
+ * @param espessura - Espessura em cm (será convertida para metros)
  */
 export const calculateToneladaAplicada = (
-  area: number | null
+  area: number | null,
+  espessura: number = 5 // padrão 5cm se não informado
 ): number | null => {
   if (!area) {
     return null;
   }
-  return area * 0.05 * 2.4;
+  
+  // Converter espessura de cm para metros
+  const espessuraMetros = espessura / 100;
+  
+  // Volume = área × espessura (em metros)
+  const volumeM3 = area * espessuraMetros;
+  
+  // Massa = Volume × Densidade ÷ 1000 (para converter kg para toneladas)
+  // Densidade CBUQ = 2400 kg/m³
+  return (volumeM3 * 2400) / 1000;
 };
 
 /**
@@ -55,8 +70,8 @@ export const adjustToneladaAplicada = (
 
 /**
  * Calcula espessura baseada na tonelada_aplicada e área
- * Fórmula: (tonelada_aplicada ÷ area) ÷ 2.4 = espessura em cm
- * Agora usa corretamente o valor tonelada_aplicada ao invés de tonelada_real
+ * Fórmula correta: ((toneladas × 1000) ÷ densidade ÷ área) × 100 = espessura em cm
+ * Densidade CBUQ = 2400 kg/m³
  */
 export const calculateEspessura = (
   tonelada_aplicada: number | string | null | undefined, 
@@ -74,13 +89,14 @@ export const calculateEspessura = (
     return null;
   }
   
-  // Fórmula correta: tonelada / area / 2.4 (para obter cm)
-  return tonelada / area / 2.4;
+  // Fórmula correta: ((toneladas × 1000) ÷ 2400 kg/m³ ÷ área) × 100 = cm
+  return ((tonelada * 1000) / 2400 / area) * 100;
 };
 
 /**
  * Calcula espessura calculada baseada na tonelada_aplicada e área
- * Fórmula: (tonelada_aplicada ÷ área_calculada) ÷ 2.4
+ * Fórmula correta: ((toneladas × 1000) ÷ densidade ÷ área) × 100 = espessura em cm
+ * Densidade CBUQ = 2400 kg/m³
  */
 export const calculateEspessuraCalculada = (
   tonelada_aplicada: number | null,
@@ -90,7 +106,8 @@ export const calculateEspessuraCalculada = (
     return null;
   }
   
-  return tonelada_aplicada / area / 2.4;
+  // Fórmula correta: ((toneladas × 1000) ÷ 2400 kg/m³ ÷ área) × 100 = cm
+  return ((tonelada_aplicada * 1000) / 2400 / area) * 100;
 };
 
 /**
@@ -125,13 +142,13 @@ export type EspessuraStatus = "success" | "warning" | "error" | null;
 
 /**
  * Lógica atualizada de status da espessura com novos requisitos
- * < 0.035 cm ou > 0.05 cm → "Crítica" (error)
- * Entre 0.035 e 0.05, inclusive → "Boa" (success)
+ * < 3.5 cm ou > 5 cm → "Crítica" (error)
+ * Entre 3.5 e 5 cm, inclusive → "Boa" (success)
  */
 export const getEspessuraStatus = (espessura: number | null): EspessuraStatus => {
   if (!espessura) return null;
   
-  if (espessura < 0.035 || espessura > 0.05) {
+  if (espessura < 3.5 || espessura > 5) {
     return "error";
   } else {
     return "success";
@@ -140,13 +157,13 @@ export const getEspessuraStatus = (espessura: number | null): EspessuraStatus =>
 
 /**
  * Nova lógica de status da espessura
- * < 0.035 cm ou > 0.05 cm → "Fora do Padrão" (error)
- * Entre 0.035 e 0.05, inclusive → "Dentro do Padrão" (success)
+ * < 3.5 cm ou > 5 cm → "Fora do Padrão" (error)
+ * Entre 3.5 e 5 cm, inclusive → "Dentro do Padrão" (success)
  */
 export const getEspessuraCalculadaStatus = (espessura: number | null): EspessuraStatus => {
   if (!espessura) return null;
   
-  if (espessura < 0.035 || espessura > 0.05) {
+  if (espessura < 3.5 || espessura > 5) {
     return "error";
   } else {
     return "success";

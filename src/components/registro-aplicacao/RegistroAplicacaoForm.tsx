@@ -119,7 +119,7 @@ const RegistroAplicacaoForm: React.FC<RegistroAplicacaoFormProps> = ({
     }
   };
 
-  const handleFormSubmit = form.handleSubmit(onSubmit);
+  const handleFormSubmit = onSubmit;
   const espessuraStatusClassName = getEspessuraStatusClass(espessuraStatus);
   
   // Get status text function

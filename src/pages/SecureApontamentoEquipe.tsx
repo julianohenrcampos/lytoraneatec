@@ -131,7 +131,7 @@ const SecureApontamentoEquipe: React.FC = () => {
               filters={filters}
               onFilterChange={handleFilterChange}
               onResetFilters={resetFilters}
-              equipes={equipes}
+              equipes={equipes as any}
               allowedTeamIds={allowedTeamIds}
               isLoading={isLoading}
             />
@@ -171,7 +171,7 @@ const SecureApontamentoEquipe: React.FC = () => {
           onClose={() => setIsFormModalOpen(false)}
           onSubmit={(data) => currentApontamento ? updateMutation.mutate(data) : createMutation.mutate(data)}
           currentApontamento={currentApontamento}
-          equipes={equipes.filter(e => allowedTeamIds.includes(e.id))}
+          equipes={(equipes as any).filter((e: any) => allowedTeamIds.includes(e.id))}
           isLoading={createMutation.isPending || updateMutation.isPending}
           onAvaliarColaborador={handleAvaliarColaborador}
           avaliacaoStatusMap={avaliacaoStatusMap}

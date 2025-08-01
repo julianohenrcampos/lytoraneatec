@@ -124,13 +124,16 @@ export const convertChamadoToOs = async (
     
     const { data, error } = await supabase
       .from('bd_ordens_servico')
-      .insert(newOsData)
+      .insert({
+        ...newOsData,
+        numero_os: newOsData.numero_chamado
+      } as any)
       .select()
       .single();
       
     if (error) throw error;
     
-    await supabase
+    await (supabase as any)
       .from('bd_os_movimentacoes')
       .insert({
         os_id: data.id,
@@ -140,7 +143,7 @@ export const convertChamadoToOs = async (
     
     await updateChamadoStatus(chamadoId, 'Convertido para OS');
     
-    return data as OrdemServico;
+    return data as any as OrdemServico;
   } catch (error) {
     console.error('Error converting chamado to OS:', error);
     throw error;
@@ -167,7 +170,7 @@ export const finishOrdemServico = async (osId: string, userId: string): Promise<
       
     if (osError) throw osError;
     
-    await supabase
+    await (supabase as any)
       .from('bd_os_movimentacoes')
       .insert({
         os_id: osId,
@@ -185,7 +188,7 @@ export const finishOrdemServico = async (osId: string, userId: string): Promise<
 };
 
 export const fetchOrdensServico = async (filters: OsFilterParams = {}) => {
-  let query = supabase
+  let query = (supabase as any)
     .from('bd_ordens_servico')
     .select(`
       *,
@@ -225,10 +228,10 @@ export const fetchOrdensServico = async (filters: OsFilterParams = {}) => {
   if (data && data.length > 0) {
     const userIds = new Set<string>();
     
-    data.forEach(os => {
-      if (os.solicitante_id) userIds.add(os.solicitante_id);
-      if (os.executado_por_id) userIds.add(os.executado_por_id);
-      if (os.encerrado_por_id) userIds.add(os.encerrado_por_id);
+    data.forEach((os: any) => {
+      if ((os as any).solicitante_id) userIds.add((os as any).solicitante_id);
+      if ((os as any).executado_por_id) userIds.add((os as any).executado_por_id);
+      if ((os as any).encerrado_por_id) userIds.add((os as any).encerrado_por_id);
     });
     
     const userIdsArray = Array.from(userIds).filter(Boolean);
@@ -240,10 +243,10 @@ export const fetchOrdensServico = async (filters: OsFilterParams = {}) => {
         .in('id', userIdsArray);
       
       if (!usersError && users) {
-        return data.map(os => {
-          const solicitante = users.find(u => u.id === os.solicitante_id);
-          const executado_por = users.find(u => u.id === os.executado_por_id);
-          const encerrado_por = users.find(u => u.id === os.encerrado_por_id);
+        return data.map((os: any) => {
+          const solicitante = users.find(u => u.id === (os as any).solicitante_id);
+          const executado_por = users.find(u => u.id === (os as any).executado_por_id);
+          const encerrado_por = users.find(u => u.id === (os as any).encerrado_por_id);
           
           return {
             ...os,
@@ -251,16 +254,16 @@ export const fetchOrdensServico = async (filters: OsFilterParams = {}) => {
             executado_por: executado_por || null,
             encerrado_por: encerrado_por || null
           };
-        }) as OrdemServico[];
+        }) as any as OrdemServico[];
       }
     }
   }
   
-  return data as OrdemServico[];
+  return data as any as OrdemServico[];
 };
 
 export const getOrdemServicoById = async (id: string): Promise<OrdemServico> => {
-  const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
     .from('bd_ordens_servico')
     .select(`
       *,
@@ -273,9 +276,9 @@ export const getOrdemServicoById = async (id: string): Promise<OrdemServico> => 
   if (error) throw error;
   
   const userIds = [
-    data.solicitante_id,
-    data.executado_por_id,
-    data.encerrado_por_id
+    (data as any).solicitante_id,
+    (data as any).executado_por_id,
+    (data as any).encerrado_por_id
   ].filter(Boolean);
   
   if (userIds.length > 0) {
@@ -285,20 +288,20 @@ export const getOrdemServicoById = async (id: string): Promise<OrdemServico> => 
       .in('id', userIds);
       
     if (!usersError && users) {
-      const solicitante = users.find(u => u.id === data.solicitante_id);
-      const executado_por = users.find(u => u.id === data.executado_por_id);
-      const encerrado_por = users.find(u => u.id === data.encerrado_por_id);
+      const solicitante = users.find(u => u.id === (data as any).solicitante_id);
+      const executado_por = users.find(u => u.id === (data as any).executado_por_id);
+      const encerrado_por = users.find(u => u.id === (data as any).encerrado_por_id);
       
       return {
         ...data,
         solicitante: solicitante || null,
         executado_por: executado_por || null,
         encerrado_por: encerrado_por || null
-      } as OrdemServico;
+      } as any as OrdemServico;
     }
   }
   
-  return data as OrdemServico;
+  return data as any as OrdemServico;
 };
 
 export const getChamadoById = async (id: string): Promise<any> => {
@@ -330,7 +333,7 @@ export const getChamadoById = async (id: string): Promise<any> => {
 };
 
 export const getMaterialsByOsId = async (osId: string): Promise<Material[]> => {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('bd_os_materiais_utilizados')
     .select('*')
     .eq('os_id', osId)
@@ -338,11 +341,11 @@ export const getMaterialsByOsId = async (osId: string): Promise<Material[]> => {
     
   if (error) throw error;
   
-  return data as Material[];
+  return (data as any) || [];
 };
 
 export const getMaoDeObraByOsId = async (osId: string): Promise<MaoDeObra[]> => {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('bd_os_mao_obra')
     .select('*')
     .eq('os_id', osId)
@@ -350,11 +353,11 @@ export const getMaoDeObraByOsId = async (osId: string): Promise<MaoDeObra[]> => 
     
   if (error) throw error;
   
-  return data as MaoDeObra[];
+  return (data as any) || [];
 };
 
 export const getMovimentacoesByOsId = async (osId: string): Promise<Movimentacao[]> => {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('bd_os_movimentacoes')
     .select('*')
     .eq('os_id', osId)
@@ -363,7 +366,7 @@ export const getMovimentacoesByOsId = async (osId: string): Promise<Movimentacao
   if (error) throw error;
   
   if (data && data.length > 0) {
-    const userIds = [...new Set(data.map(mov => mov.usuario_id))].filter(Boolean);
+    const userIds = [...new Set(data.map((mov: any) => (mov as any).usuario_id).filter(Boolean))] as string[];
     
     if (userIds.length > 0) {
       const { data: users, error: usersError } = await supabase
@@ -372,18 +375,18 @@ export const getMovimentacoesByOsId = async (osId: string): Promise<Movimentacao
         .in('id', userIds);
         
       if (!usersError && users) {
-        return data.map(mov => {
-          const usuario = users.find(u => u.id === mov.usuario_id);
+        return data.map((mov: any) => {
+          const usuario = users.find(u => u.id === (mov as any).usuario_id);
           return {
             ...mov,
             usuario: usuario || null
           };
-        }) as Movimentacao[];
+        }) as any;
       }
     }
   }
   
-  return data as Movimentacao[];
+  return (data as any) || [];
 };
 
 export const updateOrdemServico = async (
@@ -402,7 +405,7 @@ export const updateOrdemServico = async (
       
     if (osError) throw osError;
     
-    await supabase
+    await (supabase as any)
       .from('bd_os_movimentacoes')
       .insert({
         os_id: id,
@@ -410,7 +413,7 @@ export const updateOrdemServico = async (
         motivo: motivo
       });
     
-    return os as OrdemServico;
+    return os as any as OrdemServico;
   } catch (error) {
     console.error('Error updating OS:', error);
     throw error;
@@ -466,7 +469,7 @@ export const saveMaterial = async (material: Partial<Material>): Promise<Materia
     const { id, ...materialData } = material;
     
     if (id) {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('bd_os_materiais_utilizados')
         .update({
           ...materialData,
@@ -477,9 +480,9 @@ export const saveMaterial = async (material: Partial<Material>): Promise<Materia
         .single();
         
       if (error) throw error;
-      return data as Material;
+      return data as any;
     } else {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('bd_os_materiais_utilizados')
         .insert({
           ...materialData,
@@ -489,7 +492,7 @@ export const saveMaterial = async (material: Partial<Material>): Promise<Materia
         .single();
         
       if (error) throw error;
-      return data as Material;
+      return data as any;
     }
   } catch (error) {
     console.error('Error saving material:', error);
@@ -499,7 +502,7 @@ export const saveMaterial = async (material: Partial<Material>): Promise<Materia
 
 export const deleteMaterial = async (materialId: string): Promise<void> => {
   try {
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('bd_os_materiais_utilizados')
       .delete()
       .eq('id', materialId);
@@ -516,7 +519,7 @@ export const saveMaoDeObra = async (maoDeObra: Partial<MaoDeObra>): Promise<MaoD
     const { id, ...maoDeObraData } = maoDeObra;
     
     if (id) {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('bd_os_mao_obra')
         .update({
           ...maoDeObraData,
@@ -527,9 +530,9 @@ export const saveMaoDeObra = async (maoDeObra: Partial<MaoDeObra>): Promise<MaoD
         .single();
         
       if (error) throw error;
-      return data as MaoDeObra;
+      return data as any;
     } else {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('bd_os_mao_obra')
         .insert({
           ...maoDeObraData,
@@ -539,7 +542,7 @@ export const saveMaoDeObra = async (maoDeObra: Partial<MaoDeObra>): Promise<MaoD
         .single();
         
       if (error) throw error;
-      return data as MaoDeObra;
+      return data as any;
     }
   } catch (error) {
     console.error('Error saving mão de obra:', error);
@@ -549,7 +552,7 @@ export const saveMaoDeObra = async (maoDeObra: Partial<MaoDeObra>): Promise<MaoD
 
 export const deleteMaoDeObra = async (maoDeObraId: string): Promise<void> => {
   try {
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('bd_os_mao_obra')
       .delete()
       .eq('id', maoDeObraId);

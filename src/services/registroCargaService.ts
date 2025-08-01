@@ -178,7 +178,7 @@ export const createRegistroCarga = async (
   try {
     const { data, error } = await supabase
       .from("bd_registro_cargas")
-      .insert(registro)
+      .insert(registro as any)
       .select()
       .single();
 

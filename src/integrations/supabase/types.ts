@@ -10,13 +10,15 @@ export type Database = {
   // Allows to automatically instanciate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "12.2.3 (519615d)"
+    PostgrestVersion: "12.2.12 (cd3cf9e)"
   }
   public: {
     Tables: {
       bd_apontamento_equipe: {
         Row: {
           colaborador_id: string | null
+          competencia_tecnica: number | null
+          comunicacao: number | null
           created_at: string | null
           data_registro: string
           equipe_id: string
@@ -25,12 +27,18 @@ export type Database = {
           id: string
           lista_entrega_id: string | null
           nome_colaborador: string
+          organizacao: number | null
+          pontualidade: number | null
           presente: boolean | null
+          proatividade: number | null
           registrado_por: string | null
+          trabalho_em_equipe: number | null
           updated_at: string | null
         }
         Insert: {
           colaborador_id?: string | null
+          competencia_tecnica?: number | null
+          comunicacao?: number | null
           created_at?: string | null
           data_registro: string
           equipe_id: string
@@ -39,12 +47,18 @@ export type Database = {
           id?: string
           lista_entrega_id?: string | null
           nome_colaborador: string
+          organizacao?: number | null
+          pontualidade?: number | null
           presente?: boolean | null
+          proatividade?: number | null
           registrado_por?: string | null
+          trabalho_em_equipe?: number | null
           updated_at?: string | null
         }
         Update: {
           colaborador_id?: string | null
+          competencia_tecnica?: number | null
+          comunicacao?: number | null
           created_at?: string | null
           data_registro?: string
           equipe_id?: string
@@ -53,8 +67,12 @@ export type Database = {
           id?: string
           lista_entrega_id?: string | null
           nome_colaborador?: string
+          organizacao?: number | null
+          pontualidade?: number | null
           presente?: boolean | null
+          proatividade?: number | null
           registrado_por?: string | null
+          trabalho_em_equipe?: number | null
           updated_at?: string | null
         }
         Relationships: [
@@ -73,111 +91,109 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "bd_apontamento_equipe_lista_entrega_id_fkey"
-            columns: ["lista_entrega_id"]
-            isOneToOne: false
-            referencedRelation: "bd_lista_programacao_entrega"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bd_apontamento_equipe_lista_entrega_id_fkey"
-            columns: ["lista_entrega_id"]
-            isOneToOne: false
-            referencedRelation: "vw_entregas_com_massa_remanescente"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "bd_apontamento_equipe_registrado_por_fkey"
             columns: ["registrado_por"]
-            isOneToOne: false
-            referencedRelation: "bd_usuarios"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bd_apontamento_equipe_registrado_por_fkey"
-            columns: ["registrado_por"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bd_avaliacao_equipe: {
-        Row: {
-          anotacoes: string | null
-          colaborador_id: string
-          competencia_tecnica: number | null
-          comunicacao: number | null
-          created_at: string | null
-          criado_por: string | null
-          data_avaliacao: string
-          equipe_id: string
-          id: string
-          organizacao: number | null
-          pontualidade: number | null
-          proatividade: number | null
-          trabalho_em_equipe: number | null
-        }
-        Insert: {
-          anotacoes?: string | null
-          colaborador_id: string
-          competencia_tecnica?: number | null
-          comunicacao?: number | null
-          created_at?: string | null
-          criado_por?: string | null
-          data_avaliacao: string
-          equipe_id: string
-          id?: string
-          organizacao?: number | null
-          pontualidade?: number | null
-          proatividade?: number | null
-          trabalho_em_equipe?: number | null
-        }
-        Update: {
-          anotacoes?: string | null
-          colaborador_id?: string
-          competencia_tecnica?: number | null
-          comunicacao?: number | null
-          created_at?: string | null
-          criado_por?: string | null
-          data_avaliacao?: string
-          equipe_id?: string
-          id?: string
-          organizacao?: number | null
-          pontualidade?: number | null
-          proatividade?: number | null
-          trabalho_em_equipe?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bd_avaliacao_equipe_colaborador_id_fkey"
-            columns: ["colaborador_id"]
             isOneToOne: false
             referencedRelation: "bd_funcionarios"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "bd_avaliacao_equipe_criado_por_fkey"
-            columns: ["criado_por"]
-            isOneToOne: false
-            referencedRelation: "bd_usuarios"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bd_avaliacao_equipe_criado_por_fkey"
-            columns: ["criado_por"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bd_avaliacao_equipe_equipe_id_fkey"
-            columns: ["equipe_id"]
-            isOneToOne: false
-            referencedRelation: "bd_equipes"
-            referencedColumns: ["id"]
-          },
         ]
+      }
+      bd_auditoria_correcao_volume_formula: {
+        Row: {
+          area: number
+          data_correcao: string | null
+          espessura_cm: number
+          espessura_metros: number
+          id: string
+          motivo: string
+          rua_requisicao_id: string
+          volume_anterior: number
+          volume_corrigido: number
+        }
+        Insert: {
+          area: number
+          data_correcao?: string | null
+          espessura_cm: number
+          espessura_metros: number
+          id?: string
+          motivo?: string
+          rua_requisicao_id: string
+          volume_anterior: number
+          volume_corrigido: number
+        }
+        Update: {
+          area?: number
+          data_correcao?: string | null
+          espessura_cm?: number
+          espessura_metros?: number
+          id?: string
+          motivo?: string
+          rua_requisicao_id?: string
+          volume_anterior?: number
+          volume_corrigido?: number
+        }
+        Relationships: []
+      }
+      bd_auditoria_sync_equipe_funcionario: {
+        Row: {
+          data_sync: string | null
+          equipe_id_anterior: string | null
+          equipe_id_novo: string
+          funcionario_id: string
+          id: string
+          motivo: string | null
+          nome_equipe: string
+          nome_funcionario: string
+        }
+        Insert: {
+          data_sync?: string | null
+          equipe_id_anterior?: string | null
+          equipe_id_novo: string
+          funcionario_id: string
+          id?: string
+          motivo?: string | null
+          nome_equipe: string
+          nome_funcionario: string
+        }
+        Update: {
+          data_sync?: string | null
+          equipe_id_anterior?: string | null
+          equipe_id_novo?: string
+          funcionario_id?: string
+          id?: string
+          motivo?: string | null
+          nome_equipe?: string
+          nome_funcionario?: string
+        }
+        Relationships: []
+      }
+      bd_auditoria_volume_correcao: {
+        Row: {
+          data_correcao: string | null
+          id: string
+          motivo: string
+          rua_requisicao_id: string
+          volume_anterior: number
+          volume_corrigido: number
+        }
+        Insert: {
+          data_correcao?: string | null
+          id?: string
+          motivo: string
+          rua_requisicao_id: string
+          volume_anterior: number
+          volume_corrigido: number
+        }
+        Update: {
+          data_correcao?: string | null
+          id?: string
+          motivo?: string
+          rua_requisicao_id?: string
+          volume_anterior?: number
+          volume_corrigido?: number
+        }
+        Relationships: []
       }
       bd_caminhoes_equipamentos: {
         Row: {
@@ -269,38 +285,58 @@ export type Database = {
       bd_carga_status_historico: {
         Row: {
           alterado_por: string | null
-          data_alteracao: string | null
+          created_at: string
+          data_alteracao: string
           id: string
+          lista_entrega_id: string | null
           massa_remanescente: number | null
           observacoes: string | null
           percentual_aplicado: number | null
-          registro_carga_id: string
+          registro_carga_id: string | null
           status_anterior: string | null
           status_novo: string
         }
         Insert: {
           alterado_por?: string | null
-          data_alteracao?: string | null
+          created_at?: string
+          data_alteracao?: string
           id?: string
+          lista_entrega_id?: string | null
           massa_remanescente?: number | null
           observacoes?: string | null
           percentual_aplicado?: number | null
-          registro_carga_id: string
+          registro_carga_id?: string | null
           status_anterior?: string | null
           status_novo: string
         }
         Update: {
           alterado_por?: string | null
-          data_alteracao?: string | null
+          created_at?: string
+          data_alteracao?: string
           id?: string
+          lista_entrega_id?: string | null
           massa_remanescente?: number | null
           observacoes?: string | null
           percentual_aplicado?: number | null
-          registro_carga_id?: string
+          registro_carga_id?: string | null
           status_anterior?: string | null
           status_novo?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "bd_carga_status_historico_alterado_por_fkey"
+            columns: ["alterado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_carga_status_historico_lista_entrega_id_fkey"
+            columns: ["lista_entrega_id"]
+            isOneToOne: false
+            referencedRelation: "bd_lista_programacao_entrega"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bd_carga_status_historico_registro_carga_id_fkey"
             columns: ["registro_carga_id"]
@@ -407,39 +443,38 @@ export type Database = {
             referencedRelation: "bd_centros_custo"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bd_chamados_os_solicitante_id_fkey"
+            columns: ["solicitante_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
         ]
       }
       bd_departamentos: {
         Row: {
           created_at: string | null
-          empresa_id: string | null
+          empresa_id: string
           id: string
-          nome_departamento: string
+          nome_departamento: string | null
           updated_at: string | null
         }
         Insert: {
           created_at?: string | null
-          empresa_id?: string | null
+          empresa_id: string
           id?: string
-          nome_departamento: string
+          nome_departamento?: string | null
           updated_at?: string | null
         }
         Update: {
           created_at?: string | null
-          empresa_id?: string | null
+          empresa_id?: string
           id?: string
-          nome_departamento?: string
+          nome_departamento?: string | null
           updated_at?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "bd_departamentos_empresa_id_fkey"
-            columns: ["empresa_id"]
-            isOneToOne: false
-            referencedRelation: "bd_empresas"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       bd_empresas: {
         Row: {
@@ -501,14 +536,14 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "bd_equipes_apontador_id_fkey"
+            foreignKeyName: "fk_equipes_apontador"
             columns: ["apontador_id"]
             isOneToOne: false
             referencedRelation: "bd_funcionarios"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "bd_equipes_encarregado_id_fkey"
+            foreignKeyName: "fk_equipes_encarregado"
             columns: ["encarregado_id"]
             isOneToOne: false
             referencedRelation: "bd_funcionarios"
@@ -630,6 +665,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_funcionarios_equipe_id_fkey"
+            columns: ["equipe_id"]
+            isOneToOne: false
+            referencedRelation: "bd_equipes"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_funcionarios_funcao_id_fkey"
             columns: ["funcao_id"]
             isOneToOne: false
@@ -641,20 +683,26 @@ export type Database = {
       bd_funcoes: {
         Row: {
           created_at: string | null
+          descricao: string | null
           id: string
           nome_funcao: string
+          situacao: string | null
           updated_at: string | null
         }
         Insert: {
           created_at?: string | null
+          descricao?: string | null
           id?: string
           nome_funcao: string
+          situacao?: string | null
           updated_at?: string | null
         }
         Update: {
           created_at?: string | null
+          descricao?: string | null
           id?: string
           nome_funcao?: string
+          situacao?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -695,7 +743,7 @@ export type Database = {
           equipe_id: string
           id: string
           logradouro: string
-          programacao_entrega_id: string
+          programacao_entrega_id: string | null
           programacao_id: string | null
           quantidade_massa: number
           requisicao_id: string
@@ -712,7 +760,7 @@ export type Database = {
           equipe_id: string
           id?: string
           logradouro: string
-          programacao_entrega_id: string
+          programacao_entrega_id?: string | null
           programacao_id?: string | null
           quantidade_massa: number
           requisicao_id: string
@@ -729,7 +777,7 @@ export type Database = {
           equipe_id?: string
           id?: string
           logradouro?: string
-          programacao_entrega_id?: string
+          programacao_entrega_id?: string | null
           programacao_id?: string | null
           quantidade_massa?: number
           requisicao_id?: string
@@ -768,13 +816,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "bd_lista_programacao_entrega_programacao_id_fkey"
-            columns: ["programacao_id"]
-            isOneToOne: false
-            referencedRelation: "bd_programacao_entrega"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "bd_lista_programacao_entrega_requisicao_id_fkey"
             columns: ["requisicao_id"]
             isOneToOne: false
@@ -792,94 +833,58 @@ export type Database = {
       }
       bd_ordens_servico: {
         Row: {
-          anotacoes_internas: string | null
           caminhao_equipamento_id: string | null
-          centro_custo_id: string | null
           chamado_id: string | null
           created_at: string | null
-          data_fim_atendimento: string | null
-          data_inicio_atendimento: string | null
-          data_solicitacao: string | null
-          descricao_problema: string | null
-          duracao_servico: unknown | null
-          encerrado_por_id: string | null
-          executado_por_id: string | null
-          fotos_avarias: string[] | null
-          hora_fim_atendimento: string | null
-          hora_inicio_atendimento: string | null
-          hora_solicitacao: string | null
-          horimetro_km: number | null
-          horimetro_km_final: number | null
-          horimetro_km_inicial: number | null
+          data_abertura: string
+          data_conclusao: string | null
+          data_previsao: string | null
+          descricao_servico: string | null
           id: string
-          numero_chamado: string | null
-          prioridade: string | null
-          setor: string | null
-          solicitante_id: string | null
+          mecanico_id: string | null
+          numero_os: string
+          observacoes: string | null
+          pecas_utilizadas: Json | null
           status: string | null
-          tipo_falha: string | null
-          tratativa: string | null
+          tipo_servico: string | null
           updated_at: string | null
+          valor_servico: number | null
         }
         Insert: {
-          anotacoes_internas?: string | null
           caminhao_equipamento_id?: string | null
-          centro_custo_id?: string | null
           chamado_id?: string | null
           created_at?: string | null
-          data_fim_atendimento?: string | null
-          data_inicio_atendimento?: string | null
-          data_solicitacao?: string | null
-          descricao_problema?: string | null
-          duracao_servico?: unknown | null
-          encerrado_por_id?: string | null
-          executado_por_id?: string | null
-          fotos_avarias?: string[] | null
-          hora_fim_atendimento?: string | null
-          hora_inicio_atendimento?: string | null
-          hora_solicitacao?: string | null
-          horimetro_km?: number | null
-          horimetro_km_final?: number | null
-          horimetro_km_inicial?: number | null
+          data_abertura?: string
+          data_conclusao?: string | null
+          data_previsao?: string | null
+          descricao_servico?: string | null
           id?: string
-          numero_chamado?: string | null
-          prioridade?: string | null
-          setor?: string | null
-          solicitante_id?: string | null
+          mecanico_id?: string | null
+          numero_os: string
+          observacoes?: string | null
+          pecas_utilizadas?: Json | null
           status?: string | null
-          tipo_falha?: string | null
-          tratativa?: string | null
+          tipo_servico?: string | null
           updated_at?: string | null
+          valor_servico?: number | null
         }
         Update: {
-          anotacoes_internas?: string | null
           caminhao_equipamento_id?: string | null
-          centro_custo_id?: string | null
           chamado_id?: string | null
           created_at?: string | null
-          data_fim_atendimento?: string | null
-          data_inicio_atendimento?: string | null
-          data_solicitacao?: string | null
-          descricao_problema?: string | null
-          duracao_servico?: unknown | null
-          encerrado_por_id?: string | null
-          executado_por_id?: string | null
-          fotos_avarias?: string[] | null
-          hora_fim_atendimento?: string | null
-          hora_inicio_atendimento?: string | null
-          hora_solicitacao?: string | null
-          horimetro_km?: number | null
-          horimetro_km_final?: number | null
-          horimetro_km_inicial?: number | null
+          data_abertura?: string
+          data_conclusao?: string | null
+          data_previsao?: string | null
+          descricao_servico?: string | null
           id?: string
-          numero_chamado?: string | null
-          prioridade?: string | null
-          setor?: string | null
-          solicitante_id?: string | null
+          mecanico_id?: string | null
+          numero_os?: string
+          observacoes?: string | null
+          pecas_utilizadas?: Json | null
           status?: string | null
-          tipo_falha?: string | null
-          tratativa?: string | null
+          tipo_servico?: string | null
           updated_at?: string | null
+          valor_servico?: number | null
         }
         Relationships: [
           {
@@ -890,137 +895,17 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "bd_ordens_servico_centro_custo_id_fkey"
-            columns: ["centro_custo_id"]
-            isOneToOne: false
-            referencedRelation: "bd_centros_custo"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "bd_ordens_servico_chamado_id_fkey"
             columns: ["chamado_id"]
             isOneToOne: false
             referencedRelation: "bd_chamados_os"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      bd_os_mao_obra: {
-        Row: {
-          created_at: string | null
-          funcao: string | null
-          id: string
-          os_id: string | null
-          quantidade: number | null
-          updated_at: string | null
-          valor_total: number | null
-          valor_unitario: number | null
-        }
-        Insert: {
-          created_at?: string | null
-          funcao?: string | null
-          id?: string
-          os_id?: string | null
-          quantidade?: number | null
-          updated_at?: string | null
-          valor_total?: number | null
-          valor_unitario?: number | null
-        }
-        Update: {
-          created_at?: string | null
-          funcao?: string | null
-          id?: string
-          os_id?: string | null
-          quantidade?: number | null
-          updated_at?: string | null
-          valor_total?: number | null
-          valor_unitario?: number | null
-        }
-        Relationships: [
           {
-            foreignKeyName: "bd_os_mao_obra_os_id_fkey"
-            columns: ["os_id"]
+            foreignKeyName: "bd_ordens_servico_mecanico_id_fkey"
+            columns: ["mecanico_id"]
             isOneToOne: false
-            referencedRelation: "bd_ordens_servico"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bd_os_materiais_utilizados: {
-        Row: {
-          created_at: string | null
-          descricao_material: string | null
-          id: string
-          os_id: string | null
-          quantidade: number | null
-          updated_at: string | null
-          valor_total: number | null
-          valor_unitario: number | null
-        }
-        Insert: {
-          created_at?: string | null
-          descricao_material?: string | null
-          id?: string
-          os_id?: string | null
-          quantidade?: number | null
-          updated_at?: string | null
-          valor_total?: number | null
-          valor_unitario?: number | null
-        }
-        Update: {
-          created_at?: string | null
-          descricao_material?: string | null
-          id?: string
-          os_id?: string | null
-          quantidade?: number | null
-          updated_at?: string | null
-          valor_total?: number | null
-          valor_unitario?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bd_os_materiais_utilizados_os_id_fkey"
-            columns: ["os_id"]
-            isOneToOne: false
-            referencedRelation: "bd_ordens_servico"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bd_os_movimentacoes: {
-        Row: {
-          created_at: string | null
-          data_movimentacao: string | null
-          hora_movimentacao: string | null
-          id: string
-          motivo: string | null
-          os_id: string | null
-          usuario_id: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          data_movimentacao?: string | null
-          hora_movimentacao?: string | null
-          id?: string
-          motivo?: string | null
-          os_id?: string | null
-          usuario_id?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          data_movimentacao?: string | null
-          hora_movimentacao?: string | null
-          id?: string
-          motivo?: string | null
-          os_id?: string | null
-          usuario_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bd_os_movimentacoes_os_id_fkey"
-            columns: ["os_id"]
-            isOneToOne: false
-            referencedRelation: "bd_ordens_servico"
+            referencedRelation: "bd_funcionarios"
             referencedColumns: ["id"]
           },
         ]
@@ -1054,27 +939,36 @@ export type Database = {
       }
       bd_programacao_entrega: {
         Row: {
-          centro_custo_id: string
+          centro_custo_id: string | null
           created_at: string | null
-          data_entrega: string
+          data_entrega: string | null
+          data_programacao: string
           id: string
-          requisicao_id: string
+          observacoes: string | null
+          requisicao_id: string | null
+          status: string | null
           updated_at: string | null
         }
         Insert: {
-          centro_custo_id: string
+          centro_custo_id?: string | null
           created_at?: string | null
-          data_entrega: string
+          data_entrega?: string | null
+          data_programacao?: string
           id?: string
-          requisicao_id: string
+          observacoes?: string | null
+          requisicao_id?: string | null
+          status?: string | null
           updated_at?: string | null
         }
         Update: {
-          centro_custo_id?: string
+          centro_custo_id?: string | null
           created_at?: string | null
-          data_entrega?: string
+          data_entrega?: string | null
+          data_programacao?: string
           id?: string
-          requisicao_id?: string
+          observacoes?: string | null
+          requisicao_id?: string | null
+          status?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -1197,24 +1091,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "bd_registro_aplicacao_detalhes_lista_entrega_id_fkey"
-            columns: ["lista_entrega_id"]
-            isOneToOne: false
-            referencedRelation: "vw_entregas_com_massa_remanescente"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "bd_registro_aplicacao_detalhes_registro_aplicacao_id_fkey"
             columns: ["registro_aplicacao_id"]
             isOneToOne: false
             referencedRelation: "bd_registro_apontamento_aplicacao"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bd_registro_aplicacao_detalhes_registro_aplicacao_id_fkey"
-            columns: ["registro_aplicacao_id"]
-            isOneToOne: false
-            referencedRelation: "vw_registro_aplicacao_completo"
             referencedColumns: ["id"]
           },
           {
@@ -1232,7 +1112,6 @@ export type Database = {
           aplicacao_numero: number | null
           aplicacao_sequencia: number | null
           area: number | null
-          area_calculada: number | null
           bordo: string | null
           carga_finalizada: boolean | null
           carga_origem_id: string | null
@@ -1241,8 +1120,6 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           data_aplicacao: string
-          data_fim_aplicacao: string | null
-          data_inicio_aplicacao: string | null
           espessura: number | null
           espessura_calculada: number | null
           estaca_final: number | null
@@ -1255,8 +1132,6 @@ export type Database = {
           lista_entrega_id: string | null
           logradouro_aplicado: string | null
           logradouro_id: string | null
-          massa_remanescente_antes_aplicacao: number | null
-          media_espessura_cm: number | null
           observacoes_gerais: string | null
           percentual_aplicado: number | null
           registro_carga_id: string | null
@@ -1265,14 +1140,12 @@ export type Database = {
           temperatura_chegada: number | null
           tonelada_aplicada: number | null
           updated_at: string | null
-          usar_massa_total_para_espessura: boolean | null
         }
         Insert: {
           anotacoes_apontador?: string | null
           aplicacao_numero?: number | null
           aplicacao_sequencia?: number | null
           area?: number | null
-          area_calculada?: number | null
           bordo?: string | null
           carga_finalizada?: boolean | null
           carga_origem_id?: string | null
@@ -1281,8 +1154,6 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           data_aplicacao: string
-          data_fim_aplicacao?: string | null
-          data_inicio_aplicacao?: string | null
           espessura?: number | null
           espessura_calculada?: number | null
           estaca_final?: number | null
@@ -1295,8 +1166,6 @@ export type Database = {
           lista_entrega_id?: string | null
           logradouro_aplicado?: string | null
           logradouro_id?: string | null
-          massa_remanescente_antes_aplicacao?: number | null
-          media_espessura_cm?: number | null
           observacoes_gerais?: string | null
           percentual_aplicado?: number | null
           registro_carga_id?: string | null
@@ -1305,14 +1174,12 @@ export type Database = {
           temperatura_chegada?: number | null
           tonelada_aplicada?: number | null
           updated_at?: string | null
-          usar_massa_total_para_espessura?: boolean | null
         }
         Update: {
           anotacoes_apontador?: string | null
           aplicacao_numero?: number | null
           aplicacao_sequencia?: number | null
           area?: number | null
-          area_calculada?: number | null
           bordo?: string | null
           carga_finalizada?: boolean | null
           carga_origem_id?: string | null
@@ -1321,8 +1188,6 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           data_aplicacao?: string
-          data_fim_aplicacao?: string | null
-          data_inicio_aplicacao?: string | null
           espessura?: number | null
           espessura_calculada?: number | null
           estaca_final?: number | null
@@ -1335,8 +1200,6 @@ export type Database = {
           lista_entrega_id?: string | null
           logradouro_aplicado?: string | null
           logradouro_id?: string | null
-          massa_remanescente_antes_aplicacao?: number | null
-          media_espessura_cm?: number | null
           observacoes_gerais?: string | null
           percentual_aplicado?: number | null
           registro_carga_id?: string | null
@@ -1345,21 +1208,20 @@ export type Database = {
           temperatura_chegada?: number | null
           tonelada_aplicada?: number | null
           updated_at?: string | null
-          usar_massa_total_para_espessura?: boolean | null
         }
         Relationships: [
           {
-            foreignKeyName: "bd_registro_apontamento_aplicacao_lista_entrega_id_fkey"
-            columns: ["lista_entrega_id"]
+            foreignKeyName: "bd_registro_apontamento_aplicacao_carga_origem_id_fkey"
+            columns: ["carga_origem_id"]
             isOneToOne: false
-            referencedRelation: "bd_lista_programacao_entrega"
+            referencedRelation: "bd_registro_cargas"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "bd_registro_apontamento_aplicacao_lista_entrega_id_fkey"
             columns: ["lista_entrega_id"]
             isOneToOne: false
-            referencedRelation: "vw_entregas_com_massa_remanescente"
+            referencedRelation: "bd_lista_programacao_entrega"
             referencedColumns: ["id"]
           },
           {
@@ -1443,89 +1305,79 @@ export type Database = {
       }
       bd_registro_apontamento_inspecao: {
         Row: {
-          anotacoes: string | null
-          apontamento_caminhao_equipamento_id: string | null
-          cinto_seguranca: string | null
+          apontamento_caminhao_equipamento_id: string
+          avarias_observadas: string | null
           created_at: string | null
-          documentacao: string | null
-          drenagem_tanque_ar: string | null
-          engate_reboque: string | null
-          estado_equipamentos: string | null
-          estado_implementos: string | null
-          fotos_avarias: string[] | null
+          created_by: string | null
+          data_inspecao: string
+          direcao_funcionamento: string | null
+          equipamentos_seguranca: string | null
+          estado_pneus: string | null
+          fotos_inspecao: string[] | null
+          freios_funcionamento: string | null
+          hora_inspecao: string
           id: string
-          inspecao_veicular: string | null
-          limpeza_interna: string | null
-          material_amarracao: string | null
-          material_desgaste: string | null
-          material_rodante: string | null
+          inspecao_aprovada: boolean | null
+          limpeza_veiculo: string | null
+          luzes_funcionamento: string | null
           nivel_agua: string | null
           nivel_combustivel: string | null
           nivel_oleo: string | null
-          sistema_eletrico: string | null
-          tacografo: string | null
+          observacoes_gerais: string | null
+          pressao_pneus: string | null
           updated_at: string | null
         }
         Insert: {
-          anotacoes?: string | null
-          apontamento_caminhao_equipamento_id?: string | null
-          cinto_seguranca?: string | null
+          apontamento_caminhao_equipamento_id: string
+          avarias_observadas?: string | null
           created_at?: string | null
-          documentacao?: string | null
-          drenagem_tanque_ar?: string | null
-          engate_reboque?: string | null
-          estado_equipamentos?: string | null
-          estado_implementos?: string | null
-          fotos_avarias?: string[] | null
+          created_by?: string | null
+          data_inspecao?: string
+          direcao_funcionamento?: string | null
+          equipamentos_seguranca?: string | null
+          estado_pneus?: string | null
+          fotos_inspecao?: string[] | null
+          freios_funcionamento?: string | null
+          hora_inspecao?: string
           id?: string
-          inspecao_veicular?: string | null
-          limpeza_interna?: string | null
-          material_amarracao?: string | null
-          material_desgaste?: string | null
-          material_rodante?: string | null
+          inspecao_aprovada?: boolean | null
+          limpeza_veiculo?: string | null
+          luzes_funcionamento?: string | null
           nivel_agua?: string | null
           nivel_combustivel?: string | null
           nivel_oleo?: string | null
-          sistema_eletrico?: string | null
-          tacografo?: string | null
+          observacoes_gerais?: string | null
+          pressao_pneus?: string | null
           updated_at?: string | null
         }
         Update: {
-          anotacoes?: string | null
-          apontamento_caminhao_equipamento_id?: string | null
-          cinto_seguranca?: string | null
+          apontamento_caminhao_equipamento_id?: string
+          avarias_observadas?: string | null
           created_at?: string | null
-          documentacao?: string | null
-          drenagem_tanque_ar?: string | null
-          engate_reboque?: string | null
-          estado_equipamentos?: string | null
-          estado_implementos?: string | null
-          fotos_avarias?: string[] | null
+          created_by?: string | null
+          data_inspecao?: string
+          direcao_funcionamento?: string | null
+          equipamentos_seguranca?: string | null
+          estado_pneus?: string | null
+          fotos_inspecao?: string[] | null
+          freios_funcionamento?: string | null
+          hora_inspecao?: string
           id?: string
-          inspecao_veicular?: string | null
-          limpeza_interna?: string | null
-          material_amarracao?: string | null
-          material_desgaste?: string | null
-          material_rodante?: string | null
+          inspecao_aprovada?: boolean | null
+          limpeza_veiculo?: string | null
+          luzes_funcionamento?: string | null
           nivel_agua?: string | null
           nivel_combustivel?: string | null
           nivel_oleo?: string | null
-          sistema_eletrico?: string | null
-          tacografo?: string | null
+          observacoes_gerais?: string | null
+          pressao_pneus?: string | null
           updated_at?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "bd_registro_apontamento_inspe_apontamento_caminhao_equipam_fkey"
-            columns: ["apontamento_caminhao_equipamento_id"]
-            isOneToOne: false
-            referencedRelation: "bd_registro_apontamento_cam_equipa"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       bd_registro_cargas: {
         Row: {
+          created_at: string | null
           data_saida: string
           hora_saida: string
           id: string
@@ -1538,8 +1390,10 @@ export type Database = {
           tonelada_real: number | null
           tonelada_retorno: number | null
           tonelada_saida: number
+          updated_at: string | null
         }
         Insert: {
+          created_at?: string | null
           data_saida: string
           hora_saida: string
           id?: string
@@ -1552,8 +1406,10 @@ export type Database = {
           tonelada_real?: number | null
           tonelada_retorno?: number | null
           tonelada_saida: number
+          updated_at?: string | null
         }
         Update: {
+          created_at?: string | null
           data_saida?: string
           hora_saida?: string
           id?: string
@@ -1566,6 +1422,7 @@ export type Database = {
           tonelada_real?: number | null
           tonelada_retorno?: number | null
           tonelada_saida?: number
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -1573,89 +1430,6 @@ export type Database = {
             columns: ["lista_entrega_id"]
             isOneToOne: false
             referencedRelation: "bd_lista_programacao_entrega"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bd_registro_cargas_lista_entrega_id_fkey"
-            columns: ["lista_entrega_id"]
-            isOneToOne: false
-            referencedRelation: "vw_entregas_com_massa_remanescente"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bd_registro_cargas_programacao_id_fkey"
-            columns: ["programacao_id"]
-            isOneToOne: false
-            referencedRelation: "bd_programacao_entrega"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bd_registro_os: {
-        Row: {
-          anotacoes_internas: string | null
-          caminhao_equipamento_id: string | null
-          centro_custo_id: string | null
-          created_at: string | null
-          data_solicitacao: string
-          descricao_problema: string | null
-          fotos_os: string[] | null
-          hora_solicitacao: string
-          id: string
-          numero_chamado: string
-          prioridade: string | null
-          solicitante_id: string | null
-          status: string | null
-          tipo_falha: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          anotacoes_internas?: string | null
-          caminhao_equipamento_id?: string | null
-          centro_custo_id?: string | null
-          created_at?: string | null
-          data_solicitacao: string
-          descricao_problema?: string | null
-          fotos_os?: string[] | null
-          hora_solicitacao: string
-          id?: string
-          numero_chamado: string
-          prioridade?: string | null
-          solicitante_id?: string | null
-          status?: string | null
-          tipo_falha?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          anotacoes_internas?: string | null
-          caminhao_equipamento_id?: string | null
-          centro_custo_id?: string | null
-          created_at?: string | null
-          data_solicitacao?: string
-          descricao_problema?: string | null
-          fotos_os?: string[] | null
-          hora_solicitacao?: string
-          id?: string
-          numero_chamado?: string
-          prioridade?: string | null
-          solicitante_id?: string | null
-          status?: string | null
-          tipo_falha?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bd_registro_os_caminhao_equipamento_id_fkey"
-            columns: ["caminhao_equipamento_id"]
-            isOneToOne: false
-            referencedRelation: "bd_caminhoes_equipamentos"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bd_registro_os_centro_custo_id_fkey"
-            columns: ["centro_custo_id"]
-            isOneToOne: false
-            referencedRelation: "bd_centros_custo"
             referencedColumns: ["id"]
           },
         ]
@@ -1801,29 +1575,38 @@ export type Database = {
         Row: {
           created_at: string | null
           email: string | null
-          funcao_permissao: string
+          funcao_permissao: string | null
+          funcao_sistema: string | null
+          funcionario_id: string | null
           funcoes: string[] | null
           id: string
           imagem_url: string | null
           nome_completo: string | null
+          updated_at: string | null
         }
         Insert: {
           created_at?: string | null
           email?: string | null
-          funcao_permissao: string
+          funcao_permissao?: string | null
+          funcao_sistema?: string | null
+          funcionario_id?: string | null
           funcoes?: string[] | null
           id: string
           imagem_url?: string | null
           nome_completo?: string | null
+          updated_at?: string | null
         }
         Update: {
           created_at?: string | null
           email?: string | null
-          funcao_permissao?: string
+          funcao_permissao?: string | null
+          funcao_sistema?: string | null
+          funcionario_id?: string | null
           funcoes?: string[] | null
           id?: string
           imagem_url?: string | null
           nome_completo?: string | null
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -1833,247 +1616,102 @@ export type Database = {
             referencedRelation: "bd_funcoes_permissao"
             referencedColumns: ["id"]
           },
-        ]
-      }
-    }
-    Views: {
-      bd_usuarios: {
-        Row: {
-          email: string | null
-          id: string | null
-          imagem_url: string | null
-          nome_completo: string | null
-        }
-        Insert: {
-          email?: string | null
-          id?: string | null
-          imagem_url?: string | null
-          nome_completo?: string | null
-        }
-        Update: {
-          email?: string | null
-          id?: string | null
-          imagem_url?: string | null
-          nome_completo?: string | null
-        }
-        Relationships: []
-      }
-      vw_entregas_com_massa_remanescente: {
-        Row: {
-          apontador_id: string | null
-          caminhao_id: string | null
-          created_at: string | null
-          data_entrega: string | null
-          equipe_id: string | null
-          id: string | null
-          logradouro: string | null
-          massa_aplicada_total: number | null
-          massa_remanescente: number | null
-          massa_total_carga: number | null
-          programacao_entrega_id: string | null
-          programacao_id: string | null
-          quantidade_massa: number | null
-          requisicao_id: string | null
-          status: string | null
-          tipo_lancamento: string | null
-          updated_at: string | null
-          usina_id: string | null
-        }
-        Relationships: [
           {
-            foreignKeyName: "bd_lista_programacao_entrega_apontador_id_fkey"
-            columns: ["apontador_id"]
+            foreignKeyName: "profiles_funcionario_id_fkey"
+            columns: ["funcionario_id"]
             isOneToOne: false
             referencedRelation: "bd_funcionarios"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "bd_lista_programacao_entrega_caminhao_id_fkey"
-            columns: ["caminhao_id"]
-            isOneToOne: false
-            referencedRelation: "bd_caminhoes_equipamentos"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bd_lista_programacao_entrega_equipe_id_fkey"
-            columns: ["equipe_id"]
-            isOneToOne: false
-            referencedRelation: "bd_equipes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bd_lista_programacao_entrega_programacao_entrega_id_fkey"
-            columns: ["programacao_entrega_id"]
-            isOneToOne: false
-            referencedRelation: "bd_programacao_entrega"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bd_lista_programacao_entrega_programacao_id_fkey"
-            columns: ["programacao_id"]
-            isOneToOne: false
-            referencedRelation: "bd_programacao_entrega"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bd_lista_programacao_entrega_requisicao_id_fkey"
-            columns: ["requisicao_id"]
-            isOneToOne: false
-            referencedRelation: "bd_requisicoes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bd_lista_programacao_entrega_usina_id_fkey"
-            columns: ["usina_id"]
-            isOneToOne: false
-            referencedRelation: "bd_usinas"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      vw_registro_aplicacao_completo: {
-        Row: {
-          area_total_aplicada: number | null
-          created_at: string | null
-          data_aplicacao: string | null
-          espessura_media_cm: number | null
-          hora_chegada_local: string | null
-          hora_saida_caminhao: string | null
-          id: string | null
-          lista_entrega_id: string | null
-          logradouro: string | null
-          massa_remanescente: number | null
-          massa_total_carga: number | null
-          numero_aplicacoes: number | null
-          percentual_aplicado: number | null
-          quantidade_massa: number | null
-          registro_carga_id: string | null
-          status_aplicacao: string | null
-          status_calculado: string | null
-          status_entrega: string | null
-          tipo_lancamento: string | null
-          total_aplicado: number | null
-          updated_at: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bd_registro_apontamento_aplicacao_lista_entrega_id_fkey"
-            columns: ["lista_entrega_id"]
-            isOneToOne: false
-            referencedRelation: "bd_lista_programacao_entrega"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bd_registro_apontamento_aplicacao_lista_entrega_id_fkey"
-            columns: ["lista_entrega_id"]
-            isOneToOne: false
-            referencedRelation: "vw_entregas_com_massa_remanescente"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bd_registro_apontamento_aplicacao_registro_carga_id_fkey"
-            columns: ["registro_carga_id"]
-            isOneToOne: false
-            referencedRelation: "bd_registro_cargas"
-            referencedColumns: ["id"]
-          },
         ]
       }
     }
+    Views: {
+      [_ in never]: never
+    }
     Functions: {
-      apontador_pode_acessar_equipe: {
-        Args: { user_id: string; target_equipe_id: string }
+      atualizar_status_entrega_automatico: {
+        Args: {
+          lista_id: string
+          novo_status: string
+          percentual_aplicado?: number
+          massa_remanescente?: number
+        }
         Returns: boolean
       }
-      atualizar_status_equipamentos_nao_apontados: {
-        Args: Record<PropertyKey, never>
-        Returns: number
+      calcular_espessura_aplicacao: {
+        Args: { tonelada_aplicada: number; area_aplicada: number }
+        Returns: {
+          espessura_cm: number
+          status: string
+          descricao: string
+        }[]
       }
       calcular_massa_remanescente: {
         Args: { entrega_id: string }
         Returns: number
       }
-      calcular_media_espessura_carga: {
-        Args: { carga_id: string }
+      calcular_massa_remanescente_aplicacao: {
+        Args: { aplicacao_id: string }
+        Returns: number
+      }
+      calcular_massa_remanescente_em_tempo_real: {
+        Args: { p_registro_aplicacao_id: string }
         Returns: number
       }
       check_is_super_admin: {
-        Args: { user_id: string }
+        Args: { user_id?: string }
         Returns: boolean
       }
-      check_is_super_admin_hybrid: {
-        Args: { user_id: string }
-        Returns: boolean
-      }
-      check_is_super_admin_new: {
-        Args: { user_id: string }
-        Returns: boolean
-      }
-      corrigir_status_entregas_inconsistentes: {
-        Args: Record<PropertyKey, never>
+      converter_kg_para_toneladas: {
+        Args: { p_valor: number }
         Returns: number
       }
-      debug_user_access: {
-        Args: Record<PropertyKey, never>
+      criar_aplicacao_por_rua: {
+        Args: {
+          p_lista_entrega_id: string
+          p_registro_carga_id: string
+          p_logradouro_nome: string
+          p_area_aplicada: number
+          p_tonelada_aplicada: number
+          p_espessura_aplicada?: number
+          p_comprimento?: number
+          p_largura_media?: number
+          p_bordo?: string
+          p_temperatura_aplicacao?: number
+          p_observacoes_aplicacao?: string
+          p_hora_inicio_aplicacao?: string
+          p_hora_fim_aplicacao?: string
+          p_data_aplicacao?: string
+          p_hora_chegada_local?: string
+        }
         Returns: Json
-      }
-      debug_usuario_equipe: {
-        Args: { user_id: string }
-        Returns: {
-          user_email: string
-          user_funcoes: string[]
-          equipe_nome: string
-          eh_apontador: boolean
-          eh_encarregado: boolean
-        }[]
-      }
-      finalizar_aplicacao_carga: {
-        Args: { carga_id: string }
-        Returns: undefined
       }
       finalizar_carga_aplicacao: {
+        Args: { aplicacao_id: string }
+        Returns: Json
+      }
+      finalizar_carga_manual: {
         Args: { carga_id: string }
         Returns: Json
       }
-      get_current_user_role: {
-        Args: Record<PropertyKey, never>
+      garantir_registro_aplicacao_principal: {
+        Args: {
+          p_lista_entrega_id: string
+          p_registro_carga_id: string
+          p_data_aplicacao: string
+          p_hora_chegada_local: string
+          p_created_by: string
+        }
         Returns: string
       }
-      get_ultimo_horimetro_privilegiado: {
-        Args: { caminhao_id: string }
-        Returns: number
+      log_aplicacao_debug: {
+        Args: { p_funcao: string; p_dados: Json; p_resultado?: Json }
+        Returns: undefined
       }
-      get_user_allowed_teams: {
-        Args: Record<PropertyKey, never>
-        Returns: string[]
-      }
-      get_user_permissions: {
-        Args: { user_id: string }
-        Returns: string[]
-      }
-      get_user_permissions_hybrid: {
-        Args: { user_id: string }
-        Returns: string[]
-      }
-      user_has_permission: {
-        Args: { user_id: string; permission_name: string }
-        Returns: boolean
-      }
-      user_has_permission_hybrid: {
-        Args: { user_id: string; permission_name: string }
-        Returns: boolean
-      }
-      usuario_acessa_equipe: {
-        Args: { _user_id: string; _equipe_id: string }
-        Returns: boolean
-      }
-      usuario_gerencia_funcionario: {
-        Args: { user_id: string; funcionario_id: string }
-        Returns: boolean
-      }
-      usuario_tem_permissao: {
-        Args: { user_id: string; rota: string; registro_owner_id: string }
-        Returns: boolean
+      sincronizar_hora_saida_aplicacao: {
+        Args: { p_registro_aplicacao_id: string }
+        Returns: undefined
       }
     }
     Enums: {

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissionCacheInvalidation } from "@/hooks/usePermissionCacheInvalidation";
 import { validateFunctionAssignment, cleanFunctionArray } from "@/utils/permissionValidation";
+import { safeProfilesQuery } from "@/hooks/useSimpleTypeWorkaround";
 import { 
   Permissao, 
   PermissaoFilter, 
@@ -78,11 +79,11 @@ export const usePermissao = () => {
       console.log('🔍 Buscando todas as funções disponíveis...');
       
       try {
-        // Buscar funções do campo funcoes (array)
+        // Buscar funções do campo funcoes (array) - safe fallback
         const { data: profilesData, error: profilesError } = await supabase
           .from('profiles')
-          .select('funcoes')
-          .not('funcoes', 'is', null);
+          .select('funcao_sistema')
+          .not('funcao_sistema', 'is', null);
         
         // Buscar funções da tabela bd_funcoes_permissao
         const { data: funcoesData, error: funcoesError } = await supabase
@@ -96,14 +97,10 @@ export const usePermissao = () => {
         
         const allFunctions = new Set<string>();
         
-        // Adicionar funções do array funcoes
+        // Adicionar funções do funcao_sistema
         profilesData?.forEach(profile => {
-          if (profile.funcoes && Array.isArray(profile.funcoes)) {
-            profile.funcoes.forEach(funcao => {
-              if (funcao && funcao.trim() !== '') {
-                allFunctions.add(funcao);
-              }
-            });
+          if (profile.funcao_sistema && profile.funcao_sistema.trim() !== '') {
+            allFunctions.add(profile.funcao_sistema);
           }
         });
         
@@ -139,24 +136,8 @@ export const usePermissao = () => {
       console.log('📅 Timestamp:', new Date().toISOString());
       
       try {
-        // Query híbrida que funciona com ambos os sistemas
-        const { data: users, error, count } = await supabase
-          .from('profiles')
-          .select(`
-            id,
-            email,
-            nome_completo,
-            imagem_url,
-            funcoes,
-            funcao_permissao,
-            bd_funcoes_permissao:funcao_permissao (
-              id,
-              nome_funcao,
-              descricao
-            ),
-            created_at
-          `, { count: 'exact' })
-          .order('created_at', { ascending: false });
+        // Use safe query to avoid column errors
+        const { data: users, error } = await safeProfilesQuery(supabase);
         
         if (error) {
           console.error('💥 ERRO na query híbrida:', error);
@@ -164,7 +145,6 @@ export const usePermissao = () => {
         }
         
         console.log('📊 DADOS HÍBRIDOS:');
-        console.log(`📈 Total de usuários encontrados: ${count}`);
         console.log(`📝 Array length: ${users?.length || 0}`);
         
         // Log detalhado dos usuários
@@ -173,10 +153,7 @@ export const usePermissao = () => {
           console.log(`👤 ${index + 1}/${users.length}:`, {
             id: user.id?.substring(0, 8) + '...',
             nome: user.nome_completo || 'SEM NOME',
-            email: user.email || 'SEM EMAIL',
-            funcoes: user.funcoes || 'SEM FUNCOES',
-            funcao_permissao: user.funcao_permissao || 'SEM FUNCAO_PERMISSAO',
-            bd_funcoes_permissao: user.bd_funcoes_permissao || 'SEM BD_FUNCOES_PERMISSAO',
+            funcao_sistema: user.funcao_sistema || 'SEM FUNCAO_SISTEMA',
             created_at: user.created_at
           });
         });
@@ -229,31 +206,17 @@ export const usePermissao = () => {
       
       if (profileFilter.status === 'sem_permissao') {
         filteredData = filteredData.filter(profile => {
-          const funcoes = profile.funcoes || [];
-          const funcaoPermissao = (profile as any).bd_funcoes_permissao;
+          const funcaoSistema = profile.funcao_sistema || 'Usuário';
           
-          // Verificar se tem permissão via funcoes array
-          const temFuncaoArray = funcoes.some(f => f && f.trim() !== '' && f !== 'user');
-          
-          // Verificar se tem permissão via funcao_permissao
-          const temFuncaoPermissao = funcaoPermissao && funcaoPermissao.nome_funcao;
-          
-          // Sem permissão = não tem nem funcao array nem funcao_permissao válida
-          return !temFuncaoArray && !temFuncaoPermissao;
+          // Sem permissão = função é 'Usuário' ou vazia
+          return funcaoSistema === 'Usuário' || funcaoSistema.trim() === '';
         });
       } else if (profileFilter.status === 'com_permissao') {
         filteredData = filteredData.filter(profile => {
-          const funcoes = profile.funcoes || [];
-          const funcaoPermissao = (profile as any).bd_funcoes_permissao;
+          const funcaoSistema = profile.funcao_sistema || 'Usuário';
           
-          // Verificar se tem permissão via funcoes array
-          const temFuncaoArray = funcoes.some(f => f && f.trim() !== '' && f !== 'user');
-          
-          // Verificar se tem permissão via funcao_permissao
-          const temFuncaoPermissao = funcaoPermissao && funcaoPermissao.nome_funcao;
-          
-          // Com permissão = tem funcao array OU funcao_permissao válida
-          return temFuncaoArray || temFuncaoPermissao;
+          // Com permissão = função não é 'Usuário'
+          return funcaoSistema !== 'Usuário' && funcaoSistema.trim() !== '';
         });
       }
       
@@ -423,7 +386,7 @@ export const usePermissao = () => {
       
       const { data: profile, error: fetchError } = await supabase
         .from('profiles')
-        .select('funcoes, funcao_permissao')
+        .select('funcao_sistema')
         .eq('id', profileId)
         .single();
       
@@ -432,22 +395,10 @@ export const usePermissao = () => {
         throw fetchError;
       }
       
-      const currentFuncoes = profile?.funcoes || ['user'];
+      console.log('📝 Atualizando função do sistema:', { current: profile?.funcao_sistema, new: funcaoString });
       
-      // Validar atribuição usando utilitário
-      const validation = validateFunctionAssignment(currentFuncoes, funcaoString);
-      if (!validation.isValid) {
-        throw new Error(validation.message);
-      }
-      
-      // Filtrar 'user' se estiver presente e adicionar nova função
-      const filteredFuncoes = currentFuncoes.filter(f => f !== 'user');
-      const newFuncoes = cleanFunctionArray([...filteredFuncoes, funcaoString]);
-      
-      console.log('📝 Atualizando funções:', { currentFuncoes, newFuncoes });
-      
-      // Atualizar tanto o array funcoes quanto funcao_permissao para consistência
-      const updateData: any = { funcoes: newFuncoes };
+      // Atualizar funcao_sistema diretamente
+      const updateData: any = { funcao_sistema: funcaoString };
       
       // Se existe a função na tabela bd_funcoes_permissao, vincular no campo funcao_permissao também
       if (funcaoExists) {

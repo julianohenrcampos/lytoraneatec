@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { AlertTriangle, CheckCircle, Clock } from "lucide-react";
 import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
 import { validateMassaAplicada, getMassaStatusClass, getProgressBarColor } from "@/utils/massaValidationUtils";
+import { formatMassaFromDatabase } from "@/utils/massaConversionUtils";
 
 interface EntregaSummaryProps {
   entrega: ListaProgramacaoEntrega;
@@ -30,7 +31,10 @@ const EntregaSummary: React.FC<EntregaSummaryProps> = ({
   exceededAvailableMass,
   totalAplicado = 0
 }) => {
-  const massaTotal = registroCarga?.tonelada_real || 0;
+  // CORREÇÃO CRÍTICA: tonelada_real está em KG, converter para toneladas
+  const massaTotal = registroCarga?.tonelada_real 
+    ? formatMassaFromDatabase(registroCarga.tonelada_real, 'bd_registro_cargas', 'tonelada_real')
+    : 0;
   const massaValidation = validateMassaAplicada(totalAplicado, massaTotal);
   const massaStatusClass = getMassaStatusClass(massaValidation);
   const progressBarColor = getProgressBarColor(massaValidation);
@@ -53,7 +57,7 @@ const EntregaSummary: React.FC<EntregaSummaryProps> = ({
             <div className="space-y-1">
               <div className="flex justify-between items-center">
                 <span className="text-xs text-blue-600">Total:</span>
-                <span className="font-medium">{massaTotal.toFixed(2)}t</span>
+                <span className="font-medium">{massaTotal.toFixed(1)}t</span>
               </div>
               
               {/* Validação do Total Aplicado */}
@@ -67,12 +71,12 @@ const EntregaSummary: React.FC<EntregaSummaryProps> = ({
                     <CheckCircle className="h-3 w-3" />
                   )}
                 </div>
-                <span className="font-medium">{totalAplicado.toFixed(2)}t</span>
+                <span className="font-medium">{totalAplicado.toFixed(1)}t</span>
               </div>
 
               <div className="flex justify-between items-center">
                 <span className="text-xs text-blue-600">Remanescente:</span>
-                <span className="font-medium">{massaRemanescente.toFixed(2)}t</span>
+                <span className="font-medium">{massaRemanescente.toFixed(1)}t</span>
               </div>
               
               {/* Progress Bar com validação */}
@@ -109,7 +113,7 @@ const EntregaSummary: React.FC<EntregaSummaryProps> = ({
               {calculatedToneladaAplicada !== null && (
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-blue-600">Esta Aplicação:</span>
-                  <span className="font-medium">{calculatedToneladaAplicada.toFixed(2)}t</span>
+                  <span className="font-medium">{calculatedToneladaAplicada.toFixed(1)}t</span>
                 </div>
               )}
               
@@ -117,7 +121,7 @@ const EntregaSummary: React.FC<EntregaSummaryProps> = ({
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-blue-600">Espessura:</span>
                   <Badge variant="outline" className={espessuraStatusClass}>
-                    {(calculatedEspessura * 100).toFixed(1)}cm
+                    {calculatedEspessura.toFixed(1)}cm
                   </Badge>
                 </div>
               )}

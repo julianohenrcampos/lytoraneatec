@@ -76,7 +76,7 @@ export const fetchApontamentosEquipe = async (
     }
 
     console.log(`📊 Found ${data?.length || 0} apontamentos`);
-    return data || [];
+    return (data as any) || [];
   } catch (error) {
     console.error("💥 Unexpected error in fetchApontamentosEquipe:", error);
     throw error;
@@ -117,7 +117,7 @@ export const getApontamentoById = async (id: string): Promise<ApontamentoEquipe 
       return null;
     }
 
-    return data;
+    return (data as any) || [];
   } catch (error) {
     console.error("Unexpected error in getApontamentoById:", error);
     return null;
@@ -154,7 +154,7 @@ export const createApontamentoEquipe = async (
       throw error;
     }
 
-    return data?.[0] || data;
+    return (data as any) || [];
   } catch (error) {
     console.error("Unexpected error in createApontamentoEquipe:", error);
     throw error;
@@ -226,7 +226,7 @@ export const deleteApontamentoEquipe = async (id: string): Promise<void> => {
 export const getLastAvaliacaoForColaborador = async (colaboradorId: string) => {
   try {
     const { data, error } = await supabase
-      .from("bd_avaliacao_equipe")
+      .from("bd_avaliacao_equipe" as any)
       .select("*")
       .eq("colaborador_id", colaboradorId)
       .order("data_avaliacao", { ascending: false })
@@ -238,7 +238,7 @@ export const getLastAvaliacaoForColaborador = async (colaboradorId: string) => {
       return null;
     }
 
-    return data;
+    return data as any;
   } catch (error) {
     console.error("Unexpected error in getLastAvaliacaoForColaborador:", error);
     return null;
@@ -248,7 +248,7 @@ export const getLastAvaliacaoForColaborador = async (colaboradorId: string) => {
 export const createAvaliacaoEquipe = async (avaliacao: any) => {
   try {
     const { data, error } = await supabase
-      .from("bd_avaliacao_equipe")
+      .from("bd_avaliacao_equipe" as any)
       .insert(avaliacao)
       .select()
       .single();
@@ -258,7 +258,7 @@ export const createAvaliacaoEquipe = async (avaliacao: any) => {
       throw error;
     }
 
-    return data;
+    return (data as any) || [];
   } catch (error) {
     console.error("Unexpected error in createAvaliacaoEquipe:", error);
     throw error;

@@ -134,7 +134,7 @@ export const getFuncionarioById = async (id: string): Promise<Funcionario> => {
       funcionarioComEquipe = {
         ...data,
         bd_equipes: equipe
-      };
+      } as any;
     }
     
     return funcionarioComEquipe as unknown as Funcionario;
@@ -262,6 +262,8 @@ export const updateFuncionario = async (id: string, data: FuncionarioFormData): 
 // Function to check if a funcionario has references in other tables
 export const checkFuncionarioReferences = async (id: string): Promise<{ hasReferences: boolean; referencedIn: string[] }> => {
   try {
+    console.log("🔍 Verificando referências do funcionário:", id);
+    
     const references: string[] = [];
     
     // Check references in bd_registro_apontamento_cam_equipa
@@ -270,9 +272,13 @@ export const checkFuncionarioReferences = async (id: string): Promise<{ hasRefer
       .select("id", { count: "exact", head: true })
       .eq("operador_id", id);
     
-    if (apontamentosError) throw apontamentosError;
+    if (apontamentosError) {
+      console.error("❌ Erro ao verificar apontamentos:", apontamentosError);
+      throw apontamentosError;
+    }
     if (apontamentosCount && apontamentosCount > 0) {
       references.push("Registros de Apontamento de Caminhões/Equipamentos");
+      console.log("⚠️ Encontradas referências em apontamentos:", apontamentosCount);
     }
     
     // Check references in bd_equipes (for encarregado_id and apontador_id)
@@ -281,9 +287,13 @@ export const checkFuncionarioReferences = async (id: string): Promise<{ hasRefer
       .select("id", { count: "exact", head: true })
       .eq("encarregado_id", id);
     
-    if (equipesEncarregadoError) throw equipesEncarregadoError;
+    if (equipesEncarregadoError) {
+      console.error("❌ Erro ao verificar equipes (encarregado):", equipesEncarregadoError);
+      throw equipesEncarregadoError;
+    }
     if (equipesEncarregadoCount && equipesEncarregadoCount > 0) {
       references.push("Equipes (como Encarregado)");
+      console.log("⚠️ Encontradas referências em equipes como encarregado:", equipesEncarregadoCount);
     }
     
     const { count: equipesApontadorCount, error: equipesApontadorError } = await supabase
@@ -291,32 +301,104 @@ export const checkFuncionarioReferences = async (id: string): Promise<{ hasRefer
       .select("id", { count: "exact", head: true })
       .eq("apontador_id", id);
     
-    if (equipesApontadorError) throw equipesApontadorError;
+    if (equipesApontadorError) {
+      console.error("❌ Erro ao verificar equipes (apontador):", equipesApontadorError);
+      throw equipesApontadorError;
+    }
     if (equipesApontadorCount && equipesApontadorCount > 0) {
       references.push("Equipes (como Apontador)");
+      console.log("⚠️ Encontradas referências em equipes como apontador:", equipesApontadorCount);
     }
+    
+    // Check references in bd_avaliacao_equipe
+    const { count: avaliacaoCount, error: avaliacaoError } = await (supabase as any)
+      .from("bd_avaliacao_equipe")
+      .select("id", { count: "exact", head: true })
+      .eq("colaborador_id", id);
+    
+    if (avaliacaoError) {
+      console.error("❌ Erro ao verificar avaliações:", avaliacaoError);
+      throw avaliacaoError;
+    }
+    if (avaliacaoCount && avaliacaoCount > 0) {
+      references.push("Avaliações de Equipe");
+      console.log("⚠️ Encontradas referências em avaliações:", avaliacaoCount);
+    }
+    
+    console.log("✅ Verificação de referências concluída:", { hasReferences: references.length > 0, referencedIn: references });
     
     return {
       hasReferences: references.length > 0,
       referencedIn: references
     };
   } catch (error) {
-    console.error("Error checking funcionario references:", error);
+    console.error("❌ Erro ao verificar referências do funcionário:", error);
     throw new Error("Não foi possível verificar referências do funcionário");
   }
 };
 
-// Function to delete funcionario
+// Function to delete funcionario with SuperAdmin bypass
+export const deleteFuncionarioWithBypass = async (id: string): Promise<void> => {
+  try {
+    console.log("🗑️ Tentando excluir funcionário com bypass SuperAdmin:", id);
+    
+    const { data, error } = await (supabase as any).rpc('delete_funcionario_with_admin_bypass', {
+      funcionario_id: id
+    });
+
+    if (error) {
+      console.error("❌ Erro ao excluir funcionário com bypass:", error);
+      throw new Error(error.message);
+    }
+    
+    if (data === false) {
+      console.error("❌ Usuário não tem permissão para bypass");
+      throw new Error("Usuário não tem permissão para forçar exclusão");
+    }
+    
+    console.log("✅ Funcionário excluído com bypass SuperAdmin:", id);
+  } catch (error) {
+    console.error(`❌ Erro ao excluir funcionário com bypass ${id}:`, error);
+    throw error;
+  }
+};
+
+// Function to delete funcionario (standard)
 export const deleteFuncionario = async (id: string): Promise<void> => {
   try {
+    console.log("🗑️ Tentando excluir funcionário:", id);
+    
     const { error } = await supabase
       .from("bd_funcionarios")
       .delete()
       .eq("id", id);
 
-    if (error) throw new Error(error.message);
+    if (error) {
+      console.error("❌ Erro ao excluir funcionário:", error);
+      throw new Error(error.message);
+    }
+    
+    console.log("✅ Funcionário excluído com sucesso:", id);
   } catch (error) {
-    console.error(`Error deleting funcionario with id ${id}:`, error);
+    console.error(`❌ Erro ao excluir funcionário com id ${id}:`, error);
+    throw error;
+  }
+};
+
+// Function to debug user authentication
+export const debugUserAuth = async (): Promise<any> => {
+  try {
+    const { data, error } = await (supabase as any).rpc('debug_user_authentication');
+    
+    if (error) {
+      console.error("❌ Erro ao fazer debug de autenticação:", error);
+      throw error;
+    }
+    
+    console.log("🔐 Debug de autenticação:", data);
+    return data;
+  } catch (error) {
+    console.error("❌ Erro no debug de autenticação:", error);
     throw error;
   }
 };

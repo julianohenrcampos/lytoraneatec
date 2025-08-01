@@ -32,8 +32,8 @@ export const fetchDepartamentos = async (filters: DepartamentoFilter = {}) => {
   // Formatar os dados para corresponder à interface Departamento
   return data.map((item) => ({
     ...item,
-    empresa: item.empresa ? item.empresa : undefined
-  })) as Departamento[];
+    empresa: Array.isArray(item.empresa) ? item.empresa[0] : item.empresa
+  })) as any as Departamento[];
 };
 
 // Função para buscar um departamento específico
@@ -54,8 +54,8 @@ export const fetchDepartamento = async (id: string) => {
 
   return {
     ...data,
-    empresa: data.empresa ? data.empresa : undefined
-  } as Departamento;
+    empresa: Array.isArray(data.empresa) ? data.empresa[0] : data.empresa
+  } as any as Departamento;
 };
 
 // Função para criar um novo departamento

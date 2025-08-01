@@ -156,8 +156,8 @@ export const fetchEntregasStable = async (
       query = query.eq('caminhao_id', filters.caminhao_id);
     }
 
-    // Buscar entregas "Enviada" e "Pendente" para registro de aplicação
-    query = query.in('status', ['Enviada', 'Pendente']);
+    // Buscar entregas "Enviada" e "Entregue" para registro de aplicação
+    query = query.in('status', ['Enviada', 'Entregue']);
 
     // Ordenar por data de entrega
     query = query.order("data_entrega", { ascending: false });

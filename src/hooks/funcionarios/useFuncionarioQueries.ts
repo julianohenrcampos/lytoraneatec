@@ -4,6 +4,7 @@ import {
   createFuncionario, 
   updateFuncionario, 
   deleteFuncionario,
+  deleteFuncionarioWithBypass,
   checkFuncionarioReferences
 } from "@/services/funcionarioService";
 import { FuncionarioFilter, FuncionarioFormData } from "@/types/funcionario";
@@ -81,13 +82,28 @@ export function useFuncionarioQueries(
   // Mutation para excluir funcionário
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      console.log("🔐 Iniciando exclusão de funcionário:", id);
+      
       // Primeiro verifica se há referências ao funcionário
       const references = await checkFuncionarioReferences(id);
       if (references.hasReferences) {
-        throw new Error(
-          `Não é possível excluir este funcionário pois existem referências em: ${references.referencedIn.join(', ')}`
-        );
+        console.warn("⚠️ Funcionário possui referências:", references.referencedIn);
+        
+        // Tentar bypass para SuperAdmin
+        try {
+          console.log("🔓 Tentando bypass SuperAdmin para exclusão...");
+          await deleteFuncionarioWithBypass(id);
+          console.log("✅ Bypass SuperAdmin executado com sucesso");
+          return;
+        } catch (bypassError) {
+          console.error("❌ Bypass SuperAdmin falhou:", bypassError);
+          throw new Error(
+            `Não é possível excluir este funcionário pois existem referências em: ${references.referencedIn.join(', ')}`
+          );
+        }
       }
+      
+      console.log("✅ Funcionário pode ser excluído normalmente, prosseguindo...");
       return deleteFuncionario(id);
     },
     onSuccess: () => {

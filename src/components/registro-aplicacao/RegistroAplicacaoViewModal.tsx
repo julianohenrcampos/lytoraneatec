@@ -15,6 +15,7 @@ import { RegistroAplicacao } from '@/types/registroAplicacao';
 import { getEspessuraCalculadaStatus, getEspessuraCalculadaStatusText } from '@/utils/aplicacaoCalculations';
 import { formatBrazilianDateForDisplay } from '@/utils/timezoneUtils';
 import { supabase } from '@/integrations/supabase/client';
+import { formatMassaFromDatabase } from '@/utils/massaConversionUtils';
 
 interface RegistroAplicacaoViewModalProps {
   registro: RegistroAplicacao;
@@ -89,7 +90,9 @@ export const RegistroAplicacaoViewModal: React.FC<RegistroAplicacaoViewModalProp
           detalhesAplicacoes
         });
 
-        const massaTotalCarga = carga?.tonelada_real || 0;
+        const massaTotalCarga = carga?.tonelada_real 
+          ? formatMassaFromDatabase(carga.tonelada_real, 'bd_registro_cargas', 'tonelada_real')
+          : 0;
         
         // Usar carga_total_aplicada em vez de somar tonelada_aplicada individual
         const totalAplicado = aplicacoesPrincipais?.[0]?.carga_total_aplicada || 0;
@@ -261,7 +264,10 @@ export const RegistroAplicacaoViewModal: React.FC<RegistroAplicacaoViewModalProp
               <div>
                 <label className="text-sm font-medium text-gray-700">Ton. Saída</label>
                 <p className="text-sm text-gray-900">
-                  {registro.registro_carga?.tonelada_real ? `${registro.registro_carga.tonelada_real}t` : "N/A"}
+                  {registro.registro_carga?.tonelada_real 
+                    ? `${formatMassaFromDatabase(registro.registro_carga.tonelada_real, 'bd_registro_cargas', 'tonelada_real').toFixed(1)}t`
+                    : "N/A"
+                  }
                 </p>
               </div>
               <div>

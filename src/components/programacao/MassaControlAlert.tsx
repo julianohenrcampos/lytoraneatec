@@ -2,6 +2,7 @@ import React from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Info, CheckCircle, XCircle } from "lucide-react";
 import { useProgramacaoProgress } from "@/hooks/useProgramacaoProgress";
+import { normalizeToToneladas } from "@/utils/massaConversionUtils";
 
 interface MassaControlAlertProps {
   requisicaoId: string | null;
@@ -43,11 +44,12 @@ export const MassaControlAlert: React.FC<MassaControlAlertProps> = ({
     }
 
     // Se válida, mostrar confirmação
+    const quantidadeNormalizada = normalizeToToneladas(quantidadeTentativa);
     return (
       <Alert className={`border-green-500 bg-green-50 ${className}`}>
         <CheckCircle className="h-4 w-4 text-green-600" />
         <AlertDescription className="text-green-700">
-          <strong>Quantidade válida!</strong> Após esta programação restará {(massaDisponivel - quantidadeTentativa).toFixed(1)}t disponível.
+          <strong>Quantidade válida!</strong> Após esta programação restará {(massaDisponivel - quantidadeNormalizada).toFixed(1)}t disponível.
         </AlertDescription>
       </Alert>
     );

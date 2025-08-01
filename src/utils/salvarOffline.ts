@@ -1,6 +1,6 @@
 
 import { v4 as uuidv4 } from 'uuid';
-import { useToast } from '@/hooks/use-toast';
+import { canAccessOfflineModule } from './offlinePermissions';
 
 export type TipoApontamento = 
   | 'apontamento_equipe'
@@ -68,6 +68,11 @@ export const salvarApontamentoOffline = (
   usuarioId?: string
 ): string => {
   try {
+    // Verificar permissão antes de salvar offline
+    if (!canAccessOfflineModule(tipo)) {
+      throw new Error(`Sem permissão para salvar ${TIPOS_APONTAMENTO[tipo].nomeExibicao} offline`);
+    }
+    
     const config = TIPOS_APONTAMENTO[tipo];
     const chave = config.chaveLocalStorage;
     

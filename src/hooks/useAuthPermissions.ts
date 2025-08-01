@@ -44,19 +44,18 @@ export const useAuthPermissions = (): UserPermissions => {
 
         console.log('🔐 Usuário autenticado:', user.email);
 
-        // Query usando o novo sistema unificado
+        // Emails SuperAdmin automáticos
+        const SUPER_ADMIN_EMAILS = ['julianohcampos@yahoo.com.br', 'ramonvalentevalente@gmail.com'];
+
+        // Query usando o sistema profiles com funcoes[] como fonte primária
         const { data: profile, error: profileErr } = await supabase
           .from('profiles')
           .select(`
             id, 
+            email,
             nome_completo, 
-            funcao_permissao,
-            bd_funcoes_permissao:funcao_permissao (
-              id,
-              nome_funcao,
-              descricao,
-              permissoes
-            )
+            funcoes,
+            funcao_sistema
           `)
           .eq('id', user.id)
           .single();
@@ -76,73 +75,72 @@ export const useAuthPermissions = (): UserPermissions => {
 
         console.log('📋 Perfil encontrado com sucesso:', profile);
 
-        // SISTEMA DE PERMISSÕES BASEADO NO NOVO SISTEMA UNIFICADO
+        // SISTEMA DE PERMISSÕES BASEADO NO NOVO SISTEMA UNIFICADO - funcoes[] como fonte primária
         let userRole: string | null = null;
         let isSuperAdmin = false;
         let userPermissions: string[] = ['dashboard_view']; // Permissão básica sempre
 
-        if (profile?.bd_funcoes_permissao) {
-          const funcaoPermissao = profile.bd_funcoes_permissao as any;
-          userRole = funcaoPermissao.nome_funcao;
-          isSuperAdmin = funcaoPermissao.nome_funcao === 'SuperAdm';
+        // 1. Verificar por email (fallback principal)
+        if (profile?.email && SUPER_ADMIN_EMAILS.includes(profile.email)) {
+          isSuperAdmin = true;
+          userRole = 'SuperAdm';
+          console.log('🚀 SUPERADMIN detectado por EMAIL:', profile.email);
+        }
+        // 2. Verificar no array funcoes (fonte primária)
+        else if (profile?.funcoes && Array.isArray(profile.funcoes) && profile.funcoes.includes('SuperAdm')) {
+          isSuperAdmin = true;
+          userRole = profile.funcoes[0]; // Primeira função como role principal
+          console.log('🚀 SUPERADMIN detectado por FUNCOES:', profile.funcoes);
+        }
+        // 3. Fallback para funcao_sistema (compatibilidade)
+        else if (profile?.funcao_sistema) {
+          userRole = profile.funcao_sistema;
+          isSuperAdmin = profile.funcao_sistema === 'SuperAdm';
+          console.log('⚠️ Usando funcao_sistema (fallback):', profile.funcao_sistema);
+        }
+        // 4. Usar funcoes[] para definir role se não for SuperAdmin
+        else if (profile?.funcoes && Array.isArray(profile.funcoes) && profile.funcoes.length > 0) {
+          userRole = profile.funcoes[0];
+          console.log('📋 Role definido por funcoes[]:', userRole);
+        }
           
-          console.log('🔍 Função encontrada:', userRole);
+        console.log('🔍 Função encontrada:', userRole);
+        
+        if (isSuperAdmin) {
+          console.log('🚀 SUPERADMIN CONFIRMADO - LIBERANDO TODOS OS ACESSOS!');
           
-          if (isSuperAdmin) {
-            console.log('🚀 SUPERADMIN CONFIRMADO - LIBERANDO TODOS OS ACESSOS!');
-            
-            // SuperAdmin = TODAS as permissões do sistema
-            userPermissions = [
-              'dashboard_view',
-              'dashboard_rh_view',
-              'dashboard_maquinas_view',
-              'dashboard_cbuq_view',
-              'gestao_rh_empresas_view',
-              'gestao_rh_departamentos_view',
-              'gestao_rh_centros_custo_view',
-              'gestao_rh_funcoes_view',
-              'gestao_rh_funcionarios_view',
-              'gestao_rh_equipes_view',
-              'acesso_dashboard_rh',
-              'gestao_maquinas_caminhoes_view',
-              'gestao_maquinas_usinas_view',
-              'gestao_maquinas_relatorio_medicao_view',
-              'requisicoes_cadastro_view',
-              'requisicoes_programacao_entrega_view',
-              'requisicoes_registro_cargas_view',
-              'requisicoes_registro_aplicacao_view',
-              'requisicoes_apontamento_equipe_view',
-              'requisicoes_apontamento_caminhoes_view',
-              'requisicoes_chamados_os_view',
-              'requisicoes_gestao_os_view',
-              'registro_aplicacao_view',
-              'programacao_entrega_view',
-              'admin_permissoes_view'
-            ];
-          } else {
-            // Buscar permissões específicas da função
-            if (funcaoPermissao.permissoes && funcaoPermissao.permissoes.length > 0) {
-              try {
-                const { data: permissoesList, error: permissoesError } = await supabase
-                  .from('bd_permissoes')
-                  .select('*')
-                  .in('id', funcaoPermissao.permissoes);
-
-                if (permissoesError) {
-                  console.error('❌ Erro ao buscar permissões:', permissoesError);
-                } else {
-                  userPermissions = [
-                    'dashboard_view',
-                    ...permissoesList.map(p => p.nome_permissao)
-                  ];
-                }
-              } catch (error) {
-                console.error('❌ Erro na consulta de permissões:', error);
-              }
-            } else {
-              console.log('⚠️ Função sem permissões específicas atribuídas');
-            }
-          }
+          // SuperAdmin = TODAS as permissões do sistema
+          userPermissions = [
+            'dashboard_view',
+            'dashboard_rh_view',
+            'dashboard_maquinas_view',
+            'dashboard_cbuq_view',
+            'gestao_rh_empresas_view',
+            'gestao_rh_departamentos_view',
+            'gestao_rh_centros_custo_view',
+            'gestao_rh_funcoes_view',
+            'gestao_rh_funcionarios_view',
+            'gestao_rh_equipes_view',
+            'acesso_dashboard_rh',
+            'gestao_maquinas_caminhoes_view',
+            'gestao_maquinas_usinas_view',
+            'gestao_maquinas_relatorio_medicao_view',
+            'requisicoes_cadastro_view',
+            'requisicoes_programacao_entrega_view',
+            'requisicoes_registro_cargas_view',
+            'requisicoes_registro_aplicacao_view',
+            'requisicoes_apontamento_equipe_view',
+            'requisicoes_apontamento_caminhoes_view',
+            'requisicoes_chamados_os_view',
+            'requisicoes_gestao_os_view',
+            'registro_aplicacao_view',
+            'programacao_entrega_view',
+            'admin_permissoes_view'
+          ];
+        } else if (userRole) {
+          // Para funções diferentes de SuperAdm, aplicar permissões básicas por enquanto
+          console.log('⚠️ Função não-SuperAdm, aplicando permissões básicas');
+          userPermissions = ['dashboard_view'];
         } else {
           console.log('⚠️ Nenhuma função encontrada, aplicando usuário básico');
           userRole = 'user';

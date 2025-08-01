@@ -11,6 +11,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { debugLog } from "@/lib/debug";
 import { format } from "date-fns";
+import { prepareMassaForDatabase } from "@/utils/massaConversionUtils";
 
 // Schema for a street
 const ruaSchema = z.object({
@@ -272,12 +273,14 @@ export const useRequisicaoForm = (
   
   const calculateDerivedValues = (rua: RuaFormSchema): RuaFormSchema => {
     const area = rua.largura * rua.comprimento;
-    const volume = area * rua.espessura * 2.4;
+    // Fórmula correta: Volume = Área × Espessura(metros) × Densidade(2400 kg/m³)
+    // Espessura está em cm, convertemos para metros dividindo por 100
+    const volume = area * (rua.espessura / 100) * 2400;
     
     return {
       ...rua,
       area,
-      volume
+      volume: Number(volume.toFixed(3)) // Limitar a 3 casas decimais
     };
   };
   

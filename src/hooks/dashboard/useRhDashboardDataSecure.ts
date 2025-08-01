@@ -254,7 +254,7 @@ export const useRhDashboardDataSecure = (filters: SecureFilters) => {
       console.log("🔍 DEBUG analiseIndividual - buscando avaliações na bd_avaliacao_equipe");
       
       const { data: avaliacoes, error: errorAvaliacoes } = await supabase
-        .from("bd_avaliacao_equipe")
+        .from("bd_apontamento_equipe")
         .select("colaborador_id, pontualidade, proatividade, organizacao, competencia_tecnica, comunicacao, trabalho_em_equipe");
 
       if (errorAvaliacoes) {
@@ -334,7 +334,7 @@ export const useRhDashboardDataSecure = (filters: SecureFilters) => {
       console.log("🔍 DEBUG analiseEquipe - buscando avaliações de equipe na bd_avaliacao_equipe");
       
       const { data: avaliacoes, error: errorAvaliacoes } = await supabase
-        .from("bd_avaliacao_equipe")
+        .from("bd_apontamento_equipe")
         .select("equipe_id, pontualidade, proatividade, organizacao, competencia_tecnica, comunicacao, trabalho_em_equipe");
 
       if (errorAvaliacoes) {

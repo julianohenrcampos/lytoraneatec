@@ -13,7 +13,8 @@ import { createRegistroAplicacao } from "@/services/registro-aplicacao";
 import { fetchRegistroAplicacaoExistente } from "@/services/registro-aplicacao/fetchRegistroAplicacaoExistente";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Eye } from "lucide-react";
+import { Eye, Building } from "lucide-react";
+import { formatMassaFromDatabase } from "@/utils/massaConversionUtils";
 
 interface DadosTecnicosMultiplaAplicacaoTabProps {
   form: UseFormReturn<RegistroAplicacaoSchema>;
@@ -46,7 +47,10 @@ const DadosTecnicosMultiplaAplicacaoTab: React.FC<DadosTecnicosMultiplaAplicacao
   // Hook para informações da carga
   const { cargaInfo, refetch: refetchCargaInfo } = useMultipleApplications(registroCarga?.id);
 
-  const massaTotalCarga = registroCarga?.tonelada_real || 0;
+  // CORREÇÃO: tonelada_real está em KG, converter para toneladas
+  const massaTotalCarga = registroCarga?.tonelada_real 
+    ? formatMassaFromDatabase(registroCarga.tonelada_real, 'bd_registro_cargas', 'tonelada_real')
+    : 0;
   const massaRemanescente = cargaInfo ? cargaInfo.massaRemanescente : massaTotalCarga;
 
   // Verificar se a carga está finalizada
@@ -116,17 +120,33 @@ const DadosTecnicosMultiplaAplicacaoTab: React.FC<DadosTecnicosMultiplaAplicacao
             const horaChegada = formatHoraValue(form.getValues("hora_chegada_local"));
             const temperaturaChegada = form.getValues("temperatura_chegada");
             
-            const registroAplicacao = await createRegistroAplicacao({
-              lista_entrega_id: entrega.id,
-              registro_carga_id: registroCarga.id,
-              data_aplicacao: dataAplicacao,
-              hora_chegada_local: horaChegada || "08:00:00",
-              temperatura_chegada: temperaturaChegada ? Number(temperaturaChegada) : null,
-              hora_saida_caminhao: null,
-              anotacoes_apontador: null,
-              aplicacao_sequencia: 1,
-              carga_origem_id: registroCarga.id,
-            });
+            console.log("📋 Dados que serão enviados para createRegistroAplicacao:");
+            console.log("   - lista_entrega_id:", entrega.id);
+            console.log("   - registro_carga_id:", registroCarga.id);
+            console.log("   - data_aplicacao:", dataAplicacao);
+            console.log("   - hora_chegada_local:", horaChegada || "08:00:00");
+            console.log("   - temperatura_chegada:", temperaturaChegada ? Number(temperaturaChegada) : null);
+            
+            let registroAplicacao;
+            try {
+              registroAplicacao = await createRegistroAplicacao({
+                lista_entrega_id: entrega.id,
+                registro_carga_id: registroCarga.id,
+                data_aplicacao: dataAplicacao,
+                hora_chegada_local: horaChegada || "08:00:00",
+                temperatura_chegada: temperaturaChegada ? Number(temperaturaChegada) : null,
+              });
+              
+              console.log("✅ Registro principal criado com sucesso:", registroAplicacao);
+            } catch (error) {
+              console.error("❌ ERRO ao criar registro principal:", error);
+              toast({
+                title: "Erro ao criar registro",
+                description: `Falha ao criar registro principal: ${error.message}`,
+                variant: "destructive",
+              });
+              throw error;
+            }
             
             console.log("✅ Novo registro criado:", registroAplicacao);
             setCurrentRegistroId(registroAplicacao.id);
@@ -164,7 +184,8 @@ const DadosTecnicosMultiplaAplicacaoTab: React.FC<DadosTecnicosMultiplaAplicacao
     removerAplicacao,
     iniciarEdicao,
     cancelarEdicao,
-    aplicacaoParaFormulario
+    aplicacaoParaFormulario,
+    forceReloadAplicacoes
   } = useAplicacoesMultiplas(
     currentRegistroId,
     registroCarga?.id,
@@ -176,14 +197,30 @@ const DadosTecnicosMultiplaAplicacaoTab: React.FC<DadosTecnicosMultiplaAplicacao
     }
   );
 
-  // Log para debug
-  console.log("📍 [DadosTecnicosTab] Estado atual:", {
+  // CRÍTICO: Forçar reload quando currentRegistroId muda
+  React.useEffect(() => {
+    if (currentRegistroId) {
+      console.log("🔄 [DadosTecnicosTab] currentRegistroId mudou - forçando reload:", currentRegistroId);
+      // Pequeno delay para garantir que o hook interno já processou a mudança
+      setTimeout(() => {
+        forceReloadAplicacoes?.();
+      }, 100);
+    }
+  }, [currentRegistroId, forceReloadAplicacoes]);
+
+  // Log DETALHADO para debug
+  console.log("📍 [DadosTecnicosTab] Estado atual DETALHADO:", {
     currentRegistroId,
     aplicacoesCount: aplicacoes.length,
+    aplicacoesArray: aplicacoes,
     isLoadingRegistro,
     isLoadingAplicacoes,
     isReadOnly,
-    massaRemanescente
+    massaRemanescente,
+    registroAplicacaoIdProp: registroAplicacaoId,
+    listaEntregaId,
+    registroCargaId: registroCarga?.id,
+    timestamp: new Date().toISOString()
   });
 
   // Salvar nova aplicação
@@ -285,6 +322,46 @@ const DadosTecnicosMultiplaAplicacaoTab: React.FC<DadosTecnicosMultiplaAplicacao
           </AlertDescription>
         </Alert>
       )}
+
+      {/* Painel de Progresso da Carga */}
+      <div className="bg-gradient-to-r from-blue-50 to-green-50 p-4 rounded-lg border border-blue-200">
+        <h3 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
+          <Building className="h-5 w-5 text-blue-600" />
+          Progresso da Carga
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-white/70 p-3 rounded-md text-center">
+            <div className="text-2xl font-bold text-blue-600">{massaTotalCarga.toFixed(1)}t</div>
+            <div className="text-xs text-gray-600">Massa Total</div>
+          </div>
+          <div className="bg-white/70 p-3 rounded-md text-center">
+            <div className="text-2xl font-bold text-green-600">{totais.totalAplicado.toFixed(1)}t</div>
+            <div className="text-xs text-gray-600">Aplicado</div>
+          </div>
+          <div className="bg-white/70 p-3 rounded-md text-center">
+            <div className="text-2xl font-bold text-orange-600">{massaRemanescente.toFixed(1)}t</div>
+            <div className="text-xs text-gray-600">Remanescente</div>
+          </div>
+          <div className="bg-white/70 p-3 rounded-md text-center">
+            <div className="text-2xl font-bold text-purple-600">{aplicacoes.length}</div>
+            <div className="text-xs text-gray-600">Aplicações</div>
+          </div>
+        </div>
+        
+        {/* Barra de Progresso */}
+        <div className="mt-4">
+          <div className="flex justify-between text-sm text-gray-600 mb-1">
+            <span>Progresso da Aplicação</span>
+            <span>{massaTotalCarga > 0 ? ((totais.totalAplicado / massaTotalCarga) * 100).toFixed(1) : 0}%</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-3">
+            <div 
+              className="bg-gradient-to-r from-blue-500 to-green-500 h-3 rounded-full transition-all duration-500" 
+              style={{ width: `${massaTotalCarga > 0 ? Math.min((totais.totalAplicado / massaTotalCarga) * 100, 100) : 0}%` }}
+            ></div>
+          </div>
+        </div>
+      </div>
 
       {/* Lista de aplicações registradas */}
       <AplicacoesRegistradasList

@@ -1,5 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
+import { calcularMassaRemanescente } from "./statusIntegrityService";
 
 interface FinalizationResult {
   success: boolean;
@@ -24,7 +25,7 @@ export const finalizarCargaManual = async (cargaId: string): Promise<Finalizatio
     }
     
     console.log('✅ [MANUAL] Carga finalizada com sucesso:', data);
-    return data;
+    return data as unknown as FinalizationResult;
     
   } catch (error) {
     console.error('❌ [MANUAL] Erro crítico na finalização:', error);
@@ -32,21 +33,3 @@ export const finalizarCargaManual = async (cargaId: string): Promise<Finalizatio
   }
 };
 
-export const calcularMassaRemanescente = async (entregaId: string): Promise<number> => {
-  try {
-    const { data, error } = await supabase.rpc('calcular_massa_remanescente', {
-      entrega_id: entregaId
-    });
-    
-    if (error) {
-      console.error('❌ [MANUAL] Erro ao calcular massa remanescente:', error);
-      return 0;
-    }
-    
-    return data || 0;
-    
-  } catch (error) {
-    console.error('❌ [MANUAL] Erro crítico no cálculo:', error);
-    return 0;
-  }
-};

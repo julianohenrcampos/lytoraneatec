@@ -2,6 +2,13 @@
 import { useMemo } from "react";
 import { RegistroCarga } from "@/types/registroCargas";
 import { EspessuraStatus } from "@/utils/aplicacaoCalculations";
+import { calculateMassaPercentual } from "@/utils/massaConversionUtils";
+import { 
+  calculateToneladaAplicada as calculateToneladaAplicadaUtil,
+  calculateEspessuraFromTonelada,
+  getEspessuraStatus,
+  calculateMassaRemanescenteAfterApplication
+} from "@/utils/massaAplicacaoUtils";
 
 /**
  * Hook customizado para lidar com cálculos no formulário de registro de aplicação
@@ -24,35 +31,23 @@ export const useCalculations = (
   const calculatedToneladaAplicada = useMemo(() => {
     if (!calculatedArea || !registroCarga?.tonelada_real) return null;
     
-    // Calcular baseado na área e densidade (assumindo densidade de 2.4 t/m³ e espessura de 5cm)
-    const calculatedTonelada = calculatedArea * 0.05 * 2.4;
-    
-    // Usar o mínimo entre calculado e massa disponível
     // Priorizar massa remanescente da carga se disponível
     const massaDisponivel = massaRemanescenteCarga ?? entregaMassaRemanescente ?? registroCarga.tonelada_real;
     
-    return Math.min(calculatedTonelada, massaDisponivel);
-  }, [calculatedArea, registroCarga?.tonelada_real, entregaMassaRemanescente, massaRemanescenteCarga]);
+    // Usar a função centralizada que segue a especificação exata
+    return calculateToneladaAplicadaUtil(calculatedArea, massaDisponivel, usarMassaTotal || false);
+  }, [calculatedArea, registroCarga?.tonelada_real, entregaMassaRemanescente, massaRemanescenteCarga, usarMassaTotal]);
 
-  // Calcular espessura com lógica condicional - FÓRMULA CORRIGIDA
+  // Calcular espessura com lógica centralizada - FÓRMULA CORRIGIDA
   const calculatedEspessura = useMemo(() => {
-    if (!calculatedArea || !registroCarga?.tonelada_real) return null;
+    if (!calculatedArea || !calculatedToneladaAplicada) return null;
     
-    if (usarMassaTotal) {
-      // Quando checkbox marcado: usar massa remanescente da carga ou massa total
-      const massaParaCalculo = massaRemanescenteCarga ?? registroCarga.tonelada_real;
-      // Fórmula: espessura = (massa / área) / 2.4 / 1000 (para converter para metros)
-      const espessura = (massaParaCalculo / calculatedArea) / 2.4;
-      return Number(espessura.toFixed(3));
-    } else {
-      // Fórmula tradicional: (ToneladaAplicada / Area) / 2.4
-      if (!calculatedToneladaAplicada) return null;
-      const espessura = (calculatedToneladaAplicada / calculatedArea) / 2.4;
-      return Number(espessura.toFixed(3));
-    }
-  }, [calculatedArea, calculatedToneladaAplicada, registroCarga?.tonelada_real, usarMassaTotal, massaRemanescenteCarga]);
+    // Usar a função centralizada que agora segue a fórmula correta
+    const espessura = calculateEspessuraFromTonelada(calculatedToneladaAplicada, calculatedArea);
+    return espessura; // Já retorna formatado pela função
+  }, [calculatedArea, calculatedToneladaAplicada]);
 
-  // Calcular massa remanescente após esta aplicação - FÓRMULA CORRIGIDA
+  // Calcular massa remanescente após esta aplicação - FUNÇÃO CENTRALIZADA
   const massaRemanescente = useMemo(() => {
     if (!registroCarga?.tonelada_real || !calculatedToneladaAplicada) {
       return massaRemanescenteCarga ?? entregaMassaRemanescente ?? registroCarga?.tonelada_real ?? 0;
@@ -60,8 +55,8 @@ export const useCalculations = (
     
     // Usar massa remanescente da carga se disponível, caso contrário usar massa total
     const massaAtual = massaRemanescenteCarga ?? entregaMassaRemanescente ?? registroCarga.tonelada_real;
-    // Nova massa remanescente = massa atual - massa que será aplicada agora
-    return Math.max(0, massaAtual - calculatedToneladaAplicada);
+    // Usar função centralizada
+    return calculateMassaRemanescenteAfterApplication(massaAtual, calculatedToneladaAplicada);
   }, [registroCarga?.tonelada_real, calculatedToneladaAplicada, entregaMassaRemanescente, massaRemanescenteCarga]);
 
   // Verificar se a massa aplicada excede a massa disponível
@@ -72,24 +67,16 @@ export const useCalculations = (
     return calculatedToneladaAplicada > massaDisponivel;
   }, [calculatedToneladaAplicada, registroCarga?.tonelada_real, entregaMassaRemanescente, massaRemanescenteCarga]);
 
-  // Status para espessura - lógica baseada no método de cálculo
+  // Status para espessura - lógica centralizada e unificada
   const espessuraStatus: EspessuraStatus = useMemo(() => {
     if (!calculatedEspessura) return null;
     
-    if (usarMassaTotal) {
-      // Nova lógica: < 0.035 cm ou > 0.05 cm → "Fora do Padrão" (error)
-      // Entre 0.035 e 0.05, inclusive → "Dentro do Padrão" (success)
-      if (calculatedEspessura < 0.035 || calculatedEspessura > 0.05) {
-        return 'error';
-      } else {
-        return 'success';
-      }
-    } else {
-      // Lógica original: < 0.03 cm → warning, > 0.08 cm → error, resto → success
-      if (calculatedEspessura < 0.03) return 'warning';
-      if (calculatedEspessura > 0.08) return 'error';
-      return 'success';
-    }
+    // Usar função centralizada que segue a especificação exata
+    const status = getEspessuraStatus(calculatedEspessura, usarMassaTotal || false);
+    
+    // Converter para o tipo EspessuraStatus esperado (compatibilidade)
+    if (status === 'warning') return 'error'; // Manter compatibilidade com o tipo existente
+    return status as EspessuraStatus;
   }, [calculatedEspessura, usarMassaTotal]);
 
   return {

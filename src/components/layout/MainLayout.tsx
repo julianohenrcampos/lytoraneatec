@@ -8,6 +8,8 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
 import { PWAUpdateNotification } from "@/components/pwa/PWAUpdateNotification";
+import { OfflinePermissionStatus } from "@/components/pwa/OfflinePermissionStatus";
+import { useOfflinePermissionsSync } from "@/hooks/useOfflinePermissionsSync";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -17,6 +19,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const { openGroups, setOpenGroups, toggleGroup } = useSidebarState();
   const { user, isLoading, updateUserImage } = useUserProfile();
   const isMobile = useIsMobile();
+  
+  // Sincronizar permissões com contexto offline
+  useOfflinePermissionsSync();
 
   // Update document title
   useEffect(() => {
@@ -75,6 +80,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
         </SidebarInset>
         
         {/* Componentes PWA */}
+        <OfflinePermissionStatus />
         <PWAInstallBanner />
         <PWAUpdateNotification />
       </div>

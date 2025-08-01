@@ -24,16 +24,32 @@ export const useAplicacoesMultiplas = (
   const lastRegistroIdRef = useRef<string | undefined>();
   const cacheRef = useRef<Record<string, RegistroAplicacaoDetalhes[]>>({});
 
-  // Carregar aplicações existentes com controle de race conditions
-  const loadAplicacoes = useCallback(async (registroId: string) => {
-    // Evitar carregamentos duplicados
-    if (loadingRef.current || lastRegistroIdRef.current === registroId) {
+  // Carregar aplicações existentes com controle de race conditions MELHORADO
+  const loadAplicacoes = useCallback(async (registroId: string, forceReload = false) => {
+    console.log("🎯 [loadAplicacoes] INICIANDO carregamento:", {
+      registroId,
+      forceReload,
+      isLoading: loadingRef.current,
+      lastRegistroId: lastRegistroIdRef.current,
+      temCache: !!cacheRef.current[registroId],
+      timestamp: new Date().toISOString()
+    });
+
+    if (!registroId) {
+      console.log("❌ [loadAplicacoes] registroId inválido:", registroId);
+      setAplicacoes([]);
       return;
     }
 
-    // Verificar cache primeiro
-    if (cacheRef.current[registroId]) {
-      console.log("📋 Usando dados do cache para:", registroId);
+    // Evitar carregamentos duplicados apenas se não for force reload
+    if (loadingRef.current && !forceReload) {
+      console.log("⏭️ [loadAplicacoes] PULANDO - já está carregando");
+      return;
+    }
+
+    // Verificar cache primeiro (mas só usar cache se não for force reload)
+    if (!forceReload && cacheRef.current[registroId] && lastRegistroIdRef.current === registroId) {
+      console.log("📋 [loadAplicacoes] Usando dados do cache para:", registroId);
       setAplicacoes(cacheRef.current[registroId]);
       return;
     }
@@ -42,25 +58,30 @@ export const useAplicacoesMultiplas = (
     setIsLoading(true);
     lastRegistroIdRef.current = registroId;
     
-    console.log("🔄 Carregando aplicações para registro:", registroId);
+    console.log("🔄 [loadAplicacoes] EXECUTANDO fetch para registro:", registroId);
     
     try {
       const data = await fetchAplicacaoDetalhes(registroId);
       
-      console.log("✅ Aplicações carregadas:", {
+      console.log("✅ [loadAplicacoes] Aplicações carregadas:", {
         registroId,
         quantidade: data?.length || 0,
-        isEmpty: !data || data.length === 0
+        isEmpty: !data || data.length === 0,
+        primeiraAplicacao: data?.[0]?.logradouro_nome || 'N/A',
+        dados: data
       });
       
       const aplicacoesData = data || [];
+      
+      // CRÍTICO: Sempre atualizar o estado, mesmo se vazio
+      console.log("📝 [loadAplicacoes] Atualizando estado com aplicações:", aplicacoesData.length);
       setAplicacoes(aplicacoesData);
       
       // Armazenar no cache
       cacheRef.current[registroId] = aplicacoesData;
       
     } catch (error) {
-      console.error("❌ Erro ao carregar aplicações:", error);
+      console.error("❌ [loadAplicacoes] Erro ao carregar aplicações:", error);
       toast({
         title: "Erro",
         description: "Não foi possível carregar as aplicações",
@@ -70,6 +91,7 @@ export const useAplicacoesMultiplas = (
     } finally {
       setIsLoading(false);
       loadingRef.current = false;
+      console.log("🏁 [loadAplicacoes] Finalizando carregamento");
     }
   }, [toast]);
 
@@ -82,15 +104,27 @@ export const useAplicacoesMultiplas = (
     }
   }, []);
 
-  // Forçar reload das aplicações
-  const forceReloadAplicacoes = useCallback(() => {
+  // Forçar reload das aplicações com log detalhado
+  const forceReloadAplicacoes = useCallback(async () => {
     if (registroAplicacaoId) {
-      console.log("🔄 Forçando reload das aplicações para:", registroAplicacaoId);
+      console.log("🔄 [forceReloadAplicacoes] FORÇANDO reload para:", {
+        registroAplicacaoId,
+        cacheAntes: !!cacheRef.current[registroAplicacaoId],
+        aplicacoesAntes: aplicacoes.length,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Limpar tudo
       clearCache(registroAplicacaoId);
       lastRegistroIdRef.current = undefined;
-      loadAplicacoes(registroAplicacaoId);
+      loadingRef.current = false;
+      
+      // Forçar carregamento
+      await loadAplicacoes(registroAplicacaoId, true);
+      
+      console.log("✅ [forceReloadAplicacoes] Reload concluído");
     }
-  }, [registroAplicacaoId, loadAplicacoes, clearCache]);
+  }, [registroAplicacaoId, loadAplicacoes, clearCache, aplicacoes.length]);
 
   // Função para forçar atualização de status após mudanças
   const forceUpdateStatus = useCallback(async () => {
@@ -105,14 +139,41 @@ export const useAplicacoesMultiplas = (
     }
   }, [listaEntregaId]);
 
-  // Adicionar nova aplicação
+  // Adicionar nova aplicação com logs detalhados
   const adicionarAplicacao = async (dadosAplicacao: RegistroAplicacaoDetalhesFormValues) => {
+    console.log("🚀 [adicionarAplicacao] ==================== INÍCIO ====================");
+    console.log("📊 Validando estado atual:");
+    console.log("   - registroAplicacaoId:", registroAplicacaoId, "| Tipo:", typeof registroAplicacaoId);
+    console.log("   - registroCargaId:", registroCargaId, "| Tipo:", typeof registroCargaId);
+    console.log("   - listaEntregaId:", listaEntregaId, "| Tipo:", typeof listaEntregaId);
+    console.log("   - aplicacoes.length atual:", aplicacoes.length);
+    console.log("📋 Dados da aplicação recebidos:");
+    console.log("   - logradouro_nome:", dadosAplicacao.logradouro_nome);
+    console.log("   - area_aplicada:", dadosAplicacao.area_aplicada);
+    console.log("   - tonelada_aplicada:", dadosAplicacao.tonelada_aplicada);
+    
     if (!registroAplicacaoId || !registroCargaId || !listaEntregaId) {
-      throw new Error("IDs necessários não fornecidos");
+      console.error("❌ [adicionarAplicacao] ERRO CRÍTICO - IDs necessários não fornecidos:");
+      console.error("   - registroAplicacaoId:", registroAplicacaoId);
+      console.error("   - registroCargaId:", registroCargaId);
+      console.error("   - listaEntregaId:", listaEntregaId);
+      throw new Error("IDs necessários não fornecidos para criar aplicação");
     }
+    
+    console.log("✅ Validação dos IDs passou, continuando...");
+
+    console.log("🏗️ [adicionarAplicacao] Iniciando criação de aplicação:", {
+      dadosAplicacao,
+      registroAplicacaoId,
+      registroCargaId,
+      listaEntregaId,
+      timestamp: new Date().toISOString()
+    });
 
     setIsLoading(true);
     try {
+      console.log("📞 [adicionarAplicacao] Chamando createAplicacaoDetalhe...");
+      
       const novaAplicacao = await createAplicacaoDetalhe(
         registroAplicacaoId,
         registroCargaId,
@@ -120,31 +181,62 @@ export const useAplicacoesMultiplas = (
         dadosAplicacao
       );
 
-      setAplicacoes(prev => [...prev, novaAplicacao]);
+      console.log("✅ [adicionarAplicacao] Aplicação criada com sucesso:", novaAplicacao);
+
+      // Atualizar estado local imediatamente
+      setAplicacoes(prev => {
+        const novaLista = [...prev, novaAplicacao];
+        console.log("📝 [adicionarAplicacao] Estado local atualizado:", {
+          anterior: prev.length,
+          novo: novaLista.length
+        });
+        return novaLista;
+      });
+
+      // Limpar cache para forçar reload na próxima consulta
       clearCache(registroAplicacaoId);
+      console.log("🧹 [adicionarAplicacao] Cache limpo para:", registroAplicacaoId);
       
       // Forçar atualização de status após adicionar aplicação
+      console.log("🔄 [adicionarAplicacao] Atualizando status da entrega...");
       await forceUpdateStatus();
       
       toast({
-        title: "Sucesso",
-        description: "Aplicação adicionada com sucesso",
+        title: "✅ Aplicação por rua salva!",
+        description: `${dadosAplicacao.logradouro_nome} - ${dadosAplicacao.tonelada_aplicada}t aplicada`,
       });
 
-      // Notificar componente pai sobre mudança nos dados
+      console.log("🎯 [adicionarAplicacao] Processo concluído com sucesso");
+
+      // Notificar componente pai sobre mudança nos dados ANTES do reload
       onDataChange?.();
+
+      // CRÍTICO: Aguardar um pouco antes do reload para garantir que os dados foram commitados
+      console.log("⏳ [adicionarAplicacao] Aguardando commit dos dados...");
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Forçar reload completo dos dados para garantir sincronização
+      console.log("🔄 [adicionarAplicacao] Forçando reload completo após timeout...");
+      await forceReloadAplicacoes();
 
       return novaAplicacao;
     } catch (error) {
-      console.error("Erro ao adicionar aplicação:", error);
+      console.error("❌ [adicionarAplicacao] Erro ao adicionar aplicação:", error);
+      
+      let errorMessage = "Não foi possível adicionar a aplicação";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
       toast({
-        title: "Erro",
-        description: "Não foi possível adicionar a aplicação",
+        title: "❌ Erro ao salvar aplicação",
+        description: errorMessage,
         variant: "destructive",
       });
       throw error;
     } finally {
       setIsLoading(false);
+      console.log("🏁 [adicionarAplicacao] Finalizando operação");
     }
   };
 
@@ -263,13 +355,24 @@ export const useAplicacoesMultiplas = (
     proximaSequencia: aplicacoes.length + 1,
   };
 
-  // useEffect simplificado - carregar apenas quando o ID mudar
+  // useEffect melhorado com logs detalhados
   useEffect(() => {
-    if (registroAplicacaoId && registroAplicacaoId !== lastRegistroIdRef.current) {
-      console.log("📥 useEffect disparado para novo registro:", registroAplicacaoId);
-      loadAplicacoes(registroAplicacaoId);
-    } else if (!registroAplicacaoId) {
-      console.log("🧹 Limpando aplicações - nenhum registro ID");
+    console.log("🔄 [useAplicacoesMultiplas] useEffect disparado:", {
+      registroAplicacaoId,
+      lastRegistroId: lastRegistroIdRef.current,
+      isLoading: loadingRef.current,
+      aplicacoesCount: aplicacoes.length,
+      timestamp: new Date().toISOString()
+    });
+
+    if (registroAplicacaoId) {
+      console.log("📥 [useAplicacoesMultiplas] Carregando aplicações para registro:", registroAplicacaoId);
+      // FORCE reload para garantir dados atualizados
+      setTimeout(() => {
+        loadAplicacoes(registroAplicacaoId, true); // Force reload sempre
+      }, 100);
+    } else {
+      console.log("🧹 [useAplicacoesMultiplas] Limpando aplicações - nenhum registro ID");
       setAplicacoes([]);
       lastRegistroIdRef.current = undefined;
     }

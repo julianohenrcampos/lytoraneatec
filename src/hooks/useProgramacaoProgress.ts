@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { calcularProgressoMassa, MassaProgressInfo } from "@/services/programacao/massaControlService";
+import { normalizeToToneladas } from "@/utils/massaConversionUtils";
 
 interface UseProgramacaoProgressProps {
   requisicaoId: string | null;
@@ -20,7 +21,7 @@ export const useProgramacaoProgress = ({ requisicaoId, enabled = true }: UseProg
     queryFn: () => requisicaoId ? calcularProgressoMassa(requisicaoId) : null,
     enabled: enabled && !!requisicaoId,
     refetchOnWindowFocus: false,
-    staleTime: 30000, // 30 segundos
+    staleTime: 5000, // 5 segundos
   });
 
   useEffect(() => {
@@ -38,11 +39,14 @@ export const useProgramacaoProgress = ({ requisicaoId, enabled = true }: UseProg
       return { valida: false, motivo: "Carregando dados de progresso..." };
     }
 
-    if (quantidade <= 0) {
+    // Normalizar quantidade para toneladas antes da validação
+    const quantidadeNormalizada = normalizeToToneladas(quantidade);
+
+    if (quantidadeNormalizada <= 0) {
       return { valida: false, motivo: "Quantidade deve ser maior que zero" };
     }
 
-    if (quantidade > progress.massaDisponivel) {
+    if (quantidadeNormalizada > progress.massaDisponivel) {
       return { 
         valida: false, 
         motivo: `Quantidade excede o disponível (${progress.massaDisponivel.toFixed(1)}t)` 

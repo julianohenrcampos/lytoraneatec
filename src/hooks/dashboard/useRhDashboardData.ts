@@ -207,7 +207,7 @@ export const useRhDashboardData = (filters: {
 
       const { data: funcionarios } = await query;
 
-      // Fetch evaluations by employee
+      // Fetch evaluations by employee - usando bd_apontamento_equipe que agora tem as colunas de avaliação
       const { data: avaliacoes } = await supabase
         .from("bd_apontamento_equipe")
         .select("colaborador_id, pontualidade, proatividade, organizacao, competencia_tecnica, comunicacao, trabalho_em_equipe");
@@ -250,7 +250,7 @@ export const useRhDashboardData = (filters: {
         .from("bd_equipes")
         .select("id, nome_equipe, encarregado_id, equipe");
 
-      const { data: avaliacoes } = await supabase
+       const { data: avaliacoes } = await supabase
         .from("bd_apontamento_equipe")
         .select("equipe_id, pontualidade, proatividade, organizacao, competencia_tecnica, comunicacao, trabalho_em_equipe");
 

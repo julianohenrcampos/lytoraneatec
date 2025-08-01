@@ -15,8 +15,8 @@ export const fetchRegistroAplicacaoExistente = async (listaEntregaId: string): P
       .from("bd_registro_apontamento_aplicacao")
       .select(`
         *,
-        lista_entrega:bd_lista_programacao_entrega!inner(*),
-        registro_carga:bd_registro_cargas!inner(*)
+        lista_entrega:bd_lista_programacao_entrega!lista_entrega_id(*),
+        registro_carga:bd_registro_cargas!registro_carga_id(*)
       `)
       .eq("lista_entrega_id", listaEntregaId)
       .order("created_at", { ascending: false });

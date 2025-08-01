@@ -2,13 +2,14 @@
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { asAny } from "@/utils/typeWorkaround";
 
 export const useUpdateEquipmentStatus = () => {
   return useMutation({
     mutationFn: async () => {
       console.log("🔄 Executando função de atualização de status dos equipamentos...");
       
-      const { data, error } = await supabase.rpc('atualizar_status_equipamentos_nao_apontados');
+      const { data, error } = await (supabase as any).rpc('atualizar_status_equipamentos_nao_apontados');
       
       if (error) {
         console.error("❌ Erro ao executar função:", error);

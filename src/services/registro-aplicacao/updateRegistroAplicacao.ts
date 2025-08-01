@@ -41,9 +41,17 @@ export const updateRegistroAplicacao = async (
     console.log("ID do registro:", id);
     console.log("Valores recebidos:", values);
     
+    // CORREÇÃO CRÍTICA: Garantir que tonelada_aplicada sempre seja preenchida
+    if (!values.tonelada_aplicada || values.tonelada_aplicada === null) {
+      console.error("❌ ERRO CRÍTICO: tonelada_aplicada não pode ser null");
+      throw new Error("Massa aplicada é obrigatória e não pode estar vazia");
+    }
+
     // Validar e formatar dados antes da atualização
     const formattedValues = {
       ...values,
+      // GARANTIR que tonelada_aplicada seja sempre um número válido
+      tonelada_aplicada: Number(values.tonelada_aplicada),
       hora_chegada_local: validateAndFormatHora(values.hora_chegada_local),
       hora_saida_caminhao: validateAndFormatHora(values.hora_saida_caminhao),
       temperatura_chegada: typeof values.temperatura_chegada === 'number' ? values.temperatura_chegada : null,
@@ -51,6 +59,7 @@ export const updateRegistroAplicacao = async (
       updated_at: new Date().toISOString()
     };
 
+    console.log("✅ Tonelada aplicada confirmada:", formattedValues.tonelada_aplicada);
     console.log("Valores formatados para atualização:", formattedValues);
     
     // Update the record
@@ -66,6 +75,12 @@ export const updateRegistroAplicacao = async (
       console.error("Código do erro:", error.code);
       console.error("Detalhes do erro:", error.details);
       console.error("Hint do erro:", error.hint);
+      
+      // Log específico para erros relacionados a tonelada_aplicada
+      if (error.message.includes('tonelada_aplicada')) {
+        console.error("🔥 ERRO ESPECÍFICO NO CAMPO tonelada_aplicada:", error.message);
+      }
+      
       throw new Error(`Erro ao atualizar registro: ${error.message}`);
     }
     
@@ -74,7 +89,8 @@ export const updateRegistroAplicacao = async (
       throw new Error("Nenhum dado retornado após atualização do registro");
     }
     
-    console.log("Registro atualizado com sucesso:", data);
+    console.log("✅ Registro atualizado com sucesso:", data);
+    console.log("✅ Campo tonelada_aplicada salvo:", data.tonelada_aplicada);
     console.log("=== FIM updateRegistroAplicacao ===");
     return data as RegistroAplicacao;
   } catch (error) {

@@ -1,36 +1,20 @@
 
-import { EspessuraStatus } from "@/utils/aplicacaoCalculations";
+import { EspessuraStatus, getEspessuraStatusClass as getCentralizedStatusClass, getEspessuraStatusText as getCentralizedStatusText } from "@/utils/espessuraValidation";
 
 /**
  * Get CSS class name based on espessura status
+ * @deprecated Use centralized function from espessuraValidation.ts
  */
 export const getEspessuraStatusClass = (status: EspessuraStatus): string => {
-  switch (status) {
-    case "success":
-      return "text-green-600 font-medium border-green-300 bg-green-50";
-    case "warning":
-      return "text-amber-600 font-medium border-amber-300 bg-amber-50";
-    case "error":
-      return "text-red-600 font-medium border-red-300 bg-red-50";
-    default:
-      return "";
-  }
+  return getCentralizedStatusClass(status);
 };
 
 /**
  * Get text description based on espessura status
+ * @deprecated Use centralized function from espessuraValidation.ts
  */
 export const getEspessuraStatusText = (status: EspessuraStatus): string => {
-  switch (status) {
-    case "success":
-      return "Dentro do Padrão";
-    case "warning":
-      return "Atenção";
-    case "error":
-      return "Fora do Padrão";
-    default:
-      return "Não calculado";
-  }
+  return getCentralizedStatusText(status);
 };
 
 /**

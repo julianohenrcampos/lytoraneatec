@@ -12,6 +12,7 @@ import { VehicleCombobox } from "@/components/combobox/VehicleCombobox";
 import { NumberInput } from "@/components/ui/number-input";
 import { useProgramacaoEntregaForm } from "@/hooks/useProgramacaoEntregaForm";
 import { ProgramacaoEntregaWithItems } from "@/types/programacaoEntrega";
+import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -33,6 +34,7 @@ import CancelItemDialog from "./CancelItemDialog";
 import ProgressBar from "./ProgressBar";
 import MassaControlAlert from "./MassaControlAlert";
 import { checkCancellationPermission } from "@/services/programacao/permissionService";
+import { formatMassaFromDatabase, normalizeToToneladas } from "@/utils/massaConversionUtils";
 
 interface ProgramacaoEntregaFormModalProps {
   isOpen: boolean;
@@ -47,6 +49,7 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
   onSuccess,
   programacao
 }) => {
+  const queryClient = useQueryClient();
   const {
     form,
     itemForm,
@@ -72,7 +75,13 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
     watchItens,
     centroCustoNome,
     progressHook
-  } = useProgramacaoEntregaForm(programacao, onSuccess);
+  } = useProgramacaoEntregaForm(programacao, async () => {
+    // Invalidar cache de progresso para todas as requisições
+    await queryClient.invalidateQueries({
+      queryKey: ['programacao-progress']
+    });
+    onSuccess();
+  });
 
   const requisicaoOptions = requisicoes.map(req => {
     const centroCustoCode = req.centro_custo && 
@@ -111,12 +120,9 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
 
   const selectedEquipe = selectedEquipeId ? equipes.find(eq => eq.id === selectedEquipeId) : null;
 
-  const apontadorNome = selectedEquipe && 
-    selectedEquipe.apontador && 
-    typeof selectedEquipe.apontador === 'object' && 
-    selectedEquipe.apontador !== null && 
-    'nome_completo' in selectedEquipe.apontador ? 
-      String(selectedEquipe.apontador.nome_completo || "Apontador da equipe") : "Apontador da equipe";
+  const apontadorNome = selectedEquipe?.apontador?.nome_completo 
+    ? String(selectedEquipe.apontador.nome_completo) 
+    : "Apontador da equipe";
 
   // Helper function to get truck display name with improved logic
   const getTruckDisplayName = (item: any): string => {
@@ -289,11 +295,10 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                       </TableHeader>
                       <TableBody>
                         {watchItens.map((item, index) => {
-                          // Convert display value: if editing existing data from DB (tons), show as tons
-                          // If new data from form (kg), convert to tons for display
+                          // Usar função padronizada para exibição em toneladas
                           const displayQuantity = typeof item.quantidade_massa === 'number' 
-                            ? (item.quantidade_massa > 100 ? item.quantidade_massa / 1000 : item.quantidade_massa)
-                            : parseFloat(String(item.quantidade_massa || 0));
+                            ? formatMassaFromDatabase(normalizeToToneladas(item.quantidade_massa))
+                            : formatMassaFromDatabase(normalizeToToneladas(parseFloat(String(item.quantidade_massa || 0))));
                           
                           console.log("Rendering item with centro_custo_nome:", item.centro_custo_nome);
                           

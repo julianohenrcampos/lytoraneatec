@@ -144,19 +144,19 @@ export default function CBUQKpiCards({ filters }: CBUQKpiCardsProps) {
         return sum + (item.tonelada_aplicada || 0);
       }, 0);
 
-      // CORREÇÃO DA ESPESSURA MÉDIA - conversão de metros para centímetros e cálculo alternativo
+      // CORREÇÃO DA ESPESSURA MÉDIA - valor já em centímetros
       let espessuraMedia = 0;
       let aplicacoesComEspessura = 0;
 
       if (filteredData.length > 0) {
-        // Primeira tentativa: usar espessura_aplicada (em metros, converter para cm)
+        // Primeira tentativa: usar espessura_aplicada (já em centímetros)
         const espessurasValidas = filteredData.filter(item => item.espessura_aplicada && item.espessura_aplicada > 0);
         
         if (espessurasValidas.length > 0) {
-          console.log("📏 Usando espessura_aplicada salva no banco (convertendo m → cm)");
+          console.log("📏 Usando espessura_aplicada salva no banco (já em cm)");
           const somaEspessuras = espessurasValidas.reduce((sum, item) => {
-            const espessuraCm = (item.espessura_aplicada || 0) * 100; // Converter metros para centímetros
-            console.log(`📏 Espessura: ${item.espessura_aplicada}m = ${espessuraCm}cm`);
+            const espessuraCm = (item.espessura_aplicada || 0); // Já está em centímetros
+            console.log(`📏 Espessura: ${espessuraCm}cm`);
             return sum + espessuraCm;
           }, 0);
           espessuraMedia = somaEspessuras / espessurasValidas.length;

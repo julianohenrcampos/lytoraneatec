@@ -37,18 +37,18 @@ export const diagnosePermissions = async () => {
     
     console.log("👤 User profile:", profile);
     console.log("🔑 User roles array:", profile.funcoes || []);
-    console.log("🔑 User main role ID:", profile.funcao_permissao || "Not set");
+    console.log("🔑 User main role ID:", (profile as any).funcao_permissao || "Not set");
     
     // Check if user is SuperAdm
     const isSuperAdmin = profile.funcoes?.includes("SuperAdm");
     console.log("👑 Is SuperAdmin:", isSuperAdmin ? "Yes" : "No");
     
     // Check main role
-    if (profile.funcao_permissao) {
+    if ((profile as any).funcao_permissao) {
       const { data: mainRoleData, error: mainRoleError } = await supabase
         .from("bd_funcoes_permissao")
         .select("*")
-        .eq("id", profile.funcao_permissao)
+        .eq("id", (profile as any).funcao_permissao)
         .single();
       
       if (mainRoleError) {

@@ -74,209 +74,209 @@ const App = () => {
           <TooltipProvider>
             <Sonner />
             <BrowserRouter>
-            <Routes>
-              {/* Rotas públicas */}
-              <Route path="/login" element={<SimpleLogin />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/waiting-approval" element={<WaitingApproval />} />
-              
-              {/* Redirect root to dashboard */}
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              
-              {/* Rotas protegidas - Dashboards */}
-              <Route path="/dashboard" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <Dashboard />
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-              
-              <Route path="/dashboard-rh" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <DashboardRH />
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-              
-              <Route path="/dashboard-maquinas" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <DashboardMaquinas />
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-              
-              <Route path="/dashboard-cbuq" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <DashboardRequisicoes />
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-              
-              {/* Gestão RH */}
-              <Route path="/gestao-rh/empresas" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <GestaoEmpresas />
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-              <Route path="/gestao-rh/departamentos" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <GestaoDepartamentos />
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-              <Route path="/gestao-rh/centros-custo" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <GestaoCentrosCusto />
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-              <Route path="/gestao-rh/funcoes" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <GestaoFuncoes />
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-              <Route path="/gestao-rh/funcionarios" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <GestaoFuncionarios />
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-              <Route path="/gestao-rh/equipes" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <GestaoEquipes />
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-              
-              {/* Gestão Máquinas */}
-              <Route path="/gestao-maquinas/caminhoes" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <GestaoCaminhoes />
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-              <Route path="/gestao-maquinas/usinas" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <GestaoUsinas />
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-              <Route path="/gestao-maquinas/relatorio-medicao" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <RelatorioMedicao />
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-              
-              {/* Requisições - Rota única de Programação de Entrega */}
-              <Route path="/programacao-entrega" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <SecureRouteGuard requiredPermission="requisicoes_programacao_entrega_view">
-                      <ProgramacaoEntrega />
-                    </SecureRouteGuard>
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-              
-              <Route path="/registro-aplicacao" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <SecureRouteGuard requiredPermission="requisicoes_registro_aplicacao_view">
-                      <RegistroAplicacao />
-                    </SecureRouteGuard>
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-              
-              <Route path="/requisicoes/cadastro" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <GestaoRequisicoes />
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-              <Route path="/requisicoes/registro-cargas" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <RegistroCargas />
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-              <Route path="/requisicoes/apontamento-equipe" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <ApontamentoEquipe />
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-              <Route path="/requisicoes/apontamento-caminhoes" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <ApontamentoCaminhoes />
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-              <Route path="/requisicoes/chamados-os" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <ChamadosOS />
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-              <Route path="/requisicoes/gestao-os" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <GestaoOrdemServico />
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-              
-              {/* Relatório de Aplicação Diária */}
-              <Route path="/relatorio-aplicacao-diaria" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <SecureRouteGuard requiredPermission="relatorio_aplicacao_view">
-                      <RelatorioAplicacaoDiaria />
-                    </SecureRouteGuard>
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-              
-              {/* Admin */}
-              <Route path="/admin/permissoes" element={
-                <SimpleAuthGuard>
-                  <SimplePermissionGuard>
-                    <SecureRouteGuard requiredPermission="admin_permissoes_view">
-                      <GestaoPermissoes />
-                    </SecureRouteGuard>
-                  </SimplePermissionGuard>
-                </SimpleAuthGuard>
-              } />
-            </Routes>
-            <PWAUpdateNotification />
-            <PWAInstallBanner />
-          </BrowserRouter>
-        </TooltipProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+              <Routes>
+                {/* Rotas públicas */}
+                <Route path="/login" element={<SimpleLogin />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/waiting-approval" element={<WaitingApproval />} />
+                
+                {/* Redirect root to dashboard */}
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                
+                {/* Rotas protegidas - Dashboards */}
+            <Route path="/dashboard" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <Dashboard />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            
+            <Route path="/dashboard-rh" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <DashboardRH />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            
+            <Route path="/dashboard-maquinas" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <DashboardMaquinas />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            
+            <Route path="/dashboard-cbuq" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <DashboardRequisicoes />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            
+            {/* Gestão RH */}
+            <Route path="/gestao-rh/empresas" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <GestaoEmpresas />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/gestao-rh/departamentos" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <GestaoDepartamentos />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/gestao-rh/centros-custo" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <GestaoCentrosCusto />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/gestao-rh/funcoes" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <GestaoFuncoes />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/gestao-rh/funcionarios" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <GestaoFuncionarios />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/gestao-rh/equipes" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <GestaoEquipes />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            
+            {/* Gestão Máquinas */}
+            <Route path="/gestao-maquinas/caminhoes" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <GestaoCaminhoes />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/gestao-maquinas/usinas" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <GestaoUsinas />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/gestao-maquinas/relatorio-medicao" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <RelatorioMedicao />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            
+            {/* Requisições - Rota única de Programação de Entrega */}
+            <Route path="/programacao-entrega" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <SecureRouteGuard requiredPermission="requisicoes_programacao_entrega_view">
+                    <ProgramacaoEntrega />
+                  </SecureRouteGuard>
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            
+            <Route path="/registro-aplicacao" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <SecureRouteGuard requiredPermission="requisicoes_registro_aplicacao_view">
+                    <RegistroAplicacao />
+                  </SecureRouteGuard>
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            
+            <Route path="/requisicoes/cadastro" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <GestaoRequisicoes />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/requisicoes/registro-cargas" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <RegistroCargas />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/requisicoes/apontamento-equipe" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <ApontamentoEquipe />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/requisicoes/apontamento-caminhoes" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <ApontamentoCaminhoes />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/requisicoes/chamados-os" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <ChamadosOS />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/requisicoes/gestao-os" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <GestaoOrdemServico />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            
+            {/* Relatório de Aplicação Diária */}
+            <Route path="/relatorio-aplicacao-diaria" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <SecureRouteGuard requiredPermission="relatorio_aplicacao_view">
+                    <RelatorioAplicacaoDiaria />
+                  </SecureRouteGuard>
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            
+            {/* Admin */}
+            <Route path="/admin/permissoes" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <SecureRouteGuard requiredPermission="admin_permissoes_view">
+                    <GestaoPermissoes />
+                  </SecureRouteGuard>
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+              </Routes>
+              <PWAUpdateNotification />
+              <PWAInstallBanner />
+            </BrowserRouter>
+          </TooltipProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
     </GlobalErrorBoundary>
   );
 };

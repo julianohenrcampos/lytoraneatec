@@ -95,7 +95,7 @@ const Register: React.FC = () => {
           console.log("👤 Criando perfil do usuário...");
           await supabase
             .from('profiles')
-            .update({ funcao_permissao: null })
+            .update({ funcao_sistema: 'Usuário' })
             .eq('id', result.data.user.id);
         }
 
@@ -151,7 +151,7 @@ const Register: React.FC = () => {
   const canSubmit = isAuthorized && !isChecking && !emailError;
 
   return (
-    <AuthLayout title="Criar Conta" description="Complete o cadastro para acessar o sistema">
+    <AuthLayout title="Criar Conta" description="Junte-se à Lytorânea Construtora">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           {generalError && (
@@ -276,12 +276,14 @@ const Register: React.FC = () => {
           )}
         </form>
       </Form>
-      
-      <div className="mt-6 text-center text-sm">
-        Já tem uma conta?{" "}
-        <Link to="/login" className="text-primary hover:underline font-medium">
-          Fazer login
-        </Link>
+
+      <div className="mt-4 text-center">
+        <p className="text-sm text-gray-600">
+          Já tem uma conta?{" "}
+          <Link to="/login" className="font-medium text-primary hover:underline">
+            Fazer login
+          </Link>
+        </p>
       </div>
     </AuthLayout>
   );

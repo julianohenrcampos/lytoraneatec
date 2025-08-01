@@ -11,6 +11,15 @@ import { Plus, Calculator, AlertTriangle } from "lucide-react";
 import { RegistroAplicacaoDetalhesFormValues, BordoType } from "@/types/registroAplicacaoDetalhes";
 import { useToast } from "@/hooks/use-toast";
 import { useLogradourosRequisicao } from "@/hooks/registro-aplicacao/useLogradourosRequisicao";
+import { TooltipHelper } from "./TooltipHelper";
+import { 
+  calculateMassaAplicacao,
+  calculateToneladaAplicada,
+  calculateEspessuraFromTonelada,
+  getEspessuraStatus,
+  getEspessuraStatusText,
+  calculateMassaRemanescenteAfterApplication
+} from "@/utils/massaAplicacaoUtils";
 
 interface NovaAplicacaoFormProps {
   onSave: (aplicacao: RegistroAplicacaoDetalhesFormValues) => Promise<void>;
@@ -84,52 +93,49 @@ const NovaAplicacaoForm: React.FC<NovaAplicacaoFormProps> = ({
     }
   }, [editingAplicacao]);
 
-  // Cálculo da área
+  // Usar função centralizada para todos os cálculos unificados
   const calculatedArea = formData.comprimento && formData.largura_media 
     ? formData.comprimento * formData.largura_media 
     : 0;
 
-  // Cálculo da tonelada padrão (área × 0.05 × 2.4)
-  const toneladaPadrao = calculatedArea > 0 
-    ? calculatedArea * 0.05 * 2.4
+  const calculation = calculateMassaAplicacao(
+    formData.comprimento,
+    formData.largura_media,
+    massaRemanescente,
+    aplicarTodaMassa
+  );
+  
+  console.log(`📊 NovaAplicacaoForm: Dados entrada - Comprimento: ${formData.comprimento}m, Largura: ${formData.largura_media}m, Massa Remanescente: ${massaRemanescente}t`);
+  console.log(`📊 NovaAplicacaoForm: Resultado calculation -`, calculation);
+  
+  const toneladaAplicadaReal = calculation.toneladaAplicada;
+  const calculatedEspessura = calculation.espessura; // A função já retorna em centímetros
+  const espessuraStatus = calculation.espessuraStatus;
+  
+  // Calcular tonelada padrão usando função centralizada para modo tradicional
+  const toneladaPadrao = !aplicarTodaMassa 
+    ? calculateToneladaAplicada(calculatedArea, massaRemanescente, false)
     : 0;
 
-  // CORREÇÃO: Lógica principal do checkbox
-  const toneladaAplicadaReal = calculatedArea > 0 
-    ? (aplicarTodaMassa 
-        ? massaRemanescente  // Quando checkbox marcado: aplicar TODA a massa remanescente
-        : Math.min(toneladaPadrao, massaRemanescente)  // Quando desmarcado: cálculo tradicional limitado
-      )
-    : 0;
-
-  // CORREÇÃO: Cálculo da espessura sempre baseado na tonelada que será realmente aplicada
-  const calculatedEspessura = calculatedArea > 0 && toneladaAplicadaReal > 0
-    ? toneladaAplicadaReal / calculatedArea / 2.4
-    : 0;
-
-  // Verificar se a espessura está dentro do padrão
-  const espessuraStatus = calculatedEspessura > 0 
-    ? (aplicarTodaMassa
-        ? (calculatedEspessura >= 0.035 && calculatedEspessura <= 0.05 ? 'success' : 'warning')  // Lógica especial para massa total
-        : (calculatedEspessura >= 0.035 && calculatedEspessura <= 0.05 ? 'success' : 'warning')  // Lógica tradicional
-      )
-    : null;
-
-  const getEspessuraStatusText = () => {
-    if (!espessuraStatus) return "";
-    if (aplicarTodaMassa) {
-      return espessuraStatus === 'success' ? "Dentro do Padrão (Massa Total)" : "Fora do Padrão (Massa Total)";
-    }
-    return espessuraStatus === 'success' ? "Dentro do Padrão" : "Fora do Padrão";
-  };
+  // Usar função centralizada para texto do status
+  const espessuraStatusText = getEspessuraStatusText(espessuraStatus, aplicarTodaMassa);
 
   const getEspessuraStatusColor = () => {
     if (!espessuraStatus) return "";
     return espessuraStatus === 'success' ? "text-green-600" : "text-orange-600";
   };
 
-  // CORREÇÃO: Nova massa remanescente - quando checkbox marcado, fica zero
-  const novaMassaRemanescente = Math.max(0, massaRemanescente - toneladaAplicadaReal);
+  // Nova massa remanescente - USANDO FUNÇÃO CENTRALIZADA
+  const novaMassaRemanescente = calculateMassaRemanescenteAfterApplication(massaRemanescente, toneladaAplicadaReal);
+  
+  console.log('🧮 NovaAplicacaoForm - VERIFICAÇÃO MASSA CRÍTICA:', {
+    massaRemanescente: `${massaRemanescente.toFixed(3)}t`,
+    toneladaAplicadaReal: `${toneladaAplicadaReal.toFixed(3)}t`,
+    novaMassaRemanescente: `${novaMassaRemanescente.toFixed(3)}t`,
+    aplicarTodaMassa,
+    deveriaSer: aplicarTodaMassa ? '0.000t' : `${(massaRemanescente - toneladaAplicadaReal).toFixed(3)}t`,
+    conservacaoMassa: (massaRemanescente - toneladaAplicadaReal) === novaMassaRemanescente ? '✅ OK' : '❌ ERRO'
+  });
 
   // Verificar se há diferença significativa entre cálculo padrão e aplicação real
   const temLimitacaoOuDiferenca = aplicarTodaMassa 
@@ -365,10 +371,15 @@ const NovaAplicacaoForm: React.FC<NovaAplicacaoFormProps> = ({
             </div>
           </div>
 
-          {/* Linha 3: Dimensões */}
+          {/* Linha 3: Dimensões com Tooltips */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="comprimento">Comprimento (m) *</Label>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="comprimento">Comprimento (m) *</Label>
+                <TooltipHelper 
+                  content="Informe o comprimento da área a ser asfaltada em metros. Este valor será usado para calcular a área total da aplicação."
+                />
+              </div>
               <Input
                 id="comprimento"
                 type="number"
@@ -381,7 +392,12 @@ const NovaAplicacaoForm: React.FC<NovaAplicacaoFormProps> = ({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="largura_media">Largura Média (m) *</Label>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="largura_media">Largura Média (m) *</Label>
+                <TooltipHelper 
+                  content="Informe a largura média da área. Para ruas com largura variável, use a média das medidas. Área = Comprimento × Largura Média."
+                />
+              </div>
               <Input
                 id="largura_media"
                 type="number"
@@ -394,25 +410,49 @@ const NovaAplicacaoForm: React.FC<NovaAplicacaoFormProps> = ({
             </div>
           </div>
 
-          {/* Linha 4: Opções de cálculo - MOVIDO ANTES DOS RESULTADOS */}
-          <div className="flex items-center space-x-2 p-4 bg-gray-50 rounded-lg">
-            <Checkbox
-              id="aplicar_toda_massa"
-              checked={aplicarTodaMassa}
-              onCheckedChange={handleAplicarTodaMassaChange}
-            />
-            <Label htmlFor="aplicar_toda_massa" className="text-sm font-medium">
-              Aplicar toda a massa remanescente nesta rua
-            </Label>
-            <div className="text-xs text-gray-500 ml-2">
-              ({aplicarTodaMassa ? 'Massa total será aplicada' : 'Cálculo tradicional por área'})
+          {/* Linha 4: Opções de cálculo - APRIMORADO COM VISUAL MELHORADO */}
+          <div className={`p-4 rounded-lg border-2 transition-all duration-200 ${
+            aplicarTodaMassa 
+              ? 'bg-blue-50 border-blue-300 shadow-md' 
+              : 'bg-gray-50 border-gray-200'
+          }`}>
+            <div className="flex items-center space-x-3">
+              <Checkbox
+                id="aplicar_toda_massa"
+                checked={aplicarTodaMassa}
+                onCheckedChange={handleAplicarTodaMassaChange}
+                className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+              />
+              <div className="flex-1">
+                <Label htmlFor="aplicar_toda_massa" className="text-sm font-medium cursor-pointer">
+                  ⚡ Aplicar toda a massa remanescente nesta rua
+                </Label>
+                 <div className={`text-xs mt-1 ${aplicarTodaMassa ? 'text-blue-600' : 'text-gray-500'}`}>
+                   {aplicarTodaMassa 
+                     ? `✓ Aplicando ${massaRemanescente.toFixed(2)}t - Espessura será calculada automaticamente`
+                     : 'Cálculo tradicional: área × 5cm × 2.4t/m³ (limitado pela massa disponível)'
+                   }
+                </div>
+              </div>
             </div>
+            {aplicarTodaMassa && (
+              <div className="mt-3 p-2 bg-blue-100 rounded-md">
+                <div className="text-xs text-blue-800 font-medium">
+                  ⚠️ Modo "Aplicar Tudo": Toda a massa remanescente será aplicada nesta rua
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Linha 5: Cálculos - REORGANIZADO */}
+          {/* Linha 5: Cálculos com Tooltips Informativos */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label>Área Calculada (m²)</Label>
+              <div className="flex items-center gap-2">
+                <Label>Área Calculada (m²)</Label>
+                <TooltipHelper 
+                  content="Área automática: Comprimento × Largura Média. Esta será a área total a receber aplicação de asfalto."
+                />
+              </div>
               <Input
                 type="number"
                 value={calculatedArea.toFixed(2)}
@@ -422,8 +462,16 @@ const NovaAplicacaoForm: React.FC<NovaAplicacaoFormProps> = ({
             </div>
 
             <div className="space-y-2">
-              <Label>Tonelada Aplicada (t)</Label>
-              <Input
+              <div className="flex items-center gap-2">
+                <Label>Tonelada Aplicada (t)</Label>
+                <TooltipHelper 
+                  content={aplicarTodaMassa 
+                    ? "Modo 'Aplicar Tudo': Toda a massa remanescente será aplicada nesta rua, resultando em espessura variável."
+                    : "Cálculo padrão: Área × 5cm × 2.4t/m³ (densidade do asfalto), limitado pela massa disponível."
+                  }
+                />
+              </div>
+                <Input
                 type="number"
                 value={toneladaAplicadaReal.toFixed(2)}
                 readOnly
@@ -441,16 +489,21 @@ const NovaAplicacaoForm: React.FC<NovaAplicacaoFormProps> = ({
             </div>
 
             <div className="space-y-2">
-              <Label>Espessura (cm)</Label>
+              <div className="flex items-center gap-2">
+                <Label>Espessura (cm)</Label>
+                <TooltipHelper 
+                  content="Espessura calculada: Tonelada ÷ Área ÷ 2.4t/m³. Padrão ideal: 3.5-5.0cm. Verde = Dentro do padrão, Laranja = Fora do padrão."
+                />
+              </div>
               <Input
                 type="number"
-                value={(calculatedEspessura * 100).toFixed(1)}
+                value={calculatedEspessura.toFixed(1)}
                 readOnly
                 className={`bg-gray-50 font-medium ${aplicarTodaMassa ? 'border-blue-300 bg-blue-50' : ''}`}
               />
               {espessuraStatus && (
                 <div className={`text-xs font-medium ${getEspessuraStatusColor()}`}>
-                  {getEspessuraStatusText()}
+                  {espessuraStatusText}
                 </div>
               )}
             </div>

@@ -31,7 +31,7 @@ export const fetchProgramacoes = async (filters: ProgramacaoEntregaFilters = {})
     .select(`
       *,
       requisicao:bd_requisicoes(id, numero),
-      centro_custo:bd_centros_custo(id, nome_centro_custo)
+      centro_custo:bd_centros_custo(id, codigo_centro_custo, nome_centro_custo)
     `);
 
   // Apply filters
@@ -136,7 +136,7 @@ export const fetchProgramacaoById = async (id: string): Promise<ProgramacaoEntre
   return {
     ...programacao,
     itens: processedItems
-  };
+  } as any;
 };
 
 // Create a new programação with items

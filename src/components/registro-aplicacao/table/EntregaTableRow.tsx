@@ -5,6 +5,7 @@ import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
 import EntregaStatusBadge from "./EntregaStatusBadge";
 import EntregaActionButtons from "./EntregaActionButtons";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
+import { formatMassaDisplay } from "@/utils/massaConversionUtils";
 
 interface EntregaTableRowProps {
   entrega: ListaProgramacaoEntrega;
@@ -74,7 +75,7 @@ const EntregaTableRow: React.FC<EntregaTableRowProps> = ({ entrega, onEntregaCli
         {caminhaoDisplay}
       </TableCell>
       <TableCell>{entrega.equipe?.nome_equipe || "N/A"}</TableCell>
-      <TableCell>{entrega.quantidade_massa}</TableCell>
+      <TableCell>{formatMassaDisplay(entrega.quantidade_massa)}</TableCell>
       <TableCell>{entrega.tipo_lancamento}</TableCell>
       <TableCell>
         <EntregaStatusBadge status={entrega.status} />
