@@ -100,10 +100,10 @@ export const useDynamicPermissions = (): DynamicPermissions => {
           return;
         }
 
-        // Sistema de permissões simplificado baseado apenas em funcoes[]
+        // Sistema de permissões baseado em funcoes[] + consulta às tabelas de permissão
         let userRole: string | null = 'user';
         let isSuperAdmin = false;
-        let userPermissions: string[] = ['dashboard_view'];
+        let userPermissions: string[] = ['dashboard_view']; // Permissão básica sempre
 
         // Verificar se é SuperAdmin
         if (profile.funcoes.includes('SuperAdm')) {
@@ -112,7 +112,12 @@ export const useDynamicPermissions = (): DynamicPermissions => {
           
           console.log('✅ [DYNAMIC] SuperAdmin detectado via funcoes[]');
 
-          userPermissions = [
+          // SuperAdmin = TODAS as permissões
+          const { data: todasPermissoes } = await supabase
+            .from('bd_permissoes')
+            .select('nome_permissao');
+
+          userPermissions = todasPermissoes?.map(p => p.nome_permissao) || [
             'dashboard_view', 'dashboard_rh_view', 'dashboard_maquinas_view', 'dashboard_cbuq_view',
             'gestao_rh_empresas_view', 'gestao_rh_departamentos_view', 'gestao_rh_centros_custo_view',
             'gestao_rh_funcoes_view', 'gestao_rh_funcionarios_view', 'gestao_rh_equipes_view',
@@ -122,12 +127,42 @@ export const useDynamicPermissions = (): DynamicPermissions => {
             'requisicoes_chamados_os_view', 'requisicoes_gestao_os_view', 'admin_permissoes_view', 'relatorio_aplicacao_view'
           ];
         } else {
-          // Usuário comum com permissões básicas
+          // Usuário com função específica - buscar permissões reais
           userRole = profile.funcoes[0] || 'user';
           console.log('✅ [DYNAMIC] Função detectada:', userRole);
           
-          // Para outros tipos de função, permissões básicas
-          userPermissions = ['dashboard_view'];
+          // Buscar permissões da função nas tabelas
+          console.log('🔍 [DYNAMIC] Buscando permissões da função:', userRole);
+          
+          const { data: funcaoPermissao, error: funcaoError } = await supabase
+            .from('bd_funcoes_permissao')
+            .select('permissoes')
+            .eq('nome_funcao', userRole)
+            .single();
+
+          if (funcaoError) {
+            console.warn('⚠️ [DYNAMIC] Erro ao buscar função ou função não encontrada:', funcaoError);
+            userPermissions = ['dashboard_view']; // Fallback básico
+          } else if (funcaoPermissao?.permissoes && funcaoPermissao.permissoes.length > 0) {
+            console.log('📋 [DYNAMIC] IDs das permissões encontrados:', funcaoPermissao.permissoes);
+            
+            // Buscar nomes das permissões
+            const { data: permissoesList, error: permissoesError } = await supabase
+              .from('bd_permissoes')
+              .select('nome_permissao')
+              .in('id', funcaoPermissao.permissoes);
+
+            if (permissoesError) {
+              console.warn('⚠️ [DYNAMIC] Erro ao buscar detalhes das permissões:', permissoesError);
+              userPermissions = ['dashboard_view'];
+            } else {
+              userPermissions = permissoesList?.map(p => p.nome_permissao) || ['dashboard_view'];
+              console.log('✅ [DYNAMIC] Permissões carregadas:', userPermissions);
+            }
+          } else {
+            console.log('⚠️ [DYNAMIC] Função sem permissões definidas');
+            userPermissions = ['dashboard_view'];
+          }
         }
 
         // Garantir permissões únicas
