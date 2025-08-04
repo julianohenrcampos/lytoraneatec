@@ -19,7 +19,13 @@ export default defineConfig(({ mode }) => ({
       injectRegister: 'auto',
       strategies: 'generateSW',
       workbox: {
+        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10MB
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        globIgnores: [
+          '**/node_modules/**/*',
+          '**/sw.js',
+          '**/workbox-*.js'
+        ],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.(?:png|jpg|jpeg|svg|gif)$/,
