@@ -17,88 +17,37 @@ export default defineConfig(({ mode }) => ({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      strategies: 'injectManifest',
-      srcDir: 'src',
-      filename: 'sw.ts',
-      injectManifest: {
-        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MB
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}']
-      },
-      includeAssets: [
-        'favicon.ico', 
-        'icons/*.png', 
-        'apple-touch-icon.png', 
-        'masked-icon.svg'
-      ],
-      manifest: {
-        name: 'Lytorânea Construtora - Sistema ERP',
-        short_name: 'LYTOTEC ERP',
-        description: 'Sistema ERP completo para gestão de empresas de construção civil',
-        theme_color: '#3b82f6',
-        background_color: '#ffffff',
-        display: 'standalone',
-        display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'],
-        orientation: 'portrait-primary',
-        scope: '/',
-        start_url: '/',
-        id: 'app.lytotec.erp',
-        launch_handler: {
-          client_mode: 'focus-existing'
-        },
-        icons: [
+      strategies: 'generateSW',
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        runtimeCaching: [
           {
-            src: 'icons/icon-48x48.png',
-            sizes: '48x48',
-            type: 'image/png',
-            purpose: 'any'
+            urlPattern: /^https:\/\/.*\.(?:png|jpg|jpeg|svg|gif)$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'images',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 7 * 24 * 60 * 60 // 7 days
+              }
+            }
           },
           {
-            src: 'icons/icon-72x72.png',
-            sizes: '72x72',
-            type: 'image/png',
-            purpose: 'any'
-          },
-          {
-            src: 'icons/icon-96x96.png',
-            sizes: '96x96',
-            type: 'image/png',
-            purpose: 'any'
-          },
-          {
-            src: 'icons/icon-144x144.png',
-            sizes: '144x144',
-            type: 'image/png',
-            purpose: 'any'
-          },
-          {
-            src: 'icons/icon-192x192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any'
-          },
-          {
-            src: 'icons/icon-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any'
-          },
-          {
-            src: 'icons/maskable-icon-192x192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'maskable'
-          },
-          {
-            src: 'icons/maskable-icon.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable'
+            urlPattern: /^https:\/\/.*\.(?:js|css)$/,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'static-resources'
+            }
           }
         ]
       },
+      includeAssets: [
+        'favicon.ico',
+        'icons/*.png',
+        'apple-touch-icon.png'
+      ],
       devOptions: {
-        enabled: true,
-        type: 'module'
+        enabled: true
       }
     })
   ].filter(Boolean),
