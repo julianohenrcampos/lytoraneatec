@@ -365,7 +365,7 @@ export const usePermissao = () => {
     }
   });
 
-  // Mutation CORRIGIDA para atribuir permissões
+  // Mutation para atribuir permissões - CORRIGIDA para usar funcoes[]
   const assignPermissionMutation = useMutation({
     mutationFn: async ({ profileId, funcaoString }: { profileId: string; funcaoString: string }) => {
       console.log('🔄 Atribuindo permissão:', { profileId, funcaoString });
@@ -384,9 +384,10 @@ export const usePermissao = () => {
         console.log('✅ Função válida encontrada:', funcaoExists);
       }
       
+      // Buscar funcoes[] atual do usuário
       const { data: profile, error: fetchError } = await supabase
         .from('profiles')
-        .select('funcao_sistema')
+        .select('funcoes')
         .eq('id', profileId)
         .single();
       
@@ -395,20 +396,23 @@ export const usePermissao = () => {
         throw fetchError;
       }
       
-      console.log('📝 Atualizando função do sistema:', { current: profile?.funcao_sistema, new: funcaoString });
+      console.log('📝 Funcoes atuais:', profile?.funcoes);
       
-      // Atualizar funcao_sistema diretamente
-      const updateData: any = { funcao_sistema: funcaoString };
+      // Adicionar nova função ao array funcoes (evitar duplicatas)
+      const funcoesAtuais = profile?.funcoes || [];
+      const novasFuncoes = [...funcoesAtuais];
       
-      // Se existe a função na tabela bd_funcoes_permissao, vincular no campo funcao_permissao também
-      if (funcaoExists) {
-        updateData.funcao_permissao = funcaoExists.id;
-        console.log('🔗 Vinculando funcao_permissao:', funcaoExists.id);
+      if (!novasFuncoes.includes(funcaoString)) {
+        novasFuncoes.push(funcaoString);
+        console.log('➕ Adicionando nova função:', funcaoString);
+      } else {
+        console.log('⚠️ Função já existe no array, não será duplicada');
       }
       
+      // Atualizar apenas o campo funcoes[]
       const { error } = await supabase
         .from('profiles')
-        .update(updateData)
+        .update({ funcoes: novasFuncoes })
         .eq('id', profileId);
       
       if (error) {
@@ -416,8 +420,8 @@ export const usePermissao = () => {
         throw error;
       }
       
-      console.log('✅ Permissão atribuída com sucesso');
-      return { profileId, funcaoString };
+      console.log('✅ Permissão atribuída com sucesso - funcoes[]:', novasFuncoes);
+      return { profileId, funcaoString, novasFuncoes };
     },
     onSuccess: (data) => {
       toast({
