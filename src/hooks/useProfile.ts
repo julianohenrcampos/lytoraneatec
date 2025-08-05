@@ -51,25 +51,95 @@ export const useProfile = (): UseProfileReturn => {
           return;
         }
 
+        // Auto-vinculação do funcionario_id se for Apontador/Encarregado sem vinculação
+        let updatedProfile = { ...profile };
+        
+        if (!profile.funcionario_id && profile.funcoes && 
+            (profile.funcoes.includes('Apontador') || profile.funcoes.includes('Encarregado'))) {
+          
+          console.log('🔄 Tentando auto-vincular funcionário por email:', profile.email);
+          
+          const { data: funcionario } = await supabase
+            .from('bd_funcionarios')
+            .select('id, nome_completo')
+            .eq('email', profile.email)
+            .eq('status', 'Ativo')
+            .single();
+            
+          if (funcionario) {
+            console.log('✅ Funcionário encontrado:', funcionario.nome_completo);
+            
+            // Atualizar o perfil com o funcionario_id
+            const { error: updateError } = await supabase
+              .from('profiles')
+              .update({ funcionario_id: funcionario.id })
+              .eq('id', user.id);
+              
+            if (!updateError) {
+              updatedProfile.funcionario_id = funcionario.id;
+              console.log('✅ Profile atualizado com funcionario_id:', funcionario.id);
+            }
+          }
+        }
+
+        // Sincronizar funcao_sistema com array funcoes
+        let funcaoSistemaAtualizada = profile.funcao_sistema;
+        
+        if (profile.funcoes && profile.funcoes.length > 0) {
+          // Priorizar funções mais específicas
+          if (profile.funcoes.includes('SuperAdm')) {
+            funcaoSistemaAtualizada = 'SuperAdm';
+          } else if (profile.funcoes.includes('Administrador')) {
+            funcaoSistemaAtualizada = 'Administrador';
+          } else if (profile.funcoes.includes('AdmRH')) {
+            funcaoSistemaAtualizada = 'AdmRH';
+          } else if (profile.funcoes.includes('AdmLogistica')) {
+            funcaoSistemaAtualizada = 'AdmLogistica';
+          } else if (profile.funcoes.includes('AdmEquipamentos')) {
+            funcaoSistemaAtualizada = 'AdmEquipamentos';
+          } else if (profile.funcoes.includes('Encarregado')) {
+            funcaoSistemaAtualizada = 'Encarregado';
+          } else if (profile.funcoes.includes('Apontador')) {
+            funcaoSistemaAtualizada = 'Apontador';
+          }
+          
+          // Atualizar se mudou
+          if (funcaoSistemaAtualizada !== profile.funcao_sistema) {
+            console.log('🔄 Sincronizando funcao_sistema:', profile.funcao_sistema, '->', funcaoSistemaAtualizada);
+            
+            const { error: updateError } = await supabase
+              .from('profiles')
+              .update({ funcao_sistema: funcaoSistemaAtualizada })
+              .eq('id', user.id);
+              
+            if (!updateError) {
+              updatedProfile.funcao_sistema = funcaoSistemaAtualizada;
+              console.log('✅ funcao_sistema atualizada');
+            }
+          }
+        }
+
         // Buscar equipes onde o usuário é apontador ou encarregado
         let equipes: string[] = [];
         
-        if (profile.funcionario_id) {
+        if (updatedProfile.funcionario_id) {
           const { data: equipesData } = await supabase
             .from('bd_equipes')
             .select('id')
-            .or(`apontador_id.eq.${profile.funcionario_id},encarregado_id.eq.${profile.funcionario_id}`);
+            .or(`apontador_id.eq.${updatedProfile.funcionario_id},encarregado_id.eq.${updatedProfile.funcionario_id}`);
           
           equipes = equipesData?.map(equipe => equipe.id) || [];
+          
+          console.log('📋 Equipes encontradas para funcionário:', equipes.length);
         }
 
         setPerfil({
-          id: profile.id,
-          email: profile.email,
-          nome_completo: profile.nome_completo,
-          funcao_sistema: profile.funcao_sistema,
-          funcoes: profile.funcoes,
-          funcionario_id: profile.funcionario_id,
+          id: updatedProfile.id,
+          email: updatedProfile.email,
+          nome_completo: updatedProfile.nome_completo,
+          funcao_sistema: updatedProfile.funcao_sistema,
+          funcoes: updatedProfile.funcoes,
+          funcionario_id: updatedProfile.funcionario_id,
           equipes
         });
 
