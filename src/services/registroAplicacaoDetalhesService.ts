@@ -171,7 +171,25 @@ export const createAplicacaoDetalhe = async (
 
     if (error) {
       console.error("❌ [createAplicacaoDetalhe] Erro na RPC:", error);
-      throw new Error(`Erro ao salvar aplicação: ${error.message}`);
+      console.error("❌ [createAplicacaoDetalhe] Detalhes do erro:", error.details);
+      console.error("❌ [createAplicacaoDetalhe] Código do erro:", error.code);
+      
+      // Melhorar mensagem de erro baseada no tipo
+      let errorMessage = "Erro ao salvar aplicação por rua";
+      
+      if (error.message) {
+        if (error.message.includes("Massa aplicada") && error.message.includes("excede massa remanescente")) {
+          errorMessage = `Massa insuficiente: ${error.message}`;
+        } else if (error.message.includes("obrigatório")) {
+          errorMessage = `Campo obrigatório: ${error.message}`;
+        } else if (error.message.includes("autenticação") || error.message.includes("permissão")) {
+          errorMessage = "Erro de autenticação. Faça login novamente.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      throw new Error(errorMessage);
     }
     
     console.log("✅ [createAplicacaoDetalhe] RPC executada com sucesso:", data);
