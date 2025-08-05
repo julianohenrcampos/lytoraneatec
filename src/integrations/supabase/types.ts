@@ -1247,6 +1247,7 @@ export type Database = {
           caminhao_equipamento_id: string | null
           centro_custo_id: string | null
           created_at: string | null
+          created_by: string | null
           data: string | null
           hora_final: string | null
           hora_inicial: string | null
@@ -1262,6 +1263,7 @@ export type Database = {
           caminhao_equipamento_id?: string | null
           centro_custo_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           data?: string | null
           hora_final?: string | null
           hora_inicial?: string | null
@@ -1277,6 +1279,7 @@ export type Database = {
           caminhao_equipamento_id?: string | null
           centro_custo_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           data?: string | null
           hora_final?: string | null
           hora_inicial?: string | null

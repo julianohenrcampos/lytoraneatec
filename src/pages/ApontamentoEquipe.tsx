@@ -73,7 +73,7 @@ const ApontamentoEquipe: React.FC = () => {
     updateMutation,
     allowedTeamIds,
     userRole,
-    canAccessAllTeams
+    canAccessAllData
   } = useApontamentoEquipe();
 
   // Fetch only allowed teams
@@ -85,11 +85,11 @@ const ApontamentoEquipe: React.FC = () => {
 
   // Filter teams based on user access
   const equipes = React.useMemo(() => {
-    if (canAccessAllTeams) {
+    if (canAccessAllData) {
       return allEquipes;
     }
     return allEquipes.filter(equipe => allowedTeamIds.includes(equipe.id));
-  }, [allEquipes, allowedTeamIds, canAccessAllTeams]);
+  }, [allEquipes, allowedTeamIds, canAccessAllData]);
 
   const createAvaliacaoMutation = useMutation({
     mutationFn: (data: AvaliacaoEquipeFormValues) => createAvaliacaoEquipe(data),
@@ -270,21 +270,9 @@ const ApontamentoEquipe: React.FC = () => {
           </div>
         </div>
 
-        {/* Security Status Alert */}
-        <Alert className="bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-300 border-green-200 dark:border-green-800">
-          <Shield className="h-4 w-4" />
-          <AlertTitle>Controle de Acesso Ativo</AlertTitle>
-          <AlertDescription>
-            <div className="flex flex-col gap-1">
-              <span>Role: <strong>{userRole}</strong></span>
-              <span>Acesso: {canAccessAllTeams ? 'Todas as equipes' : `${allowedTeamIds.length} equipes permitidas`}</span>
-              <span>Controle: <strong>Aplicado por equipe</strong> - Dados filtrados automaticamente</span>
-            </div>
-          </AlertDescription>
-        </Alert>
 
         {/* No Access Warning */}
-        {allowedTeamIds.length === 0 && !canAccessAllTeams && (
+        {allowedTeamIds.length === 0 && !canAccessAllData && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Sem Acesso a Equipes</AlertTitle>

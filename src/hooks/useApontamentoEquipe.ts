@@ -36,7 +36,7 @@ export const useApontamentoEquipe = () => {
   const queryClient = useQueryClient();
   
   // Get user data access control
-  const { allowedTeamIds, userRole, canAccessAllTeams, isLoading: accessLoading } = useUserDataAccess();
+  const { allowedTeamIds, userRole, canAccessAllData, isLoading: accessLoading } = useUserDataAccess();
   
   const [filters, setFilters] = useState<ApontamentoEquipeFilters>({
     // Remover filtro padrão de data para mostrar todos os dados
@@ -301,7 +301,7 @@ export const useApontamentoEquipe = () => {
     // Access control data
     allowedTeamIds,
     userRole,
-    canAccessAllTeams,
+    canAccessAllData,
     
     setFilters,
     setIsFormModalOpen,
