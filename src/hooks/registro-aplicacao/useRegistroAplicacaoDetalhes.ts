@@ -105,6 +105,11 @@ export const useRegistroAplicacaoDetalhes = (registroAplicacaoId?: string) => {
 
       console.log("🎯 [useRegistroAplicacaoDetalhes] Aplicação criada com sucesso:", resultado);
 
+      // Recalcular massa remanescente imediatamente
+      console.log("🔄 [useRegistroAplicacaoDetalhes] Recalculando massa remanescente...");
+      const novaMassaRemanescente = await calcularMassaRemanescenteTempoReal(registroAplicacaoId);
+      setMassaRemanescente(novaMassaRemanescente);
+      
       // Forçar recarregamento completo dos dados
       console.log("🔄 [useRegistroAplicacaoDetalhes] Recarregando dados...");
       await loadAplicacoes(true);

@@ -8,13 +8,7 @@ export const fetchEquipes = async (filters: EquipeFilter = {}): Promise<Equipe[]
     let query = supabase
       .from("bd_equipes")
       .select(`
-        *,
-        encarregado:encarregado_id (
-          id, nome_completo
-        ),
-        apontador:apontador_id (
-          id, nome_completo
-        )
+        *
       `);
 
     // Apply filters
@@ -34,7 +28,29 @@ export const fetchEquipes = async (filters: EquipeFilter = {}): Promise<Equipe[]
 
     if (error) throw new Error(error.message);
     
-    return data as unknown as Equipe[];
+    // Resolver encarregado/apontador sem embeds para evitar ambiguidade de relacionamento
+    const equipesBase = (data || []) as Array<any>;
+
+    const idsParaBuscar = Array.from(new Set(
+      equipesBase.flatMap((e) => [e.encarregado_id, e.apontador_id]).filter(Boolean)
+    ));
+
+    let mapaFuncionarios = new Map<string, { id: string; nome_completo: string }>();
+    if (idsParaBuscar.length > 0) {
+      const { data: funcs } = await supabase
+        .from("bd_funcionarios")
+        .select("id, nome_completo")
+        .in("id", idsParaBuscar as string[]);
+      (funcs || []).forEach((f) => mapaFuncionarios.set(f.id, { id: f.id, nome_completo: f.nome_completo }));
+    }
+
+    const enriquecidas: Equipe[] = equipesBase.map((e) => ({
+      ...e,
+      encarregado: e.encarregado_id ? mapaFuncionarios.get(e.encarregado_id) || undefined : undefined,
+      apontador: e.apontador_id ? mapaFuncionarios.get(e.apontador_id) || undefined : undefined,
+    }));
+    
+    return enriquecidas as Equipe[];
   } catch (error) {
     console.error("Error fetching equipes:", error);
     throw error;

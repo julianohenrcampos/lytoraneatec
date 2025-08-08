@@ -3,13 +3,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useUserDataAccess } from "@/hooks/useUserDataAccess";
 import { 
-  fetchApontamentos,
-  getApontamentoById,
   createApontamentoEquipe,
   updateApontamentoEquipe,
   deleteApontamentoEquipe,
   exportApontamentoAndAvaliacoes
 } from "@/services/apontamentoEquipeService";
+import { fetchSecureApontamentos } from "@/services/apontamentoEquipeSecureService";
 import { 
   ApontamentoEquipe, 
   ApontamentoEquipeFilters,
@@ -38,8 +37,15 @@ export const useApontamentoEquipe = () => {
   // Get user data access control
   const { allowedTeamIds, userRole, canAccessAllData, isLoading: accessLoading } = useUserDataAccess();
   
-  const [filters, setFilters] = useState<ApontamentoEquipeFilters>({
-    // Remover filtro padrão de data para mostrar todos os dados
+  const [filters, setFilters] = useState<ApontamentoEquipeFilters>(() => {
+    // Filtro padrão: últimos 14 dias até hoje
+    const hoje = new Date();
+    const inicio = new Date();
+    inicio.setDate(hoje.getDate() - 14);
+    return {
+      data_inicio: inicio,
+      data_fim: hoje
+    };
   });
   const [currentApontamento, setCurrentApontamento] = useState<ApontamentoEquipe | null>(null);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -55,7 +61,7 @@ export const useApontamentoEquipe = () => {
     refetch 
   } = useQuery({
     queryKey: ['apontamentos', filters, allowedTeamIds],
-    queryFn: () => fetchApontamentos(filters, allowedTeamIds),
+    queryFn: () => fetchSecureApontamentos(filters),
     enabled: !accessLoading && allowedTeamIds.length >= 0, // Allow empty array (no access)
   });
   

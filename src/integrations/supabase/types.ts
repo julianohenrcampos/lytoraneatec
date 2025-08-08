@@ -1785,6 +1785,10 @@ export type Database = {
         Args: { p_registro_aplicacao_id: string }
         Returns: undefined
       }
+      usuario_acessa_equipe: {
+        Args: { p_user_id: string; p_equipe_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
