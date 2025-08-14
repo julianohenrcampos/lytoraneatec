@@ -22,28 +22,73 @@ export const confirmUserEmail = async (email: string) => {
 
 export const confirmUserEmailWithPassword = async (email: string) => {
   try {
-    console.log(`🔑 Confirmando email com senha temporária via função edge: ${email}`);
+    console.log(`🔑 Confirmando email com senha temporária: ${email}`);
     
-    const { data, error } = await supabase.functions.invoke('admin-confirm-email', {
-      body: { 
-        email,
-        setTemporaryPassword: true
-      }
-    });
+    // Verificar se o usuário existe em bd_funcionarios primeiro
+    const { data: funcionario, error: funcError } = await supabase
+      .from('bd_funcionarios')
+      .select('email, nome_completo')
+      .eq('email', email)
+      .single();
 
-    if (error) {
-      throw error;
+    if (funcError || !funcionario) {
+      throw new Error(`Usuário ${email} não encontrado na base de funcionários`);
     }
 
-    return { 
-      success: true, 
-      message: data?.message || `Email ${email} confirmado com sucesso`,
-      temporaryPassword: data?.temporary_password,
-      hasPassword: data?.has_password || false,
-      data
-    };
+    try {
+      // Tentar usar a edge function primeiro
+      console.log(`📡 Chamando edge function para: ${email}`);
+      const { data, error } = await supabase.functions.invoke('admin-confirm-email', {
+        body: { 
+          email,
+          setTemporaryPassword: true
+        }
+      });
+
+      if (error) {
+        console.error("🚨 Erro na edge function:", error);
+        throw new Error("Edge function falhou");
+      }
+
+      console.log("✅ Edge function executada com sucesso:", data);
+      
+      // Padronizar campo da senha temporária
+      const temporaryPassword = data?.temporary_password || data?.temporaryPassword;
+      
+      return { 
+        success: true, 
+        message: data?.message || `Email ${email} confirmado com sucesso`,
+        temporaryPassword: temporaryPassword,
+        hasPassword: !!temporaryPassword,
+        data
+      };
+    } catch (edgeFunctionError: any) {
+      console.warn("⚠️ Edge function falhou, apenas confirmando email:", edgeFunctionError.message);
+      
+      // Fallback simplificado: apenas confirmar email sem senha temporária
+      try {
+        console.log("🔄 Executando fallback para confirmação de email...");
+        
+        const { data, error } = await supabase.functions.invoke('admin-confirm-email', {
+          body: { email }
+        });
+
+        if (error) throw error;
+
+        return {
+          success: true,
+          message: `Email ${email} confirmado (sem senha temporária)`,
+          temporaryPassword: null,
+          hasPassword: false,
+          data: { fallback: true }
+        };
+      } catch (fallbackError: any) {
+        console.error("❌ Fallback também falhou:", fallbackError);
+        throw new Error(`Erro ao confirmar email: ${fallbackError.message}`);
+      }
+    }
   } catch (error: any) {
-    console.error("Erro ao confirmar email com senha:", error);
+    console.error("❌ Erro geral ao confirmar email com senha:", error);
     throw new Error(error.message || "Erro ao confirmar email e definir senha do usuário");
   }
 };
