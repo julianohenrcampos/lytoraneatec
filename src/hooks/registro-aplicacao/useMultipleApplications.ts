@@ -87,8 +87,7 @@ export const useMultipleApplications = (registroCargaId?: string) => {
         }
       }
 
-      // CORREÇÃO CRÍTICA: tonelada_real já está em toneladas após correção do banco
-      const massaTotal = formatMassaFromDatabase(registroCarga.tonelada_real || 0);
+      const massaTotal = formatMassaFromDatabase(registroCarga.tonelada_real || 0, 'bd_registro_cargas', 'tonelada_real');
       const totalAplicado = dadosCompletos?.total_aplicado || 
         (detalhesAplicacoes?.reduce((sum, det) => sum + (det.tonelada_aplicada || 0), 0) || 0);
       const massaRemanescente = Math.max(0, massaTotal - totalAplicado);
