@@ -1,4 +1,3 @@
-
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -32,6 +31,7 @@ import DashboardMaquinas from "@/pages/DashboardMaquinas";
 import GestaoCaminhoes from "@/pages/GestaoCaminhoes";
 import GestaoUsinas from "@/pages/GestaoUsinas";
 import RelatorioMedicao from "@/pages/RelatorioMedicao";
+import Abastecimento from "@/pages/Abastecimento"; // Adicionado novo componente abastecimento
 
 // Dashboard CBUQ
 import DashboardRequisicoes from "@/pages/DashboardRequisicoes";
@@ -181,6 +181,17 @@ const App = () => {
               <SimpleAuthGuard>
                 <SimplePermissionGuard>
                   <RelatorioMedicao />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            
+            {/* NOVA ROTA ADICIONADA */}
+            <Route path="/gestao-maquinas/abastecimento" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <SecureRouteGuard requiredPermission="gestao_maquinas_abastecimento_view">
+                    <Abastecimento />
+                  </SecureRouteGuard>
                 </SimplePermissionGuard>
               </SimpleAuthGuard>
             } />

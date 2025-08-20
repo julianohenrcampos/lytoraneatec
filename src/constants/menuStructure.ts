@@ -1,6 +1,7 @@
 
 import {
   Home,
+  Fuel,
   FileText,
   Truck,
   Users,
@@ -106,6 +107,15 @@ export const menuStructure = [
         href: "/gestao-maquinas/relatorio-medicao",
         icon: BarChart3,
         requiredPermission: "gestao_maquinas_relatorio_medicao_view"
+        
+      }
+      ,
+      {
+        name: "Relatório de Abastecimento",
+        href: "/gestao-maquinas/abastecimento",
+        icon: Fuel,
+        requiredPermission: "gestao_maquinas_relatorio_medicao_view"
+        
       }
     ]
   },
