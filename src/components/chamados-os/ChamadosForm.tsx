@@ -231,28 +231,32 @@ const ChamadosForm: React.FC<ChamadosFormProps> = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Centro de Custo <span className="text-destructive">*</span></FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                        disabled={isLoading}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="bg-white">
-                            <SelectValue placeholder="Selecione o centro de custo" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {centrosCustoOptions.map((option) => (
-                            <SelectItem key={option.id} value={option.id}>
-                              {option.codigo_centro_custo || option.label.split(' - ')[0]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <div>
+                          <Input
+                            list="centrosCustoList"
+                            placeholder="Digite ou selecione o centro de custo"
+                            disabled={isLoading}
+                            value={field.value}
+                            onChange={field.onChange}
+                            className="bg-white"
+                          />
+                          <datalist id="centrosCustoList">
+                            {centrosCustoOptions.map((option) => (
+                              <option
+                                key={option.id}
+                                value={option.codigo_centro_custo || option.label}
+                              />
+                            ))}
+                          </datalist>
+                        </div>
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
+
                 
                 <FormField
                   control={form.control}

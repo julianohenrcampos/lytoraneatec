@@ -71,7 +71,7 @@ export const useMultipleApplications = (registroCargaId?: string) => {
       if (detalhesError) throw detalhesError;
 
       console.log("Dados carregados:", {
-        carga: `${registroCarga.tonelada_real}t (banco)`,
+        carga: `${registroCarga.tonelada_real}kg`,
         aplicacoes: aplicacoes?.length || 0,
         detalhes: detalhesAplicacoes?.length || 0
       });
@@ -87,6 +87,7 @@ export const useMultipleApplications = (registroCargaId?: string) => {
         }
       }
 
+      // CORREÇÃO CRÍTICA: tonelada_real está em KG, converter para toneladas
       const massaTotal = formatMassaFromDatabase(registroCarga.tonelada_real || 0, 'bd_registro_cargas', 'tonelada_real');
       const totalAplicado = dadosCompletos?.total_aplicado || 
         (detalhesAplicacoes?.reduce((sum, det) => sum + (det.tonelada_aplicada || 0), 0) || 0);
@@ -94,49 +95,25 @@ export const useMultipleApplications = (registroCargaId?: string) => {
       const percentualAplicado = dadosCompletos?.percentual_aplicado || 
         (massaTotal > 0 ? (totalAplicado / massaTotal) * 100 : 0);
       
-      // Determinar próxima sequência baseado em detalhes existentes
-      const proximaSequencia = Math.max((detalhesAplicacoes?.length || 0) + 1, (aplicacoes?.length || 0) + 1);
+      // Determinar próxima sequência
+      const proximaSequencia = (aplicacoes?.length || 0) + 1;
       
-      // LÓGICA MELHORADA DE STATUS E FINALIZAÇÃO
-      // 1. Verificar se há aplicações/detalhes primeiro
-      const temAplicacoes = (detalhesAplicacoes?.length || 0) > 0;
+      // Status da aplicação
+      const statusAplicacao = dadosCompletos?.status_calculado || 
+        (massaRemanescente <= 0.001 ? 'Finalizada' : 
+         totalAplicado > 0 ? 'Em Andamento' : 'Iniciada');
       
-      // 2. Status baseado em lógica mais robusta
-      let statusAplicacao: string;
-      let cargaFinalizada: boolean;
-      
-      if (!temAplicacoes && massaRemanescente > 0.1) {
-        // Carga sem aplicações e com massa disponível - deve estar INICIADA
-        statusAplicacao = 'Iniciada';
-        cargaFinalizada = false;
-      } else if (temAplicacoes && massaRemanescente > 0.1) {
-        // Carga com aplicações parciais - EM ANDAMENTO
-        statusAplicacao = 'Em Andamento';
-        cargaFinalizada = false;
-      } else if (massaRemanescente <= 0.1 || percentualAplicado >= 99.9) {
-        // Carga praticamente 100% aplicada - FINALIZADA
-        statusAplicacao = 'Finalizada';
-        cargaFinalizada = true;
-      } else {
-        // Fallback seguro
-        statusAplicacao = dadosCompletos?.status_calculado || 'Iniciada';
-        cargaFinalizada = aplicacoes?.[0]?.carga_finalizada || false;
-      }
+      // Verificar se a carga está finalizada
+      const cargaFinalizada = aplicacoes?.[0]?.carga_finalizada || statusAplicacao === 'Finalizada' || massaRemanescente <= 0.001;
       
       // Obter média de espessura
       const mediaEspessura = dadosCompletos?.espessura_media_cm || aplicacoes?.[0]?.espessura_calculada;
 
-      console.log("🔍 ANÁLISE DETALHADA DA CARGA:", {
-        registroCargaId: cargaId,
-        massaTotal: `${massaTotal}t`,
-        totalAplicado: `${totalAplicado}t`,
-        massaRemanescente: `${massaRemanescente}t`,
-        percentualAplicado: `${percentualAplicado.toFixed(1)}%`,
-        temAplicacoes,
-        statusAplicacao,
-        cargaFinalizada,
-        proximaSequencia,
-        valorOriginalBanco: `${registroCarga.tonelada_real}t`
+      console.log("Resultado final:", {
+        massaTotal,
+        totalAplicado,
+        massaRemanescente,
+        cargaFinalizada
       });
 
       setCargaInfo({

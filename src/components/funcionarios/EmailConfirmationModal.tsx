@@ -132,54 +132,35 @@ const EmailConfirmationModal: React.FC<EmailConfirmationModalProps> = ({
     }
 
     setIsConfirmingWithPassword(true);
-    setTemporaryPassword(null); // Reset previous password
-    
     try {
-      console.log(`🔑 Iniciando confirmação com senha temporária para: ${email}`);
+      console.log(`🔑 Confirmando email com senha temporária: ${email}`);
       const result = await confirmUserEmailWithPassword(email);
       
-      console.log("📝 Resultado completo da confirmação:", JSON.stringify(result, null, 2));
-      
-      if (result && result.success) {
-        // Verificar se há senha temporária
-        const tempPassword = result.temporaryPassword;
-        console.log("🔍 Verificando senha temporária:", tempPassword ? "Encontrada" : "Não encontrada");
-        
-        if (tempPassword) {
-          setTemporaryPassword(tempPassword);
-          console.log("✅ Senha temporária armazenada no estado:", tempPassword);
+      if (result.success) {
+        if (result.temporaryPassword) {
+          setTemporaryPassword(result.temporaryPassword);
           toast({
             title: "Sucesso! 🎉",
             description: `Email confirmado e senha temporária criada para ${email}`,
           });
         } else {
-          console.warn("⚠️ Email confirmado mas sem senha temporária");
           toast({
-            title: "Email Confirmado ✅",
-            description: `Email ${email} confirmado, mas não foi possível gerar senha temporária`,
+            title: "Sucesso ✅",
+            description: `Email ${email} confirmado com sucesso!`,
           });
         }
       } else {
-        console.error("❌ Resultado da confirmação inválido:", result);
-        throw new Error(result?.message || "Resposta inválida do serviço");
+        toast({
+          title: "Erro na confirmação",
+          description: result.message,
+          variant: "destructive",
+        });
       }
     } catch (error: any) {
       console.error('❌ Erro ao confirmar email com senha:', error);
-      
-      // Reset senha temporária em caso de erro
-      setTemporaryPassword(null);
-      
-      // Determinar mensagem de erro mais específica
-      let errorMessage = error.message;
-      if (error.message?.includes("não encontrado na base")) {
-        errorMessage = "Usuário não está cadastrado como funcionário.";
-      } else if (error.message?.includes("Edge function falhou")) {
-        errorMessage = "Serviço indisponível. Email pode ter sido confirmado sem senha temporária.";
-      }
-      
       toast({
-        title: "Erro ao processar solicitação",
-        description: errorMessage,
+        title: "Erro ao confirmar email com senha",
+        description: error.message,
         variant: "destructive",
       });
     } finally {
@@ -349,14 +330,14 @@ const EmailConfirmationModal: React.FC<EmailConfirmationModalProps> = ({
                     <div className="text-sm">
                       <div>Use esta senha para fazer login:</div>
                       <div className="flex items-center gap-2 mt-2">
-                        <code className="bg-white px-3 py-2 rounded border text-green-700 font-mono text-base font-bold">
+                        <code className="bg-white px-2 py-1 rounded border text-green-700 font-mono">
                           {temporaryPassword}
                         </code>
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={handleCopyPassword}
-                          className="p-1 h-8 w-8"
+                          className="p-1 h-7 w-7"
                         >
                           <Copy className="h-3 w-3" />
                         </Button>
@@ -369,13 +350,6 @@ const EmailConfirmationModal: React.FC<EmailConfirmationModalProps> = ({
                 </AlertDescription>
               </Alert>
             </>
-          )}
-
-          {/* Debug info - Remove in production */}
-          {process.env.NODE_ENV === 'development' && (
-            <div className="text-xs text-gray-500 bg-gray-100 p-2 rounded">
-              Debug: temporaryPassword = {temporaryPassword ? `"${temporaryPassword}"` : 'null'}
-            </div>
           )}
 
           {/* Ações Disponíveis */}
