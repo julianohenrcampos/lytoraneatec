@@ -73,7 +73,7 @@ const ApontamentoEquipe: React.FC = () => {
     updateMutation,
     allowedTeamIds,
     userRole,
-    canAccessAllData
+    canAccessAllTeams
   } = useApontamentoEquipe();
 
   // Fetch only allowed teams
@@ -85,11 +85,11 @@ const ApontamentoEquipe: React.FC = () => {
 
   // Filter teams based on user access
   const equipes = React.useMemo(() => {
-    if (canAccessAllData) {
+    if (canAccessAllTeams) {
       return allEquipes;
     }
     return allEquipes.filter(equipe => allowedTeamIds.includes(equipe.id));
-  }, [allEquipes, allowedTeamIds, canAccessAllData]);
+  }, [allEquipes, allowedTeamIds, canAccessAllTeams]);
 
   const createAvaliacaoMutation = useMutation({
     mutationFn: (data: AvaliacaoEquipeFormValues) => createAvaliacaoEquipe(data),
@@ -270,9 +270,21 @@ const ApontamentoEquipe: React.FC = () => {
           </div>
         </div>
 
+        {/* Security Status Alert */}
+        <Alert className="bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-300 border-green-200 dark:border-green-800">
+          <Shield className="h-4 w-4" />
+          <AlertTitle>Controle de Acesso Ativo</AlertTitle>
+          <AlertDescription>
+            <div className="flex flex-col gap-1">
+              <span>Role: <strong>{userRole}</strong></span>
+              <span>Acesso: {canAccessAllTeams ? 'Todas as equipes' : `${allowedTeamIds.length} equipes permitidas`}</span>
+              <span>Controle: <strong>Aplicado por equipe</strong> - Dados filtrados automaticamente</span>
+            </div>
+          </AlertDescription>
+        </Alert>
 
         {/* No Access Warning */}
-        {allowedTeamIds.length === 0 && !canAccessAllData && (
+        {allowedTeamIds.length === 0 && !canAccessAllTeams && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Sem Acesso a Equipes</AlertTitle>
@@ -282,72 +294,65 @@ const ApontamentoEquipe: React.FC = () => {
           </Alert>
         )}
 
-        {/* Alerta quando não houver equipes carregadas, mas mantém a visualização dos apontamentos */}
-        {equipes.length === 0 && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Nenhuma equipe carregada</AlertTitle>
-            <AlertDescription>
-              Não foi possível carregar as equipes agora. Você ainda pode visualizar os apontamentos existentes.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {isAvaliacaoObrigatoria && (
-          <Alert className="bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800">
-            <AlertTitle>Avaliação de desempenho obrigatória</AlertTitle>
-            <AlertDescription>
-              Hoje é dia de avaliação obrigatória! Todos os colaboradores presentes precisam ser avaliados.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        <ApontamentoEquipeFilters 
-          onFilter={(newFilters) => {
-            Object.entries(newFilters).forEach(([key, value]) => {
-              handleFilterChange(key as any, value);
-            });
-          }}
-          equipes={equipes}
-          isLoading={isLoading}
-          onOpenMobileFilters={() => setIsFilterDrawerOpen(true)}
-        />
-
-        <ApontamentoEquipeFilterDrawer
-          isOpen={isFilterDrawerOpen}
-          onClose={() => setIsFilterDrawerOpen(false)}
-          onApplyFilters={handleApplyFilters}
-          onClearFilters={resetFilters}
-          equipes={equipes}
-          isLoading={isLoading}
-        />
-
-        <Card>
-          <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
-            <CardTitle className="text-xl">Apontamentos de Equipe</CardTitle>
-            <div className="flex items-center gap-2 mt-2 sm:mt-0">
-              <Users className="h-5 w-5 text-muted-foreground" />
-              <span className="font-medium capitalize text-sm">{formattedDate}</span>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="flex justify-center items-center py-8">
-                <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
-              </div>
-            ) : (
-              <ApontamentoEquipeTable 
-                apontamentos={apontamentoSummaries} 
-                onViewDetails={openDetailsModal}
-                onEdit={openFormModal}
-                onDelete={confirmDelete}
-                onViewEquipe={handleViewEquipe}
-                onAvaliarColaborador={handleAvaliarColaborador}
-                avaliacaoStatusMap={avaliacaoStatusMap}
-              />
+        {equipes.length > 0 && (
+          <>
+            {isAvaliacaoObrigatoria && (
+              <Alert className="bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800">
+                <AlertTitle>Avaliação de desempenho obrigatória</AlertTitle>
+                <AlertDescription>
+                  Hoje é dia de avaliação obrigatória! Todos os colaboradores presentes precisam ser avaliados.
+                </AlertDescription>
+              </Alert>
             )}
-          </CardContent>
-        </Card>
+
+            <ApontamentoEquipeFilters 
+              onFilter={(newFilters) => {
+                Object.entries(newFilters).forEach(([key, value]) => {
+                  handleFilterChange(key as any, value);
+                });
+              }}
+              equipes={equipes}
+              isLoading={isLoading}
+              onOpenMobileFilters={() => setIsFilterDrawerOpen(true)}
+            />
+
+            <ApontamentoEquipeFilterDrawer
+              isOpen={isFilterDrawerOpen}
+              onClose={() => setIsFilterDrawerOpen(false)}
+              onApplyFilters={handleApplyFilters}
+              onClearFilters={resetFilters}
+              equipes={equipes}
+              isLoading={isLoading}
+            />
+
+            <Card>
+              <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
+                <CardTitle className="text-xl">Apontamentos de Equipe</CardTitle>
+                <div className="flex items-center gap-2 mt-2 sm:mt-0">
+                  <Users className="h-5 w-5 text-muted-foreground" />
+                  <span className="font-medium capitalize text-sm">{formattedDate}</span>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <div className="flex justify-center items-center py-8">
+                    <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+                  </div>
+                ) : (
+                  <ApontamentoEquipeTable 
+                    apontamentos={apontamentoSummaries} 
+                    onViewDetails={openDetailsModal}
+                    onEdit={openFormModal}
+                    onDelete={confirmDelete}
+                    onViewEquipe={handleViewEquipe}
+                    onAvaliarColaborador={handleAvaliarColaborador}
+                    avaliacaoStatusMap={avaliacaoStatusMap}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
 
         <ApontamentoEquipeForm 
           isOpen={isFormModalOpen}

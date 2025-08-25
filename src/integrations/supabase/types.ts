@@ -99,45 +99,6 @@ export type Database = {
           },
         ]
       }
-      bd_auditoria_correcao_registros_carga: {
-        Row: {
-          data_correcao: string | null
-          id: string
-          motivo: string
-          registro_carga_id: string
-          tonelada_real_anterior: number | null
-          tonelada_real_corrigida: number | null
-          tonelada_retorno_anterior: number | null
-          tonelada_retorno_corrigida: number | null
-          tonelada_saida_anterior: number
-          tonelada_saida_corrigida: number
-        }
-        Insert: {
-          data_correcao?: string | null
-          id?: string
-          motivo?: string
-          registro_carga_id: string
-          tonelada_real_anterior?: number | null
-          tonelada_real_corrigida?: number | null
-          tonelada_retorno_anterior?: number | null
-          tonelada_retorno_corrigida?: number | null
-          tonelada_saida_anterior: number
-          tonelada_saida_corrigida: number
-        }
-        Update: {
-          data_correcao?: string | null
-          id?: string
-          motivo?: string
-          registro_carga_id?: string
-          tonelada_real_anterior?: number | null
-          tonelada_real_corrigida?: number | null
-          tonelada_retorno_anterior?: number | null
-          tonelada_retorno_corrigida?: number | null
-          tonelada_saida_anterior?: number
-          tonelada_saida_corrigida?: number
-        }
-        Relationships: []
-      }
       bd_auditoria_correcao_volume_formula: {
         Row: {
           area: number
@@ -1286,7 +1247,6 @@ export type Database = {
           caminhao_equipamento_id: string | null
           centro_custo_id: string | null
           created_at: string | null
-          created_by: string | null
           data: string | null
           hora_final: string | null
           hora_inicial: string | null
@@ -1302,7 +1262,6 @@ export type Database = {
           caminhao_equipamento_id?: string | null
           centro_custo_id?: string | null
           created_at?: string | null
-          created_by?: string | null
           data?: string | null
           hora_final?: string | null
           hora_inicial?: string | null
@@ -1318,7 +1277,6 @@ export type Database = {
           caminhao_equipamento_id?: string | null
           centro_custo_id?: string | null
           created_at?: string | null
-          created_by?: string | null
           data?: string | null
           hora_final?: string | null
           hora_inicial?: string | null
@@ -1745,16 +1703,6 @@ export type Database = {
         Args: { carga_id: string }
         Returns: Json
       }
-      force_update_all_delivery_statuses: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          entrega_id: string
-          status_anterior: string
-          status_novo: string
-          massa_remanescente: number
-          percentual_aplicado: number
-        }[]
-      }
       garantir_registro_aplicacao_principal: {
         Args: {
           p_lista_entrega_id: string
@@ -1769,25 +1717,9 @@ export type Database = {
         Args: { p_funcao: string; p_dados: Json; p_resultado?: Json }
         Returns: undefined
       }
-      relatorio_correcao_status_massa: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          total_entregas: number
-          entregas_ativas: number
-          entregas_enviadas: number
-          entregas_em_aplicacao: number
-          entregas_entregues: number
-          registros_corrigidos: number
-          massa_media_toneladas: number
-        }[]
-      }
       sincronizar_hora_saida_aplicacao: {
         Args: { p_registro_aplicacao_id: string }
         Returns: undefined
-      }
-      usuario_acessa_equipe: {
-        Args: { p_user_id: string; p_equipe_id: string }
-        Returns: boolean
       }
     }
     Enums: {

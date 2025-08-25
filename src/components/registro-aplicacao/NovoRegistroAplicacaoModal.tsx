@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Clock, MapPin, FileText, Eye } from "lucide-react";
@@ -32,6 +32,13 @@ const NovoRegistroAplicacaoModal: React.FC<NovoRegistroAplicacaoModalProps> = ({
   const [activeTab, setActiveTab] = useState("dados-iniciais");
   const [registroCarga, setRegistroCarga] = useState<RegistroCarga | null>(null);
   const [registroAplicacaoId, setRegistroAplicacaoId] = useState<string | null>(null);
+  
+  console.log("🎯 [MODAL] Estado atual:", {
+    registroAplicacaoId,
+    registroCargaId: registroCarga?.id,
+    entregaId: entrega?.id,
+    modalAberto: isOpen
+  });
   const [loadingCarga, setLoadingCarga] = useState(false);
 
   // Determine if this is a finalized delivery (read-only mode)
@@ -40,39 +47,66 @@ const NovoRegistroAplicacaoModal: React.FC<NovoRegistroAplicacaoModalProps> = ({
   // Use multiple applications hook to get real-time data
   const { cargaInfo, refetch: refetchCargaInfo } = useMultipleApplications(registroCarga?.id);
 
-  // Callback de sucesso otimizado
-  const handleFormSuccess = useCallback(() => {
+  // CORREÇÃO: Callback de sucesso simplificado e direto
+  const handleFormSuccess = React.useCallback(() => {
+    console.log("🎯 [MODAL] ===== CALLBACK DE SUCESSO DISPARADO =====");
+    
     try {
+      // Atualizar dados da carga se existir
       if (registroCarga?.id) {
+        console.log("🔄 [MODAL] Atualizando dados da carga:", registroCarga.id);
         refetchCargaInfo();
       }
+      
+      // Chamar callback do componente pai
+      console.log("🎯 [MODAL] Chamando callback do componente pai");
       onSuccess();
+      
+      console.log("✅ [MODAL] ===== CALLBACK COMPLETO =====");
     } catch (error) {
       console.error("❌ [MODAL] Erro no callback de sucesso:", error);
     }
   }, [registroCarga?.id, refetchCargaInfo, onSuccess]);
 
-  // Hook do formulário
+  // Use form hook sem passar callback aqui (será passado via parâmetro)
   const { 
     form, 
     isLoading, 
     isLoadingData, 
+    dataLoaded, 
     registroExistente,
     onSubmit 
   } = useNovoRegistroForm(
     entrega,
     registroCarga,
-    handleFormSuccess
+    handleFormSuccess // Callback como fallback
   );
 
-  // Função para carregar dados da carga
-  const loadRegistroCarga = useCallback(async () => {
+  useEffect(() => {
+    if (isOpen && entrega) {
+      console.log("🔄 [MODAL] Modal aberto para entrega:", entrega.id);
+      loadRegistroCarga();
+      setActiveTab("dados-iniciais");
+      setRegistroAplicacaoId(null);
+    }
+  }, [isOpen, entrega]);
+
+  // Refresh carga info when modal opens
+  useEffect(() => {
+    if (registroCarga?.id) {
+      refetchCargaInfo();
+    }
+  }, [registroCarga?.id, refetchCargaInfo]);
+
+  const loadRegistroCarga = async () => {
     if (!entrega) return;
     
     setLoadingCarga(true);
     try {
+      console.log("🔄 [MODAL] Carregando registro de carga para entrega:", entrega.id);
       const cargaData = await fetchRegistroCargaByListaEntregaId(entrega.id);
       if (!cargaData) {
+        console.error("❌ [MODAL] Registro de carga não encontrado");
         toast({
           title: "Erro",
           description: "Não foi possível encontrar o registro de carga para esta entrega.",
@@ -81,6 +115,7 @@ const NovoRegistroAplicacaoModal: React.FC<NovoRegistroAplicacaoModalProps> = ({
         onClose();
         return;
       }
+      console.log("✅ [MODAL] Registro de carga carregado:", cargaData);
       setRegistroCarga(cargaData);
     } catch (error) {
       console.error("❌ [MODAL] Erro ao carregar registro de carga:", error);
@@ -93,23 +128,7 @@ const NovoRegistroAplicacaoModal: React.FC<NovoRegistroAplicacaoModalProps> = ({
     } finally {
       setLoadingCarga(false);
     }
-  }, [entrega, toast, onClose]);
-
-  // Effect para abrir modal
-  useEffect(() => {
-    if (isOpen && entrega) {
-      loadRegistroCarga();
-      setActiveTab("dados-iniciais");
-      setRegistroAplicacaoId(null);
-    }
-  }, [isOpen, entrega, loadRegistroCarga]);
-
-  // Effect para atualizar dados da carga
-  useEffect(() => {
-    if (registroCarga?.id) {
-      refetchCargaInfo();
-    }
-  }, [registroCarga?.id, refetchCargaInfo]);
+  };
 
   const handleNext = async () => {
     if (activeTab === "dados-iniciais") {
@@ -127,17 +146,26 @@ const NovoRegistroAplicacaoModal: React.FC<NovoRegistroAplicacaoModalProps> = ({
     }
   };
 
-  const handleRegistroCreated = useCallback((id: string) => {
+  const handleRegistroCreated = (id: string) => {
+    console.log("🎯 [MODAL] Registro criado/atualizado - ID:", id);
     setRegistroAplicacaoId(id);
-    // Refetch imediato dos dados da carga
-    refetchCargaInfo();
-  }, [refetchCargaInfo]);
+    
+    // FORÇA o refetch após definir o ID
+    setTimeout(() => {
+      console.log("🔄 [MODAL] Forçando refetch após registro criado");
+      refetchCargaInfo();
+    }, 500);
+  };
 
-  const handleModalClose = useCallback((open: boolean) => {
+  // CORREÇÃO: Controle de fechamento sem verificar isLoading
+  const handleModalClose = (open: boolean) => {
+    console.log("🔄 [MODAL] handleModalClose chamado com open:", open);
+    
     if (!open) {
+      console.log("🔄 [MODAL] Fechando modal");
       onClose();
     }
-  }, [onClose]);
+  };
 
   if (!entrega) return null;
 
