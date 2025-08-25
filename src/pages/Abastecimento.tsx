@@ -74,10 +74,6 @@ function formatDate(date: Date): string {
 }
 
 const AbastecimentoPage: React.FC = () => {
-  const [username, setUsername] = useState('testekorth@lytoranea');
-  const [password, setPassword] = useState('0123456789');
-  const [message, setMessage] = useState('');
-  const [isError, setIsError] = useState(false);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [filteredAbastecimentos, setFilteredAbastecimentos] = useState<Abastecimento[]>([]);
   const [startDate, setStartDate] = useState('');
@@ -199,11 +195,6 @@ const AbastecimentoPage: React.FC = () => {
     }
   }, [showComparative, comparativeData, comparativeConsumptionData, comparativeField]);
 
-  const showMessage = (msg: string, isErr: boolean = true) => {
-    setMessage(msg);
-    setIsError(isErr);
-  };
-
   const destroyCharts = () => {
     [
       chartLitragemRef, chartConsumoDiarioRef, chartAbastecimentosPorDiaRef,
@@ -228,7 +219,8 @@ const AbastecimentoPage: React.FC = () => {
   };
 
   const authenticate = async () => {
-    showMessage('Autenticando...', false);
+    const username = 'testekorth@lytoranea';
+    const password = '0123456789';
     try {
       const response = await fetch(AUTH_ENDPOINT, {
         method: 'POST',
@@ -240,7 +232,6 @@ const AbastecimentoPage: React.FC = () => {
 
       if (response.ok && data.dados?.token) {
         setAuthToken(data.dados.token);
-        showMessage('Login bem-sucedido!', false);
 
         const endDate = new Date();
         const startDate = new Date();
@@ -251,14 +242,18 @@ const AbastecimentoPage: React.FC = () => {
         return true;
       } else {
         const errorMessage = data.erros?.join(', ') || 'Credenciais inválidas ou erro desconhecido.';
-        showMessage(`Falha no login: ${errorMessage}`);
+        console.error(`Falha no login: ${errorMessage}`);
         return false;
       }
     } catch (error: any) {
-      showMessage(`Erro de rede ao autenticar: ${error.message}`);
+      console.error(`Erro de rede ao autenticar: ${error.message}`);
       return false;
     }
   };
+
+  useEffect(() => {
+    authenticate();
+  }, []);
 
   const fetchAndFilterAbastecimentos = async () => {
     if (!authToken) {
@@ -430,6 +425,13 @@ const AbastecimentoPage: React.FC = () => {
     setComparativeConsumptionData(formattedData);
   };
 
+  const formatDateToDDMMYYYY = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    const datePart = dateString.split('T')[0];
+    const [year, month, day] = datePart.split('-');
+    return `${day}/${month}/${year}`;
+  };
+
   const handleExportToExcel = () => {
     if (filteredAbastecimentos.length === 0) {
       alert('Nenhum dado para exportar.');
@@ -442,7 +444,7 @@ const AbastecimentoPage: React.FC = () => {
       return {
         'Identificador': abast.identificador,
         'Tipo de Procedimento': abast.tipo_procedimento,
-        'Data de Abastecimento': abast.data_abast.split('T')[0],
+        'Data de Abastecimento': formatDateToDDMMYYYY(abast.data_abast),
         'Hora de Abastecimento': abast.hora_abast,
         'Comboista': comboistaName,
         'Operação': abast.operacao,
@@ -456,7 +458,7 @@ const AbastecimentoPage: React.FC = () => {
         'Encerrante Final': abast.encerrante_fim,
         'Foto Verificada': abast.foto_verificada ? 'Sim' : 'Não',
         'Identificação do Ponto': abast.identificacao_do_ponto,
-        'Medidor Anterior Data': abast.medidor_anterior_data ? abast.medidor_anterior_data.split('T')[0] : 'N/A',
+        'Medidor Anterior Data': abast.medidor_anterior_data ? formatDateToDDMMYYYY(abast.medidor_anterior_data) : 'N/A',
         'Medidor Anterior Valor': abast.medidor_anterior_valor,
         'Placa': abast.placa,
         'Centro de Custo (CC)': abast.cc,
@@ -977,40 +979,12 @@ const AbastecimentoPage: React.FC = () => {
     <MainLayout>
       <div className="p-8">
         {!authToken ? (
-          <div className="flex flex-col items-center justify-center">
-            <div className="w-full max-w-md bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-2xl font-bold mb-4">Login</h2>
-              <div className="mb-4">
-                <label className="block text-gray-700">Login</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                />
+            <div className="flex flex-col items-center justify-center">
+              <div className="w-full max-w-md bg-white rounded-lg shadow-md p-6">
+                <h2 className="text-2xl font-bold mb-4">Carregando...</h2>
+                <p className="mt-4 text-center text-gray-500">Autenticando automaticamente, por favor aguarde.</p>
               </div>
-              <div className="mb-6">
-                <label className="block text-gray-700">Senha</label>
-                <input
-                  type="password"
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-              <button
-                onClick={authenticate}
-                className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition-colors"
-              >
-                Entrar
-              </button>
-              {message && (
-                <div className={`mt-4 text-center ${isError ? 'text-red-500' : 'text-green-500'}`}>
-                  {message}
-                </div>
-              )}
             </div>
-          </div>
         ) : (
           <div className="container mx-auto">
             <h1 className="text-3xl font-bold mb-8 text-center text-gray-800">Dashboard de Abastecimento</h1>
@@ -1233,7 +1207,7 @@ const AbastecimentoPage: React.FC = () => {
                           <tr key={abast.identificador}>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{abast.identificador}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{abast.tipo_procedimento}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{abast.data_abast.split('T')[0]}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDateToDDMMYYYY(abast.data_abast)}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{abast.hora_abast}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{comboistaNames[abast.comboista?.toString() || ''] || abast.comboista}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{abast.operacao}</td>
@@ -1247,7 +1221,7 @@ const AbastecimentoPage: React.FC = () => {
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{abast.encerrante_fim}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{abast.foto_verificada ? 'Sim' : 'Não'}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{abast.identificacao_do_ponto}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{abast.medidor_anterior_data ? abast.medidor_anterior_data.split('T')[0] : 'N/A'}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{abast.medidor_anterior_data ? formatDateToDDMMYYYY(abast.medidor_anterior_data) : 'N/A'}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{abast.medidor_anterior_valor}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{abast.placa}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{abast.cc}</td>
