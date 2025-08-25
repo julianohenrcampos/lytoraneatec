@@ -1,0 +1,3 @@
+[build]
+  command = "bun run build"
+  publish = "sua_pasta_de_build"
