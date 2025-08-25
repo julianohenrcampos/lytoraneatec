@@ -14,44 +14,18 @@ export const handleFormSubmission = async (
     // Verificar autenticação
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      console.error("❌ [SUBMIT] Usuário não autenticado");
       throw new Error("Usuário não autenticado");
     }
 
-    console.log("✅ [SUBMIT] Usuário autenticado:", user.id);
-
-    // Validar campos obrigatórios
-    if (!data.lista_entrega_id) {
-      throw new Error("Lista de entrega é obrigatória");
-    }
-    
-    if (!data.registro_carga_id) {
-      throw new Error("Registro de carga é obrigatório");
-    }
-    
-    if (!data.data_aplicacao) {
-      throw new Error("Data de aplicação é obrigatória");
-    }
-    
-    if (!data.hora_chegada_local) {
-      throw new Error("Hora de chegada é obrigatória");
-    }
-
-    // Preparar dados com validação e formatação
+    // Preparar dados com validação de campos de hora
     const submitData = {
       ...data,
       // Garantir que hora_saida_caminhao seja formatada corretamente
       hora_saida_caminhao: data.hora_saida_caminhao || null,
       hora_chegada_local: data.hora_chegada_local,
-      hora_aplicacao: data.hora_aplicacao || null,
       // Garantir que created_by seja mapeado corretamente
       created_by: user.id,
       updated_at: new Date().toISOString(),
-      // Garantir valores padrão para campos numéricos
-      tonelada_aplicada: data.tonelada_aplicada || 0,
-      percentual_aplicado: data.percentual_aplicado || 0,
-      aplicacao_sequencia: data.aplicacao_sequencia || 1,
-      carga_finalizada: data.carga_finalizada || false,
     };
 
     console.log("📦 [SUBMIT] Dados preparados:", submitData);
@@ -116,36 +90,10 @@ export const handleFormSubmission = async (
     return result;
   } catch (error: any) {
     console.error("❌ [SUBMIT] Erro geral:", error);
-    console.error("❌ [SUBMIT] Stack trace:", error.stack);
-    console.error("❌ [SUBMIT] Dados que falharam:", data);
-    
-    let errorMessage = "Erro ao salvar registro";
-    
-    // Tratar erros específicos do Supabase
-    if (error.code) {
-      switch (error.code) {
-        case '23505':
-          errorMessage = "Registro duplicado encontrado";
-          break;
-        case '23503':
-          errorMessage = "Referência inválida detectada";
-          break;
-        case '23502':
-          errorMessage = "Campo obrigatório não preenchido";
-          break;
-        case 'PGRST116':
-          errorMessage = "Nenhum registro encontrado para atualização";
-          break;
-        default:
-          errorMessage = error.message || errorMessage;
-      }
-    } else {
-      errorMessage = error.message || errorMessage;
-    }
     
     toast({
-      title: "Erro no Salvamento",
-      description: errorMessage,
+      title: "Erro",
+      description: error.message || "Erro ao salvar registro",
       variant: "destructive",
     });
     
