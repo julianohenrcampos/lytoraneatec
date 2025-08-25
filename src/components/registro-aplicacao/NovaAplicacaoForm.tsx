@@ -532,15 +532,11 @@ const NovaAplicacaoForm: React.FC<NovaAplicacaoFormProps> = ({
             )}
             <Button 
               type="submit" 
-              disabled={isLoading || massaRemanescente < 0.01}
+              disabled={isLoading || massaRemanescente <= 0}
               className="bg-blue-600 hover:bg-blue-700"
             >
               {isLoading ? "Salvando..." : editingAplicacao ? "Atualizar Aplicação" : "Adicionar Aplicação"}
             </Button>
-            {/* Debug Info - temporário */}
-            <div className="text-xs text-gray-500 ml-4 hidden">
-              Debug: isLoading={isLoading.toString()}, massa={massaRemanescente.toFixed(3)}t, disabled={(isLoading || massaRemanescente < 0.01).toString()}
-            </div>
           </div>
         </form>
       </CardContent>

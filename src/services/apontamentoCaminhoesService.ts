@@ -22,7 +22,6 @@ export interface ApontamentoCaminhao {
   hora_final: string | null;
   abastecimento: number | null;
   situacao: string | null;
-  created_by?: string | null;
   created_at?: string;
   updated_at?: string;
   

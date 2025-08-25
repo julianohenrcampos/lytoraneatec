@@ -1,6 +1,7 @@
 
 import {
   Home,
+  Fuel,
   FileText,
   Truck,
   Users,
@@ -112,7 +113,7 @@ export const menuStructure = [
       {
         name: "Relatório de Abastecimento",
         href: "/gestao-maquinas/abastecimento",
-        icon: BarChart3,
+        icon: Fuel,
         requiredPermission: "gestao_maquinas_relatorio_medicao_view"
         
       }
