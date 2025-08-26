@@ -22,18 +22,27 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface RequisicaoFormModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  open?: boolean;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onClose?: () => void;
   onSuccess: () => void;
   requisicao: RequisicaoWithRuas | null;
 }
 
 const RequisicaoFormModal: React.FC<RequisicaoFormModalProps> = ({
+  open,
   isOpen,
+  onOpenChange,
   onClose,
   onSuccess,
   requisicao
 }) => {
+  const modalIsOpen = open ?? isOpen ?? false;
+  const handleClose = () => {
+    onOpenChange?.(false);
+    onClose?.();
+  };
   const {
     form,
     ruaForm,
@@ -206,7 +215,7 @@ const RequisicaoFormModal: React.FC<RequisicaoFormModalProps> = ({
       console.error("Error submitting form:", error);
     }
   };
-  return <Dialog open={isOpen} onOpenChange={onClose}>
+  return <Dialog open={modalIsOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col py-[8px] mx-0 px-[36px]">
         <DialogHeader>
           <DialogTitle>

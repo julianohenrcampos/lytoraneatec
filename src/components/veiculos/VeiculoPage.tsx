@@ -11,7 +11,11 @@ import DeleteVeiculoDialog from "./DeleteVeiculoDialog";
 import VeiculoHeaderActions from "./VeiculoHeaderActions";
 import { VeiculoFormData } from "@/types/veiculo";
 
-const VeiculoPage: React.FC = () => {
+interface VeiculoPageProps {
+  initialSituacaoFilter?: string | null;
+}
+
+const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
   const [isSuccessMessageVisible, setIsSuccessMessageVisible] = useState(false);
   
   const {
@@ -91,8 +95,6 @@ const VeiculoPage: React.FC = () => {
         onResetFilters={resetFilters}
         isLoading={isLoading}
         totalVeiculos={veiculos?.length || 0}
-        departamentos={departamentosDropdown}
-        empresas={empresasDropdown}
       />
       
       <VeiculoTable 
