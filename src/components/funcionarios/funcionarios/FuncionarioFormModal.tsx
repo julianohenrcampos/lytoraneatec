@@ -58,6 +58,10 @@ const FuncionarioFormModal: React.FC<FuncionarioFormModalProps> = ({
           setImageFile={setImageFile}
           isUploadingImage={isUploadingImage}
           setIsUploadingImage={setIsUploadingImage}
+<<<<<<< HEAD
+=======
+          funcionarioId={funcionario?.id}
+>>>>>>> 6a962e8b88ac62b52e02b93f11ffdbf14fd81aca
           funcionario={funcionario}
         />
       </DialogContent>
