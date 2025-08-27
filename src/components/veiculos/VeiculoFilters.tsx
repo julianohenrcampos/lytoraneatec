@@ -1,18 +1,18 @@
-import React, { useEffect, useState } from "react";
+
+import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
+import { 
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValue, 
 } from "@/components/ui/select";
 import { VeiculoFilterParams } from "@/types/veiculo";
 import { FilterX, Search } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 
 interface VeiculoFiltersProps {
   filters: VeiculoFilterParams;
@@ -20,6 +20,8 @@ interface VeiculoFiltersProps {
   onResetFilters: () => void;
   isLoading?: boolean;
   totalVeiculos?: number;
+  departamentos?: { id: string; nome_departamento: string }[];
+  empresas?: { id: string; nome_empresa: string }[];
 }
 
 const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
@@ -29,80 +31,34 @@ const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
   isLoading = false,
   totalVeiculos = 0,
 }) => {
-  const [placas, setPlacas] = useState<string[]>([]);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [placaInput, setPlacaInput] = useState(filters.placa || "");
-
-  useEffect(() => {
-    const fetchPlacas = async () => {
-      const { data, error } = await supabase
-        .from("bd_caminhoes_equipamentos")
-        .select("placa")
-        .not("placa", "is", null)
-        .order("placa");
-
-      if (error) {
-        console.error("Erro ao buscar placas:", error.message);
-      } else {
-        const unicos = [...new Set(data.map((item) => item.placa))];
-        setPlacas(unicos);
-      }
-    };
-
-    fetchPlacas();
-  }, []);
-
-  const placasFiltradas = placas.filter((p) =>
-    p.toLowerCase().includes(placaInput.toLowerCase())
-  );
-
   return (
     <Card>
       <CardContent className="pt-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Campo Placa com dropdown personalizado */}
-          <div className="space-y-2 relative">
-            <Label className="text-sm font-medium">Placa</Label>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium" htmlFor="placa-filter">
+              Placa
+            </Label>
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
+                id="placa-filter"
                 placeholder="Buscar por placa"
+                value={filters.placa || ""}
+                onChange={(e) => onFilterChange("placa", e.target.value)}
                 className="pl-8"
-                value={placaInput}
-                onChange={(e) => {
-                  setPlacaInput(e.target.value);
-                  onFilterChange("placa", e.target.value);
-                  setShowDropdown(true);
-                }}
-                onFocus={() => setShowDropdown(true)}
-                onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
               />
-              {showDropdown && placasFiltradas.length > 0 && (
-                <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md mt-1 max-h-48 overflow-y-auto shadow">
-                  {placasFiltradas.map((placa, index) => (
-                    <li
-                      key={index}
-                      className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
-                      onMouseDown={() => {
-                        setPlacaInput(placa);
-                        onFilterChange("placa", placa);
-                        setShowDropdown(false);
-                      }}
-                    >
-                      {placa}
-                    </li>
-                  ))}
-                </ul>
-              )}
             </div>
           </div>
-
-          {/* Campo Frota/Número */}
+          
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Frota/Número</Label>
+            <Label className="text-sm font-medium" htmlFor="frota-filter">
+              Frota/Número
+            </Label>
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
+                id="frota-filter"
                 placeholder="Buscar por frota ou número"
                 value={filters.frota || ""}
                 onChange={(e) => onFilterChange("frota", e.target.value)}
@@ -110,35 +66,54 @@ const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
               />
             </div>
           </div>
-
-          {/* Campo Situação */}
+          
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Situação</Label>
-            <Select
-              value={filters.situacao || ""}
-              onValueChange={(value) =>
-                onFilterChange("situacao", value === "_all" ? "" : value)
-              }
-            >
-              <SelectTrigger className="pl-2">
-                <SelectValue placeholder="Todas as situações" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="_all">Todas as situações</SelectItem>
-                <SelectItem value="Operando">Operando</SelectItem>
-                <SelectItem value="Em Manutenção">Em Manutenção</SelectItem>
-                <SelectItem value="Inativo">Inativo</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label className="text-sm font-medium" htmlFor="situacao-filter">
+              Situação
+            </Label>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Select
+                value={filters.situacao || ""}
+                onValueChange={(value) => onFilterChange("situacao", value)}
+              >
+                <SelectTrigger id="situacao-filter" className="pl-8">
+                  <SelectValue placeholder="Todas as situações" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_all">Todas as situações</SelectItem>
+                  <SelectItem value="Operando">Operando</SelectItem>
+                  <SelectItem value="Em Manutenção">Em Manutenção</SelectItem>
+                  <SelectItem value="Inativo">Inativo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 
-        {/* Botão de limpar filtros */}
         <div className="flex justify-end mt-6">
-          <Button variant="outline" onClick={onResetFilters}>
-            <FilterX className="h-4 w-4 mr-2" />
-            Limpar filtros
-          </Button>
+          <div className="w-full sm:w-auto">
+            <Button 
+              variant="outline" 
+              onClick={onResetFilters}
+              className="w-full sm:w-auto"
+            >
+              <FilterX className="h-4 w-4 mr-2" />
+              Limpar filtros
+            </Button>
+          </div>
+          
+          {totalVeiculos > 0 && (
+            <div className="hidden ml-4 text-sm text-muted-foreground">
+              {isLoading ? (
+                "Carregando..."
+              ) : (
+                <>
+                  {totalVeiculos} veículo{totalVeiculos !== 1 ? "s" : ""} encontrado{totalVeiculos !== 1 ? "s" : ""}
+                </>
+              )}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

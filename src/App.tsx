@@ -31,7 +31,7 @@ import DashboardMaquinas from "@/pages/DashboardMaquinas";
 import GestaoCaminhoes from "@/pages/GestaoCaminhoes";
 import GestaoUsinas from "@/pages/GestaoUsinas";
 import RelatorioMedicao from "@/pages/RelatorioMedicao";
-import Abastecimento from "@/pages/abastecimento"; // Fixed casing
+import Abastecimento from "@/pages/Abastecimento"; // Adicionado novo componente abastecimento
 
 // Dashboard CBUQ
 import DashboardRequisicoes from "@/pages/DashboardRequisicoes";

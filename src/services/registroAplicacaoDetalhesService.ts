@@ -6,8 +6,6 @@ import { RegistroAplicacaoDetalhes, RegistroAplicacaoDetalhesFormValues, Registr
  * Validar dados antes de enviar para o banco
  */
 const validateFormData = (valores: RegistroAplicacaoDetalhesFormValues) => {
-  console.log("Validando dados:", valores);
-  
   // Validações básicas
   if (!valores.logradouro_nome?.trim()) {
     throw new Error("Nome do logradouro é obrigatório");
@@ -33,8 +31,6 @@ const validateFormData = (valores: RegistroAplicacaoDetalhesFormValues) => {
   
   validateHora(valores.hora_inicio_aplicacao, "Hora de início");
   validateHora(valores.hora_fim_aplicacao, "Hora de fim");
-  
-  console.log("Dados validados com sucesso");
 };
 
 /**
@@ -42,75 +38,19 @@ const validateFormData = (valores: RegistroAplicacaoDetalhesFormValues) => {
  */
 export const fetchAplicacaoDetalhes = async (registroAplicacaoId: string): Promise<RegistroAplicacaoDetalhes[]> => {
   try {
-    console.log("🔍 [fetchAplicacaoDetalhes] Iniciando busca para registro:", registroAplicacaoId);
-    console.log("🔍 [fetchAplicacaoDetalhes] Timestamp:", new Date().toISOString());
-    
-    // Log da consulta SQL que será executada
-    console.log("🔍 [fetchAplicacaoDetalhes] Query SQL será:", {
-      table: "bd_registro_aplicacao_detalhes",
-      filter: `registro_aplicacao_id = ${registroAplicacaoId}`,
-      orderBy: "sequencia_aplicacao ASC"
-    });
-
     const { data, error } = await supabase
       .from("bd_registro_aplicacao_detalhes")
       .select("*")
       .eq("registro_aplicacao_id", registroAplicacaoId)
       .order("sequencia_aplicacao", { ascending: true });
 
-    console.log("📊 [fetchAplicacaoDetalhes] Resultado da consulta Supabase:", {
-      registroId: registroAplicacaoId,
-      data: data,
-      error: error,
-      count: data?.length || 0,
-      hasData: !!data && data.length > 0,
-      rawResponse: { data, error }
-    });
-
     if (error) {
-      console.error("❌ [fetchAplicacaoDetalhes] Erro na consulta Supabase:", {
-        error,
-        registroId: registroAplicacaoId,
-        errorCode: error.code,
-        errorMessage: error.message,
-        errorDetails: error.details
-      });
       throw error;
     }
     
-    // Log detalhado dos dados encontrados
-    if (data && data.length > 0) {
-      console.log("✅ [fetchAplicacaoDetalhes] Aplicações encontradas:", {
-        quantidade: data.length,
-        primeirAplicacao: data[0],
-        todasAplicacoes: data.map(app => ({
-          id: app.id,
-          sequencia: app.sequencia_aplicacao,
-          logradouro: app.logradouro_nome,
-          tonelada: app.tonelada_aplicada,
-          area: app.area_aplicada
-        }))
-      });
-    } else {
-      console.log("⚠️ [fetchAplicacaoDetalhes] Nenhuma aplicação encontrada:", {
-        registroId: registroAplicacaoId,
-        dataNull: data === null,
-        dataEmpty: data?.length === 0,
-        data: data
-      });
-    }
-    
-    console.log("✅ [fetchAplicacaoDetalhes] Retornando dados:", data?.length || 0, "aplicações");
     return (data as any) || [];
   } catch (error) {
-    console.error("❌ [fetchAplicacaoDetalhes] Erro geral ao buscar detalhes:", {
-      error,
-      registroId: registroAplicacaoId,
-      errorType: typeof error,
-      errorName: error instanceof Error ? error.name : 'Unknown',
-      errorMessage: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
-    });
+    console.error("Erro ao buscar detalhes de aplicação:", error);
     throw error;
   }
 };
@@ -125,13 +65,6 @@ export const createAplicacaoDetalhe = async (
   valores: RegistroAplicacaoDetalhesFormValues
 ): Promise<RegistroAplicacaoDetalhes> => {
   try {
-    console.log("🏗️ [createAplicacaoDetalhe] Iniciando criação com RPC corrigida:", {
-      listaEntregaId,
-      cargaId,
-      valores,
-      timestamp: new Date().toISOString()
-    });
-
     // Validações básicas antes da RPC
     validateFormData(valores);
     
@@ -143,12 +76,10 @@ export const createAplicacaoDetalhe = async (
       .single();
     
     if (entregaError) {
-      console.error("❌ [createAplicacaoDetalhe] Erro ao buscar data da entrega:", entregaError);
       throw new Error("Erro ao obter data da entrega");
     }
     
     const dataAplicacao = entregaData.data_entrega;
-    console.log("📅 [createAplicacaoDetalhe] Usando data da entrega como data de aplicação:", dataAplicacao);
     
     // Usar a RPC corrigida com todos os parâmetros
     const { data, error } = await supabase.rpc('criar_aplicacao_por_rua', {
@@ -170,11 +101,23 @@ export const createAplicacaoDetalhe = async (
     });
 
     if (error) {
-      console.error("❌ [createAplicacaoDetalhe] Erro na RPC:", error);
-      throw new Error(`Erro ao salvar aplicação: ${error.message}`);
+      // Melhorar mensagem de erro baseada no tipo
+      let errorMessage = "Erro ao salvar aplicação por rua";
+      
+      if (error.message) {
+        if (error.message.includes("Massa aplicada") && error.message.includes("excede massa remanescente")) {
+          errorMessage = `Massa insuficiente: ${error.message}`;
+        } else if (error.message.includes("obrigatório")) {
+          errorMessage = `Campo obrigatório: ${error.message}`;
+        } else if (error.message.includes("autenticação") || error.message.includes("permissão")) {
+          errorMessage = "Erro de autenticação. Faça login novamente.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      throw new Error(errorMessage);
     }
-    
-    console.log("✅ [createAplicacaoDetalhe] RPC executada com sucesso:", data);
 
     // Cast do resultado da RPC primeiro
     const resultado = data as {
@@ -187,11 +130,8 @@ export const createAplicacaoDetalhe = async (
 
     // Validar resposta da RPC
     if (!resultado || !resultado.success) {
-      console.error("❌ [createAplicacaoDetalhe] RPC não retornou sucesso:", resultado);
-      throw new Error("RPC reportou falha na operação");
+      throw new Error("Falha na operação de criação da aplicação");
     }
-
-    console.log("🎯 [createAplicacaoDetalhe] Detalhe criado com ID:", resultado.detalhe_id);
 
     // Buscar o detalhe recém-criado do banco para retornar dados reais
     const { data: detalheCompleto, error: fetchError } = await supabase
@@ -201,8 +141,6 @@ export const createAplicacaoDetalhe = async (
       .single();
 
     if (fetchError || !detalheCompleto) {
-      console.warn("⚠️ [createAplicacaoDetalhe] Erro ao buscar detalhe criado, usando dados simulados:", fetchError);
-      
       // Fallback com dados simulados se não conseguir buscar
       return {
         id: resultado.detalhe_id,
@@ -227,22 +165,10 @@ export const createAplicacaoDetalhe = async (
       } as RegistroAplicacaoDetalhes;
     }
 
-    console.log("✅ [createAplicacaoDetalhe] Detalhe completo retornado do banco:", detalheCompleto);
     return detalheCompleto as RegistroAplicacaoDetalhes;
 
   } catch (error) {
-    console.error("❌ [createAplicacaoDetalhe] Erro geral:", error);
-    
-    // Log detalhado do erro para debug
-    console.error("❌ [createAplicacaoDetalhe] Detalhes do erro:", {
-      errorType: typeof error,
-      errorName: error instanceof Error ? error.name : 'Unknown',
-      errorMessage: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      valores,
-      listaEntregaId,
-      cargaId
-    });
+    console.error("Erro ao criar aplicação por rua:", error);
     
     if (error instanceof Error) {
       throw error;

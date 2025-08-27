@@ -25,7 +25,7 @@ const SecureApontamentoEquipe: React.FC = () => {
     equipes,
     allowedTeamIds,
     userRole,
-    canAccessAllTeams,
+    canAccessAllData,
     isLoading,
     isFormModalOpen,
     setIsFormModalOpen,
@@ -48,13 +48,6 @@ const SecureApontamentoEquipe: React.FC = () => {
     isDeleting
   } = useSecureApontamentoEquipe();
 
-  // Debug logs
-  console.log("🔍 Debug SecureApontamentoEquipe - allowedTeamIds:", allowedTeamIds);
-  console.log("🔍 Debug SecureApontamentoEquipe - userRole:", userRole);
-  console.log("🔍 Debug SecureApontamentoEquipe - apontamentos count:", apontamentos.length);
-  console.log("🔍 Debug SecureApontamentoEquipe - summaries count:", apontamentoSummaries.length);
-  console.log("🔍 Debug SecureApontamentoEquipe - sample summary:", apontamentoSummaries[0]);
-
   const handleViewEquipe = (equipeId: string) => {
     navigate(`/gestao-rh/equipes?id=${equipeId}`);
   };
@@ -65,7 +58,21 @@ const SecureApontamentoEquipe: React.FC = () => {
 
   const formattedDate = format(new Date(), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR });
 
-  const canCreateApontamento = ['SuperAdm', 'AdmRH', 'Apontador', 'Encarregado'].includes(userRole || '');
+  const canCreateApontamento = ['SuperAdm', 'AdmRH', 'Apontador', 'Encarregado', 'Administrador'].includes(userRole || '');
+
+  // Debug logs
+  console.log("🔍 Debug SecureApontamentoEquipe - allowedTeamIds:", allowedTeamIds);
+  console.log("🔍 Debug SecureApontamentoEquipe - userRole:", userRole);
+  console.log("🔍 Debug SecureApontamentoEquipe - canAccessAllData:", canAccessAllData);
+  console.log("🔍 Debug SecureApontamentoEquipe - apontamentos count:", apontamentos.length);
+  console.log("🔍 Debug SecureApontamentoEquipe - summaries count:", apontamentoSummaries.length);
+  console.log("🔍 Debug SecureApontamentoEquipe - canCreateApontamento:", canCreateApontamento);
+  console.log("🔍 Debug SecureApontamentoEquipe - sample summary:", apontamentoSummaries[0]);
+  
+  console.log("🔍 Debug BOTÃO - userRole:", userRole);
+  console.log("🔍 Debug BOTÃO - canCreateApontamento:", canCreateApontamento);
+  console.log("🔍 Debug BOTÃO - allowedTeamIds.length:", allowedTeamIds.length);
+  console.log("🔍 Debug BOTÃO - Condição final:", canCreateApontamento && allowedTeamIds.length > 0);
 
   return (
     <MainLayout>
@@ -101,18 +108,6 @@ const SecureApontamentoEquipe: React.FC = () => {
           </div>
         </div>
 
-        {/* Security Status Alert */}
-        <Alert className="bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-300 border-green-200 dark:border-green-800">
-          <Shield className="h-4 w-4" />
-          <AlertTitle>Controle de Acesso Ativo</AlertTitle>
-          <AlertDescription>
-            <div className="flex flex-col gap-1">
-              <span>Role: <strong>{userRole}</strong></span>
-              <span>Acesso: {canAccessAllTeams ? 'Todas as equipes' : `${allowedTeamIds.length} equipes permitidas`}</span>
-              <span>RLS: <strong>Habilitado</strong> - Dados filtrados automaticamente</span>
-            </div>
-          </AlertDescription>
-        </Alert>
 
         {/* No Access Warning */}
         {allowedTeamIds.length === 0 && (

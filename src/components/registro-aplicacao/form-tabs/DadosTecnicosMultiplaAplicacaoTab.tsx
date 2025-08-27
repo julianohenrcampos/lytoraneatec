@@ -71,8 +71,8 @@ const DadosTecnicosMultiplaAplicacaoTab: React.FC<DadosTecnicosMultiplaAplicacao
     return null;
   };
 
-  // Verificar se pode criar novo registro
-  const podeAdicionarAplicacao = !cargaFinalizada && massaRemanescente > 0 && !isReadOnly;
+  // Verificar se pode criar novo registro - usar tolerância para evitar problemas de precisão
+  const podeAdicionarAplicacao = !cargaFinalizada && massaRemanescente >= 0.01 && !isReadOnly;
 
   // Lógica simplificada para buscar ou criar registro principal
   useEffect(() => {
