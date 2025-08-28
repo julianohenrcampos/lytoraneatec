@@ -1,7 +1,7 @@
 
 # Sistema de Gestão Integrada de Pavimentação Asfáltica 🛣️
 
-[![Versão](https://img.shields.io/badge/versão-4.0.0-blue.svg)](CHANGELOG.md)
+[![Versão](https://img.shields.io/badge/versão-4.1.0-blue.svg)](CHANGELOG.md)
 [![React](https://img.shields.io/badge/React-18.3+-61DAFB.svg)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6.svg)](https://www.typescriptlang.org/)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-00D588.svg)](https://supabase.com/)
