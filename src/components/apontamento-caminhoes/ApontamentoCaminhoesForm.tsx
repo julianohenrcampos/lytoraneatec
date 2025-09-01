@@ -109,7 +109,7 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
       setFormData({
         apontamento: {
           data: format(now, 'yyyy-MM-dd'),
-          operador_id: currentUser?.id || '',
+          operador_id: currentUser?.funcionario_id || '',
           hora_inicial: currentTime,
         },
         inspecao: {
@@ -232,7 +232,7 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
         apontamento: {
           ...formData.apontamento,
           data: date ? format(date, 'yyyy-MM-dd') : undefined,
-          operador_id: currentUser?.id || formData.apontamento.operador_id,
+          operador_id: currentUser?.funcionario_id || formData.apontamento.operador_id,
           situacao: mappedSituacao
         },
         inspecao: formData.inspecao
