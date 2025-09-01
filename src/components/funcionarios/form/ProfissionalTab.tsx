@@ -1,3 +1,4 @@
+
 import React from "react";
 import { 
   FormField, 
@@ -54,7 +55,6 @@ const ProfissionalTab: React.FC<ProfissionalTabProps> = ({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Função */}
         <FormField
           control={form.control}
           name="funcao_id"
@@ -77,13 +77,11 @@ const ProfissionalTab: React.FC<ProfissionalTabProps> = ({
                       <span>Carregando...</span>
                     </div>
                   ) : (
-                    [...funcoes] // cria uma cópia do array
-                      .sort((a, b) => a.nome_funcao.localeCompare(b.nome_funcao, "pt-BR")) // ordena em ordem alfabética pt-BR
-                      .map((funcao) => (
-                        <SelectItem key={funcao.id} value={funcao.id}>
-                          {funcao.nome_funcao}
-                        </SelectItem>
-                      ))
+                    funcoes.map((funcao) => (
+                      <SelectItem key={funcao.id} value={funcao.id}>
+                        {funcao.nome_funcao}
+                      </SelectItem>
+                    ))
                   )}
                 </SelectContent>
               </Select>
@@ -92,7 +90,6 @@ const ProfissionalTab: React.FC<ProfissionalTabProps> = ({
           )}
         />
         
-        {/* Departamento */}
         <FormField
           control={form.control}
           name="departamento_id"
@@ -130,7 +127,6 @@ const ProfissionalTab: React.FC<ProfissionalTabProps> = ({
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Centro de Custo */}
         <FormField
           control={form.control}
           name="centro_custo_id"
@@ -166,7 +162,6 @@ const ProfissionalTab: React.FC<ProfissionalTabProps> = ({
           )}
         />
         
-        {/* Empresa */}
         <FormField
           control={form.control}
           name="empresa_id"
@@ -235,7 +230,6 @@ const ProfissionalTab: React.FC<ProfissionalTabProps> = ({
         />
       </div>
       
-      {/* Equipe vinculada */}
       <FormField
         control={form.control}
         name="equipe_id"
@@ -281,7 +275,6 @@ const ProfissionalTab: React.FC<ProfissionalTabProps> = ({
         )}
       />
       
-      {/* Navegação */}
       <div className="flex justify-between gap-2 pt-4">
         <Button 
           type="button" 

@@ -1,7 +1,7 @@
 
 # Sistema de Gestão Integrada de Pavimentação Asfáltica 🛣️
 
-[![Versão](https://img.shields.io/badge/versão-4.1.0-blue.svg)](CHANGELOG.md)
+[![Versão](https://img.shields.io/badge/versão-4.0.0-blue.svg)](CHANGELOG.md)
 [![React](https://img.shields.io/badge/React-18.3+-61DAFB.svg)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6.svg)](https://www.typescriptlang.org/)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-00D588.svg)](https://supabase.com/)
@@ -12,116 +12,21 @@
 Sistema **completo e avançado** de gestão para empresas de pavimentação asfáltica, integrando recursos humanos, equipamentos, logística e controle operacional. **Progressive Web App (PWA)** com **modo offline completo**, sincronização automática e **fluxo integrado de retorno de massa**. Desenvolvido com tecnologias modernas para máxima eficiência e confiabilidade.
 
 ### ✨ Principais Funcionalidades
-📱 Progressive Web App (PWA): Instalação nativa e notificações
 
-🔄 Modo Offline Completo: Trabalhe sem internet com sincronização automática
+- 📱 **Progressive Web App (PWA)**: Instalação nativa e notificações
+- 🔄 **Modo Offline Completo**: Trabalhe sem internet com sincronização automática
+- 👥 **Gestão de RH Completa**: Cadastro, apontamentos, avaliações e controle salarial
+- 🚛 **Gestão de Máquinas**: Controle total de veículos, equipamentos e manutenção
+- 📦 **Logística Integrada**: Requisições, programação, registro de cargas e aplicação
+- 🔄 **Fluxo de Retorno de Massa**: Integração automática entre aplicação e pesagem ⭐
+- 📊 **Relatórios de Medição**: Cálculos automáticos para contratos de locação
+- 🔧 **Ordens de Serviço**: Sistema completo de chamados e manutenção
+- 📈 **Dashboards Avançados**: KPIs e métricas em tempo real com 4 dashboards especializados
+- 📑 **Exportações**: Excel e PDF com formatação profissional
+- 📱 **Mobile First**: Interface responsiva otimizada para tablet e smartphone
+- 🔐 **Segurança Avançada**: Sistema de permissões granulares com RLS
 
-👥 Gestão de RH Completa: Cadastro, apontamentos, avaliações e controle salarial
-
-🚛 Gestão de Máquinas: Controle total de veículos, equipamentos e manutenção
-
-📦 Logística Integrada: Requisições, programação, registro de cargas e aplicação
-
-🔄 Fluxo de Retorno de Massa: Integração automática entre aplicação e pesagem ⭐
-
-📊 Relatórios de Medição: Cálculos automáticos para contratos de locação
-
-🔧 Ordens de Serviço: Sistema completo de chamados e manutenção
-
-📈 Dashboards Avançados: KPIs e métricas em tempo real com 4 dashboards especializados
-
-📑 Exportações: Excel e PDF com formatação profissional
-
-📱 Mobile First: Interface responsiva otimizada para tablet e smartphone
-
-🔐 Segurança Avançada: Sistema de permissões granulares com RLS
-
-🔔 Sistema de Notificações em Tempo Real: Alertas de alterações no sistema
-
-👥 Monitoramento de Usuários Online: Visualização de colaboradores conectados
-
-⛽ Sistema de Gestão de Abastecimento: Controle completo de combustível e consumo
-### 🆕 Novidades da Versão 4.1
-
-🔔 Sistema de Notificações em Tempo Real
-Sistema avançado de notificações que monitora todas as alterações no banco de dados em tempo real, com:
-
-Notificações Contextuais: Alertas específicos por tipo de usuário e permissões
-
-Agrupamento Inteligente: Organização por categorias (Funcionários, Caminhões, Requisições, etc.)
-
-Marcação como Lidas: Controle individual ou em massa de notificações visualizadas
-
-Navegação Direta: Acesso rápido aos registros mencionados nas notificações
-
-Filtro por Permissões: Cada perfil de usuário recebe apenas notificações relevantes
-
-👥 Monitoramento de Usuários Online
-Sistema de presença que mostra em tempo real os usuários conectados ao sistema:
-
-Status de Conexão: Visualização de quem está online no momento
-
-Página Atual: Informação sobre qual módulo cada usuário está acessando
-
-Tempo de Sessão: Exibição do tempo de conexão de cada usuário
-
-Acesso Restrito: Disponível apenas para administradores (SuperAdm)
-
-Avatar e Identificação: Foto e nome completo para fácil identificação
-
-⛽ Sistema de Gestão de Abastecimento
-Módulo completo para controle e análise de abastecimentos de frota:
-
-Funcionalidades Principais
-Dashboard Interativo: Visualização de métricas e KPIs de consumo
-
-Filtros Avançados: Busca por data, comboista, frota, placa e centro de custo
-
-Gráficos Dinâmicos:
-
-Litragem diária e consumo por veículo
-
-Abastecimentos por dia e por comboista
-
-Litragem por centro de custo e tipo de combustível
-
-Consumo por frota e abastecimentos por procedimento
-
-Métricas e Análises
-Total de Abastecimentos: Contagem completa de todos os abastecimentos
-
-Volume Total: Soma de litros abastecidos no período
-
-Frota Ativa: Quantidade de veículos únicos abastecidos
-
-Consumo Médio: Cálculo de km/L para a frota filtrada
-
-Quilometragem Total: Soma de km rodados pelos veículos
-
-Comparativos e Relatórios
-Análise Comparativa: Comparação entre frotas ou placas específicas
-
-Exportação para Excel: Geração de relatórios completos em planilha
-
-Paginação Inteligente: Navegação facilitada em grandes conjuntos de dados
-
-Cálculo de Consumo: Algoritmo avançado para cálculo preciso de consumo
-
-Integração e Autenticação
-Conexão com API Externa: Integração com sistema de abastecimento terceiro
-
-Autenticação Automática: Login transparente com credenciais seguras
-
-Proxy Dedicado: Camada de segurança para comunicação com API externa
-
-Visualização de Dados
-Cards Informativos: Métricas principais em visualização destacada
-
-Gráficos Interativos: Visualizações com ApexCharts para melhor análise
-
-Tabela Detalhada: Visualização completa de todos os campos de abastecimento
-
-Responsividade: Adaptação perfeita para desktop e mobile
+### 🆕 Novidades da Versão 4.0
 
 - **🔄 Fluxo Integrado de Retorno de Massa**
   - Detecção automática de massa remanescente após aplicação

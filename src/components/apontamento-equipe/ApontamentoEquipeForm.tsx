@@ -129,18 +129,12 @@ const ApontamentoEquipeForm: React.FC<ApontamentoEquipeFormProps> = ({
     }
   }, [isEditing, apontamentosCarregados, form]);
 
-  // Validação para permitir salvamento - apontamentos existentes podem ser editados
+  // Validação simplificada para permitir salvamento básico
   const canSaveBasicAppointment = () => {
     const formValues = form.getValues();
     
     // Verificar se há pelo menos um colaborador selecionado
     const colaboradoresPresentes = formValues.colaboradores?.filter(col => col.presente) || [];
-    
-    // Permitir salvamento se:
-    // 1. Está editando um apontamento explícito (isEditing = true)
-    // 2. OU existe apontamento mas não está em modo criação (permite edição de apontamentos existentes)
-    // 3. OU não existe apontamento (criação normal)
-    const canSave = isEditing || apontamentoExistente || !apontamentoExistente;
     
     console.log("🔍 Validando salvamento:", {
       equipeId: formValues.equipe_id,
@@ -148,10 +142,7 @@ const ApontamentoEquipeForm: React.FC<ApontamentoEquipeFormProps> = ({
       isLoading,
       isLoadingMembers,
       loadingEquipeError,
-      isEditing,
-      apontamentoExistente: !!apontamentoExistente,
-      currentApontamento: !!currentApontamento,
-      canSave
+      apontamentoExistente: !!apontamentoExistente && !currentApontamento
     });
     
     return (
@@ -160,7 +151,7 @@ const ApontamentoEquipeForm: React.FC<ApontamentoEquipeFormProps> = ({
       !isLoading && 
       !isLoadingMembers && 
       !loadingEquipeError &&
-      canSave
+      !(apontamentoExistente && !currentApontamento)
     );
   };
 

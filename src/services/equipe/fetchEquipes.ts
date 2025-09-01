@@ -4,6 +4,7 @@ import { Equipe, EquipeFilter } from "@/types/equipe";
 
 // Function to fetch equipes with filters
 export const fetchEquipes = async (filters: EquipeFilter = {}): Promise<Equipe[]> => {
+  console.log('🔄 [fetchEquipes] Iniciando busca de equipes com filtros:', filters);
   try {
     let query = supabase
       .from("bd_equipes")
@@ -24,33 +25,20 @@ export const fetchEquipes = async (filters: EquipeFilter = {}): Promise<Equipe[]
       query = query.eq("apontador_id", filters.apontador_id);
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query.order("nome_equipe", { ascending: true });
 
-    if (error) throw new Error(error.message);
-    
-    // Resolver encarregado/apontador sem embeds para evitar ambiguidade de relacionamento
-    const equipesBase = (data || []) as Array<any>;
-
-    const idsParaBuscar = Array.from(new Set(
-      equipesBase.flatMap((e) => [e.encarregado_id, e.apontador_id]).filter(Boolean)
-    ));
-
-    let mapaFuncionarios = new Map<string, { id: string; nome_completo: string }>();
-    if (idsParaBuscar.length > 0) {
-      const { data: funcs } = await supabase
-        .from("bd_funcionarios")
-        .select("id, nome_completo")
-        .in("id", idsParaBuscar as string[]);
-      (funcs || []).forEach((f) => mapaFuncionarios.set(f.id, { id: f.id, nome_completo: f.nome_completo }));
+    if (error) {
+      console.error('❌ [fetchEquipes] Erro na consulta Supabase:', error);
+      throw new Error(error.message);
     }
-
-    const enriquecidas: Equipe[] = equipesBase.map((e) => ({
-      ...e,
-      encarregado: e.encarregado_id ? mapaFuncionarios.get(e.encarregado_id) || undefined : undefined,
-      apontador: e.apontador_id ? mapaFuncionarios.get(e.apontador_id) || undefined : undefined,
-    }));
     
-    return enriquecidas as Equipe[];
+    console.log('📊 [fetchEquipes] Dados retornados do Supabase:', {
+      totalEquipes: data?.length || 0,
+      primeiraEquipe: data?.[0] || null,
+      temDados: !!data
+    });
+    
+    return data as unknown as Equipe[];
   } catch (error) {
     console.error("Error fetching equipes:", error);
     throw error;

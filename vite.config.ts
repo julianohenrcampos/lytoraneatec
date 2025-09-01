@@ -22,7 +22,8 @@ export default defineConfig(({ mode }) => ({
       filename: 'sw.ts',
       injectManifest: {
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MB
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}']
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        sourcemap: false
       },
       includeAssets: [
         'favicon.ico', 
@@ -108,9 +109,10 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
-    sourcemap: true,
+    sourcemap: mode === 'development',
     assetsInlineLimit: 4096,
     chunkSizeWarningLimit: 1000,
+    target: 'esnext',
     rollupOptions: {
       output: {
         manualChunks: {

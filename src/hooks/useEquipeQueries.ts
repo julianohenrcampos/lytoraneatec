@@ -23,34 +23,59 @@ export function useEquipeQueries(filters: EquipeFilter = {}) {
   } = useQuery({
     queryKey: ['equipes', filters],
     queryFn: async () => {
+      console.log('🔄 [useEquipeQueries] Buscando equipes com filtros:', filters);
       const equipesData = await fetchEquipes(filters);
-      
-      // For each equipe, fetch the member names if equipe array exists
-      const equipesWithMembers = await Promise.all(
-        equipesData.map(async (equipe) => {
-          if (equipe.equipe && equipe.equipe.length > 0) {
-            try {
-              const { data: membrosData } = await supabase
-                .from("bd_funcionarios")
-                .select("id, nome_completo")
-                .in("id", equipe.equipe);
-              
-              const membrosMap = new Map(membrosData?.map(m => [m.id, m]) || []);
-              equipe.membros = equipe.equipe
-                .map(id => membrosMap.get(id))
-                .filter(Boolean) as { id: string; nome_completo: string }[];
-            } catch (error) {
-              console.warn(`Erro ao carregar membros da equipe ${equipe.id}:`, error);
-              equipe.membros = [];
-            }
-          } else {
-            equipe.membros = [];
-          }
-          return equipe;
-        })
-      );
-      
-      return equipesWithMembers;
+      console.log('📊 [useEquipeQueries] Equipes retornadas do serviço:', equipesData?.length || 0);
+
+      // Coletar todos os IDs de membros, encarregados e apontadores para busca única
+      const memberIds: string[] = [];
+      const leaderIds: string[] = [];
+      for (const eq of equipesData) {
+        if (Array.isArray(eq.equipe)) {
+          memberIds.push(...(eq.equipe as string[]));
+        }
+        if (eq.encarregado_id) leaderIds.push(eq.encarregado_id);
+        if (eq.apontador_id) leaderIds.push(eq.apontador_id);
+      }
+      const allIds = Array.from(new Set([...memberIds, ...leaderIds]));
+
+      // Buscar todos os funcionários necessários em uma única query
+      let funcionariosMap = new Map<string, { id: string; nome_completo: string }>();
+      if (allIds.length > 0) {
+        try {
+          const { data: funcionariosData, error } = await supabase
+            .from('bd_funcionarios')
+            .select('id, nome_completo')
+            .in('id', allIds);
+          if (error) throw error;
+          funcionariosMap = new Map((funcionariosData || []).map((f) => [f.id, f]));
+        } catch (err) {
+          console.warn('⚠️ Erro ao carregar funcionários relacionados às equipes:', err);
+          funcionariosMap = new Map();
+        }
+      }
+
+      // Montar equipes com membros, encarregado e apontador resolvidos
+      const equipesWithRelations = equipesData.map((eq) => {
+        const membros = Array.isArray(eq.equipe)
+          ? (eq.equipe as string[])
+              .map((id) => funcionariosMap.get(id))
+              .filter(Boolean) as { id: string; nome_completo: string }[]
+          : [];
+
+        const encarregadoRaw = eq.encarregado_id ? funcionariosMap.get(eq.encarregado_id) : undefined;
+        const apontadorRaw = eq.apontador_id ? funcionariosMap.get(eq.apontador_id) : undefined;
+
+        return {
+          ...eq,
+          membros,
+          encarregado: encarregadoRaw ? { id: encarregadoRaw.id, nome_completo: encarregadoRaw.nome_completo } : undefined,
+          apontador: apontadorRaw ? { id: apontadorRaw.id, nome_completo: apontadorRaw.nome_completo } : undefined,
+        };
+      });
+
+      console.log('✅ [useEquipeQueries] Equipes com relações carregadas:', equipesWithRelations?.length || 0);
+      return equipesWithRelations;
     },
     staleTime: 1000 * 60 * 2, // 2 minutes
   });

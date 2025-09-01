@@ -1999,17 +1999,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: {
           entrega_id: string
-<<<<<<< HEAD
           massa_remanescente: number
           percentual_aplicado: number
           status_anterior: string
           status_novo: string
-=======
-          status_anterior: string
-          status_novo: string
-          massa_remanescente: number
-          percentual_aplicado: number
->>>>>>> 25cb2ac31993c10c737cf97f585e3c1e6a3e0e39
         }[]
       }
       garantir_registro_aplicacao_principal: {
@@ -2037,7 +2030,6 @@ export type Database = {
       relatorio_correcao_status_massa: {
         Args: Record<PropertyKey, never>
         Returns: {
-<<<<<<< HEAD
           entregas_ativas: number
           entregas_em_aplicacao: number
           entregas_entregues: number
@@ -2045,22 +2037,12 @@ export type Database = {
           massa_media_toneladas: number
           registros_corrigidos: number
           total_entregas: number
-=======
-          total_entregas: number
-          entregas_ativas: number
-          entregas_enviadas: number
-          entregas_em_aplicacao: number
-          entregas_entregues: number
-          registros_corrigidos: number
-          massa_media_toneladas: number
->>>>>>> 25cb2ac31993c10c737cf97f585e3c1e6a3e0e39
         }[]
       }
       sincronizar_hora_saida_aplicacao: {
         Args: { p_registro_aplicacao_id: string }
         Returns: undefined
       }
-<<<<<<< HEAD
       sync_profile_funcao_sistema: {
         Args: { _profile_id: string }
         Returns: undefined
@@ -2071,10 +2053,6 @@ export type Database = {
       }
       usuario_acessa_equipe: {
         Args: { p_equipe_id: string; p_user_id: string }
-=======
-      usuario_acessa_equipe: {
-        Args: { p_user_id: string; p_equipe_id: string }
->>>>>>> 25cb2ac31993c10c737cf97f585e3c1e6a3e0e39
         Returns: boolean
       }
     }
