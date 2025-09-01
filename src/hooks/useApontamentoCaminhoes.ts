@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { format } from 'date-fns';
@@ -222,49 +221,22 @@ export const useApontamentoCaminhoes = () => {
           throw new Error("Usuário não está autenticado. Por favor, faça login novamente.");
         }
         
-        try {
-          const apontamentoData = {
-            ...formData.apontamento,
-            operador_id: currentUser.id
-          };
+        // Deixar o operador vindo do formulário; se não vier, serviço validará e retornará mensagem clara
+        const apontamentoData = {
+          ...formData.apontamento,
+        };
           
-          const newId = await createApontamento(
-            apontamentoData as Omit<ApontamentoCaminhao, 'id'>,
-            formData.inspecao as Omit<ApontamentoInspecao, 'id' | 'apontamento_caminhao_equipamento_id'>,
-            currentUser?.email
-          );
+        const newId = await createApontamento(
+          apontamentoData as Omit<ApontamentoCaminhao, 'id'>,
+          formData.inspecao as Omit<ApontamentoInspecao, 'id' | 'apontamento_caminhao_equipamento_id'>,
+          currentUser?.email
+        );
           
-          console.log("Created with ID:", newId);
-          toast({
-            title: "Apontamento criado",
-            description: "O apontamento foi criado com sucesso.",
-          });
-        } catch (error) {
-          if (error instanceof Error) {
-            // Handle funcionário creation error with specific message
-            if (error.message.includes('funcionário')) {
-              toast({
-                title: "Erro ao salvar",
-                description: error.message,
-                variant: "destructive",
-              });
-              
-              // Don't close the modal for this specific error so user can try again
-              setIsLoading(false);
-              return;
-            } else {
-              toast({
-                title: "Erro ao salvar",
-                description: error.message,
-                variant: "destructive",
-              });
-              setIsFormModalOpen(false);
-              return;
-            }
-          } else {
-            throw error;
-          }
-        }
+        console.log("Created with ID:", newId);
+        toast({
+          title: "Apontamento criado",
+          description: "O apontamento foi criado com sucesso.",
+        });
       }
       await loadApontamentos();
       setIsFormModalOpen(false);

@@ -96,7 +96,7 @@ export const fetchProgramacaoById = async (id: string): Promise<ProgramacaoEntre
       *,
       caminhao:bd_caminhoes_equipamentos!caminhao_id(id, placa, modelo, marca, frota, numero_frota),
       equipe:bd_equipes!equipe_id(id, nome_equipe),
-      apontador:bd_funcionarios!apontador_id(id, nome_completo),
+       apontador:bd_funcionarios!bd_lista_programacao_entrega_apontador_id_fkey(id, nome_completo),
       usina:bd_usinas!usina_id(id, nome_usina)
     `)
     .eq('programacao_entrega_id', id);
@@ -312,7 +312,7 @@ export const exportProgramacoes = async (filters: ProgramacaoEntregaFilters = {}
         *,
         caminhao:bd_caminhoes_equipamentos!caminhao_id(id, placa, modelo, marca, frota, numero_frota),
         equipe:bd_equipes!equipe_id(id, nome_equipe),
-        apontador:bd_funcionarios!apontador_id(id, nome_completo),
+        apontador:bd_funcionarios!bd_lista_programacao_entrega_apontador_id_fkey(id, nome_completo),
         usina:bd_usinas!usina_id(id, nome_usina)
       `)
       .eq('programacao_entrega_id', programacao.id);

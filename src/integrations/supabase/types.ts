@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "12.2.12 (cd3cf9e)"
@@ -17,8 +17,6 @@ export type Database = {
       bd_apontamento_equipe: {
         Row: {
           colaborador_id: string | null
-          competencia_tecnica: number | null
-          comunicacao: number | null
           created_at: string | null
           data_registro: string
           equipe_id: string
@@ -27,18 +25,12 @@ export type Database = {
           id: string
           lista_entrega_id: string | null
           nome_colaborador: string
-          organizacao: number | null
-          pontualidade: number | null
           presente: boolean | null
-          proatividade: number | null
           registrado_por: string | null
-          trabalho_em_equipe: number | null
           updated_at: string | null
         }
         Insert: {
           colaborador_id?: string | null
-          competencia_tecnica?: number | null
-          comunicacao?: number | null
           created_at?: string | null
           data_registro: string
           equipe_id: string
@@ -47,18 +39,12 @@ export type Database = {
           id?: string
           lista_entrega_id?: string | null
           nome_colaborador: string
-          organizacao?: number | null
-          pontualidade?: number | null
           presente?: boolean | null
-          proatividade?: number | null
           registrado_por?: string | null
-          trabalho_em_equipe?: number | null
           updated_at?: string | null
         }
         Update: {
           colaborador_id?: string | null
-          competencia_tecnica?: number | null
-          comunicacao?: number | null
           created_at?: string | null
           data_registro?: string
           equipe_id?: string
@@ -67,12 +53,8 @@ export type Database = {
           id?: string
           lista_entrega_id?: string | null
           nome_colaborador?: string
-          organizacao?: number | null
-          pontualidade?: number | null
           presente?: boolean | null
-          proatividade?: number | null
           registrado_por?: string | null
-          trabalho_em_equipe?: number | null
           updated_at?: string | null
         }
         Relationships: [
@@ -98,6 +80,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      bd_auditoria_correcao_registros_carga: {
+        Row: {
+          data_correcao: string | null
+          id: string
+          motivo: string
+          registro_carga_id: string
+          tonelada_real_anterior: number | null
+          tonelada_real_corrigida: number | null
+          tonelada_retorno_anterior: number | null
+          tonelada_retorno_corrigida: number | null
+          tonelada_saida_anterior: number
+          tonelada_saida_corrigida: number
+        }
+        Insert: {
+          data_correcao?: string | null
+          id?: string
+          motivo?: string
+          registro_carga_id: string
+          tonelada_real_anterior?: number | null
+          tonelada_real_corrigida?: number | null
+          tonelada_retorno_anterior?: number | null
+          tonelada_retorno_corrigida?: number | null
+          tonelada_saida_anterior: number
+          tonelada_saida_corrigida: number
+        }
+        Update: {
+          data_correcao?: string | null
+          id?: string
+          motivo?: string
+          registro_carga_id?: string
+          tonelada_real_anterior?: number | null
+          tonelada_real_corrigida?: number | null
+          tonelada_retorno_anterior?: number | null
+          tonelada_retorno_corrigida?: number | null
+          tonelada_saida_anterior?: number
+          tonelada_saida_corrigida?: number
+        }
+        Relationships: []
       }
       bd_auditoria_correcao_volume_formula: {
         Row: {
@@ -194,6 +215,72 @@ export type Database = {
           volume_corrigido?: number
         }
         Relationships: []
+      }
+      bd_avaliacao_equipe: {
+        Row: {
+          colaborador_id: string
+          competencia_tecnica: number | null
+          comunicacao: number | null
+          created_at: string
+          created_by: string | null
+          data_avaliacao: string
+          equipe_id: string
+          id: string
+          observacoes: string | null
+          organizacao: number | null
+          pontualidade: number | null
+          proatividade: number | null
+          trabalho_em_equipe: number | null
+          updated_at: string
+        }
+        Insert: {
+          colaborador_id: string
+          competencia_tecnica?: number | null
+          comunicacao?: number | null
+          created_at?: string
+          created_by?: string | null
+          data_avaliacao?: string
+          equipe_id: string
+          id?: string
+          observacoes?: string | null
+          organizacao?: number | null
+          pontualidade?: number | null
+          proatividade?: number | null
+          trabalho_em_equipe?: number | null
+          updated_at?: string
+        }
+        Update: {
+          colaborador_id?: string
+          competencia_tecnica?: number | null
+          comunicacao?: number | null
+          created_at?: string
+          created_by?: string | null
+          data_avaliacao?: string
+          equipe_id?: string
+          id?: string
+          observacoes?: string | null
+          organizacao?: number | null
+          pontualidade?: number | null
+          proatividade?: number | null
+          trabalho_em_equipe?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_avaliacao_equipe_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_avaliacao_equipe_equipe_id_fkey"
+            columns: ["equipe_id"]
+            isOneToOne: false
+            referencedRelation: "bd_equipes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       bd_caminhoes_equipamentos: {
         Row: {
@@ -543,6 +630,20 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "bd_equipes_apontador_id_fkey"
+            columns: ["apontador_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_equipes_encarregado_id_fkey"
+            columns: ["encarregado_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "fk_equipes_apontador"
             columns: ["apontador_id"]
@@ -918,6 +1019,129 @@ export type Database = {
           },
         ]
       }
+      bd_os_mao_obra: {
+        Row: {
+          created_at: string
+          funcao: string
+          id: string
+          os_id: string
+          quantidade: number
+          updated_at: string
+          valor_total: number
+          valor_unitario: number
+        }
+        Insert: {
+          created_at?: string
+          funcao: string
+          id?: string
+          os_id: string
+          quantidade: number
+          updated_at?: string
+          valor_total: number
+          valor_unitario: number
+        }
+        Update: {
+          created_at?: string
+          funcao?: string
+          id?: string
+          os_id?: string
+          quantidade?: number
+          updated_at?: string
+          valor_total?: number
+          valor_unitario?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_bd_os_mao_obra_os_id"
+            columns: ["os_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ordens_servico"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_os_materiais_utilizados: {
+        Row: {
+          created_at: string
+          descricao_material: string
+          id: string
+          os_id: string
+          quantidade: number
+          updated_at: string
+          valor_total: number
+          valor_unitario: number
+        }
+        Insert: {
+          created_at?: string
+          descricao_material: string
+          id?: string
+          os_id: string
+          quantidade: number
+          updated_at?: string
+          valor_total: number
+          valor_unitario: number
+        }
+        Update: {
+          created_at?: string
+          descricao_material?: string
+          id?: string
+          os_id?: string
+          quantidade?: number
+          updated_at?: string
+          valor_total?: number
+          valor_unitario?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_bd_os_materiais_utilizados_os_id"
+            columns: ["os_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ordens_servico"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_os_movimentacoes: {
+        Row: {
+          created_at: string
+          data_movimentacao: string
+          hora_movimentacao: string
+          id: string
+          motivo: string
+          os_id: string
+          updated_at: string
+          usuario_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          data_movimentacao?: string
+          hora_movimentacao?: string
+          id?: string
+          motivo: string
+          os_id: string
+          updated_at?: string
+          usuario_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          data_movimentacao?: string
+          hora_movimentacao?: string
+          id?: string
+          motivo?: string
+          os_id?: string
+          updated_at?: string
+          usuario_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_bd_os_movimentacoes_os_id"
+            columns: ["os_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ordens_servico"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_permissoes: {
         Row: {
           created_at: string | null
@@ -1247,6 +1471,7 @@ export type Database = {
           caminhao_equipamento_id: string | null
           centro_custo_id: string | null
           created_at: string | null
+          created_by: string | null
           data: string | null
           hora_final: string | null
           hora_inicial: string | null
@@ -1262,6 +1487,7 @@ export type Database = {
           caminhao_equipamento_id?: string | null
           centro_custo_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           data?: string | null
           hora_final?: string | null
           hora_inicial?: string | null
@@ -1277,6 +1503,7 @@ export type Database = {
           caminhao_equipamento_id?: string | null
           centro_custo_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           data?: string | null
           hora_final?: string | null
           hora_inicial?: string | null
@@ -1635,24 +1862,85 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      vw_apontamento_equipe: {
+        Row: {
+          colaborador: Json | null
+          colaborador_id: string | null
+          created_at: string | null
+          data_registro: string | null
+          equipe: Json | null
+          equipe_id: string | null
+          hora_fim: string | null
+          hora_inicio: string | null
+          id: string | null
+          lista_entrega: Json | null
+          lista_entrega_id: string | null
+          nome_colaborador: string | null
+          presente: boolean | null
+          registrado_por: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_apontamento_equipe_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_apontamento_equipe_equipe_id_fkey"
+            columns: ["equipe_id"]
+            isOneToOne: false
+            referencedRelation: "bd_equipes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_apontamento_equipe_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      api_listar_apontamentos: {
+        Args: { _data_fim?: string; _data_inicio?: string; _equipe?: string }
+        Returns: {
+          colaborador: Json | null
+          colaborador_id: string | null
+          created_at: string | null
+          data_registro: string | null
+          equipe: Json | null
+          equipe_id: string | null
+          hora_fim: string | null
+          hora_inicio: string | null
+          id: string | null
+          lista_entrega: Json | null
+          lista_entrega_id: string | null
+          nome_colaborador: string | null
+          presente: boolean | null
+          registrado_por: string | null
+          updated_at: string | null
+        }[]
+      }
       atualizar_status_entrega_automatico: {
         Args: {
           lista_id: string
+          massa_remanescente?: number
           novo_status: string
           percentual_aplicado?: number
-          massa_remanescente?: number
         }
         Returns: boolean
       }
       calcular_espessura_aplicacao: {
-        Args: { tonelada_aplicada: number; area_aplicada: number }
+        Args: { area_aplicada: number; tonelada_aplicada: number }
         Returns: {
+          descricao: string
           espessura_cm: number
           status: string
-          descricao: string
         }[]
       }
       calcular_massa_remanescente: {
@@ -1671,27 +1959,31 @@ export type Database = {
         Args: { user_id?: string }
         Returns: boolean
       }
+      compute_funcao_sistema: {
+        Args: { _profile_id: string }
+        Returns: string
+      }
       converter_kg_para_toneladas: {
         Args: { p_valor: number }
         Returns: number
       }
       criar_aplicacao_por_rua: {
         Args: {
-          p_lista_entrega_id: string
-          p_registro_carga_id: string
-          p_logradouro_nome: string
           p_area_aplicada: number
-          p_tonelada_aplicada: number
-          p_espessura_aplicada?: number
-          p_comprimento?: number
-          p_largura_media?: number
           p_bordo?: string
-          p_temperatura_aplicacao?: number
-          p_observacoes_aplicacao?: string
-          p_hora_inicio_aplicacao?: string
-          p_hora_fim_aplicacao?: string
+          p_comprimento?: number
           p_data_aplicacao?: string
+          p_espessura_aplicada?: number
           p_hora_chegada_local?: string
+          p_hora_fim_aplicacao?: string
+          p_hora_inicio_aplicacao?: string
+          p_largura_media?: number
+          p_lista_entrega_id: string
+          p_logradouro_nome: string
+          p_observacoes_aplicacao?: string
+          p_registro_carga_id: string
+          p_temperatura_aplicacao?: number
+          p_tonelada_aplicada: number
         }
         Returns: Json
       }
@@ -1703,23 +1995,65 @@ export type Database = {
         Args: { carga_id: string }
         Returns: Json
       }
+      force_update_all_delivery_statuses: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          entrega_id: string
+          massa_remanescente: number
+          percentual_aplicado: number
+          status_anterior: string
+          status_novo: string
+        }[]
+      }
       garantir_registro_aplicacao_principal: {
         Args: {
-          p_lista_entrega_id: string
-          p_registro_carga_id: string
+          p_created_by: string
           p_data_aplicacao: string
           p_hora_chegada_local: string
-          p_created_by: string
+          p_lista_entrega_id: string
+          p_registro_carga_id: string
         }
         Returns: string
       }
+      link_profile_from_funcionario_email: {
+        Args: { _funcionario_id: string }
+        Returns: boolean
+      }
+      link_profile_to_funcionario_by_email: {
+        Args: { _profile_id: string }
+        Returns: boolean
+      }
       log_aplicacao_debug: {
-        Args: { p_funcao: string; p_dados: Json; p_resultado?: Json }
+        Args: { p_dados: Json; p_funcao: string; p_resultado?: Json }
         Returns: undefined
+      }
+      relatorio_correcao_status_massa: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          entregas_ativas: number
+          entregas_em_aplicacao: number
+          entregas_entregues: number
+          entregas_enviadas: number
+          massa_media_toneladas: number
+          registros_corrigidos: number
+          total_entregas: number
+        }[]
       }
       sincronizar_hora_saida_aplicacao: {
         Args: { p_registro_aplicacao_id: string }
         Returns: undefined
+      }
+      sync_profile_funcao_sistema: {
+        Args: { _profile_id: string }
+        Returns: undefined
+      }
+      update_profile_funcionario_id: {
+        Args: { _funcionario_id: string; _profile_id: string }
+        Returns: undefined
+      }
+      usuario_acessa_equipe: {
+        Args: { p_equipe_id: string; p_user_id: string }
+        Returns: boolean
       }
     }
     Enums: {

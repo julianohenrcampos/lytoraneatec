@@ -114,7 +114,7 @@ export default function CBUQCharts({ filters }: CBUQChartsProps) {
           equipe:equipe_id!inner (
             id,
             nome_equipe,
-            encarregado:encarregado_id (
+            encarregado:bd_funcionarios!bd_equipes_encarregado_id_fkey (
               id,
               nome_completo
             )

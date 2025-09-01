@@ -75,8 +75,8 @@ export const offlineQueries = {
         .from('bd_equipes')
         .select(`
           *,
-          apontador:apontador_id(id, nome_completo),
-          encarregado:encarregado_id(id, nome_completo)
+          apontador:bd_funcionarios!bd_equipes_apontador_id_fkey(id, nome_completo),
+          encarregado:bd_funcionarios!bd_equipes_encarregado_id_fkey(id, nome_completo)
         `)
         .order('nome_equipe');
     },
