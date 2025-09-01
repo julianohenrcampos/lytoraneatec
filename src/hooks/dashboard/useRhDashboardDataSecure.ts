@@ -250,11 +250,11 @@ export const useRhDashboardDataSecure = (filters: SecureFilters) => {
       const { data: funcionarios } = await query;
       console.log("🔍 DEBUG analiseIndividual - funcionários encontrados:", funcionarios?.length || 0);
 
-      // Buscar avaliações da tabela bd_avaliacao_equipe
+      // Buscar avaliações da nova tabela bd_avaliacao_equipe
       console.log("🔍 DEBUG analiseIndividual - buscando avaliações na bd_avaliacao_equipe");
       
       const { data: avaliacoes, error: errorAvaliacoes } = await supabase
-        .from("bd_apontamento_equipe")
+        .from("bd_avaliacao_equipe")
         .select("colaborador_id, pontualidade, proatividade, organizacao, competencia_tecnica, comunicacao, trabalho_em_equipe");
 
       if (errorAvaliacoes) {
@@ -330,11 +330,11 @@ export const useRhDashboardDataSecure = (filters: SecureFilters) => {
       const { data: equipes } = await query;
       console.log("🔍 DEBUG analiseEquipe - equipes encontradas:", equipes?.length || 0);
 
-      // Buscar avaliações de equipe
+      // Buscar avaliações da nova tabela bd_avaliacao_equipe
       console.log("🔍 DEBUG analiseEquipe - buscando avaliações de equipe na bd_avaliacao_equipe");
       
       const { data: avaliacoes, error: errorAvaliacoes } = await supabase
-        .from("bd_apontamento_equipe")
+        .from("bd_avaliacao_equipe")
         .select("equipe_id, pontualidade, proatividade, organizacao, competencia_tecnica, comunicacao, trabalho_em_equipe");
 
       if (errorAvaliacoes) {

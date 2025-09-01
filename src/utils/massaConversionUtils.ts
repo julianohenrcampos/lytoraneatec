@@ -58,7 +58,7 @@ export const formatMassaDisplay = (toneladas: number, decimals: number = 1): str
  * Converte valor do banco para exibição na interface
  * ATENÇÃO: 
  * - bd_ruas_requisicao.volume está em KG
- * - bd_registro_cargas.tonelada_real AGORA está em TONELADAS (após correção do banco)
+ * - bd_registro_cargas.tonelada_real está em KG  
  * - bd_registro_aplicacao_detalhes.tonelada_aplicada está em toneladas
  */
 export const formatMassaFromDatabase = (valueFromDb: number, sourceTable?: string, fieldName?: string): number => {
@@ -67,10 +67,12 @@ export const formatMassaFromDatabase = (valueFromDb: number, sourceTable?: strin
     return Number(kgToToneladas(valueFromDb).toFixed(1));
   }
   
-  // CORREÇÃO CRÍTICA: bd_registro_cargas.tonelada_real já está em toneladas após correção do banco
-  // Não aplicar conversão desnecessária que estava causando valores minúsculos
+  // Para campo tonelada_real da tabela bd_registro_cargas, converter de kg para toneladas
+  if (sourceTable === 'bd_registro_cargas' && fieldName === 'tonelada_real') {
+    return Number(kgToToneladas(valueFromDb).toFixed(1));
+  }
   
-  // Para todas as outras tabelas, assumir que já está em toneladas
+  // Para outras tabelas, assumir que já está em toneladas
   return Number(valueFromDb.toFixed(1));
 };
 

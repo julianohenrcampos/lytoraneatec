@@ -22,7 +22,6 @@ export interface ApontamentoCaminhao {
   hora_final: string | null;
   abastecimento: number | null;
   situacao: string | null;
-  created_by?: string | null;
   created_at?: string;
   updated_at?: string;
   
@@ -204,67 +203,6 @@ async function checkUserInFuncionarios(userId: string | null): Promise<boolean> 
   }
 }
 
-async function createFuncionarioIfNeeded(userId: string, email: string | null): Promise<void> {
-  try {
-    const { data: existingFunc, error: checkError } = await supabase
-      .from('bd_funcionarios')
-      .select('id')
-      .eq('id', userId)
-      .maybeSingle();
-    
-    if (checkError) throw checkError;
-    
-    if (existingFunc) {
-      console.log("User already exists as funcionario with ID:", existingFunc.id);
-      return;
-    }
-    
-    // Get profile data for more info about the user
-    const { data: profileData, error: profileError } = await supabase
-      .from('profiles')
-      .select('nome_completo')
-      .eq('id', userId)
-      .single();
-      
-    if (profileError) {
-      console.error('Error fetching profile data:', profileError);
-      // Continue with available information instead of throwing
-    }
-    
-    const nomeCompleto = profileData?.nome_completo || email || 'Usuário';
-    
-    // Check if there's any funcionario with this same CPF as "Pendente"
-    // This is to avoid unique constraint errors
-    const cpfValue = `Pendente-${userId.substring(0, 8)}`;
-    
-    const { error: insertError } = await supabase
-      .from('bd_funcionarios')
-      .insert({
-        id: userId,
-        email: email,
-        nome_completo: nomeCompleto,
-        status: 'Ativo',
-        cpf: cpfValue
-      });
-      
-    if (insertError) {
-      if (insertError.code === '23505') { // Unique constraint violation
-        throw new Error(`Já existe um funcionário cadastrado com o mesmo CPF. Por favor, atualize seu cadastro de funcionário.`);
-      }
-      throw insertError;
-    }
-    
-    console.log("Created new funcionario with ID:", userId);
-  } catch (error) {
-    console.error('Error creating funcionario record:', error);
-    if (error instanceof Error) {
-      throw new Error(`Não foi possível criar um registro de funcionário: ${error.message}`);
-    } else {
-      throw new Error('Não foi possível criar um registro de funcionário para o usuário atual');
-    }
-  }
-}
-
 export const createApontamento = async (
   apontamento: Omit<ApontamentoCaminhao, 'id'>, 
   inspecao?: Omit<ApontamentoInspecao, 'id' | 'apontamento_caminhao_equipamento_id'>,
@@ -284,35 +222,25 @@ export const createApontamento = async (
       throw new Error('ID do operador é obrigatório');
     }
     
-    console.log("Verificando se operador existe na tabela funcionários...");
-    
-    // Check if user exists in the funcionarios table
-    try {
-      const userExists = await checkUserInFuncionarios(operadorId);
-      console.log("Usuário existe na tabela funcionários:", userExists);
-      
-      if (!userExists) {
-        console.log("Criando registro de funcionário para o usuário...");
-        await createFuncionarioIfNeeded(operadorId, userEmail);
-      }
-    } catch (error) {
-      console.error("Erro ao verificar/criar funcionário:", error);
-      // If creation fails, we want to provide a specific error message but not prevent creation
-      // if the user already has a valid funcionario record
-      const userExists = await checkUserInFuncionarios(operadorId);
-      if (!userExists) {
-        if (error instanceof Error) {
-          throw error; // Rethrow the specific error from createFuncionarioIfNeeded
-        } else {
-          throw new Error('Não foi possível verificar ou criar registro de funcionário');
-        }
-      }
-      // If user exists despite the error, we can continue
+    console.log("Validando operador informado...");
+    // Nova validação simples: operador precisa existir em bd_funcionarios
+    const { data: operadorExiste, error: operadorCheckError } = await supabase
+      .from('bd_funcionarios')
+      .select('id')
+      .eq('id', operadorId)
+      .maybeSingle();
+
+    if (operadorCheckError) {
+      console.error("Erro ao validar operador:", operadorCheckError);
+      throw new Error('Erro ao validar o operador. Tente novamente.');
+    }
+
+    if (!operadorExiste) {
+      console.warn("Operador não encontrado em bd_funcionarios:", operadorId);
+      throw new Error('Operador selecionado não está cadastrado como funcionário. Selecione um operador válido ou vincule seu usuário a um funcionário.');
     }
     
     console.log("Inserindo apontamento na base de dados...");
-    
-    // Insert into bd_registro_apontamento_cam_equipa table
     const { data, error: apontamentoError } = await supabase
       .from('bd_registro_apontamento_cam_equipa')
       .insert({
@@ -333,10 +261,9 @@ export const createApontamento = async (
     if (apontamentoError) {
       console.error('Erro ao criar apontamento:', apontamentoError);
       
-      // Provide more specific error messages
       if (apontamentoError.code === '23503') {
         if (apontamentoError.details?.includes('operador_id')) {
-          throw new Error('Operador não encontrado no sistema. Verifique se o usuário está registrado como funcionário.');
+          throw new Error('Operador não encontrado no sistema. Verifique se o operador selecionado é um funcionário válido.');
         } else if (apontamentoError.details?.includes('caminhao_equipamento_id')) {
           throw new Error('Veículo selecionado não encontrado no sistema');
         } else if (apontamentoError.details?.includes('centro_custo_id')) {
@@ -364,8 +291,6 @@ export const createApontamento = async (
 
       if (inspecaoError) {
         console.error('Erro ao criar inspeção:', inspecaoError);
-        // Don't throw here, as the main record was saved successfully
-        // Just log the error and continue
         console.warn('Apontamento salvo, mas houve erro ao salvar inspeção');
       } else {
         console.log("Inspeção salva com sucesso");

@@ -8,7 +8,7 @@ const generateOsNumber = async (): Promise<string> => {
   const { count, error } = await supabase
     .from('bd_ordens_servico')
     .select('*', { count: 'exact', head: true })
-    .like('numero_chamado', `OS${year}%`);
+    .like('numero_os', `OS${year}%`);
     
   if (error) throw error;
   
@@ -100,50 +100,69 @@ export const convertChamadoToOs = async (
   additionalData?: Partial<OrdemServico>
 ): Promise<OrdemServico> => {
   try {
+    // 1. Buscar o chamado
     const chamado = await getChamadoById(chamadoId);
     
     if (!chamado) {
       throw new Error('Chamado não encontrado');
     }
+
+    // 2. Verificar se já foi convertido
+    if (chamado.status !== 'Aberto') {
+      throw new Error(`Chamado já foi convertido ou não está aberto. Status atual: ${chamado.status}`);
+    }
+
+    // 3. Gerar número da OS
+    const numeroOs = await generateOsNumber();
     
+    // 4. Preparar dados da OS (usando colunas que existem na bd_ordens_servico)
     const newOsData = {
+      numero_os: numeroOs,
       chamado_id: chamadoId,
-      numero_chamado: chamado.numero_chamado,
-      data_solicitacao: chamado.data_solicitacao,
-      hora_solicitacao: chamado.hora_solicitacao,
-      solicitante_id: chamado.solicitante_id,
-      centro_custo_id: chamado.centro_custo_id,
       caminhao_equipamento_id: chamado.caminhao_equipamento_id,
-      descricao_problema: chamado.descricao_problema,
-      fotos_avarias: chamado.fotos_avarias,
-      prioridade: chamado.prioridade,
+      data_abertura: new Date().toISOString().split('T')[0],
+      tipo_servico: chamado.tipo_falha || 'Mecânica',
+      descricao_servico: chamado.descricao_problema,
       status: 'Aberta',
-      tipo_falha: chamado.tipo_falha || 'Mecânica',
       ...additionalData
     };
     
-    const { data, error } = await supabase
+    console.log('Creating OS with data:', newOsData);
+    
+    // 5. Criar a OS
+    const { data: novaOs, error } = await supabase
       .from('bd_ordens_servico')
-      .insert({
-        ...newOsData,
-        numero_os: newOsData.numero_chamado
-      } as any)
+      .insert(newOsData)
       .select()
       .single();
       
-    if (error) throw error;
+    if (error) {
+      console.error('Error creating OS:', error);
+      throw error;
+    }
     
-    await (supabase as any)
+    console.log('OS created successfully:', novaOs);
+    
+    // 6. Criar movimentação
+    const { error: movError } = await supabase
       .from('bd_os_movimentacoes')
       .insert({
-        os_id: data.id,
+        os_id: novaOs.id,
         usuario_id: userId,
         motivo: 'Conversão de chamado para OS'
       });
     
+    if (movError) {
+      console.error('Error creating movimentacao:', movError);
+      // Não para execução, é só um log
+    }
+    
+    // 7. Atualizar status do chamado
     await updateChamadoStatus(chamadoId, 'Convertido para OS');
     
-    return data as any as OrdemServico;
+    console.log(`Chamado ${chamado.numero_chamado} convertido para OS ${numeroOs} com sucesso`);
+    
+    return novaOs as any as OrdemServico;
   } catch (error) {
     console.error('Error converting chamado to OS:', error);
     throw error;

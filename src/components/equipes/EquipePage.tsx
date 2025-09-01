@@ -49,6 +49,16 @@ const EquipePage: React.FC = () => {
     exportToExcel
   } = useEquipeActions();
 
+  // Logging para debug
+  console.log('🎯 [EquipePage] Estado atual:', {
+    isLoading,
+    isError,
+    totalEquipes: equipes?.length || 0,
+    filters,
+    temEquipes: !!equipes,
+    primeiraEquipe: equipes?.[0] || null
+  });
+
   const handleOpenTransferModal = (equipe) => {
     setSelectedEquipeForTransfer(equipe);
     setTransferModalOpen(true);

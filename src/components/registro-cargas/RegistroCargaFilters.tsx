@@ -1,15 +1,13 @@
-
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { format } from "date-fns"; // Importação adicionada
+import { format } from "date-fns";
 import {
   Form,
-  FormControl,
   FormField,
-  FormItem,
   FormLabel,
+  FormItem,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -23,6 +21,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FilterX, MapPin, Truck, Calendar } from "lucide-react";
 import type { RegistroCargaFilters as RegistroCargaFiltersType } from "@/types/registroCargas";
+import { supabase } from "@/integrations/supabase/client";
 
 const filterSchema = z.object({
   logradouro: z.string().optional(),
@@ -50,19 +49,33 @@ const RegistroCargaFilters: React.FC<RegistroCargaFiltersProps> = ({
     },
   });
 
+  const [logradouros, setLogradouros] = useState<string[]>([]);
+  const [filtro, setFiltro] = useState<string>("");
+  const [mostrarLista, setMostrarLista] = useState(false);
+
+  useEffect(() => {
+    const fetchLogradouros = async () => {
+      const { data, error } = await supabase
+        .from("bd_ruas_requisicao")
+        .select("logradouro")
+        .order("logradouro", { ascending: true });
+
+      if (!error && data) {
+        const nomes = data.map((item) => item.logradouro);
+        setLogradouros(nomes);
+      }
+    };
+
+    fetchLogradouros();
+  }, []);
+
   const handleSubmit = (data: FilterValues) => {
-    console.log("[RegistroCargaFilters] Form submitted:", data);
-    
-    // Garante que a data é tratada corretamente sem deslocamento de timezone
     let dataInicio = undefined;
-    
     if (data.data_inicio) {
-      const [ano, mes, dia] = data.data_inicio.split('-').map(Number);
-      // Cria uma data com hora meio-dia para evitar problemas de timezone
+      const [ano, mes, dia] = data.data_inicio.split("-").map(Number);
       dataInicio = new Date(ano, mes - 1, dia, 12, 0, 0);
-      console.log("[RegistroCargaFilters] Data normalizada:", dataInicio);
     }
-    
+
     onFilter({
       logradouro: data.logradouro || undefined,
       caminhao_id: data.caminhao_id || undefined,
@@ -71,27 +84,29 @@ const RegistroCargaFilters: React.FC<RegistroCargaFiltersProps> = ({
   };
 
   const handleReset = () => {
-    console.log("[RegistroCargaFilters] Resetting filters");
-    // Ao resetar, usamos a data atual com hora meio-dia para evitar problemas de timezone
     const today = new Date();
     const normalizedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0);
-    
     form.reset({
       logradouro: "",
       caminhao_id: "",
       data_inicio: format(normalizedToday, "yyyy-MM-dd"),
     });
     onFilter({});
+    setFiltro("");
   };
 
-  // Auto-submit the form whenever a field changes
-  React.useEffect(() => {
+  useEffect(() => {
     const subscription = form.watch((value) => {
       handleSubmit(value as FilterValues);
     });
-    
     return () => subscription.unsubscribe();
-  }, [form, form.watch]);
+  }, [form]);
+
+  const listaFiltrada = filtro === ""
+    ? logradouros
+    : logradouros.filter((nome) =>
+        nome.toLowerCase().includes(filtro.toLowerCase())
+      ).slice(0, 10); // Limita a 10 itens
 
   return (
     <Card>
@@ -100,70 +115,97 @@ const RegistroCargaFilters: React.FC<RegistroCargaFiltersProps> = ({
       </CardHeader>
       <CardContent className="space-y-4">
         <Form {...form}>
-          <form onSubmit={(e) => { e.preventDefault(); form.handleSubmit(handleSubmit)(e); }} className="space-y-4">
-            <div className="space-y-2">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <FormLabel htmlFor="logradouro">Logradouro</FormLabel>
-                  <div className="relative">
-                    <MapPin className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="logradouro"
-                      placeholder="Buscar por endereço..."
-                      className="pl-8"
-                      {...form.register("logradouro")}
-                    />
-                  </div>
-                </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              form.handleSubmit(handleSubmit)(e);
+            }}
+            className="space-y-4"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* CAMPO LOGRADOURO COM LISTA */}
+              <div className="space-y-2 relative">
+                <FormLabel htmlFor="logradouro">Logradouro</FormLabel>
+                <MapPin className="absolute left-2.5 top-9 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="logradouro"
+                  placeholder="Buscar por logradouro..."
+                  className="pl-8"
+                  value={filtro}
+                  onChange={(e) => {
+                    setFiltro(e.target.value);
+                    form.setValue("logradouro", e.target.value);
+                    setMostrarLista(true);
+                  }}
+                  onFocus={() => setMostrarLista(true)}
+                  onBlur={() => setTimeout(() => setMostrarLista(false), 150)}
+                  autoComplete="off"
+                />
+                {mostrarLista && listaFiltrada.length > 0 && (
+                  <ul className="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded shadow max-h-48 overflow-auto text-sm">
+                    {listaFiltrada.map((nome, index) => (
+                      <li
+                        key={index}
+                        className="px-3 py-2 cursor-pointer hover:bg-gray-100"
+                        onMouseDown={() => {
+                          form.setValue("logradouro", nome);
+                          setFiltro(nome);
+                          setMostrarLista(false);
+                        }}
+                      >
+                        {nome}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
 
-                <div className="space-y-2">
-                  <FormLabel htmlFor="caminhao_id">Caminhão</FormLabel>
-                  <div className="relative">
-                    <Truck className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <FormField
-                      control={form.control}
-                      name="caminhao_id"
-                      render={({ field }) => (
-                        <Select
-                          onValueChange={field.onChange}
-                          value={field.value}
-                        >
-                          <SelectTrigger id="caminhao_id" className="pl-8">
-                            <SelectValue placeholder="Selecione um caminhão" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">Todos os caminhões</SelectItem>
-                            {caminhoesList.map((caminhao) => (
-                              <SelectItem key={caminhao.id} value={caminhao.id}>
-                                {`${caminhao.placa} - ${caminhao.modelo}`}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                  </div>
+              {/* CAMPO CAMINHÃO */}
+              <div className="space-y-2">
+                <FormLabel htmlFor="caminhao_id">Caminhão</FormLabel>
+                <div className="relative">
+                  <Truck className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <FormField
+                    control={form.control}
+                    name="caminhao_id"
+                    render={({ field }) => (
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <SelectTrigger id="caminhao_id" className="pl-8">
+                          <SelectValue placeholder="Selecione um caminhão" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos os caminhões</SelectItem>
+                          {caminhoesList.map((caminhao) => (
+                            <SelectItem key={caminhao.id} value={caminhao.id}>
+                              {`${caminhao.placa} - ${caminhao.modelo}`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
                 </div>
+              </div>
 
-                <div className="space-y-2">
-                  <FormLabel htmlFor="data_inicio">Data da Saída</FormLabel>
-                  <div className="relative">
-                    <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="data_inicio"
-                      type="date"
-                      className="pl-8"
-                      {...form.register("data_inicio")}
-                    />
-                  </div>
+              {/* CAMPO DATA */}
+              <div className="space-y-2">
+                <FormLabel htmlFor="data_inicio">Data da Saída</FormLabel>
+                <div className="relative">
+                  <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="data_inicio"
+                    type="date"
+                    className="pl-8"
+                    {...form.register("data_inicio")}
+                  />
                 </div>
               </div>
             </div>
 
             <div className="flex justify-end">
-              <Button 
-                type="button" 
-                variant="outline" 
+              <Button
+                type="button"
+                variant="outline"
                 onClick={handleReset}
                 size="sm"
                 className="gap-2"

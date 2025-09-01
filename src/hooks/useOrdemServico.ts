@@ -4,7 +4,6 @@ import {
   fetchOpenChamados,
   fetchOrdensServico,
   getOrdemServicoById,
-  convertChamadoToOs,
   updateOrdemServico,
   getMaterialsByOsId,
   getMaoDeObraByOsId,
@@ -15,10 +14,10 @@ import {
   deleteMaoDeObra,
   exportOsToExcel,
   getChamadoById,
-  updateChamadoStatus,
   finishOrdemServico,
   generateOsPdf
 } from "@/services/ordemServicoService";
+import { convertChamadoToOs, updateChamadoStatus } from "@/services/convertChamadoService";
 import { OrdemServico, Material, MaoDeObra, Movimentacao, OsFilterParams } from "@/types/ordemServico";
 import { getCurrentUser } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -231,7 +230,7 @@ export const useOrdemServico = () => {
       console.error("Error converting chamado to OS:", error);
       toast({
         title: "Erro na conversão",
-        description: "Ocorreu um erro ao converter o chamado. Tente novamente.",
+        description: error instanceof Error ? error.message : String(error),
         variant: "destructive"
       });
     } finally {

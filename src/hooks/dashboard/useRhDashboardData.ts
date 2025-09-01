@@ -1,3 +1,4 @@
+
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -207,9 +208,9 @@ export const useRhDashboardData = (filters: {
 
       const { data: funcionarios } = await query;
 
-      // Fetch evaluations by employee - usando bd_apontamento_equipe que agora tem as colunas de avaliação
+      // Fetch evaluations by employee - USANDO A NOVA TABELA bd_avaliacao_equipe
       const { data: avaliacoes } = await supabase
-        .from("bd_apontamento_equipe")
+        .from("bd_avaliacao_equipe")
         .select("colaborador_id, pontualidade, proatividade, organizacao, competencia_tecnica, comunicacao, trabalho_em_equipe");
 
       // Calculate average of each employee's evaluations
@@ -250,8 +251,9 @@ export const useRhDashboardData = (filters: {
         .from("bd_equipes")
         .select("id, nome_equipe, encarregado_id, equipe");
 
+       // USANDO A NOVA TABELA bd_avaliacao_equipe
        const { data: avaliacoes } = await supabase
-        .from("bd_apontamento_equipe")
+        .from("bd_avaliacao_equipe")
         .select("equipe_id, pontualidade, proatividade, organizacao, competencia_tecnica, comunicacao, trabalho_em_equipe");
 
       // Aggregation: average by team

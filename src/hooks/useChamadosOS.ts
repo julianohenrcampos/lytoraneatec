@@ -8,7 +8,7 @@ import {
   getChamadoById,
   exportChamadosToExcel
 } from "@/services/chamadosService";
-import { updateChamadoStatus } from "@/services/ordemServicoService";
+import { convertChamadoToOs } from "@/services/convertChamadoService";
 import { ChamadoOS, ChamadoFilterParams } from "@/types/chamadoOS";
 import { getCurrentUser } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -236,8 +236,12 @@ export const useChamadosOS = () => {
   const handleConvertToOS = async (chamadoId: string, userId: string) => {
     setIsLoading(true);
     try {
-      await updateChamadoStatus(chamadoId, 'Convertido para OS');
+      console.log(`🔄 Iniciando conversão do chamado ${chamadoId}...`);
       
+      // Usar o novo serviço de conversão
+      const novaOs = await convertChamadoToOs(chamadoId, userId);
+      
+      // Atualizar estado local
       setChamados(prev => 
         prev.map(item => 
           item.id === chamadoId 
@@ -247,17 +251,23 @@ export const useChamadosOS = () => {
       );
       
       toast({
-        title: "Chamado convertido",
-        description: "O chamado foi convertido para OS com sucesso."
+        title: "Chamado convertido com sucesso!",
+        description: `Chamado convertido para OS com sucesso!`,
+        variant: "default"
       });
-    } catch (error) {
-      console.error("Error converting chamado to OS:", error);
+      
+      console.log(`✅ Conversão concluída! OS ID: ${novaOs.id}`);
+    } catch (error: any) {
+      console.error("❌ Erro na conversão:", error);
+      
+      const errorMessage = error?.message || "Erro desconhecido na conversão";
+      
       setIsError(true);
-      setErrorMessage("Ocorreu um erro ao converter o chamado para OS. Tente novamente.");
+      setErrorMessage(`Erro ao converter chamado: ${errorMessage}`);
       
       toast({
         title: "Erro na conversão",
-        description: "Ocorreu um erro ao converter o chamado para OS. Tente novamente.",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {

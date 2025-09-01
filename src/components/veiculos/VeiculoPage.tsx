@@ -45,7 +45,7 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
     handleDelete,
     handleSaveVeiculo,
     handleImport
-  } = useVeiculoActions(initialSituacaoFilter);
+  } = useVeiculoActions();
 
   const handleImportSuccess = async () => {
     await refetch();
@@ -95,8 +95,6 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
         onResetFilters={resetFilters}
         isLoading={isLoading}
         totalVeiculos={veiculos?.length || 0}
-        departamentos={departamentosDropdown}
-        empresas={empresasDropdown}
       />
       
       <VeiculoTable 
