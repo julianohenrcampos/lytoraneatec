@@ -6,12 +6,17 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
 }
 
-// Função para detectar plataforma - Simplificada
+// Função para detectar plataforma
 const detectPlatform = () => {
   const userAgent = navigator.userAgent.toLowerCase();
   
+  // iOS detection
   if (/iphone|ipad|ipod/.test(userAgent)) return 'ios';
+  
+  // Android detection
   if (/android/.test(userAgent)) return 'android';
+  
+  // Desktop/other
   return 'desktop';
 };
 
@@ -46,35 +51,31 @@ export const usePWAInstall = () => {
 
     console.log('PWA: Plataforma:', detectedPlatform, 'Instalado:', installed);
 
-    // Para iOS, sempre mostrar opção de instalação se não instalado
-    if (detectedPlatform === 'ios' && !installed) {
-      setIsInstallable(true);
-    }
-
     // Listener para o evento de instalação (Android/Desktop)
     const handleBeforeInstallPrompt = (e: Event) => {
+      console.log('PWA: beforeinstallprompt event captured');
       e.preventDefault();
       const promptEvent = e as BeforeInstallPromptEvent;
       setDeferredPrompt(promptEvent);
       setIsInstallable(true);
-      console.log('PWA: Install prompt disponível para plataforma:', platform);
+      console.log('PWA: Install prompt disponível para:', detectedPlatform);
     };
 
     // Listener para quando o app é instalado
     const handleAppInstalled = () => {
+      console.log('PWA: appinstalled event captured');
       setIsInstalled(true);
       setIsInstallable(false);
       setDeferredPrompt(null);
-      console.log('PWA: App instalado com sucesso');
     };
 
     // Listener para mudanças no display mode
     const mediaQuery = window.matchMedia('(display-mode: standalone)');
     const handleDisplayModeChange = (e: MediaQueryListEvent) => {
+      console.log('PWA: Display mode changed:', e.matches);
       if (e.matches) {
         setIsInstalled(true);
         setIsInstallable(false);
-        console.log('PWA: App executando em modo standalone');
       }
     };
 
@@ -83,15 +84,32 @@ export const usePWAInstall = () => {
     window.addEventListener('appinstalled', handleAppInstalled);
     mediaQuery.addEventListener('change', handleDisplayModeChange);
 
-    // Para Android, aguardar beforeinstallprompt ou forçar se necessário
-    if (detectedPlatform === 'android' && !installed) {
-      // Timeout para mostrar instalação mesmo sem prompt
-      setTimeout(() => {
+    // Para iOS, sempre mostrar opção de instalação se não instalado
+    if (detectedPlatform === 'ios' && !installed) {
+      console.log('PWA: iOS detected, enabling installation option');
+      setIsInstallable(true);
+    }
+
+    // Para Android/Desktop, verificar se o prompt pode aparecer
+    if ((detectedPlatform === 'android' || detectedPlatform === 'desktop') && !installed) {
+      console.log('PWA: Waiting for beforeinstallprompt event on', detectedPlatform);
+      // Se não receber o prompt em 5 segundos, pode ser que não seja elegível
+      const timeoutId = setTimeout(() => {
         if (!deferredPrompt && !installed) {
-          console.log('PWA: Forçando instalação Android sem prompt');
-          setIsInstallable(true);
+          console.log('PWA: No beforeinstallprompt received, checking eligibility');
+          // Ainda assim, mostrar a opção para alguns navegadores Android
+          if (detectedPlatform === 'android') {
+            setIsInstallable(true);
+          }
         }
-      }, 3000);
+      }, 5000);
+      
+      return () => {
+        clearTimeout(timeoutId);
+        window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        window.removeEventListener('appinstalled', handleAppInstalled);
+        mediaQuery.removeEventListener('change', handleDisplayModeChange);
+      };
     }
 
     return () => {

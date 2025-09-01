@@ -67,6 +67,14 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
     apontamento: {},
     inspecao: {}
   });
+  const [initialFormData, setInitialFormData] = useState<{
+    apontamento: Partial<ApontamentoCaminhao>;
+    inspecao: Partial<ApontamentoInspecao>;
+  }>({
+    apontamento: {},
+    inspecao: {}
+  });
+  const [userInteracted, setUserInteracted] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [date, setDate] = useState<Date | undefined>(new Date());
@@ -81,13 +89,17 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
         ? mapSituacaoFromDatabase(currentApontamento.apontamento.situacao)
         : undefined;
       
-      setFormData({
+      const data = {
         apontamento: { 
           ...currentApontamento.apontamento,
           situacao: mappedSituacao
         },
         inspecao: currentApontamento.inspecao || {}
-      });
+      };
+      
+      setFormData(data);
+      setInitialFormData(data);
+      setUserInteracted(false);
       
       if (currentApontamento.apontamento.data) {
         setDate(new Date(currentApontamento.apontamento.data));
@@ -106,7 +118,7 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
       console.log("Inicializando novo apontamento com usuário:", currentUser);
       
       // Default inspecao fields to "OK" for new records
-      setFormData({
+      const data = {
         apontamento: {
           data: format(now, 'yyyy-MM-dd'),
           operador_id: currentUser?.id || '',
@@ -130,7 +142,11 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
           inspecao_veicular: "OK",
           material_amarracao: "OK"
         }
-      });
+      };
+      
+      setFormData(data);
+      setInitialFormData(data);
+      setUserInteracted(false);
       setDate(now);
     }
   }, [currentApontamento, currentUser, veiculosOptions, isOpen]);
@@ -141,6 +157,8 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
   ) => {
     const { name, value, type } = e.target;
     const newValue = type === 'number' ? Number(value) : value;
+    
+    setUserInteracted(true);
     
     setFormData(prev => ({
       ...prev,
@@ -156,6 +174,8 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
     field: string, 
     section: 'apontamento' | 'inspecao' = 'apontamento'
   ) => {
+    setUserInteracted(true);
+    
     setFormData(prev => ({
       ...prev,
       [section]: {
@@ -175,11 +195,22 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
   };
 
   const fetchUltimoHorimetro = async (caminhaoId: string) => {
-    if (!caminhaoId) return;
+    if (!caminhaoId) {
+      console.log('⚠️ Formulário - ID do caminhão não fornecido para busca do horímetro');
+      return;
+    }
+    
+    console.log(`🚀 Formulário - Iniciando busca do último horímetro para: ${caminhaoId}`);
     
     try {
+      // Adicionar indicador visual de que está buscando o horímetro
+      console.log('🔍 Formulário - Buscando último horímetro...');
+      
       const horimetro = await getUltimoHorimetro(caminhaoId);
+      
       if (horimetro !== null) {
+        console.log(`✅ Formulário - Horímetro encontrado: ${horimetro}, preenchendo campo`);
+        
         setFormData(prev => ({
           ...prev,
           apontamento: {
@@ -187,9 +218,31 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
             horimetro_inicial: horimetro
           }
         }));
+        
+        console.log(`✅ Formulário - Campo horímetro_inicial preenchido com: ${horimetro}`);
+      } else {
+        console.log('ℹ️ Formulário - Nenhum horímetro anterior encontrado, campo permanecerá vazio');
+        
+        // Limpar campo se não encontrou horímetro
+        setFormData(prev => ({
+          ...prev,
+          apontamento: {
+            ...prev.apontamento,
+            horimetro_inicial: undefined
+          }
+        }));
       }
     } catch (error) {
-      console.error("Erro ao buscar último horímetro:", error);
+      console.error('❌ Formulário - Erro ao buscar último horímetro:', error);
+      
+      // Limpar campo em caso de erro
+      setFormData(prev => ({
+        ...prev,
+        apontamento: {
+          ...prev.apontamento,
+          horimetro_inicial: undefined
+        }
+      }));
     }
   };
 
@@ -198,6 +251,7 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
     
     const file = e.target.files[0];
     try {
+      setUserInteracted(true);
       const imageUrl = await uploadFoto(file);
       setUploadedImages(prev => [...prev, imageUrl]);
       
@@ -211,6 +265,13 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
     } catch (error) {
       console.error("Erro ao fazer upload da imagem:", error);
     }
+  };
+
+  const handleDateChange = (newDate: Date | undefined) => {
+    if (newDate) {
+      setUserInteracted(true);
+    }
+    setDate(newDate);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -265,10 +326,36 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
   const isEditing = !!currentApontamento.apontamento?.id;
   
   const handleDialogClose = () => {
-    const hasChanges = Object.keys(formData.apontamento).length > 2 || 
-                      Object.keys(formData.inspecao).length > 0;
-                      
-    if (hasChanges && !isSubmitting && !isEditing) {
+    // Comparar dados atuais com dados iniciais para detectar mudanças reais
+    const hasRealChanges = () => {
+      if (!userInteracted) return false;
+      
+      // Comparar dados do apontamento excluindo campos que podem mudar automaticamente
+      const currentApontamento = { ...formData.apontamento };
+      const initialApontamento = { ...initialFormData.apontamento };
+      
+      // Remover campos que são preenchidos automaticamente e não indicam mudança do usuário
+      delete currentApontamento.data;
+      delete currentApontamento.operador_id;
+      delete currentApontamento.hora_inicial;
+      delete currentApontamento.horimetro_inicial; // Pode ser preenchido automaticamente
+      delete initialApontamento.data;
+      delete initialApontamento.operador_id;
+      delete initialApontamento.hora_inicial;
+      delete initialApontamento.horimetro_inicial;
+      
+      // Comparar usando JSON.stringify para comparação profunda
+      const apontamentoChanged = JSON.stringify(currentApontamento) !== JSON.stringify(initialApontamento);
+      
+      // Para inspeção, comparar apenas se não for novo (novo sempre tem campos "OK")
+      const inspecaoChanged = isEditing ? 
+        JSON.stringify(formData.inspecao) !== JSON.stringify(initialFormData.inspecao) : 
+        false;
+      
+      return apontamentoChanged || inspecaoChanged;
+    };
+    
+    if (hasRealChanges() && !isSubmitting) {
       if (window.confirm("Deseja realmente cancelar? Todas as alterações serão perdidas.")) {
         onClose();
       }
@@ -335,7 +422,7 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
                       <Calendar
                         mode="single"
                         selected={date}
-                        onSelect={setDate}
+                        onSelect={handleDateChange}
                         initialFocus
                       />
                     </PopoverContent>
@@ -355,31 +442,14 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="caminhao_equipamento_id">Caminhão/Equipamento *</Label>
-                  <div>
-                    <Input
-                      list="veiculosList"
-                      placeholder="Digite para pesquisar"
-                      value={
-                        veiculosOptions.find(opt => opt.id === formData.apontamento.caminhao_equipamento_id)?.label || ''
-                      }
-                      onChange={(e) => {
-                        const selected = veiculosOptions.find(opt => opt.label === e.target.value);
-                        handleSelectChange(selected?.id || '', 'caminhao_equipamento_id');
-                      }}
-                      disabled={isEditing}
-                    />
-                    <datalist id="veiculosList">
-                      {veiculosOptions.map((veiculo) => (
-                        <option
-                          key={veiculo.id}
-                          value={veiculo.label}
-                        />
-                      ))}
-                    </datalist>
-                  </div>
+                  <Label htmlFor="caminhao_equipamento_id">Caminhão/Equipamento</Label>
+                  <ComboboxCaminhao
+                    value={formData.apontamento.caminhao_equipamento_id || ''}
+                    onChange={(value) => handleSelectChange(value, 'caminhao_equipamento_id')}
+                    includeEquipamentos={true}
+                    disabled={isEditing}
+                  />
                 </div>
-
                 
                 <div className="space-y-2">
                   <Label htmlFor="centro_custo_id">Centro de Custo</Label>

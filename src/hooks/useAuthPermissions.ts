@@ -44,8 +44,8 @@ export const useAuthPermissions = (): UserPermissions => {
 
         console.log('🔐 Usuário autenticado:', user.email);
 
-        // Emails SuperAdmin automáticos
-        const SUPER_ADMIN_EMAILS = ['julianohcampos@yahoo.com.br', 'ramonvalentevalente@gmail.com'];
+        // Emails SuperAdm automáticos
+        const SUPER_ADM_EMAILS = ['julianohcampos@yahoo.com.br', 'ramonvalentevalente@gmail.com'];
 
         // Query usando o sistema profiles com funcoes[] como fonte primária
         const { data: profile, error: profileErr } = await supabase
@@ -81,16 +81,16 @@ export const useAuthPermissions = (): UserPermissions => {
         let userPermissions: string[] = ['dashboard_view']; // Permissão básica sempre
 
         // 1. Verificar por email (fallback principal)
-        if (profile?.email && SUPER_ADMIN_EMAILS.includes(profile.email)) {
+        if (profile?.email && SUPER_ADM_EMAILS.includes(profile.email)) {
           isSuperAdmin = true;
           userRole = 'SuperAdm';
-          console.log('🚀 SUPERADMIN detectado por EMAIL:', profile.email);
+          console.log('🚀 SUPERADM detectado por EMAIL:', profile.email);
         }
         // 2. Verificar no array funcoes (fonte primária)
         else if (profile?.funcoes && Array.isArray(profile.funcoes) && profile.funcoes.includes('SuperAdm')) {
           isSuperAdmin = true;
           userRole = profile.funcoes[0]; // Primeira função como role principal
-          console.log('🚀 SUPERADMIN detectado por FUNCOES:', profile.funcoes);
+          console.log('🚀 SUPERADM detectado por FUNCOES:', profile.funcoes);
         }
         // 3. Fallback para funcao_sistema (compatibilidade)
         else if (profile?.funcao_sistema) {
@@ -103,13 +103,43 @@ export const useAuthPermissions = (): UserPermissions => {
           userRole = profile.funcoes[0];
           console.log('📋 Role definido por funcoes[]:', userRole);
         }
+
+        // 5. Verificar se é apontador de alguma equipe
+        if (!isSuperAdmin && profile?.email) {
+          console.log('🔍 Verificando se é apontador de equipe para:', profile.email);
+          
+          try {
+            // Buscar funcionário pelo email
+            const { data: funcionario } = await supabase
+              .from('bd_funcionarios')
+              .select('id')
+              .eq('email', profile.email)
+              .single();
+
+            if (funcionario) {
+              // Verificar se é apontador de alguma equipe
+              const { data: equipeApontador } = await supabase
+                .from('bd_equipes')
+                .select('id, nome_equipe')
+                .eq('apontador_id', funcionario.id)
+                .maybeSingle();
+
+              if (equipeApontador) {
+                userRole = 'Apontador';
+                console.log('📍 APONTADOR detectado - equipe:', equipeApontador.nome_equipe);
+              }
+            }
+          } catch (error) {
+            console.warn('⚠️ Erro ao verificar se é apontador:', error);
+          }
+        }
           
         console.log('🔍 Função encontrada:', userRole);
         
         if (isSuperAdmin) {
-          console.log('🚀 SUPERADMIN CONFIRMADO - LIBERANDO TODOS OS ACESSOS!');
+          console.log('🚀 SUPERADM CONFIRMADO - LIBERANDO TODOS OS ACESSOS!');
           
-          // SuperAdmin = TODAS as permissões do sistema
+          // SuperAdm = TODAS as permissões do sistema
           userPermissions = [
             'dashboard_view',
             'dashboard_rh_view',
@@ -137,8 +167,25 @@ export const useAuthPermissions = (): UserPermissions => {
             'programacao_entrega_view',
             'admin_permissoes_view'
           ];
+        } else if (userRole === 'Apontador') {
+          // Permissões específicas para apontadores
+          console.log('📍 Aplicando permissões de APONTADOR');
+          userPermissions = [
+            'dashboard_view',
+            'requisicoes_apontamento_equipe_view'
+          ];
+        } else if (userRole === 'AdmRH' || userRole === 'Administrador') {
+          // Permissões para administradores RH
+          console.log('👔 Aplicando permissões de ADM RH');
+          userPermissions = [
+            'dashboard_view',
+            'dashboard_rh_view',
+            'gestao_rh_funcionarios_view',
+            'gestao_rh_equipes_view',
+            'requisicoes_apontamento_equipe_view'
+          ];
         } else if (userRole) {
-          // Para funções diferentes de SuperAdm, aplicar permissões básicas por enquanto
+          // Para outras funções, aplicar permissões básicas
           console.log('⚠️ Função não-SuperAdm, aplicando permissões básicas');
           userPermissions = ['dashboard_view'];
         } else {

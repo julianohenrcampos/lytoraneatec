@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
+import { useUserDataAccess } from './useUserDataAccess';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
@@ -28,6 +29,7 @@ interface VeiculoDropdownItem {
 
 export const useApontamentoCaminhoes = () => {
   const { toast } = useToast();
+  const { canAccessAllData, onlyOwnRecords, userId } = useUserDataAccess();
   const [apontamentos, setApontamentos] = useState<ApontamentoCaminhao[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [veiculosDropdown, setVeiculosDropdown] = useState<VeiculoDropdownItem[]>([]);
@@ -65,7 +67,14 @@ export const useApontamentoCaminhoes = () => {
     setIsLoading(true);
     try {
       console.log("Fetching apontamentos with filters:", filters);
-      const data = await fetchApontamentos(filters);
+      let data = await fetchApontamentos(filters);
+      
+      // Aplicar filtro adicional no frontend para usuários que só podem ver próprios registros
+      if (onlyOwnRecords && userId) {
+        console.log("Aplicando filtro para usuário - somente registros próprios");
+        data = data.filter(apontamento => apontamento.created_by === userId);
+      }
+      
       console.log("Fetched apontamentos data:", data);
       setApontamentos(data);
     } catch (error) {

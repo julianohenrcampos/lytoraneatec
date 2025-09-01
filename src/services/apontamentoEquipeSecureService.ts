@@ -27,28 +27,20 @@ export const fetchSecureApontamentos = async (filters: ApontamentoEquipeFilters 
       console.log(`🔐 Fetching apontamentos with RLS filtering (tentativa ${retryCount + 1})...`);
       
       let query = supabase
-        .from("bd_apontamento_equipe")
+        .from('bd_apontamento_equipe')
         .select(`
           *,
-          equipe:bd_equipes!bd_apontamento_equipe_equipe_id_fkey(
+          equipe:equipe_id(
             id,
-            nome_equipe,
-            encarregado:bd_funcionarios!bd_equipes_encarregado_id_fkey(
-              id,
-              nome_completo
-            ),
-            apontador:bd_funcionarios!bd_equipes_apontador_id_fkey(
-              id,
-              nome_completo
-            )
+            nome_equipe
           ),
-          colaborador:bd_funcionarios!bd_apontamento_equipe_colaborador_id_fkey(
-            id, 
+          colaborador:colaborador_id(
+            id,
             nome_completo
           ),
-          lista_entrega:bd_lista_programacao_entrega!bd_apontamento_equipe_lista_entrega_id_fkey(
+          registrado_por_profile:registrado_por(
             id,
-            logradouro
+            nome_completo
           )
         `)
         .order('data_registro', { ascending: false });
@@ -71,6 +63,46 @@ export const fetchSecureApontamentos = async (filters: ApontamentoEquipeFilters 
       const { data, error } = await query;
       
       if (error) {
+        console.error("🚨 Database error details:", {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        });
+        
+        // Tratamento específico para erros de relacionamento
+        if (error.message?.includes('more than one relationship') || error.message?.includes('Could not embed')) {
+          console.warn("🔗 Relationship error detected - attempting simplified fallback select...");
+
+          let simpleQuery = supabase
+            .from('bd_apontamento_equipe')
+            .select(`
+              *,
+              equipe:equipe_id(id, nome_equipe),
+              colaborador:colaborador_id(id, nome_completo)
+            `)
+            .order('data_registro', { ascending: false });
+
+          if (filters.data_inicio) {
+            simpleQuery = simpleQuery.gte('data_registro', normalizeDate(filters.data_inicio));
+          }
+          if (filters.data_fim) {
+            simpleQuery = simpleQuery.lte('data_registro', normalizeDate(filters.data_fim));
+          }
+          if (filters.equipe_id && filters.equipe_id !== 'all') {
+            simpleQuery = simpleQuery.eq('equipe_id', filters.equipe_id);
+          }
+
+          const { data: simpleData, error: simpleError } = await simpleQuery;
+          if (simpleError) {
+            console.error('❌ Fallback select failed:', simpleError);
+            throw new Error(`Database relationship error and fallback failed: ${simpleError.message}`);
+          }
+
+          console.log(`✅ Fallback succeeded with ${simpleData?.length || 0} apontamentos`);
+          return simpleData as unknown as ApontamentoEquipe[];
+        }
+        
         // Se é erro de RLS/permissão e ainda há tentativas, retry
         if ((error.message?.includes('policy') || error.message?.includes('permission') || error.code === 'PGRST116') && retryCount < maxRetries - 1) {
           console.warn(`⚠️ RLS error, retrying (${retryCount + 1}/${maxRetries}):`, error);
@@ -109,21 +141,25 @@ export const fetchSecureEquipes = async () => {
     
     const { data, error } = await supabase
       .from('bd_equipes')
-      .select(`
-        *,
-        encarregado:bd_funcionarios!bd_equipes_encarregado_id_fkey(
-          id, 
-          nome_completo
-        ),
-        apontador:bd_funcionarios!bd_equipes_apontador_id_fkey(
-          id, 
-          nome_completo
-        )
-      `)
+      .select('*')
       .order('nome_equipe');
     
     if (error) {
       console.error("❌ Error fetching secure teams:", error);
+
+      if (error.message?.includes('more than one relationship') || error.message?.includes('Could not embed')) {
+        console.warn('🔗 Relationship error on equipes - using simple fallback select');
+        const { data: simpleTeams, error: simpleErr } = await supabase
+          .from('bd_equipes')
+          .select('*')
+          .order('nome_equipe');
+        if (simpleErr) {
+          console.error('❌ Fallback teams select failed:', simpleErr);
+          throw simpleErr;
+        }
+        return simpleTeams || [];
+      }
+
       throw error;
     }
     
@@ -153,55 +189,14 @@ export const canAccessTeam = async (teamId: string): Promise<boolean> => {
   }
 };
 
-// Simplified permission check for creating apontamentos
+// Simplified permission check - rely only on RLS
 export const canCreateApontamentoForTeam = async (teamId: string): Promise<boolean> => {
   try {
-    console.log(`🔍 Checking permission to create apontamento for team: ${teamId}`);
-    
-    // Simplified approach: if user can see the team, they can create apontamentos
-    const canAccess = await canAccessTeam(teamId);
-    
-    if (!canAccess) {
-      console.log("❌ User cannot access team");
-      return false;
-    }
-    
-    // Get current user to check basic authentication
-    const { data: currentUser, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !currentUser.user) {
-      console.log("❌ User not authenticated");
-      return false;
-    }
-    
-    // Get user profile with simplified role check
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('funcoes')
-      .eq('id', currentUser.user.id)
-      .single();
-    
-    if (profileError) {
-      console.log("❌ Could not fetch user profile, but allowing access based on team visibility");
-      // If we can't get the profile but can access the team, allow it
-      return true;
-    }
-    
-    if (!profile?.funcoes || !Array.isArray(profile.funcoes)) {
-      console.log("❌ User has no roles assigned");
-      return false;
-    }
-    
-    // Check if user has allowed roles
-    const allowedRoles = ['SuperAdm', 'AdmRH', 'Apontador', 'Encarregado'];
-    const hasAllowedRole = profile.funcoes.some(role => allowedRoles.includes(role));
-    
-    console.log(`✅ Permission check result: ${hasAllowedRole} (roles: ${profile.funcoes.join(', ')})`);
-    return hasAllowedRole;
-    
+    // Se o usuário pode acessar o time via RLS, pode criar apontamentos
+    // A RLS já controla todas as permissões necessárias
+    return await canAccessTeam(teamId);
   } catch (error) {
     console.error("❌ Error checking apontamento creation permission:", error);
-    // In case of error, allow if user can access team (fallback)
-    return await canAccessTeam(teamId);
+    return false;
   }
 };

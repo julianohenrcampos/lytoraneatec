@@ -165,17 +165,6 @@ const RegistroAplicacaoStable: React.FC = () => {
         </div>
 
         <div className="space-y-6">
-          {/* Status de Segurança */}
-          <Alert className="bg-green-50 text-green-800 border-green-200">
-            <Shield className="h-4 w-4" />
-            <AlertDescription>
-              <div className="flex flex-col gap-1">
-                <span>Usuário: <strong>{teamAccess.userRole}</strong></span>
-                <span>Acesso: {teamAccess.canAccessAllTeams ? 'Todas as equipes' : `${teamAccess.allowedTeamIds.length} equipes`}</span>
-                <span className="text-xs text-green-600">Sistema definitivamente corrigido - created_by garantido ✅</span>
-              </div>
-            </AlertDescription>
-          </Alert>
 
           {/* Sem Acesso */}
           {!teamAccess.canAccessAllTeams && teamAccess.allowedTeamIds.length === 0 && (

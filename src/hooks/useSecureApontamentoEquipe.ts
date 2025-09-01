@@ -22,7 +22,7 @@ import {
 export const useSecureApontamentoEquipe = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { allowedTeamIds, userRole, canAccessAllTeams, isLoading: accessLoading } = useUserDataAccess();
+  const { allowedTeamIds, userRole, canAccessAllData, isLoading: accessLoading } = useUserDataAccess();
   
   // Form states
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -283,7 +283,7 @@ export const useSecureApontamentoEquipe = () => {
     equipes,
     allowedTeamIds,
     userRole,
-    canAccessAllTeams,
+    canAccessAllData,
     
     // Loading states
     isLoading: isApontamentosLoading || isEquipesLoading || accessLoading,
