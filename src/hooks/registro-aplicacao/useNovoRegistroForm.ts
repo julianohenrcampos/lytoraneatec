@@ -186,6 +186,41 @@ export const useNovoRegistroForm = (
 
       console.log("✅ [FORM] Registro salvo com sucesso:", result.id);
       
+      // CORREÇÃO: Se hora_saida_caminhao foi preenchida, chamar funções de sincronização
+      if (submitData.hora_saida_caminhao) {
+        console.log("🔄 [FORM] Hora de saída preenchida, executando sincronização automática");
+        
+        try {
+          // Chamar função de sincronização da hora de saída
+          const { error: syncError } = await supabase.rpc('sincronizar_hora_saida_aplicacao', {
+            p_registro_aplicacao_id: result.id
+          });
+          
+          if (syncError) {
+            console.error("❌ [FORM] Erro na sincronização da hora de saída:", syncError);
+          } else {
+            console.log("✅ [FORM] Sincronização da hora de saída executada com sucesso");
+          }
+          
+          // Forçar atualização do status da entrega
+          const { error: statusError } = await supabase.rpc('atualizar_status_entrega_automatico', {
+            lista_id: submitData.lista_entrega_id,
+            novo_status: 'Entregue',
+            percentual_aplicado: 100,
+            massa_remanescente: 0
+          });
+          
+          if (statusError) {
+            console.error("❌ [FORM] Erro na atualização do status:", statusError);
+          } else {
+            console.log("✅ [FORM] Status da entrega atualizado para 'Entregue'");
+          }
+          
+        } catch (syncError) {
+          console.error("❌ [FORM] Erro crítico na sincronização:", syncError);
+        }
+      }
+      
       // Toast de sucesso
       toast({
         title: "Sucesso",

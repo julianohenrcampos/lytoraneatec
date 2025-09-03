@@ -9,6 +9,7 @@ import { CargaComAplicacoes } from "@/hooks/registro-aplicacao/useMultipleApplic
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { formatPesoParaToneladas, formatMassaFromDatabase } from "@/utils/massaConversionUtils";
+import { formatBrazilianDateForDisplay } from "@/lib/utils";
 interface EntregaHeaderProps {
   entrega: ListaProgramacaoEntrega;
   registroCarga: RegistroCarga | null;
@@ -127,7 +128,7 @@ const EntregaHeader: React.FC<EntregaHeaderProps> = ({
                 <div>
                   <span className="text-gray-600">Saída:</span>
                   <span className="ml-1 font-medium">
-                    {format(new Date(registroCarga.data_saida), "dd/MM/yyyy")} às {registroCarga.hora_saida}
+                    {formatBrazilianDateForDisplay(registroCarga.data_saida)} às {registroCarga.hora_saida}
                   </span>
                 </div>
                 <div>
