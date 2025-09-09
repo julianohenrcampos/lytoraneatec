@@ -90,10 +90,18 @@ export const useFormSubmission = (
         });
       }
       
-      // Invalidar cache de progresso para a requisição específica
-      await queryClient.invalidateQueries({ 
-        queryKey: ['programacao-progress', programacaoData.requisicao_id] 
-      });
+      // 🔄 Invalidar múltiplas queries para sincronização completa
+      await Promise.all([
+        queryClient.invalidateQueries({ 
+          queryKey: ['programacao-progress', programacaoData.requisicao_id] 
+        }),
+        queryClient.invalidateQueries({ 
+          queryKey: ['programacoes'] 
+        }),
+        queryClient.invalidateQueries({ 
+          queryKey: ['requisicoes-disponiveis'] 
+        })
+      ]);
       
       onSuccess();
     } catch (error) {

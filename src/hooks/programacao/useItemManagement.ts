@@ -69,7 +69,7 @@ export const useItemManagement = (
   }, [form, toast, progressHook]);
 
   const removeItem = useCallback(
-    (index: number) => {
+    async (index: number) => {
       const currentItems = form.getValues().itens || [];
       const item = currentItems[index];
 
@@ -89,16 +89,43 @@ export const useItemManagement = (
       // Basic confirmation to avoid accidental deletion
       if (typeof window !== "undefined") {
         const confirmDelete = window.confirm(
-          "Deseja realmente remover esta entrega da lista?"
+          "Deseja realmente remover esta entrega da lista? A massa será devolvida para o pool disponível."
         );
         if (!confirmDelete) return;
       }
 
-      const newItems = [...currentItems];
-      newItems.splice(index, 1);
-      form.setValue("itens", newItems, { shouldValidate: true });
+      try {
+        // 🔄 Se item tem ID (já existe no banco), chamar devolverMassaCancelada antes de remover
+        if (item.id) {
+          console.log("🔄 Devolvendo massa do item removido:", item.id);
+          const { devolverMassaCancelada } = await import("@/services/programacao/massaControlService");
+          await devolverMassaCancelada(item.id);
+        }
+
+        const newItems = [...currentItems];
+        newItems.splice(index, 1);
+        form.setValue("itens", newItems, { shouldValidate: true });
+
+        toast({
+          title: "Item removido",
+          description: "Item removido com sucesso. Massa devolvida para o pool disponível.",
+        });
+
+        // 🔄 Atualizar progresso para refletir massa devolvida
+        if (progressHook) {
+          progressHook.refetch();
+        }
+        
+      } catch (error) {
+        console.error("❌ Erro ao remover item:", error);
+        toast({
+          title: "Erro ao remover",
+          description: error instanceof Error ? error.message : "Erro interno do sistema",
+          variant: "destructive",
+        });
+      }
     },
-    [form, toast]
+    [form, toast, progressHook]
   );
 
   const openCancelDialog = useCallback((index: number) => {
@@ -126,29 +153,54 @@ export const useItemManagement = (
     setItemToCancel(null);
   }, []);
 
-  const confirmCancel = useCallback((reason: string) => {
+  const confirmCancel = useCallback(async (reason: string) => {
     if (itemToCancel === null) return;
     
     const currentItems = form.getValues().itens || [];
-    const newItems = [...currentItems];
+    const item = currentItems[itemToCancel];
     
-    newItems[itemToCancel] = {
-      ...newItems[itemToCancel],
-      cancelled: true,
-      status: 'Cancelada' as const,
-      cancelReason: reason
-    };
-    
-    form.setValue("itens", newItems, { shouldValidate: true });
-    
-    toast({
-      title: "Entrega cancelada",
-      description: "A entrega foi cancelada com sucesso.",
-    });
+    try {
+      // 🔄 Se item tem ID (já existe no banco), chamar devolverMassaCancelada
+      if (item.id) {
+        console.log("🔄 Cancelando item no backend:", item.id);
+        const { devolverMassaCancelada } = await import("@/services/programacao/massaControlService");
+        await devolverMassaCancelada(item.id);
+      }
+      
+      // Atualizar item localmente
+      const newItems = [...currentItems];
+      newItems[itemToCancel] = {
+        ...newItems[itemToCancel],
+        cancelled: true,
+        status: 'Cancelada' as const,
+        cancelReason: reason
+      };
+      
+      form.setValue("itens", newItems, { shouldValidate: true });
+      
+      toast({
+        title: "Entrega cancelada",
+        description: "A entrega foi cancelada com sucesso. Massa devolvida para o pool disponível.",
+      });
+
+      // 🔄 Atualizar progresso para refletir massa devolvida
+      if (progressHook) {
+        progressHook.refetch();
+      }
+      
+    } catch (error) {
+      console.error("❌ Erro ao cancelar entrega:", error);
+      toast({
+        title: "Erro ao cancelar",
+        description: error instanceof Error ? error.message : "Erro interno do sistema",
+        variant: "destructive",
+      });
+      return; // Não fechar o dialog em caso de erro
+    }
     
     setShowCancelDialog(false);
     setItemToCancel(null);
-  }, [form, itemToCancel, toast]);
+  }, [form, itemToCancel, toast, progressHook]);
 
   const calculateProgrammedQuantity = useCallback(() => {
     const itens = form.getValues().itens || [];

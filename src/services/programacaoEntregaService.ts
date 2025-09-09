@@ -206,15 +206,15 @@ export const createProgramacao = async (
   return newProgramacao.id;
 };
 
-// Update an existing programação with items
+// Update an existing programação with items usando LÓGICA INTELIGENTE de MERGE
 export const updateProgramacao = async (
   id: string,
   programacao: Partial<Omit<ProgramacaoEntrega, 'id' | 'created_at' | 'updated_at'>>,
   itens: ItemFormValues[]
 ): Promise<void> => {
-  console.log("Updating programação ID:", id);
-  console.log("With data:", programacao);
-  console.log("Items count:", itens.length);
+  console.log("🔄 Atualizando programação ID:", id);
+  console.log("📊 Dados programação:", programacao);
+  console.log("📦 Itens recebidos:", itens.length);
   
   // Update the programação
   const { error } = await supabase
@@ -227,63 +227,123 @@ export const updateProgramacao = async (
     .eq('id', id);
 
   if (error) {
-    console.error('Error updating programação:', error);
+    console.error('❌ Erro ao atualizar programação:', error);
     throw error;
   }
 
-  // Delete existing items and add new ones
-  if (true) { // Always run this block to ensure we handle all items
-    // Delete existing items
+  // 🧠 LÓGICA INTELIGENTE DE MERGE - não mais "DELETE ALL + INSERT ALL"
+  
+  // 1. Buscar itens existentes no banco
+  const { data: itensExistentes, error: fetchError } = await supabase
+    .from('bd_lista_programacao_entrega')
+    .select('id, status, quantidade_massa, logradouro, caminhao_id, equipe_id, usina_id, tipo_lancamento')
+    .eq('programacao_entrega_id', id);
+
+  if (fetchError) {
+    console.error('❌ Erro ao buscar itens existentes:', fetchError);
+    throw fetchError;
+  }
+
+  console.log("📋 Itens existentes no banco:", itensExistentes);
+
+  // 2. Classificar operações necessárias
+  const itensParaInserir: any[] = [];
+  const itensParaAtualizar: any[] = [];
+  const idsParaDeletar: string[] = [];
+
+  // Identificar itens novos e atualizações
+  itens.forEach(item => {
+    const itemExistente = itensExistentes?.find(existing => existing.id === item.id);
+    
+    const itemProcessado = {
+      programacao_entrega_id: id,
+      requisicao_id: item.requisicao_id,
+      logradouro: item.logradouro || item.centro_custo_nome || "",
+      quantidade_massa: item.quantidade_massa,
+      caminhao_id: item.caminhao_id,
+      tipo_lancamento: validateTipoLancamento(item.tipo_lancamento),
+      equipe_id: item.equipe_id,
+      apontador_id: item.apontador_id,
+      usina_id: item.usina_id,
+      status: item.status || (item.cancelled ? 'Cancelada' : 'Pendente'),
+      data_entrega: item.data_entrega || programacao.data_entrega
+    };
+
+    if (item.id && itemExistente) {
+      // ✏️ ATUALIZAR item existente
+      console.log("✏️ Atualizando item existente:", item.id);
+      itensParaAtualizar.push({
+        id: item.id,
+        ...itemProcessado
+      });
+    } else {
+      // ➕ INSERIR novo item
+      console.log("➕ Inserindo novo item");
+      itensParaInserir.push(itemProcessado);
+    }
+  });
+
+  // Identificar itens para deletar (existem no banco mas não estão nos itens recebidos)
+  const idsRecebidos = itens.filter(item => item.id).map(item => item.id);
+  itensExistentes?.forEach(existing => {
+    if (!idsRecebidos.includes(existing.id)) {
+      // 🚫 Verificar se pode ser deletado (não enviado/entregue)
+      if (existing.status !== 'Enviada' && existing.status !== 'Entregue') {
+        console.log("🗑️ Deletando item removido:", existing.id);
+        idsParaDeletar.push(existing.id);
+      } else {
+        console.log("⚠️ Não é possível deletar item já enviado/entregue:", existing.id);
+      }
+    }
+  });
+
+  // 3. Executar operações de banco
+  
+  // 🗑️ DELETAR itens removidos
+  if (idsParaDeletar.length > 0) {
+    console.log("🗑️ Deletando itens:", idsParaDeletar);
     const { error: deleteError } = await supabase
       .from('bd_lista_programacao_entrega')
       .delete()
-      .eq('programacao_entrega_id', id);
+      .in('id', idsParaDeletar);
 
     if (deleteError) {
-      console.error('Error deleting existing items:', deleteError);
+      console.error('❌ Erro ao deletar itens:', deleteError);
       throw deleteError;
     }
+    console.log("✅ Itens deletados com sucesso");
+  }
 
-    if (itens.length > 0) {
-      console.log("Total items to update:", itens.length);
-      
-      // Add new items with proper status and data_entrega
-      const itensForInsert = itens.map(item => {
-        console.log("Processing item for update, original tipo_lancamento:", item.tipo_lancamento);
-        
-        // IMPORTANT: Keep the tipo_lancamento exactly as selected by the user
-        let safeType = validateTipoLancamento(item.tipo_lancamento);
-        
-        console.log("Safe tipo_lancamento for database:", safeType);
-        
-        return {
-          programacao_entrega_id: id,
-          requisicao_id: item.requisicao_id,
-          logradouro: item.logradouro || item.centro_custo_nome || "", // Use logradouro first, then centro_custo_nome as fallback
-          quantidade_massa: item.quantidade_massa,
-          caminhao_id: item.caminhao_id,
-          tipo_lancamento: safeType,  // Use the validated value for database
-          equipe_id: item.equipe_id,
-          apontador_id: item.apontador_id,
-          usina_id: item.usina_id,
-          status: item.status || (item.cancelled ? 'Cancelada' : 'Pendente'),
-          data_entrega: item.data_entrega || programacao.data_entrega // Ensure we always have a date
-          // We don't include cancelReason as it's not a database field
-        };
-      });
+  // ✏️ ATUALIZAR itens existentes
+  for (const item of itensParaAtualizar) {
+    console.log("✏️ Atualizando item:", item.id);
+    const { id: itemId, ...updateData } = item;
+    const { error: updateError } = await supabase
+      .from('bd_lista_programacao_entrega')
+      .update(updateData)
+      .eq('id', itemId);
 
-      console.log("Items being inserted during update:", itensForInsert);
-
-      const { error: insertError } = await supabase
-        .from('bd_lista_programacao_entrega')
-        .insert(itensForInsert);
-
-      if (insertError) {
-        console.error('Error creating new items for programação:', insertError);
-        throw insertError;
-      }
+    if (updateError) {
+      console.error('❌ Erro ao atualizar item:', updateError);
+      throw updateError;
     }
   }
+
+  // ➕ INSERIR novos itens
+  if (itensParaInserir.length > 0) {
+    console.log("➕ Inserindo novos itens:", itensParaInserir);
+    const { error: insertError } = await supabase
+      .from('bd_lista_programacao_entrega')
+      .insert(itensParaInserir);
+
+    if (insertError) {
+      console.error('❌ Erro ao inserir novos itens:', insertError);
+      throw insertError;
+    }
+    console.log("✅ Novos itens inseridos com sucesso");
+  }
+
+  console.log("🎉 Programação atualizada com sucesso usando lógica inteligente de merge");
 };
 
 // Delete a programação

@@ -96,7 +96,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
             
             {/* Texto no centro */}
             <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-white">
-              {displayData.progressoTotal.toFixed(1)}%
+              {Math.min(100, displayData.progressoTotal).toFixed(1)}%
             </div>
           </div>
           

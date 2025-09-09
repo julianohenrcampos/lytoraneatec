@@ -90,7 +90,7 @@ export const useProgramacaoProgress = ({ requisicaoId, enabled = true }: UseProg
       aplicadaFormatado: `${progress.massaAplicada.toFixed(1)}t (${progress.percentualAplicado.toFixed(1)}%)`,
       programadaFormatado: `${progress.massaProgramada.toFixed(1)}t (${progress.percentualProgramado.toFixed(1)}%)`,
       disponivelFormatado: `${progress.massaDisponivel.toFixed(1)}t`,
-      progressoTotal: progress.percentualAplicado + progress.percentualProgramado,
+      progressoTotal: Math.min(100, progress.percentualAplicado + progress.percentualProgramado),
     };
   };
 

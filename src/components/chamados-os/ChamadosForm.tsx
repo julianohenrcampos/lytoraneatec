@@ -30,7 +30,6 @@ import { ptBR } from "date-fns/locale";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { ImageUpload } from "@/components/ui/image-upload";
-import { ComboboxCaminhao } from "@/components/combobox/ComboboxCaminhao";
 
 interface ChamadosFormProps {
   isOpen: boolean;
@@ -203,15 +202,24 @@ const ChamadosForm: React.FC<ChamadosFormProps> = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Caminhão/Equipamento <span className="text-destructive">*</span></FormLabel>
-                      <FormControl>
-                        <ComboboxCaminhao
-                          value={field.value}
-                          onChange={field.onChange}
-                          placeholder="Selecione o caminhão/equipamento"
-                          disabled={isLoading}
-                          includeEquipamentos={true}
-                        />
-                      </FormControl>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        disabled={isLoading}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="bg-white">
+                            <SelectValue placeholder="Selecione o caminhão/equipamento" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {veiculosOptions.map((option) => (
+                            <SelectItem key={option.id} value={option.id}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -224,22 +232,24 @@ const ChamadosForm: React.FC<ChamadosFormProps> = ({
                     <FormItem>
                       <FormLabel>Centro de Custo <span className="text-destructive">*</span></FormLabel>
                       <FormControl>
-                        <Select
-                          value={field.value}
-                          onValueChange={field.onChange}
-                          disabled={isLoading}
-                        >
-                          <SelectTrigger className="bg-white">
-                            <SelectValue placeholder="Selecione o centro de custo" />
-                          </SelectTrigger>
-                          <SelectContent>
+                        <div>
+                          <Input
+                            list="centrosCustoList"
+                            placeholder="Digite ou selecione o centro de custo"
+                            disabled={isLoading}
+                            value={field.value}
+                            onChange={field.onChange}
+                            className="bg-white"
+                          />
+                          <datalist id="centrosCustoList">
                             {centrosCustoOptions.map((option) => (
-                              <SelectItem key={option.id} value={option.id}>
-                                {option.label}
-                              </SelectItem>
+                              <option
+                                key={option.id}
+                                value={option.codigo_centro_custo || option.label}
+                              />
                             ))}
-                          </SelectContent>
-                        </Select>
+                          </datalist>
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>

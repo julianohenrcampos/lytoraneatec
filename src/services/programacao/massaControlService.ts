@@ -48,12 +48,12 @@ export const calcularProgressoMassa = async (requisicaoId: string): Promise<Mass
 
     const massaAplicada = aplicacoes?.reduce((acc, app) => acc + (app.tonelada_aplicada || 0), 0) || 0;
 
-    // 3. Calcular massa programada (não aplicada ainda)
+    // 3. Calcular massa programada (não aplicada ainda) - EXCLUIR entregas já aplicadas
     const { data: programadas, error: programadasError } = await supabase
       .from('bd_lista_programacao_entrega')
       .select('quantidade_massa, status')
       .eq('requisicao_id', requisicaoId)
-      .in('status', ['Pendente', 'Enviada']);
+      .in('status', ['Pendente']); // CORREÇÃO: Apenas 'Pendente', não incluir 'Enviada' nem 'Entregue'
 
     if (programadasError) throw programadasError;
 
@@ -62,9 +62,15 @@ export const calcularProgressoMassa = async (requisicaoId: string): Promise<Mass
     // 4. Calcular disponível
     const massaDisponivel = Math.max(0, totalRequisicao - massaAplicada - massaProgramada);
 
-    // 5. Calcular percentuais usando função padronizada
+    // 5. Calcular percentuais usando função padronizada - CORRIGIR para não exceder 100%
     const percentualAplicado = calculateMassaPercentual(massaAplicada, totalRequisicao);
     const percentualProgramado = calculateMassaPercentual(massaProgramada, totalRequisicao);
+    
+    // 📊 GARANTIR que o percentual total não exceda 100%
+    const percentualTotal = percentualAplicado + percentualProgramado;
+    const percentualProgramadoAjustado = percentualTotal > 100 
+      ? Math.max(0, 100 - percentualAplicado)
+      : percentualProgramado;
 
     // 6. Determinar status
     const isCompleto = massaAplicada >= totalRequisicao;
@@ -76,7 +82,7 @@ export const calcularProgressoMassa = async (requisicaoId: string): Promise<Mass
       massaProgramada,
       massaDisponivel,
       percentualAplicado,
-      percentualProgramado,
+      percentualProgramado: percentualProgramadoAjustado,
       isCompleto,
       podeSerProgramada
     };
@@ -96,6 +102,21 @@ export const calcularProgressoMassa = async (requisicaoId: string): Promise<Mass
 export const devolverMassaCancelada = async (entregaId: string): Promise<void> => {
   try {
     console.log("🔄 Devolvendo massa cancelada para entrega:", entregaId);
+
+    // Verificar se pode ser cancelada antes de devolver massa
+    const { data: entrega, error: consultaError } = await supabase
+      .from('bd_lista_programacao_entrega')
+      .select('status')
+      .eq('id', entregaId)
+      .single();
+
+    if (consultaError) throw consultaError;
+
+    // 🚫 IMPEDIR cancelamento de entregas já enviadas ou entregues
+    if (entrega.status === 'Enviada' || entrega.status === 'Entregue') {
+      console.log("❌ Não é possível cancelar entrega já enviada/entregue");
+      throw new Error("Não é possível cancelar uma entrega que já foi enviada ou entregue");
+    }
 
     // Atualizar status para Cancelada
     const { error } = await supabase
