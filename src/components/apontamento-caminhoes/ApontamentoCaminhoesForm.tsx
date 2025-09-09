@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { CalendarIcon, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApontamentoCaminhao, ApontamentoInspecao } from "@/services/apontamentoCaminhoesService";
+import { ComboboxCaminhao } from "@/components/combobox/ComboboxCaminhao";
 import { mapSituacaoToDatabase, mapSituacaoFromDatabase } from "@/utils/situacaoMapping";
 
 interface ApontamentoCaminhoesFormProps {
@@ -353,27 +354,17 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
                   </p>
                 </div>
                 
-                {/* ====== ALTERADO APENAS AQUI: agora igual ao Centro de Custo ====== */}
                 <div className="space-y-2">
                   <Label htmlFor="caminhao_equipamento_id">Caminhão/Equipamento *</Label>
-                  <Select
-                    value={formData.apontamento.caminhao_equipamento_id || ""}
-                    onValueChange={(value) => handleSelectChange(value, 'caminhao_equipamento_id')}
+                  <ComboboxCaminhao
+                    value={formData.apontamento.caminhao_equipamento_id || ''}
+                    onChange={(value) => handleSelectChange(value, 'caminhao_equipamento_id')}
+                    placeholder="Digite para buscar caminhão/equipamento"
                     disabled={isEditing}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o caminhão/equipamento" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {veiculosOptions.map(v => (
-                        <SelectItem key={v.id} value={v.id}>
-                          {v.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    includeEquipamentos={true}
+                    situacaoFilter={["Operando", "Em Manutenção", "Disponível", "Intempérie"]}
+                  />
                 </div>
-                {/* ====== FIM DA ALTERAÇÃO ====== */}
 
                 
                 <div className="space-y-2">
