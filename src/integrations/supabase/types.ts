@@ -685,6 +685,7 @@ export type Database = {
           imagem: string | null
           insalubridade: number | null
           nome_completo: string
+          observacoes: string | null
           periculosidade: number | null
           refeicao: number | null
           salario_base: number | null
@@ -715,6 +716,7 @@ export type Database = {
           imagem?: string | null
           insalubridade?: number | null
           nome_completo: string
+          observacoes?: string | null
           periculosidade?: number | null
           refeicao?: number | null
           salario_base?: number | null
@@ -745,6 +747,7 @@ export type Database = {
           imagem?: string | null
           insalubridade?: number | null
           nome_completo?: string
+          observacoes?: string | null
           periculosidade?: number | null
           refeicao?: number | null
           salario_base?: number | null
@@ -946,16 +949,27 @@ export type Database = {
           chamado_id: string | null
           created_at: string | null
           data_abertura: string
-          data_conclusao: string | null
-          data_previsao: string | null
+          data_encerramento_atendimento: string | null
+          data_inicio_atendimento: string | null
           descricao_servico: string | null
+          duracao_total: string | null
+          encerrado_por_id: string | null
+          executado_por_id: string | null
+          hora_encerramento_atendimento: string | null
+          hora_inicio_atendimento: string | null
+          horimetro_odometro_final: string | null
+          horimetro_odometro_inicial: string | null
           id: string
           mecanico_id: string | null
           numero_os: string
-          observacoes: string | null
-          pecas_utilizadas: Json | null
+          obra_patio: string | null
+          setor_executante: string | null
           status: string | null
+          telefone_solicitante: string | null
+          terceirizada: boolean | null
+          tipo_manutencao: string | null
           tipo_servico: string | null
+          tratativa_solucao: string | null
           updated_at: string | null
           valor_servico: number | null
         }
@@ -964,16 +978,27 @@ export type Database = {
           chamado_id?: string | null
           created_at?: string | null
           data_abertura?: string
-          data_conclusao?: string | null
-          data_previsao?: string | null
+          data_encerramento_atendimento?: string | null
+          data_inicio_atendimento?: string | null
           descricao_servico?: string | null
+          duracao_total?: string | null
+          encerrado_por_id?: string | null
+          executado_por_id?: string | null
+          hora_encerramento_atendimento?: string | null
+          hora_inicio_atendimento?: string | null
+          horimetro_odometro_final?: string | null
+          horimetro_odometro_inicial?: string | null
           id?: string
           mecanico_id?: string | null
           numero_os: string
-          observacoes?: string | null
-          pecas_utilizadas?: Json | null
+          obra_patio?: string | null
+          setor_executante?: string | null
           status?: string | null
+          telefone_solicitante?: string | null
+          terceirizada?: boolean | null
+          tipo_manutencao?: string | null
           tipo_servico?: string | null
+          tratativa_solucao?: string | null
           updated_at?: string | null
           valor_servico?: number | null
         }
@@ -982,16 +1007,27 @@ export type Database = {
           chamado_id?: string | null
           created_at?: string | null
           data_abertura?: string
-          data_conclusao?: string | null
-          data_previsao?: string | null
+          data_encerramento_atendimento?: string | null
+          data_inicio_atendimento?: string | null
           descricao_servico?: string | null
+          duracao_total?: string | null
+          encerrado_por_id?: string | null
+          executado_por_id?: string | null
+          hora_encerramento_atendimento?: string | null
+          hora_inicio_atendimento?: string | null
+          horimetro_odometro_final?: string | null
+          horimetro_odometro_inicial?: string | null
           id?: string
           mecanico_id?: string | null
           numero_os?: string
-          observacoes?: string | null
-          pecas_utilizadas?: Json | null
+          obra_patio?: string | null
+          setor_executante?: string | null
           status?: string | null
+          telefone_solicitante?: string | null
+          terceirizada?: boolean | null
+          tipo_manutencao?: string | null
           tipo_servico?: string | null
+          tratativa_solucao?: string | null
           updated_at?: string | null
           valor_servico?: number | null
         }
@@ -1058,6 +1094,27 @@ export type Database = {
             referencedRelation: "bd_ordens_servico"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fk_bd_os_mao_obra_os_id"
+            columns: ["os_id"]
+            isOneToOne: false
+            referencedRelation: "vw_os_resumo_financeiro"
+            referencedColumns: ["os_id"]
+          },
+          {
+            foreignKeyName: "fk_mao_obra_os"
+            columns: ["os_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ordens_servico"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_mao_obra_os"
+            columns: ["os_id"]
+            isOneToOne: false
+            referencedRelation: "vw_os_resumo_financeiro"
+            referencedColumns: ["os_id"]
+          },
         ]
       }
       bd_os_materiais_utilizados: {
@@ -1099,46 +1156,26 @@ export type Database = {
             referencedRelation: "bd_ordens_servico"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      bd_os_movimentacoes: {
-        Row: {
-          created_at: string
-          data_movimentacao: string
-          hora_movimentacao: string
-          id: string
-          motivo: string
-          os_id: string
-          updated_at: string
-          usuario_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          data_movimentacao?: string
-          hora_movimentacao?: string
-          id?: string
-          motivo: string
-          os_id: string
-          updated_at?: string
-          usuario_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          data_movimentacao?: string
-          hora_movimentacao?: string
-          id?: string
-          motivo?: string
-          os_id?: string
-          updated_at?: string
-          usuario_id?: string | null
-        }
-        Relationships: [
           {
-            foreignKeyName: "fk_bd_os_movimentacoes_os_id"
+            foreignKeyName: "fk_bd_os_materiais_utilizados_os_id"
+            columns: ["os_id"]
+            isOneToOne: false
+            referencedRelation: "vw_os_resumo_financeiro"
+            referencedColumns: ["os_id"]
+          },
+          {
+            foreignKeyName: "fk_material_os"
             columns: ["os_id"]
             isOneToOne: false
             referencedRelation: "bd_ordens_servico"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_material_os"
+            columns: ["os_id"]
+            isOneToOne: false
+            referencedRelation: "vw_os_resumo_financeiro"
+            referencedColumns: ["os_id"]
           },
         ]
       }
@@ -1904,6 +1941,15 @@ export type Database = {
           },
         ]
       }
+      vw_os_resumo_financeiro: {
+        Row: {
+          os_id: string | null
+          total_geral: number | null
+          total_mao_obra: number | null
+          total_materiais: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       api_listar_apontamentos: {
@@ -1963,6 +2009,10 @@ export type Database = {
         Args: { _profile_id: string }
         Returns: string
       }
+      convert_chamado_para_os: {
+        Args: { p_chamado_id: string; p_tipo_falha?: string }
+        Returns: Json
+      }
       converter_kg_para_toneladas: {
         Args: { p_valor: number }
         Returns: number
@@ -1995,6 +2045,10 @@ export type Database = {
         Args: { carga_id: string }
         Returns: Json
       }
+      fn_recalcula_total_os: {
+        Args: { p_os_id: string }
+        Returns: undefined
+      }
       force_update_all_delivery_statuses: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -2014,6 +2068,10 @@ export type Database = {
           p_registro_carga_id: string
         }
         Returns: string
+      }
+      has_permission: {
+        Args: { p_permission_name: string; p_user_id?: string }
+        Returns: boolean
       }
       link_profile_from_funcionario_email: {
         Args: { _funcionario_id: string }

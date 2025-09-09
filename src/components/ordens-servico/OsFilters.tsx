@@ -41,7 +41,7 @@ const OsFilters: React.FC<OsFiltersProps> = ({
   showStatusFilter = false,
   showPriorityFilter = true
 }) => {
-  const [numeroChamado, setNumeroChamado] = useState("");
+  const [numeroOs, setNumeroOs] = useState("");
   const [caminhaoEquipamentoId, setCaminhaoEquipamentoId] = useState("");
   const [dataInicio, setDataInicio] = useState<Date | undefined>(undefined);
   const [dataFim, setDataFim] = useState<Date | undefined>(undefined);
@@ -51,8 +51,8 @@ const OsFilters: React.FC<OsFiltersProps> = ({
   const handleFilter = () => {
     const filters: OsFilterParams = {};
     
-    if (numeroChamado) {
-      filters.numero_chamado = numeroChamado;
+    if (numeroOs) {
+      filters.numero_os = numeroOs;
     }
     
     if (caminhaoEquipamentoId && caminhaoEquipamentoId !== "todos") {
@@ -67,9 +67,7 @@ const OsFilters: React.FC<OsFiltersProps> = ({
       filters.data_fim = format(dataFim, "yyyy-MM-dd");
     }
     
-    if (prioridade && prioridade !== "todas") {
-      filters.prioridade = prioridade;
-    }
+    // Priority filter removed for OS - not applicable to OS table
     
     if (status && status !== "todos") {
       filters.status = status;
@@ -79,7 +77,7 @@ const OsFilters: React.FC<OsFiltersProps> = ({
   };
   
   const handleClear = () => {
-    setNumeroChamado("");
+    setNumeroOs("");
     setCaminhaoEquipamentoId("");
     setDataInicio(undefined);
     setDataFim(undefined);
@@ -93,12 +91,12 @@ const OsFilters: React.FC<OsFiltersProps> = ({
       <CardContent className="p-4">
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6">
           <div className="space-y-2">
-            <Label htmlFor="numero-chamado">Número</Label>
+            <Label htmlFor="numero-os">Número OS</Label>
             <Input
-              id="numero-chamado"
+              id="numero-os"
               placeholder="Buscar por número"
-              value={numeroChamado}
-              onChange={(e) => setNumeroChamado(e.target.value)}
+              value={numeroOs}
+              onChange={(e) => setNumeroOs(e.target.value)}
               disabled={isLoading}
             />
           </div>

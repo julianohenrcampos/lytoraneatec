@@ -68,13 +68,14 @@ export function useFinanceiroDashboard({
   // --- Consulta base geral (sem filtro) ---
   const totalQuery = useQuery<FinanceiroAnalise>({
     queryKey: ["rh-financeiro", "GLOBAL"],
+    staleTime: 30000, // 30 segundos - dados críticos ficam frescos
     queryFn: async () => {
       console.log("🔍 DEBUG totalQuery - iniciando consulta global");
       
       let query = supabase
         .from("bd_funcionarios")
         .select(`
-          id, salario_base, bd_funcoes(id, nome_funcao)
+          id, nome_completo, status, salario_base, bd_funcoes(id, nome_funcao)
         `)
         .in("status", ["Ativo", "Aviso Prévio"]);
         
@@ -87,6 +88,17 @@ export function useFinanceiroDashboard({
       
       console.log("🔍 DEBUG totalQuery - funcionarios encontrados:", funcionarios?.length || 0);
       console.log("🔍 DEBUG totalQuery - primeiros 3 funcionarios:", funcionarios?.slice(0, 3));
+      
+      // Debug: Verificar se há funcionários com status INSS que estão sendo excluídos
+      const { data: todosFunc } = await supabase
+        .from("bd_funcionarios")
+        .select("id, nome_completo, status, salario_base")
+        .eq("status", "INSS");
+      
+      if (todosFunc && todosFunc.length > 0) {
+        console.log("🔍 DEBUG totalQuery - funcionários com status INSS (EXCLUÍDOS):", todosFunc.length);
+        console.log("🔍 DEBUG totalQuery - lista INSS:", todosFunc.map(f => ({ nome: f.nome_completo, salario: f.salario_base })));
+      }
       
       if (!funcionarios || funcionarios.length === 0) {
         console.log("🔍 DEBUG totalQuery - nenhum funcionário encontrado");
@@ -139,9 +151,10 @@ export function useFinanceiroDashboard({
 
   // --- Consulta filtrada ---
   const filtroQuery = useQuery<FinanceiroAnalise>({
-    queryKey: ["rh-financeiro", {
+    queryKey: ["rh-financeiro", "FILTERED", {
       statusFuncionario, departamentoId, centroCustoId, equipeId, funcaoId, nomeFuncionario
     }],
+    staleTime: 30000, // 30 segundos - dados críticos ficam frescos
     queryFn: async () => {
       console.log("🔍 DEBUG filtroQuery - iniciando consulta filtrada");
       console.log("🔍 DEBUG filtroQuery - filtros:", {
@@ -150,7 +163,7 @@ export function useFinanceiroDashboard({
       
       let query = supabase
         .from("bd_funcionarios")
-        .select("id, salario_base, bd_funcoes(id, nome_funcao)")
+        .select("id, nome_completo, status, salario_base, bd_funcoes(id, nome_funcao)")
         .in("status", ["Ativo", "Aviso Prévio"]);
         
       // Aplicar filtros apenas se especificados e diferentes de "_all"
@@ -190,6 +203,7 @@ export function useFinanceiroDashboard({
       }
       
       console.log("🔍 DEBUG filtroQuery - funcionarios encontrados:", funcionarios?.length || 0);
+      console.log("🔍 DEBUG filtroQuery - status incluídos:", funcionarios?.map(f => f.status));
       
       if (!funcionarios || funcionarios.length === 0) {
         console.log("🔍 DEBUG filtroQuery - nenhum funcionário encontrado com filtros");

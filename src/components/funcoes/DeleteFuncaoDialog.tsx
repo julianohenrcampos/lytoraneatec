@@ -10,7 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertTriangle } from "lucide-react";
 import { Funcao } from "@/types/funcao";
 
 interface DeleteFuncaoDialogProps {
@@ -34,11 +34,23 @@ const DeleteFuncaoDialog: React.FC<DeleteFuncaoDialogProps> = ({
     <AlertDialog open={isOpen} onOpenChange={onClose}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Excluir Função</AlertDialogTitle>
-          <AlertDialogDescription>
-            Tem certeza que deseja excluir a função <strong>{funcao.nome_funcao}</strong>?
-            <br />
-            Esta ação não poderá ser desfeita.
+          <AlertDialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+            Excluir Função
+          </AlertDialogTitle>
+          <AlertDialogDescription className="space-y-2">
+            <p>
+              Tem certeza que deseja excluir a função <strong>{funcao.nome_funcao}</strong>?
+            </p>
+            <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+              <p className="text-sm font-medium text-destructive mb-1">
+                ⚠️ Atenção: Esta ação não poderá ser desfeita.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Se existirem funcionários vinculados a esta função, a exclusão será impedida.
+                Primeiro transfira os funcionários para outras funções.
+              </p>
+            </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

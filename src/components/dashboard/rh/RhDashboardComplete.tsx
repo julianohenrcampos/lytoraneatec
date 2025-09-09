@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useRhDashboardDataSecure } from "@/hooks/dashboard/useRhDashboardDataSecure";
 import { Card } from "@/components/ui/card";
-import { Users, UserCheck, Calendar, TrendingDown, PieChart, BarChart, DollarSign, Calculator } from "lucide-react";
+import { Users, UserCheck, Calendar, TrendingDown, PieChart, BarChart, DollarSign, Calculator, RefreshCw } from "lucide-react";
 import { usePermissionGuard } from "@/hooks/usePermissionGuard";
 import RhDashboardFilters from "./RhDashboardFilters";
 import TopFuncionariosCards from "./TopFuncionariosCards";
@@ -12,8 +12,11 @@ import RhSecurityIndicator from "./RhSecurityIndicator";
 import { FolhaPagamentoResumo } from "./FolhaPagamentoResumo";
 import { useFinanceiroDashboard } from "@/hooks/dashboard/useFinanceiroDashboard";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function RhDashboardComplete() {
+  const queryClient = useQueryClient();
   // ... filtros e estados igual...
   const [period, setPeriod] = useState<"6m" | "12m" | "all">("12m");
   const [departamento, setDepartamento] = useState<string>("_all");
@@ -30,6 +33,11 @@ export default function RhDashboardComplete() {
     setEquipe("_all");
     setNomeFuncionario("");
     setPeriod("12m");
+  };
+
+  const forceRefreshFinancialData = () => {
+    console.log("🔄 Forçando refresh dos dados financeiros");
+    queryClient.invalidateQueries({ queryKey: ["rh-financeiro"] });
   };
 
   // Contador de filtros ativos
@@ -136,26 +144,39 @@ export default function RhDashboardComplete() {
       {/* Indicador de Segurança */}
       <RhSecurityIndicator securityContext={securityContext} />
 
-      {/* Painel de Filtros */}
-      <RhDashboardFilters
-        period={period}
-        setPeriod={setPeriod}
-        departamento={departamento}
-        setDepartamento={setDepartamento}
-        status={status}
-        setStatus={setStatus}
-        funcao={funcao}
-        setFuncao={setFuncao}
-        departamentosOptions={departamentosOptions}
-        funcoesOptions={funcoesOptions}
-        equipe={equipe}
-        setEquipe={setEquipe}
-        equipesOptions={equipesOptions}
-        nomeFuncionario={nomeFuncionario}
-        setNomeFuncionario={setNomeFuncionario}
-        onResetFilters={resetFilters}
-        filtrosAtivos={filtrosAtivos}
-      />
+      {/* Painel de Filtros com Botão de Refresh */}
+      <div className="flex justify-between items-end gap-4">
+        <div className="flex-1">
+          <RhDashboardFilters
+            period={period}
+            setPeriod={setPeriod}
+            departamento={departamento}
+            setDepartamento={setDepartamento}
+            status={status}
+            setStatus={setStatus}
+            funcao={funcao}
+            setFuncao={setFuncao}
+            departamentosOptions={departamentosOptions}
+            funcoesOptions={funcoesOptions}
+            equipe={equipe}
+            setEquipe={setEquipe}
+            equipesOptions={equipesOptions}
+            nomeFuncionario={nomeFuncionario}
+            setNomeFuncionario={setNomeFuncionario}
+            onResetFilters={resetFilters}
+            filtrosAtivos={filtrosAtivos}
+          />
+        </div>
+        <Button
+          onClick={forceRefreshFinancialData}
+          variant="outline"
+          size="sm"
+          className="flex items-center gap-2 self-end"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Refresh Cache
+        </Button>
+      </div>
       
       {/* KPIs Principais com Novo Design */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">

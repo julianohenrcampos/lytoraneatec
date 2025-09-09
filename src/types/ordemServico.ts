@@ -1,36 +1,42 @@
 
 export interface OrdemServico {
   id: string;
-  chamado_id: string;
-  numero_chamado: string;
-  data_solicitacao: string;
-  hora_solicitacao: string;
-  solicitante_id: string;
-  centro_custo_id: string;
-  caminhao_equipamento_id: string;
-  tipo_falha: 'Mecânica' | 'Elétrica' | 'Hidráulica' | 'Pneus' | 'Manutenção' | 'Outras';
-  descricao_problema?: string;
-  fotos_avarias?: string[];
-  anotacoes_internas?: string;
-  tratativa?: string;
-  horimetro_km?: number;
-  prioridade: 'Emergencial' | 'Alta' | 'Média' | 'Baixa';
+  numero_os: string;
+  chamado_id?: string;
+  data_abertura: string;
+  data_previsao?: string;
+  data_conclusao?: string;
+  caminhao_equipamento_id?: string;
+  mecanico_id?: string;
+  tipo_servico?: string;
+  descricao_servico?: string;
+  observacoes?: string;
   status: 'Aberta' | 'Em Andamento' | 'Concluída' | 'Cancelada';
-  
-  // Balanceamento do atendimento
-  data_inicio_atendimento?: string;
-  hora_inicio_atendimento?: string;
-  data_fim_atendimento?: string;
-  hora_fim_atendimento?: string;
-  horimetro_km_inicial?: number;
-  horimetro_km_final?: number;
-  duracao_servico?: string;
-  executado_por_id?: string;
-  setor?: string;
-  encerrado_por_id?: string;
-  
+  valor_servico?: number;
+  pecas_utilizadas?: any;
   created_at?: string;
   updated_at?: string;
+  
+  // Campos adicionais do cabeçalho Lytorânea
+  telefone_solicitante?: string;
+  obra_patio?: string;
+  setor_executante?: string;
+  terceirizada?: boolean;
+  tipo_manutencao?: 'Corretiva' | 'Preventiva';
+  horimetro_odometro_inicial?: string;
+  
+  // Campos de balanceamento
+  data_inicio_atendimento?: string;
+  hora_inicio_atendimento?: string;
+  data_encerramento_atendimento?: string;
+  hora_encerramento_atendimento?: string;
+  horimetro_odometro_final?: string;
+  duracao_total?: string;
+  executado_por_id?: string;
+  encerrado_por_id?: string;
+  
+  // Campo de tratativa/solução
+  tratativa_solucao?: string;
   
   // Relationships
   caminhao_equipamento?: {
@@ -94,10 +100,9 @@ export interface Movimentacao {
 }
 
 export interface OsFilterParams {
-  numero_chamado?: string;
+  numero_os?: string;
   caminhao_equipamento_id?: string;
   data_inicio?: string;
   data_fim?: string;
-  prioridade?: string;
   status?: string;
 }

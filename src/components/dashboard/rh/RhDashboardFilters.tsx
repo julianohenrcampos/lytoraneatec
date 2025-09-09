@@ -35,6 +35,7 @@ export const statusOptions: Option[] = [
   { label: "Ativo", value: "Ativo" },
   { label: "Aviso Prévio", value: "Aviso Prévio" },
   { label: "Inativo", value: "Inativo" },
+  { label: "INSS", value: "INSS" },
 ];
 
 const periodOptions: { label: string; value: "6m" | "12m" | "all" }[] = [

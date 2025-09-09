@@ -23,7 +23,6 @@ import { cn } from "@/lib/utils";
 import { CalendarIcon, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApontamentoCaminhao, ApontamentoInspecao } from "@/services/apontamentoCaminhoesService";
-import { ComboboxCaminhao } from "@/components/combobox/ComboboxCaminhao";
 import { mapSituacaoToDatabase, mapSituacaoFromDatabase } from "@/utils/situacaoMapping";
 
 interface ApontamentoCaminhoesFormProps {
@@ -354,31 +353,27 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
                   </p>
                 </div>
                 
+                {/* ====== ALTERADO APENAS AQUI: agora igual ao Centro de Custo ====== */}
                 <div className="space-y-2">
                   <Label htmlFor="caminhao_equipamento_id">Caminhão/Equipamento *</Label>
-                  <div>
-                    <Input
-                      list="veiculosList"
-                      placeholder="Digite para pesquisar"
-                      value={
-                        veiculosOptions.find(opt => opt.id === formData.apontamento.caminhao_equipamento_id)?.label || ''
-                      }
-                      onChange={(e) => {
-                        const selected = veiculosOptions.find(opt => opt.label === e.target.value);
-                        handleSelectChange(selected?.id || '', 'caminhao_equipamento_id');
-                      }}
-                      disabled={isEditing}
-                    />
-                    <datalist id="veiculosList">
-                      {veiculosOptions.map((veiculo) => (
-                        <option
-                          key={veiculo.id}
-                          value={veiculo.label}
-                        />
+                  <Select
+                    value={formData.apontamento.caminhao_equipamento_id || ""}
+                    onValueChange={(value) => handleSelectChange(value, 'caminhao_equipamento_id')}
+                    disabled={isEditing}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o caminhão/equipamento" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {veiculosOptions.map(v => (
+                        <SelectItem key={v.id} value={v.id}>
+                          {v.label}
+                        </SelectItem>
                       ))}
-                    </datalist>
-                  </div>
+                    </SelectContent>
+                  </Select>
                 </div>
+                {/* ====== FIM DA ALTERAÇÃO ====== */}
 
                 
                 <div className="space-y-2">

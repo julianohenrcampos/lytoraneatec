@@ -5,6 +5,7 @@ import {
   fetchOrdensServico,
   getOrdemServicoById,
   updateOrdemServico,
+  createOrdemServico,
   getMaterialsByOsId,
   getMaoDeObraByOsId,
   getMovimentacoesByOsId,
@@ -33,6 +34,7 @@ export const useOrdemServico = () => {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isOsModalOpen, setIsOsModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isOsDetailsModalOpen, setIsOsDetailsModalOpen] = useState(false);
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [isChamadoModalOpen, setIsChamadoModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -155,14 +157,40 @@ export const useOrdemServico = () => {
   };
   
   const handleOpenOsModal = async (os?: OrdemServico) => {
+    console.log("🎯 DEBUG - handleOpenOsModal chamado com OS:", os);
+    
     if (os) {
+      console.log("📋 DEBUG - Abrindo modal para EDITAR OS:", os.numero_os);
+      console.log("🔍 DEBUG - OS completa recebida:", JSON.stringify(os, null, 2));
+      
+      // CRITICAL: Set currentOs BEFORE everything else
+      setCurrentOs(os);
+      console.log("✅ DEBUG - currentOs definido ANTES de loadOsDetails:", os);
+      
       await loadOsDetails(os.id);
+      
+      // Se a OS foi criada a partir de um chamado, buscar os dados do chamado original
+      if (os.chamado_id) {
+        try {
+          const chamadoOriginal = await getChamadoById(os.chamado_id);
+          setCurrentChamado(chamadoOriginal);
+        } catch (error) {
+          console.error("Error loading original chamado:", error);
+          setCurrentChamado(null);
+        }
+      } else {
+        setCurrentChamado(null);
+      }
     } else {
+      console.log("📋 DEBUG - Abrindo modal para NOVA OS");
       setCurrentOs(null);
+      setCurrentChamado(null);
       setMaterials([]);
       setLaborItems([]);
       setMovements([]);
     }
+    
+    console.log("🎯 DEBUG - Estado final antes de abrir modal - currentOs:", !!os ? os.numero_os : null);
     setIsOsModalOpen(true);
   };
   
@@ -208,29 +236,61 @@ export const useOrdemServico = () => {
       setIsLoading(false);
     }
   };
+
+  const handleOpenOsDetailsModal = async (os: OrdemServico) => {
+    console.log('👁️ Abrindo modal de detalhes da OS:', os.id);
+    setIsLoading(true);
+    
+    try {
+      await loadOsDetails(os.id);
+      setCurrentOs(os);
+      setIsOsDetailsModalOpen(true);
+    } catch (error) {
+      console.error('❌ Erro ao carregar detalhes para visualização:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao carregar detalhes da OS.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   const handleConvertToOs = async (chamadoId: string, osData?: Partial<OrdemServico>) => {
     if (!currentUser) return;
     
     setIsLoading(true);
     try {
-      const newOs = await convertChamadoToOs(chamadoId, currentUser.id, osData);
+      console.log('🔄 Iniciando conversão de chamado para OS:', { chamadoId, userId: currentUser.id });
       
-      await updateChamadoStatus(chamadoId, 'OS em Andamento');
+      const newOs = await convertChamadoToOs(chamadoId, currentUser.id, osData);
+      console.log('✅ Chamado convertido para OS:', newOs);
+      
+      // Status já é atualizado no serviço convertChamadoToOs para 'Convertido para OS'
       
       toast({
         title: "Chamado convertido",
-        description: "O chamado foi convertido para Ordem de Serviço com sucesso."
+        description: `O chamado foi convertido para Ordem de Serviço com sucesso.`
       });
       
-      await loadOpenChamados(currentFilters);
+      // Atualizar ambas as abas
+      await Promise.all([
+        loadOpenChamados(currentFilters),
+        loadOrdensServico(currentFilters)
+      ]);
+      
+      console.log('📊 Ambas as abas atualizadas após conversão');
+      
+      // Mudar automaticamente para a aba "Ordens de Serviço"
+      setActiveTab('ordens');
       
       setIsDetailsModalOpen(false);
     } catch (error) {
-      console.error("Error converting chamado to OS:", error);
+      console.error("❌ Erro na conversão de chamado para OS:", error);
       toast({
         title: "Erro na conversão",
-        description: error instanceof Error ? error.message : String(error),
+        description: error instanceof Error ? error.message : "Erro ao converter chamado para OS",
         variant: "destructive"
       });
     } finally {
@@ -238,46 +298,196 @@ export const useOrdemServico = () => {
     }
   };
   
-  const handleUpdateOs = async (osData: Partial<OrdemServico>, motivo: string) => {
-    if (!currentOs || !currentUser) return;
+  const handleCreateOrUpdateOs = async (osData: Partial<OrdemServico>, motivo: string): Promise<OrdemServico | null> => {
+    console.log('🎯🎯🎯 [HANDLE-CREATE-UPDATE-OS] Função foi chamada!');
+    console.log('🎯 [HANDLE-CREATE-UPDATE-OS] osData recebido:', JSON.stringify(osData, null, 2));
+    console.log('🎯 [HANDLE-CREATE-UPDATE-OS] motivo recebido:', motivo);
+    console.log('🎯 [HANDLE-CREATE-UPDATE-OS] currentOs:', currentOs);
+    console.log('🎯 [HANDLE-CREATE-UPDATE-OS] currentUser:', currentUser);
+    
+    // DEBUG: Mostrar toast com informações detalhadas
+    toast({
+      title: "🔍 DEBUG: Iniciando salvamento",
+      description: `currentOs: ${currentOs?.id ? 'PRESENTE' : 'AUSENTE'} | numero_os: ${osData.numero_os || 'N/A'}`,
+      variant: "default"
+    });
+    
+    if (!currentUser) {
+      console.error('❌ [HANDLE-CREATE-UPDATE-OS] ERRO: currentUser não definido!');
+      toast({
+        title: "Erro de autenticação",
+        description: "Usuário não autenticado. Faça login novamente.",
+        variant: "destructive"
+      });
+      return null;
+    }
     
     setIsLoading(true);
     try {
-      const updated = await updateOrdemServico(
-        currentOs.id,
-        osData,
-        currentUser.id,
-        motivo
-      );
+      let result: OrdemServico;
       
-      await loadOsDetails(currentOs.id);
-      loadOrdensServico(currentFilters);
+      console.log('🎯 [HANDLE-CREATE-UPDATE-OS] ====== ANÁLISE DE ESTADO ======');
+      console.log('🎯 [HANDLE-CREATE-UPDATE-OS] currentOs presente:', !!currentOs);
+      console.log('🎯 [HANDLE-CREATE-UPDATE-OS] currentOs.id:', currentOs?.id);
+      console.log('🎯 [HANDLE-CREATE-UPDATE-OS] currentOs.numero_os:', currentOs?.numero_os);
+      console.log('🎯 [HANDLE-CREATE-UPDATE-OS] osData.numero_os:', osData.numero_os);
       
+      // CORREÇÃO 1: Verificar por número de OS existente no banco (FALLBACK)
+      let osExistente = null;
+      const numeroOs = osData.numero_os || currentOs?.numero_os;
+      
+      if (numeroOs) {
+        console.log('🔍 [HANDLE-CREATE-UPDATE-OS] Verificando OS existente por numero_os:', numeroOs);
+        try {
+          const { data: existingOs, error } = await supabase
+            .from('bd_ordens_servico')
+            .select('id, numero_os')
+            .eq('numero_os', numeroOs)
+            .single();
+          
+          if (!error && existingOs) {
+            osExistente = existingOs;
+            console.log('🎯 [HANDLE-CREATE-UPDATE-OS] OS encontrada no banco:', osExistente);
+            
+            // Se currentOs não estava definido, usar como fallback
+            if (!currentOs) {
+              console.log('🔄 [HANDLE-CREATE-UPDATE-OS] FALLBACK: Usando OS encontrada no banco como currentOs');
+              const osCompleta = await getOrdemServicoById(existingOs.id);
+              setCurrentOs(osCompleta);
+            }
+          }
+        } catch (err) {
+          console.log('🔍 [HANDLE-CREATE-UPDATE-OS] Nenhuma OS encontrada com esse número');
+        }
+      }
+      
+      // CORREÇÃO 2: Forçar update se currentOs.id existe OU se encontramos OS no banco
+      const shouldUpdate = currentOs?.id || osExistente?.id;
+      const targetOsId = currentOs?.id || osExistente?.id;
+      
+      console.log('🎯 [HANDLE-CREATE-UPDATE-OS] Decisão: shouldUpdate =', shouldUpdate);
+      console.log('🎯 [HANDLE-CREATE-UPDATE-OS] targetOsId =', targetOsId);
+      
+      // DEBUG: Mostrar decisão via toast
       toast({
-        title: "OS atualizada",
-        description: `OS ${updated.numero_chamado} foi atualizada com sucesso.`
+        title: `🎯 DEBUG: Decisão tomada`,
+        description: `Ação: ${shouldUpdate ? 'UPDATE' : 'CREATE'} | ID: ${targetOsId || 'N/A'}`,
+        variant: shouldUpdate ? "default" : "destructive"
       });
+      
+      if (shouldUpdate && targetOsId) {
+        // SEMPRE atualizar quando há ID disponível
+        console.log('🔄 [HANDLE-CREATE-UPDATE-OS] === EXECUTANDO UPDATE ===');
+        console.log('🔄 [HANDLE-CREATE-UPDATE-OS] ID da OS:', targetOsId);
+        
+        try {
+          result = await updateOrdemServico(
+            targetOsId,
+            osData,
+            currentUser.id,
+            motivo || 'Atualização via formulário'
+          );
+          console.log('✅ [HANDLE-CREATE-UPDATE-OS] OS atualizada:', result);
+          
+          // Recarregar detalhes da OS após salvamento
+          console.log('🔄 [HANDLE-CREATE-UPDATE-OS] Recarregando detalhes da OS...');
+          await loadOsDetails(targetOsId);
+          
+          // Atualizar currentOs com os dados atualizados
+          setCurrentOs(result);
+          
+          // Success toast with status update info
+          const statusMessage = osData.status ? ` | Status: ${osData.status}` : '';
+          toast({
+            title: "✅ OS atualizada com sucesso",
+            description: `OS ${result.numero_os} foi salva${statusMessage}. Última atualização: ${new Date(result.updated_at || Date.now()).toLocaleString('pt-BR')}`
+          });
+        } catch (updateError) {
+          console.error('❌ [HANDLE-CREATE-UPDATE-OS] Erro no updateOrdemServico:', updateError);
+          toast({
+            title: "❌ Erro ao atualizar OS",
+            description: `Erro: ${updateError instanceof Error ? updateError.message : 'Erro desconhecido'}`,
+            variant: "destructive"
+          });
+          throw updateError;
+        }
+      } else {
+        // APENAS criar se não há ID disponível E não é formulário de edição
+        console.log('🚫 [HANDLE-CREATE-UPDATE-OS] === BLOQUEIO DE CRIAÇÃO ===');
+        console.log('🚫 [HANDLE-CREATE-UPDATE-OS] ESTE FORMULÁRIO NÃO DEVE CRIAR NOVAS OSs!');
+        
+        toast({
+          title: "❌ Erro: Criação de OS bloqueada",
+          description: "Este formulário é apenas para editar OSs existentes. Para criar nova OS, use a conversão de chamados.",
+          variant: "destructive"
+        });
+        
+        throw new Error('Formulário não autorizado para criar novas OSs. Use conversão de chamados.');
+      }
+      
+      // Recarregar lista de OS
+      await loadOrdensServico(currentFilters);
+      
+      return result;
+      
     } catch (error) {
-      console.error("Error updating OS:", error);
+      console.error("❌❌❌ [HANDLE-CREATE-UPDATE-OS] Error completo:", error);
+      
+      // Exibir erro mais detalhado
+      let errorMessage = "Ocorreu um erro inesperado.";
+      if (error?.message) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
       toast({
-        title: "Erro ao atualizar",
-        description: "Ocorreu um erro ao atualizar a OS. Tente novamente.",
+        title: currentOs ? "Erro ao atualizar OS" : "Erro ao criar OS",
+        description: errorMessage,
         variant: "destructive"
       });
+      
+      return null;
     } finally {
+      console.log('🏁 [HANDLE-CREATE-UPDATE-OS] Finalizando...');
       setIsLoading(false);
     }
   };
+
+  // Manter função original para compatibilidade
+  const handleUpdateOs = async (osData: Partial<OrdemServico>, motivo: string) => {
+    return handleCreateOrUpdateOs(osData, motivo);
+  };
   
-  const handleSaveMaterial = async (material: Partial<Material>) => {
-    if (!currentOs) return;
+  const handleSaveMaterial = async (material: Partial<Material>, osId?: string): Promise<Material | null> => {
+    console.log('💾 [HANDLE_SAVE_MATERIAL] Iniciando salvamento:', material);
+    console.log('💾 [HANDLE_SAVE_MATERIAL] osId explícito:', osId);
+    console.log('💾 [HANDLE_SAVE_MATERIAL] CurrentOs:', currentOs);
+    
+    const finalOsId = osId ?? currentOs?.id;
+    
+    if (!finalOsId) {
+      console.error('❌ [HANDLE_SAVE_MATERIAL] Nenhum osId disponível');
+      toast({
+        title: "Erro ao salvar material",
+        description: "ID da ordem de serviço não encontrado. Salve a OS primeiro.",
+        variant: "destructive"
+      });
+      return null;
+    }
     
     setIsLoading(true);
     try {
-      const savedMaterial = await saveMaterial({
+      const materialWithOsId = {
         ...material,
-        os_id: currentOs.id
-      });
+        os_id: finalOsId
+      };
+      
+      console.log('💾 [HANDLE_SAVE_MATERIAL] Salvando com os_id:', materialWithOsId);
+      
+      const savedMaterial = await saveMaterial(materialWithOsId);
+      
+      console.log('✅ [HANDLE_SAVE_MATERIAL] Material salvo:', savedMaterial);
       
       setMaterials(prev => {
         const index = prev.findIndex(m => m.id === savedMaterial.id);
@@ -293,13 +503,16 @@ export const useOrdemServico = () => {
         title: "Material salvo",
         description: "Material adicionado/atualizado com sucesso."
       });
+      
+      return savedMaterial;
     } catch (error) {
-      console.error("Error saving material:", error);
+      console.error("❌ [HANDLE_SAVE_MATERIAL] Erro ao salvar:", error);
       toast({
         title: "Erro ao salvar material",
-        description: "Ocorreu um erro ao salvar o material. Tente novamente.",
+        description: `Erro: ${error.message || 'Erro desconhecido'}`,
         variant: "destructive"
       });
+      return null;
     } finally {
       setIsLoading(false);
     }
@@ -328,15 +541,35 @@ export const useOrdemServico = () => {
     }
   };
   
-  const handleSaveMaoDeObra = async (maoDeObra: Partial<MaoDeObra>) => {
-    if (!currentOs) return;
+  const handleSaveMaoDeObra = async (maoDeObra: Partial<MaoDeObra>, osId?: string): Promise<MaoDeObra | null> => {
+    console.log('💼 [HANDLE_SAVE_MAO_DE_OBRA] Iniciando salvamento:', maoDeObra);
+    console.log('💼 [HANDLE_SAVE_MAO_DE_OBRA] osId explícito:', osId);
+    console.log('💼 [HANDLE_SAVE_MAO_DE_OBRA] CurrentOs:', currentOs);
+    
+    const finalOsId = osId ?? currentOs?.id;
+    
+    if (!finalOsId) {
+      console.error('❌ [HANDLE_SAVE_MAO_DE_OBRA] Nenhum osId disponível');
+      toast({
+        title: "Erro ao salvar mão de obra",
+        description: "ID da ordem de serviço não encontrado. Salve a OS primeiro.",
+        variant: "destructive"
+      });
+      return null;
+    }
     
     setIsLoading(true);
     try {
-      const savedMaoDeObra = await saveMaoDeObra({
+      const maoDeObraWithOsId = {
         ...maoDeObra,
-        os_id: currentOs.id
-      });
+        os_id: finalOsId
+      };
+      
+      console.log('💼 [HANDLE_SAVE_MAO_DE_OBRA] Salvando com os_id:', maoDeObraWithOsId);
+      
+      const savedMaoDeObra = await saveMaoDeObra(maoDeObraWithOsId);
+      
+      console.log('✅ [HANDLE_SAVE_MAO_DE_OBRA] Mão de obra salva:', savedMaoDeObra);
       
       setLaborItems(prev => {
         const index = prev.findIndex(m => m.id === savedMaoDeObra.id);
@@ -352,13 +585,16 @@ export const useOrdemServico = () => {
         title: "Mão de obra salva",
         description: "Mão de obra adicionada/atualizada com sucesso."
       });
+      
+      return savedMaoDeObra;
     } catch (error) {
-      console.error("Error saving labor:", error);
+      console.error("❌ [HANDLE_SAVE_MAO_DE_OBRA] Erro ao salvar:", error);
       toast({
         title: "Erro ao salvar mão de obra",
-        description: "Ocorreu um erro ao salvar a mão de obra. Tente novamente.",
+        description: `Erro: ${error.message || 'Erro desconhecido'}`,
         variant: "destructive"
       });
+      return null;
     } finally {
       setIsLoading(false);
     }
@@ -497,6 +733,8 @@ export const useOrdemServico = () => {
     setIsOsModalOpen,
     isDetailsModalOpen, 
     setIsDetailsModalOpen,
+    isOsDetailsModalOpen,
+    setIsOsDetailsModalOpen,
     isConvertModalOpen,
     setIsConvertModalOpen,
     isChamadoModalOpen,
@@ -508,7 +746,9 @@ export const useOrdemServico = () => {
     handleOpenChamadoDetails,
     handleOpenOsModal,
     handleOpenDetailsModal,
+    handleOpenOsDetailsModal,
     handleConvertToOs,
+    handleCreateOrUpdateOs,
     handleUpdateOs,
     handleSaveMaterial,
     handleDeleteMaterial,

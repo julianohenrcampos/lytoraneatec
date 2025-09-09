@@ -2,22 +2,26 @@
 import React, { useEffect, useState } from "react";
 import MainLayout from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
-import { FileDown, Wrench, CheckCircle } from "lucide-react";
+import { FileDown, Wrench, CheckCircle, Plus } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useOrdemServico } from "@/hooks/useOrdemServico";
 import OsFilters from "@/components/ordens-servico/OsFilters";
 import ChamadosOsTable from "@/components/ordens-servico/ChamadosOsTable";
 import OrdensServicoTable from "@/components/ordens-servico/OrdensServicoTable";
 import ChamadoDetailsModal from "@/components/ordens-servico/ChamadoDetailsModal";
-import OsDetailsModal from "@/components/ordens-servico/OsDetailsModal";
-import OsForm from "@/components/ordens-servico/OsForm";
+import DetailedOsModal from "@/components/ordens-servico/DetailedOsModal";
+import SimpleOsForm from "@/components/ordens-servico/SimpleOsForm";
+import CompleteOsForm from "@/components/ordens-servico/CompleteOsForm";
+import { useFuncionarios } from "@/hooks/useFuncionarios";
+import { useVeiculos } from "@/hooks/useVeiculos";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 const GestaoOrdemServico: React.FC = () => {
-  const [veiculosDropdown, setVeiculosDropdown] = useState<{ id: string; label: string }[]>([]);
-  const [departamentosDropdown, setDepartamentosDropdown] = useState<{ id: string; label: string }[]>([]);
   const { toast } = useToast();
+  const { funcionarios } = useFuncionarios();
+  const { veiculos } = useVeiculos();
+  const [departamentosDropdown, setDepartamentosDropdown] = useState<Array<{id: string; nome_departamento: string}>>([]);
   
   const {
     openChamados,
@@ -35,6 +39,8 @@ const GestaoOrdemServico: React.FC = () => {
     setIsOsModalOpen,
     isDetailsModalOpen, 
     setIsDetailsModalOpen,
+    isOsDetailsModalOpen,
+    setIsOsDetailsModalOpen,
     isChamadoModalOpen,
     setIsChamadoModalOpen,
     isDeleteModalOpen,
@@ -44,8 +50,9 @@ const GestaoOrdemServico: React.FC = () => {
     handleOpenChamadoDetails,
     handleOpenOsModal,
     handleOpenDetailsModal,
+    handleOpenOsDetailsModal,
     handleConvertToOs,
-    handleUpdateOs,
+    handleCreateOrUpdateOs,
     handleSaveMaterial,
     handleDeleteMaterial,
     handleSaveMaoDeObra,
@@ -60,22 +67,7 @@ const GestaoOrdemServico: React.FC = () => {
 
   useEffect(() => {
     const loadDropdownOptions = async () => {
-      try {
-        const { data: veiculos, error: veiculosError } = await supabase
-          .from('bd_caminhoes_equipamentos')
-          .select('id, placa, tipo_veiculo, marca, modelo');
-        
-        if (veiculosError) {
-          console.error('Error loading veículos:', veiculosError);
-        } else if (veiculos) {
-          setVeiculosDropdown(
-            veiculos.map(veiculo => ({
-              id: veiculo.id,
-              label: `${veiculo.placa || ''} ${veiculo.marca || ''} ${veiculo.modelo || ''}`.trim()
-            }))
-          );
-        }
-        
+      try {        
         const { data: departamentos, error: deptError } = await supabase
           .from('bd_departamentos')
           .select('id, nome_departamento');
@@ -83,12 +75,7 @@ const GestaoOrdemServico: React.FC = () => {
         if (deptError) {
           console.error('Error loading departamentos:', deptError);
         } else if (departamentos) {
-          setDepartamentosDropdown(
-            departamentos.map(dept => ({
-              id: dept.id,
-              label: dept.nome_departamento
-            }))
-          );
+          setDepartamentosDropdown(departamentos || []);
         }
       } catch (error) {
         console.error('Error loading dropdown options:', error);
@@ -119,13 +106,7 @@ const GestaoOrdemServico: React.FC = () => {
     
     const tipoFalha = chamado.tipo_falha || 'Mecânica';
     
-    handleConvertToOs(chamado.id, { tipo_falha: tipoFalha });
-    
-    toast({
-      title: "Chamado convertido",
-      description: `Chamado #${chamado.numero_chamado} foi convertido para OS com sucesso.`,
-      variant: "default"
-    });
+    handleConvertToOs(chamado.id, { tipo_servico: tipoFalha });
   };
 
   return (
@@ -157,7 +138,7 @@ const GestaoOrdemServico: React.FC = () => {
             <OsFilters
               onApplyFilters={handleApplyChamadoFilters}
               onClearFilters={handleClearFilters}
-              veiculosOptions={veiculosDropdown}
+              veiculosOptions={veiculos.map(v => ({ id: v.id, label: v.nome_caminhao }))}
               isLoading={isLoading}
               showStatusFilter={false}
               showPriorityFilter={true}
@@ -177,15 +158,18 @@ const GestaoOrdemServico: React.FC = () => {
             <OsFilters
               onApplyFilters={handleApplyOsFilters}
               onClearFilters={handleClearFilters}
-              veiculosOptions={veiculosDropdown}
+              veiculosOptions={veiculos.map(v => ({ id: v.id, label: v.nome_caminhao }))}
               isLoading={isLoading}
               showStatusFilter={true}
-              showPriorityFilter={true}
+              showPriorityFilter={false}
             />
             
             <OrdensServicoTable
               ordensServico={ordensServico}
-              onView={handleOpenDetailsModal}
+              onView={(osId: string) => {
+                const os = ordensServico.find(o => o.id === osId);
+                if (os) handleOpenOsDetailsModal(os);
+              }}
               onEdit={handleOpenOsModal}
               isLoading={isLoading}
               isError={isError}
@@ -203,9 +187,9 @@ const GestaoOrdemServico: React.FC = () => {
         isLoading={isLoading}
       />
 
-      <OsDetailsModal
-        isOpen={isDetailsModalOpen}
-        onClose={() => setIsDetailsModalOpen(false)}
+      <DetailedOsModal
+        isOpen={isOsDetailsModalOpen}
+        onClose={() => setIsOsDetailsModalOpen(false)}
         os={currentOs}
         materials={materials}
         laborItems={laborItems}
@@ -214,22 +198,22 @@ const GestaoOrdemServico: React.FC = () => {
         onGeneratePdf={handleGeneratePdf}
       />
 
-      <OsForm
+      <CompleteOsForm
         isOpen={isOsModalOpen}
         onClose={() => setIsOsModalOpen(false)}
-        onSubmit={handleUpdateOs}
+        onSubmit={handleCreateOrUpdateOs}
+        currentOs={currentOs}
+        isLoading={isLoading}
+        veiculosDropdown={veiculos}
+        funcionarios={funcionarios}
+        materials={materials}
+        laborItems={laborItems}
+        movements={movements}
         onSaveMaterial={handleSaveMaterial}
         onDeleteMaterial={handleDeleteMaterial}
         onSaveMaoDeObra={handleSaveMaoDeObra}
         onDeleteMaoDeObra={handleDeleteMaoDeObra}
-        onFinishOs={handleFinishOs}
-        onGeneratePdf={handleGeneratePdf}
-        currentOs={currentOs}
-        materials={materials}
-        laborItems={laborItems}
-        isLoading={isLoading}
-        currentUser={currentUser}
-        departamentosOptions={departamentosDropdown}
+        chamadoId={currentChamado?.id}
       />
     </MainLayout>
   );

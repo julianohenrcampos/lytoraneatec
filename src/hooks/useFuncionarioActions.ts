@@ -5,11 +5,13 @@ import { useFuncionarioState } from "./funcionarios/useFuncionarioState";
 import { useFuncionarioQueries } from "./funcionarios/useFuncionarioQueries";
 import { useFuncionarioExcel } from "./funcionarios/useFuncionarioExcel";
 import { useFuncionarioImport } from "./funcionarios/useFuncionarioImport";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function useFuncionarioActions() {
   // Use all the smaller hooks
   const state = useFuncionarioState();
   const [deleteErrorMessage, setDeleteErrorMessage] = useState<string | undefined>();
+  const queryClient = useQueryClient();
   
   const { 
     funcionarios, 
@@ -22,12 +24,18 @@ export function useFuncionarioActions() {
   } = useFuncionarioQueries(
     state.filters,
     () => {
+      // Invalidate financial cache after creating employee
+      queryClient.invalidateQueries({ queryKey: ["rh-financeiro"] });
       state.setIsFormModalOpen(false);
     },
     () => {
+      // Invalidate financial cache after updating employee
+      queryClient.invalidateQueries({ queryKey: ["rh-financeiro"] });
       state.setIsFormModalOpen(false);
     },
     () => {
+      // Invalidate financial cache after deleting employee
+      queryClient.invalidateQueries({ queryKey: ["rh-financeiro"] });
       state.setIsDeleteModalOpen(false);
       state.setDeletingFuncionario(null);
       setDeleteErrorMessage(undefined);
@@ -157,6 +165,9 @@ export function useFuncionarioActions() {
     handleSaveFuncionario,
     refetch,
     exportToExcel,
-    handleImport
+    handleImport,
+    
+    // Cache management
+    invalidateFinancialCache: () => queryClient.invalidateQueries({ queryKey: ["rh-financeiro"] })
   };
 }

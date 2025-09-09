@@ -81,8 +81,34 @@ export const updateFuncao = async (id: string, data: FuncaoFormData): Promise<Fu
   return updatedData as Funcao;
 };
 
+// Check if function is in use by employees
+export const checkFuncaoInUse = async (id: string): Promise<{ inUse: boolean; count: number; employees: string[] }> => {
+  const { data, error } = await supabase
+    .from("bd_funcionarios")
+    .select("id, nome_completo")
+    .eq("funcao_id", id);
+
+  if (error) {
+    console.error("Error checking função usage:", error);
+    throw new Error(`Erro ao verificar uso da função: ${error.message}`);
+  }
+
+  return {
+    inUse: data && data.length > 0,
+    count: data ? data.length : 0,
+    employees: data ? data.map(emp => emp.nome_completo) : []
+  };
+};
+
 // Delete a function
 export const deleteFuncao = async (id: string): Promise<void> => {
+  // First check if function is in use
+  const usage = await checkFuncaoInUse(id);
+  
+  if (usage.inUse) {
+    throw new Error(`Não é possível excluir esta função pois existem ${usage.count} funcionário(s) vinculado(s): ${usage.employees.slice(0, 3).join(', ')}${usage.count > 3 ? ' e outros...' : ''}`);
+  }
+
   const { error } = await supabase
     .from("bd_funcoes")
     .delete()
@@ -90,6 +116,12 @@ export const deleteFuncao = async (id: string): Promise<void> => {
   
   if (error) {
     console.error("Error deleting função:", error);
+    
+    // Check for foreign key constraint error
+    if (error.code === '23503' || error.message.includes('foreign key')) {
+      throw new Error('Não é possível excluir esta função pois existem funcionários vinculados a ela. Primeiro remova ou transfira os funcionários para outras funções.');
+    }
+    
     throw new Error(`Erro ao excluir função: ${error.message}`);
   }
 };

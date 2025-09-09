@@ -9,15 +9,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { 
+import {
   Eye, 
   Edit, 
   FileText, 
-  AlertCircle
+  AlertCircle,
+  Lock
 } from "lucide-react";
 import { OrdemServico } from "@/types/ordemServico";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -39,6 +39,13 @@ const OrdensServicoTable: React.FC<OrdensServicoTableProps> = ({
   isError = false,
   errorMessage = "Ocorreu um erro ao carregar os dados. Tente novamente."
 }) => {
+  // Destaca OS criadas recentemente (últimas 30 segundos)
+  const isRecentlyCreated = (createdAt: string) => {
+    const created = new Date(createdAt);
+    const now = new Date();
+    const diffInSeconds = (now.getTime() - created.getTime()) / 1000;
+    return diffInSeconds <= 30;
+  };
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'Aberta':
@@ -127,21 +134,29 @@ const OrdensServicoTable: React.FC<OrdensServicoTableProps> = ({
             <TableHead>Obra</TableHead>
             <TableHead>Caminhão/Equipamento</TableHead>
             <TableHead>Data</TableHead>
-            <TableHead>Prioridade</TableHead>
+            <TableHead>Tipo Serviço</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {ordensServico.map((os) => (
-            <TableRow key={os.id}>
-              <TableCell 
-                className="font-medium cursor-pointer hover:text-blue-600"
-                onClick={() => onView(os.id)}
+          {ordensServico.map((os) => {
+            const isNew = os.created_at && isRecentlyCreated(os.created_at);
+            return (
+              <TableRow 
+                key={os.id}
+                className={isNew ? "bg-green-50 border-green-200" : ""}
               >
-                {os.numero_chamado}
-              </TableCell>
-              <TableCell>{os.centro_custo?.codigo_centro_custo || "-"}</TableCell>
+                <TableCell 
+                  className="font-medium cursor-pointer hover:text-blue-600"
+                  onClick={() => onView(os.id)}
+                >
+                  {isNew && (
+                    <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse" />
+                  )}
+                  {os.numero_os}
+                </TableCell>
+              <TableCell>{os.obra_patio || "-"}</TableCell>
               <TableCell>
                 {os.caminhao_equipamento ? (
                   <>
@@ -152,10 +167,10 @@ const OrdensServicoTable: React.FC<OrdensServicoTableProps> = ({
                   </>
                 ) : "-"}
               </TableCell>
-              <TableCell>
-                {format(new Date(os.data_solicitacao), "dd/MM/yyyy", { locale: ptBR })}
-              </TableCell>
-              <TableCell>{getPriorityBadge(os.prioridade)}</TableCell>
+               <TableCell>
+                 {formatBrazilianDateForDisplay(os.data_abertura)}
+               </TableCell>
+              <TableCell>{os.tipo_servico || "-"}</TableCell>
               <TableCell>{getStatusBadge(os.status)}</TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-2">
@@ -163,10 +178,17 @@ const OrdensServicoTable: React.FC<OrdensServicoTableProps> = ({
                     <Eye className="h-4 w-4 text-blue-600" />
                     <span className="sr-only">Visualizar</span>
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => onEdit(os)}>
-                    <Edit className="h-4 w-4 text-amber-600" />
-                    <span className="sr-only">Editar</span>
-                  </Button>
+                  {os.status === 'Concluída' ? (
+                    <Button variant="ghost" size="icon" disabled title="OS concluída - não pode ser editada">
+                      <Lock className="h-4 w-4 text-muted-foreground" />
+                      <span className="sr-only">Bloqueado</span>
+                    </Button>
+                  ) : (
+                    <Button variant="ghost" size="icon" onClick={() => onEdit(os)}>
+                      <Edit className="h-4 w-4 text-amber-600" />
+                      <span className="sr-only">Editar</span>
+                    </Button>
+                  )}
                   <Button variant="ghost" size="icon">
                     <FileText className="h-4 w-4 text-green-600" />
                     <span className="sr-only">Gerar PDF</span>
@@ -174,7 +196,8 @@ const OrdensServicoTable: React.FC<OrdensServicoTableProps> = ({
                 </div>
               </TableCell>
             </TableRow>
-          ))}
+            );
+          })}
         </TableBody>
       </Table>
     </div>

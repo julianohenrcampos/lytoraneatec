@@ -4,12 +4,13 @@ import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/comp
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UseFormReturn } from "react-hook-form";
-import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { DayPicker } from "react-day-picker";
+import "react-day-picker/dist/style.css";
 import { cn } from "@/lib/utils";
 import { 
   normalizeDateToBrazilianNoon, 
@@ -75,13 +76,15 @@ export default function ContratualTab({ form, onClose, setActiveTab }: Contratua
                   </FormControl>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
+                  <DayPicker
                     mode="single"
                     selected={getDateValue(field.value)}
                     onSelect={(date) => handleDateChange(field, date)}
+                    locale={ptBR}
+                    captionLayout="dropdown"
+                    fromYear={1950}
+                    toYear={new Date().getFullYear()}
                     disabled={(date) => date > new Date()}
-                    initialFocus
-                    className="pointer-events-auto"
                   />
                 </PopoverContent>
               </Popover>
@@ -138,12 +141,14 @@ export default function ContratualTab({ form, onClose, setActiveTab }: Contratua
                   </FormControl>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
+                  <DayPicker
                     mode="single"
                     selected={getDateValue(field.value)}
                     onSelect={(date) => handleDateChange(field, date)}
-                    initialFocus
-                    className="pointer-events-auto"
+                    locale={ptBR}
+                    captionLayout="dropdown"
+                    fromYear={1950}
+                    toYear={new Date().getFullYear() + 2}
                   />
                 </PopoverContent>
               </Popover>
@@ -169,6 +174,7 @@ export default function ContratualTab({ form, onClose, setActiveTab }: Contratua
                   <SelectItem value="Ativo">Ativo</SelectItem>
                   <SelectItem value="Inativo">Inativo</SelectItem>
                   <SelectItem value="Aviso Prévio">Aviso Prévio</SelectItem>
+                  <SelectItem value="INSS">INSS</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -203,13 +209,15 @@ export default function ContratualTab({ form, onClose, setActiveTab }: Contratua
                   </FormControl>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
+                  <DayPicker
                     mode="single"
                     selected={getDateValue(field.value)}
                     onSelect={(date) => handleDateChange(field, date)}
+                    locale={ptBR}
+                    captionLayout="dropdown"
+                    fromYear={1950}
+                    toYear={new Date().getFullYear() + 5}
                     disabled={(date) => date < new Date("1900-01-01")}
-                    initialFocus
-                    className="pointer-events-auto"
                   />
                 </PopoverContent>
               </Popover>

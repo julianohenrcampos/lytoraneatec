@@ -76,7 +76,25 @@ export const useFuncaoActions = () => {
     setIsDetailsModalOpen(true);
   };
   
-  const confirmDelete = (funcao: Funcao) => {
+  const confirmDelete = async (funcao: Funcao) => {
+    try {
+      // Check if function is in use before opening delete dialog
+      const { checkFuncaoInUse } = await import("@/services/funcaoService");
+      const usage = await checkFuncaoInUse(funcao.id);
+      
+      if (usage.inUse) {
+        toast({
+          title: "Função não pode ser excluída",
+          description: `Esta função está sendo usada por ${usage.count} funcionário(s): ${usage.employees.slice(0, 3).join(', ')}${usage.count > 3 ? ' e outros...' : ''}. Primeiro remova ou transfira os funcionários para outras funções.`,
+          variant: "destructive",
+          duration: 8000
+        });
+        return;
+      }
+    } catch (error) {
+      console.error("Error checking função usage:", error);
+    }
+    
     setDeletingFuncao(funcao);
     setIsDeleteModalOpen(true);
   };
