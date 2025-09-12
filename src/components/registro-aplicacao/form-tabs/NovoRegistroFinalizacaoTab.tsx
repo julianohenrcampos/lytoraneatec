@@ -17,20 +17,20 @@ import { CargaComAplicacoes } from "@/hooks/registro-aplicacao/useMultipleApplic
 import { useEspessuraMedia } from "@/hooks/registro-aplicacao/useEspessuraMedia";
 import { formatPesoParaToneladas, formatMassaFromDatabase } from "@/utils/massaConversionUtils";
 import EspessuraMediaCard from "../EspessuraMediaCard";
-
 interface NovoRegistroFinalizacaoTabProps {
   form: UseFormReturn<any>;
   entrega: ListaProgramacaoEntrega;
   registroCarga: RegistroCarga | null;
   onPrevious: () => void;
   onClose: () => void;
-  onSubmit: (data: any, options?: { onSuccess?: () => void }) => void;
+  onSubmit: (data: any, options?: {
+    onSuccess?: () => void;
+  }) => void;
   isLoading: boolean;
   isReadOnly?: boolean;
   cargaInfo?: CargaComAplicacoes | null;
   registroExistente?: any;
 }
-
 const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
   form,
   entrega,
@@ -46,7 +46,9 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
   const navigate = useNavigate();
   const {
     register,
-    formState: { errors },
+    formState: {
+      errors
+    },
     watch,
     getValues,
     setValue
@@ -64,10 +66,7 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
   React.useEffect(() => {
     const toneladaAtual = toneladaAplicada || 0;
     // CORREÇÃO: tonelada_real está em KG, converter para toneladas
-    const massaCarga = registroCarga?.tonelada_real 
-      ? formatMassaFromDatabase(registroCarga.tonelada_real, 'bd_registro_cargas', 'tonelada_real')
-      : 0;
-    
+    const massaCarga = registroCarga?.tonelada_real ? formatMassaFromDatabase(registroCarga.tonelada_real, 'bd_registro_cargas', 'tonelada_real') : 0;
     if (toneladaAtual <= 0 && massaCarga > 0) {
       console.log("🔄 [FINALIZACAO] Auto-preenchendo tonelada_aplicada:", massaCarga);
       setValue("tonelada_aplicada", massaCarga);
@@ -81,15 +80,8 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
 
   // CORREÇÃO: Validação mais rigorosa
   const isFormValid = React.useMemo(() => {
-    const toneladaFinal = toneladaAplicada || (registroCarga?.tonelada_real 
-      ? formatMassaFromDatabase(registroCarga.tonelada_real, 'bd_registro_cargas', 'tonelada_real')
-      : 0);
-    const hasRequiredData = Boolean(
-      dataAplicacao?.trim() && 
-      horaChegadaLocal?.trim() && 
-      toneladaFinal > 0
-    );
-    
+    const toneladaFinal = toneladaAplicada || (registroCarga?.tonelada_real ? formatMassaFromDatabase(registroCarga.tonelada_real, 'bd_registro_cargas', 'tonelada_real') : 0);
+    const hasRequiredData = Boolean(dataAplicacao?.trim() && horaChegadaLocal?.trim() && toneladaFinal > 0);
     console.log("🔍 [FINALIZACAO] Validação:", {
       dataAplicacao: dataAplicacao?.trim(),
       horaChegadaLocal: horaChegadaLocal?.trim(),
@@ -97,7 +89,6 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
       toneladaFinal,
       hasRequiredData
     });
-    
     return hasRequiredData;
   }, [dataAplicacao, horaChegadaLocal, toneladaAplicada, registroCarga?.tonelada_real]);
 
@@ -107,18 +98,16 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
   // Calcular massa remanescente
   const massaRemanescente = React.useMemo(() => {
     if (!registroCarga?.tonelada_real) return 0;
-    
+
     // CORREÇÃO: Converter tonelada_real de kg para toneladas
     const massaTotal = formatMassaFromDatabase(registroCarga.tonelada_real, 'bd_registro_cargas', 'tonelada_real');
     const toneladaAtual = toneladaAplicada || massaTotal;
     const remanescente = massaTotal - toneladaAtual;
-    
     return Math.max(0, remanescente);
   }, [registroCarga, toneladaAplicada]);
 
   // Verificar se já existe registro de retorno no banco
   const [temRetornoRegistrado, setTemRetornoRegistrado] = React.useState(false);
-  
   React.useEffect(() => {
     // Verificar se há peso de retorno registrado no registro de carga
     if (registroCarga?.tonelada_retorno && registroCarga.tonelada_retorno > 0) {
@@ -138,12 +127,11 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
       safeToast.error("ID da entrega não encontrado");
       return;
     }
-
     safeToast.info(`Redirecionando para pesagem de retorno: ${massaRemanescente.toFixed(2)}t`);
-    
+
     // Fechar modal atual
     onClose();
-    
+
     // Navegar para registro de cargas com parâmetro de retorno
     navigate(`/requisicoes/registro-cargas?retorno=${entrega.id}&massa=${massaRemanescente.toFixed(3)}`);
   };
@@ -151,39 +139,34 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
   // CORREÇÃO: Handler com callback direto para fechar modal
   const handleSaveClick = async () => {
     console.log("=== CLIQUE NO BOTÃO SALVAR - INÍCIO ===");
-    
     if (!isFormValid) {
       console.error("❌ [FINALIZACAO] Validação falhou");
       safeToast.error("Preencha todos os campos obrigatórios");
       return;
     }
-
     console.log("✅ [FINALIZACAO] Validações OK - preparando dados");
-    
     try {
       // Obter dados do formulário
       const formData = getValues();
-      
+
       // CORREÇÃO: Garantir que tonelada_aplicada seja preenchida
       const toneladaFinal = formData.tonelada_aplicada || registroCarga?.tonelada_real || 0;
-      
       if (toneladaFinal <= 0) {
         console.error("❌ [FINALIZACAO] Tonelada aplicada inválida:", toneladaFinal);
         safeToast.error("Tonelada aplicada deve ser maior que zero");
         return;
       }
-      
+
       // Preparar dados finais
       const dadosFinais = {
         ...formData,
         tonelada_aplicada: toneladaFinal,
         lista_entrega_id: formData.lista_entrega_id || entrega.id,
-        registro_carga_id: formData.registro_carga_id || registroCarga?.id,
+        registro_carga_id: formData.registro_carga_id || registroCarga?.id
       };
-      
       console.log("🚀 [FINALIZACAO] Dados finais preparados:", dadosFinais);
       console.log("🎯 [FINALIZACAO] Chamando onSubmit COM CALLBACK");
-      
+
       // CORREÇÃO: Chamar onSubmit com callback para fechar modal
       await onSubmit(dadosFinais, {
         onSuccess: () => {
@@ -191,36 +174,26 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
           onClose();
         }
       });
-      
       console.log("✅ [FINALIZACAO] onSubmit executado com sucesso");
-      
     } catch (error) {
       console.error("❌ [FINALIZACAO] Erro no handleSaveClick:", error);
       safeToast.error("Erro ao salvar registro");
     }
-    
     console.log("=== CLIQUE NO BOTÃO SALVAR - FIM ===");
   };
-
-  return (
-    <div className="space-y-6">
+  return <div className="space-y-6">
       {/* Resumo Aprimorado da Carga */}
-      {cargaInfo && (
-        <div className="bg-gradient-to-r from-blue-50 to-green-50 p-6 rounded-lg border border-blue-200">
+      {cargaInfo && <div className="bg-gradient-to-r from-blue-50 to-green-50 p-6 rounded-lg border border-blue-200">
           <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-blue-600" />
             Resumo da Carga - Progresso Completo
-            <TooltipHelper 
-              content="Visualização completa do progresso da aplicação desta carga, incluindo massa total, aplicada e remanescente."
-            />
+            <TooltipHelper content="Visualização completa do progresso da aplicação desta carga, incluindo massa total, aplicada e remanescente." />
           </h3>
           
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <div className="bg-white/70 p-4 rounded-md text-center">
               <div className="text-2xl font-bold text-blue-600">
-                {registroCarga?.tonelada_real 
-                  ? formatMassaFromDatabase(registroCarga.tonelada_real, 'bd_registro_cargas', 'tonelada_real').toFixed(1)
-                  : '0.0'}t
+                {registroCarga?.tonelada_real ? formatMassaFromDatabase(registroCarga.tonelada_real, 'bd_registro_cargas', 'tonelada_real').toFixed(1) : '0.0'}t
               </div>
               <div className="text-xs text-gray-600">Massa Total</div>
             </div>
@@ -245,20 +218,16 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
               <span>{cargaInfo.percentualAplicado.toFixed(1)}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-4">
-              <div 
-                className="bg-gradient-to-r from-blue-500 to-green-500 h-4 rounded-full transition-all duration-700 flex items-center justify-end pr-2" 
-                style={{ width: `${Math.min(cargaInfo.percentualAplicado, 100)}%` }}
-              >
-                {cargaInfo.percentualAplicado > 20 && (
-                  <span className="text-xs font-medium text-white">
+              <div className="bg-gradient-to-r from-blue-500 to-green-500 h-4 rounded-full transition-all duration-700 flex items-center justify-end pr-2" style={{
+            width: `${Math.min(cargaInfo.percentualAplicado, 100)}%`
+          }}>
+                {cargaInfo.percentualAplicado > 20 && <span className="text-xs font-medium text-white">
                     {cargaInfo.percentualAplicado.toFixed(0)}%
-                  </span>
-                )}
+                  </span>}
               </div>
             </div>
           </div>
-        </div>
-      )}
+        </div>}
 
       <Card>
         <CardHeader>
@@ -266,149 +235,98 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
             {isReadOnly && <Eye className="h-5 w-5" />}
             {hasDataInDatabase && !isReadOnly && <Database className="h-5 w-5 text-blue-500" />}
             <FileText className="h-5 w-5" />
-            {isReadOnly ? "Finalização do Registro (Visualização)" : 
-             hasDataInDatabase ? "Finalização do Registro (Dados Salvos)" : "Finalização do Registro"}
+            {isReadOnly ? "Finalização do Registro (Visualização)" : hasDataInDatabase ? "Finalização do Registro (Dados Salvos)" : "Finalização do Registro"}
           </CardTitle>
-          {isReadOnly && (
-            <p className="text-sm text-muted-foreground">
+          {isReadOnly && <p className="text-sm text-muted-foreground">
               Esta entrega está finalizada e os dados são somente para visualização.
-            </p>
-          )}
-          {hasDataInDatabase && !isReadOnly && (
-            <p className="text-sm text-blue-600">
+            </p>}
+          {hasDataInDatabase && !isReadOnly && <p className="text-sm text-blue-600">
               Dados encontrados no banco de dados. Você pode modificar e salvar as alterações.
-            </p>
-          )}
+            </p>}
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Status de dados existentes */}
-          {hasDataInDatabase && (
-            <Alert className="bg-blue-50 border-blue-200">
+          {hasDataInDatabase && <Alert className="bg-blue-50 border-blue-200">
               <Database className="h-4 w-4 text-blue-600" />
               <AlertDescription className="text-blue-800">
                 <div className="space-y-1">
                   <div className="font-medium">Dados salvos encontrados no sistema:</div>
                   <ul className="text-sm space-y-1 ml-4">
-                    {registroExistente?.hora_chegada_local && (
-                      <li className="flex items-center gap-2">
+                    {registroExistente?.hora_chegada_local && <li className="flex items-center gap-2">
                         <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
                         Hora de chegada: {registroExistente.hora_chegada_local}
-                      </li>
-                    )}
-                    {registroExistente?.temperatura_chegada && (
-                      <li className="flex items-center gap-2">
+                      </li>}
+                    {registroExistente?.temperatura_chegada && <li className="flex items-center gap-2">
                         <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
                         Temperatura: {registroExistente.temperatura_chegada}°C
-                      </li>
-                    )}
-                    {registroExistente?.hora_saida_caminhao && (
-                      <li className="flex items-center gap-2">
+                      </li>}
+                    {registroExistente?.hora_saida_caminhao && <li className="flex items-center gap-2">
                         <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
                         Hora de saída: {registroExistente.hora_saida_caminhao}
-                      </li>
-                    )}
-                    {registroExistente?.anotacoes_apontador && (
-                      <li className="flex items-center gap-2">
+                      </li>}
+                    {registroExistente?.anotacoes_apontador && <li className="flex items-center gap-2">
                         <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
                         Com observações salvas
-                      </li>
-                    )}
+                      </li>}
                     <li className="flex items-center gap-2">
                       <span className="w-1 h-1 bg-green-500 rounded-full"></span>
-                       Tonelada aplicada: {(toneladaAplicada || (registroCarga?.tonelada_real 
-                         ? formatMassaFromDatabase(registroCarga.tonelada_real, 'bd_registro_cargas', 'tonelada_real')
-                         : 0)).toFixed(1)}t
+                       Tonelada aplicada: {(toneladaAplicada || (registroCarga?.tonelada_real ? formatMassaFromDatabase(registroCarga.tonelada_real, 'bd_registro_cargas', 'tonelada_real') : 0)).toFixed(1)}t
                     </li>
                   </ul>
                 </div>
               </AlertDescription>
-            </Alert>
-          )}
+            </Alert>}
 
           {/* Validação */}
-          {!isFormValid && !isReadOnly && (
-            <Alert>
+          {!isFormValid && !isReadOnly && <Alert>
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
                 <div className="space-y-1">
                   <div>Complete os campos obrigatórios para finalizar:</div>
                   <ul className="text-sm space-y-1 ml-4">
-                    {!dataAplicacao?.trim() && (
-                      <li className="flex items-center gap-2">
+                    {!dataAplicacao?.trim() && <li className="flex items-center gap-2">
                         <span className="w-1 h-1 bg-red-500 rounded-full"></span>
                         Data da aplicação
-                      </li>
-                    )}
-                    {!horaChegadaLocal?.trim() && (
-                      <li className="flex items-center gap-2">
+                      </li>}
+                    {!horaChegadaLocal?.trim() && <li className="flex items-center gap-2">
                         <span className="w-1 h-1 bg-red-500 rounded-full"></span>
                         Hora de chegada no local
-                      </li>
-                    )}
-                    {(!toneladaAplicada || toneladaAplicada <= 0) && (
-                      <li className="flex items-center gap-2">
+                      </li>}
+                    {(!toneladaAplicada || toneladaAplicada <= 0) && <li className="flex items-center gap-2">
                         <span className="w-1 h-1 bg-red-500 rounded-full"></span>
                         Tonelada aplicada deve ser maior que zero
-                      </li>
-                    )}
+                      </li>}
                   </ul>
                 </div>
               </AlertDescription>
-            </Alert>
-          )}
+            </Alert>}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label htmlFor="hora_chegada_local" className="flex items-center gap-2">
                 <Clock className="h-4 w-4" />
                 Hora de Chegada *
-                {horaChegadaLocal && (
-                  <Badge variant="secondary" className="ml-2 text-xs">
+                {horaChegadaLocal && <Badge variant="secondary" className="ml-2 text-xs">
                     {hasDataInDatabase ? "Salvo" : "Atual"}: {horaChegadaLocal}
-                  </Badge>
-                )}
+                  </Badge>}
               </Label>
-              <Input
-                id="hora_chegada_local"
-                type="time"
-                {...register("hora_chegada_local", { 
-                  required: "Hora de chegada é obrigatória" 
-                })}
-                disabled={isReadOnly}
-                className={
-                  isReadOnly ? "bg-muted" : 
-                  horaChegadaLocal ? "border-blue-300 bg-blue-50" : ""
-                }
-                placeholder="HH:MM"
-              />
-              {errors.hora_chegada_local && (
-                <span className="text-sm text-red-500">
+              <Input id="hora_chegada_local" type="time" {...register("hora_chegada_local", {
+              required: "Hora de chegada é obrigatória"
+            })} disabled={isReadOnly} className={isReadOnly ? "bg-muted" : horaChegadaLocal ? "border-blue-300 bg-blue-50" : ""} placeholder="HH:MM" />
+              {errors.hora_chegada_local && <span className="text-sm text-red-500">
                   {String(errors.hora_chegada_local.message)}
-                </span>
-              )}
+                </span>}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="hora_saida_caminhao" className="flex items-center gap-2">
                 <Clock className="h-4 w-4" />
                 Hora de Saída do Caminhão
-                {horaSaidaCaminhao && (
-                  <Badge variant="secondary" className="ml-2 text-xs">
+                {horaSaidaCaminhao && <Badge variant="secondary" className="ml-2 text-xs">
                     {hasDataInDatabase ? "Salvo" : "Atual"}: {horaSaidaCaminhao}
-                  </Badge>
-                )}
+                  </Badge>}
               </Label>
-              <Input
-                id="hora_saida_caminhao"
-                type="time"
-                {...register("hora_saida_caminhao")}
-                disabled={isReadOnly}
-                className={
-                  isReadOnly ? "bg-muted" : 
-                  horaSaidaCaminhao ? "border-blue-300 bg-blue-50" : ""
-                }
-                placeholder="HH:MM"
-              />
+              <Input id="hora_saida_caminhao" type="time" {...register("hora_saida_caminhao")} disabled={isReadOnly} className={isReadOnly ? "bg-muted" : horaSaidaCaminhao ? "border-blue-300 bg-blue-50" : ""} placeholder="HH:MM" />
               <p className="text-xs text-muted-foreground">
                 Preencha para finalizar a aplicação e atualizar o status
               </p>
@@ -421,165 +339,80 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
             <Badge variant="secondary" className={isFormValid ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
               {isFormValid ? "Pronto para Salvar" : "Dados Incompletos"}
             </Badge>
-            {hasDataInDatabase && (
-              <Badge variant="outline" className="bg-blue-100 text-blue-800">
+            {hasDataInDatabase && <Badge variant="outline" className="bg-blue-100 text-blue-800">
                 Dados no Banco de Dados
-              </Badge>
-            )}
+              </Badge>}
             <Badge variant="outline" className="bg-purple-100 text-purple-800">
-                       Massa: {(toneladaAplicada || (registroCarga?.tonelada_real 
-                         ? formatMassaFromDatabase(registroCarga.tonelada_real, 'bd_registro_cargas', 'tonelada_real')
-                         : 0)).toFixed(1)}t
+                       Massa: {(toneladaAplicada || (registroCarga?.tonelada_real ? formatMassaFromDatabase(registroCarga.tonelada_real, 'bd_registro_cargas', 'tonelada_real') : 0)).toFixed(1)}t
             </Badge>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="temperatura_chegada">
               Temperatura de Chegada (°C)
-              {temperaturaChegada && (
-                <Badge variant="secondary" className="ml-2 text-xs">
+              {temperaturaChegada && <Badge variant="secondary" className="ml-2 text-xs">
                   {hasDataInDatabase ? "Salvo" : "Atual"}: {temperaturaChegada}°C
-                </Badge>
-              )}
+                </Badge>}
             </Label>
-            <Input
-              id="temperatura_chegada"
-              type="number"
-              step="0.1"
-              {...register("temperatura_chegada", { valueAsNumber: true })}
-              disabled={isReadOnly}
-              className={
-                isReadOnly ? "bg-muted" : 
-                temperaturaChegada ? "border-blue-300 bg-blue-50" : ""
-              }
-              placeholder="Ex: 150"
-            />
+            <Input id="temperatura_chegada" type="number" step="0.1" {...register("temperatura_chegada", {
+            valueAsNumber: true
+          })} disabled={isReadOnly} className={isReadOnly ? "bg-muted" : temperaturaChegada ? "border-blue-300 bg-blue-50" : ""} placeholder="Ex: 150" />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="anotacoes_apontador">
               Observações Gerais do Apontamento
-              {anotacoesApontador && (
-                <Badge variant="secondary" className="ml-2 text-xs">
+              {anotacoesApontador && <Badge variant="secondary" className="ml-2 text-xs">
                   Com observações {hasDataInDatabase ? "salvas" : ""}
-                </Badge>
-              )}
+                </Badge>}
             </Label>
-            <Textarea
-              id="anotacoes_apontador"
-              placeholder="Observações gerais sobre todo o apontamento..."
-              {...register("anotacoes_apontador")}
-              rows={3}
-              disabled={isReadOnly}
-              className={
-                isReadOnly ? "bg-muted" : 
-                anotacoesApontador ? "border-blue-300 bg-blue-50" : ""
-              }
-            />
+            <Textarea id="anotacoes_apontador" placeholder="Observações gerais sobre todo o apontamento..." {...register("anotacoes_apontador")} rows={3} disabled={isReadOnly} className={isReadOnly ? "bg-muted" : anotacoesApontador ? "border-blue-300 bg-blue-50" : ""} />
           </div>
 
           {/* Informações da carga */}
-          {registroCarga && (
-            <div className="bg-blue-50 p-4 rounded-lg">
+          {registroCarga && <div className="bg-blue-50 p-4 rounded-lg">
               <h4 className="font-medium text-blue-900 mb-3">Resumo da Carga</h4>
               <div className="text-sm space-y-2">
                 <div className="flex justify-between">
                   <span className="text-blue-600">Massa total da carga:</span>
                   <span className="font-medium">
-                    {registroCarga.tonelada_real 
-                      ? formatMassaFromDatabase(registroCarga.tonelada_real, 'bd_registro_cargas', 'tonelada_real').toFixed(1)
-                      : '0.0'}t
+                    {registroCarga.tonelada_real ? formatMassaFromDatabase(registroCarga.tonelada_real, 'bd_registro_cargas', 'tonelada_real').toFixed(1) : '0.0'}t
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-blue-600">Massa aplicada atual:</span>
                   <span className="font-medium text-green-600">
-                    {(toneladaAplicada || (registroCarga.tonelada_real 
-                      ? formatMassaFromDatabase(registroCarga.tonelada_real, 'bd_registro_cargas', 'tonelada_real')
-                      : 0)).toFixed(1)}t
+                    {(toneladaAplicada || (registroCarga.tonelada_real ? formatMassaFromDatabase(registroCarga.tonelada_real, 'bd_registro_cargas', 'tonelada_real') : 0)).toFixed(1)}t
                   </span>
                 </div>
-                <div className="flex justify-between border-t pt-2">
-                  <span className="text-blue-600 font-medium">Massa remanescente:</span>
-                  <span className={`font-bold ${massaRemanescente > 0.001 ? 'text-orange-600' : 'text-green-600'}`}>
-                    {massaRemanescente.toFixed(2)}t
-                  </span>
-                </div>
+                
               </div>
 
               {/* Botão de Retorno de Massa */}
-              {mostrarBotaoRetorno && (
-                <div className="mt-4 pt-3 border-t border-blue-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <p className="text-sm text-orange-700 font-medium mb-1">
-                        ⚠️ Massa Remanescente Detectada
-                      </p>
-                      <p className="text-xs text-orange-600">
-                        {massaRemanescente.toFixed(2)}t precisa ser pesada como retorno
-                      </p>
-                    </div>
-                    <Button
-                      onClick={handleRetornoMassa}
-                      variant="outline"
-                      size="sm"
-                      className="ml-3 border-orange-300 text-orange-700 hover:bg-orange-50 hover:border-orange-400"
-                    >
-                      <Scale className="h-4 w-4 mr-2" />
-                      <TrendingDown className="h-3 w-3 mr-1" />
-                      Retorno de Massa
-                    </Button>
-                  </div>
-                </div>
-              )}
+              {mostrarBotaoRetorno}
 
               {/* Indicador de retorno já registrado */}
-              {temRetornoRegistrado && (
-                <div className="mt-4 pt-3 border-t border-blue-200">
+              {temRetornoRegistrado && <div className="mt-4 pt-3 border-t border-blue-200">
                   <div className="flex items-center gap-2 text-green-700">
                     <CheckCircle className="h-4 w-4" />
                     <span className="text-sm font-medium">
                       Retorno já registrado: {formatPesoParaToneladas(registroCarga.tonelada_retorno)}
                     </span>
                   </div>
-                </div>
-              )}
-            </div>
-          )}
+                </div>}
+            </div>}
 
           {/* Card de Espessura Média - só mostra se há aplicações */}
-          {cargaInfo && cargaInfo.detalhesAplicacoes && cargaInfo.detalhesAplicacoes.length > 0 && (
-            <div className="bg-gray-50 p-4 rounded-lg">
+          {cargaInfo && cargaInfo.detalhesAplicacoes && cargaInfo.detalhesAplicacoes.length > 0 && <div className="bg-gray-50 p-4 rounded-lg">
               <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
                 <Calculator className="h-4 w-4" />
                 Resumo Técnico da Carga
               </h4>
-              <EspessuraMediaCard 
-                espessuraInfo={espessuraInfo}
-                isReadOnly={isReadOnly}
-              />
-            </div>
-          )}
+              <EspessuraMediaCard espessuraInfo={espessuraInfo} isReadOnly={isReadOnly} />
+            </div>}
 
           {/* Debug info em desenvolvimento */}
-          {process.env.NODE_ENV === 'development' && (
-            <div className="bg-gray-100 p-3 rounded text-xs">
-              <details>
-                <summary className="cursor-pointer font-medium">Debug Info</summary>
-                <div className="mt-2 space-y-1">
-                  <div>isFormValid: {String(isFormValid)}</div>
-                  <div>hasDataInDatabase: {String(hasDataInDatabase)}</div>
-                  <div>isLoading: {String(isLoading)}</div>
-                  <div>toneladaAplicada: {toneladaAplicada || 'null'}</div>
-                  <div>massaRemanescente: {massaRemanescente.toFixed(3)}</div>
-                  <div>Data aplicação: {dataAplicacao || 'vazio'}</div>
-                  <div>Hora chegada: {horaChegadaLocal || 'vazio'}</div>
-                  <div>Hora saída: {horaSaidaCaminhao || 'vazio'}</div>
-                  <div>Registro existente ID: {registroExistente?.id || 'nenhum'}</div>
-                </div>
-              </details>
-            </div>
-          )}
+          {process.env.NODE_ENV === 'development'}
         </CardContent>
       </Card>
 
@@ -588,38 +421,20 @@ const NovoRegistroFinalizacaoTab: React.FC<NovoRegistroFinalizacaoTabProps> = ({
           Anterior
         </Button>
         <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            onClick={onClose} 
-            disabled={isLoading}
-          >
+          <Button variant="outline" onClick={onClose} disabled={isLoading}>
             {isReadOnly ? "Fechar" : "Cancelar"}
           </Button>
-          {!isReadOnly && (
-            <Button
-              onClick={handleSaveClick}
-              disabled={isLoading || !isFormValid}
-              className="bg-green-500 hover:bg-green-600"
-            >
-              {isLoading ? (
-                <>
+          {!isReadOnly && <Button onClick={handleSaveClick} disabled={isLoading || !isFormValid} className="bg-green-500 hover:bg-green-600">
+              {isLoading ? <>
                   <span className="animate-spin mr-2">⏳</span>
                   Salvando...
-                </>
-              ) : hasDataInDatabase ? (
-                <>
+                </> : hasDataInDatabase ? <>
                   <Save className="h-4 w-4 mr-2" />
                   Atualizar Aplicação
-                </>
-              ) : (
-                "Salvar Aplicação"
-              )}
-            </Button>
-          )}
+                </> : "Salvar Aplicação"}
+            </Button>}
         </div>
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default NovoRegistroFinalizacaoTab;

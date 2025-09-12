@@ -49,8 +49,8 @@ const DadosTecnicosMultiplaAplicacaoTab: React.FC<DadosTecnicosMultiplaAplicacao
   const massaTotalCarga = registroCarga?.tonelada_real || 0;
   const massaRemanescente = cargaInfo ? cargaInfo.massaRemanescente : massaTotalCarga;
 
-  // Verificar se a carga está finalizada
-  const cargaFinalizada = cargaInfo?.cargaFinalizada || massaRemanescente <= 0.001 || isReadOnly;
+  // Verificar se a carga está finalizada - usar tolerância mais relaxada
+  const cargaFinalizada = cargaInfo?.cargaFinalizada || massaRemanescente <= 0.01 || isReadOnly;
 
   // Função para validar e formatar valores de hora
   const formatHoraValue = (value: string | number | boolean | null | undefined): string | null => {
@@ -67,8 +67,8 @@ const DadosTecnicosMultiplaAplicacaoTab: React.FC<DadosTecnicosMultiplaAplicacao
     return null;
   };
 
-  // Verificar se pode criar novo registro
-  const podeAdicionarAplicacao = !cargaFinalizada && massaRemanescente > 0 && !isReadOnly;
+  // Verificar se pode criar novo registro - usar tolerância mais relaxada
+  const podeAdicionarAplicacao = !cargaFinalizada && massaRemanescente > 0.01 && !isReadOnly;
 
   // Lógica simplificada para buscar ou criar registro principal
   useEffect(() => {
@@ -206,10 +206,10 @@ const DadosTecnicosMultiplaAplicacaoTab: React.FC<DadosTecnicosMultiplaAplicacao
       return;
     }
 
-    if (massaRemanescente <= 0) {
+    if (massaRemanescente <= 0.01) {
       toast({
         title: "Erro",
-        description: "Não há massa remanescente disponível para aplicação",
+        description: "Não há massa remanescente suficiente disponível para aplicação",
         variant: "destructive",
       });
       return;
@@ -324,12 +324,24 @@ const DadosTecnicosMultiplaAplicacaoTab: React.FC<DadosTecnicosMultiplaAplicacao
                 <p>
                   {isReadOnly 
                     ? 'Esta entrega está finalizada e os dados são apresentados apenas para consulta.'
-                    : `Esta carga foi totalmente aplicada (${massaTotalCarga.toFixed(2)}t).`
+                    : massaRemanescente <= 0.01 
+                      ? `Esta carga foi totalmente aplicada (${massaTotalCarga.toFixed(2)}t).`
+                      : 'Esta carga foi finalizada.'
                   }
                 </p>
                 {!isReadOnly && (
                   <p className="mt-1">
-                    Não é possível adicionar novas aplicações.
+                    {massaRemanescente <= 0.01 ? (
+                      <>
+                        Massa remanescente: 
+                        <span className="font-semibold"> 0.000t </span>
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800 ml-2">
+                          ✓ Zerado (tolerância 10kg)
+                        </span>
+                      </>
+                    ) : (
+                      `Massa remanescente: ${massaRemanescente.toFixed(3)}t - Não é possível adicionar novas aplicações.`
+                    )}
                   </p>
                 )}
               </div>

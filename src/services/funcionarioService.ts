@@ -144,9 +144,54 @@ export const getFuncionarioById = async (id: string): Promise<Funcionario> => {
   }
 };
 
+// Helper function to normalize email (matching DB function)
+const normalizeEmail = (email?: string | null): string | null => {
+  if (!email || typeof email !== 'string' || email.trim() === '') {
+    return null;
+  }
+  return email.toLowerCase().trim();
+};
+
+// Helper function to normalize text (matching DB function for names)
+const normalizeText = (text?: string | null): string | null => {
+  if (!text || typeof text !== 'string' || text.trim() === '') {
+    return null;
+  }
+  // Basic normalization - removes accents and converts to lowercase
+  return text.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+};
+
+// Helper function to check for duplicate email using the normalized database function
+const checkEmailDuplicate = async (email: string, excludeId?: string): Promise<boolean> => {
+  if (!email || email.trim() === '') return false;
+
+  try {
+    const { data, error } = await (supabase as any)
+      .rpc('check_email_duplicate_normalized', {
+        p_email: email,
+        p_exclude_id: excludeId || null
+      });
+
+    if (error) {
+      console.error("Erro ao verificar duplicidade de email:", error);
+      throw new Error("Erro ao verificar duplicidade de email");
+    }
+
+    return data === true;
+  } catch (error) {
+    console.error("Erro na função de verificação de email:", error);
+    return false;
+  }
+};
+
 // Helper function to sanitize date fields and UUID references
 const sanitizeFormData = (data: FuncionarioFormData) => {
   const sanitizedData = { ...data };
+  
+  // Normalize email
+  if (sanitizedData.email) {
+    sanitizedData.email = normalizeEmail(sanitizedData.email);
+  }
   
   // Convert empty strings to null for date fields
   if (sanitizedData.data_nascimento === "") sanitizedData.data_nascimento = null;
@@ -169,6 +214,14 @@ export const createFuncionario = async (data: FuncionarioFormData): Promise<Func
   try {
     // Sanitize form data (convert empty strings to null)
     const sanitizedData = sanitizeFormData(data);
+    
+    // Check for email duplicates before creating
+    if (sanitizedData.email) {
+      const isDuplicateEmail = await checkEmailDuplicate(sanitizedData.email);
+      if (isDuplicateEmail) {
+        throw new Error(`Já existe um funcionário ativo com o email "${sanitizedData.email}". Verifique duplicidade.`);
+      }
+    }
     
     // Calculate data_ferias if data_admissao is provided
     let funcionarioData = { ...sanitizedData };
@@ -216,6 +269,14 @@ export const updateFuncionario = async (id: string, data: FuncionarioFormData): 
   try {
     // Sanitize form data (convert empty strings to null)
     const sanitizedData = sanitizeFormData(data);
+    
+    // Check for email duplicates before updating (excluding the current record)
+    if (sanitizedData.email) {
+      const isDuplicateEmail = await checkEmailDuplicate(sanitizedData.email, id);
+      if (isDuplicateEmail) {
+        throw new Error(`Já existe um funcionário ativo com o email "${sanitizedData.email}". Verifique duplicidade.`);
+      }
+    }
     
     // Calculate data_ferias if data_admissao is provided and different from existing
     let funcionarioData = { ...sanitizedData };
@@ -466,15 +527,48 @@ export const processImportData = async (
         // Logging para debug
         console.log("Dados a inserir:", JSON.stringify(sanitizedData));
 
-        // Verifica CPF duplicado
-        const { data: existingFuncionario, error: checkError } = await supabase
-          .from("bd_funcionarios")
-          .select("id")
-          .eq("cpf", sanitizedData.cpf)
-          .maybeSingle();
+        // Verifica duplicado por email primeiro (preferência), depois CPF
+        let existingFuncionario = null;
+        let updateCriteria = {};
         
-        if (checkError) {
-          throw new Error(`Erro ao verificar CPF: ${checkError.message}`);
+        if (sanitizedData.email) {
+          const normalizedEmail = normalizeEmail(sanitizedData.email);
+          const { data: emailCheck, error: emailError } = await supabase
+            .from("bd_funcionarios")
+            .select("id, email, cpf, nome_completo")
+            .filter('email', 'ilike', normalizedEmail)
+            .neq('status', 'Inativo')
+            .maybeSingle();
+            
+          if (emailError) {
+            throw new Error(`Erro ao verificar email: ${emailError.message}`);
+          }
+          
+          if (emailCheck) {
+            existingFuncionario = emailCheck;
+            updateCriteria = { email: normalizedEmail };
+            console.log(`Funcionário encontrado por email: ${emailCheck.nome_completo}`);
+          }
+        }
+        
+        // Se não encontrou por email e tem CPF, verifica por CPF
+        if (!existingFuncionario && sanitizedData.cpf) {
+          const { data: cpfCheck, error: cpfError } = await supabase
+            .from("bd_funcionarios")
+            .select("id, email, cpf, nome_completo")
+            .eq("cpf", sanitizedData.cpf)
+            .neq('status', 'Inativo')
+            .maybeSingle();
+            
+          if (cpfError) {
+            throw new Error(`Erro ao verificar CPF: ${cpfError.message}`);
+          }
+          
+          if (cpfCheck) {
+            existingFuncionario = cpfCheck;
+            updateCriteria = { cpf: sanitizedData.cpf };
+            console.log(`Funcionário encontrado por CPF: ${cpfCheck.nome_completo}`);
+          }
         }
         
         if (existingFuncionario) {
@@ -486,10 +580,29 @@ export const processImportData = async (
             .select();
             
           if (updateError) {
-            throw new Error(`Erro ao atualizar funcionário: ${updateError.message}`);
+            console.error("Erro ao atualizar funcionário:", updateError);
+            // Se foi erro de email duplicado, tenta sem o email
+            if (updateError.message.includes("email")) {
+              const dataWithoutEmail = { ...sanitizedData };
+              delete dataWithoutEmail.email;
+              
+              const { data: retryData, error: retryError } = await supabase
+                .from("bd_funcionarios")
+                .update(dataWithoutEmail as any)
+                .eq("id", existingFuncionario.id)
+                .select();
+                
+              if (retryError) {
+                throw new Error(`Erro ao atualizar funcionário (retry): ${retryError.message}`);
+              }
+              console.log("Funcionário atualizado sem email (conflito resolvido):", retryData);
+            } else {
+              throw new Error(`Erro ao atualizar funcionário: ${updateError.message}`);
+            }
+          } else {
+            console.log("Funcionário atualizado com sucesso:", updatedData);
           }
           
-          console.log("Funcionário atualizado com sucesso:", updatedData);
           results.success++;
         } else {
           // Create the funcionario
@@ -500,10 +613,27 @@ export const processImportData = async (
 
           if (error) {
             console.error("Erro na inserção:", error);
-            throw new Error(`Erro ao inserir funcionário: ${error.message}`);
+            // Se foi erro de email duplicado, tenta sem o email
+            if (error.message.includes("email")) {
+              const dataWithoutEmail = { ...sanitizedData };
+              delete dataWithoutEmail.email;
+              
+              const { data: retryData, error: retryError } = await supabase
+                .from("bd_funcionarios")
+                .insert(dataWithoutEmail as any)
+                .select();
+                
+              if (retryError) {
+                throw new Error(`Erro ao inserir funcionário (retry): ${retryError.message}`);
+              }
+              console.log("Funcionário inserido sem email (conflito resolvido):", retryData);
+            } else {
+              throw new Error(`Erro ao inserir funcionário: ${error.message}`);
+            }
+          } else {
+            console.log("Funcionário inserido com sucesso:", data);
           }
 
-          console.log("Funcionário inserido com sucesso:", data);
           results.success++;
         }
       } catch (error: any) {

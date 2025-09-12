@@ -2081,9 +2081,53 @@ export type Database = {
         Args: { _profile_id: string }
         Returns: boolean
       }
+      listar_ghost_funcionarios: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          duplicate_type: string
+          funcionario_details: Json
+          normalized_value: string
+          total_count: number
+        }[]
+      }
       log_aplicacao_debug: {
         Args: { p_dados: Json; p_funcao: string; p_resultado?: Json }
         Returns: undefined
+      }
+      merge_duplicate_funcionarios: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          action_summary: string
+          keep_id: string
+          name_norm: string
+          removed_ids: string[]
+        }[]
+      }
+      merge_duplicate_funcionarios_by_email_normalized: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          action_summary: string
+          keep_id: string
+          normalized_email: string
+          removed_ids: string[]
+        }[]
+      }
+      merge_duplicate_funcionarios_normalized: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          action_summary: string
+          keep_id: string
+          normalized_name: string
+          removed_ids: string[]
+        }[]
+      }
+      normalize_email: {
+        Args: { input_email: string }
+        Returns: string
+      }
+      normalize_text: {
+        Args: { input_text: string }
+        Returns: string
       }
       relatorio_correcao_status_massa: {
         Args: Record<PropertyKey, never>
@@ -2104,6 +2148,14 @@ export type Database = {
       sync_profile_funcao_sistema: {
         Args: { _profile_id: string }
         Returns: undefined
+      }
+      unaccent: {
+        Args: { "": string }
+        Returns: string
+      }
+      unaccent_init: {
+        Args: { "": unknown }
+        Returns: unknown
       }
       update_profile_funcionario_id: {
         Args: { _funcionario_id: string; _profile_id: string }

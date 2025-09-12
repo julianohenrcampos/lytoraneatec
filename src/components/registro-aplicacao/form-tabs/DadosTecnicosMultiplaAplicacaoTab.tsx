@@ -53,8 +53,8 @@ const DadosTecnicosMultiplaAplicacaoTab: React.FC<DadosTecnicosMultiplaAplicacao
     : 0;
   const massaRemanescente = cargaInfo ? cargaInfo.massaRemanescente : massaTotalCarga;
 
-  // Verificar se a carga está finalizada
-  const cargaFinalizada = cargaInfo?.cargaFinalizada || massaRemanescente <= 0.001 || isReadOnly;
+  // Verificar se a carga está finalizada - usar tolerância maior (10kg)
+  const cargaFinalizada = cargaInfo?.cargaFinalizada || massaRemanescente < 0.01 || isReadOnly;
 
   // Função para validar e formatar valores de hora
   const formatHoraValue = (value: string | number | boolean | null | undefined): string | null => {

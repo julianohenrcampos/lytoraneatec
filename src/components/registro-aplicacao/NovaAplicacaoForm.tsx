@@ -185,11 +185,11 @@ const NovaAplicacaoForm: React.FC<NovaAplicacaoFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validação rigorosa de massa remanescente
-    if (massaRemanescente <= 0) {
+    // Validação rigorosa de massa remanescente - usar tolerância de 10kg
+    if (massaRemanescente < 0.01) {
       toast({
         title: "Erro",
-        description: "Não há massa remanescente disponível para aplicação",
+        description: "Não há massa remanescente suficiente para aplicação (mínimo 10kg)",
         variant: "destructive",
       });
       return;
@@ -285,8 +285,13 @@ const NovaAplicacaoForm: React.FC<NovaAplicacaoFormProps> = ({
           )}
         </CardTitle>
         <div className="text-sm text-gray-600 space-y-1">
-          <div>Massa remanescente: <span className="font-medium text-orange-600">{massaRemanescente.toFixed(2)}t</span></div>
-          <div>Nova massa remanescente: <span className={`font-medium ${novaMassaRemanescente === 0 ? 'text-red-600' : 'text-blue-600'}`}>{novaMassaRemanescente.toFixed(2)}t</span></div>
+          <div>Massa remanescente: <span className="font-medium text-orange-600">{massaRemanescente.toFixed(3)}t</span></div>
+          <div>Nova massa remanescente: <span className={`font-medium ${novaMassaRemanescente < 0.01 ? 'text-red-600' : 'text-blue-600'}`}>{novaMassaRemanescente.toFixed(3)}t</span></div>
+          {novaMassaRemanescente < 0.01 && novaMassaRemanescente > 0 && (
+            <div className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded">
+              ⚠️ Tolerância: Massa residual mínima ({"<"}10kg)
+            </div>
+          )}
           {aplicarTodaMassa && (
             <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
               ⚡ Aplicando toda a massa remanescente nesta rua
@@ -504,6 +509,9 @@ const NovaAplicacaoForm: React.FC<NovaAplicacaoFormProps> = ({
               {espessuraStatus && (
                 <div className={`text-xs font-medium ${getEspessuraStatusColor()}`}>
                   {espessuraStatusText}
+                  {espessuraStatus === 'warning' && (
+                    <span className="ml-2 text-orange-600">⚠️ Fora do padrão - pode ser aplicado</span>
+                  )}
                 </div>
               )}
             </div>

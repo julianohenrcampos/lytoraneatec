@@ -21,21 +21,22 @@ export const calculateToneladaAplicada = (
   massaRemanescente: number,
   aplicarTodaMassa: boolean
 ): number => {
-  if (area <= 0) return 0;
-  
+  // PRIORIDADE 1: Se toggle "Aplicar toda massa" estiver marcado, aplicar TODA a massa remanescente
   if (aplicarTodaMassa) {
-    // CORREÇÃO CRÍTICA: Quando checkbox marcado, aplicar TODA a massa remanescente
     console.log(`🔧 calculateToneladaAplicada - MODO APLICAR TODA MASSA: ${massaRemanescente.toFixed(3)}t`);
     return massaRemanescente;
-  } else {
-    // Fórmula padrão: 5cm de espessura
-    const volumeM3 = area * 0.05; // metros cúbicos
-    const massaKg = volumeM3 * 2400; // kg
-    const toneladaPadrao = massaKg / 1000; // toneladas
-    const resultado = Math.min(toneladaPadrao, massaRemanescente);
-    console.log(`🔧 calculateToneladaAplicada - MODO PADRÃO: ${area}m² × 0.05m × 2400kg/m³ = ${toneladaPadrao.toFixed(3)}t, limitado: ${resultado.toFixed(3)}t`);
-    return resultado;
   }
+  
+  // PRIORIDADE 2: Verificar se há área válida para cálculo padrão
+  if (area <= 0) return 0;
+  
+  // Fórmula padrão: 5cm de espessura
+  const volumeM3 = area * 0.05; // metros cúbicos
+  const massaKg = volumeM3 * 2400; // kg
+  const toneladaPadrao = massaKg / 1000; // toneladas
+  const resultado = Math.min(toneladaPadrao, massaRemanescente);
+  console.log(`🔧 calculateToneladaAplicada - MODO PADRÃO: ${area}m² × 0.05m × 2400kg/m³ = ${toneladaPadrao.toFixed(3)}t, limitado: ${resultado.toFixed(3)}t`);
+  return resultado;
 };
 
 /**
@@ -100,7 +101,9 @@ export const calculateMassaRemanescenteAfterApplication = (
   massaAtual: number,
   toneladaAplicada: number
 ): number => {
-  return Math.max(0, massaAtual - toneladaAplicada);
+  const resultado = massaAtual - toneladaAplicada;
+  // Round to 3 decimal places to prevent negative values due to floating point precision
+  return Math.max(0, Number(resultado.toFixed(3)));
 };
 
 /**

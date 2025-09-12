@@ -150,13 +150,21 @@ export const createAplicacaoDetalhe = async (
     const dataAplicacao = entregaData.data_entrega;
     console.log("📅 [createAplicacaoDetalhe] Usando data da entrega como data de aplicação:", dataAplicacao);
     
+    // Log do valor da tonelada que será enviada
+    const toneladaFinal = valores.tonelada_aplicada;
+    console.log("🎯 [createAplicacaoDetalhe] Enviando para RPC:", {
+      aplicar_toda_massa: valores.aplicar_toda_massa,
+      tonelada_aplicada: toneladaFinal,
+      area_aplicada: valores.area_aplicada
+    });
+
     // Usar a RPC corrigida com todos os parâmetros
     const { data, error } = await supabase.rpc('criar_aplicacao_por_rua', {
       p_lista_entrega_id: listaEntregaId,
       p_registro_carga_id: cargaId,
       p_logradouro_nome: valores.logradouro_nome.trim(),
       p_area_aplicada: valores.area_aplicada,
-      p_tonelada_aplicada: valores.tonelada_aplicada,
+      p_tonelada_aplicada: toneladaFinal,
       p_espessura_aplicada: valores.espessura_aplicada || null,
       p_comprimento: valores.comprimento || null,
       p_largura_media: valores.largura_media || null,

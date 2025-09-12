@@ -9,6 +9,7 @@ import {
   deleteAplicacaoDetalhe 
 } from "@/services/registroAplicacaoDetalhesService";
 import { forceUpdateDeliveryStatus } from "@/services/registro-aplicacao/statusIntegrityService";
+import { supabase } from "@/integrations/supabase/client";
 
 export const useAplicacoesMultiplas = (
   registroAplicacaoId?: string,
@@ -139,7 +140,7 @@ export const useAplicacoesMultiplas = (
     }
   }, [listaEntregaId]);
 
-  // Adicionar nova aplicação com logs detalhados
+  // Adicionar nova aplicação com logs detalhados e ajuste automático de massa
   const adicionarAplicacao = async (dadosAplicacao: RegistroAplicacaoDetalhesFormValues) => {
     console.log("🚀 [adicionarAplicacao] ==================== INÍCIO ====================");
     console.log("📊 Validando estado atual:");
@@ -151,6 +152,7 @@ export const useAplicacoesMultiplas = (
     console.log("   - logradouro_nome:", dadosAplicacao.logradouro_nome);
     console.log("   - area_aplicada:", dadosAplicacao.area_aplicada);
     console.log("   - tonelada_aplicada:", dadosAplicacao.tonelada_aplicada);
+    console.log("   - aplicar_toda_massa:", dadosAplicacao.aplicar_toda_massa);
     
     if (!registroAplicacaoId || !registroCargaId || !listaEntregaId) {
       console.error("❌ [adicionarAplicacao] ERRO CRÍTICO - IDs necessários não fornecidos:");
@@ -171,6 +173,45 @@ export const useAplicacoesMultiplas = (
     });
 
     setIsLoading(true);
+    
+    // Criar uma cópia dos dados para eventual ajuste
+    let dadosAjustados = { ...dadosAplicacao };
+    
+    // NOVA LÓGICA: Se aplicar_toda_massa=true, consultar massa real e ajustar
+    if (dadosAplicacao.aplicar_toda_massa) {
+      console.log("🎯 [adicionarAplicacao] Modo APLICAR TODA MASSA ativado - consultando massa real do banco...");
+      
+      try {
+        const { data: massaReal } = await supabase.rpc('calcular_massa_remanescente_em_tempo_real', {
+          p_registro_aplicacao_id: registroAplicacaoId
+        });
+        
+        if (massaReal && massaReal > 0) {
+          console.log(`🔧 [adicionarAplicacao] Massa real no banco: ${massaReal}t, forçando tonelada_aplicada...`);
+          
+          // Forçar tonelada exatamente igual à massa real (com 2 casas)
+          dadosAjustados.tonelada_aplicada = Number(massaReal.toFixed(2));
+          
+          // Recalcular espessura com a nova tonelada
+          if (dadosAjustados.area_aplicada > 0) {
+            const massaKg = dadosAjustados.tonelada_aplicada * 1000;
+            const volumeM3 = massaKg / 2400;
+            const espessuraMetros = volumeM3 / dadosAjustados.area_aplicada;
+            dadosAjustados.espessura_aplicada = Number((espessuraMetros * 100).toFixed(2));
+          }
+          
+          console.log("🔄 [adicionarAplicacao] Dados ajustados para aplicar toda massa:", {
+            massaOriginal: dadosAplicacao.tonelada_aplicada,
+            massaAjustada: dadosAjustados.tonelada_aplicada,
+            espessuraAjustada: dadosAjustados.espessura_aplicada
+          });
+        }
+      } catch (error) {
+        console.error("❌ [adicionarAplicacao] Erro ao consultar massa real:", error);
+        // Continue com valores originais se falhar
+      }
+    }
+    
     try {
       console.log("📞 [adicionarAplicacao] Chamando createAplicacaoDetalhe...");
       
@@ -178,7 +219,7 @@ export const useAplicacoesMultiplas = (
         registroAplicacaoId,
         registroCargaId,
         listaEntregaId,
-        dadosAplicacao
+        dadosAjustados
       );
 
       console.log("✅ [adicionarAplicacao] Aplicação criada com sucesso:", novaAplicacao);
@@ -219,9 +260,150 @@ export const useAplicacoesMultiplas = (
       console.log("🔄 [adicionarAplicacao] Forçando reload completo após timeout...");
       await forceReloadAplicacoes();
 
+      // NOVA LÓGICA: Se aplicar_toda_massa=true, verificar se deve finalizar carga
+      if (dadosAplicacao.aplicar_toda_massa) {
+        console.log("🎯 [adicionarAplicacao] Verificando se deve finalizar carga após aplicar toda massa...");
+        
+        try {
+          // Aguardar um pouco mais para garantir que o banco foi atualizado
+          await new Promise(resolve => setTimeout(resolve, 800));
+          
+          // Consultar massa remanescente novamente
+          const { data: massaRestante } = await supabase.rpc('calcular_massa_remanescente_em_tempo_real', {
+            p_registro_aplicacao_id: registroAplicacaoId
+          });
+          
+          console.log(`🔍 [adicionarAplicacao] Massa remanescente após aplicação: ${massaRestante}t`);
+          
+          // Se sobrou <= 0.01t, finalizar carga automaticamente
+          if (massaRestante !== null && massaRestante <= 0.01) {
+            console.log("🏁 [adicionarAplicacao] Finalizando carga automaticamente (massa <= 0.01t)...");
+            
+            try {
+              const { data: finalizacaoData } = await supabase.rpc('finalizar_carga_aplicacao', {
+                aplicacao_id: registroAplicacaoId
+              });
+              
+              console.log("✅ [adicionarAplicacao] Carga finalizada automaticamente:", finalizacaoData);
+              
+              toast({
+                title: "🎯 Carga Finalizada Automaticamente",
+                description: "Toda a massa foi aplicada. A carga foi finalizada automaticamente.",
+              });
+              
+              // Forçar mais um reload para atualizar status
+              await new Promise(resolve => setTimeout(resolve, 500));
+              await forceReloadAplicacoes();
+              onDataChange?.();
+              
+            } catch (finalizacaoError) {
+              console.error("❌ [adicionarAplicacao] Erro ao finalizar carga:", finalizacaoError);
+            }
+          }
+        } catch (error) {
+          console.error("❌ [adicionarAplicacao] Erro ao verificar finalização:", error);
+        }
+      }
+
       return novaAplicacao;
     } catch (error) {
       console.error("❌ [adicionarAplicacao] Erro ao adicionar aplicação:", error);
+      
+      // Se o erro for relacionado a exceder massa, tentar ajustar automaticamente
+      if (error instanceof Error && error.message.includes("excede")) {
+        console.log("⚠️ [adicionarAplicacao] Detectado erro de massa excedida, tentando ajustar...");
+        
+        try {
+          // Consultar massa remanescente real via RPC
+          const { data: massaReal } = await supabase.rpc('calcular_massa_remanescente_em_tempo_real', {
+            p_registro_aplicacao_id: registroAplicacaoId
+          });
+          
+          if (massaReal && massaReal > 0.005) {
+            console.log(`🔧 [adicionarAplicacao] Massa real disponível: ${massaReal}t, ajustando aplicação...`);
+            
+            // Ajustar tonelada aplicada - se for modo "aplicar toda massa", usar tudo; senão, deixar margem
+            if (dadosAplicacao.aplicar_toda_massa) {
+              dadosAjustados.tonelada_aplicada = Number(massaReal.toFixed(2));
+            } else {
+              dadosAjustados.tonelada_aplicada = Math.max(0, massaReal - 0.005);
+            }
+            
+            // Recalcular espessura com a nova tonelada
+            if (dadosAjustados.area_aplicada > 0) {
+              const massaKg = dadosAjustados.tonelada_aplicada * 1000;
+              const volumeM3 = massaKg / 2400;
+              const espessuraMetros = volumeM3 / dadosAjustados.area_aplicada;
+              dadosAjustados.espessura_aplicada = Number((espessuraMetros * 100).toFixed(2));
+            }
+            
+            console.log("🔄 [adicionarAplicacao] Tentando novamente com dados ajustados:", dadosAjustados);
+            
+            // Tentar novamente com dados ajustados
+            const novaAplicacao = await createAplicacaoDetalhe(
+              registroAplicacaoId,
+              registroCargaId,
+              listaEntregaId,
+              dadosAjustados
+            );
+            
+            console.log("✅ [adicionarAplicacao] Sucesso com dados ajustados!");
+            
+            // Atualizar estado local
+            setAplicacoes(prev => {
+              const novaLista = [...prev, novaAplicacao];
+              console.log("📝 [adicionarAplicacao] Estado local atualizado após ajuste:", {
+                anterior: prev.length,
+                novo: novaLista.length
+              });
+              return novaLista;
+            });
+            
+            clearCache(registroAplicacaoId);
+            await forceUpdateStatus();
+            
+            toast({
+              title: "✅ Aplicação ajustada e salva!",
+              description: `${dadosAjustados.logradouro_nome} - ${dadosAjustados.tonelada_aplicada}t aplicada (ajustada automaticamente)`,
+            });
+            
+            onDataChange?.();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await forceReloadAplicacoes();
+            
+            // Se foi modo "aplicar toda massa", verificar finalização
+            if (dadosAplicacao.aplicar_toda_massa) {
+              try {
+                await new Promise(resolve => setTimeout(resolve, 800));
+                const { data: massaRestante } = await supabase.rpc('calcular_massa_remanescente_em_tempo_real', {
+                  p_registro_aplicacao_id: registroAplicacaoId
+                });
+                
+                if (massaRestante !== null && massaRestante <= 0.01) {
+                  await supabase.rpc('finalizar_carga_aplicacao', {
+                    aplicacao_id: registroAplicacaoId
+                  });
+                  
+                  toast({
+                    title: "🎯 Carga Finalizada Automaticamente",
+                    description: "Toda a massa foi aplicada. A carga foi finalizada automaticamente.",
+                  });
+                  
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                  await forceReloadAplicacoes();
+                  onDataChange?.();
+                }
+              } catch (finalizacaoError) {
+                console.error("❌ Erro ao finalizar após ajuste:", finalizacaoError);
+              }
+            }
+            
+            return novaAplicacao;
+          }
+        } catch (adjustError) {
+          console.error("❌ [adicionarAplicacao] Erro ao tentar ajustar automaticamente:", adjustError);
+        }
+      }
       
       let errorMessage = "Não foi possível adicionar a aplicação";
       if (error instanceof Error) {

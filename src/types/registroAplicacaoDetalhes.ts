@@ -65,6 +65,7 @@ export interface RegistroAplicacaoDetalhesFormValues {
   hora_fim_aplicacao?: string;
   estaca_inicial?: number;
   estaca_final?: number;
+  aplicar_toda_massa?: boolean;
 }
 
 export interface CargaStatusHistorico {

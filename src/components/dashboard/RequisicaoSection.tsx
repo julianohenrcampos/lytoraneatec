@@ -210,7 +210,7 @@ const RequisicaoSection: React.FC<RequisicaoSectionProps> = ({
           icon={Map}
           footer={getPeriodLabel()}
           isLoading={loadingAplicacoes}
-          onClick={() => navigateTo("/requisicoes/registro-aplicacao")}
+          onClick={() => navigateTo("/registro-aplicacao")}
         />
 
         {/* Apontamentos de C&E */}
