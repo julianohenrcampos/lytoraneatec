@@ -5,7 +5,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import AuthLayout from "@/components/AuthLayout";
-import { supabase } from "@/integrations/supabase/client";
+import { sendReset } from "@/services/authService";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,17 +32,7 @@ const ForgotPassword: React.FC = () => {
   const onSubmit = async (data: ForgotPasswordFormValues) => {
     setIsLoading(true);
     try {
-      // Usar URL consistente com lib/auth.ts
-      const isLocalhost = window.location.hostname === 'localhost';
-      const redirectTo = isLocalhost 
-        ? `${window.location.origin}/reset-password`
-        : "https://lytotec.com.br/reset-password";
-      
-      console.log("🔐 URL de redirecionamento para reset:", redirectTo);
-      
-      const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
-        redirectTo,
-      });
+      const { error } = await sendReset(data.email);
 
       if (error) throw error;
 

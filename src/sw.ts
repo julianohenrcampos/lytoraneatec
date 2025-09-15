@@ -13,11 +13,12 @@ precacheAndRoute(self.__WB_MANIFEST);
 // Clean up outdated caches
 cleanupOutdatedCaches();
 
-// Cache names
-const DATA_CACHE = 'lytotec-data-v1';
-const API_CACHE = 'lytotec-api-v1';
-const NAVIGATION_CACHE = 'lytotec-navigation-v1';
-const LARGE_FILES_CACHE = 'lytotec-large-files-v1';
+// Cache names - versioned to v2 to invalidate old SW
+const DATA_CACHE = 'lytotec-data-v2';
+const API_CACHE = 'lytotec-api-v2';
+const NAVIGATION_CACHE = 'lytotec-navigation-v2';
+const LARGE_FILES_CACHE = 'lytotec-large-files-v2';
+const ASSETS_CACHE = 'lytotec-assets-v2';
 
 // Cache large JavaScript files with specific strategy
 registerRoute(
@@ -68,7 +69,7 @@ registerRoute(
     return supabasePattern.test(url.origin) && url.pathname.startsWith('/auth/v1/');
   },
   new NetworkFirst({
-    cacheName: 'lytotec-auth-v1',
+    cacheName: 'lytotec-auth-v2',
     plugins: [
       new CacheableResponsePlugin({
         statuses: [0, 200],
@@ -87,7 +88,7 @@ registerRoute(
                    request.destination === 'font' ||
                    request.destination === 'style',
   new CacheFirst({
-    cacheName: 'lytotec-assets-v1',
+    cacheName: ASSETS_CACHE,
     plugins: [
       new CacheableResponsePlugin({
         statuses: [0, 200],
@@ -104,7 +105,7 @@ registerRoute(
 registerRoute(
   ({ url }) => url.origin === 'https://fonts.googleapis.com' || url.origin === 'https://fonts.gstatic.com',
   new StaleWhileRevalidate({
-    cacheName: 'lytotec-fonts-v1',
+    cacheName: 'lytotec-fonts-v2',
     plugins: [
       new CacheableResponsePlugin({
         statuses: [0, 200],
@@ -128,8 +129,9 @@ const navigationRoute = new NavigationRoute(
     ],
   }),
   {
-    allowlist: [/^\/$/],
-    denylist: [/^\/_/, /\/[^/?]+\.[^/]+$/],
+    // Allow all navigation routes including auth routes
+    allowlist: [/^\/$/, /^\/login/, /^\/register/, /^\/forgot-password/, /^\/reset-password/, /^\/dashboard/, /^\/#/],
+    denylist: [/^\/_/, /\/[^/?]+\.[^/]+$/, /^\/api\//],
   }
 );
 
@@ -224,12 +226,26 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Handle navigation requests
+  // Handle navigation requests - Special handling for auth routes
   if (event.request.mode === 'navigate') {
+    const url = new URL(event.request.url);
+    const hash = url.hash || '';
+
+    const isSupabaseAuth =
+      url.pathname === '/reset-password' ||
+      hash.includes('type=recovery') ||
+      hash.includes('access_token') ||
+      hash.includes('refresh_token');
+
+    if (isSupabaseAuth) {
+      event.respondWith(fetch('/index.html', { cache: 'no-store' }));
+      return;
+    }
+
     event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.match('/') || caches.match('/offline.html');
-      })
+      fetch(event.request).catch(() =>
+        caches.match('/index.html') || caches.match('/')
+      )
     );
     return;
   }
