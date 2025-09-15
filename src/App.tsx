@@ -16,6 +16,7 @@ import WaitingApproval from "@/pages/WaitingApproval";
 import Register from "@/pages/Register";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
+import NotFound from "@/pages/NotFound";
 
 // Gestão RH - using correct file names
 import DashboardRH from "@/pages/DashboardRH";
@@ -281,6 +282,9 @@ const App = () => {
                 </SimplePermissionGuard>
               </SimpleAuthGuard>
             } />
+            
+            {/* Catch-all route para 404 */}
+            <Route path="*" element={<NotFound />} />
               </Routes>
               <PWAUpdateNotification />
               <PWAInstallBanner />

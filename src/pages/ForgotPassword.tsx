@@ -32,8 +32,16 @@ const ForgotPassword: React.FC = () => {
   const onSubmit = async (data: ForgotPasswordFormValues) => {
     setIsLoading(true);
     try {
+      // Usar URL consistente com lib/auth.ts
+      const isLocalhost = window.location.hostname === 'localhost';
+      const redirectTo = isLocalhost 
+        ? `${window.location.origin}/reset-password`
+        : "https://lytotec.com.br/reset-password";
+      
+      console.log("🔐 URL de redirecionamento para reset:", redirectTo);
+      
       const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
-        redirectTo: window.location.origin + "/reset-password",
+        redirectTo,
       });
 
       if (error) throw error;
