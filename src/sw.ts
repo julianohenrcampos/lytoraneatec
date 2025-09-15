@@ -13,12 +13,12 @@ precacheAndRoute(self.__WB_MANIFEST);
 // Clean up outdated caches
 cleanupOutdatedCaches();
 
-// Cache names - versioned to v2 to invalidate old SW
-const DATA_CACHE = 'lytotec-data-v2';
-const API_CACHE = 'lytotec-api-v2';
-const NAVIGATION_CACHE = 'lytotec-navigation-v2';
-const LARGE_FILES_CACHE = 'lytotec-large-files-v2';
-const ASSETS_CACHE = 'lytotec-assets-v2';
+// Cache names - versioned to v3 to force invalidation for auth fixes
+const DATA_CACHE = 'lytotec-data-v3';
+const API_CACHE = 'lytotec-api-v3';
+const NAVIGATION_CACHE = 'lytotec-navigation-v3';
+const LARGE_FILES_CACHE = 'lytotec-large-files-v3';
+const ASSETS_CACHE = 'lytotec-assets-v3';
 
 // Cache large JavaScript files with specific strategy
 registerRoute(
@@ -118,24 +118,47 @@ registerRoute(
   })
 );
 
-// Navigation route with offline fallback
-const navigationRoute = new NavigationRoute(
-  new NetworkFirst({
-    cacheName: NAVIGATION_CACHE,
-    plugins: [
-      new CacheableResponsePlugin({
-        statuses: [0, 200],
-      }),
-    ],
-  }),
-  {
-    // Allow all navigation routes including auth routes
-    allowlist: [/^\/$/, /^\/login/, /^\/register/, /^\/forgot-password/, /^\/reset-password/, /^\/dashboard/, /^\/#/],
-    denylist: [/^\/_/, /\/[^/?]+\.[^/]+$/, /^\/api\//],
-  }
-);
+// Custom fetch handler for better auth handling
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
 
-registerRoute(navigationRoute);
+  const url = new URL(event.request.url);
+  const hash = url.hash || '';
+  const pathname = url.pathname;
+
+  // Detectar rotas de autenticação que precisam bypass de cache
+  const isSupabaseAuth =
+    pathname === '/reset-password' ||
+    pathname === '/forgot-password' ||
+    pathname.includes('auth') ||
+    hash.includes('type=recovery') ||
+    hash.includes('access_token') ||
+    hash.includes('refresh_token') ||
+    hash.includes('error=') ||
+    hash.includes('error_code=');
+
+  console.log('SW: Request intercepted', { pathname, hash, isSupabaseAuth });
+
+  if (event.request.mode === 'navigate') {
+    if (isSupabaseAuth) {
+      console.log('SW: Auth route detected, bypassing cache');
+      event.respondWith(
+        fetch('/index.html', { 
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
+        })
+      );
+      return;
+    }
+
+    // Para outras navegações, usar estratégia padrão
+    event.respondWith(
+      fetch(event.request)
+        .catch(() => caches.match('/index.html') || caches.match('/'))
+    );
+    return;
+  }
+});
 
 // Handle offline data storage
 self.addEventListener('message', (event) => {

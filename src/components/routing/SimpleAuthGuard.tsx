@@ -8,7 +8,7 @@ interface SimpleAuthGuardProps {
 }
 
 const SimpleAuthGuard: React.FC<SimpleAuthGuardProps> = ({ children }) => {
-  const { isAuthenticated, isLoading, userId } = useAuth();
+  const { isAuthenticated, isLoading, userId, isPasswordRecovery } = useAuth();
 
   console.log('🔐 [SimpleAuthGuard] Estado atual:', { isAuthenticated, isLoading, userId });
 
@@ -23,6 +23,12 @@ const SimpleAuthGuard: React.FC<SimpleAuthGuardProps> = ({ children }) => {
   }
 
   if (!isAuthenticated || !userId) {
+    // Se está em modo de recovery de senha, não redirecionar para login
+    if (isPasswordRecovery) {
+      console.log('🔄 [SimpleAuthGuard] Modo recovery - permitindo acesso');
+      return <>{children}</>;
+    }
+    
     console.log('🔄 [SimpleAuthGuard] Usuário não autenticado - redirecionando para login');
     return <Navigate to="/login" replace />;
   }
