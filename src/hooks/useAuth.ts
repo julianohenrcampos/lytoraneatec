@@ -1,4 +1,5 @@
 
+// src/hooks/useAuth.ts
 import { useState, useEffect } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -23,28 +24,24 @@ export const useAuth = () => {
   });
 
   useEffect(() => {
-    console.log('🔐 useAuth - Inicializando...');
-    
-    // Verificar se está na página de reset password com tokens válidos
     const checkRecoveryTokens = () => {
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
       const accessToken = hashParams.get('access_token');
       const type = hashParams.get('type');
       return type === 'recovery' && !!accessToken;
     };
-    
-    const isRecoveryMode = window.location.pathname === '/reset-password' && checkRecoveryTokens();
-    
-    // Configurar listener de mudanças de auth PRIMEIRO
+
+    const isRecoveryMode =
+      window.location.pathname === '/reset-password' && checkRecoveryTokens();
+
+    // Listener PRIMEIRO
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log('🔐 Auth state changed:', event, session?.user?.email);
-        
         const isPasswordRecovery = event === 'PASSWORD_RECOVERY' || isRecoveryMode;
-        
+
         setAuthState({
           user: session?.user ?? null,
-          session: session,
+          session: session ?? null,
           userId: session?.user?.id ?? null,
           isAuthenticated: !!session?.user,
           isLoading: false,
@@ -53,39 +50,24 @@ export const useAuth = () => {
       }
     );
 
-    // Verificar sessão existente DEPOIS
+    // Sessão DEPOIS
     const initializeAuth = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('❌ Erro ao obter sessão:', error);
-        }
-        
-        console.log('🔐 Sessão inicial:', session?.user?.email || 'Nenhuma');
-        
-        const isPasswordRecovery = checkRecoveryTokens();
-        
-        setAuthState({
-          user: session?.user ?? null,
-          session: session,
-          userId: session?.user?.id ?? null,
-          isAuthenticated: !!session?.user,
-          isLoading: false,
-          isPasswordRecovery,
-        });
-      } catch (error) {
-        console.error('❌ Erro na inicialização do auth:', error);
-        setAuthState(prev => ({ ...prev, isLoading: false, isPasswordRecovery: false }));
-      }
+      const { data: { session } } = await supabase.auth.getSession();
+
+      setAuthState(prev => ({
+        ...prev,
+        user: session?.user ?? null,
+        session: session ?? null,
+        userId: session?.user?.id ?? null,
+        isAuthenticated: !!session?.user,
+        isLoading: false,
+        isPasswordRecovery: checkRecoveryTokens(),
+      }));
     };
 
     initializeAuth();
 
-    return () => {
-      console.log('🔐 useAuth - Cleanup');
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   return authState;
