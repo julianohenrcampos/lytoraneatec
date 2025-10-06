@@ -1,0 +1,1053 @@
+COMPONENT CompleteOsForm.tsx - CÓDIGO COMPLETO COM COMENTÁRIOS
+==============================================================
+
+import React, { useState, useEffect, useRef } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { toast } from "sonner";
+import { OrdemServico, Material, MaoDeObra } from "@/types/ordemServico";
+import { useOsHeaderData } from "@/hooks/useOsHeaderData";
+import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
+import { formatCurrency } from "@/lib/utils";
+
+// ==========================================
+// INTERFACES E TIPOS
+// ==========================================
+
+interface CompleteOsFormProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (osData: Partial<OrdemServico>, motivo: string) => Promise<OrdemServico | void>;
+  currentOs: OrdemServico | null;
+  materials: Material[];
+  laborItems: MaoDeObra[];
+  isLoading: boolean;
+  onSaveMaterial: (material: Partial<Material>) => Promise<Material | void>;
+  onDeleteMaterial: (materialId: string) => Promise<void>;
+  onSaveMaoDeObra: (maoDeObra: Partial<MaoDeObra>) => Promise<MaoDeObra | void>;
+  onDeleteMaoDeObra: (maoDeObraId: string) => Promise<void>;
+}
+
+// ==========================================
+// COMPONENT PRINCIPAL
+// ==========================================
+
+const CompleteOsForm: React.FC<CompleteOsFormProps> = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  currentOs,
+  materials,
+  laborItems,
+  isLoading,
+  onSaveMaterial,
+  onDeleteMaterial,
+  onSaveMaoDeObra,
+  onDeleteMaoDeObra,
+}) => {
+  
+  // ==========================================
+  // ESTADOS LOCAIS
+  // ==========================================
+  
+  // Estado principal do formulário
+  const [formData, setFormData] = useState<Partial<OrdemServico>>({});
+  
+  // Estado para motivo da alteração
+  const [motivo, setMotivo] = useState('');
+  
+  // ⚠️ ESTADOS PROBLEMÁTICOS - Materiais e mão de obra temporários
+  const [tempMaterials, setTempMaterials] = useState<Partial<Material>[]>([]);
+  const [tempLaborItems, setTempLaborItems] = useState<Partial<MaoDeObra>[]>([]);
+  
+  // Estado para aba ativa
+  const [activeTab, setActiveTab] = useState("dados-gerais");
+
+  // ==========================================
+  // HOOKS E REFS
+  // ==========================================
+  
+  // Hook para dados do cabeçalho (veículos, usuários, etc.)
+  const { headerData, isLoading: isHeaderLoading } = useOsHeaderData();
+  
+  // Hook para permissões dinâmicas
+  const { canEditDateTime } = useDynamicPermissions();
+  
+  // Refs para controle visual de campos de data/hora
+  const dataInicioRef = useRef<HTMLInputElement>(null);
+  const horaInicioRef = useRef<HTMLInputElement>(null);
+
+  // ==========================================
+  // FUNÇÕES UTILITÁRIAS
+  // ==========================================
+  
+  // Obtém horário atual do Brasil
+  const getCurrentBrazilianTime = () => {
+    const now = new Date();
+    const brasilTime = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(now);
+    return brasilTime;
+  };
+
+  // Determina estado atual da OS
+  const getOsState = () => {
+    if (!currentOs) return 'new';
+    if (currentOs.status === 'Concluída') return 'completed';
+    if (formData.data_inicio_atendimento && formData.hora_inicio_atendimento) return 'started';
+    return 'created';
+  };
+
+  // Define texto do botão baseado no estado
+  const getButtonText = () => {
+    const state = getOsState();
+    switch (state) {
+      case 'new': return 'Criar OS';
+      case 'created': return 'Iniciar Atendimento';
+      case 'started': return 'Encerrar Atendimento';
+      case 'completed': return 'OS Concluída';
+      default: return 'Salvar';
+    }
+  };
+
+  // Verifica se campos de data/hora são editáveis
+  const isDateTimeFieldEditable = () => {
+    return canEditDateTime() || getOsState() === 'new';
+  };
+
+  // ==========================================
+  // EFFECTS PARA INICIALIZAÇÃO
+  // ==========================================
+  
+  // Effect para popular formData quando currentOs muda
+  useEffect(() => {
+    if (currentOs) {
+      console.log('📋 Populando formulário com dados da OS:', currentOs.numero_os);
+      setFormData({ ...currentOs });
+      setTempMaterials([]); // ⚠️ Limpa materiais temporários
+      setTempLaborItems([]); // ⚠️ Limpa mão de obra temporária
+    } else {
+      console.log('🆕 Modo criação - limpando formulário');
+      setFormData({});
+      setTempMaterials([]);
+      setTempLaborItems([]);
+    }
+    setMotivo('');
+  }, [currentOs]);
+
+  // Effect para pré-preenchimento com dados do cabeçalho
+  useEffect(() => {
+    if (headerData && !currentOs) {
+      setFormData(prev => ({
+        ...prev,
+        executado_por_id: headerData.currentUser?.id,
+      }));
+    }
+  }, [headerData, currentOs]);
+
+  // Effects para atualização visual dos campos de data/hora
+  useEffect(() => {
+    if (dataInicioRef.current) {
+      dataInicioRef.current.style.backgroundColor = formData.data_inicio_atendimento ? '#e8f5e8' : '';
+    }
+  }, [formData.data_inicio_atendimento]);
+
+  useEffect(() => {
+    if (horaInicioRef.current) {
+      horaInicioRef.current.style.backgroundColor = formData.hora_inicio_atendimento ? '#e8f5e8' : '';
+    }
+  }, [formData.hora_inicio_atendimento]);
+
+  // ==========================================
+  // HANDLERS PRINCIPAIS
+  // ==========================================
+  
+  // ⚠️ FUNÇÃO PROBLEMÁTICA - Submissão principal do formulário
+  const handleSubmit = async () => {
+    try {
+      console.log('🚀 Iniciando submissão do formulário');
+      console.log('📊 Dados atuais:', formData);
+      console.log('📋 CurrentOs:', currentOs?.id);
+
+      const state = getOsState();
+      let dataToSubmit = { ...formData };
+
+      // Auto-preenchimento baseado no estado
+      if (state === 'created' && !dataToSubmit.data_inicio_atendimento) {
+        const today = new Date().toISOString().split('T')[0];
+        const currentTime = getCurrentBrazilianTime();
+        
+        dataToSubmit.data_inicio_atendimento = today;
+        dataToSubmit.hora_inicio_atendimento = currentTime;
+        dataToSubmit.status = 'Em Andamento';
+        
+        console.log('⏰ Auto-preenchimento de início:', { 
+          data: today, 
+          hora: currentTime 
+        });
+      }
+
+      if (state === 'started' && !dataToSubmit.data_encerramento_atendimento) {
+        const today = new Date().toISOString().split('T')[0];
+        const currentTime = getCurrentBrazilianTime();
+        
+        dataToSubmit.data_encerramento_atendimento = today;
+        dataToSubmit.hora_encerramento_atendimento = currentTime;
+        dataToSubmit.status = 'Concluída';
+        
+        console.log('🏁 Auto-preenchimento de encerramento:', { 
+          data: today, 
+          hora: currentTime 
+        });
+      }
+
+      // Limpeza de dados vazios
+      Object.keys(dataToSubmit).forEach(key => {
+        const value = dataToSubmit[key as keyof OrdemServico];
+        if (value === '' || value === null) {
+          delete dataToSubmit[key as keyof OrdemServico];
+        }
+      });
+
+      console.log('📤 Dados finais para submissão:', dataToSubmit);
+
+      // ⚠️ SUBMISSÃO PRINCIPAL
+      const result = await onSubmit(dataToSubmit, motivo);
+      console.log('✅ Submissão concluída, resultado:', result);
+
+      // ⚠️ TIMING CRÍTICO - Salvamento de materiais e mão de obra
+      if (tempMaterials.length > 0) {
+        console.log('🔧 Salvando materiais temporários...');
+        await handleSaveMaterials();
+      }
+
+      if (tempLaborItems.length > 0) {
+        console.log('👷 Salvando mão de obra temporária...');
+        await handleSaveLaborItems();
+      }
+
+      // Fecha modal após sucesso
+      onClose();
+      
+    } catch (error) {
+      console.error('❌ Erro na submissão:', error);
+    }
+  };
+
+  // ⚠️ FUNÇÃO PROBLEMÁTICA - Salvamento em lote de materiais
+  const handleSaveMaterials = async () => {
+    console.log('🔧 Iniciando salvamento de materiais temporários');
+    console.log('📋 Materiais a salvar:', tempMaterials.length);
+    console.log('📊 CurrentOs disponível:', currentOs?.id);
+
+    if (tempMaterials.length === 0) {
+      console.log('⚠️ Nenhum material temporário para salvar');
+      return;
+    }
+
+    // ⚠️ VERIFICAÇÃO PROBLEMÁTICA
+    if (!currentOs?.id) {
+      console.warn('⚠️ CurrentOs não disponível, tentando criar OS primeiro...');
+      
+      // Tenta submeter OS primeiro se não existir
+      if (!currentOs) {
+        console.log('🆕 Criando OS antes de salvar materiais...');
+        try {
+          const result = await onSubmit(formData, 'Criação para salvamento de materiais');
+          console.log('✅ OS criada, resultado:', result);
+          
+          // ⚠️ TIMEOUT PROBLEMÁTICO - Aguarda atualização de estado
+          setTimeout(async () => {
+            console.log('⏰ Tentando salvar materiais após timeout...');
+            await processMaterialSaving();
+          }, 1000);
+          return;
+        } catch (error) {
+          console.error('❌ Erro ao criar OS para materiais:', error);
+          return;
+        }
+      }
+    }
+
+    await processMaterialSaving();
+  };
+
+  // Função auxiliar para processamento de materiais
+  const processMaterialSaving = async () => {
+    console.log('🔄 Processando salvamento de materiais...');
+    
+    try {
+      for (const material of tempMaterials) {
+        console.log('💾 Salvando material:', material.descricao_material);
+        await onSaveMaterial(material);
+      }
+      
+      console.log('✅ Todos os materiais salvos com sucesso');
+      setTempMaterials([]); // ⚠️ Limpa apenas após sucesso
+      toast.success('Materiais salvos com sucesso!');
+    } catch (error) {
+      console.error('❌ Erro ao salvar materiais:', error);
+      toast.error('Erro ao salvar alguns materiais');
+    }
+  };
+
+  // ⚠️ Adiciona material à lista temporária
+  const handleAddMaterial = async () => {
+    if (currentOs?.id) {
+      // OS já existe - salva diretamente
+      console.log('💾 OS existe, salvando material diretamente');
+      const newMaterial: Partial<Material> = {
+        os_id: currentOs.id,
+        descricao_material: '',
+        quantidade: 1,
+        valor_unitario: 0,
+        valor_total: 0
+      };
+      await onSaveMaterial(newMaterial);
+    } else {
+      // OS não existe - adiciona à lista temporária
+      console.log('📝 Adicionando material à lista temporária');
+      setTempMaterials(prev => [...prev, {
+        descricao_material: '',
+        quantidade: 1,
+        valor_unitario: 0,
+        valor_total: 0
+      }]);
+    }
+  };
+
+  // ⚠️ FUNÇÃO PROBLEMÁTICA - Salvamento em lote de mão de obra (padrão similar aos materiais)
+  const handleSaveLaborItems = async () => {
+    console.log('👷 Iniciando salvamento de mão de obra temporária');
+    console.log('📋 Itens a salvar:', tempLaborItems.length);
+    console.log('📊 CurrentOs disponível:', currentOs?.id);
+
+    if (tempLaborItems.length === 0) {
+      console.log('⚠️ Nenhuma mão de obra temporária para salvar');
+      return;
+    }
+
+    // ⚠️ MESMA VERIFICAÇÃO PROBLEMÁTICA
+    if (!currentOs?.id) {
+      console.warn('⚠️ CurrentOs não disponível, tentando criar OS primeiro...');
+      
+      if (!currentOs) {
+        console.log('🆕 Criando OS antes de salvar mão de obra...');
+        try {
+          const result = await onSubmit(formData, 'Criação para salvamento de mão de obra');
+          console.log('✅ OS criada, resultado:', result);
+          
+          // ⚠️ MESMO TIMEOUT PROBLEMÁTICO
+          setTimeout(async () => {
+            console.log('⏰ Tentando salvar mão de obra após timeout...');
+            await processLaborSaving();
+          }, 1000);
+          return;
+        } catch (error) {
+          console.error('❌ Erro ao criar OS para mão de obra:', error);
+          return;
+        }
+      }
+    }
+
+    await processLaborSaving();
+  };
+
+  // Função auxiliar para processamento de mão de obra
+  const processLaborSaving = async () => {
+    console.log('🔄 Processando salvamento de mão de obra...');
+    
+    try {
+      for (const laborItem of tempLaborItems) {
+        console.log('💾 Salvando mão de obra:', laborItem.funcao);
+        await onSaveMaoDeObra(laborItem);
+      }
+      
+      console.log('✅ Toda mão de obra salva com sucesso');
+      setTempLaborItems([]); // ⚠️ Limpa apenas após sucesso
+      toast.success('Mão de obra salva com sucesso!');
+    } catch (error) {
+      console.error('❌ Erro ao salvar mão de obra:', error);
+      toast.error('Erro ao salvar alguns itens de mão de obra');
+    }
+  };
+
+  // ⚠️ Adiciona mão de obra à lista temporária
+  const handleAddLabor = async () => {
+    if (currentOs?.id) {
+      // OS já existe - salva diretamente
+      console.log('💾 OS existe, salvando mão de obra diretamente');
+      const newLaborItem: Partial<MaoDeObra> = {
+        os_id: currentOs.id,
+        funcao: '',
+        quantidade: 1,
+        valor_unitario: 0,
+        valor_total: 0
+      };
+      await onSaveMaoDeObra(newLaborItem);
+    } else {
+      // OS não existe - adiciona à lista temporária
+      console.log('📝 Adicionando mão de obra à lista temporária');
+      setTempLaborItems(prev => [...prev, {
+        funcao: '',
+        quantidade: 1,
+        valor_unitario: 0,
+        valor_total: 0
+      }]);
+    }
+  };
+
+  // ==========================================
+  // HANDLERS DE ATUALIZAÇÃO DE CAMPOS
+  // ==========================================
+  
+  // Atualiza campo no formData
+  const handleFieldChange = (field: keyof OrdemServico, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Atualiza material temporário
+  const handleTempMaterialChange = (index: number, field: keyof Material, value: any) => {
+    setTempMaterials(prev => prev.map((material, i) => {
+      if (i === index) {
+        const updated = { ...material, [field]: value };
+        if (field === 'quantidade' || field === 'valor_unitario') {
+          updated.valor_total = (Number(updated.quantidade) || 0) * (Number(updated.valor_unitario) || 0);
+        }
+        return updated;
+      }
+      return material;
+    }));
+  };
+
+  // Atualiza mão de obra temporária
+  const handleTempLaborChange = (index: number, field: keyof MaoDeObra, value: any) => {
+    setTempLaborItems(prev => prev.map((laborItem, i) => {
+      if (i === index) {
+        const updated = { ...laborItem, [field]: value };
+        if (field === 'quantidade' || field === 'valor_unitario') {
+          updated.valor_total = (Number(updated.quantidade) || 0) * (Number(updated.valor_unitario) || 0);
+        }
+        return updated;
+      }
+      return laborItem;
+    }));
+  };
+
+  // ==========================================
+  // CÁLCULOS FINANCEIROS
+  // ==========================================
+  
+  // Calcula total de materiais (permanentes + temporários)
+  const calculateMaterialsTotal = () => {
+    const materialsTotal = materials.reduce((sum, material) => sum + (material.valor_total || 0), 0);
+    const tempMaterialsTotal = tempMaterials.reduce((sum, material) => 
+      sum + ((material.quantidade || 0) * (material.valor_unitario || 0)), 0);
+    return materialsTotal + tempMaterialsTotal;
+  };
+
+  // Calcula total de mão de obra (permanente + temporária)
+  const calculateLaborTotal = () => {
+    const laborTotal = laborItems.reduce((sum, labor) => sum + (labor.valor_total || 0), 0);
+    const tempLaborTotal = tempLaborItems.reduce((sum, labor) => 
+      sum + ((labor.quantidade || 0) * (labor.valor_unitario || 0)), 0);
+    return laborTotal + tempLaborTotal;
+  };
+
+  // Calcula total geral
+  const calculateGrandTotal = () => {
+    return calculateMaterialsTotal() + calculateLaborTotal() + (formData.valor_servico || 0);
+  };
+
+  // ==========================================
+  // RENDERS DE SEÇÕES
+  // ==========================================
+  
+  // Render da seção de materiais
+  const renderMaterialsSection = () => (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>Materiais Utilizados</CardTitle>
+        <Button 
+          type="button" 
+          variant="outline" 
+          size="sm" 
+          onClick={handleAddMaterial}
+          disabled={isLoading}
+        >
+          + Adicionar Material
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {/* ⚠️ TABELA DE MATERIAIS PERMANENTES */}
+        {materials.length > 0 && (
+          <div className="mb-4">
+            <h4 className="font-medium mb-2">Materiais Salvos</h4>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Descrição</TableHead>
+                  <TableHead>Quantidade</TableHead>
+                  <TableHead>Valor Unitário</TableHead>
+                  <TableHead>Total</TableHead>
+                  <TableHead>Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {materials.map((material) => (
+                  <TableRow key={material.id}>
+                    <TableCell>{material.descricao_material}</TableCell>
+                    <TableCell>{material.quantidade}</TableCell>
+                    <TableCell>{formatCurrency(material.valor_unitario)}</TableCell>
+                    <TableCell>{formatCurrency(material.valor_total)}</TableCell>
+                    <TableCell>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={() => onDeleteMaterial(material.id)}
+                      >
+                        Remover
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {/* ⚠️ TABELA DE MATERIAIS TEMPORÁRIOS */}
+        {tempMaterials.length > 0 && (
+          <div>
+            <h4 className="font-medium mb-2 text-orange-600">
+              Materiais Temporários (serão salvos com a OS)
+            </h4>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Descrição</TableHead>
+                  <TableHead>Quantidade</TableHead>
+                  <TableHead>Valor Unitário</TableHead>
+                  <TableHead>Total</TableHead>
+                  <TableHead>Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tempMaterials.map((material, index) => (
+                  <TableRow key={index} className="bg-orange-50">
+                    <TableCell>
+                      <Input
+                        value={material.descricao_material || ''}
+                        onChange={(e) => handleTempMaterialChange(index, 'descricao_material', e.target.value)}
+                        placeholder="Descrição do material"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        step="0.001"
+                        value={material.quantidade || ''}
+                        onChange={(e) => handleTempMaterialChange(index, 'quantidade', parseFloat(e.target.value) || 0)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={material.valor_unitario || ''}
+                        onChange={(e) => handleTempMaterialChange(index, 'valor_unitario', parseFloat(e.target.value) || 0)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {formatCurrency((material.quantidade || 0) * (material.valor_unitario || 0))}
+                    </TableCell>
+                    <TableCell>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={() => setTempMaterials(prev => prev.filter((_, i) => i !== index))}
+                      >
+                        Remover
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {materials.length === 0 && tempMaterials.length === 0 && (
+          <p className="text-gray-500 text-center py-4">
+            Nenhum material adicionado ainda
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  // Render da seção de mão de obra (padrão similar aos materiais)
+  const renderLaborSection = () => (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>Mão de Obra</CardTitle>
+        <Button 
+          type="button" 
+          variant="outline" 
+          size="sm" 
+          onClick={handleAddLabor}
+          disabled={isLoading}
+        >
+          + Adicionar Mão de Obra
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {/* ⚠️ TABELAS SIMILARES AOS MATERIAIS */}
+        {laborItems.length > 0 && (
+          <div className="mb-4">
+            <h4 className="font-medium mb-2">Mão de Obra Salva</h4>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Função</TableHead>
+                  <TableHead>Quantidade</TableHead>
+                  <TableHead>Valor Unitário</TableHead>
+                  <TableHead>Total</TableHead>
+                  <TableHead>Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {laborItems.map((laborItem) => (
+                  <TableRow key={laborItem.id}>
+                    <TableCell>{laborItem.funcao}</TableCell>
+                    <TableCell>{laborItem.quantidade}</TableCell>
+                    <TableCell>{formatCurrency(laborItem.valor_unitario)}</TableCell>
+                    <TableCell>{formatCurrency(laborItem.valor_total)}</TableCell>
+                    <TableCell>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={() => onDeleteMaoDeObra(laborItem.id)}
+                      >
+                        Remover
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {/* ⚠️ MESMA LÓGICA TEMPORÁRIA */}
+        {tempLaborItems.length > 0 && (
+          <div>
+            <h4 className="font-medium mb-2 text-orange-600">
+              Mão de Obra Temporária (será salva com a OS)
+            </h4>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Função</TableHead>
+                  <TableHead>Quantidade</TableHead>
+                  <TableHead>Valor Unitário</TableHead>
+                  <TableHead>Total</TableHead>
+                  <TableHead>Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tempLaborItems.map((laborItem, index) => (
+                  <TableRow key={index} className="bg-orange-50">
+                    <TableCell>
+                      <Input
+                        value={laborItem.funcao || ''}
+                        onChange={(e) => handleTempLaborChange(index, 'funcao', e.target.value)}
+                        placeholder="Função"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={laborItem.quantidade || ''}
+                        onChange={(e) => handleTempLaborChange(index, 'quantidade', parseFloat(e.target.value) || 0)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={laborItem.valor_unitario || ''}
+                        onChange={(e) => handleTempLaborChange(index, 'valor_unitario', parseFloat(e.target.value) || 0)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {formatCurrency((laborItem.quantidade || 0) * (laborItem.valor_unitario || 0))}
+                    </TableCell>
+                    <TableCell>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={() => setTempLaborItems(prev => prev.filter((_, i) => i !== index))}
+                      >
+                        Remover
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {laborItems.length === 0 && tempLaborItems.length === 0 && (
+          <p className="text-gray-500 text-center py-4">
+            Nenhuma mão de obra adicionada ainda
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  // ==========================================
+  // RENDER PRINCIPAL DO COMPONENT
+  // ==========================================
+  
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            {currentOs ? (
+              <>
+                Ordem de Serviço #{currentOs.numero_os}
+                <Badge variant="outline">{currentOs.status}</Badge>
+              </>
+            ) : (
+              'Nova Ordem de Serviço'
+            )}
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* ⚠️ CABEÇALHO VISUAL COM INFORMAÇÕES */}
+        {currentOs && (
+          <Card className="mb-4">
+            <CardContent className="pt-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <strong>Veículo:</strong> {currentOs.caminhao_equipamento?.placa || 'N/A'}
+                </div>
+                <div>
+                  <strong>Abertura:</strong> {new Date(currentOs.data_abertura).toLocaleDateString('pt-BR')}
+                </div>
+                <div>
+                  <strong>Status:</strong> {currentOs.status}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ⚠️ SISTEMA DE ABAS */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid grid-cols-5 w-full">
+            <TabsTrigger value="dados-gerais">Dados Gerais</TabsTrigger>
+            <TabsTrigger value="tratativa">Tratativa</TabsTrigger>
+            <TabsTrigger value="materiais">Materiais</TabsTrigger>
+            <TabsTrigger value="mao-obra">Mão de Obra</TabsTrigger>
+            <TabsTrigger value="historico">Histórico</TabsTrigger>
+          </TabsList>
+
+          {/* ⚠️ ABA DADOS GERAIS */}
+          <TabsContent value="dados-gerais" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Informações Gerais</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Grid de campos principais */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  
+                  {/* Campo Veículo */}
+                  <div>
+                    <Label htmlFor="caminhao_equipamento_id">Veículo/Equipamento</Label>
+                    <Select 
+                      value={formData.caminhao_equipamento_id || ''} 
+                      onValueChange={(value) => handleFieldChange('caminhao_equipamento_id', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o veículo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {headerData?.veiculos?.map((veiculo) => (
+                          <SelectItem key={veiculo.id} value={veiculo.id}>
+                            {veiculo.placa} - {veiculo.marca} {veiculo.modelo}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Campo Tipo de Serviço */}
+                  <div>
+                    <Label htmlFor="tipo_servico">Tipo de Serviço</Label>
+                    <Input
+                      id="tipo_servico"
+                      value={formData.tipo_servico || ''}
+                      onChange={(e) => handleFieldChange('tipo_servico', e.target.value)}
+                      placeholder="Ex: Manutenção Preventiva"
+                    />
+                  </div>
+
+                  {/* Campo Tipo de Manutenção */}
+                  <div>
+                    <Label htmlFor="tipo_manutencao">Tipo de Manutenção</Label>
+                    <Select 
+                      value={formData.tipo_manutencao || ''} 
+                      onValueChange={(value) => handleFieldChange('tipo_manutencao', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o tipo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Corretiva">Corretiva</SelectItem>
+                        <SelectItem value="Preventiva">Preventiva</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* ⚠️ CAMPOS DE DATA/HORA CRÍTICOS */}
+                  <div>
+                    <Label htmlFor="data_inicio_atendimento">Data Início</Label>
+                    <Input
+                      ref={dataInicioRef}
+                      id="data_inicio_atendimento"
+                      type="date"
+                      value={formData.data_inicio_atendimento || ''}
+                      onChange={(e) => handleFieldChange('data_inicio_atendimento', e.target.value)}
+                      disabled={!isDateTimeFieldEditable()}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="hora_inicio_atendimento">Hora Início</Label>
+                    <Input
+                      ref={horaInicioRef}
+                      id="hora_inicio_atendimento"
+                      type="time"
+                      value={formData.hora_inicio_atendimento || ''}
+                      onChange={(e) => handleFieldChange('hora_inicio_atendimento', e.target.value)}
+                      disabled={!isDateTimeFieldEditable()}
+                    />
+                  </div>
+
+                  {/* Campo Valor do Serviço */}
+                  <div>
+                    <Label htmlFor="valor_servico">Valor do Serviço (R$)</Label>
+                    <Input
+                      id="valor_servico"
+                      type="number"
+                      step="0.01"
+                      value={formData.valor_servico || ''}
+                      onChange={(e) => handleFieldChange('valor_servico', parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                </div>
+
+                {/* Campo Descrição */}
+                <div>
+                  <Label htmlFor="descricao_servico">Descrição do Serviço</Label>
+                  <Textarea
+                    id="descricao_servico"
+                    value={formData.descricao_servico || ''}
+                    onChange={(e) => handleFieldChange('descricao_servico', e.target.value)}
+                    placeholder="Descreva o serviço a ser realizado..."
+                    rows={3}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* ⚠️ RESUMO FINANCEIRO */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Resumo Financeiro</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                  <div className="text-center p-3 bg-blue-50 rounded">
+                    <div className="font-medium text-blue-800">Materiais</div>
+                    <div className="text-lg font-bold text-blue-600">
+                      {formatCurrency(calculateMaterialsTotal())}
+                    </div>
+                  </div>
+                  <div className="text-center p-3 bg-green-50 rounded">
+                    <div className="font-medium text-green-800">Mão de Obra</div>
+                    <div className="text-lg font-bold text-green-600">
+                      {formatCurrency(calculateLaborTotal())}
+                    </div>
+                  </div>
+                  <div className="text-center p-3 bg-orange-50 rounded">
+                    <div className="font-medium text-orange-800">Serviços</div>
+                    <div className="text-lg font-bold text-orange-600">
+                      {formatCurrency(formData.valor_servico || 0)}
+                    </div>
+                  </div>
+                  <div className="text-center p-3 bg-gray-50 rounded">
+                    <div className="font-medium text-gray-800">Total Geral</div>
+                    <div className="text-xl font-bold text-gray-600">
+                      {formatCurrency(calculateGrandTotal())}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ⚠️ ABA TRATATIVA */}
+          <TabsContent value="tratativa" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Tratativa/Solução</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Textarea
+                  value={formData.tratativa_solucao || ''}
+                  onChange={(e) => handleFieldChange('tratativa_solucao', e.target.value)}
+                  placeholder="Descreva a tratativa/solução aplicada..."
+                  rows={8}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ⚠️ ABA MATERIAIS - SEÇÃO PROBLEMÁTICA */}
+          <TabsContent value="materiais" className="space-y-4">
+            {renderMaterialsSection()}
+          </TabsContent>
+
+          {/* ⚠️ ABA MÃO DE OBRA - SEÇÃO PROBLEMÁTICA */}
+          <TabsContent value="mao-obra" className="space-y-4">
+            {renderLaborSection()}
+          </TabsContent>
+
+          {/* ⚠️ ABA HISTÓRICO */}
+          <TabsContent value="historico" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Histórico da OS</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-500">
+                  Histórico de movimentações será implementado aqui.
+                </p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        {/* ⚠️ CAMPO DE MOTIVO (quando editando) */}
+        {currentOs && (
+          <div className="mt-4">
+            <Label htmlFor="motivo">Motivo da Alteração</Label>
+            <Textarea
+              id="motivo"
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              placeholder="Descreva o motivo da alteração..."
+              rows={2}
+            />
+          </div>
+        )}
+
+        {/* ⚠️ BOTÕES DE AÇÃO */}
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button 
+            onClick={handleSubmit} 
+            disabled={isLoading || getOsState() === 'completed'}
+          >
+            {isLoading ? (
+              <>
+                <div className="animate-spin h-4 w-4 mr-2 border-2 border-current border-t-transparent rounded-full" />
+                Salvando...
+              </>
+            ) : (
+              getButtonText()
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default CompleteOsForm;
+
+// ==========================================
+// RESUMO DOS PROBLEMAS IDENTIFICADOS
+// ==========================================
+
+/*
+⚠️ PROBLEMAS PRINCIPAIS NO COMPONENTE:
+
+1. DEPENDÊNCIA DE currentOs:
+   - handleSaveMaterials() verifica se currentOs?.id existe
+   - Se não existir, tenta criar OS primeiro, mas usa setTimeout
+   - setTimeout não é uma solução robusta para timing de estado
+
+2. LISTAS TEMPORÁRIAS:
+   - tempMaterials e tempLaborItems são mantidas localmente
+   - Só são salvas quando OS já existe ou após criação
+   - Se criação falhar, listas temporárias podem ser perdidas
+
+3. FLUXO DE SALVAMENTO:
+   - handleSubmit() chama onSubmit() para criar/atualizar OS
+   - Depois chama handleSaveMaterials() e handleSaveLaborItems()
+   - Mas currentOs pode não estar atualizado imediatamente
+
+4. TIMEOUTS PROBLEMÁTICOS:
+   - setTimeout(async () => {...}, 1000) usado como workaround
+   - Não é uma solução adequada para sincronização
+   - Pode falhar em conexões lentas ou carregamento pesado
+
+5. FALTA DE PROPAGAÇÃO DE ID:
+   - onSubmit() retorna OrdemServico mas ID não é usado diretamente
+   - Depende de currentOs ser atualizado no hook pai
+   - Não há fallback se setState for lento
+
+⚠️ SEÇÕES CRÍTICAS:
+- Linhas ~350-450: handleSaveMaterials() e handleSaveLaborItems()
+- Linhas ~290-330: handleSubmit() principal
+- Linhas ~450-480: handleAddMaterial() e handleAddLabor()
+- Linhas ~650-900: Renderização das tabelas de materiais/mão de obra
+
+⚠️ SOLUÇÕES IMPLEMENTADAS:
+- Logs extensivos para debug
+- Verificações de currentOs antes de salvar
+- Timeouts como workaround temporário
+- Interface visual clara entre itens salvos e temporários
+
+⚠️ SOLUÇÕES PENDENTES:
+- Usar retorno direto de onSubmit() em vez de currentOs
+- Eliminar dependência de setTimeout
+- Propagar osId explicitamente para salvamento
+- Refatorar fluxo para ser mais determinístico
+*/

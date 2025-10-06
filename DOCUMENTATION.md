@@ -14,7 +14,7 @@ Este documento contém a documentação técnica completa do website da Construt
 - **Storage:** Supabase Storage
 - **Roteamento:** React Router DOM v6
 - **Estado:** React Query + React Hooks
-- **Deploy:** Lovable Platform
+- **Deploy:** Cloud Platform
 
 ### Estrutura de Componentes
 
@@ -249,7 +249,7 @@ Cada página possui:
 - **Source Maps:** Habilitados
 
 ### Ambiente de Produção
-- **Plataforma:** Lovable
+- **Plataforma:** Cloud Hosting
 - **Deploy:** Automático via git push
 - **HTTPS:** Habilitado por padrão
 - **CDN:** Global
@@ -265,7 +265,7 @@ SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiI...
 
 ### Monitoramento
 - **Supabase Dashboard:** Logs de database e API
-- **Lovable Analytics:** Métricas de uso
+- **Analytics Platform:** Métricas de uso
 - **Browser DevTools:** Debug de frontend
 
 ### Backup
@@ -276,4 +276,4 @@ SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiI...
 ### Atualizações
 - **Dependencies:** Verificação mensal
 - **Security:** Patches automáticos
-- **Features:** Deploy contínuo via Lovable
+- **Features:** Deploy contínuo automatizado

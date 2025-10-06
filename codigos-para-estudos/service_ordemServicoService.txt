@@ -1,0 +1,722 @@
+SERVICE ordemServicoService.ts - CÓDIGO COMPLETO COM COMENTÁRIOS
+================================================================
+
+import { supabase } from "@/integrations/supabase/client";
+import { OrdemServico, Material, MaoDeObra, Movimentacao, OsFilterParams } from "@/types/ordemServico";
+import { convertChamadoToOs, updateChamadoStatus } from "./convertChamadoService";
+
+// ==========================================
+// UTILITÁRIOS E HELPERS
+// ==========================================
+
+// Gera número sequencial da OS baseado no ano atual
+export const generateOsNumber = async (): Promise<string> => {
+  const currentYear = new Date().getFullYear();
+  const yearPrefix = currentYear.toString();
+  
+  try {
+    // Busca a última OS do ano para gerar próximo número
+    const { data, error } = await supabase
+      .from('bd_ordens_servico')
+      .select('numero_os')
+      .like('numero_os', `${yearPrefix}%`)
+      .order('numero_os', { ascending: false })
+      .limit(1);
+
+    if (error) throw error;
+
+    let nextNumber = 1;
+    if (data && data.length > 0) {
+      const lastNumber = data[0].numero_os;
+      const lastSequence = parseInt(lastNumber.replace(yearPrefix, ''));
+      nextNumber = lastSequence + 1;
+    }
+
+    return `${yearPrefix}${nextNumber.toString().padStart(4, '0')}`;
+  } catch (error) {
+    console.error('Erro ao gerar número da OS:', error);
+    throw new Error('Erro ao gerar número da OS');
+  }
+};
+
+// ==========================================
+// FUNÇÕES DE BUSCA E LISTAGEM
+// ==========================================
+
+// Busca chamados abertos com filtros e joins
+export const fetchOpenChamados = async (filters: OsFilterParams = {}) => {
+  try {
+    console.log('🔍 Buscando chamados abertos com filtros:', filters);
+    
+    let query = supabase
+      .from('bd_chamados_os')
+      .select(`
+        *,
+        solicitante:profiles!bd_chamados_os_solicitante_id_fkey(email, nome_completo),
+        centro_custo:bd_centro_custo!bd_chamados_os_centro_custo_id_fkey(codigo_centro_custo, nome_centro_custo),
+        caminhao_equipamento:bd_veiculos!bd_chamados_os_caminhao_equipamento_id_fkey(id, placa, tipo_veiculo, marca, modelo)
+      `)
+      .in('status', ['Aberto', 'Em Andamento', 'Aguardando Peças']);
+
+    // Aplicação de filtros
+    if (filters.numero_os) {
+      query = query.ilike('numero_chamado', `%${filters.numero_os}%`);
+    }
+    
+    if (filters.caminhao_equipamento_id) {
+      query = query.eq('caminhao_equipamento_id', filters.caminhao_equipamento_id);
+    }
+    
+    if (filters.data_inicio && filters.data_fim) {
+      query = query.gte('data_abertura', filters.data_inicio)
+                  .lte('data_abertura', filters.data_fim);
+    }
+
+    const { data, error } = await query.order('data_abertura', { ascending: false });
+    
+    if (error) throw error;
+    
+    console.log('✅ Chamados carregados:', data?.length || 0);
+    return data || [];
+  } catch (error) {
+    console.error('❌ Erro ao buscar chamados:', error);
+    throw error;
+  }
+};
+
+// Busca ordens de serviço com filtros e joins
+export const fetchOrdensServico = async (filters: OsFilterParams = {}) => {
+  try {
+    console.log('🔍 Buscando ordens de serviço com filtros:', filters);
+    
+    let query = supabase
+      .from('bd_ordens_servico')
+      .select(`
+        *,
+        caminhao_equipamento:bd_veiculos!bd_ordens_servico_caminhao_equipamento_id_fkey(id, placa, tipo_veiculo, marca, modelo),
+        executado_por:profiles!bd_ordens_servico_executado_por_id_fkey(email, nome_completo),
+        encerrado_por:profiles!bd_ordens_servico_encerrado_por_id_fkey(email, nome_completo)
+      `);
+
+    // Aplicação de filtros
+    if (filters.numero_os) {
+      query = query.ilike('numero_os', `%${filters.numero_os}%`);
+    }
+    
+    if (filters.caminhao_equipamento_id) {
+      query = query.eq('caminhao_equipamento_id', filters.caminhao_equipamento_id);
+    }
+    
+    if (filters.status) {
+      query = query.eq('status', filters.status);
+    }
+    
+    if (filters.data_inicio && filters.data_fim) {
+      query = query.gte('data_abertura', filters.data_inicio)
+                  .lte('data_abertura', filters.data_fim);
+    }
+
+    const { data, error } = await query.order('data_abertura', { ascending: false });
+    
+    if (error) throw error;
+    
+    console.log('✅ Ordens de serviço carregadas:', data?.length || 0);
+    return data || [];
+  } catch (error) {
+    console.error('❌ Erro ao buscar ordens de serviço:', error);
+    throw error;
+  }
+};
+
+// Busca OS específica por ID com todos os relacionamentos
+export const getOrdemServicoById = async (id: string): Promise<OrdemServico> => {
+  try {
+    console.log('🔍 Buscando OS por ID:', id);
+    
+    const { data, error } = await supabase
+      .from('bd_ordens_servico')
+      .select(`
+        *,
+        caminhao_equipamento:bd_veiculos!bd_ordens_servico_caminhao_equipamento_id_fkey(
+          id, placa, tipo_veiculo, marca, modelo
+        ),
+        executado_por:profiles!bd_ordens_servico_executado_por_id_fkey(
+          id, email, nome_completo
+        ),
+        encerrado_por:profiles!bd_ordens_servico_encerrado_por_id_fkey(
+          id, email, nome_completo
+        )
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+    if (!data) throw new Error('OS não encontrada');
+    
+    console.log('✅ OS encontrada:', data.numero_os);
+    return data;
+  } catch (error) {
+    console.error('❌ Erro ao buscar OS:', error);
+    throw error;
+  }
+};
+
+// Busca chamado específico por ID
+export const getChamadoById = async (id: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('bd_chamados_os')
+      .select(`
+        *,
+        solicitante:profiles!bd_chamados_os_solicitante_id_fkey(email, nome_completo),
+        centro_custo:bd_centro_custo!bd_chamados_os_centro_custo_id_fkey(codigo_centro_custo, nome_centro_custo),
+        caminhao_equipamento:bd_veiculos!bd_chamados_os_caminhao_equipamento_id_fkey(id, placa, tipo_veiculo, marca, modelo)
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Erro ao buscar chamado:', error);
+    throw error;
+  }
+};
+
+// ==========================================
+// FUNÇÕES DE MATERIAIS E MÃO DE OBRA
+// ==========================================
+
+// ⚠️ FUNÇÃO CRÍTICA - Busca materiais de uma OS
+export const getMaterialsByOsId = async (osId: string): Promise<Material[]> => {
+  try {
+    console.log('🔧 Buscando materiais da OS:', osId);
+    
+    const { data, error } = await supabase
+      .from('bd_os_materiais_utilizados')
+      .select('*')
+      .eq('os_id', osId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    
+    console.log('✅ Materiais encontrados:', data?.length || 0);
+    return data || [];
+  } catch (error) {
+    console.error('❌ Erro ao buscar materiais:', error);
+    throw error;
+  }
+};
+
+// ⚠️ FUNÇÃO CRÍTICA - Busca mão de obra de uma OS
+export const getMaoDeObraByOsId = async (osId: string): Promise<MaoDeObra[]> => {
+  try {
+    console.log('👷 Buscando mão de obra da OS:', osId);
+    
+    const { data, error } = await supabase
+      .from('bd_os_mao_obra')
+      .select('*')
+      .eq('os_id', osId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    
+    console.log('✅ Mão de obra encontrada:', data?.length || 0);
+    return data || [];
+  } catch (error) {
+    console.error('❌ Erro ao buscar mão de obra:', error);
+    throw error;
+  }
+};
+
+// Busca movimentações (descontinuado)
+export const getMovimentacoesByOsId = async (osId: string): Promise<Movimentacao[]> => {
+  return []; // Movimentações foram descontinuadas
+};
+
+// ==========================================
+// FUNÇÕES DE CRIAÇÃO E ATUALIZAÇÃO DE OS
+// ==========================================
+
+// ⚠️ FUNÇÃO PROBLEMÁTICA - Atualiza OS existente
+export const updateOrdemServico = async (
+  id: string, 
+  osData: Partial<OrdemServico>, 
+  currentUserId: string, 
+  motivo: string
+): Promise<OrdemServico> => {
+  try {
+    console.log('📝 Atualizando OS:', id);
+    console.log('📋 Dados recebidos:', osData);
+
+    // Limpeza e validação dos dados
+    const cleanedData = { ...osData };
+    
+    // Remove campos undefined, null ou vazios
+    Object.keys(cleanedData).forEach(key => {
+      const value = cleanedData[key as keyof OrdemServico];
+      if (value === undefined || value === null || value === '') {
+        delete cleanedData[key as keyof OrdemServico];
+      }
+    });
+
+    // Remove campos de relacionamento que não devem ser atualizados
+    delete cleanedData.caminhao_equipamento;
+    delete cleanedData.executado_por;
+    delete cleanedData.encerrado_por;
+    delete cleanedData.centro_custo;
+    delete cleanedData.solicitante;
+
+    // Conversão de campos numéricos
+    if (cleanedData.valor_servico !== undefined) {
+      cleanedData.valor_servico = parseFloat(cleanedData.valor_servico.toString()) || 0;
+    }
+
+    // Atualização no banco
+    const { data, error } = await supabase
+      .from('bd_ordens_servico')
+      .update({
+        ...cleanedData,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select(`
+        *,
+        caminhao_equipamento:bd_veiculos!bd_ordens_servico_caminhao_equipamento_id_fkey(
+          id, placa, tipo_veiculo, marca, modelo
+        ),
+        executado_por:profiles!bd_ordens_servico_executado_por_id_fkey(
+          id, email, nome_completo
+        ),
+        encerrado_por:profiles!bd_ordens_servico_encerrado_por_id_fkey(
+          id, email, nome_completo
+        )
+      `)
+      .single();
+
+    if (error) {
+      console.error('❌ Erro na atualização:', error);
+      throw error;
+    }
+
+    if (!data) {
+      throw new Error('Nenhum dado retornado após atualização');
+    }
+
+    console.log('✅ OS atualizada com sucesso:', data.numero_os);
+    return data;
+  } catch (error) {
+    console.error('❌ Erro ao atualizar OS:', error);
+    throw error;
+  }
+};
+
+// ⚠️ FUNÇÃO PROBLEMÁTICA - Cria nova OS
+export const createOrdemServico = async (
+  osData: Partial<OrdemServico>, 
+  currentUserId: string
+): Promise<OrdemServico> => {
+  try {
+    console.log('🆕 Criando nova OS');
+    console.log('📋 Dados recebidos:', osData);
+
+    // Gera número da OS
+    const numeroOs = await generateOsNumber();
+    console.log('🔢 Número gerado:', numeroOs);
+
+    // Preparação dos dados
+    const cleanedData = { ...osData };
+    
+    // Remove campos de relacionamento
+    delete cleanedData.caminhao_equipamento;
+    delete cleanedData.executado_por;
+    delete cleanedData.encerrado_por;
+    delete cleanedData.centro_custo;
+    delete cleanedData.solicitante;
+
+    // Limpeza de campos vazios
+    Object.keys(cleanedData).forEach(key => {
+      const value = cleanedData[key as keyof OrdemServico];
+      if (value === undefined || value === null || value === '') {
+        delete cleanedData[key as keyof OrdemServico];
+      }
+    });
+
+    // Conversão de campos numéricos
+    if (cleanedData.valor_servico !== undefined) {
+      cleanedData.valor_servico = parseFloat(cleanedData.valor_servico.toString()) || 0;
+    }
+
+    // Criação no banco
+    const { data, error } = await supabase
+      .from('bd_ordens_servico')
+      .insert({
+        ...cleanedData,
+        numero_os: numeroOs,
+        data_abertura: new Date().toISOString(),
+        status: 'Aberta',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select(`
+        *,
+        caminhao_equipamento:bd_veiculos!bd_ordens_servico_caminhao_equipamento_id_fkey(
+          id, placa, tipo_veiculo, marca, modelo
+        ),
+        executado_por:profiles!bd_ordens_servico_executado_por_id_fkey(
+          id, email, nome_completo
+        ),
+        encerrado_por:profiles!bd_ordens_servico_encerrado_por_id_fkey(
+          id, email, nome_completo
+        )
+      `)
+      .single();
+
+    if (error) {
+      console.error('❌ Erro na criação:', error);
+      throw error;
+    }
+
+    if (!data) {
+      throw new Error('Nenhum dado retornado após criação');
+    }
+
+    console.log('✅ Nova OS criada com sucesso:', data.numero_os, 'ID:', data.id);
+    return data;
+  } catch (error) {
+    console.error('❌ Erro ao criar OS:', error);
+    throw error;
+  }
+};
+
+// ==========================================
+// FUNÇÕES DE SALVAMENTO DE MATERIAIS
+// ==========================================
+
+// ⚠️ FUNÇÃO CRÍTICA PROBLEMÁTICA - Salva material
+export const saveMaterial = async (material: Partial<Material>): Promise<Material> => {
+  try {
+    console.log('💾 Salvando material:', material);
+    
+    // ⚠️ VALIDAÇÃO CRÍTICA
+    if (!material.os_id) {
+      console.error('❌ OS ID não fornecido para o material');
+      throw new Error('OS ID é obrigatório para salvar material');
+    }
+
+    // Validações básicas
+    if (!material.descricao_material?.trim()) {
+      throw new Error('Descrição do material é obrigatória');
+    }
+
+    if (!material.quantidade || material.quantidade <= 0) {
+      throw new Error('Quantidade deve ser maior que zero');
+    }
+
+    // Preparação dos dados
+    const materialData = {
+      os_id: material.os_id,
+      descricao_material: material.descricao_material.trim(),
+      quantidade: parseFloat(material.quantidade.toString()),
+      valor_unitario: parseFloat(material.valor_unitario?.toString() || '0'),
+      valor_total: parseFloat(material.quantidade.toString()) * parseFloat(material.valor_unitario?.toString() || '0')
+    };
+
+    console.log('📊 Dados preparados:', materialData);
+
+    let result;
+    
+    if (material.id) {
+      // ⚠️ ATUALIZAÇÃO DE MATERIAL EXISTENTE
+      console.log('📝 Atualizando material existente:', material.id);
+      
+      const { data, error } = await supabase
+        .from('bd_os_materiais_utilizados')
+        .update({
+          ...materialData,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', material.id)
+        .select('*')
+        .single();
+
+      if (error) throw error;
+      result = data;
+    } else {
+      // ⚠️ CRIAÇÃO DE NOVO MATERIAL
+      console.log('🆕 Criando novo material');
+      
+      const { data, error } = await supabase
+        .from('bd_os_materiais_utilizados')
+        .insert({
+          ...materialData,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select('*')
+        .single();
+
+      if (error) throw error;
+      result = data;
+    }
+
+    if (!result) {
+      throw new Error('Nenhum dado retornado após salvamento do material');
+    }
+
+    console.log('✅ Material salvo com sucesso:', result.id);
+    return result;
+  } catch (error) {
+    console.error('❌ Erro ao salvar material:', error);
+    throw error;
+  }
+};
+
+// Remove material
+export const deleteMaterial = async (materialId: string): Promise<void> => {
+  try {
+    console.log('🗑️ Removendo material:', materialId);
+    
+    const { error } = await supabase
+      .from('bd_os_materiais_utilizados')
+      .delete()
+      .eq('id', materialId);
+
+    if (error) throw error;
+    
+    console.log('✅ Material removido com sucesso');
+  } catch (error) {
+    console.error('❌ Erro ao remover material:', error);
+    throw error;
+  }
+};
+
+// ==========================================
+// FUNÇÕES DE SALVAMENTO DE MÃO DE OBRA
+// ==========================================
+
+// ⚠️ FUNÇÃO CRÍTICA PROBLEMÁTICA - Salva mão de obra (mesmo padrão dos materiais)
+export const saveMaoDeObra = async (maoDeObra: Partial<MaoDeObra>): Promise<MaoDeObra> => {
+  try {
+    console.log('💾 Salvando mão de obra:', maoDeObra);
+    
+    // ⚠️ MESMA VALIDAÇÃO CRÍTICA
+    if (!maoDeObra.os_id) {
+      console.error('❌ OS ID não fornecido para a mão de obra');
+      throw new Error('OS ID é obrigatório para salvar mão de obra');
+    }
+
+    // Validações básicas
+    if (!maoDeObra.funcao?.trim()) {
+      throw new Error('Função é obrigatória');
+    }
+
+    if (!maoDeObra.quantidade || maoDeObra.quantidade <= 0) {
+      throw new Error('Quantidade deve ser maior que zero');
+    }
+
+    // Preparação dos dados
+    const maoDeObraData = {
+      os_id: maoDeObra.os_id,
+      funcao: maoDeObra.funcao.trim(),
+      quantidade: parseFloat(maoDeObra.quantidade.toString()),
+      valor_unitario: parseFloat(maoDeObra.valor_unitario?.toString() || '0'),
+      valor_total: parseFloat(maoDeObra.quantidade.toString()) * parseFloat(maoDeObra.valor_unitario?.toString() || '0')
+    };
+
+    console.log('📊 Dados preparados:', maoDeObraData);
+
+    let result;
+    
+    if (maoDeObra.id) {
+      // Atualização
+      console.log('📝 Atualizando mão de obra existente:', maoDeObra.id);
+      
+      const { data, error } = await supabase
+        .from('bd_os_mao_obra')
+        .update({
+          ...maoDeObraData,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', maoDeObra.id)
+        .select('*')
+        .single();
+
+      if (error) throw error;
+      result = data;
+    } else {
+      // Criação
+      console.log('🆕 Criando nova mão de obra');
+      
+      const { data, error } = await supabase
+        .from('bd_os_mao_obra')
+        .insert({
+          ...maoDeObraData,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select('*')
+        .single();
+
+      if (error) throw error;
+      result = data;
+    }
+
+    if (!result) {
+      throw new Error('Nenhum dado retornado após salvamento da mão de obra');
+    }
+
+    console.log('✅ Mão de obra salva com sucesso:', result.id);
+    return result;
+  } catch (error) {
+    console.error('❌ Erro ao salvar mão de obra:', error);
+    throw error;
+  }
+};
+
+// Remove mão de obra
+export const deleteMaoDeObra = async (maoDeObraId: string): Promise<void> => {
+  try {
+    console.log('🗑️ Removendo mão de obra:', maoDeObraId);
+    
+    const { error } = await supabase
+      .from('bd_os_mao_obra')
+      .delete()
+      .eq('id', maoDeObraId);
+
+    if (error) throw error;
+    
+    console.log('✅ Mão de obra removida com sucesso');
+  } catch (error) {
+    console.error('❌ Erro ao remover mão de obra:', error);
+    throw error;
+  }
+};
+
+// ==========================================
+// OUTRAS FUNÇÕES DE NEGÓCIO
+// ==========================================
+
+// Atualiza status do chamado
+export const updateChamadoStatus = async (chamadoId: string, newStatus: string): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('bd_chamados_os')
+      .update({ status: newStatus, updated_at: new Date().toISOString() })
+      .eq('id', chamadoId);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Erro ao atualizar status do chamado:', error);
+    throw error;
+  }
+};
+
+// Converte chamado em OS (usa serviço externo)
+export { convertChamadoToOs };
+
+// Finaliza OS
+export const finishOrdemServico = async (osId: string, userId: string): Promise<void> => {
+  try {
+    console.log('🏁 Finalizando OS:', osId);
+    
+    // Busca a OS para validar e obter dados do chamado
+    const os = await getOrdemServicoById(osId);
+    
+    // Atualiza status da OS
+    await supabase
+      .from('bd_ordens_servico')
+      .update({
+        status: 'Concluída',
+        data_conclusao: new Date().toISOString(),
+        encerrado_por_id: userId,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', osId);
+
+    // Atualiza status do chamado se existir
+    if (os.chamado_id) {
+      await updateChamadoStatus(os.chamado_id, 'Concluído');
+    }
+
+    console.log('✅ OS finalizada com sucesso');
+  } catch (error) {
+    console.error('❌ Erro ao finalizar OS:', error);
+    throw error;
+  }
+};
+
+// ==========================================
+// FUNÇÕES DE EXPORTAÇÃO E RELATÓRIOS
+// ==========================================
+
+// Gera PDF da OS (placeholder)
+export const generateOsPdf = async (osId: string): Promise<void> => {
+  console.log('📄 Gerando PDF para OS:', osId);
+  // Implementação futura do PDF
+  throw new Error('Funcionalidade de PDF ainda não implementada');
+};
+
+// Exporta dados para Excel/CSV
+export const exportOsToExcel = async (filters: OsFilterParams): Promise<void> => {
+  try {
+    console.log('📊 Exportando dados para Excel com filtros:', filters);
+    
+    const data = await fetchOrdensServico(filters);
+    
+    // Preparação dos dados para export
+    const exportData = data.map(os => ({
+      'Número OS': os.numero_os,
+      'Data Abertura': new Date(os.data_abertura).toLocaleDateString('pt-BR'),
+      'Status': os.status,
+      'Veículo': os.caminhao_equipamento?.placa || 'N/A',
+      'Tipo Serviço': os.tipo_servico || 'N/A',
+      'Valor': os.valor_servico ? `R$ ${os.valor_servico.toFixed(2)}` : 'R$ 0,00',
+      'Executado por': os.executado_por?.nome_completo || 'N/A'
+    }));
+
+    // Implementação do download seria aqui
+    console.log('📋 Dados preparados para export:', exportData.length, 'registros');
+    
+  } catch (error) {
+    console.error('❌ Erro ao exportar dados:', error);
+    throw error;
+  }
+};
+
+// ==========================================
+// RESUMO DAS FUNÇÕES CRÍTICAS PROBLEMÁTICAS
+// ==========================================
+
+/*
+⚠️ FUNÇÕES COM PROBLEMAS IDENTIFICADOS:
+
+1. saveMaterial() - Linha ~617-714:
+   - Requer os_id obrigatório
+   - Se currentOs não estiver atualizado no hook, falha
+   - Não tem fallback ou verificação alternativa
+
+2. saveMaoDeObra() - Linha ~617-714:
+   - Mesmo problema que saveMaterial()
+   - Depende de os_id estar disponível
+   - Falha silenciosamente se não receber os_id
+
+3. createOrdemServico() - Linha ~363-480:
+   - Retorna OS criada corretamente
+   - Mas hook pode não atualizar currentOs imediatamente
+
+4. updateOrdemServico() - Linha ~490-570:
+   - Similar ao createOrdemServico()
+   - Retorna dados corretos mas hook depende de setState
+
+⚠️ PONTOS DE FALHA:
+- Dependência de currentOs.id estar atualizado
+- Falta de propagação direta do os_id
+- Não uso do retorno das funções de criação/atualização
+- Timing de atualização de estado no React
+
+⚠️ LOGS DE DEBUG:
+- Todos os console.log implementados para rastreamento
+- Validações e erros específicos para cada operação
+- Retorno adequado de dados das operações
+*/

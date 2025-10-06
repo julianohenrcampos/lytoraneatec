@@ -1,5 +1,4 @@
 
-// src/components/routing/SimpleAuthGuard.tsx
 import React from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Navigate } from 'react-router-dom';
@@ -11,20 +10,30 @@ interface SimpleAuthGuardProps {
 const SimpleAuthGuard: React.FC<SimpleAuthGuardProps> = ({ children }) => {
   const { isAuthenticated, isLoading, userId, isPasswordRecovery } = useAuth();
 
+  console.log('🔐 [SimpleAuthGuard] Estado atual:', { isAuthenticated, isLoading, userId });
+
   if (isLoading) {
+    console.log('🔐 [SimpleAuthGuard] Ainda carregando auth...');
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        <span className="ml-2">Carregando…</span>
+        <span className="ml-2">Carregando...</span>
       </div>
     );
   }
 
   if (!isAuthenticated || !userId) {
-    if (isPasswordRecovery) return <>{children}</>;
+    // Se está em modo de recovery de senha, não redirecionar para login
+    if (isPasswordRecovery) {
+      console.log('🔄 [SimpleAuthGuard] Modo recovery - permitindo acesso');
+      return <>{children}</>;
+    }
+    
+    console.log('🔄 [SimpleAuthGuard] Usuário não autenticado - redirecionando para login');
     return <Navigate to="/login" replace />;
   }
 
+  console.log('✅ [SimpleAuthGuard] Usuário autenticado');
   return <>{children}</>;
 };
 

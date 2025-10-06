@@ -2069,6 +2069,10 @@ export type Database = {
         }
         Returns: string
       }
+      get_ultimo_horimetro_privilegiado: {
+        Args: { caminhao_id: string }
+        Returns: number
+      }
       has_permission: {
         Args: { p_permission_name: string; p_user_id?: string }
         Returns: boolean

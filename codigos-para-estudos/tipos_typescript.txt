@@ -1,0 +1,325 @@
+TIPOS TYPESCRIPT - INTERFACES E DEFINIÇÕES
+============================================
+
+ARQUIVO: src/types/ordemServico.ts
+
+// ==========================================
+// INTERFACE PRINCIPAL - ORDEM DE SERVIÇO
+// ==========================================
+
+export interface OrdemServico {
+  // ⚠️ CAMPOS OBRIGATÓRIOS BÁSICOS
+  id: string;                           // UUID gerado automaticamente
+  numero_os: string;                    // Número sequencial da OS (ex: 20240001)
+  
+  // ⚠️ RELACIONAMENTOS OPCIONAIS
+  chamado_id?: string;                  // FK para bd_chamados_os
+  caminhao_equipamento_id?: string;     // FK para bd_veiculos
+  mecanico_id?: string;                 // FK para profiles (descontinuado)
+  
+  // ⚠️ CAMPOS DE DATA E CONTROLE
+  data_abertura: string;                // ISO string - data de criação
+  data_previsao?: string;               // ISO string - previsão de conclusão
+  data_conclusao?: string;              // ISO string - data real de conclusão
+  
+  // ⚠️ CAMPOS DE SERVIÇO
+  tipo_servico?: string;                // Tipo livre (ex: "Manutenção Preventiva")
+  descricao_servico?: string;           // Descrição detalhada do serviço
+  observacoes?: string;                 // Observações gerais
+  
+  // ⚠️ CAMPO DE STATUS - ENUM RESTRITO
+  status: 'Aberta' | 'Em Andamento' | 'Concluída' | 'Cancelada';
+  
+  // ⚠️ CAMPOS FINANCEIROS
+  valor_servico?: number;               // Valor do serviço em reais
+  pecas_utilizadas?: any;               // JSONB - legado, usar Material[]
+  
+  // ⚠️ CAMPOS DE AUDITORIA
+  created_at?: string;                  // ISO string - criação
+  updated_at?: string;                  // ISO string - última alteração
+  
+  // ==========================================
+  // CAMPOS ESPECÍFICOS DO CABEÇALHO LYTORÂNEA
+  // ==========================================
+  
+  telefone_solicitante?: string;        // Telefone de quem solicitou
+  obra_patio?: string;                  // Local da obra/pátio
+  setor_executante?: string;            // Setor responsável
+  terceirizada?: boolean;               // Se é serviço terceirizado
+  
+  // ⚠️ TIPO DE MANUTENÇÃO - ENUM RESTRITO
+  tipo_manutencao?: 'Corretiva' | 'Preventiva';
+  
+  horimetro_odometro_inicial?: string;  // Horímetro/odômetro no início
+  
+  // ==========================================
+  // CAMPOS DE BALANCEAMENTO E CONTROLE DE TEMPO
+  // ==========================================
+  
+  // ⚠️ CAMPOS CRÍTICOS PARA FLUXO DE TRABALHO
+  data_inicio_atendimento?: string;     // Data em formato YYYY-MM-DD
+  hora_inicio_atendimento?: string;     // Hora em formato HH:MM
+  data_encerramento_atendimento?: string; // Data em formato YYYY-MM-DD
+  hora_encerramento_atendimento?: string; // Hora em formato HH:MM
+  
+  horimetro_odometro_final?: string;    // Horímetro/odômetro no final
+  duracao_total?: string;               // Duração calculada (HH:MM)
+  
+  // ⚠️ RELACIONAMENTOS DE USUÁRIOS
+  executado_por_id?: string;            // FK para profiles - quem executou
+  encerrado_por_id?: string;            // FK para profiles - quem encerrou
+  
+  // ==========================================
+  // CAMPO DE TRATATIVA/SOLUÇÃO
+  // ==========================================
+  
+  tratativa_solucao?: string;           // Descrição da solução aplicada
+  
+  // ==========================================
+  // OBJETOS DE RELACIONAMENTO (JOIN DATA)
+  // ==========================================
+  
+  // ⚠️ DADOS DO VEÍCULO/EQUIPAMENTO (via JOIN)
+  caminhao_equipamento?: {
+    placa: string;                      // Placa do veículo
+    tipo_veiculo: string;               // Tipo (caminhão, empilhadeira, etc.)
+    marca: string;                      // Marca do veículo
+    modelo: string;                     // Modelo do veículo
+  };
+  
+  // ⚠️ DADOS DO CENTRO DE CUSTO (via JOIN)
+  centro_custo?: {
+    codigo_centro_custo: string;        // Código do centro de custo
+    nome_centro_custo: string;          // Nome do centro de custo
+  };
+  
+  // ⚠️ DADOS DO SOLICITANTE (via JOIN)
+  solicitante?: {
+    email: string;                      // Email do solicitante
+    nome_completo?: string;             // Nome completo do solicitante
+  };
+  
+  // ⚠️ DADOS DE QUEM EXECUTOU (via JOIN)
+  executado_por?: {
+    email: string;                      // Email de quem executou
+    nome_completo?: string;             // Nome de quem executou
+  };
+  
+  // ⚠️ DADOS DE QUEM ENCERROU (via JOIN)
+  encerrado_por?: {
+    email: string;                      // Email de quem encerrou
+    nome_completo?: string;             // Nome de quem encerrou
+  };
+}
+
+// ==========================================
+// INTERFACE DE MATERIAL - RELACIONADA ÀS OS
+// ==========================================
+
+export interface Material {
+  // ⚠️ CAMPOS OBRIGATÓRIOS
+  id: string;                           // UUID gerado automaticamente
+  os_id: string;                        // FK para bd_ordens_servico - OBRIGATÓRIO
+  
+  // ⚠️ CAMPOS DE MATERIAL
+  quantidade: number;                   // Quantidade utilizada (decimal com 3 casas)
+  descricao_material: string;          // Descrição do material - OBRIGATÓRIO
+  
+  // ⚠️ CAMPOS FINANCEIROS
+  valor_unitario: number;               // Valor por unidade (decimal com 2 casas)
+  valor_total: number;                  // Quantidade * valor_unitario (calculado)
+  
+  // ⚠️ CAMPOS DE AUDITORIA
+  created_at?: string;                  // ISO string - criação
+  updated_at?: string;                  // ISO string - última alteração
+}
+
+// ⚠️ VALIDAÇÕES E CONSTRAINTS PARA MATERIAL:
+// - quantidade deve ser > 0
+// - valor_unitario deve ser >= 0
+// - valor_total deve ser >= 0
+// - descricao_material não pode ser vazio
+// - os_id deve existir na tabela bd_ordens_servico
+
+// ==========================================
+// INTERFACE DE MÃO DE OBRA - RELACIONADA ÀS OS
+// ==========================================
+
+export interface MaoDeObra {
+  // ⚠️ CAMPOS OBRIGATÓRIOS
+  id: string;                           // UUID gerado automaticamente
+  os_id: string;                        // FK para bd_ordens_servico - OBRIGATÓRIO
+  
+  // ⚠️ CAMPOS DE MÃO DE OBRA
+  quantidade: number;                   // Quantidade de horas/unidades (decimal com 2 casas)
+  funcao: string;                       // Função/tipo de mão de obra - OBRIGATÓRIO
+  
+  // ⚠️ CAMPOS FINANCEIROS
+  valor_unitario: number;               // Valor por hora/unidade (decimal com 2 casas)
+  valor_total: number;                  // Quantidade * valor_unitario (calculado)
+  
+  // ⚠️ CAMPOS DE AUDITORIA
+  created_at?: string;                  // ISO string - criação
+  updated_at?: string;                  // ISO string - última alteração
+}
+
+// ⚠️ VALIDAÇÕES E CONSTRAINTS PARA MÃO DE OBRA:
+// - quantidade deve ser > 0
+// - valor_unitario deve ser >= 0
+// - valor_total deve ser >= 0
+// - funcao não pode ser vazio
+// - os_id deve existir na tabela bd_ordens_servico
+
+// ==========================================
+// INTERFACE DE MOVIMENTAÇÃO (DESCONTINUADA)
+// ==========================================
+
+export interface Movimentacao {
+  id: string;                           // UUID gerado automaticamente
+  os_id: string;                        // FK para bd_ordens_servico
+  data_movimentacao: string;            // Data da movimentação (YYYY-MM-DD)
+  hora_movimentacao: string;            // Hora da movimentação (HH:MM)
+  usuario_id: string;                   // FK para profiles - quem fez a movimentação
+  motivo: string;                       // Motivo da movimentação
+  created_at?: string;                  // ISO string - criação
+  
+  // ⚠️ DADOS DO USUÁRIO (via JOIN)
+  usuario?: {
+    email: string;                      // Email do usuário
+    nome_completo?: string;             // Nome do usuário
+  };
+}
+
+// ⚠️ NOTA: Movimentações foram descontinuadas no sistema atual
+// getMovimentacoesByOsId() sempre retorna array vazio
+
+// ==========================================
+// INTERFACE DE FILTROS - PARA BUSCAS
+// ==========================================
+
+export interface OsFilterParams {
+  numero_os?: string;                   // Filtro por número da OS (LIKE)
+  caminhao_equipamento_id?: string;     // Filtro por veículo específico (exact)
+  data_inicio?: string;                 // Data inicial do período (YYYY-MM-DD)
+  data_fim?: string;                    // Data final do período (YYYY-MM-DD)
+  status?: string;                      // Filtro por status específico (exact)
+}
+
+// ⚠️ OBSERVAÇÕES SOBRE FILTROS:
+// - numero_os usa ILIKE (busca parcial case-insensitive)
+// - caminhao_equipamento_id usa equals exato
+// - data_inicio e data_fim filtram por data_abertura
+// - status usa equals exato com valores do enum
+// - Todos os filtros são opcionais (podem ser undefined)
+
+// ==========================================
+// TIPOS DERIVADOS E UTILITÁRIOS
+// ==========================================
+
+// ⚠️ TIPO PARA CRIAÇÃO DE MATERIAL (sem id e campos auto-gerados)
+export type CreateMaterial = Omit<Material, 'id' | 'created_at' | 'updated_at'>;
+
+// ⚠️ TIPO PARA ATUALIZAÇÃO DE MATERIAL (campos opcionais exceto id)
+export type UpdateMaterial = Partial<Material> & { id: string };
+
+// ⚠️ TIPO PARA CRIAÇÃO DE MÃO DE OBRA (sem id e campos auto-gerados)
+export type CreateMaoDeObra = Omit<MaoDeObra, 'id' | 'created_at' | 'updated_at'>;
+
+// ⚠️ TIPO PARA ATUALIZAÇÃO DE MÃO DE OBRA (campos opcionais exceto id)
+export type UpdateMaoDeObra = Partial<MaoDeObra> & { id: string };
+
+// ⚠️ TIPO PARA CRIAÇÃO DE OS (sem id e campos auto-gerados)
+export type CreateOrdemServico = Omit<OrdemServico, 'id' | 'numero_os' | 'created_at' | 'updated_at' | 'data_abertura'>;
+
+// ⚠️ TIPO PARA ATUALIZAÇÃO DE OS (campos opcionais exceto id)
+export type UpdateOrdemServico = Partial<OrdemServico> & { id: string };
+
+// ==========================================
+// ENUMS E CONSTANTES
+// ==========================================
+
+// ⚠️ STATUS VÁLIDOS PARA ORDEM DE SERVIÇO
+export const OS_STATUS = {
+  ABERTA: 'Aberta',
+  EM_ANDAMENTO: 'Em Andamento',
+  CONCLUIDA: 'Concluída',
+  CANCELADA: 'Cancelada'
+} as const;
+
+// ⚠️ TIPOS DE MANUTENÇÃO VÁLIDOS
+export const TIPO_MANUTENCAO = {
+  CORRETIVA: 'Corretiva',
+  PREVENTIVA: 'Preventiva'
+} as const;
+
+// ⚠️ ESTADOS DO FLUXO DE TRABALHO
+export const OS_WORKFLOW_STATES = {
+  NEW: 'new',                           // Nova OS (não salva ainda)
+  CREATED: 'created',                   // OS criada mas não iniciada
+  STARTED: 'started',                   // OS iniciada (em andamento)
+  COMPLETED: 'completed'                // OS completada
+} as const;
+
+// ==========================================
+// RESUMO DAS DEPENDÊNCIAS E RELACIONAMENTOS
+// ==========================================
+
+/*
+⚠️ DEPENDÊNCIAS CRÍTICAS PARA O PROBLEMA:
+
+1. MATERIAL.os_id:
+   - OBRIGATÓRIO para salvar material
+   - FK para OrdemServico.id
+   - Se currentOs não estiver atualizado, salvamento falha
+
+2. MAOOBRA.os_id:
+   - OBRIGATÓRIO para salvar mão de obra
+   - FK para OrdemServico.id
+   - Mesmo problema que Material
+
+3. ORDEMSERVICO.id:
+   - Gerado automaticamente na criação
+   - Usado como FK por Material e MaoDeObra
+   - Estado React pode não refletir imediatamente
+
+⚠️ FLUXO DE DADOS PROBLEMÁTICO:
+CreateOrdemServico → OrdemServico.id → Material.os_id
+                                   → MaoDeObra.os_id
+
+Se OrdemServico.id não estiver disponível no estado React,
+Material e MaoDeObra não podem ser salvos.
+
+⚠️ CAMPOS CALCULADOS:
+- Material.valor_total = quantidade * valor_unitario
+- MaoDeObra.valor_total = quantidade * valor_unitario
+- OrdemServico.numero_os = gerado automaticamente (ano + sequencial)
+
+⚠️ VALIDAÇÕES DE NEGÓCIO:
+- Status só pode ser alterado seguindo fluxo: Aberta → Em Andamento → Concluída
+- Data de encerramento não pode ser anterior à data de início
+- Quantidades devem ser > 0
+- Valores devem ser >= 0
+- os_id deve sempre existir para Material e MaoDeObra
+*/
+
+// ==========================================
+// TIPOS RELACIONADOS DE OUTROS ARQUIVOS
+// ==========================================
+
+// ⚠️ NOTA: Estes tipos são definidos em arquivos separados mas relacionados:
+
+// ChamadoOS (src/types/chamadoOS.ts):
+// - Interface para chamados que geram OS
+// - Relacionamento 1:1 com OrdemServico via chamado_id
+
+// Veiculo (bd_veiculos):
+// - Interface para veículos/equipamentos
+// - Relacionamento N:1 com OrdemServico via caminhao_equipamento_id
+
+// Profile (profiles):
+// - Interface para usuários do sistema
+// - Relacionamento N:1 com OrdemServico via executado_por_id, encerrado_por_id
+
+// CentroCusto (bd_centro_custo):
+// - Interface para centros de custo
+// - Relacionamento indireto via veículos

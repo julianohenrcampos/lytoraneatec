@@ -1,0 +1,281 @@
+ARQUIVOS ENVOLVIDOS NO SISTEMA DE OS - MAPEAMENTO COMPLETO
+===========================================================
+
+# 📁 ESTRUTURA HIERÁRQUICA DOS ARQUIVOS
+
+## 🎯 ARQUIVOS PRINCIPAIS (CORE DO PROBLEMA)
+
+### 📜 src/hooks/useOrdemServico.ts
+**Responsabilidade:** Hook principal que gerencia estado e operações das OS
+**Tamanho:** ~637 linhas
+**Importância:** ⚠️ CRÍTICO - Contém a lógica problemática
+
+**Funções Problemáticas:**
+- `handleCreateOrUpdateOs()` (linhas ~280-330)
+- `handleSaveMaterial()` (linhas ~350-385)
+- `handleSaveMaoDeObra()` (linhas ~400-435)
+
+**Estados Críticos:**
+- `currentOs` (linha ~28) - ⚠️ Estado que causa o problema
+- `materials` (linha ~34) - Lista de materiais da OS
+- `laborItems` (linha ~35) - Lista de mão de obra da OS
+
+### 📜 src/services/ordemServicoService.ts
+**Responsabilidade:** Serviço de comunicação com banco de dados
+**Tamanho:** ~715 linhas
+**Importância:** ⚠️ CRÍTICO - Operações CRUD das OS
+
+**Funções Problemáticas:**
+- `createOrdemServico()` (linhas ~480-570) - Cria OS e retorna dados
+- `updateOrdemServico()` (linhas ~360-480) - Atualiza OS existente
+- `saveMaterial()` (linhas ~617-670) - ⚠️ Requer os_id obrigatório
+- `saveMaoDeObra()` (linhas ~680-730) - ⚠️ Requer os_id obrigatório
+
+**Validações Críticas:**
+- Verificação de `os_id` obrigatório para materiais/mão de obra
+- Retorno de dados completos após operações
+- Logs de debug extensivos
+
+### 📜 src/components/ordens-servico/CompleteOsForm.tsx
+**Responsabilidade:** Formulário principal de criação/edição de OS
+**Tamanho:** ~1540 linhas
+**Importância:** ⚠️ CRÍTICO - Interface onde o problema é visível
+
+**Estados Problemáticos:**
+- `tempMaterials` (linha ~65) - ⚠️ Lista temporária de materiais
+- `tempLaborItems` (linha ~66) - ⚠️ Lista temporária de mão de obra
+
+**Funções Problemáticas:**
+- `handleSubmit()` (linhas ~290-350) - ⚠️ Submissão principal
+- `handleSaveMaterials()` (linhas ~400-460) - ⚠️ Salvamento de materiais
+- `handleSaveLaborItems()` (linhas ~480-540) - ⚠️ Salvamento de mão de obra
+
+**Seções de Interface:**
+- Aba "Materiais" (linhas ~900-1100) - Tabelas de materiais
+- Aba "Mão de Obra" (linhas ~1100-1300) - Tabelas de mão de obra
+
+## 🎯 ARQUIVOS DE APOIO (RELACIONADOS)
+
+### 📜 src/types/ordemServico.ts
+**Responsabilidade:** Definições de tipos TypeScript
+**Tamanho:** ~108 linhas
+**Importância:** 🟡 IMPORTANTE - Define estrutura de dados
+
+**Interfaces Críticas:**
+- `OrdemServico` (linhas 2-64) - Interface principal
+- `Material` (linhas 66-75) - ⚠️ Requer os_id
+- `MaoDeObra` (linhas 77-86) - ⚠️ Requer os_id
+- `OsFilterParams` (linhas 102-108) - Filtros de busca
+
+### 📜 src/services/convertChamadoService.ts
+**Responsabilidade:** Conversão de chamados em OS
+**Tamanho:** ~86 linhas
+**Importância:** 🟡 IMPORTANTE - Cria OS a partir de chamados
+
+**Funções Relacionadas:**
+- `convertChamadoToOs()` - Usa `createOrdemServico()`
+- `updateChamadoStatus()` - Atualiza status do chamado
+
+### 📜 src/hooks/useOsHeaderData.ts
+**Responsabilidade:** Dados do cabeçalho (veículos, usuários, etc.)
+**Tamanho:** ~50 linhas
+**Importância:** 🟢 SUPORTE - Fornece dados para formulários
+
+## 📁 ARQUIVOS DE INTERFACE (UI COMPONENTS)
+
+### 📜 src/pages/GestaoOrdemServico.tsx
+**Responsabilidade:** Página principal de gestão das OS
+**Importância:** 🟡 IMPORTANTE - Usa o hook problemático
+
+**Uso do Hook:**
+```typescript
+const {
+  currentOs,           // ⚠️ Estado problemático
+  handleCreateOrUpdateOs,  // ⚠️ Função problemática
+  handleSaveMaterial,      // ⚠️ Função problemática
+  handleSaveMaoDeObra,     // ⚠️ Função problemática
+  // ... outros
+} = useOrdemServico();
+```
+
+### 📜 src/components/ordens-servico/OrdensServicoTable.tsx
+**Responsabilidade:** Tabela de listagem das OS
+**Importância:** 🟢 SUPORTE - Exibe dados, não afeta o problema
+
+### 📜 src/components/ordens-servico/ChamadosOsTable.tsx
+**Responsabilidade:** Tabela de listagem dos chamados
+**Importância:** 🟢 SUPORTE - Exibe dados, não afeta o problema
+
+### 📜 src/components/ordens-servico/SimpleOsForm.tsx
+**Responsabilidade:** Formulário simples de OS
+**Importância:** 🟢 SUPORTE - Não usa materiais/mão de obra
+
+### 📜 src/components/ordens-servico/OsFilters.tsx
+**Responsabilidade:** Componente de filtros
+**Importância:** 🟢 SUPORTE - Apenas filtros, não afeta o problema
+
+## 📊 MAPEAMENTO DE DEPENDÊNCIAS
+
+### FLUXO DE DADOS PROBLEMÁTICO
+```
+GestaoOrdemServico.tsx
+    ↓ (usa hook)
+useOrdemServico.ts
+    ↓ (chama serviço)
+ordemServicoService.ts
+    ↓ (acessa banco)
+Supabase Database
+```
+
+### FLUXO DE INTERFACE PROBLEMÁTICO
+```
+CompleteOsForm.tsx
+    ↓ (chama função do hook)
+useOrdemServico.handleCreateOrUpdateOs()
+    ↓ (depende do estado)
+useOrdemServico.currentOs ⚠️ PROBLEMA
+    ↓ (usado por)
+CompleteOsForm.handleSaveMaterials() ⚠️ FALHA
+```
+
+## 🔍 PONTOS DE INTERFACE ENTRE ARQUIVOS
+
+### INTERFACE 1: Hook ↔ Service
+```typescript
+// useOrdemServico.ts → ordemServicoService.ts
+const resultOs = await ordemServicoService.createOrdemServico(osData, currentUser.id);
+setCurrentOs(resultOs); // ⚠️ SETSTATE ASSÍNCRONO
+```
+
+### INTERFACE 2: Component ↔ Hook
+```typescript
+// CompleteOsForm.tsx → useOrdemServico.ts
+const result = await onSubmit(dataToSubmit, motivo); // ⚠️ RETORNO NÃO USADO
+// ...
+if (!currentOs?.id) { // ⚠️ VERIFICA ESTADO EM VEZ DO RETORNO
+  return; // FALHA
+}
+```
+
+### INTERFACE 3: Service ↔ Database
+```typescript
+// ordemServicoService.ts → Supabase
+const { data, error } = await supabase
+  .from('bd_ordens_servico')
+  .insert({...}) // ✅ FUNCIONA
+  .select('*')
+  .single();
+
+return data; // ✅ RETORNA DADOS CORRETOS
+```
+
+## 📋 CHECKLIST DE ARQUIVOS MODIFICADOS
+
+### ✅ ARQUIVOS JÁ MODIFICADOS (COM CORREÇÕES PARCIAIS)
+- [x] `useOrdemServico.ts` - Logs de debug + retorno de dados
+- [x] `ordemServicoService.ts` - Logs de debug + validações
+- [x] `CompleteOsForm.tsx` - Logs de debug + timeouts
+- [x] `ordemServico.ts` (types) - Estrutura adequada
+
+### ⚠️ ARQUIVOS QUE PRECISAM DE MODIFICAÇÃO
+- [ ] `useOrdemServico.ts` - Eliminar dependência de currentOs
+- [ ] `CompleteOsForm.tsx` - Usar retorno direto da criação
+- [ ] `ordemServicoService.ts` - Possível refatoração transacional
+
+### 🟢 ARQUIVOS QUE NÃO PRECISAM DE MODIFICAÇÃO
+- [x] `convertChamadoService.ts` - Funciona corretamente
+- [x] `useOsHeaderData.ts` - Apenas fornece dados
+- [x] `OrdensServicoTable.tsx` - Apenas exibição
+- [x] `ChamadosOsTable.tsx` - Apenas exibição
+- [x] `OsFilters.tsx` - Apenas filtros
+
+## 🎯 HIERARQUIA DE IMPACTO NO PROBLEMA
+
+### 🔴 IMPACTO CRÍTICO (CAUSAM O PROBLEMA)
+1. **useOrdemServico.ts** - Estado currentOs assíncrono
+2. **CompleteOsForm.tsx** - Dependência de currentOs para salvamento
+3. **ordemServicoService.ts** - Validação obrigatória de os_id
+
+### 🟡 IMPACTO MÉDIO (RELACIONADOS AO PROBLEMA)
+4. **GestaoOrdemServico.tsx** - Usa o hook problemático
+5. **ordemServico.ts** - Define estruturas que requerem os_id
+
+### 🟢 IMPACTO BAIXO (NÃO AFETAM O PROBLEMA)
+6. **convertChamadoService.ts** - Funciona independentemente
+7. **useOsHeaderData.ts** - Apenas dados de apoio
+8. **Componentes de UI** - Apenas apresentação
+
+## 📈 MÉTRICAS DE COMPLEXIDADE
+
+### LINHAS DE CÓDIGO ENVOLVIDAS
+- **Críticas:** ~400 linhas (funções problemáticas)
+- **Relacionadas:** ~2000 linhas (arquivos completos)
+- **Total do Sistema:** ~5000 linhas (estimativa)
+
+### FUNÇÕES PROBLEMÁTICAS IDENTIFICADAS
+- **Total:** 6 funções principais
+- **Críticas:** 3 funções (handleSubmit, handleSaveMaterials, handleSaveLaborItems)
+- **Suporte:** 3 funções (createOrdemServico, saveMaterial, saveMaoDeObra)
+
+### ARQUIVOS QUE REQUEREM MODIFICAÇÃO
+- **Obrigatórios:** 3 arquivos (hook, service, component)
+- **Opcionais:** 1 arquivo (types - para melhorias)
+- **Não afetados:** 8+ arquivos (UI components)
+
+## 🔧 PLANO DE MODIFICAÇÃO POR ARQUIVO
+
+### 1. useOrdemServico.ts
+**Modificações Necessárias:**
+- Alterar `handleCreateOrUpdateOs()` para propagar retorno
+- Modificar `handleSaveMaterial()` para aceitar osId explícito
+- Modificar `handleSaveMaoDeObra()` para aceitar osId explícito
+
+### 2. CompleteOsForm.tsx
+**Modificações Necessárias:**
+- Alterar `handleSubmit()` para usar retorno direto
+- Modificar `handleSaveMaterials()` para usar osId explícito
+- Modificar `handleSaveLaborItems()` para usar osId explícito
+- Remover timeouts e dependência de currentOs
+
+### 3. ordemServicoService.ts
+**Modificações Opcionais:**
+- Adicionar função transacional (createOrdemServicoWithItems)
+- Melhorar tratamento de erros
+- Otimizar operações em lote
+
+### 4. ordemServico.ts (types)
+**Modificações Opcionais:**
+- Adicionar tipos para operações transacionais
+- Melhorar documentação de interfaces
+- Adicionar tipos utilitários
+
+## 🗺️ MAPA DE NAVEGAÇÃO DO CÓDIGO
+
+### LOCALIZAÇÃO DAS FUNÇÕES PROBLEMÁTICAS
+
+#### useOrdemServico.ts
+```
+Linha ~25: Estado currentOs (problemático)
+Linha ~280: handleCreateOrUpdateOs() (crítica)
+Linha ~350: handleSaveMaterial() (problemática)
+Linha ~400: handleSaveMaoDeObra() (problemática)
+```
+
+#### ordemServicoService.ts
+```
+Linha ~480: createOrdemServico() (retorna dados corretos)
+Linha ~617: saveMaterial() (requer os_id)
+Linha ~680: saveMaoDeObra() (requer os_id)
+```
+
+#### CompleteOsForm.tsx
+```
+Linha ~65: Estados temporários (tempMaterials, tempLaborItems)
+Linha ~290: handleSubmit() (crítica)
+Linha ~400: handleSaveMaterials() (problemática)
+Linha ~480: handleSaveLaborItems() (problemática)
+Linha ~900: Interface de materiais
+Linha ~1100: Interface de mão de obra
+```
+
+Este mapeamento fornece uma visão completa de todos os arquivos envolvidos no problema e suas respectivas responsabilidades, facilitando a identificação dos pontos que precisam ser modificados para resolver o problema de salvamento de materiais e mão de obra.

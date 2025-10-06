@@ -1,0 +1,189 @@
+ESTRUTURA DO BANCO DE DADOS - SISTEMA DE ORDENS DE SERVIÇO
+================================================================
+
+1. TABELA PRINCIPAL: bd_ordens_servico
+======================================
+CREATE TABLE bd_ordens_servico (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    numero_os VARCHAR(50) NOT NULL UNIQUE,
+    chamado_id UUID REFERENCES bd_chamados_os(id),
+    data_abertura TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    data_previsao TIMESTAMP WITH TIME ZONE,
+    data_conclusao TIMESTAMP WITH TIME ZONE,
+    caminhao_equipamento_id UUID REFERENCES bd_veiculos(id),
+    mecanico_id UUID,
+    tipo_servico TEXT,
+    descricao_servico TEXT,
+    observacoes TEXT,
+    status VARCHAR(20) CHECK (status IN ('Aberta', 'Em Andamento', 'Concluída', 'Cancelada')) DEFAULT 'Aberta',
+    valor_servico DECIMAL(10,2),
+    pecas_utilizadas JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    
+    -- Campos específicos do cabeçalho Lytorânea
+    telefone_solicitante VARCHAR(20),
+    obra_patio TEXT,
+    setor_executante TEXT,
+    terceirizada BOOLEAN DEFAULT false,
+    tipo_manutencao VARCHAR(20) CHECK (tipo_manutencao IN ('Corretiva', 'Preventiva')),
+    horimetro_odometro_inicial VARCHAR(50),
+    
+    -- Campos de balanceamento/controle de tempo
+    data_inicio_atendimento DATE,
+    hora_inicio_atendimento TIME,
+    data_encerramento_atendimento DATE,
+    hora_encerramento_atendimento TIME,
+    horimetro_odometro_final VARCHAR(50),
+    duracao_total VARCHAR(20),
+    executado_por_id UUID REFERENCES profiles(id),
+    encerrado_por_id UUID REFERENCES profiles(id),
+    
+    -- Campo de tratativa/solução
+    tratativa_solucao TEXT
+);
+
+ÍNDICES:
+- PRIMARY KEY (id)
+- UNIQUE (numero_os)
+- INDEX ON (chamado_id)
+- INDEX ON (caminhao_equipamento_id)
+- INDEX ON (status)
+- INDEX ON (data_abertura)
+
+2. TABELA DE MATERIAIS: bd_os_materiais_utilizados
+==================================================
+CREATE TABLE bd_os_materiais_utilizados (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    os_id UUID NOT NULL REFERENCES bd_ordens_servico(id) ON DELETE CASCADE,
+    quantidade DECIMAL(10,3) NOT NULL,
+    descricao_material TEXT NOT NULL,
+    valor_unitario DECIMAL(10,2) NOT NULL DEFAULT 0,
+    valor_total DECIMAL(10,2) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+ÍNDICES:
+- PRIMARY KEY (id)
+- INDEX ON (os_id)
+- FOREIGN KEY (os_id) REFERENCES bd_ordens_servico(id) CASCADE
+
+CONSTRAINTS:
+- quantidade > 0
+- valor_unitario >= 0
+- valor_total >= 0
+
+3. TABELA DE MÃO DE OBRA: bd_os_mao_obra
+=========================================
+CREATE TABLE bd_os_mao_obra (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    os_id UUID NOT NULL REFERENCES bd_ordens_servico(id) ON DELETE CASCADE,
+    quantidade DECIMAL(10,2) NOT NULL,
+    funcao TEXT NOT NULL,
+    valor_unitario DECIMAL(10,2) NOT NULL DEFAULT 0,
+    valor_total DECIMAL(10,2) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+ÍNDICES:
+- PRIMARY KEY (id)
+- INDEX ON (os_id)
+- FOREIGN KEY (os_id) REFERENCES bd_ordens_servico(id) CASCADE
+
+CONSTRAINTS:
+- quantidade > 0
+- valor_unitario >= 0
+- valor_total >= 0
+
+4. TABELA DE CHAMADOS: bd_chamados_os
+=====================================
+CREATE TABLE bd_chamados_os (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    numero_chamado VARCHAR(50) NOT NULL UNIQUE,
+    solicitante_id UUID REFERENCES profiles(id),
+    centro_custo_id UUID REFERENCES bd_centro_custo(id),
+    caminhao_equipamento_id UUID REFERENCES bd_veiculos(id),
+    data_abertura TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    data_previsao TIMESTAMP WITH TIME ZONE,
+    tipo_servico TEXT,
+    descricao_problema TEXT,
+    prioridade VARCHAR(10) CHECK (prioridade IN ('Baixa', 'Média', 'Alta', 'Crítica')) DEFAULT 'Média',
+    status VARCHAR(20) CHECK (status IN ('Aberto', 'Em Andamento', 'Aguardando Peças', 'Concluído', 'Cancelado')) DEFAULT 'Aberto',
+    observacoes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+5. TABELAS RELACIONADAS
+========================
+
+bd_veiculos (Veículos/Equipamentos):
+------------------------------------
+- id UUID PRIMARY KEY
+- placa VARCHAR(10) UNIQUE
+- tipo_veiculo TEXT
+- marca TEXT
+- modelo TEXT
+- ano INTEGER
+- centro_custo_id UUID REFERENCES bd_centro_custo(id)
+
+bd_centro_custo (Centros de Custo):
+-----------------------------------
+- id UUID PRIMARY KEY
+- codigo_centro_custo VARCHAR(20) UNIQUE
+- nome_centro_custo TEXT
+- ativo BOOLEAN DEFAULT true
+
+profiles (Usuários/Funcionários):
+---------------------------------
+- id UUID PRIMARY KEY REFERENCES auth.users(id)
+- email TEXT UNIQUE
+- nome_completo TEXT
+- cargo TEXT
+- departamento TEXT
+- ativo BOOLEAN DEFAULT true
+
+6. RELACIONAMENTOS PRINCIPAIS
+==============================
+
+bd_ordens_servico.chamado_id → bd_chamados_os.id (1:1)
+bd_ordens_servico.caminhao_equipamento_id → bd_veiculos.id (N:1)
+bd_ordens_servico.executado_por_id → profiles.id (N:1)
+bd_ordens_servico.encerrado_por_id → profiles.id (N:1)
+
+bd_os_materiais_utilizados.os_id → bd_ordens_servico.id (N:1)
+bd_os_mao_obra.os_id → bd_ordens_servico.id (N:1)
+
+bd_chamados_os.solicitante_id → profiles.id (N:1)
+bd_chamados_os.centro_custo_id → bd_centro_custo.id (N:1)
+bd_chamados_os.caminhao_equipamento_id → bd_veiculos.id (N:1)
+
+bd_veiculos.centro_custo_id → bd_centro_custo.id (N:1)
+
+7. CONSTRAINTS E VALIDAÇÕES
+============================
+
+- Numeração sequencial automática para numero_os e numero_chamado
+- Status válidos apenas conforme ENUM definido
+- Valores monetários sempre >= 0
+- Quantidades sempre > 0
+- Datas de conclusão não podem ser anteriores à abertura
+- Relacionamentos mantidos por Foreign Keys com CASCADE
+- Campos obrigatórios validados por NOT NULL
+
+8. TRIGGERS E FUNÇÕES
+=====================
+
+- update_updated_at_column(): Atualiza automatically updated_at
+- generate_os_number(): Gera numeração sequencial para OS
+- convert_chamado_para_os(): RPC para conversão de chamado em OS
+
+9. POLÍTICAS RLS (Row Level Security)
+=====================================
+
+Todas as tabelas possuem RLS habilitado com políticas baseadas em:
+- Usuários podem ver apenas registros do seu centro de custo
+- Administradores têm acesso completo
+- Usuários específicos podem executar operações específicas

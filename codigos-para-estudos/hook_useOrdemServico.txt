@@ -1,0 +1,541 @@
+HOOK useOrdemServico.ts - CÓDIGO COMPLETO COM COMENTÁRIOS
+=========================================================
+
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { OrdemServico, Material, MaoDeObra, Movimentacao, OsFilterParams } from "@/types/ordemServico";
+import { ChamadoOS } from "@/types/chamadoOS";
+import * as ordemServicoService from "@/services/ordemServicoService";
+
+export const useOrdemServico = () => {
+  // ==========================================
+  // ESTADOS PRINCIPAIS DO SISTEMA
+  // ==========================================
+  
+  // Estados para listas de dados
+  const [openChamados, setOpenChamados] = useState<ChamadoOS[]>([]);
+  const [ordensServico, setOrdensServico] = useState<OrdemServico[]>([]);
+  
+  // Estados de carregamento e erro
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Estados para modais e formulários
+  const [isChamadoModalOpen, setIsChamadoModalOpen] = useState(false);
+  const [isOsModalOpen, setIsOsModalOpen] = useState(false);
+  const [isSimpleOsModalOpen, setIsSimpleOsModalOpen] = useState(false);
+  
+  // Estados para dados selecionados/atuais
+  const [currentChamado, setCurrentChamado] = useState<ChamadoOS | null>(null);
+  const [currentOs, setCurrentOs] = useState<OrdemServico | null>(null); // ⚠️ ESTADO CRÍTICO PARA O PROBLEMA
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  
+  // Estados para dados relacionados
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [laborItems, setLaborItems] = useState<MaoDeObra[]>([]);
+  const [movimentacoes, setMovimentacoes] = useState<Movimentacao[]>([]);
+  
+  // Estados para filtros e navegação
+  const [chamadoFilters, setChamadoFilters] = useState<OsFilterParams>({});
+  const [osFilters, setOsFilters] = useState<OsFilterParams>({});
+  const [activeTab, setActiveTab] = useState("chamados");
+
+  // ==========================================
+  // INICIALIZAÇÃO E CARREGAMENTO DO USUÁRIO
+  // ==========================================
+  
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+          setCurrentUser(profile);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar usuário:', error);
+      }
+    };
+
+    loadCurrentUser();
+  }, []);
+
+  // ==========================================
+  // FUNÇÕES DE CARREGAMENTO DE DADOS
+  // ==========================================
+  
+  // Carrega chamados abertos com filtros opcionais
+  const loadOpenChamados = async (filters?: OsFilterParams) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await ordemServicoService.fetchOpenChamados(filters || {});
+      setOpenChamados(data);
+    } catch (error) {
+      console.error('Erro ao carregar chamados:', error);
+      setError('Erro ao carregar chamados');
+      toast.error('Erro ao carregar chamados');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Carrega ordens de serviço com filtros opcionais
+  const loadOrdensServico = async (filters?: OsFilterParams) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await ordemServicoService.fetchOrdensServico(filters || {});
+      setOrdensServico(data);
+    } catch (error) {
+      console.error('Erro ao carregar ordens de serviço:', error);
+      setError('Erro ao carregar ordens de serviço');
+      toast.error('Erro ao carregar ordens de serviço');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Gerencia mudança de abas e carregamento correspondente
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setChamadoFilters({});
+    setOsFilters({});
+  };
+
+  // Effect para carregar dados baseado na aba ativa
+  useEffect(() => {
+    if (activeTab === "chamados") {
+      loadOpenChamados(chamadoFilters);
+    } else if (activeTab === "ordens-servico") {
+      loadOrdensServico(osFilters);
+    }
+  }, [activeTab, chamadoFilters, osFilters]);
+
+  // ==========================================
+  // HANDLERS PARA MODAIS E DETALHES
+  // ==========================================
+  
+  // Abre modal de detalhes do chamado
+  const handleOpenChamadoDetails = (chamado: ChamadoOS) => {
+    setCurrentChamado(chamado);
+    setIsChamadoModalOpen(true);
+  };
+
+  // Abre modal da OS (novo ou edição)
+  const handleOpenOsModal = async (os?: OrdemServico) => {
+    if (os) {
+      // Modo edição - carrega detalhes completos da OS
+      setIsLoading(true);
+      try {
+        await loadOsDetails(os.id);
+        setIsOsModalOpen(true);
+      } catch (error) {
+        console.error('Erro ao carregar detalhes da OS:', error);
+        toast.error('Erro ao carregar detalhes da OS');
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      // Modo criação - limpa estados
+      setCurrentOs(null);
+      setMaterials([]);
+      setLaborItems([]);
+      setMovimentacoes([]);
+      setIsOsModalOpen(true);
+    }
+  };
+
+  // ⚠️ FUNÇÃO CRÍTICA - Carrega todos os detalhes de uma OS
+  const loadOsDetails = async (osId: string) => {
+    try {
+      console.log('🔍 Carregando detalhes da OS:', osId);
+      
+      // Carrega OS principal
+      const osData = await ordemServicoService.getOrdemServicoById(osId);
+      console.log('📋 OS carregada:', osData);
+      setCurrentOs(osData);
+
+      // Carrega materiais, mão de obra e movimentações em paralelo
+      const [materialsData, laborData, movimentacoesData] = await Promise.all([
+        ordemServicoService.getMaterialsByOsId(osId),
+        ordemServicoService.getMaoDeObraByOsId(osId),
+        ordemServicoService.getMovimentacoesByOsId(osId)
+      ]);
+
+      console.log('🔧 Materiais carregados:', materialsData.length);
+      console.log('👷 Mão de obra carregada:', laborData.length);
+      
+      setMaterials(materialsData);
+      setLaborItems(laborData);
+      setMovimentacoes(movimentacoesData);
+      
+    } catch (error) {
+      console.error('❌ Erro ao carregar detalhes da OS:', error);
+      throw error;
+    }
+  };
+
+  // ==========================================
+  // HANDLERS PARA CONVERSÃO E CRIAÇÃO/EDIÇÃO
+  // ==========================================
+  
+  // Converte chamado em OS
+  const handleConvertToOs = async (chamadoId: string, osData: Partial<OrdemServico>) => {
+    if (!currentUser) {
+      toast.error('Usuário não identificado');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      console.log('🔄 Convertendo chamado para OS:', chamadoId);
+      const newOs = await ordemServicoService.convertChamadoToOs(chamadoId, currentUser.id, osData);
+      console.log('✅ OS criada com sucesso:', newOs.id);
+      
+      toast.success('Chamado convertido em OS com sucesso!');
+      setIsChamadoModalOpen(false);
+      setCurrentChamado(null);
+      
+      // Recarrega listas
+      if (activeTab === "chamados") {
+        loadOpenChamados(chamadoFilters);
+      } else {
+        loadOrdensServico(osFilters);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao converter chamado:', error);
+      toast.error('Erro ao converter chamado em OS');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ⚠️ FUNÇÃO PROBLEMÁTICA - Cria ou atualiza OS
+  const handleCreateOrUpdateOs = async (osData: Partial<OrdemServico>, motivo: string = '') => {
+    if (!currentUser) {
+      toast.error('Usuário não identificado');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      let resultOs: OrdemServico;
+      
+      if (currentOs?.id) {
+        // Modo edição
+        console.log('📝 Atualizando OS existente:', currentOs.id);
+        resultOs = await ordemServicoService.updateOrdemServico(currentOs.id, osData, currentUser.id, motivo);
+        console.log('✅ OS atualizada com sucesso');
+        toast.success('OS atualizada com sucesso!');
+      } else {
+        // Modo criação
+        console.log('🆕 Criando nova OS');
+        resultOs = await ordemServicoService.createOrdemServico(osData, currentUser.id);
+        console.log('✅ Nova OS criada:', resultOs.id);
+        toast.success('OS criada com sucesso!');
+      }
+
+      // ⚠️ PROBLEMA: Este setState pode não ser imediato
+      setCurrentOs(resultOs);
+      console.log('📊 Estado currentOs atualizado para:', resultOs.id);
+
+      // Recarrega listas
+      if (activeTab === "chamados") {
+        loadOpenChamados(chamadoFilters);
+      } else {
+        loadOrdensServico(osFilters);
+      }
+      
+      // ⚠️ RETORNO ADICIONADO PARA CORREÇÃO
+      return resultOs;
+      
+    } catch (error) {
+      console.error('❌ Erro ao salvar OS:', error);
+      toast.error('Erro ao salvar OS');
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ==========================================
+  // HANDLERS PARA MATERIAIS
+  // ==========================================
+  
+  // ⚠️ FUNÇÃO PROBLEMÁTICA - Salva material
+  const handleSaveMaterial = async (material: Partial<Material>) => {
+    console.log('🔧 Tentando salvar material:', material);
+    console.log('📋 CurrentOs atual:', currentOs?.id);
+    
+    // ⚠️ VERIFICAÇÃO PROBLEMÁTICA
+    if (!currentOs?.id) {
+      console.warn('⚠️ CurrentOs não disponível para salvar material');
+      toast.error('OS não encontrada. Salve a OS primeiro.');
+      return;
+    }
+
+    try {
+      console.log('💾 Salvando material para OS:', currentOs.id);
+      const savedMaterial = await ordemServicoService.saveMaterial({
+        ...material,
+        os_id: currentOs.id
+      });
+      
+      console.log('✅ Material salvo com sucesso:', savedMaterial.id);
+      
+      // Atualiza lista local de materiais
+      if (material.id) {
+        // Atualização
+        setMaterials(prev => prev.map(m => m.id === material.id ? savedMaterial : m));
+      } else {
+        // Criação
+        setMaterials(prev => [...prev, savedMaterial]);
+      }
+      
+      toast.success('Material salvo com sucesso!');
+      return savedMaterial;
+    } catch (error) {
+      console.error('❌ Erro ao salvar material:', error);
+      toast.error('Erro ao salvar material');
+      throw error;
+    }
+  };
+
+  // Remove material
+  const handleDeleteMaterial = async (materialId: string) => {
+    try {
+      console.log('🗑️ Removendo material:', materialId);
+      await ordemServicoService.deleteMaterial(materialId);
+      
+      // Remove da lista local
+      setMaterials(prev => prev.filter(m => m.id !== materialId));
+      toast.success('Material removido com sucesso!');
+    } catch (error) {
+      console.error('❌ Erro ao remover material:', error);
+      toast.error('Erro ao remover material');
+    }
+  };
+
+  // ==========================================
+  // HANDLERS PARA MÃO DE OBRA
+  // ==========================================
+  
+  // ⚠️ FUNÇÃO PROBLEMÁTICA - Salva mão de obra (mesmo problema dos materiais)
+  const handleSaveMaoDeObra = async (maoDeObra: Partial<MaoDeObra>) => {
+    console.log('👷 Tentando salvar mão de obra:', maoDeObra);
+    console.log('📋 CurrentOs atual:', currentOs?.id);
+    
+    // ⚠️ MESMA VERIFICAÇÃO PROBLEMÁTICA
+    if (!currentOs?.id) {
+      console.warn('⚠️ CurrentOs não disponível para salvar mão de obra');
+      toast.error('OS não encontrada. Salve a OS primeiro.');
+      return;
+    }
+
+    try {
+      console.log('💾 Salvando mão de obra para OS:', currentOs.id);
+      const savedMaoDeObra = await ordemServicoService.saveMaoDeObra({
+        ...maoDeObra,
+        os_id: currentOs.id
+      });
+      
+      console.log('✅ Mão de obra salva com sucesso:', savedMaoDeObra.id);
+      
+      // Atualiza lista local
+      if (maoDeObra.id) {
+        setLaborItems(prev => prev.map(m => m.id === maoDeObra.id ? savedMaoDeObra : m));
+      } else {
+        setLaborItems(prev => [...prev, savedMaoDeObra]);
+      }
+      
+      toast.success('Mão de obra salva com sucesso!');
+      return savedMaoDeObra;
+    } catch (error) {
+      console.error('❌ Erro ao salvar mão de obra:', error);
+      toast.error('Erro ao salvar mão de obra');
+      throw error;
+    }
+  };
+
+  // Remove mão de obra
+  const handleDeleteMaoDeObra = async (maoDeObraId: string) => {
+    try {
+      console.log('🗑️ Removendo mão de obra:', maoDeObraId);
+      await ordemServicoService.deleteMaoDeObra(maoDeObraId);
+      
+      setLaborItems(prev => prev.filter(m => m.id !== maoDeObraId));
+      toast.success('Mão de obra removida com sucesso!');
+    } catch (error) {
+      console.error('❌ Erro ao remover mão de obra:', error);
+      toast.error('Erro ao remover mão de obra');
+    }
+  };
+
+  // ==========================================
+  // OUTRAS FUNÇÕES DE NEGÓCIO
+  // ==========================================
+  
+  // Finaliza OS
+  const handleFinishOs = async (osId: string) => {
+    if (!currentUser) {
+      toast.error('Usuário não identificado');
+      return;
+    }
+
+    try {
+      await ordemServicoService.finishOrdemServico(osId, currentUser.id);
+      toast.success('OS finalizada com sucesso!');
+      loadOrdensServico(osFilters);
+    } catch (error) {
+      console.error('Erro ao finalizar OS:', error);
+      toast.error('Erro ao finalizar OS');
+    }
+  };
+
+  // Gera PDF da OS
+  const handleGeneratePdf = async (osId: string) => {
+    try {
+      await ordemServicoService.generateOsPdf(osId);
+      toast.success('PDF gerado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      toast.error('Erro ao gerar PDF');
+    }
+  };
+
+  // ==========================================
+  // HANDLERS PARA FILTROS
+  // ==========================================
+  
+  const handleApplyChamadoFilters = (filters: OsFilterParams) => {
+    setChamadoFilters(filters);
+  };
+
+  const handleApplyOsFilters = (filters: OsFilterParams) => {
+    setOsFilters(filters);
+  };
+
+  const handleClearFilters = () => {
+    if (activeTab === "chamados") {
+      setChamadoFilters({});
+    } else {
+      setOsFilters({});
+    }
+  };
+
+  // Export para Excel
+  const handleExportToExcel = async () => {
+    try {
+      const filters = activeTab === "chamados" ? chamadoFilters : osFilters;
+      await ordemServicoService.exportOsToExcel(filters);
+      toast.success('Dados exportados com sucesso!');
+    } catch (error) {
+      console.error('Erro ao exportar dados:', error);
+      toast.error('Erro ao exportar dados');
+    }
+  };
+
+  // ==========================================
+  // RETURN - EXPOSIÇÃO DA API DO HOOK
+  // ==========================================
+  
+  return {
+    // Estados de dados
+    openChamados,
+    ordensServico,
+    currentChamado,
+    currentOs,        // ⚠️ ESTADO CRÍTICO
+    currentUser,
+    materials,        // ⚠️ RELACIONADO AO PROBLEMA
+    laborItems,       // ⚠️ RELACIONADO AO PROBLEMA
+    movimentacoes,
+    
+    // Estados de controle
+    isLoading,
+    error,
+    activeTab,
+    
+    // Estados de modais
+    isChamadoModalOpen,
+    isOsModalOpen,
+    isSimpleOsModalOpen,
+    
+    // Setters para modais
+    setIsChamadoModalOpen,
+    setIsOsModalOpen,
+    setIsSimpleOsModalOpen,
+    setCurrentChamado,
+    setCurrentOs,     // ⚠️ SETTER CRÍTICO
+    
+    // Handlers principais
+    handleTabChange,
+    handleOpenChamadoDetails,
+    handleOpenOsModal,
+    handleConvertToOs,
+    handleCreateOrUpdateOs,    // ⚠️ FUNÇÃO PROBLEMÁTICA
+    
+    // Handlers de materiais e mão de obra
+    handleSaveMaterial,        // ⚠️ FUNÇÃO PROBLEMÁTICA
+    handleDeleteMaterial,
+    handleSaveMaoDeObra,       // ⚠️ FUNÇÃO PROBLEMÁTICA
+    handleDeleteMaoDeObra,
+    
+    // Outros handlers
+    handleFinishOs,
+    handleGeneratePdf,
+    handleApplyChamadoFilters,
+    handleApplyOsFilters,
+    handleClearFilters,
+    handleExportToExcel,
+    
+    // Funções de carregamento
+    loadOsDetails,            // ⚠️ FUNÇÃO CRÍTICA
+    loadOpenChamados,
+    loadOrdensServico
+  };
+};
+
+// ==========================================
+// RESUMO DOS PROBLEMAS IDENTIFICADOS
+// ==========================================
+
+/*
+⚠️ PROBLEMAS PRINCIPAIS:
+
+1. TIMING DE ESTADO:
+   - handleCreateOrUpdateOs() atualiza currentOs via setState
+   - setState é assíncrono e pode não estar disponível imediatamente
+   - handleSaveMaterial() e handleSaveMaoDeObra() verificam currentOs?.id
+   - Se currentOs ainda não foi atualizado, as funções retornam sem salvar
+
+2. DEPENDÊNCIA DE ESTADO:
+   - Materiais e mão de obra dependem de currentOs.id estar disponível
+   - Não há verificação alternativa ou fallback
+   - Não há uso do retorno direto das funções de criação
+
+3. FLUXO DE SALVAMENTO:
+   - CompleteOsForm chama handleCreateOrUpdateOs()
+   - CompleteOsForm depois chama handleSaveMaterials() em sequência
+   - Mas currentOs pode não estar atualizado ainda
+
+4. FALTA DE SINCRONIZAÇÃO:
+   - Não há promise chaining adequado
+   - Não há propagação do OS ID recém-criado
+   - Timeouts artificiais foram tentados mas não resolveram definitivamente
+
+⚠️ SOLUÇÕES IMPLEMENTADAS:
+- Logs de debug extensivos
+- Retorno do resultOs em handleCreateOrUpdateOs
+- Timeouts para aguardar atualização de estado (não ideal)
+
+⚠️ SOLUÇÕES PENDENTES:
+- Usar retorno direto da função em vez de depender do estado
+- Passar osId explicitamente para funções de salvamento
+- Refatorar fluxo para não depender de currentOs sendo atualizado
+*/

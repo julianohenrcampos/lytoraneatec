@@ -1,0 +1,85 @@
+IMPLEMENTAÇÃO DO FLUXO CORRETO DE ORDENS DE SERVIÇO
+========================================================
+
+MUDANÇAS REALIZADAS (Janeiro 2025):
+
+1. BANCO DE DADOS - MIGRAÇÃO EXECUTADA ✅
+   - Criadas FKs entre bd_os_materiais_utilizados.os_id -> bd_ordens_servico.id
+   - Criadas FKs entre bd_os_mao_obra.os_id -> bd_ordens_servico.id  
+   - Criados índices em os_id para ambas as tabelas
+   - Implementado trigger calc_valor_total_item() que calcula automaticamente:
+     valor_total = quantidade × valor_unitario
+   
+   RESULTADO: Vínculo relacional 1:N garantido, cálculo automático de totais
+
+2. REMOÇÃO DE RACE CONDITIONS ✅
+   - Removidas completamente as funções handleSaveMaterials() e handleSaveLaborItems()
+   - Eliminados todos os setTimeout que causavam race conditions
+   - handleSubmit() agora é o ÚNICO ponto de salvamento
+   
+   FLUXO DETERMINÍSTICO:
+   a) Salvar/atualizar OS via onSubmit() -> recebe result.id
+   b) Usar result.id explícito para salvar tempMaterials
+   c) Usar result.id explícito para salvar tempMaoDeObra
+   d) Limpar listas temporárias apenas após sucesso
+   e) Fechar modal
+
+3. MODELAGEM CORRETA ✅
+   - Cada linha na tabela = 1 item com quantidade numérica
+   - valor_total = quantidade × valor_unitario (calculado por trigger)
+   - Total geral = soma de todas as linhas.valor_total
+   - Não há mais confusão com "quantidade como lista"
+
+4. UI SIMPLIFICADA ✅
+   - Removidos botões "Salvar Materiais" e "Salvar Itens" separados
+   - Apenas indicador "X itens aguardando salvamento"
+   - Botão "Salvar" do modal executa workflow completo
+   - Toast de sucesso/erro para feedback imediato
+
+5. HOOKS useOrdemServico ✅
+   - Mantidas assinaturas corretas com osId explícito
+   - handleSaveMaterial(material, osId?) - lança erro se osId não disponível
+   - handleSaveMaoDeObra(maoDeObra, osId?) - lança erro se osId não disponível
+   - Sem mais retornos silenciosos quando currentOs não existir
+
+CRITÉRIOS DE ACEITE - COMO TESTAR:
+
+✅ Criar OS a partir de chamado:
+   1. Abrir modal CompleteOsForm
+   2. Adicionar 2 materiais temporários
+   3. Adicionar 1 mão de obra temporária  
+   4. Clicar "Salvar"
+   5. Verificar: registros criados com os_id correto nas tabelas filhas
+   6. Verificar: valor_total calculado automaticamente
+   7. Verificar: resumo financeiro mostra soma correta
+
+✅ Editar OS existente:
+   1. Abrir OS existente no modal
+   2. Adicionar/remover itens
+   3. Clicar "Salvar"
+   4. Verificar: mudanças refletidas imediatamente no banco
+   5. Sem setTimeout, sem erros silenciosos
+
+ARQUITETURA FINAL:
+
+CompleteOsForm.tsx
+├── handleSubmit() ← ÚNICO ponto de salvamento
+│   ├── await onSubmit(osData) → result.id
+│   ├── salvar tempMaterials com result.id
+│   ├── salvar tempMaoDeObra com result.id
+│   └── limpar listas temporárias
+├── handleAddMaterial() ← adiciona a tempMaterials ou salva direto
+└── handleAddLabor() ← adiciona a tempMaoDeObra ou salva direto
+
+useOrdemServico.ts
+├── handleSaveMaterial(material, osId?) ← exige osId, lança erro se não houver
+├── handleSaveMaoDeObra(maoDeObra, osId?) ← exige osId, lança erro se não houver
+└── handleCreateOrUpdateOs() ← retorna OS com ID
+
+BANCO:
+bd_ordens_servico (1) ←→ (N) bd_os_materiais_utilizados.os_id
+bd_ordens_servico (1) ←→ (N) bd_os_mao_obra.os_id
+
+TRIGGER: calc_valor_total_item() mantém valor_total = quantidade × valor_unitario
+
+COMMIT: fix(os): workflow determinístico de salvamento (materiais/mão-de-obra) usando osId explícito; vinculação correta os_id; cálculo de totais; FKs/índices garantidos; remoção de timeouts e retornos silenciosos
