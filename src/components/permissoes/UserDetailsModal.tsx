@@ -1,20 +1,23 @@
 
 import React from "react";
-import { User, Mail, Calendar, Shield, AlertCircle, Trash2 } from "lucide-react";
+import { User, Mail, Calendar, Shield, AlertCircle, Trash2, Globe, Building2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { ProfileType } from "@/types/permissao";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { validateFunctionRemoval, cleanFunctionArray } from "@/utils/permissionValidation";
+import { getDepartmentDisplay } from "@/utils/departmentDisplay";
 
 interface UserDetailsModalProps {
   isOpen: boolean;
@@ -30,12 +33,17 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isRemoving, setIsRemoving] = React.useState(false);
+  const [isTogglingAccess, setIsTogglingAccess] = React.useState(false);
 
   if (!profile) return null;
 
   const currentFunctions = profile.funcoes || [];
   const hasPermissions = currentFunctions.length > 0 && 
     (currentFunctions.length > 1 || (currentFunctions.length === 1 && currentFunctions[0] !== 'user'));
+  const deptDisplay = getDepartmentDisplay(profile);
+  const isAdmin = currentFunctions.some(f => 
+    ['SuperAdm', 'Administrador', 'AdmRH', 'AdmLogistica', 'AdmEquipamentos'].includes(f)
+  );
 
   const getPermissionStatus = () => {
     if (!hasPermissions) {
@@ -46,6 +54,40 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
 
   const status = getPermissionStatus();
   const StatusIcon = status.icon;
+
+  const handleToggleAcessoGlobal = async (enabled: boolean) => {
+    setIsTogglingAccess(true);
+    try {
+      console.log('🌐 Alternando acesso global:', enabled, 'para usuário:', profile.id);
+      
+      const { error } = await supabase
+        .from('profiles')
+        .update({ acesso_global: enabled })
+        .eq('id', profile.id);
+
+      if (error) throw error;
+
+      toast({
+        title: enabled ? "Acesso global ativado" : "Acesso departamental ativado",
+        description: enabled 
+          ? `${profile.nome_completo} agora tem acesso a todos os departamentos.`
+          : `${profile.nome_completo} agora tem acesso apenas ao departamento ${deptDisplay.departmentName || 'vinculado'}.`,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['all-profiles-corrected'] });
+      queryClient.invalidateQueries({ queryKey: ['profiles'] });
+      
+    } catch (error: any) {
+      console.error('❌ Erro ao alternar acesso:', error);
+      toast({
+        title: "Erro ao alterar acesso",
+        description: error.message || "Não foi possível alterar o tipo de acesso.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTogglingAccess(false);
+    }
+  };
 
   const handleRemoveFunction = async (funcaoToRemove: string) => {
     setIsRemoving(true);
@@ -155,6 +197,59 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
             </div>
           </div>
 
+          {/* Escopo de Acesso Departamental */}
+          {profile.funcionario_id && isAdmin && (
+            <>
+              <Separator />
+              <div className="space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <Building2 className="h-4 w-4" />
+                  Escopo de Acesso
+                </h4>
+                
+                <div className="p-4 bg-muted/50 rounded-lg border space-y-4">
+                  {/* Departamento vinculado */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Departamento:</span>
+                    </div>
+                    <Badge variant="outline" className="bg-background">
+                      {deptDisplay.departmentName || 'Não vinculado'}
+                    </Badge>
+                  </div>
+
+                  {/* Toggle de Acesso Global */}
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <div className="flex items-center gap-2">
+                      <Globe className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">Acesso Global</p>
+                        <p className="text-xs text-muted-foreground">
+                          {profile.acesso_global 
+                            ? 'Vê todos os departamentos' 
+                            : 'Vê apenas seu departamento'}
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={profile.acesso_global || false}
+                      onCheckedChange={handleToggleAcessoGlobal}
+                      disabled={isTogglingAccess}
+                    />
+                  </div>
+
+                  {/* Explicação */}
+                  <div className="pt-2 border-t">
+                    <p className="text-xs text-muted-foreground">
+                      💡 Com acesso global, o usuário continua vinculado ao departamento <strong>{deptDisplay.departmentName}</strong> para fins de folha de pagamento, mas pode visualizar e gerenciar dados de todos os departamentos.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
           {/* Funções do usuário */}
           {hasPermissions && (
             <>
@@ -169,17 +264,33 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
                         <Badge variant="outline" className="font-medium">
                           {funcao}
                         </Badge>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveFunction(funcao)}
-                          disabled={isRemoving}
-                          className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveFunction(funcao)}
+                                disabled={isRemoving}
+                                className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Remover esta função</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </div>
                     ))}
+                </div>
+                
+                {/* Dica sobre remoção total */}
+                <div className="mt-3 p-3 bg-muted/50 rounded-lg border border-border">
+                  <p className="text-xs text-muted-foreground">
+                    💡 <strong>Dica:</strong> Você também pode remover todas as permissões de uma vez pela tabela principal usando o botão <span className="text-destructive font-medium">"Remover"</span>.
+                  </p>
                 </div>
               </div>
             </>

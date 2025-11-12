@@ -1,6 +1,6 @@
 
 import React from "react";
-import { UserCheck } from "lucide-react";
+import { UserCheck, AlertCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ProfileType } from "@/types/permissao";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,6 +42,7 @@ const AssignPermissionModal: React.FC<AssignPermissionModalProps> = ({
   isSubmitting,
 }) => {
   const [selectedFuncao, setSelectedFuncao] = React.useState<string>("");
+  const [showFuncionarioLink, setShowFuncionarioLink] = React.useState(false);
 
   // Buscar funções da tabela bd_funcoes_permissao
   const { data: funcoesDB } = useQuery({
@@ -182,6 +184,20 @@ const AssignPermissionModal: React.FC<AssignPermissionModalProps> = ({
               </p>
             )}
           </div>
+
+          {/* Alerta sobre vinculação de funcionário */}
+          {selectedFuncao && ['SuperAdm', 'Administrador', 'AdmRH', 'AdmLogistica', 'AdmEquipamentos'].includes(selectedFuncao) && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                ⚠️ <strong>Função administrativa selecionada</strong>
+                <br />
+                Por padrão, este usuário terá <strong>acesso global</strong> a todos os dados.
+                <br />
+                Para restringir ao departamento, vincule-o a um funcionário após a atribuição (botão "Vincular Funcionário" na lista de usuários).
+              </AlertDescription>
+            </Alert>
+          )}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>

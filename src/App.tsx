@@ -51,6 +51,10 @@ import RelatorioAplicacaoDiaria from "@/pages/RelatorioAplicacaoDiaria";
 // Admin - using correct file names
 import GestaoPermissoes from "@/pages/GestaoPermissoes";
 
+// SSO - Saúde e Segurança Ocupacional
+import SSOChecklistList from "@/pages/SSOChecklistList";
+import SSODashboard from "@/pages/SSODashboard";
+
 // Security Components
 import SecureRouteGuard from "@/components/routing/SecureRouteGuard";
 
@@ -278,6 +282,28 @@ const App = () => {
                 <SimplePermissionGuard>
                   <SecureRouteGuard requiredPermission="admin_permissoes_view">
                     <GestaoPermissoes />
+                  </SecureRouteGuard>
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            
+            {/* SSO - Saúde e Segurança Ocupacional */}
+            <Route path="/sso/checklists" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <SecureRouteGuard requiredPermission="acesso_sso_checklists">
+                    <SSOChecklistList />
+                  </SecureRouteGuard>
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            
+            
+            <Route path="/sso/checklists/dashboard" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <SecureRouteGuard requiredPermission="acesso_sso_checklists">
+                    <SSODashboard />
                   </SecureRouteGuard>
                 </SimplePermissionGuard>
               </SimpleAuthGuard>

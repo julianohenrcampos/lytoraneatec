@@ -20,7 +20,27 @@ export const safeProfilesQuery = async (supabase: any) => {
   try {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, nome_completo, funcao_sistema, funcoes, imagem_url, created_at, updated_at')
+      .select(`
+        id, 
+        nome_completo, 
+        funcao_sistema, 
+        funcoes, 
+        imagem_url, 
+        created_at, 
+        updated_at,
+        funcionario_id,
+        acesso_global,
+        email,
+        bd_funcionarios(
+          id,
+          nome_completo,
+          departamento_id,
+          bd_departamentos(
+            id,
+            nome_departamento
+          )
+        )
+      `)
       .order('nome_completo');
     
     if (error) throw error;

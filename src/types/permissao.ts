@@ -53,6 +53,16 @@ export interface ProfileType {
   funcoes?: string[];
   funcao_sistema?: string;
   funcionario_id?: string;
+  acesso_global?: boolean;
   created_at?: string;
   updated_at?: string;
+  bd_funcionarios?: {
+    id: string;
+    nome_completo: string;
+    departamento_id?: string;
+    bd_departamentos?: {
+      id: string;
+      nome_departamento: string;
+    };
+  };
 }

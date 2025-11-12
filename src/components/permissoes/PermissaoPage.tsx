@@ -11,10 +11,27 @@ import PermissaoFormModal from "./PermissaoFormModal";
 import FuncaoPermissaoFormModal from "./FuncaoPermissaoFormModal";
 import AssignPermissionModal from "./AssignPermissionModal";
 import UserDetailsModal from "./UserDetailsModal";
+import LinkFuncionarioModal from "./LinkFuncionarioModal";
+import DepartamentoStatusCard from "./DepartamentoStatusCard";
 import DeletePermissaoDialog from "./DeletePermissaoDialog";
 import DeleteFuncaoPermissaoDialog from "./DeleteFuncaoPermissaoDialog";
+import RemoveAllPermissionsDialog from "./RemoveAllPermissionsDialog";
+import { useVincularFuncionario } from "@/hooks/useVincularFuncionario";
+import { useRemoverPermissoes } from "@/hooks/useRemoverPermissoes";
 
 const PermissaoPage: React.FC = () => {
+  // Hook de vinculação
+  const {
+    isLinkModalOpen,
+    selectedProfileId,
+    openLinkModal,
+    closeLinkModal,
+    vincularFuncionario,
+    desvincularFuncionario,
+    isVinculando,
+    isDesvinculando,
+  } = useVincularFuncionario();
+
   const {
     // Estados
     isPermissaoFormOpen,
@@ -36,6 +53,7 @@ const PermissaoPage: React.FC = () => {
     // Novos estados para usuários
     isAssignPermissionOpen,
     isUserDetailsOpen,
+    isRemoveAllPermissionsOpen,
     currentProfile,
     profileFilter,
     profiles,
@@ -65,12 +83,32 @@ const PermissaoPage: React.FC = () => {
     // Novas ações para usuários
     setIsAssignPermissionOpen,
     setIsUserDetailsOpen,
+    setIsRemoveAllPermissionsOpen,
     handleProfileFilterChange,
     resetProfileFilters,
     openAssignPermission,
     openUserDetails,
+    openRemoveAllPermissions,
     handleAssignPermission,
+    refetchProfiles,
   } = usePermissao();
+
+  const { removerTodasFuncoes, isRemoving } = useRemoverPermissoes();
+
+  const handleRemoveAllPermissions = async () => {
+    if (!currentProfile) return;
+    
+    const adminFunctions = currentProfile.funcoes?.filter(f => f !== 'user') || [];
+    const result = await removerTodasFuncoes(
+      currentProfile.id,
+      currentProfile.email || '',
+      adminFunctions
+    );
+    
+    if (result.success) {
+      refetchProfiles();
+    }
+  };
 
   // Buscar nome da função de permissão para exibir nos detalhes
   const getFuncaoPermissaoNome = (funcaoPermissaoId: string | null) => {
@@ -125,12 +163,21 @@ const PermissaoPage: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="users" className="space-y-4">
+          <DepartamentoStatusCard />
+          
           <UserProfilesTable 
             profiles={profiles || []}
             isLoading={isProfilesLoading}
             onAssignPermission={openAssignPermission}
             onEditPermission={openAssignPermission}
             onViewDetails={openUserDetails}
+            onLinkFuncionario={openLinkModal}
+            onUnlinkFuncionario={(profileId) => {
+              if (confirm('⚠️ Este usuário passará a ter acesso global a todos os dados. Confirma?')) {
+                desvincularFuncionario(profileId);
+              }
+            }}
+            onRemoveAllPermissions={openRemoveAllPermissions}
             filters={profileFilter}
             onFilterChange={handleProfileFilterChange}
             onResetFilters={resetProfileFilters}
@@ -170,6 +217,23 @@ const PermissaoPage: React.FC = () => {
         isOpen={isUserDetailsOpen}
         onClose={() => setIsUserDetailsOpen(false)}
         profile={currentProfile}
+      />
+
+      {/* Modal de vinculação de funcionário */}
+      <LinkFuncionarioModal
+        isOpen={isLinkModalOpen}
+        onClose={closeLinkModal}
+        profileId={selectedProfileId}
+        onLink={vincularFuncionario}
+        isSubmitting={isVinculando}
+      />
+
+      <RemoveAllPermissionsDialog
+        isOpen={isRemoveAllPermissionsOpen}
+        onClose={() => setIsRemoveAllPermissionsOpen(false)}
+        profile={currentProfile}
+        onConfirm={handleRemoveAllPermissions}
+        isRemoving={isRemoving}
       />
       
       <DeletePermissaoDialog

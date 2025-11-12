@@ -37,6 +37,7 @@ export const usePermissao = () => {
   const [isDeleteFuncaoPermissaoOpen, setIsDeleteFuncaoPermissaoOpen] = useState(false);
   const [isAssignPermissionOpen, setIsAssignPermissionOpen] = useState(false);
   const [isUserDetailsOpen, setIsUserDetailsOpen] = useState(false);
+  const [isRemoveAllPermissionsOpen, setIsRemoveAllPermissionsOpen] = useState(false);
   const [currentPermissao, setCurrentPermissao] = useState<Permissao | null>(null);
   const [currentFuncaoPermissao, setCurrentFuncaoPermissao] = useState<FuncaoPermissao | null>(null);
   const [currentProfile, setCurrentProfile] = useState<ProfileType | null>(null);
@@ -507,6 +508,11 @@ export const usePermissao = () => {
     setCurrentProfile(profile);
     setIsUserDetailsOpen(true);
   };
+
+  const openRemoveAllPermissions = (profile: ProfileType) => {
+    setCurrentProfile(profile);
+    setIsRemoveAllPermissionsOpen(true);
+  };
   
   const confirmDeletePermissao = (permissao: Permissao) => {
     setCurrentPermissao(permissao);
@@ -579,17 +585,18 @@ export const usePermissao = () => {
     isSubmitting,
     isDeleting,
 
-    // Estados para usuários
-    isAssignPermissionOpen,
-    isUserDetailsOpen,
-    currentProfile,
-    profileFilter,
-    profiles,
-    isProfilesLoading,
-    availableFunctions,
-    profilesError,
-    
-    // Ações existentes mantidas
+  // Estados para usuários
+  isAssignPermissionOpen,
+  isUserDetailsOpen,
+  isRemoveAllPermissionsOpen,
+  currentProfile,
+  profileFilter,
+  profiles,
+  isProfilesLoading,
+  availableFunctions,
+  profilesError,
+  
+  // Ações existentes mantidas
     setIsPermissaoFormOpen,
     setIsFuncaoFormOpen,
     setIsDeletePermissaoOpen,
@@ -612,10 +619,12 @@ export const usePermissao = () => {
     // Ações para usuários
     setIsAssignPermissionOpen,
     setIsUserDetailsOpen,
+    setIsRemoveAllPermissionsOpen,
     handleProfileFilterChange,
     resetProfileFilters,
     openAssignPermission,
     openUserDetails,
+    openRemoveAllPermissions,
     handleAssignPermission,
     refetchProfiles,
   };

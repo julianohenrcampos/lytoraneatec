@@ -9,6 +9,7 @@ export interface RhSecurityContext {
   departamentoNome?: string;
   isLoading: boolean;
   canViewAllData: boolean;
+  shouldFilterByDepartment: boolean;
 }
 
 export const useRhSecurity = (): RhSecurityContext => {
@@ -16,6 +17,7 @@ export const useRhSecurity = (): RhSecurityContext => {
   const [securityContext, setSecurityContext] = useState<RhSecurityContext>({
     isLoading: true,
     canViewAllData: false,
+    shouldFilterByDepartment: false,
   });
 
   useEffect(() => {
@@ -25,21 +27,37 @@ export const useRhSecurity = (): RhSecurityContext => {
       try {
         setSecurityContext(prev => ({ ...prev, isLoading: true }));
 
-        // SuperAdm pode ver todos os dados
+        // SuperAdm global (sem departamento) pode ver todos os dados
         if (isSuperAdmin) {
-          console.log("🔐 SuperAdmin detected - allowing access to all data");
-          setSecurityContext({
-            isLoading: false,
-            canViewAllData: true,
-          });
-          return;
+          // Verificar se tem funcionário vinculado e departamento
+          const { data: funcionario } = await supabase
+            .from("bd_funcionarios")
+            .select("departamento_id")
+            .eq("email", (await supabase.auth.getUser()).data.user?.email)
+            .single();
+
+          // SuperAdm sem departamento = acesso global
+          if (!funcionario || !funcionario.departamento_id) {
+            console.log("🔐 SuperAdmin Global - acesso total sem filtro departamental");
+            setSecurityContext({
+              isLoading: false,
+              canViewAllData: true,
+              shouldFilterByDepartment: false,
+            });
+            return;
+          }
+          
+          // SuperAdm com departamento = acesso filtrado por departamento
+          console.log("🔐 SuperAdmin Departamental - filtrado por departamento");
+          // Continua o fluxo para buscar dados do departamento
         }
 
-        if (!userId) {
+        if (!userId && !isSuperAdmin) {
           console.log("🔐 No user ID - denying access");
           setSecurityContext({
             isLoading: false,
             canViewAllData: false,
+            shouldFilterByDepartment: false,
           });
           return;
         }
@@ -60,6 +78,7 @@ export const useRhSecurity = (): RhSecurityContext => {
           setSecurityContext({
             isLoading: false,
             canViewAllData: false,
+            shouldFilterByDepartment: false,
           });
           return;
         }
@@ -75,10 +94,15 @@ export const useRhSecurity = (): RhSecurityContext => {
           }
         }
 
+        // Determinar se deve filtrar por departamento
+        const shouldFilter = isSuperAdmin && !!funcionario.departamento_id;
+
         console.log("🔐 User security context:", {
           departamentoId: funcionario.departamento_id,
           centroCustoId: funcionario.centro_custo_id,
-          departamentoNome
+          departamentoNome,
+          isSuperAdmin,
+          shouldFilterByDepartment: shouldFilter
         });
 
         setSecurityContext({
@@ -86,7 +110,8 @@ export const useRhSecurity = (): RhSecurityContext => {
           centroCustoId: funcionario.centro_custo_id || undefined,
           departamentoNome,
           isLoading: false,
-          canViewAllData: false,
+          canViewAllData: isSuperAdmin && !!funcionario.departamento_id, // SuperAdm Departamental tem acesso ao seu departamento
+          shouldFilterByDepartment: shouldFilter,
         });
 
       } catch (error) {
@@ -94,6 +119,7 @@ export const useRhSecurity = (): RhSecurityContext => {
         setSecurityContext({
           isLoading: false,
           canViewAllData: false,
+          shouldFilterByDepartment: false,
         });
       }
     };

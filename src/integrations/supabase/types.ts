@@ -14,6 +14,162 @@ export type Database = {
   }
   public: {
     Tables: {
+      bd_abast_sync_log: {
+        Row: {
+          atualizados: number | null
+          created_at: string | null
+          data_fim: string
+          data_inicio: string
+          duracao_segundos: number | null
+          executado_por: string | null
+          id: string
+          mensagem_erro: string | null
+          novos_registros: number | null
+          status: string | null
+          total_registros: number | null
+        }
+        Insert: {
+          atualizados?: number | null
+          created_at?: string | null
+          data_fim: string
+          data_inicio: string
+          duracao_segundos?: number | null
+          executado_por?: string | null
+          id?: string
+          mensagem_erro?: string | null
+          novos_registros?: number | null
+          status?: string | null
+          total_registros?: number | null
+        }
+        Update: {
+          atualizados?: number | null
+          created_at?: string | null
+          data_fim?: string
+          data_inicio?: string
+          duracao_segundos?: number | null
+          executado_por?: string | null
+          id?: string
+          mensagem_erro?: string | null
+          novos_registros?: number | null
+          status?: string | null
+          total_registros?: number | null
+        }
+        Relationships: []
+      }
+      bd_abastecimentos: {
+        Row: {
+          bico: string | null
+          cc: string | null
+          codigo_terceiro: string | null
+          comboista: string | null
+          comboista_tag: string | null
+          combustivel: string | null
+          created_at: string | null
+          created_by: string | null
+          data_abast: string
+          data_integracao: string | null
+          encerrante_fim: number | null
+          estoque: string | null
+          foto_verificada: boolean | null
+          frota: string | null
+          frota_tag: string | null
+          hora_abast: string | null
+          id: string
+          identificacao_do_ponto: string | null
+          identificador: string | null
+          latitude: number | null
+          litragem: number | null
+          longitude: number | null
+          medidor: number | null
+          medidor_anterior_data: string | null
+          medidor_anterior_valor: number | null
+          medidor_unidade: string | null
+          medidor_via_entrada: string | null
+          operacao: string | null
+          operador: string | null
+          operador_tag: string | null
+          placa: string | null
+          registrado_editado_por: string | null
+          registro_editado_em: string | null
+          tipo_procedimento: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          bico?: string | null
+          cc?: string | null
+          codigo_terceiro?: string | null
+          comboista?: string | null
+          comboista_tag?: string | null
+          combustivel?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          data_abast: string
+          data_integracao?: string | null
+          encerrante_fim?: number | null
+          estoque?: string | null
+          foto_verificada?: boolean | null
+          frota?: string | null
+          frota_tag?: string | null
+          hora_abast?: string | null
+          id?: string
+          identificacao_do_ponto?: string | null
+          identificador?: string | null
+          latitude?: number | null
+          litragem?: number | null
+          longitude?: number | null
+          medidor?: number | null
+          medidor_anterior_data?: string | null
+          medidor_anterior_valor?: number | null
+          medidor_unidade?: string | null
+          medidor_via_entrada?: string | null
+          operacao?: string | null
+          operador?: string | null
+          operador_tag?: string | null
+          placa?: string | null
+          registrado_editado_por?: string | null
+          registro_editado_em?: string | null
+          tipo_procedimento?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          bico?: string | null
+          cc?: string | null
+          codigo_terceiro?: string | null
+          comboista?: string | null
+          comboista_tag?: string | null
+          combustivel?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          data_abast?: string
+          data_integracao?: string | null
+          encerrante_fim?: number | null
+          estoque?: string | null
+          foto_verificada?: boolean | null
+          frota?: string | null
+          frota_tag?: string | null
+          hora_abast?: string | null
+          id?: string
+          identificacao_do_ponto?: string | null
+          identificador?: string | null
+          latitude?: number | null
+          litragem?: number | null
+          longitude?: number | null
+          medidor?: number | null
+          medidor_anterior_data?: string | null
+          medidor_anterior_valor?: number | null
+          medidor_unidade?: string | null
+          medidor_via_entrada?: string | null
+          operacao?: string | null
+          operador?: string | null
+          operador_tag?: string | null
+          placa?: string | null
+          registrado_editado_por?: string | null
+          registro_editado_em?: string | null
+          tipo_procedimento?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       bd_apontamento_equipe: {
         Row: {
           colaborador_id: string | null
@@ -1813,6 +1969,158 @@ export type Database = {
           },
         ]
       }
+      bd_sso_checklist_itens: {
+        Row: {
+          avaliacao: string
+          checklist_id: string
+          created_at: string | null
+          descricao: string
+          evidencia: string | null
+          fotos: Json | null
+          id: string
+          item_modelo_id: string
+          ordem: number
+          tema: string
+          updated_at: string | null
+        }
+        Insert: {
+          avaliacao: string
+          checklist_id: string
+          created_at?: string | null
+          descricao: string
+          evidencia?: string | null
+          fotos?: Json | null
+          id?: string
+          item_modelo_id: string
+          ordem: number
+          tema: string
+          updated_at?: string | null
+        }
+        Update: {
+          avaliacao?: string
+          checklist_id?: string
+          created_at?: string | null
+          descricao?: string
+          evidencia?: string | null
+          fotos?: Json | null
+          id?: string
+          item_modelo_id?: string
+          ordem?: number
+          tema?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_sso_checklist_itens_checklist_id_fkey"
+            columns: ["checklist_id"]
+            isOneToOne: false
+            referencedRelation: "bd_sso_checklists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_sso_checklist_itens_item_modelo_id_fkey"
+            columns: ["item_modelo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_sso_itens_modelo"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_sso_checklists: {
+        Row: {
+          atualizado_em: string
+          criado_em: string
+          criado_por: string
+          data_inspecao: string
+          engenheiro_obra: string
+          gerente_regional: string
+          id: string
+          nota_objetivo: number
+          nota_real: number | null
+          obra_id: string
+          observacoes_gerais: string | null
+          resultado_avaliacao: string | null
+          tecnico_seguranca: string
+          total_aplicaveis: number | null
+          total_conformes: number | null
+          total_itens: number
+          total_na: number | null
+        }
+        Insert: {
+          atualizado_em?: string
+          criado_em?: string
+          criado_por: string
+          data_inspecao: string
+          engenheiro_obra: string
+          gerente_regional: string
+          id?: string
+          nota_objetivo?: number
+          nota_real?: number | null
+          obra_id: string
+          observacoes_gerais?: string | null
+          resultado_avaliacao?: string | null
+          tecnico_seguranca: string
+          total_aplicaveis?: number | null
+          total_conformes?: number | null
+          total_itens?: number
+          total_na?: number | null
+        }
+        Update: {
+          atualizado_em?: string
+          criado_em?: string
+          criado_por?: string
+          data_inspecao?: string
+          engenheiro_obra?: string
+          gerente_regional?: string
+          id?: string
+          nota_objetivo?: number
+          nota_real?: number | null
+          obra_id?: string
+          observacoes_gerais?: string | null
+          resultado_avaliacao?: string | null
+          tecnico_seguranca?: string
+          total_aplicaveis?: number | null
+          total_conformes?: number | null
+          total_itens?: number
+          total_na?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_sso_checklists_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_sso_itens_modelo: {
+        Row: {
+          created_at: string | null
+          descricao: string
+          id: string
+          ordem: number
+          tema: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          descricao: string
+          id?: string
+          ordem: number
+          tema: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          descricao?: string
+          id?: string
+          ordem?: number
+          tema?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       bd_usinas: {
         Row: {
           created_at: string | null
@@ -1845,6 +2153,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          acesso_global: boolean | null
           created_at: string | null
           email: string | null
           funcao_permissao: string | null
@@ -1857,6 +2166,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          acesso_global?: boolean | null
           created_at?: string | null
           email?: string | null
           funcao_permissao?: string | null
@@ -1869,6 +2179,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          acesso_global?: boolean | null
           created_at?: string | null
           email?: string | null
           funcao_permissao?: string | null
@@ -1971,6 +2282,12 @@ export type Database = {
           registrado_por: string | null
           updated_at: string | null
         }[]
+        SetofOptions: {
+          from: "*"
+          to: "vw_apontamento_equipe"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       atualizar_status_entrega_automatico: {
         Args: {
@@ -2001,14 +2318,8 @@ export type Database = {
         Args: { p_registro_aplicacao_id: string }
         Returns: number
       }
-      check_is_super_admin: {
-        Args: { user_id?: string }
-        Returns: boolean
-      }
-      compute_funcao_sistema: {
-        Args: { _profile_id: string }
-        Returns: string
-      }
+      check_is_super_admin: { Args: { user_id?: string }; Returns: boolean }
+      compute_funcao_sistema: { Args: { _profile_id: string }; Returns: string }
       convert_chamado_para_os: {
         Args: { p_chamado_id: string; p_tipo_falha?: string }
         Returns: Json
@@ -2041,16 +2352,14 @@ export type Database = {
         Args: { aplicacao_id: string }
         Returns: Json
       }
-      finalizar_carga_manual: {
-        Args: { carga_id: string }
+      finalizar_carga_manual: { Args: { carga_id: string }; Returns: Json }
+      fn_calcular_nota_checklist: {
+        Args: { p_checklist_id: string }
         Returns: Json
       }
-      fn_recalcula_total_os: {
-        Args: { p_os_id: string }
-        Returns: undefined
-      }
+      fn_recalcula_total_os: { Args: { p_os_id: string }; Returns: undefined }
       force_update_all_delivery_statuses: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           entrega_id: string
           massa_remanescente: number
@@ -2073,10 +2382,12 @@ export type Database = {
         Args: { caminhao_id: string }
         Returns: number
       }
+      get_user_departamento_id: { Args: never; Returns: string }
       has_permission: {
         Args: { p_permission_name: string; p_user_id?: string }
         Returns: boolean
       }
+      is_departmental_super_admin: { Args: never; Returns: boolean }
       link_profile_from_funcionario_email: {
         Args: { _funcionario_id: string }
         Returns: boolean
@@ -2086,7 +2397,7 @@ export type Database = {
         Returns: boolean
       }
       listar_ghost_funcionarios: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           duplicate_type: string
           funcionario_details: Json
@@ -2099,7 +2410,7 @@ export type Database = {
         Returns: undefined
       }
       merge_duplicate_funcionarios: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           action_summary: string
           keep_id: string
@@ -2108,7 +2419,7 @@ export type Database = {
         }[]
       }
       merge_duplicate_funcionarios_by_email_normalized: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           action_summary: string
           keep_id: string
@@ -2117,7 +2428,7 @@ export type Database = {
         }[]
       }
       merge_duplicate_funcionarios_normalized: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           action_summary: string
           keep_id: string
@@ -2125,16 +2436,10 @@ export type Database = {
           removed_ids: string[]
         }[]
       }
-      normalize_email: {
-        Args: { input_email: string }
-        Returns: string
-      }
-      normalize_text: {
-        Args: { input_text: string }
-        Returns: string
-      }
+      normalize_email: { Args: { input_email: string }; Returns: string }
+      normalize_text: { Args: { input_text: string }; Returns: string }
       relatorio_correcao_status_massa: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           entregas_ativas: number
           entregas_em_aplicacao: number
@@ -2153,14 +2458,7 @@ export type Database = {
         Args: { _profile_id: string }
         Returns: undefined
       }
-      unaccent: {
-        Args: { "": string }
-        Returns: string
-      }
-      unaccent_init: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
+      unaccent: { Args: { "": string }; Returns: string }
       update_profile_funcionario_id: {
         Args: { _funcionario_id: string; _profile_id: string }
         Returns: undefined

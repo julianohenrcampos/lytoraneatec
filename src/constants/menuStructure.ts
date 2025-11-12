@@ -13,7 +13,8 @@ import {
   Settings,
   BarChart3,
   Package,
-  Map
+  Map,
+  ShieldCheck
 } from "lucide-react";
 
 export const menuStructure = [
@@ -175,6 +176,23 @@ export const menuStructure = [
         href: "/relatorio-aplicacao-diaria",
         icon: BarChart3,
         requiredPermission: "relatorio_aplicacao_view"
+      }
+    ]
+  },
+  {
+    title: "SSO - Segurança",
+    items: [
+      {
+        name: "Checklists NR-18",
+        href: "/sso/checklists",
+        icon: ShieldCheck,
+        requiredPermission: "acesso_sso_checklists"
+      },
+      {
+        name: "Dashboard SSO",
+        href: "/sso/checklists/dashboard",
+        icon: BarChart3,
+        requiredPermission: "acesso_sso_checklists"
       }
     ]
   },
