@@ -1,13 +1,11 @@
 [build]
-  command = "npx update-browserslist-db@latest && bun install && bun run build"
+  command = "bun install && bun run build"
   publish = "dist"
 
 [build.environment]
   NODE_VERSION = "18"
+  BUN_VERSION = "1.1.20"
   NPM_FLAGS = "--prefer-offline --no-audit"
-
-[[plugins]]
-  package = "netlify-plugin-cache"
 
 [build.processing]
   skip_processing = false
@@ -30,7 +28,7 @@
   status = 200
   force = false
   # Don't redirect actual files
-  conditions = {Role = ["*"]}
+  conditions = { Role = ["*"] }
 
 # Cache headers for PWA
 [[headers]]
