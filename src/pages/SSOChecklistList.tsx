@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { SSOChecklistFilters } from '@/components/sso/list/SSOChecklistFilters';
 import { SSOChecklistTable } from '@/components/sso/list/SSOChecklistTable';
 import { SSOChecklistDialog } from '@/components/sso/dialog/SSOChecklistDialog';
+import { SSOChecklistViewDialog } from '@/components/sso/dialog/SSOChecklistViewDialog';
 import { SSOChecklist, SSOChecklistFilters as FilterType } from '@/types/sso';
 import {
   AlertDialog,
@@ -24,7 +25,8 @@ const SSOChecklistList = () => {
   const [filters, setFilters] = useState<FilterType>({});
   const { checklists, isLoading, deleteChecklist } = useSSOChecklist(undefined, filters);
   
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [selectedChecklistId, setSelectedChecklistId] = useState<string | undefined>();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [checklistToDelete, setChecklistToDelete] = useState<SSOChecklist | null>(null);
@@ -39,17 +41,17 @@ const SSOChecklistList = () => {
 
   const handleNew = () => {
     setSelectedChecklistId(undefined);
-    setDialogOpen(true);
+    setEditDialogOpen(true);
   };
 
   const handleView = (checklist: SSOChecklist) => {
     setSelectedChecklistId(checklist.id);
-    setDialogOpen(true);
+    setViewDialogOpen(true);
   };
 
   const handleEdit = (checklist: SSOChecklist) => {
     setSelectedChecklistId(checklist.id);
-    setDialogOpen(true);
+    setEditDialogOpen(true);
   };
 
   const handleDeleteClick = (checklist: SSOChecklist) => {
@@ -113,10 +115,17 @@ const SSOChecklistList = () => {
           />
         )}
 
-        {/* Dialog de Criação/Edição */}
+        {/* Dialog de Visualização - Apenas Não Conformidades */}
+        <SSOChecklistViewDialog
+          open={viewDialogOpen}
+          onOpenChange={setViewDialogOpen}
+          checklistId={selectedChecklistId}
+        />
+
+        {/* Dialog de Edição */}
         <SSOChecklistDialog
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
           checklistId={selectedChecklistId}
         />
 

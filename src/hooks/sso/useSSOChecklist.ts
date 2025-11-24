@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ssoChecklistService } from '@/services/sso/ssoChecklistService';
 import { ssoItemService } from '@/services/sso/ssoItemService';
-import { SSOChecklistFormData, SSOChecklistFilters } from '@/types/sso';
+import { ssoStorageService } from '@/services/sso/ssoStorageService';
+import { SSOChecklistFormData, SSOChecklistFilters, SSOChecklistItem } from '@/types/sso';
 import { toast } from 'sonner';
 
 export const useSSOChecklist = (checklistId?: string, initialFilters?: SSOChecklistFilters) => {
@@ -25,15 +26,51 @@ export const useSSOChecklist = (checklistId?: string, initialFilters?: SSOCheckl
 
   // Mutation: Criar checklist
   const createMutation = useMutation({
-    mutationFn: async (formData: SSOChecklistFormData) => {
+    mutationFn: async (params: { 
+      formData: SSOChecklistFormData; 
+      itens: SSOChecklistItem[];
+      itemFiles: Record<string, File[]>;
+    }) => {
+      const { formData, itens, itemFiles } = params;
+      
       // 1. Criar checklist
       const checklist = await ssoChecklistService.create(formData);
       
-      // 2. Buscar itens modelo
-      const itensModelo = await ssoItemService.getModelo();
-      
-      // 3. Criar 36 itens vinculados ao checklist
-      await ssoItemService.createBatch(checklist.id, itensModelo);
+      // 2. Para cada item, criar no banco
+      for (const item of itens) {
+        // Criar item no banco
+        const createdItem = await ssoItemService.create({
+          checklist_id: checklist.id,
+          item_modelo_id: item.item_modelo_id,
+          avaliacao: item.avaliacao,
+          evidencia: item.evidencia,
+          ordem: item.ordem,
+          tema: item.tema,
+          descricao: item.descricao,
+          fotos: []
+        });
+        
+        // Se tem fotos para este item, fazer upload
+        const files = itemFiles[item.id];
+        if (files && files.length > 0) {
+          // Upload das fotos
+          const uploads = await ssoStorageService.uploadMultiple(
+            checklist.id, 
+            files
+          );
+          
+          // Adicionar timestamp
+          const fotosComTimestamp = uploads.map(upload => ({
+            ...upload,
+            created_at: new Date().toISOString()
+          }));
+          
+          // Atualizar item com as fotos
+          await ssoItemService.update(createdItem.id, { 
+            fotos: fotosComTimestamp as any
+          });
+        }
+      }
       
       return checklist;
     },
@@ -43,6 +80,7 @@ export const useSSOChecklist = (checklistId?: string, initialFilters?: SSOCheckl
       return data;
     },
     onError: (error: any) => {
+      console.error('Erro ao criar checklist:', error);
       toast.error(`Erro ao criar checklist: ${error.message}`);
       throw error;
     }

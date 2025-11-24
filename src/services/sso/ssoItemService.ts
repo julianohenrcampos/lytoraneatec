@@ -34,6 +34,18 @@ export const ssoItemService = {
     return data as unknown as SSOChecklistItem[];
   },
 
+  // Criar item individual
+  async create(itemData: Partial<SSOChecklistItem>) {
+    const { data, error } = await supabase
+      .from('bd_sso_checklist_itens')
+      .insert(itemData as any)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as unknown as SSOChecklistItem;
+  },
+
   // Atualizar item
   async update(id: string, updates: Partial<SSOChecklistItem>) {
     const { data, error } = await supabase

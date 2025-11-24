@@ -148,3 +148,34 @@
     @apply absolute opacity-80 animate-float;
   }
 }
+
+/* Otimizações para geração de PDF */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .break-inside-avoid {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  img {
+    max-width: 100%;
+    page-break-inside: avoid;
+  }
+}
+
+/* Garantir que o conteúdo do PDF não corte */
+#sso-nc-report-content {
+  box-sizing: border-box;
+  overflow: visible;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+#sso-nc-report-content * {
+  box-sizing: border-box;
+}

@@ -15,9 +15,10 @@ interface SSOChecklistItemProps {
   item: SSOChecklistItemType;
   index: number;
   onChange: (itemId: string, field: keyof SSOChecklistItemType, value: any) => void;
+  onFilesChange?: (itemId: string, files: File[]) => void;
 }
 
-export const SSOChecklistItem = ({ item, index, onChange }: SSOChecklistItemProps) => {
+export const SSOChecklistItem = ({ item, index, onChange, onFilesChange }: SSOChecklistItemProps) => {
   const isNaoConforme = item.avaliacao === 'Não Conforme';
 
   return (
@@ -83,6 +84,11 @@ export const SSOChecklistItem = ({ item, index, onChange }: SSOChecklistItemProp
                   itemId={item.id}
                   fotos={item.fotos}
                   onChange={(newFotos) => onChange(item.id, 'fotos', newFotos)}
+                  onFilesChange={(files) => {
+                    if (onFilesChange) {
+                      onFilesChange(item.id, files);
+                    }
+                  }}
                 />
               </div>
             </>

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-  Bell,
   Maximize,
   ChevronDown,
   User,
@@ -26,6 +25,7 @@ import UserProfileModal from "@/components/user/UserProfileModal";
 import UserImageUploadModal from "@/components/user/UserImageUploadModal";
 import { PWAInstallButton } from "@/components/pwa/PWAInstallButton";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 interface AppHeaderProps {
   user: any;
@@ -132,9 +132,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         </div>
         
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon">
-            <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
-          </Button>
+          <NotificationBell />
           
           <Button variant="ghost" size="icon">
             <Users className="h-4 w-4 sm:h-5 sm:w-5" />

@@ -1,13 +1,8 @@
+import { useMemo } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Combobox, ComboboxOption } from '@/components/ui/combobox';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -39,6 +34,18 @@ export const SSOChecklistFormHeader = ({ formData, onChange }: SSOChecklistFormH
     }
   });
 
+  // Formatar obras para o Combobox
+  const obrasOptions: ComboboxOption[] = useMemo(() => {
+    if (!obras) return [];
+    
+    return obras
+      .filter(obra => obra.nome_centro_custo)
+      .map((obra) => ({
+        value: obra.id,
+        label: obra.nome_centro_custo
+      }));
+  }, [obras]);
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -55,21 +62,15 @@ export const SSOChecklistFormHeader = ({ formData, onChange }: SSOChecklistFormH
 
         <div>
           <Label htmlFor="obra_id">Obra (L) / Gerente Regional *</Label>
-          <Select
+          <Combobox
+            options={obrasOptions}
             value={formData.obra_id}
-            onValueChange={(value) => onChange('obra_id', value)}
-          >
-            <SelectTrigger id="obra_id">
-              <SelectValue placeholder="Selecione a obra" />
-            </SelectTrigger>
-            <SelectContent className="bg-background">
-              {obras?.map((obra) => (
-                <SelectItem key={obra.id} value={obra.id}>
-                  {obra.codigo_centro_custo} - {obra.nome_centro_custo}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onChange={(value) => onChange('obra_id', value)}
+            placeholder="Selecione a obra"
+            searchPlaceholder="Buscar obra..."
+            emptyText="Nenhuma obra encontrada"
+            disabled={!obras || obras.length === 0}
+          />
         </div>
 
         <div>

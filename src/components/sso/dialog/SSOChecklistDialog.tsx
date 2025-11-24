@@ -15,7 +15,7 @@ import { SSOChecklistItem, SSOChecklist, SSOChecklistFormData, AvaliacaoTipo } f
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { ssoItemService } from '@/services/sso';
+import { ssoItemService, ssoStorageService } from '@/services/sso';
 
 interface SSOChecklistDialogProps {
   open: boolean;
@@ -38,6 +38,7 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
   });
   
   const [itens, setItens] = useState<SSOChecklistItem[]>([]);
+  const [itemFiles, setItemFiles] = useState<Map<string, File[]>>(new Map());
 
   // Auto-preencher Técnico de Segurança com usuário logado
   useEffect(() => {
@@ -136,6 +137,14 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
     ));
   };
 
+  const handleItemFilesChange = (itemId: string, files: File[]) => {
+    setItemFiles(prev => {
+      const newMap = new Map(prev);
+      newMap.set(itemId, files);
+      return newMap;
+    });
+  };
+
   // Validação dos campos obrigatórios para habilitar aba Checklist
   const isDadosCompletos = formData.obra_id && 
                             formData.gerente_regional && 
@@ -167,18 +176,45 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
 
     try {
       if (isEdit && checklistId) {
-        // Atualizar checklist existente
+        // 1. Atualizar checklist existente
         await updateChecklist({ id: checklistId, data: formData });
-        // TODO: Atualizar itens individualmente
+        
+        // 2. Atualizar cada item individualmente com suas fotos
+        for (const item of itens) {
+          const files = itemFiles.get(item.id) || [];
+          let updatedFotos = item.fotos || [];
+          
+          // Upload de novas fotos, se houver
+          if (files.length > 0) {
+            const uploads = await ssoStorageService.uploadMultiple(checklistId, files);
+            const novasFotos = uploads.map(upload => ({
+              ...upload,
+              created_at: new Date().toISOString(),
+            }));
+            updatedFotos = [...updatedFotos, ...novasFotos];
+          }
+          
+          // Atualizar item no banco
+          await ssoItemService.update(item.id, {
+            avaliacao: item.avaliacao,
+            evidencia: item.evidencia,
+            fotos: updatedFotos as any,
+          });
+        }
+        
         toast.success('Checklist atualizado com sucesso!');
       } else {
-        // Criar novo checklist
-        await createChecklist(formData);
-        toast.success('Checklist criado com sucesso!');
+        // Criar novo checklist com itens preenchidos
+        await createChecklist({
+          formData,
+          itens,
+          itemFiles: Object.fromEntries(itemFiles)
+        });
       }
       
       onOpenChange(false);
     } catch (error: any) {
+      console.error('Erro ao salvar:', error);
       toast.error(error.message || 'Erro ao salvar checklist');
     }
   };
@@ -224,6 +260,7 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
               <SSOChecklistFormItems
                 itens={itens}
                 onChange={handleItemChange}
+                onFilesChange={handleItemFilesChange}
               />
             ) : (
               <div className="flex items-center justify-center py-12">

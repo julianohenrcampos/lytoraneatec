@@ -1099,6 +1099,74 @@ export type Database = {
           },
         ]
       }
+      bd_notificacoes: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string
+          link: string | null
+          mensagem: string
+          metadata: Json | null
+          tipo: string
+          titulo: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          link?: string | null
+          mensagem: string
+          metadata?: Json | null
+          tipo: string
+          titulo: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          link?: string | null
+          mensagem?: string
+          metadata?: Json | null
+          tipo?: string
+          titulo?: string
+        }
+        Relationships: []
+      }
+      bd_notificacoes_usuarios: {
+        Row: {
+          created_at: string | null
+          id: string
+          lida: boolean | null
+          lida_em: string | null
+          notificacao_id: string
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          lida?: boolean | null
+          lida_em?: string | null
+          notificacao_id: string
+          usuario_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          lida?: boolean | null
+          lida_em?: string | null
+          notificacao_id?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_notificacoes_usuarios_notificacao_id_fkey"
+            columns: ["notificacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_notificacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_ordens_servico: {
         Row: {
           caminhao_equipamento_id: string | null
@@ -2377,6 +2445,12 @@ export type Database = {
           p_registro_carga_id: string
         }
         Returns: string
+      }
+      get_sso_admin_users: {
+        Args: never
+        Returns: {
+          user_id: string
+        }[]
       }
       get_ultimo_horimetro_privilegiado: {
         Args: { caminhao_id: string }

@@ -57,3 +57,74 @@ export const generateReportPDF = async (
   const fileName = `Relatorio_Medicao_${vehicleName.replace(/[^a-zA-Z0-9]/g, '_')}_${periodo.replace(/[^a-zA-Z0-9]/g, '_')}`;
   await generatePDF('relatorio-medicao-detalhado', fileName);
 };
+
+export const generateSSOReportPDF = async (
+  obraName: string,
+  dataInspecao: string
+): Promise<void> => {
+  try {
+    const pagesContainer = document.getElementById('sso-pdf-pages');
+    if (!pagesContainer) {
+      throw new Error('Container de páginas não encontrado');
+    }
+
+    // Temporariamente mostrar o container para captura
+    pagesContainer.classList.remove('hidden');
+    
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = 210;
+    const pageHeight = 297;
+    
+    // Buscar todas as páginas individuais
+    const pages = pagesContainer.querySelectorAll('.pdf-page');
+    
+    if (pages.length === 0) {
+      throw new Error('Nenhuma página encontrada para gerar PDF');
+    }
+
+    // Capturar cada página individualmente
+    for (let i = 0; i < pages.length; i++) {
+      const page = pages[i] as HTMLElement;
+      
+      // Adicionar nova página (exceto na primeira iteração)
+      if (i > 0) {
+        pdf.addPage();
+      }
+      
+      // Capturar a página atual
+      const canvas = await html2canvas(page, {
+        scale: 2.5,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        height: page.scrollHeight,
+        width: page.scrollWidth,
+        windowWidth: 980,
+        imageTimeout: 0,
+        removeContainer: false
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      // Adicionar imagem ajustada à página
+      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, Math.min(imgHeight, pageHeight));
+    }
+
+    // Esconder novamente o container
+    pagesContainer.classList.add('hidden');
+
+    const fileName = `Relatorio_NC_SSO_${obraName.replace(/[^a-zA-Z0-9]/g, '_')}_${dataInspecao.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    pdf.save(`${fileName}.pdf`);
+  } catch (error) {
+    console.error('Erro ao gerar PDF:', error);
+    // Garantir que o container seja escondido mesmo em caso de erro
+    const pagesContainer = document.getElementById('sso-pdf-pages');
+    if (pagesContainer) {
+      pagesContainer.classList.add('hidden');
+    }
+    throw error;
+  }
+};

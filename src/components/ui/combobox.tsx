@@ -60,24 +60,23 @@ export function Combobox({
     );
   }, [options, inputValue]);
 
-  // CORREÇÃO: Handler simplificado que recebe o valor diretamente
   const handleSelect = React.useCallback((selectedValue: string) => {
     console.log("🎯 Combobox item selected:", selectedValue);
     
-    // Garantir que temos um valor válido
     if (!selectedValue) {
       console.warn("⚠️ Empty value selected");
       return;
     }
     
-    // Chamar onChange com o valor
+    // Chamar onChange imediatamente
     onChange(selectedValue);
     
-    // Limpar input e fechar popover
-    setInputValue("");
-    setOpen(false);
-    
-    console.log("✅ Combobox selection completed");
+    // Delay mínimo para garantir que o evento complete
+    setTimeout(() => {
+      setInputValue("");
+      setOpen(false);
+      console.log("✅ Combobox closed");
+    }, 50);
   }, [onChange]);
 
   return (
@@ -94,10 +93,15 @@ export function Combobox({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-full p-0 z-[10000] bg-white shadow-xl border border-gray-200 pointer-events-auto" align="start">
-        <Command shouldFilter={false}>
-          <div className="flex items-center border-b px-3">
-            <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+      <PopoverContent 
+        className="w-[var(--radix-popover-trigger-width)] p-0 z-[10000] bg-white shadow-xl border border-gray-200 pointer-events-auto" 
+        align="start"
+        sideOffset={4}
+        style={{ minWidth: '300px' }}
+      >
+        <Command shouldFilter={false} className="pointer-events-auto">
+          <div className="flex items-center border-b px-3 pointer-events-auto">
+            <Search className="mr-2 h-4 w-4 shrink-0 opacity-50 pointer-events-none" />
             <CommandInput 
               placeholder={searchPlaceholder} 
               value={inputValue}
@@ -105,21 +109,34 @@ export function Combobox({
               className="h-9 flex-1"
             />
           </div>
-          <CommandList className="max-h-[300px] overflow-y-auto">
+          <CommandList 
+            className="max-h-[300px] overflow-y-auto"
+            style={{ pointerEvents: 'auto' }}
+          >
             <CommandEmpty>{emptyText}</CommandEmpty>
             {filteredOptions.map((option) => (
               <CommandItem
                 key={option.value}
                 value={option.value}
-                onSelect={() => {
-                  console.log("🖱️ CommandItem clicked:", option.value, option.label);
+                onSelect={(currentValue) => {
+                  console.log("🖱️ CommandItem onSelect:", currentValue, option.label);
                   handleSelect(option.value);
                 }}
-                className="cursor-pointer hover:bg-accent hover:text-accent-foreground py-3 px-3 pointer-events-auto"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log("🖱️ CommandItem onClick:", option.value, option.label);
+                  handleSelect(option.value);
+                }}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                }}
+                className="cursor-pointer hover:bg-accent hover:text-accent-foreground py-2.5 px-3 select-none"
+                style={{ pointerEvents: 'auto' }}
               >
                 <Check
                   className={cn(
-                    "mr-2 h-4 w-4",
+                    "mr-2 h-4 w-4 shrink-0 pointer-events-none",
                     value === option.value ? "opacity-100" : "opacity-0"
                   )}
                 />

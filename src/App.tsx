@@ -302,7 +302,7 @@ const App = () => {
             <Route path="/sso/checklists/dashboard" element={
               <SimpleAuthGuard>
                 <SimplePermissionGuard>
-                  <SecureRouteGuard requiredPermission="acesso_sso_checklists">
+                  <SecureRouteGuard requiredPermission="acesso_sso_dashboard">
                     <SSODashboard />
                   </SecureRouteGuard>
                 </SimplePermissionGuard>

@@ -5,50 +5,78 @@ import { X, Upload, Image as ImageIcon } from 'lucide-react';
 import { SSOFoto } from '@/types/sso';
 import { toast } from 'sonner';
 
+const MAX_FILE_SIZE_MB = 15;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
 interface SSOPhotoUploadProps {
   itemId: string;
   fotos: SSOFoto[];
   onChange: (fotos: SSOFoto[]) => void;
+  onFilesChange?: (files: File[]) => void;
 }
 
-export const SSOPhotoUpload = ({ itemId, fotos, onChange }: SSOPhotoUploadProps) => {
+export const SSOPhotoUpload = ({ itemId, fotos, onChange, onFilesChange }: SSOPhotoUploadProps) => {
   const [previews, setPreviews] = useState<string[]>(
     fotos.map(f => f.url || f.path)
   );
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    const allFiles = Array.from(files);
+
+    // Filtrar apenas arquivos válidos
+    const validFiles = allFiles.filter(file => {
+      if (!file.type.startsWith('image/')) {
+        toast.error('Apenas imagens são permitidas');
+        return false;
+      }
+
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        toast.error(`Imagem muito grande. Máximo ${MAX_FILE_SIZE_MB}MB`);
+        return false;
+      }
+
+      return true;
+    });
+
+    if (validFiles.length === 0) {
+      e.target.value = '';
+      return;
+    }
+
+    const newFiles: File[] = [];
     const newPreviews: string[] = [];
     const newFotos: SSOFoto[] = [];
 
-    Array.from(files).forEach((file) => {
-      if (!file.type.startsWith('image/')) {
-        toast.error('Apenas imagens são permitidas');
-        return;
-      }
-
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('Imagem muito grande. Máximo 5MB');
-        return;
-      }
+    validFiles.forEach((file) => {
+      newFiles.push(file);
 
       const reader = new FileReader();
       reader.onloadend = () => {
         const preview = reader.result as string;
         newPreviews.push(preview);
         
-        // Criar objeto SSOFoto temporário (será enviado ao salvar)
         newFotos.push({
-          path: file.name, // Temporário - será substituído no upload
+          path: file.name,
           url: preview,
           created_at: new Date().toISOString(),
         });
 
-        if (newPreviews.length === files.length) {
-          setPreviews([...previews, ...newPreviews]);
-          onChange([...fotos, ...newFotos]);
+        if (newPreviews.length === validFiles.length) {
+          const updatedFiles = [...selectedFiles, ...newFiles];
+          const updatedPreviews = [...previews, ...newPreviews];
+          const updatedFotos = [...fotos, ...newFotos];
+          
+          setSelectedFiles(updatedFiles);
+          setPreviews(updatedPreviews);
+          onChange(updatedFotos);
+          
+          if (onFilesChange) {
+            onFilesChange(updatedFiles);
+          }
         }
       };
       reader.readAsDataURL(file);
@@ -60,8 +88,15 @@ export const SSOPhotoUpload = ({ itemId, fotos, onChange }: SSOPhotoUploadProps)
   const handleRemove = (index: number) => {
     const newPreviews = previews.filter((_, i) => i !== index);
     const newFotos = fotos.filter((_, i) => i !== index);
+    const newFiles = selectedFiles.filter((_, i) => i !== index);
+    
+    setSelectedFiles(newFiles);
     setPreviews(newPreviews);
     onChange(newFotos);
+    
+    if (onFilesChange) {
+      onFilesChange(newFiles);
+    }
   };
 
   return (

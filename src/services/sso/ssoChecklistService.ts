@@ -65,7 +65,10 @@ export const ssoChecklistService = {
         ...formData,
         criado_por: user.id,
         nota_objetivo: 100,
-        total_itens: 36
+        total_itens: 36,
+        total_aplicaveis: 0,
+        total_conformes: 0,
+        total_na: 36
       })
       .select()
       .single();
