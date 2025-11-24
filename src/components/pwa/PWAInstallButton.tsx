@@ -43,7 +43,26 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
             </ol>
           </div>
         ),
-        duration: 8000,
+        duration: 10000,
+      });
+    } else if (result === 'desktop-manual') {
+      const instructions = getInstallInstructions();
+      toast({
+        title: instructions.title,
+        description: (
+          <div className="space-y-2">
+            <p className="font-medium">Para instalar o LYTOTEC como aplicativo:</p>
+            <ol className="list-decimal list-inside space-y-1 text-sm">
+              {instructions.steps.map((step, index) => (
+                <li key={index}>{step}</li>
+              ))}
+            </ol>
+            <p className="text-xs text-muted-foreground mt-2">
+              💡 Funciona no Chrome e Edge
+            </p>
+          </div>
+        ),
+        duration: 12000,
       });
     } else if (result === true) {
       toast({

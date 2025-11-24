@@ -2461,6 +2461,7 @@ export type Database = {
         Args: { p_permission_name: string; p_user_id?: string }
         Returns: boolean
       }
+      has_sso_permission: { Args: { p_user_id?: string }; Returns: boolean }
       is_departmental_super_admin: { Args: never; Returns: boolean }
       link_profile_from_funcionario_email: {
         Args: { _funcionario_id: string }

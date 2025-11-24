@@ -81,7 +81,12 @@ export const useDynamicPermissions = (): DynamicPermissions => {
           throw error;
         }
 
-        console.log('📋 [DYNAMIC] Perfil carregado:', profile);
+        console.log('📋 [DYNAMIC] Perfil carregado:', {
+          id: profile.id,
+          nome_completo: profile.nome_completo,
+          funcoes: profile.funcoes,
+          email: user.email
+        });
 
         // VERIFICAÇÃO USANDO APENAS funcoes[]
         if (!profile?.funcoes || !Array.isArray(profile.funcoes) || profile.funcoes.length === 0) {
@@ -110,7 +115,8 @@ export const useDynamicPermissions = (): DynamicPermissions => {
           isSuperAdmin = true;
           userRole = 'SuperAdm';
           
-          console.log('✅ [DYNAMIC] SuperAdmin detectado via funcoes[]');
+          console.log('🚀 [DYNAMIC] SuperAdmin detectado via funcoes[]');
+          console.log('🔍 [DYNAMIC] Função encontrada:', userRole);
 
           // SuperAdmin = TODAS as permissões
           const { data: todasPermissoes } = await supabase
@@ -177,7 +183,16 @@ export const useDynamicPermissions = (): DynamicPermissions => {
           canAccessDashboard: true,
         };
 
-        console.log('✅ [DYNAMIC] Permissões finais otimizadas:', finalPermissions);
+        console.log('✅ [DYNAMIC] PERMISSÕES FINAIS CARREGADAS:', {
+          userId: user.id,
+          userEmail: user.email,
+          userRole,
+          isSuperAdmin,
+          totalPermissions: userPermissions.length,
+          permissions: userPermissions,
+          canAccessDashboard: true
+        });
+        
         setPermissions(finalPermissions);
         permissionsCache = finalPermissions;
         lastCacheTime = Date.now();

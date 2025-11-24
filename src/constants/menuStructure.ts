@@ -192,7 +192,7 @@ export const menuStructure = [
         name: "Dashboard SSO",
         href: "/sso/checklists/dashboard",
         icon: BarChart3,
-        requiredPermission: "acesso_sso_checklists"
+        requiredPermission: "acesso_sso_dashboard"
       }
     ]
   },

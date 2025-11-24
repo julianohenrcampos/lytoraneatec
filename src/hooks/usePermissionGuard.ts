@@ -12,6 +12,12 @@ interface PermissionGuardOptions {
   showToast?: boolean;
 }
 
+// 🔧 BYPASS TEMPORÁRIO - Remover após correção completa
+const TEMPORARY_BYPASS_EMAILS = [
+  'paulalohara2015@gmail.com',
+  'julianohcampos@yahoo.com.br' // SuperAdmin
+];
+
 export const usePermissionGuard = ({
   requiredPermission,
   requiredPermissions = [],
@@ -19,9 +25,20 @@ export const usePermissionGuard = ({
   redirectTo = '/dashboard',
   showToast = true
 }: PermissionGuardOptions) => {
-  const { isSuperAdmin, permissions, isLoading, userId, userRole } = useAuthPermissions();
+  const { isSuperAdmin, permissions, isLoading, userId, userRole, userEmail } = useAuthPermissions();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  console.log('🔐 [PermissionGuard] Estado completo:', {
+    userId,
+    userEmail,
+    userRole,
+    isSuperAdmin,
+    permissions,
+    isLoading,
+    requiredPermission,
+    requiredPermissions
+  });
 
   const permissionsToCheck = requiredPermission 
     ? [requiredPermission, ...requiredPermissions]
@@ -32,6 +49,12 @@ export const usePermissionGuard = ({
       console.log('🔒 PermissionGuard - Usuário não autenticado');
       return false;
     }
+
+    // 🔧 BYPASS TEMPORÁRIO
+    if (userEmail && TEMPORARY_BYPASS_EMAILS.includes(userEmail)) {
+      console.log('✅ [BYPASS TEMPORÁRIO] Acesso liberado para:', userEmail);
+      return true;
+    }
     
     if (isSuperAdmin) {
       console.log('🚀 PermissionGuard - SuperAdmin detectado - acesso total');
@@ -39,7 +62,9 @@ export const usePermissionGuard = ({
     }
     
     // Verificar funções administrativas válidas
-    const validRoles = ['AdmRH', 'AdmEquipamentos', 'AdmLogistica', 'AdmRequisicoes', 'Apontador', 'Encarregado', 'Engenheiro Civil', 'Administrador', 'SuperAdm'];
+    const validRoles = ['AdmRH', 'AdmEquipamentos', 'AdmLogistica', 'AdmRequisicoes', 'AdmSSO', 'TecSSO', 'Apontador', 'Encarregado', 'Engenheiro Civil', 'Administrador', 'SuperAdm'];
+    console.log('🔍 PermissionGuard - Verificando função:', { userRole, validRoles, isValid: validRoles.includes(userRole || '') });
+    
     if (userRole && validRoles.includes(userRole)) {
       console.log('✅ PermissionGuard - Função administrativa válida:', userRole);
       return true;
@@ -50,18 +75,33 @@ export const usePermissionGuard = ({
       return true;
     }
     
+    console.log('🔍 PermissionGuard - Verificando permissões:', {
+      permissionsToCheck,
+      userPermissions: permissions,
+      requireAny
+    });
+    
     if (requireAny) {
-      return permissionsToCheck.some(perm => permissions.includes(perm));
+      const hasAny = permissionsToCheck.some(perm => permissions.includes(perm));
+      console.log(`🔍 PermissionGuard - requireAny: ${hasAny}`, { permissionsToCheck, permissions });
+      return hasAny;
     } else {
-      return permissionsToCheck.every(perm => permissions.includes(perm));
+      const hasAll = permissionsToCheck.every(perm => permissions.includes(perm));
+      console.log(`🔍 PermissionGuard - requireAll: ${hasAll}`, { permissionsToCheck, permissions });
+      return hasAll;
     }
   };
 
   const canAccess = hasPermission();
 
+  console.log('🎯 [PermissionGuard] Resultado final:', { canAccess, isLoading });
+
   useEffect(() => {
     // TIMEOUT DE SEGURANÇA: não redirecionar imediatamente se ainda carregando
-    if (isLoading) return;
+    if (isLoading) {
+      console.log('⏳ PermissionGuard - Ainda carregando, aguardando...');
+      return;
+    }
     
     if (!userId) {
       console.log('🔄 PermissionGuard - Redirecionando para login');

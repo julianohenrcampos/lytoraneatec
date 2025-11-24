@@ -44,37 +44,45 @@ export const usePWAInstall = () => {
     const installed = checkIfInstalled();
     setIsInstalled(installed);
 
-    console.log('PWA: Plataforma:', detectedPlatform, 'Instalado:', installed);
+    console.log('🔍 PWA Debug - Inicialização:', {
+      platform: detectedPlatform,
+      installed,
+      userAgent: navigator.userAgent,
+      standalone: window.matchMedia('(display-mode: standalone)').matches,
+      isSecureContext: window.isSecureContext,
+      serviceWorkerSupported: 'serviceWorker' in navigator
+    });
 
     // Para iOS, sempre mostrar opção de instalação se não instalado
     if (detectedPlatform === 'ios' && !installed) {
+      console.log('📱 iOS detectado - habilitando instalação manual');
       setIsInstallable(true);
     }
 
     // Listener para o evento de instalação (Android/Desktop)
     const handleBeforeInstallPrompt = (e: Event) => {
+      console.log('🎯 Evento beforeinstallprompt capturado!', e);
       e.preventDefault();
       const promptEvent = e as BeforeInstallPromptEvent;
       setDeferredPrompt(promptEvent);
       setIsInstallable(true);
-      console.log('PWA: Install prompt disponível para plataforma:', platform);
     };
 
     // Listener para quando o app é instalado
     const handleAppInstalled = () => {
+      console.log('✅ App instalado com sucesso!');
       setIsInstalled(true);
       setIsInstallable(false);
       setDeferredPrompt(null);
-      console.log('PWA: App instalado com sucesso');
     };
 
     // Listener para mudanças no display mode
     const mediaQuery = window.matchMedia('(display-mode: standalone)');
     const handleDisplayModeChange = (e: MediaQueryListEvent) => {
+      console.log('🔄 Display mode mudou:', e.matches ? 'standalone' : 'browser');
       if (e.matches) {
         setIsInstalled(true);
         setIsInstallable(false);
-        console.log('PWA: App executando em modo standalone');
       }
     };
 
@@ -84,52 +92,80 @@ export const usePWAInstall = () => {
     mediaQuery.addEventListener('change', handleDisplayModeChange);
 
     // Para Android, aguardar beforeinstallprompt ou forçar se necessário
+    let timeoutId: NodeJS.Timeout;
     if (detectedPlatform === 'android' && !installed) {
-      // Timeout para mostrar instalação mesmo sem prompt
-      setTimeout(() => {
+      console.log('⏱️ Android: Aguardando evento beforeinstallprompt (3s timeout)...');
+      timeoutId = setTimeout(() => {
         if (!deferredPrompt && !installed) {
-          console.log('PWA: Forçando instalação Android sem prompt');
+          console.log('⚠️ Android: Evento não disparou. Forçando exibição do botão (fallback)');
           setIsInstallable(true);
         }
       }, 3000);
+    }
+
+    // NOVO: Para Desktop, forçar exibição após timeout se evento não disparar
+    if (detectedPlatform === 'desktop' && !installed) {
+      console.log('⏱️ Desktop: Aguardando evento beforeinstallprompt (2s timeout)...');
+      timeoutId = setTimeout(() => {
+        if (!deferredPrompt) {
+          console.log('⚠️ Desktop: Evento não disparou. Forçando exibição do botão (fallback manual)');
+          setIsInstallable(true);
+        }
+      }, 2000);
     }
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
       mediaQuery.removeEventListener('change', handleDisplayModeChange);
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, [platform]);
 
-  const installApp = async () => {
-    // Para iOS Safari, mostrar instruções manuais
-    if (platform === 'ios' && !deferredPrompt) {
-      console.log('PWA: Mostrando instruções para iOS');
-      // Retornar true para mostrar toast com instruções
+  const installApp = async (): Promise<boolean | 'ios-manual' | 'desktop-manual'> => {
+    console.log('🔄 Tentando instalar PWA...', {
+      platform,
+      hasDeferredPrompt: !!deferredPrompt,
+      isInstallable,
+      serviceWorkerReady: 'serviceWorker' in navigator && navigator.serviceWorker.controller
+    });
+
+    // Para iOS Safari, sempre mostrar instruções manuais
+    if (platform === 'ios') {
+      console.log('📱 iOS detectado - mostrando instruções manuais');
       return 'ios-manual';
     }
 
-    // Para Android/Desktop com prompt disponível
+    // Se não tem prompt disponível, mostrar instruções manuais
     if (!deferredPrompt) {
-      console.log('PWA: Nenhum prompt disponível');
+      console.log('⚠️ Nenhum prompt de instalação disponível - usando fallback manual');
+      if (platform === 'desktop') {
+        return 'desktop-manual';
+      }
+      if (platform === 'android') {
+        return 'ios-manual'; // Usar instruções genéricas
+      }
       return false;
     }
 
     try {
+      console.log('📲 Exibindo prompt de instalação nativo...');
       await deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
       
+      console.log('👤 Escolha do usuário:', outcome);
+
       if (outcome === 'accepted') {
-        console.log('PWA: Usuário aceitou a instalação');
+        console.log('✅ Usuário aceitou a instalação');
         setIsInstallable(false);
         setDeferredPrompt(null);
         return true;
       } else {
-        console.log('PWA: Usuário rejeitou a instalação');
+        console.log('❌ Usuário recusou a instalação');
         return false;
       }
     } catch (error) {
-      console.error('PWA: Erro durante instalação:', error);
+      console.error('❌ Erro ao tentar instalar:', error);
       return false;
     }
   };
@@ -139,9 +175,9 @@ export const usePWAInstall = () => {
       return {
         title: 'Instalar no iOS',
         steps: [
-          'Toque no botão "Compartilhar" no Safari',
+          'Toque no botão "Compartilhar" (ícone de compartilhamento) no Safari',
           'Role para baixo e toque em "Adicionar à Tela de Início"',
-          'Toque em "Adicionar" para confirmar'
+          'Toque em "Adicionar" no canto superior direito para confirmar'
         ]
       };
     }
@@ -150,18 +186,21 @@ export const usePWAInstall = () => {
       return {
         title: 'Instalar no Android',
         steps: [
-          'Toque no menu do navegador (⋮)',
+          'Toque no menu do navegador (três pontos verticais ⋮)',
           'Selecione "Adicionar à tela inicial" ou "Instalar app"',
-          'Confirme a instalação'
+          'Confirme tocando em "Adicionar" ou "Instalar"'
         ]
       };
     }
 
     return {
-      title: 'Instalar App',
+      title: 'Instalar LYTOTEC no Desktop',
       steps: [
-        'Clique no ícone de instalação na barra de endereços',
-        'Ou use o menu do navegador para "Instalar LYTOTEC"'
+        'Procure o ícone de instalação (⊕) na barra de endereço do navegador',
+        'Ou clique no menu do navegador (⋮ três pontos verticais)',
+        'Selecione "Instalar LYTOTEC" ou "Adicionar à área de trabalho"',
+        'Confirme clicando em "Instalar"',
+        'O app será adicionado ao seu computador como um aplicativo nativo'
       ]
     };
   };

@@ -10,6 +10,7 @@ interface UserPermissions {
   userRole: string | null;
   permissions: string[];
   isLoading: boolean;
+  userEmail: string | null;
 }
 
 export const useAuthPermissions = (): UserPermissions => {
@@ -19,6 +20,7 @@ export const useAuthPermissions = (): UserPermissions => {
     userRole: null,
     permissions: [],
     isLoading: true,
+    userEmail: null,
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -38,6 +40,7 @@ export const useAuthPermissions = (): UserPermissions => {
             userRole: null,
             permissions: [],
             isLoading: false,
+            userEmail: null,
           });
           return;
         }
@@ -69,6 +72,7 @@ export const useAuthPermissions = (): UserPermissions => {
             userRole: 'user',
             permissions: ['dashboard_view'],
             isLoading: false,
+            userEmail: user.email || null,
           });
           return;
         }
@@ -138,9 +142,35 @@ export const useAuthPermissions = (): UserPermissions => {
             'admin_permissoes_view'
           ];
         } else if (userRole) {
-          // Para funções diferentes de SuperAdm, aplicar permissões básicas por enquanto
-          console.log('⚠️ Função não-SuperAdm, aplicando permissões básicas');
-          userPermissions = ['dashboard_view'];
+          // Buscar permissões da função no banco de dados
+          console.log('🔍 Buscando permissões da função no banco:', userRole);
+          
+          const { data: funcaoPermissao, error: funcaoError } = await supabase
+            .from('bd_funcoes_permissao')
+            .select('permissoes')
+            .eq('nome_funcao', userRole)
+            .single();
+
+          if (funcaoError || !funcaoPermissao?.permissoes) {
+            console.warn('⚠️ Função não encontrada no banco, aplicando permissões básicas:', funcaoError?.message);
+            userPermissions = ['dashboard_view'];
+          } else {
+            console.log('📋 Permissões IDs encontrados:', funcaoPermissao.permissoes);
+            
+            // Buscar nomes das permissões baseado nos IDs
+            const { data: permissoesList, error: permissoesError } = await supabase
+              .from('bd_permissoes')
+              .select('nome_permissao')
+              .in('id', funcaoPermissao.permissoes);
+
+            if (permissoesError || !permissoesList) {
+              console.warn('⚠️ Erro ao buscar nomes das permissões:', permissoesError?.message);
+              userPermissions = ['dashboard_view'];
+            } else {
+              userPermissions = permissoesList.map(p => p.nome_permissao);
+              console.log('✅ Permissões carregadas do banco:', userPermissions);
+            }
+          }
         } else {
           console.log('⚠️ Nenhuma função encontrada, aplicando usuário básico');
           userRole = 'user';
@@ -163,6 +193,7 @@ export const useAuthPermissions = (): UserPermissions => {
           userRole,
           permissions: userPermissions,
           isLoading: false,
+          userEmail: user.email || null,
         });
 
       } catch (error) {
@@ -178,6 +209,7 @@ export const useAuthPermissions = (): UserPermissions => {
             userRole: 'user',
             permissions: ['dashboard_view'],
             isLoading: false,
+            userEmail: user.email || null,
           });
         } else {
           setPermissions({
@@ -186,6 +218,7 @@ export const useAuthPermissions = (): UserPermissions => {
             userRole: null,
             permissions: [],
             isLoading: false,
+            userEmail: null,
           });
         }
       }
