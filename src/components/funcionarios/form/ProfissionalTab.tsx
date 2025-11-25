@@ -1,8 +1,8 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox, ComboboxOption } from "@/components/ui/combobox";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { UseFormReturn } from "react-hook-form";
@@ -39,27 +39,43 @@ const ProfissionalTab: React.FC<ProfissionalTabProps> = ({
     data: nomeEquipe,
     isLoading: isLoadingEquipe
   } = useFuncionarioEquipe(funcionarioId);
+
+  // Formatar opções para os Combobox
+  const funcoesOptions: ComboboxOption[] = useMemo(() => {
+    return funcoes.map(f => ({ value: f.id, label: f.nome_funcao }));
+  }, [funcoes]);
+
+  const departamentosOptions: ComboboxOption[] = useMemo(() => {
+    return departamentos.map(d => ({ value: d.id, label: d.nome_departamento }));
+  }, [departamentos]);
+
+  const centrosCustoOptions: ComboboxOption[] = useMemo(() => {
+    return centrosCusto.map(c => ({ 
+      value: c.id, 
+      label: `${c.codigo_centro_custo} - ${c.nome_centro_custo}` 
+    }));
+  }, [centrosCusto]);
+
+  const empresasOptions: ComboboxOption[] = useMemo(() => {
+    return empresas.map(e => ({ value: e.id, label: e.nome_empresa }));
+  }, [empresas]);
   return <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <FormField control={form.control} name="funcao_id" render={({
         field
       }) => <FormItem>
               <FormLabel>Função *</FormLabel>
-              <Select onValueChange={value => field.onChange(value || null)} value={field.value || undefined}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a função" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {isLoadingFuncoes ? <div className="flex items-center justify-center p-2">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      <span>Carregando...</span>
-                    </div> : funcoes.map(funcao => <SelectItem key={funcao.id} value={funcao.id}>
-                        {funcao.nome_funcao}
-                      </SelectItem>)}
-                </SelectContent>
-              </Select>
+              <FormControl>
+                <Combobox
+                  options={funcoesOptions}
+                  value={field.value || ""}
+                  onChange={(value) => field.onChange(value || null)}
+                  placeholder="Selecione a função"
+                  searchPlaceholder="Buscar função..."
+                  emptyText="Nenhuma função encontrada"
+                  disabled={isLoadingFuncoes}
+                />
+              </FormControl>
               <FormMessage />
             </FormItem>} />
         
@@ -67,21 +83,17 @@ const ProfissionalTab: React.FC<ProfissionalTabProps> = ({
         field
       }) => <FormItem>
               <FormLabel>Departamento</FormLabel>
-              <Select onValueChange={value => field.onChange(value || null)} value={field.value || undefined}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o departamento" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {isLoadingDepartamentos ? <div className="flex items-center justify-center p-2">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      <span>Carregando...</span>
-                    </div> : departamentos.map(departamento => <SelectItem key={departamento.id} value={departamento.id}>
-                        {departamento.nome_departamento}
-                      </SelectItem>)}
-                </SelectContent>
-              </Select>
+              <FormControl>
+                <Combobox
+                  options={departamentosOptions}
+                  value={field.value || ""}
+                  onChange={(value) => field.onChange(value || null)}
+                  placeholder="Selecione o departamento"
+                  searchPlaceholder="Buscar departamento..."
+                  emptyText="Nenhum departamento encontrado"
+                  disabled={isLoadingDepartamentos}
+                />
+              </FormControl>
               <FormMessage />
             </FormItem>} />
       </div>
@@ -91,21 +103,17 @@ const ProfissionalTab: React.FC<ProfissionalTabProps> = ({
         field
       }) => <FormItem>
               <FormLabel>Centro de Custo</FormLabel>
-              <Select onValueChange={value => field.onChange(value || null)} value={field.value || undefined}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o centro de custo" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {isLoadingCentrosCusto ? <div className="flex items-center justify-center p-2">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      <span>Carregando...</span>
-                    </div> : centrosCusto.map(centroCusto => <SelectItem key={centroCusto.id} value={centroCusto.id}>
-                        {centroCusto.codigo_centro_custo} - {centroCusto.nome_centro_custo}
-                      </SelectItem>)}
-                </SelectContent>
-              </Select>
+              <FormControl>
+                <Combobox
+                  options={centrosCustoOptions}
+                  value={field.value || ""}
+                  onChange={(value) => field.onChange(value || null)}
+                  placeholder="Selecione o centro de custo"
+                  searchPlaceholder="Buscar centro de custo..."
+                  emptyText="Nenhum centro de custo encontrado"
+                  disabled={isLoadingCentrosCusto}
+                />
+              </FormControl>
               <FormMessage />
             </FormItem>} />
         
@@ -113,21 +121,17 @@ const ProfissionalTab: React.FC<ProfissionalTabProps> = ({
         field
       }) => <FormItem>
               <FormLabel>Empresa</FormLabel>
-              <Select onValueChange={value => field.onChange(value || null)} value={field.value || undefined}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a empresa" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {isLoadingEmpresas ? <div className="flex items-center justify-center p-2">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      <span>Carregando...</span>
-                    </div> : empresas.map(empresa => <SelectItem key={empresa.id} value={empresa.id}>
-                        {empresa.nome_empresa}
-                      </SelectItem>)}
-                </SelectContent>
-              </Select>
+              <FormControl>
+                <Combobox
+                  options={empresasOptions}
+                  value={field.value || ""}
+                  onChange={(value) => field.onChange(value || null)}
+                  placeholder="Selecione a empresa"
+                  searchPlaceholder="Buscar empresa..."
+                  emptyText="Nenhuma empresa encontrada"
+                  disabled={isLoadingEmpresas}
+                />
+              </FormControl>
               <FormMessage />
             </FormItem>} />
       </div>
