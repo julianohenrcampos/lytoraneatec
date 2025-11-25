@@ -136,29 +136,7 @@ const DepartamentoStatusCard: React.FC = () => {
             </div>}
 
           {/* Por Departamento */}
-          {Object.entries(statusData.porDepartamento).map(([departamento, usuarios]) => (
-            <div key={departamento} className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                  <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                    {departamento}
-                  </span>
-                </div>
-                <Badge variant="outline" className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700">
-                  {usuarios.length}
-                </Badge>
-              </div>
-              
-              <div className="pl-6 space-y-1">
-                {usuarios.map((usuario, idx) => (
-                  <div key={idx} className="text-xs text-blue-800 dark:text-blue-200">
-                    • {usuario}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+          {Object.entries(statusData.porDepartamento).map(([departamento, usuarios]) => null)}
 
           {statusData.acessoGlobal.length === 0 && Object.keys(statusData.porDepartamento).length === 0 && <div className="text-center text-sm text-muted-foreground p-4">
               Nenhum administrador com acesso departamental configurado

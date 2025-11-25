@@ -50,8 +50,16 @@ export const usePWAInstall = () => {
       userAgent: navigator.userAgent,
       standalone: window.matchMedia('(display-mode: standalone)').matches,
       isSecureContext: window.isSecureContext,
-      serviceWorkerSupported: 'serviceWorker' in navigator
+      serviceWorkerSupported: 'serviceWorker' in navigator,
+      globalPromptAvailable: !!(window as any).deferredInstallPrompt
     });
+
+    // NOVO: Verificar se o evento já foi capturado globalmente (index.html)
+    if ((window as any).deferredInstallPrompt) {
+      console.log('🎉 Prompt já capturado globalmente! Usando window.deferredInstallPrompt');
+      setDeferredPrompt((window as any).deferredInstallPrompt);
+      setIsInstallable(true);
+    }
 
     // Para iOS, sempre mostrar opção de instalação se não instalado
     if (detectedPlatform === 'ios' && !installed) {
@@ -61,11 +69,21 @@ export const usePWAInstall = () => {
 
     // Listener para o evento de instalação (Android/Desktop)
     const handleBeforeInstallPrompt = (e: Event) => {
-      console.log('🎯 Evento beforeinstallprompt capturado!', e);
+      console.log('🎯 Evento beforeinstallprompt capturado no React!', e);
       e.preventDefault();
       const promptEvent = e as BeforeInstallPromptEvent;
       setDeferredPrompt(promptEvent);
       setIsInstallable(true);
+      (window as any).deferredInstallPrompt = promptEvent; // Sincronizar com global
+    };
+
+    // NOVO: Listener para evento customizado disparado pelo script global
+    const handlePWAAvailable = () => {
+      console.log('🎉 Evento customizado pwa-install-available recebido!');
+      if ((window as any).deferredInstallPrompt) {
+        setDeferredPrompt((window as any).deferredInstallPrompt);
+        setIsInstallable(true);
+      }
     };
 
     // Listener para quando o app é instalado
@@ -74,6 +92,7 @@ export const usePWAInstall = () => {
       setIsInstalled(true);
       setIsInstallable(false);
       setDeferredPrompt(null);
+      (window as any).deferredInstallPrompt = null;
     };
 
     // Listener para mudanças no display mode
@@ -88,6 +107,7 @@ export const usePWAInstall = () => {
 
     // Event listeners
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('pwa-install-available', handlePWAAvailable);
     window.addEventListener('appinstalled', handleAppInstalled);
     mediaQuery.addEventListener('change', handleDisplayModeChange);
 
@@ -96,18 +116,18 @@ export const usePWAInstall = () => {
     if (detectedPlatform === 'android' && !installed) {
       console.log('⏱️ Android: Aguardando evento beforeinstallprompt (3s timeout)...');
       timeoutId = setTimeout(() => {
-        if (!deferredPrompt && !installed) {
+        if (!deferredPrompt && !(window as any).deferredInstallPrompt && !installed) {
           console.log('⚠️ Android: Evento não disparou. Forçando exibição do botão (fallback)');
           setIsInstallable(true);
         }
       }, 3000);
     }
 
-    // NOVO: Para Desktop, forçar exibição após timeout se evento não disparar
+    // Para Desktop, forçar exibição após timeout se evento não disparar
     if (detectedPlatform === 'desktop' && !installed) {
       console.log('⏱️ Desktop: Aguardando evento beforeinstallprompt (2s timeout)...');
       timeoutId = setTimeout(() => {
-        if (!deferredPrompt) {
+        if (!deferredPrompt && !(window as any).deferredInstallPrompt) {
           console.log('⚠️ Desktop: Evento não disparou. Forçando exibição do botão (fallback manual)');
           setIsInstallable(true);
         }
@@ -116,6 +136,7 @@ export const usePWAInstall = () => {
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('pwa-install-available', handlePWAAvailable);
       window.removeEventListener('appinstalled', handleAppInstalled);
       mediaQuery.removeEventListener('change', handleDisplayModeChange);
       if (timeoutId) clearTimeout(timeoutId);
@@ -123,9 +144,13 @@ export const usePWAInstall = () => {
   }, [platform]);
 
   const installApp = async (): Promise<boolean | 'ios-manual' | 'desktop-manual'> => {
+    // Usar prompt global se disponível
+    const promptToUse = deferredPrompt || (window as any).deferredInstallPrompt;
+    
     console.log('🔄 Tentando instalar PWA...', {
       platform,
       hasDeferredPrompt: !!deferredPrompt,
+      hasGlobalPrompt: !!(window as any).deferredInstallPrompt,
       isInstallable,
       serviceWorkerReady: 'serviceWorker' in navigator && navigator.serviceWorker.controller
     });
@@ -137,7 +162,7 @@ export const usePWAInstall = () => {
     }
 
     // Se não tem prompt disponível, mostrar instruções manuais
-    if (!deferredPrompt) {
+    if (!promptToUse) {
       console.log('⚠️ Nenhum prompt de instalação disponível - usando fallback manual');
       if (platform === 'desktop') {
         return 'desktop-manual';
@@ -150,8 +175,8 @@ export const usePWAInstall = () => {
 
     try {
       console.log('📲 Exibindo prompt de instalação nativo...');
-      await deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
+      await promptToUse.prompt();
+      const { outcome } = await promptToUse.userChoice;
       
       console.log('👤 Escolha do usuário:', outcome);
 
@@ -159,6 +184,7 @@ export const usePWAInstall = () => {
         console.log('✅ Usuário aceitou a instalação');
         setIsInstallable(false);
         setDeferredPrompt(null);
+        (window as any).deferredInstallPrompt = null;
         return true;
       } else {
         console.log('❌ Usuário recusou a instalação');

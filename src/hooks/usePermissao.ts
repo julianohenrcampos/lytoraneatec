@@ -4,6 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { usePermissionCacheInvalidation } from "@/hooks/usePermissionCacheInvalidation";
 import { validateFunctionAssignment, cleanFunctionArray } from "@/utils/permissionValidation";
 import { safeProfilesQuery } from "@/hooks/useSimpleTypeWorkaround";
+import { userHasAnyPermission } from "@/utils/hybridPermissions";
 import { 
   Permissao, 
   PermissaoFilter, 
@@ -201,23 +202,19 @@ export const usePermissao = () => {
       console.log(`🔍 Filtro nome "${profileFilter.nome}": ${beforeFilter} → ${filteredData.length} usuários`);
     }
 
-    // Aplicar filtro de status
+    // Aplicar filtro de status - usando sistema híbrido (mesma lógica do badge)
     if (profileFilter.status && profileFilter.status !== '' && profileFilter.status !== 'todos') {
       const beforeFilter = filteredData.length;
       
       if (profileFilter.status === 'sem_permissao') {
         filteredData = filteredData.filter(profile => {
-          const funcaoSistema = profile.funcao_sistema || 'Usuário';
-          
-          // Sem permissão = função é 'Usuário' ou vazia
-          return funcaoSistema === 'Usuário' || funcaoSistema.trim() === '';
+          // Usa mesma lógica do badge - sistema híbrido
+          return !userHasAnyPermission(profile);
         });
       } else if (profileFilter.status === 'com_permissao') {
         filteredData = filteredData.filter(profile => {
-          const funcaoSistema = profile.funcao_sistema || 'Usuário';
-          
-          // Com permissão = função não é 'Usuário'
-          return funcaoSistema !== 'Usuário' && funcaoSistema.trim() !== '';
+          // Usa mesma lógica do badge - sistema híbrido
+          return userHasAnyPermission(profile);
         });
       }
       
