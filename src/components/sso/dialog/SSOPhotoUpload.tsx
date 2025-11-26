@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { X, Upload, Image as ImageIcon } from 'lucide-react';
+import { X, Camera, Image as ImageIcon } from 'lucide-react';
 import { SSOFoto } from '@/types/sso';
 import { toast } from 'sonner';
 
@@ -121,13 +121,24 @@ export const SSOPhotoUpload = ({ itemId, fotos, onChange, onFilesChange }: SSOPh
           </div>
         ))}
 
-        <label className="w-20 h-20 border-2 border-dashed rounded flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors">
-          <Upload className="h-5 w-5 text-muted-foreground mb-1" />
-          <span className="text-xs text-muted-foreground">Upload</span>
+        <label className="w-20 h-20 border-2 border-dashed rounded flex flex-col items-center justify-center cursor-pointer hover:bg-blue-50 transition-colors border-blue-300 bg-blue-50/50">
+          <Camera className="h-5 w-5 text-blue-500 mb-1" />
+          <span className="text-xs text-blue-600 text-center leading-tight">Tirar Foto</span>
           <Input
             type="file"
             accept="image/*"
             capture="environment"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+        </label>
+
+        <label className="w-20 h-20 border-2 border-dashed rounded flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors">
+          <ImageIcon className="h-5 w-5 text-muted-foreground mb-1" />
+          <span className="text-xs text-muted-foreground text-center leading-tight">Galeria</span>
+          <Input
+            type="file"
+            accept="image/*"
             multiple
             className="hidden"
             onChange={handleFileSelect}
