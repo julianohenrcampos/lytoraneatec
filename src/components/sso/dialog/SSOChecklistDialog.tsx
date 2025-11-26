@@ -223,7 +223,7 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+      <DialogContent className="max-w-4xl h-[95vh] sm:h-auto sm:max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>
             {isEdit ? 'Editar Checklist SSO NR-18' : 'Novo Checklist SSO NR-18'}
@@ -270,7 +270,7 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
           </TabsContent>
         </Tabs>
 
-        <DialogFooter>
+        <DialogFooter className="sticky bottom-0 bg-background pt-4 border-t mt-auto">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
             Cancelar
           </Button>

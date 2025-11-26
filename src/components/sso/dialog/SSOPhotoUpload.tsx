@@ -127,6 +127,7 @@ export const SSOPhotoUpload = ({ itemId, fotos, onChange, onFilesChange }: SSOPh
           <Input
             type="file"
             accept="image/*"
+            capture="environment"
             multiple
             className="hidden"
             onChange={handleFileSelect}

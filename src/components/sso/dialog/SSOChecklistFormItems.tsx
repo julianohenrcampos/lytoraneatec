@@ -39,8 +39,8 @@ export const SSOChecklistFormItems = ({ itens, onChange, onFilesChange }: SSOChe
         total_na={stats.total_na}
       />
 
-      <ScrollArea className="h-[500px] pr-4">
-        <div className="space-y-6">
+      <ScrollArea className="h-[300px] sm:h-[400px] md:h-[500px] pr-4">
+        <div className="space-y-6 pb-24">
           {Object.entries(itensPorTema).map(([tema, itensDoTema]) => (
             <div key={tema}>
               <h3 className="text-sm font-semibold text-primary mb-3 sticky top-0 bg-background py-2 z-10">
