@@ -26,8 +26,15 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
 
   const handleInstall = async () => {
     console.log('🔄 Iniciando instalação do PWA...');
+    console.log('📱 Estado atual:', {
+      isInstallable,
+      platform,
+      pwaInstalled: localStorage.getItem('pwa-installed'),
+      pwaDismissed: localStorage.getItem('pwa-install-dismissed')
+    });
     
     const result = await installApp();
+    console.log('📲 Resultado da instalação:', result);
     
     if (result === 'ios-manual') {
       const instructions = getInstallInstructions();
@@ -70,6 +77,12 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
         description: isMobile 
           ? "O LYTOTEC foi adicionado à sua tela inicial"
           : "O LYTOTEC foi instalado no seu dispositivo",
+      });
+    } else if (result === 'already-installed') {
+      toast({
+        title: "App já instalado! ✅",
+        description: "O LYTOTEC já está instalado neste dispositivo. Procure-o nos seus aplicativos.",
+        duration: 5000
       });
     } else if (result === false) {
       toast({

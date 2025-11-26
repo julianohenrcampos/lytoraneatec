@@ -40,8 +40,9 @@ export const usePWAInstall = () => {
     const detectedPlatform = detectPlatform();
     setPlatform(detectedPlatform);
 
-    // Verificar se já está instalado
-    const installed = checkIfInstalled();
+    // Verificar se já está instalado ou foi instalado anteriormente
+    const wasInstalledBefore = localStorage.getItem('pwa-installed') === 'true';
+    const installed = checkIfInstalled() || wasInstalledBefore;
     setIsInstalled(installed);
 
     console.log('🔍 PWA Debug - Inicialização:', {
@@ -143,7 +144,14 @@ export const usePWAInstall = () => {
     };
   }, [platform]);
 
-  const installApp = async (): Promise<boolean | 'ios-manual' | 'desktop-manual'> => {
+  const installApp = async (): Promise<boolean | 'ios-manual' | 'desktop-manual' | 'already-installed'> => {
+    // Verificar se já foi instalado anteriormente
+    const wasInstalledBefore = localStorage.getItem('pwa-installed') === 'true';
+    if (wasInstalledBefore) {
+      console.log('✅ App já foi instalado anteriormente');
+      return 'already-installed';
+    }
+
     // Usar prompt global se disponível
     const promptToUse = deferredPrompt || (window as any).deferredInstallPrompt;
     
@@ -189,7 +197,9 @@ export const usePWAInstall = () => {
 
       if (outcome === 'accepted') {
         console.log('✅ Usuário aceitou a instalação');
+        localStorage.setItem('pwa-installed', 'true');
         setIsInstallable(false);
+        setIsInstalled(true);
         setDeferredPrompt(null);
         (window as any).deferredInstallPrompt = null;
         return true;
