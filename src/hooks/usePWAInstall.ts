@@ -147,10 +147,13 @@ export const usePWAInstall = () => {
     // Usar prompt global se disponível
     const promptToUse = deferredPrompt || (window as any).deferredInstallPrompt;
     
-    console.log('🔄 Tentando instalar PWA...', {
+    console.log('🔍 PWA Install Debug:', {
       platform,
       hasDeferredPrompt: !!deferredPrompt,
       hasGlobalPrompt: !!(window as any).deferredInstallPrompt,
+      promptType: typeof promptToUse,
+      promptExists: !!promptToUse,
+      hasPromptMethod: promptToUse && typeof promptToUse.prompt === 'function',
       isInstallable,
       serviceWorkerReady: 'serviceWorker' in navigator && navigator.serviceWorker.controller
     });
@@ -162,20 +165,24 @@ export const usePWAInstall = () => {
     }
 
     // Se não tem prompt disponível, mostrar instruções manuais
-    if (!promptToUse) {
-      console.log('⚠️ Nenhum prompt de instalação disponível - usando fallback manual');
+    if (!promptToUse || typeof promptToUse.prompt !== 'function') {
+      console.log('⚠️ Prompt inválido ou não disponível - usando fallback manual');
       if (platform === 'desktop') {
         return 'desktop-manual';
       }
       if (platform === 'android') {
-        return 'ios-manual'; // Usar instruções genéricas
+        return 'desktop-manual'; // Usar instruções de instalação manual
       }
       return false;
     }
 
     try {
-      console.log('📲 Exibindo prompt de instalação nativo...');
+      console.log('📲 Tentando chamar prompt.prompt()...');
+      
+      // Verificar se o prompt já foi usado anteriormente
       await promptToUse.prompt();
+      
+      console.log('⏳ Aguardando escolha do usuário...');
       const { outcome } = await promptToUse.userChoice;
       
       console.log('👤 Escolha do usuário:', outcome);
@@ -191,8 +198,19 @@ export const usePWAInstall = () => {
         return false;
       }
     } catch (error) {
-      console.error('❌ Erro ao tentar instalar:', error);
-      return false;
+      console.error('❌ Erro ao chamar prompt:', error);
+      
+      // Se o prompt já foi consumido, limpar e mostrar instruções manuais
+      if (error instanceof Error && error.message.includes('The prompt() method may only be called once')) {
+        console.log('⚠️ Prompt já foi consumido anteriormente - limpando e mostrando manual');
+        (window as any).deferredInstallPrompt = null;
+        setDeferredPrompt(null);
+        return platform === 'desktop' ? 'desktop-manual' : 'desktop-manual';
+      }
+      
+      // Fallback para instruções manuais em caso de erro
+      console.log('⚠️ Fallback para instruções manuais devido a erro');
+      return platform === 'desktop' ? 'desktop-manual' : 'desktop-manual';
     }
   };
 

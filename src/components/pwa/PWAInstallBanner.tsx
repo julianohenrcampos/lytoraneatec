@@ -38,7 +38,21 @@ export const PWAInstallBanner: React.FC = () => {
         description: instructions.steps.join(' → '),
         duration: 8000,
       });
-    } else if (result) {
+    } else if (result === 'desktop-manual') {
+      // Tratar instruções manuais para desktop
+      const instructions = getInstallInstructions();
+      toast({
+        title: instructions.title,
+        description: (
+          <div className="space-y-1">
+            {instructions.steps.map((step, i) => (
+              <p key={i} className="text-sm">{step}</p>
+            ))}
+          </div>
+        ),
+        duration: 12000,
+      });
+    } else if (result === true) {
       setIsDismissed(true);
       toast({
         title: "App Instalado!",
