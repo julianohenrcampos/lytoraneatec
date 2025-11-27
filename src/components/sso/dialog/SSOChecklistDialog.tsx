@@ -16,6 +16,7 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { ssoItemService, ssoStorageService } from '@/services/sso';
+import { useAuthPermissions } from '@/hooks/useAuthPermissions';
 
 interface SSOChecklistDialogProps {
   open: boolean;
@@ -26,6 +27,10 @@ interface SSOChecklistDialogProps {
 export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOChecklistDialogProps) => {
   const isEdit = !!checklistId;
   const { checklist, createChecklist, updateChecklist, isCreating, isUpdating } = useSSOChecklist(checklistId);
+  const { isSuperAdmin, userRole } = useAuthPermissions();
+  
+  // Determinar se é TecSSO (só pode usar câmera, sem galeria)
+  const isTecSSO = userRole === 'TecSSO' && !isSuperAdmin;
   
   const [activeTab, setActiveTab] = useState('dados');
   const [formData, setFormData] = useState<SSOChecklistFormData>({
@@ -39,6 +44,7 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
   
   const [itens, setItens] = useState<SSOChecklistItem[]>([]);
   const [itemFiles, setItemFiles] = useState<Map<string, File[]>>(new Map());
+  const [isLoadingEditData, setIsLoadingEditData] = useState(false);
 
   // Auto-preencher Técnico de Segurança com usuário logado
   useEffect(() => {
@@ -106,11 +112,16 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
         observacoes_gerais: '',
       });
       setActiveTab('dados');
+      setIsLoadingEditData(false);
     }
   }, [open]);
 
   // Carregar dados do checklist ao editar
   useEffect(() => {
+    if (isEdit && open && !checklist) {
+      setIsLoadingEditData(true);
+    }
+    
     if (isEdit && checklist) {
       setFormData({
         obra_id: checklist.obra_id,
@@ -124,8 +135,9 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
       if (checklist.bd_sso_checklist_itens) {
         setItens(checklist.bd_sso_checklist_itens);
       }
+      setIsLoadingEditData(false);
     }
-  }, [isEdit, checklist]);
+  }, [isEdit, checklist, open]);
 
   const handleFormChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -221,6 +233,20 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
 
   const isLoading = isCreating || isUpdating;
 
+  // Mostrar loading enquanto carrega dados no modo edição
+  if (isEdit && isLoadingEditData) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-4xl">
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="ml-3 text-muted-foreground">Carregando checklist...</span>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl h-[95vh] sm:h-auto sm:max-h-[90vh] flex flex-col overflow-hidden">
@@ -261,6 +287,7 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
                 itens={itens}
                 onChange={handleItemChange}
                 onFilesChange={handleItemFilesChange}
+                cameraOnly={isTecSSO}
               />
             ) : (
               <div className="flex items-center justify-center py-12">

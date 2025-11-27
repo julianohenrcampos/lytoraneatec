@@ -9,9 +9,10 @@ interface SSOChecklistFormItemsProps {
   itens: SSOChecklistItemType[];
   onChange: (itemId: string, field: keyof SSOChecklistItemType, value: any) => void;
   onFilesChange?: (itemId: string, files: File[]) => void;
+  cameraOnly?: boolean;
 }
 
-export const SSOChecklistFormItems = ({ itens, onChange, onFilesChange }: SSOChecklistFormItemsProps) => {
+export const SSOChecklistFormItems = ({ itens, onChange, onFilesChange, cameraOnly = false }: SSOChecklistFormItemsProps) => {
   // Calcular estatísticas em tempo real
   const stats = useMemo(() => {
     return ssoCalculations.calcularNota(itens);
@@ -54,6 +55,7 @@ export const SSOChecklistFormItems = ({ itens, onChange, onFilesChange }: SSOChe
                     index={itens.indexOf(item)}
                     onChange={onChange}
                     onFilesChange={onFilesChange}
+                    cameraOnly={cameraOnly}
                   />
                 ))}
               </div>

@@ -13,9 +13,10 @@ interface SSOPhotoUploadProps {
   fotos: SSOFoto[];
   onChange: (fotos: SSOFoto[]) => void;
   onFilesChange?: (files: File[]) => void;
+  cameraOnly?: boolean;
 }
 
-export const SSOPhotoUpload = ({ itemId, fotos, onChange, onFilesChange }: SSOPhotoUploadProps) => {
+export const SSOPhotoUpload = ({ itemId, fotos, onChange, onFilesChange, cameraOnly = false }: SSOPhotoUploadProps) => {
   const [previews, setPreviews] = useState<string[]>(
     fotos.map(f => f.url || f.path)
   );
@@ -133,17 +134,19 @@ export const SSOPhotoUpload = ({ itemId, fotos, onChange, onFilesChange }: SSOPh
           />
         </label>
 
-        <label className="w-20 h-20 border-2 border-dashed rounded flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors">
-          <ImageIcon className="h-5 w-5 text-muted-foreground mb-1" />
-          <span className="text-xs text-muted-foreground text-center leading-tight">Galeria</span>
-          <Input
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={handleFileSelect}
-          />
-        </label>
+        {!cameraOnly && (
+          <label className="w-20 h-20 border-2 border-dashed rounded flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors">
+            <ImageIcon className="h-5 w-5 text-muted-foreground mb-1" />
+            <span className="text-xs text-muted-foreground text-center leading-tight">Galeria</span>
+            <Input
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={handleFileSelect}
+            />
+          </label>
+        )}
       </div>
 
       {fotos.length === 0 && (

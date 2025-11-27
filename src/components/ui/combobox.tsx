@@ -96,6 +96,8 @@ export function Combobox({
       <PopoverContent 
         className="w-[var(--radix-popover-trigger-width)] p-0 z-[10000] bg-white shadow-xl border border-gray-200 pointer-events-auto" 
         align="start"
+        side="bottom"
+        avoidCollisions={false}
         sideOffset={4}
         style={{ minWidth: '300px' }}
       >

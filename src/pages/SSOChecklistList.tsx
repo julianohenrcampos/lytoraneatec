@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import MainLayout from '@/components/layout/MainLayout';
 import { useSSOChecklist } from '@/hooks/sso/useSSOChecklist';
+import { useAuthPermissions } from '@/hooks/useAuthPermissions';
 import { Button } from '@/components/ui/button';
 import { Plus, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -22,8 +23,12 @@ import {
 
 const SSOChecklistList = () => {
   const navigate = useNavigate();
+  const { isSuperAdmin, userRole } = useAuthPermissions();
   const [filters, setFilters] = useState<FilterType>({});
   const { checklists, isLoading, deleteChecklist } = useSSOChecklist(undefined, filters);
+  
+  // Verificar se usuário pode editar (SuperAdm ou AdmSSO)
+  const canEdit = isSuperAdmin || userRole === 'AdmSSO';
   
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
@@ -112,6 +117,7 @@ const SSOChecklistList = () => {
             onView={handleView}
             onEdit={handleEdit}
             onDelete={handleDeleteClick}
+            canEdit={canEdit}
           />
         )}
 

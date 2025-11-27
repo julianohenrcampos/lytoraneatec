@@ -9,9 +9,10 @@ interface SSOChecklistTableProps {
   onView: (checklist: SSOChecklist) => void;
   onEdit: (checklist: SSOChecklist) => void;
   onDelete: (checklist: SSOChecklist) => void;
+  canEdit?: boolean;
 }
 
-export const SSOChecklistTable = ({ checklists, onView, onEdit, onDelete }: SSOChecklistTableProps) => {
+export const SSOChecklistTable = ({ checklists, onView, onEdit, onDelete, canEdit = false }: SSOChecklistTableProps) => {
   if (checklists.length === 0) {
     return (
       <Card className="p-12 text-center">
@@ -73,20 +74,24 @@ export const SSOChecklistTable = ({ checklists, onView, onEdit, onDelete }: SSOC
                     >
                       <Eye className="h-4 w-4" />
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => onEdit(checklist)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => onDelete(checklist)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    {canEdit && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onEdit(checklist)}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {canEdit && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onDelete(checklist)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
                   </div>
                 </td>
               </tr>

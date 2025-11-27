@@ -38,15 +38,23 @@ export default defineConfig(({ mode }) => ({
         theme_color: '#3b82f6',
         background_color: '#ffffff',
         display: 'standalone',
-        display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'],
         orientation: 'portrait-primary',
         scope: '/',
         start_url: '/',
         id: 'app.lytotec.erp',
-        launch_handler: {
-          client_mode: 'focus-existing'
-        },
         icons: [
+          {
+            src: 'icons/maskable-icon1.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: 'icons/maskable-icon1.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
+          },
           {
             src: 'icons/icon-48x48.png',
             sizes: '48x48',

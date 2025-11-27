@@ -16,9 +16,10 @@ interface SSOChecklistItemProps {
   index: number;
   onChange: (itemId: string, field: keyof SSOChecklistItemType, value: any) => void;
   onFilesChange?: (itemId: string, files: File[]) => void;
+  cameraOnly?: boolean;
 }
 
-export const SSOChecklistItem = ({ item, index, onChange, onFilesChange }: SSOChecklistItemProps) => {
+export const SSOChecklistItem = ({ item, index, onChange, onFilesChange, cameraOnly = false }: SSOChecklistItemProps) => {
   const isNaoConforme = item.avaliacao === 'Não Conforme';
 
   return (
@@ -89,6 +90,7 @@ export const SSOChecklistItem = ({ item, index, onChange, onFilesChange }: SSOCh
                       onFilesChange(item.id, files);
                     }
                   }}
+                  cameraOnly={cameraOnly}
                 />
               </div>
             </>
