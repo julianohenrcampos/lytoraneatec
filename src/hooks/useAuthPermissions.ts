@@ -96,16 +96,16 @@ export const useAuthPermissions = (): UserPermissions => {
           userRole = profile.funcoes[0]; // Primeira função como role principal
           console.log('🚀 SUPERADMIN detectado por FUNCOES:', profile.funcoes);
         }
-        // 3. Fallback para funcao_sistema (compatibilidade)
-        else if (profile?.funcao_sistema) {
-          userRole = profile.funcao_sistema;
-          isSuperAdmin = profile.funcao_sistema === 'SuperAdm';
-          console.log('⚠️ Usando funcao_sistema (fallback):', profile.funcao_sistema);
-        }
-        // 4. Usar funcoes[] para definir role se não for SuperAdmin
+        // 3. Usar funcoes[] para definir role (FONTE PRIMÁRIA)
         else if (profile?.funcoes && Array.isArray(profile.funcoes) && profile.funcoes.length > 0) {
           userRole = profile.funcoes[0];
           console.log('📋 Role definido por funcoes[]:', userRole);
+        }
+        // 4. Fallback para funcao_sistema (compatibilidade legada)
+        else if (profile?.funcao_sistema) {
+          userRole = profile.funcao_sistema;
+          isSuperAdmin = profile.funcao_sistema === 'SuperAdm';
+          console.log('⚠️ Usando funcao_sistema (fallback legado):', profile.funcao_sistema);
         }
           
         console.log('🔍 Função encontrada:', userRole);

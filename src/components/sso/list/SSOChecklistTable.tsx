@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Eye, Edit, Trash2 } from 'lucide-react';
 import { SSOChecklist } from '@/types/sso';
 import { ssoCalculations } from '@/utils/sso/ssoCalculations';
+import { formatBrazilianDateForDisplay } from '@/utils/timezoneUtils';
 
 interface SSOChecklistTableProps {
   checklists: SSOChecklist[];
@@ -39,7 +40,7 @@ export const SSOChecklistTable = ({ checklists, onView, onEdit, onDelete, canEdi
             {checklists.map((checklist) => (
               <tr key={checklist.id} className="hover:bg-muted/30 transition-colors">
                 <td className="px-4 py-3 text-sm">
-                  {new Date(checklist.data_inspecao).toLocaleDateString('pt-BR')}
+                  {formatBrazilianDateForDisplay(checklist.data_inspecao)}
                 </td>
                 <td className="px-4 py-3 text-sm">
                   {checklist.bd_centros_custo?.nome_centro_custo || '-'}
