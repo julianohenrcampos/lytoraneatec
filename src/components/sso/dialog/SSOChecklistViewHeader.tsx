@@ -2,6 +2,7 @@ import { Badge } from '@/components/ui/badge';
 import { SSOChecklist } from '@/types/sso';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { parseBrazilianDate } from '@/utils/timezoneUtils';
 interface SSOChecklistViewHeaderProps {
   checklist: SSOChecklist;
 }
@@ -20,7 +21,7 @@ export const SSOChecklistViewHeader = ({ checklist }: SSOChecklistViewHeaderProp
           RELATÓRIO DE NÃO CONFORMIDADES - SSO NR-18
         </h1>
         <p className="text-xs text-muted-foreground mt-1">
-          {format(new Date(checklist.data_inspecao), "dd/MM/yyyy", { locale: ptBR })}
+          {format(parseBrazilianDate(checklist.data_inspecao), "dd/MM/yyyy", { locale: ptBR })}
         </p>
       </div>
 
@@ -42,7 +43,7 @@ export const SSOChecklistViewHeader = ({ checklist }: SSOChecklistViewHeaderProp
             <tr className="border-b border-border">
               <td className="py-1.5 px-3 bg-muted/30 font-semibold text-foreground">Data da Inspeção:</td>
               <td className="py-1.5 px-3 text-foreground">
-                {format(new Date(checklist.data_inspecao), 'dd/MM/yyyy', { locale: ptBR })}
+                {format(parseBrazilianDate(checklist.data_inspecao), 'dd/MM/yyyy', { locale: ptBR })}
               </td>
             </tr>
             <tr className="border-b border-border">

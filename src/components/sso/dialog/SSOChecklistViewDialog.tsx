@@ -17,6 +17,7 @@ import { generateSSOReportPDF } from '@/services/pdfService';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { parseBrazilianDate } from '@/utils/timezoneUtils';
 
 interface SSOChecklistViewDialogProps {
   open: boolean;
@@ -40,7 +41,7 @@ export const SSOChecklistViewDialog = ({
     
     try {
       const obraName = checklist.bd_centros_custo?.nome_centro_custo || 'Sem_Obra';
-      const dataFormatada = format(new Date(checklist.data_inspecao), 'dd-MM-yyyy');
+      const dataFormatada = format(parseBrazilianDate(checklist.data_inspecao), 'dd-MM-yyyy');
       
       await generateSSOReportPDF(obraName, dataFormatada);
       

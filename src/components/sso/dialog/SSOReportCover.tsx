@@ -3,6 +3,7 @@ import { ptBR } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
 import { SSOChecklist } from '@/types/sso';
 import { FileText, Calendar, Users, ClipboardCheck } from 'lucide-react';
+import { parseBrazilianDate } from '@/utils/timezoneUtils';
 
 interface SSOReportCoverProps {
   checklist: SSOChecklist;
@@ -28,7 +29,7 @@ export const SSOReportCover = ({ checklist, naoConformidadesCount }: SSOReportCo
           SSO - NR-18
         </p>
         <p className="text-lg text-muted-foreground">
-          {format(new Date(checklist.data_inspecao), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+          {format(parseBrazilianDate(checklist.data_inspecao), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
         </p>
       </div>
 
