@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef, useEffect } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,6 +20,26 @@ interface SSOChecklistFormHeaderProps {
 }
 
 export const SSOChecklistFormHeader = ({ formData, onChange }: SSOChecklistFormHeaderProps) => {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-resize textarea quando o valor muda
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [formData.observacoes_gerais]);
+
+  const handleObservacoesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    onChange('observacoes_gerais', e.target.value);
+    
+    // Auto-resize imediato
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  };
+
   // Buscar obras
   const { data: obras } = useQuery({
     queryKey: ['centros-custo'],
@@ -122,11 +142,12 @@ export const SSOChecklistFormHeader = ({ formData, onChange }: SSOChecklistFormH
         <div className="md:col-span-2">
           <Label htmlFor="observacoes_gerais">Observações Gerais</Label>
           <Textarea
+            ref={textareaRef}
             id="observacoes_gerais"
             value={formData.observacoes_gerais || ''}
-            onChange={(e) => onChange('observacoes_gerais', e.target.value)}
+            onChange={handleObservacoesChange}
             placeholder="Observações adicionais sobre a inspeção..."
-            rows={3}
+            className="min-h-[80px] resize-none overflow-hidden"
           />
         </div>
       </div>

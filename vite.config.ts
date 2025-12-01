@@ -42,28 +42,30 @@ export default defineConfig(({ mode }) => ({
         scope: '/',
         start_url: '/',
         id: 'app.lytotec.erp',
+        prefer_related_applications: false,
+        categories: ['business', 'productivity'],
         icons: [
           {
-            src: 'icons/maskable-icon1.png',
+            src: 'icons/icon-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: 'icons/icon-512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any'
           },
           {
-            src: 'icons/maskable-icon1.png',
-            sizes: '512x512',
+            src: 'icons/maskable-icon-192x192.png',
+            sizes: '192x192',
             type: 'image/png',
             purpose: 'maskable'
           },
           {
-            src: 'icons/maskable-icon1.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any'
-          },
-          {
-            src: 'icons/maskable-icon1.png',
-            sizes: '192x192',
+            src: 'icons/maskable-icon.png',
+            sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable'
           }

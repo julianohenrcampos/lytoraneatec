@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { X, Camera, Image as ImageIcon } from 'lucide-react';
@@ -17,12 +17,17 @@ interface SSOPhotoUploadProps {
 }
 
 export const SSOPhotoUpload = ({ itemId, fotos, onChange, onFilesChange, cameraOnly = false }: SSOPhotoUploadProps) => {
-  const [previews, setPreviews] = useState<string[]>(
+  const [previews, setPreviews] = useState<string[]>(() => 
     fotos.map(f => f.url || f.path)
   );
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Sincronizar previews quando fotos prop mudar (ex: ao carregar dados de edição)
+  useEffect(() => {
+    setPreviews(fotos.map(f => f.url || f.path));
+  }, [fotos]);
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -48,13 +53,12 @@ export const SSOPhotoUpload = ({ itemId, fotos, onChange, onFilesChange, cameraO
       return;
     }
 
-    const newFiles: File[] = [];
+    // Processar arquivos de forma síncrona para evitar race conditions
+    let processedCount = 0;
     const newPreviews: string[] = [];
     const newFotos: SSOFoto[] = [];
 
     validFiles.forEach((file) => {
-      newFiles.push(file);
-
       const reader = new FileReader();
       reader.onloadend = () => {
         const preview = reader.result as string;
@@ -66,45 +70,54 @@ export const SSOPhotoUpload = ({ itemId, fotos, onChange, onFilesChange, cameraO
           created_at: new Date().toISOString(),
         });
 
-        if (newPreviews.length === validFiles.length) {
-          const updatedFiles = [...selectedFiles, ...newFiles];
-          const updatedPreviews = [...previews, ...newPreviews];
-          const updatedFotos = [...fotos, ...newFotos];
+        processedCount++;
+
+        // Quando todos os arquivos forem processados, atualizar estado
+        if (processedCount === validFiles.length) {
+          // Usar functional updates para evitar stale state
+          setSelectedFiles(prev => {
+            const updated = [...prev, ...validFiles];
+            // Chamar callback com os arquivos atualizados
+            if (onFilesChange) {
+              onFilesChange(updated);
+            }
+            return updated;
+          });
           
-          setSelectedFiles(updatedFiles);
-          setPreviews(updatedPreviews);
-          onChange(updatedFotos);
+          setPreviews(prev => [...prev, ...newPreviews]);
           
-          if (onFilesChange) {
-            onFilesChange(updatedFiles);
-          }
+          // Usar fotos atual do prop para evitar stale closure
+          onChange([...fotos, ...newFotos]);
         }
       };
       reader.readAsDataURL(file);
     });
 
     e.target.value = '';
-  };
+  }, [fotos, onChange, onFilesChange]);
 
-  const handleRemove = (index: number) => {
+  const handleRemove = useCallback((index: number) => {
     const newPreviews = previews.filter((_, i) => i !== index);
     const newFotos = fotos.filter((_, i) => i !== index);
-    const newFiles = selectedFiles.filter((_, i) => i !== index);
     
-    setSelectedFiles(newFiles);
+    // Usar functional update para selectedFiles
+    setSelectedFiles(prev => {
+      const newFiles = prev.filter((_, i) => i !== index);
+      if (onFilesChange) {
+        onFilesChange(newFiles);
+      }
+      return newFiles;
+    });
+    
     setPreviews(newPreviews);
     onChange(newFotos);
-    
-    if (onFilesChange) {
-      onFilesChange(newFiles);
-    }
-  };
+  }, [previews, fotos, onChange, onFilesChange]);
 
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
         {previews.map((preview, index) => (
-          <div key={index} className="relative group">
+          <div key={`${itemId}-photo-${index}`} className="relative group">
             <img
               src={preview}
               alt={`Foto ${index + 1}`}

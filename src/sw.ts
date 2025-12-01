@@ -194,7 +194,7 @@ async function syncOfflineData() {
 // Install event
 self.addEventListener('install', () => {
   console.log('🚀 Service Worker installing...');
-  self.skipWaiting();
+  // skipWaiting já é chamado no topo do arquivo
 });
 
 // Activate event

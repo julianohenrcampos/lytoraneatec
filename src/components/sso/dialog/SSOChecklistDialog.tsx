@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -44,7 +44,8 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
   });
   
   const [itens, setItens] = useState<SSOChecklistItem[]>([]);
-  const [itemFiles, setItemFiles] = useState<Map<string, File[]>>(new Map());
+  // Usar useRef para manter arquivos persistentes entre re-renders
+  const itemFilesRef = useRef<Map<string, File[]>>(new Map());
   const [isLoadingEditData, setIsLoadingEditData] = useState(false);
 
   // Auto-preencher Técnico de Segurança com usuário logado
@@ -115,6 +116,8 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
       });
       setActiveTab('dados');
       setIsLoadingEditData(false);
+      // Limpar ref de arquivos
+      itemFilesRef.current.clear();
     }
   }, [open]);
 
@@ -155,13 +158,9 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
     ));
   };
 
-  const handleItemFilesChange = (itemId: string, files: File[]) => {
-    setItemFiles(prev => {
-      const newMap = new Map(prev);
-      newMap.set(itemId, files);
-      return newMap;
-    });
-  };
+  const handleItemFilesChange = useCallback((itemId: string, files: File[]) => {
+    itemFilesRef.current.set(itemId, files);
+  }, []);
 
   // Validação dos campos obrigatórios para habilitar aba Checklist
   const isDadosCompletos = formData.obra_id && 
@@ -199,7 +198,7 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
         
         // 2. Atualizar cada item individualmente com suas fotos
         for (const item of itens) {
-          const files = itemFiles.get(item.id) || [];
+          const files = itemFilesRef.current.get(item.id) || [];
           let updatedFotos = item.fotos || [];
           
           // Upload de novas fotos, se houver
@@ -226,7 +225,7 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
         await createChecklist({
           formData,
           itens,
-          itemFiles: Object.fromEntries(itemFiles)
+          itemFiles: Object.fromEntries(itemFilesRef.current)
         });
       }
       
@@ -255,15 +254,15 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[95vh] sm:h-auto sm:max-h-[90vh] flex flex-col overflow-hidden">
-        <DialogHeader>
+      <DialogContent className="max-w-4xl max-h-[95vh] sm:max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>
             {isEdit ? 'Editar Checklist SSO NR-18' : 'Novo Checklist SSO NR-18'}
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 overflow-hidden">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col min-h-0">
+          <TabsList className="grid w-full grid-cols-2 flex-shrink-0">
             <TabsTrigger value="dados">Dados Operacionais</TabsTrigger>
             <TabsTrigger 
               value="checklist"
@@ -275,19 +274,19 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
           </TabsList>
 
           {!isDadosCompletos && activeTab === 'dados' && (
-            <div className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-3 mt-2">
+            <div className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-3 mt-2 flex-shrink-0">
               <span className="font-medium">Atenção:</span> Preencha a Obra, Gerente Regional e Engenheiro da Obra para acessar o Checklist
             </div>
           )}
 
-          <TabsContent value="dados" className="mt-4">
+          <TabsContent value="dados" className="mt-4 flex-1 overflow-y-auto pb-4">
             <SSOChecklistFormHeader
               formData={formData}
               onChange={handleFormChange}
             />
           </TabsContent>
 
-          <TabsContent value="checklist" className="mt-4">
+          <TabsContent value="checklist" className="mt-4 flex-1 overflow-y-auto pb-4">
             {itens.length > 0 ? (
               <SSOChecklistFormItems
                 itens={itens}
@@ -303,7 +302,7 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
           </TabsContent>
         </Tabs>
 
-        <DialogFooter className="sticky bottom-0 bg-background pt-4 border-t mt-auto">
+        <DialogFooter className="flex-shrink-0 pt-4 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
             Cancelar
           </Button>

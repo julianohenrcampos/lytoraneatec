@@ -82,6 +82,7 @@ export const SSOChecklistItem = ({ item, index, onChange, onFilesChange, cameraO
               <div>
                 <Label>Fotos (Não Conformidade)</Label>
                 <SSOPhotoUpload
+                  key={`photo-upload-${item.id}`}
                   itemId={item.id}
                   fotos={item.fotos}
                   onChange={(newFotos) => onChange(item.id, 'fotos', newFotos)}
