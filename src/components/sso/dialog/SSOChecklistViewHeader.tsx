@@ -13,7 +13,7 @@ export const SSOChecklistViewHeader = ({ checklist, totalNaoConformidades }: SSO
       {/* Cabeçalho do Relatório */}
       <div className="text-center pb-3 border-b-2 border-primary">
         <h1 className="text-xl font-bold text-foreground">
-          RELATÓRIO DE NÃO CONFORMIDADES - SSO NR-18
+          RELATÓRIO DE NÃO CONFORMIDADES - MTE_TAC
         </h1>
         <p className="text-xs text-muted-foreground mt-1">
           {format(parseBrazilianDate(checklist.data_inspecao), "dd/MM/yyyy", { locale: ptBR })}

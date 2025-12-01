@@ -26,7 +26,7 @@ export const SSOReportCover = ({ checklist, naoConformidadesCount }: SSOReportCo
           RELATÓRIO DE NÃO CONFORMIDADES
         </h1>
         <p className="text-xl font-semibold text-muted-foreground">
-          SSO - NR-18
+          MTE_TAC
         </p>
         <p className="text-lg text-muted-foreground">
           {format(parseBrazilianDate(checklist.data_inspecao), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}

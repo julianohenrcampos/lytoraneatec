@@ -13,7 +13,7 @@ export const SSODashboardEmptyState = () => {
         Nenhum checklist realizado ainda
       </h3>
       <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-        Comece criando o primeiro checklist de segurança NR-18 para visualizar 
+        Comece criando o primeiro CHECK LIST - AUTOS DE INFRAÇÃO MTE_TAC para visualizar 
         análises, KPIs e relatórios de conformidade.
       </p>
       <Button onClick={() => navigate('/sso/checklists')}>

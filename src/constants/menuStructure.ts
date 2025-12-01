@@ -183,7 +183,7 @@ export const menuStructure = [
     title: "SSO - Segurança",
     items: [
       {
-        name: "Checklists NR-18",
+        name: "CHECK LIST - MTE_TAC",
         href: "/sso/checklists",
         icon: ShieldCheck,
         requiredPermission: "acesso_sso_checklists"

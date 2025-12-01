@@ -61,7 +61,7 @@ const SSODashboard = () => {
         <div>
           <h1 className="text-3xl font-bold">Dashboard SSO</h1>
           <p className="text-muted-foreground">
-            Análise de conformidade e tendências NR-18
+            Análise de conformidade e tendências MTE_TAC
           </p>
         </div>
 

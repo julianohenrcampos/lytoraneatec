@@ -257,7 +257,7 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
       <DialogContent className="max-w-4xl max-h-[95vh] sm:max-h-[90vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>
-            {isEdit ? 'Editar Checklist SSO NR-18' : 'Novo Checklist SSO NR-18'}
+            {isEdit ? 'Editar CHECK LIST - AUTOS DE INFRAÇÃO MTE_TAC' : 'Novo CHECK LIST - AUTOS DE INFRAÇÃO MTE_TAC'}
           </DialogTitle>
         </DialogHeader>
 

@@ -10,27 +10,23 @@ import { SSOChecklistTable } from '@/components/sso/list/SSOChecklistTable';
 import { SSOChecklistDialog } from '@/components/sso/dialog/SSOChecklistDialog';
 import { SSOChecklistViewDialog } from '@/components/sso/dialog/SSOChecklistViewDialog';
 import { SSOChecklist, SSOChecklistFilters as FilterType } from '@/types/sso';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 const SSOChecklistList = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { isSuperAdmin, userRole } = useAuthPermissions();
+  const {
+    isSuperAdmin,
+    userRole
+  } = useAuthPermissions();
   const [filters, setFilters] = useState<FilterType>({});
-  const { checklists, isLoading, deleteChecklist } = useSSOChecklist(undefined, filters);
-  
+  const {
+    checklists,
+    isLoading,
+    deleteChecklist
+  } = useSSOChecklist(undefined, filters);
+
   // Verificar se usuário pode editar (SuperAdm ou AdmSSO)
   const canEdit = isSuperAdmin || userRole === 'AdmSSO';
-  
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [selectedChecklistId, setSelectedChecklistId] = useState<string | undefined>();
@@ -45,38 +41,33 @@ const SSOChecklistList = () => {
       setViewDialogOpen(true);
       // Limpar o param da URL após abrir
       searchParams.delete('view');
-      setSearchParams(searchParams, { replace: true });
+      setSearchParams(searchParams, {
+        replace: true
+      });
     }
   }, [searchParams, setSearchParams]);
-
   const handleFilterChange = (newFilters: FilterType) => {
     setFilters(newFilters);
   };
-
   const handleClearFilters = () => {
     setFilters({});
   };
-
   const handleNew = () => {
     setSelectedChecklistId(undefined);
     setEditDialogOpen(true);
   };
-
   const handleView = (checklist: SSOChecklist) => {
     setSelectedChecklistId(checklist.id);
     setViewDialogOpen(true);
   };
-
   const handleEdit = (checklist: SSOChecklist) => {
     setSelectedChecklistId(checklist.id);
     setEditDialogOpen(true);
   };
-
   const handleDeleteClick = (checklist: SSOChecklist) => {
     setChecklistToDelete(checklist);
     setDeleteDialogOpen(true);
   };
-
   const handleConfirmDelete = async () => {
     if (checklistToDelete) {
       await deleteChecklist(checklistToDelete.id);
@@ -84,24 +75,19 @@ const SSOChecklistList = () => {
       setChecklistToDelete(null);
     }
   };
-
-  return (
-    <MainLayout>
+  return <MainLayout>
       <div className="container mx-auto py-6 space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold">SSO - Checklists NR-18</h1>
+            <h1 className="text-3xl font-bold">CHECK LIST - AUTOS DE INFRAÇÃO MTE_TAC</h1>
             <p className="text-muted-foreground">
               Inspeções de Saúde e Segurança Ocupacional
             </p>
           </div>
           
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => navigate('/sso/checklists/dashboard')}
-            >
+            <Button variant="outline" onClick={() => navigate('/sso/checklists/dashboard')}>
               <BarChart3 className="mr-2 h-4 w-4" />
               Dashboard
             </Button>
@@ -114,39 +100,18 @@ const SSOChecklistList = () => {
         </div>
 
         {/* Filtros */}
-        <SSOChecklistFilters
-          onFilterChange={handleFilterChange}
-          onClearFilters={handleClearFilters}
-        />
+        <SSOChecklistFilters onFilterChange={handleFilterChange} onClearFilters={handleClearFilters} />
 
         {/* Tabela */}
-        {isLoading ? (
-          <div className="text-center py-12">
+        {isLoading ? <div className="text-center py-12">
             <p className="text-muted-foreground">Carregando checklists...</p>
-          </div>
-        ) : (
-          <SSOChecklistTable
-            checklists={checklists}
-            onView={handleView}
-            onEdit={handleEdit}
-            onDelete={handleDeleteClick}
-            canEdit={canEdit}
-          />
-        )}
+          </div> : <SSOChecklistTable checklists={checklists} onView={handleView} onEdit={handleEdit} onDelete={handleDeleteClick} canEdit={canEdit} />}
 
         {/* Dialog de Visualização - Apenas Não Conformidades */}
-        <SSOChecklistViewDialog
-          open={viewDialogOpen}
-          onOpenChange={setViewDialogOpen}
-          checklistId={selectedChecklistId}
-        />
+        <SSOChecklistViewDialog open={viewDialogOpen} onOpenChange={setViewDialogOpen} checklistId={selectedChecklistId} />
 
         {/* Dialog de Edição */}
-        <SSOChecklistDialog
-          open={editDialogOpen}
-          onOpenChange={setEditDialogOpen}
-          checklistId={selectedChecklistId}
-        />
+        <SSOChecklistDialog open={editDialogOpen} onOpenChange={setEditDialogOpen} checklistId={selectedChecklistId} />
 
         {/* Dialog de Confirmação de Exclusão */}
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -166,8 +131,6 @@ const SSOChecklistList = () => {
           </AlertDialogContent>
         </AlertDialog>
       </div>
-    </MainLayout>
-  );
+    </MainLayout>;
 };
-
 export default SSOChecklistList;

@@ -101,7 +101,7 @@ export const SSOChecklistViewDialog = ({
   return <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] p-0">
         <DialogHeader className="px-6 pt-6 flex flex-row items-center justify-between space-y-0">
-          <DialogTitle>Relatório de Não Conformidades - SSO NR-18</DialogTitle>
+          <DialogTitle>Relatório de Não Conformidades - MTE_TAC</DialogTitle>
           <Button onClick={handleExportPDF} disabled={isGeneratingPDF || naoConformidades.length === 0} variant="outline" size="sm" className="gap-2">
             <Download className="h-4 w-4" />
             {isGeneratingPDF ? 'Gerando...' : 'Baixar PDF'}
@@ -138,7 +138,7 @@ export const SSOChecklistViewDialog = ({
                 locale: ptBR
               })}
               </p>
-              <p>Sistema de Gestão SSO - NR-18</p>
+              <p>Sistema de Gestão SSO - MTE_TAC</p>
             </div>
           </div>
 
@@ -201,13 +201,13 @@ export const SSOChecklistViewDialog = ({
                         <p style={{
                     margin: '0 0 4px 0'
                   }}>Página {pageNumber} de {totalPages}</p>
-                        <p style={{
+                         <p style={{
                     margin: 0
                   }}>
-                          Relatório gerado em {format(new Date(), "dd/MM/yyyy 'às' HH:mm", {
+                           Relatório gerado em {format(new Date(), "dd/MM/yyyy 'às' HH:mm", {
                       locale: ptBR
-                    })} | Sistema de Gestão SSO - NR-18
-                        </p>
+                    })} | Sistema de Gestão SSO - MTE_TAC
+                         </p>
                       </div>
                     </div>;
             })}

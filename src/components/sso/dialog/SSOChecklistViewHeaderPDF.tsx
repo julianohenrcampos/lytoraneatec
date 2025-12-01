@@ -27,18 +27,18 @@ export const SSOChecklistViewHeaderPDF = ({ checklist, totalNaoConformidades }: 
       <div style={{ 
         textAlign: 'center', 
         paddingBottom: '16px', 
-        borderBottom: '3px solid #2563eb',
-        marginBottom: '20px'
-      }}>
-        <h1 style={{ 
-          fontSize: '24px', 
-          fontWeight: 700, 
-          color: '#1f2937', 
-          margin: 0,
-          letterSpacing: '0.5px'
-        }}>
-          RELATÓRIO DE NÃO CONFORMIDADES - SSO NR-18
-        </h1>
+         borderBottom: '3px solid #2563eb',
+         marginBottom: '20px'
+       }}>
+         <h1 style={{ 
+           fontSize: '24px', 
+           fontWeight: 700, 
+           color: '#1f2937', 
+           margin: 0,
+           letterSpacing: '0.5px'
+         }}>
+           RELATÓRIO DE NÃO CONFORMIDADES - MTE_TAC
+         </h1>
         <p style={{ 
           fontSize: '15px', 
           color: '#6b7280', 
