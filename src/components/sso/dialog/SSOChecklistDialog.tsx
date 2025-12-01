@@ -39,6 +39,7 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
     engenheiro_obra: '',
     tecnico_seguranca: '',
     data_inspecao: new Date().toISOString().split('T')[0],
+    total_efetivo: undefined,
     observacoes_gerais: '',
   });
   
@@ -109,6 +110,7 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
         engenheiro_obra: '',
         tecnico_seguranca: '',
         data_inspecao: new Date().toISOString().split('T')[0],
+        total_efetivo: undefined,
         observacoes_gerais: '',
       });
       setActiveTab('dados');
@@ -129,6 +131,7 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
         engenheiro_obra: checklist.engenheiro_obra,
         tecnico_seguranca: checklist.tecnico_seguranca,
         data_inspecao: checklist.data_inspecao,
+        total_efetivo: checklist.total_efetivo,
         observacoes_gerais: checklist.observacoes_gerais || '',
       });
       
@@ -140,7 +143,10 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
   }, [isEdit, checklist, open]);
 
   const handleFormChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => ({ 
+      ...prev, 
+      [field]: field === 'total_efetivo' ? (value ? parseInt(value, 10) : undefined) : value 
+    }));
   };
 
   const handleItemChange = (itemId: string, field: keyof SSOChecklistItem, value: any) => {

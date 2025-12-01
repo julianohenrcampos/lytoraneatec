@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import MainLayout from '@/components/layout/MainLayout';
 import { useSSOChecklist } from '@/hooks/sso/useSSOChecklist';
 import { useAuthPermissions } from '@/hooks/useAuthPermissions';
 import { Button } from '@/components/ui/button';
 import { Plus, BarChart3 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { SSOChecklistFilters } from '@/components/sso/list/SSOChecklistFilters';
 import { SSOChecklistTable } from '@/components/sso/list/SSOChecklistTable';
 import { SSOChecklistDialog } from '@/components/sso/dialog/SSOChecklistDialog';
@@ -23,6 +23,7 @@ import {
 
 const SSOChecklistList = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { isSuperAdmin, userRole } = useAuthPermissions();
   const [filters, setFilters] = useState<FilterType>({});
   const { checklists, isLoading, deleteChecklist } = useSSOChecklist(undefined, filters);
@@ -35,6 +36,18 @@ const SSOChecklistList = () => {
   const [selectedChecklistId, setSelectedChecklistId] = useState<string | undefined>();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [checklistToDelete, setChecklistToDelete] = useState<SSOChecklist | null>(null);
+
+  // Abrir dialog de visualização automaticamente via query param (notificações)
+  useEffect(() => {
+    const viewId = searchParams.get('view');
+    if (viewId) {
+      setSelectedChecklistId(viewId);
+      setViewDialogOpen(true);
+      // Limpar o param da URL após abrir
+      searchParams.delete('view');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const handleFilterChange = (newFilters: FilterType) => {
     setFilters(newFilters);

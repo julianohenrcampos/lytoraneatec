@@ -46,6 +46,7 @@ export interface SSOChecklist {
   total_aplicaveis?: number;
   total_conformes?: number;
   total_na?: number;
+  total_efetivo?: number;
   observacoes_gerais?: string;
   criado_por: string;
   criado_em: string;
@@ -71,6 +72,7 @@ export interface SSOChecklistFormData {
   engenheiro_obra: string;
   tecnico_seguranca: string;
   data_inspecao: string;
+  total_efetivo?: number;
   observacoes_gerais?: string;
 }
 

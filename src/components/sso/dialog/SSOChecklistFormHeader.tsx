@@ -13,6 +13,7 @@ interface SSOChecklistFormHeaderProps {
     gerente_regional: string;
     engenheiro_obra: string;
     tecnico_seguranca: string;
+    total_efetivo?: number;
     observacoes_gerais?: string;
   };
   onChange: (field: string, value: string) => void;
@@ -95,7 +96,7 @@ export const SSOChecklistFormHeader = ({ formData, onChange }: SSOChecklistFormH
           />
         </div>
 
-        <div className="md:col-span-2">
+        <div>
           <Label htmlFor="tecnico_seguranca">Técnico em Segurança no Trabalho *</Label>
           <Input
             id="tecnico_seguranca"
@@ -103,6 +104,18 @@ export const SSOChecklistFormHeader = ({ formData, onChange }: SSOChecklistFormH
             onChange={(e) => onChange('tecnico_seguranca', e.target.value)}
             placeholder="Nome do técnico de segurança"
             required
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="total_efetivo">Total de Efetivo</Label>
+          <Input
+            id="total_efetivo"
+            type="number"
+            min="0"
+            value={formData.total_efetivo ?? ''}
+            onChange={(e) => onChange('total_efetivo', e.target.value)}
+            placeholder="Quantidade de trabalhadores"
           />
         </div>
 

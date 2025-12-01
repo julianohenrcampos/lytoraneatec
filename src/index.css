@@ -167,7 +167,100 @@
   }
 }
 
-/* Garantir que o conteúdo do PDF não corte */
+/* ========== Estilos para PDF de Não Conformidades ========== */
+
+/* Container principal das páginas PDF */
+#sso-pdf-pages {
+  box-sizing: border-box;
+}
+
+#sso-pdf-pages * {
+  box-sizing: border-box;
+}
+
+/* Página individual do PDF */
+.pdf-page {
+  box-sizing: border-box;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Página lógica de NCs */
+.nc-page {
+  page-break-after: always;
+}
+
+.nc-page:last-child {
+  page-break-after: auto;
+}
+
+/* Card de Não Conformidade - INDIVISÍVEL */
+.nc-card {
+  page-break-inside: avoid !important;
+  break-inside: avoid !important;
+  margin-bottom: 24px;
+  padding: 16px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 2px solid #fecaca;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.nc-card:last-child {
+  margin-bottom: 0;
+}
+
+/* Título da NC - nunca comprimir */
+.nc-title {
+  font-size: 13px !important;
+  font-weight: 600;
+  line-height: 1.4;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+/* Evidência da NC - texto expansível */
+.nc-evidence {
+  font-size: 12px !important;
+  line-height: 1.5;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+/* Caixa de fotos - proporção mantida */
+.nc-photo-box {
+  page-break-inside: avoid !important;
+  break-inside: avoid !important;
+  margin-top: 12px;
+  min-height: 160px;
+}
+
+.nc-photo-box img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  object-fit: cover;
+  display: block;
+}
+
+/* Espaçamento entre cards de NC */
+.nc-card + .nc-card {
+  margin-top: 24px;
+}
+
+/* Rodapé da página PDF */
+.pdf-page-footer {
+  page-break-inside: avoid !important;
+  break-inside: avoid !important;
+}
+
+/* Container de conteúdo do relatório */
 #sso-nc-report-content {
   box-sizing: border-box;
   overflow: visible;

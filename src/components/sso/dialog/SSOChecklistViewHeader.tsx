@@ -5,14 +5,9 @@ import { ptBR } from 'date-fns/locale';
 import { parseBrazilianDate } from '@/utils/timezoneUtils';
 interface SSOChecklistViewHeaderProps {
   checklist: SSOChecklist;
+  totalNaoConformidades: number;
 }
-export const SSOChecklistViewHeader = ({ checklist }: SSOChecklistViewHeaderProps) => {
-  const conformidadePercentual = checklist.total_aplicaveis 
-    ? Math.round((checklist.total_conformes! / checklist.total_aplicaveis) * 100) 
-    : 0;
-
-  const naoConformidades = (checklist.total_aplicaveis || 0) - (checklist.total_conformes || 0) - (checklist.total_na || 0);
-
+export const SSOChecklistViewHeader = ({ checklist, totalNaoConformidades }: SSOChecklistViewHeaderProps) => {
   return (
     <div className="space-y-4">
       {/* Cabeçalho do Relatório */}
@@ -89,14 +84,14 @@ export const SSOChecklistViewHeader = ({ checklist }: SSOChecklistViewHeaderProp
         
         <div className="text-center flex-1">
           <p className="text-[10px] text-muted-foreground mb-0.5">Não Conformidades</p>
-          <p className="text-2xl font-bold text-destructive">{naoConformidades}</p>
+          <p className="text-2xl font-bold text-destructive">{checklist.total_itens}/{totalNaoConformidades}</p>
         </div>
         
         <div className="h-8 w-px bg-border" />
         
         <div className="text-center flex-1">
-          <p className="text-[10px] text-muted-foreground mb-0.5">Conformidade</p>
-          <p className="text-2xl font-bold text-foreground">{conformidadePercentual}%</p>
+          <p className="text-[10px] text-muted-foreground mb-0.5">Total de Efetivo</p>
+          <p className="text-2xl font-bold text-foreground">{checklist.total_efetivo ?? '-'}</p>
         </div>
       </div>
 

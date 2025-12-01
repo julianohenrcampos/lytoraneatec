@@ -70,6 +70,22 @@ export const generateSSOReportPDF = async (
 
     // Temporariamente mostrar o container para captura
     pagesContainer.classList.remove('hidden');
+    pagesContainer.style.position = 'absolute';
+    pagesContainer.style.left = '-9999px';
+    pagesContainer.style.top = '0';
+    pagesContainer.style.display = 'block';
+    
+    // Aguardar carregamento de imagens
+    const images = pagesContainer.querySelectorAll('img');
+    await Promise.all(
+      Array.from(images).map((img) => {
+        if (img.complete) return Promise.resolve();
+        return new Promise((resolve) => {
+          img.onload = resolve;
+          img.onerror = resolve;
+        });
+      })
+    );
     
     const pdf = new jsPDF('p', 'mm', 'a4');
     const pageWidth = 210;
@@ -91,30 +107,45 @@ export const generateSSOReportPDF = async (
         pdf.addPage();
       }
       
-      // Capturar a página atual
+      // Configuração otimizada para captura de alta qualidade - SEM windowWidth/Height
       const canvas = await html2canvas(page, {
-        scale: 2.5,
+        scale: 2,
         useCORS: true,
         allowTaint: true,
         backgroundColor: '#ffffff',
         logging: false,
-        height: page.scrollHeight,
-        width: page.scrollWidth,
-        windowWidth: 980,
-        imageTimeout: 0,
-        removeContainer: false
+        imageTimeout: 15000,
+        removeContainer: false,
+        onclone: (clonedDoc) => {
+          const clonedPage = clonedDoc.body.querySelector('.pdf-page');
+          if (clonedPage) {
+            (clonedPage as HTMLElement).style.transform = 'none';
+            (clonedPage as HTMLElement).style.width = '794px';
+            (clonedPage as HTMLElement).style.minHeight = '1123px';
+            (clonedPage as HTMLElement).style.overflow = 'visible';
+            (clonedPage as HTMLElement).style.boxSizing = 'border-box';
+          }
+        }
       });
 
       const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      const imgWidth = pageWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
       
-      // Adicionar imagem ajustada à página
-      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, Math.min(imgHeight, pageHeight));
+      // Proporção A4: 794px = 210mm, logo 1px ≈ 0.2645mm
+      // Canvas tem scale: 2, então dividir altura por 2 para proporção real
+      const pxToMm = 210 / 794;
+      const realCanvasHeight = canvas.height / 2; // Compensar scale: 2
+      const imgHeight = realCanvasHeight * pxToMm;
+      
+      // Adicionar imagem ajustada à página A4
+      pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, Math.min(imgHeight, pageHeight));
     }
 
-    // Esconder novamente o container
+    // Restaurar o container
     pagesContainer.classList.add('hidden');
+    pagesContainer.style.position = '';
+    pagesContainer.style.left = '';
+    pagesContainer.style.top = '';
+    pagesContainer.style.display = '';
 
     const fileName = `Relatorio_NC_SSO_${obraName.replace(/[^a-zA-Z0-9]/g, '_')}_${dataInspecao.replace(/[^a-zA-Z0-9]/g, '_')}`;
     pdf.save(`${fileName}.pdf`);
@@ -124,6 +155,10 @@ export const generateSSOReportPDF = async (
     const pagesContainer = document.getElementById('sso-pdf-pages');
     if (pagesContainer) {
       pagesContainer.classList.add('hidden');
+      pagesContainer.style.position = '';
+      pagesContainer.style.left = '';
+      pagesContainer.style.top = '';
+      pagesContainer.style.display = '';
     }
     throw error;
   }

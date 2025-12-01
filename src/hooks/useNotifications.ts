@@ -76,6 +76,11 @@ export const useNotifications = () => {
     };
   }, [queryClient, refetchUnread]);
 
+  const refetchNotifications = () => {
+    queryClient.invalidateQueries({ queryKey: ['notifications-unread-count'] });
+    queryClient.invalidateQueries({ queryKey: ['notifications-list'] });
+  };
+
   return {
     unreadCount,
     notifications,
@@ -83,5 +88,6 @@ export const useNotifications = () => {
     markAsRead: markAsReadMutation.mutateAsync,
     markAllAsRead: markAllAsReadMutation.mutateAsync,
     isMarkingAsRead: markAsReadMutation.isPending,
+    refetchNotifications,
   };
 };

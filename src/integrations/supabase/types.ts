@@ -2111,6 +2111,7 @@ export type Database = {
           tecnico_seguranca: string
           total_aplicaveis: number | null
           total_conformes: number | null
+          total_efetivo: number | null
           total_itens: number
           total_na: number | null
         }
@@ -2130,6 +2131,7 @@ export type Database = {
           tecnico_seguranca: string
           total_aplicaveis?: number | null
           total_conformes?: number | null
+          total_efetivo?: number | null
           total_itens?: number
           total_na?: number | null
         }
@@ -2149,6 +2151,7 @@ export type Database = {
           tecnico_seguranca?: string
           total_aplicaveis?: number | null
           total_conformes?: number | null
+          total_efetivo?: number | null
           total_itens?: number
           total_na?: number | null
         }

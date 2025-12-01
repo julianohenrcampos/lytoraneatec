@@ -5,12 +5,24 @@ import { CheckCheck, AlertTriangle, Info, Bell } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { notificationService } from '@/services/notificationService';
+import { toast } from 'sonner';
 
 export const NotificationList = () => {
   const navigate = useNavigate();
-  const { notifications, isLoading, markAsRead, markAllAsRead, unreadCount } = useNotifications();
+  const { notifications, isLoading, markAsRead, markAllAsRead, unreadCount, refetchNotifications } = useNotifications();
 
   const handleNotificationClick = async (notif: any) => {
+    // Verificar se o checklist ainda existe (para notificações SSO)
+    if (notif.tipo === 'sso_critico' && notif.metadata) {
+      const exists = await notificationService.validateAndCleanupNotification(notif.id, notif.metadata);
+      if (!exists) {
+        toast.info('Este checklist foi removido do sistema');
+        refetchNotifications();
+        return;
+      }
+    }
+
     // Marcar como lida
     if (!notif.lida) {
       await markAsRead(notif.user_notification_id);
