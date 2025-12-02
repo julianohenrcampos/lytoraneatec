@@ -1,6 +1,11 @@
 
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { pdf } from '@react-pdf/renderer';
+import { SSOReportDocument } from '@/components/sso/pdf/SSOReportDocument';
+import { SSOChecklist, SSOChecklistItem } from '@/types/sso';
+import { ssoStorageService } from '@/services/sso/ssoStorageService';
+import { createElement } from 'react';
 
 export const generatePDF = async (elementId: string, fileName: string): Promise<void> => {
   try {
@@ -58,108 +63,90 @@ export const generateReportPDF = async (
   await generatePDF('relatorio-medicao-detalhado', fileName);
 };
 
-export const generateSSOReportPDF = async (
-  obraName: string,
-  dataInspecao: string
-): Promise<void> => {
+// Helper para carregar imagem como base64
+const loadImageAsBase64 = async (url: string): Promise<string> => {
   try {
-    const pagesContainer = document.getElementById('sso-pdf-pages');
-    if (!pagesContainer) {
-      throw new Error('Container de páginas não encontrado');
-    }
+    const response = await fetch(url, { mode: 'cors' });
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error('Erro ao carregar imagem:', error);
+    return '';
+  }
+};
 
-    // Temporariamente mostrar o container para captura
-    pagesContainer.classList.remove('hidden');
-    pagesContainer.style.position = 'absolute';
-    pagesContainer.style.left = '-9999px';
-    pagesContainer.style.top = '0';
-    pagesContainer.style.display = 'block';
+// Função para pré-carregar todas as fotos das NCs
+const preloadPhotos = async (
+  naoConformidades: SSOChecklistItem[]
+): Promise<Record<string, string>> => {
+  const photoUrls: Record<string, string> = {};
+  
+  for (const nc of naoConformidades) {
+    if (!nc.fotos || nc.fotos.length === 0) continue;
     
-    // Aguardar carregamento de imagens
-    const images = pagesContainer.querySelectorAll('img');
-    await Promise.all(
-      Array.from(images).map((img) => {
-        if (img.complete) return Promise.resolve();
-        return new Promise((resolve) => {
-          img.onload = resolve;
-          img.onerror = resolve;
-        });
-      })
-    );
-    
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const pageWidth = 210;
-    const pageHeight = 297;
-    
-    // Buscar todas as páginas individuais
-    const pages = pagesContainer.querySelectorAll('.pdf-page');
-    
-    if (pages.length === 0) {
-      throw new Error('Nenhuma página encontrada para gerar PDF');
-    }
-
-    // Capturar cada página individualmente
-    for (let i = 0; i < pages.length; i++) {
-      const page = pages[i] as HTMLElement;
+    for (const foto of nc.fotos) {
+      if (!foto.path) continue;
       
-      // Adicionar nova página (exceto na primeira iteração)
-      if (i > 0) {
-        pdf.addPage();
-      }
-      
-      // Configuração otimizada para captura de alta qualidade - SEM windowWidth/Height
-      const canvas = await html2canvas(page, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        imageTimeout: 15000,
-        removeContainer: false,
-        onclone: (clonedDoc) => {
-          const clonedPage = clonedDoc.body.querySelector('.pdf-page');
-          if (clonedPage) {
-            (clonedPage as HTMLElement).style.transform = 'none';
-            (clonedPage as HTMLElement).style.width = '794px';
-            (clonedPage as HTMLElement).style.minHeight = '1123px';
-            (clonedPage as HTMLElement).style.overflow = 'visible';
-            (clonedPage as HTMLElement).style.boxSizing = 'border-box';
+      try {
+        // Obter URL válida
+        let url = foto.url;
+        
+        // Se não tem URL ou é inválida, gerar signed URL
+        if (!url || !url.startsWith('https://')) {
+          url = await ssoStorageService.getSignedUrl(foto.path, 60 * 60);
+        }
+        
+        // Converter para base64 para garantir renderização no PDF
+        if (url) {
+          const base64 = await loadImageAsBase64(url);
+          if (base64) {
+            photoUrls[foto.path] = base64;
           }
         }
-      });
-
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      
-      // Proporção A4: 794px = 210mm, logo 1px ≈ 0.2645mm
-      // Canvas tem scale: 2, então dividir altura por 2 para proporção real
-      const pxToMm = 210 / 794;
-      const realCanvasHeight = canvas.height / 2; // Compensar scale: 2
-      const imgHeight = realCanvasHeight * pxToMm;
-      
-      // Adicionar imagem ajustada à página A4
-      pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, Math.min(imgHeight, pageHeight));
+      } catch (error) {
+        console.error(`Erro ao carregar foto ${foto.path}:`, error);
+      }
     }
+  }
+  
+  return photoUrls;
+};
 
-    // Restaurar o container
-    pagesContainer.classList.add('hidden');
-    pagesContainer.style.position = '';
-    pagesContainer.style.left = '';
-    pagesContainer.style.top = '';
-    pagesContainer.style.display = '';
-
-    const fileName = `Relatorio_NC_SSO_${obraName.replace(/[^a-zA-Z0-9]/g, '_')}_${dataInspecao.replace(/[^a-zA-Z0-9]/g, '_')}`;
-    pdf.save(`${fileName}.pdf`);
+export const generateSSOReportPDF = async (
+  checklist: SSOChecklist,
+  naoConformidades: SSOChecklistItem[],
+  fileName: string
+): Promise<void> => {
+  try {
+    // Pré-carregar todas as fotos como base64
+    const photoUrls = await preloadPhotos(naoConformidades);
+    
+    // Criar o documento React-PDF
+    const doc = createElement(SSOReportDocument, {
+      checklist,
+      naoConformidades,
+      photoUrls
+    });
+    
+    // Gerar o blob do PDF usando pdf() com cast para any para resolver incompatibilidade de tipos
+    const blob = await pdf(doc as any).toBlob();
+    
+    // Fazer download
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${fileName}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   } catch (error) {
     console.error('Erro ao gerar PDF:', error);
-    // Garantir que o container seja escondido mesmo em caso de erro
-    const pagesContainer = document.getElementById('sso-pdf-pages');
-    if (pagesContainer) {
-      pagesContainer.classList.add('hidden');
-      pagesContainer.style.position = '';
-      pagesContainer.style.left = '';
-      pagesContainer.style.top = '';
-      pagesContainer.style.display = '';
-    }
     throw error;
   }
 };

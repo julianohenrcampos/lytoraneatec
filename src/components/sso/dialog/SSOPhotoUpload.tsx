@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { X, Camera, Image as ImageIcon } from 'lucide-react';
 import { SSOFoto } from '@/types/sso';
 import { toast } from 'sonner';
+import { ssoStorageService } from '@/services/sso';
 
 const MAX_FILE_SIZE_MB = 15;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -22,9 +23,45 @@ export const SSOPhotoUpload = ({ itemId, fotos, onChange, onFilesChange, cameraO
   );
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
-  // Sincronizar previews quando fotos prop mudar (ex: ao carregar dados de edição)
+  // Gerar URLs assinadas para fotos existentes quando necessário
   useEffect(() => {
-    setPreviews(fotos.map(f => f.url || f.path));
+    let isCancelled = false;
+    
+    const loadPreviews = async () => {
+      const loadedPreviews: string[] = [];
+      
+      for (const foto of fotos) {
+        if (isCancelled) return;
+        
+        // Se tem URL válida do Storage (https)
+        if (foto.url && foto.url.startsWith('https://')) {
+          loadedPreviews.push(foto.url);
+        }
+        // Se só tem path válido, gerar URL assinada
+        else if (foto.path && foto.path.includes('/')) {
+          try {
+            const signedUrl = await ssoStorageService.getSignedUrl(foto.path);
+            loadedPreviews.push(signedUrl);
+          } catch (error) {
+            console.error('Erro ao gerar URL assinada:', error);
+          }
+        }
+      }
+      
+      if (!isCancelled) {
+        setPreviews(loadedPreviews);
+      }
+    };
+    
+    if (fotos && fotos.length > 0) {
+      loadPreviews();
+    } else {
+      setPreviews([]);
+    }
+    
+    return () => {
+      isCancelled = true;
+    };
   }, [fotos]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -53,65 +90,60 @@ export const SSOPhotoUpload = ({ itemId, fotos, onChange, onFilesChange, cameraO
       return;
     }
 
-    // Processar arquivos de forma síncrona para evitar race conditions
+    // Processar arquivos apenas para preview local
     let processedCount = 0;
     const newPreviews: string[] = [];
-    const newFotos: SSOFoto[] = [];
 
     validFiles.forEach((file) => {
       const reader = new FileReader();
       reader.onloadend = () => {
         const preview = reader.result as string;
         newPreviews.push(preview);
-        
-        newFotos.push({
-          path: file.name,
-          url: preview,
-          created_at: new Date().toISOString(),
-        });
-
         processedCount++;
 
         // Quando todos os arquivos forem processados, atualizar estado
         if (processedCount === validFiles.length) {
-          // Usar functional updates para evitar stale state
+          // Adicionar apenas aos previews locais
+          setPreviews(prev => [...prev, ...newPreviews]);
+          
+          // Atualizar selectedFiles para upload posterior
           setSelectedFiles(prev => {
             const updated = [...prev, ...validFiles];
-            // Chamar callback com os arquivos atualizados
+            // Notificar parent component sobre novos arquivos
             if (onFilesChange) {
               onFilesChange(updated);
             }
             return updated;
           });
-          
-          setPreviews(prev => [...prev, ...newPreviews]);
-          
-          // Usar fotos atual do prop para evitar stale closure
-          onChange([...fotos, ...newFotos]);
         }
       };
       reader.readAsDataURL(file);
     });
 
     e.target.value = '';
-  }, [fotos, onChange, onFilesChange]);
+  }, [onFilesChange]);
 
   const handleRemove = useCallback((index: number) => {
-    const newPreviews = previews.filter((_, i) => i !== index);
-    const newFotos = fotos.filter((_, i) => i !== index);
+    const numFotosExistentes = fotos.length;
     
-    // Usar functional update para selectedFiles
-    setSelectedFiles(prev => {
-      const newFiles = prev.filter((_, i) => i !== index);
-      if (onFilesChange) {
-        onFilesChange(newFiles);
-      }
-      return newFiles;
-    });
-    
-    setPreviews(newPreviews);
-    onChange(newFotos);
-  }, [previews, fotos, onChange, onFilesChange]);
+    // Se for uma foto existente (do Storage)
+    if (index < numFotosExistentes) {
+      const newFotos = fotos.filter((_, i) => i !== index);
+      onChange(newFotos);
+      setPreviews(prev => prev.filter((_, i) => i !== index));
+    } else {
+      // Se for uma foto nova (ainda não enviada), remover dos selectedFiles
+      const fileIndex = index - numFotosExistentes;
+      setSelectedFiles(prev => {
+        const newFiles = prev.filter((_, i) => i !== fileIndex);
+        if (onFilesChange) {
+          onFilesChange(newFiles);
+        }
+        return newFiles;
+      });
+      setPreviews(prev => prev.filter((_, i) => i !== index));
+    }
+  }, [fotos, onChange, onFilesChange]);
 
   return (
     <div className="space-y-2">

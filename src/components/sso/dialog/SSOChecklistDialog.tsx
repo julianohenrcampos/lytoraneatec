@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { ssoItemService, ssoStorageService } from '@/services/sso';
 import { useAuthPermissions } from '@/hooks/useAuthPermissions';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface SSOChecklistDialogProps {
   open: boolean;
@@ -28,6 +29,7 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
   const isEdit = !!checklistId;
   const { checklist, createChecklist, updateChecklist, isCreating, isUpdating } = useSSOChecklist(checklistId);
   const { isSuperAdmin, userRole } = useAuthPermissions();
+  const isMobile = useIsMobile();
   
   // Determinar se é TecSSO (só pode usar câmera, sem galeria)
   const isTecSSO = userRole === 'TecSSO' && !isSuperAdmin;
@@ -199,19 +201,30 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
         // 2. Atualizar cada item individualmente com suas fotos
         for (const item of itens) {
           const files = itemFilesRef.current.get(item.id) || [];
-          let updatedFotos = item.fotos || [];
+          
+          // Filtrar fotos existentes válidas (proteção robusta contra perda de dados)
+          const fotosExistentes = (item.fotos || []).filter(f => {
+            // Deve ter path válido do Storage (formato: checklistId/filename.ext)
+            const hasValidPath = f.path && typeof f.path === 'string' && f.path.includes('/');
+            // URL não pode ser base64 nem vazia (apenas URLs do Storage ou vazias)
+            const hasValidUrl = !f.url || (typeof f.url === 'string' && !f.url.startsWith('data:'));
+            return hasValidPath && hasValidUrl;
+          });
+          
+          let updatedFotos = [...fotosExistentes]; // Copiar array para evitar mutação
           
           // Upload de novas fotos, se houver
           if (files.length > 0) {
             const uploads = await ssoStorageService.uploadMultiple(checklistId, files);
             const novasFotos = uploads.map(upload => ({
-              ...upload,
+              path: upload.path,
+              url: upload.url,
               created_at: new Date().toISOString(),
             }));
             updatedFotos = [...updatedFotos, ...novasFotos];
           }
           
-          // Atualizar item no banco
+          // Atualizar item no banco com fotos válidas do Storage
           await ssoItemService.update(item.id, {
             avaliacao: item.avaliacao,
             evidencia: item.evidencia,
@@ -237,6 +250,13 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
   };
 
   const isLoading = isCreating || isUpdating;
+  
+  // Verificar se o último item (questão 36) foi respondido para mostrar botões no mobile
+  const ultimoItem = itens[itens.length - 1];
+  const ultimoItemRespondido = ultimoItem?.avaliacao && ultimoItem.avaliacao !== undefined;
+  
+  // Mostrar botões se: NÃO for mobile OU estiver na aba "dados" OU a questão 36 foi respondida
+  const showFooterButtons = !isMobile || activeTab === 'dados' || ultimoItemRespondido;
 
   // Mostrar loading enquanto carrega dados no modo edição
   if (isEdit && isLoadingEditData) {
@@ -302,15 +322,24 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
           </TabsContent>
         </Tabs>
 
-        <DialogFooter className="flex-shrink-0 pt-4 border-t">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
-            Cancelar
-          </Button>
-          <Button onClick={handleSave} disabled={isLoading}>
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isEdit ? 'Atualizar' : 'Salvar'}
-          </Button>
-        </DialogFooter>
+        {/* Indicador para mobile quando botões estão escondidos */}
+        {isMobile && activeTab === 'checklist' && !ultimoItemRespondido && (
+          <div className="flex-shrink-0 text-sm text-muted-foreground bg-muted/50 rounded-md p-3 text-center">
+            📝 Responda a questão 36 para habilitar os botões de Salvar
+          </div>
+        )}
+
+        {showFooterButtons && (
+          <DialogFooter className="flex-shrink-0 pt-4 border-t">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSave} disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isEdit ? 'Atualizar' : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
