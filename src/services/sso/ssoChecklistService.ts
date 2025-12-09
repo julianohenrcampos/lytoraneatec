@@ -92,12 +92,34 @@ export const ssoChecklistService = {
 
   // Deletar checklist
   async delete(id: string) {
+    // Verificar se o checklist existe antes
+    const { data: existing, error: checkError } = await supabase
+      .from('bd_sso_checklists')
+      .select('id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (checkError) throw checkError;
+    if (!existing) throw new Error('Checklist não encontrado');
+
+    // Executar exclusão
     const { error } = await supabase
       .from('bd_sso_checklists')
       .delete()
       .eq('id', id);
 
     if (error) throw error;
+
+    // Verificar se foi realmente excluído (RLS pode bloquear silenciosamente)
+    const { data: stillExists } = await supabase
+      .from('bd_sso_checklists')
+      .select('id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (stillExists) {
+      throw new Error('Você não tem permissão para excluir este checklist');
+    }
   },
 
   // Recalcular nota do checklist

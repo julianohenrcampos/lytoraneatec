@@ -16,7 +16,8 @@ const SSOChecklistList = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const {
     isSuperAdmin,
-    userRole
+    userRole,
+    userId
   } = useAuthPermissions();
   const [filters, setFilters] = useState<FilterType>({});
   const {
@@ -25,8 +26,9 @@ const SSOChecklistList = () => {
     deleteChecklist
   } = useSSOChecklist(undefined, filters);
 
-  // Verificar se usuário pode editar (SuperAdm ou AdmSSO)
-  const canEdit = isSuperAdmin || userRole === 'AdmSSO';
+  // SuperAdm e AdmSSO podem editar/excluir todos os checklists
+  const canEditAll = isSuperAdmin || userRole === 'AdmSSO';
+  const canDeleteAll = isSuperAdmin || userRole === 'AdmSSO';
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [selectedChecklistId, setSelectedChecklistId] = useState<string | undefined>();
@@ -105,7 +107,7 @@ const SSOChecklistList = () => {
         {/* Tabela */}
         {isLoading ? <div className="text-center py-12">
             <p className="text-muted-foreground">Carregando checklists...</p>
-          </div> : <SSOChecklistTable checklists={checklists} onView={handleView} onEdit={handleEdit} onDelete={handleDeleteClick} canEdit={canEdit} />}
+          </div> : <SSOChecklistTable checklists={checklists} onView={handleView} onEdit={handleEdit} onDelete={handleDeleteClick} canEditAll={canEditAll} canDeleteAll={canDeleteAll} currentUserId={userId} />}
 
         {/* Dialog de Visualização - Apenas Não Conformidades */}
         <SSOChecklistViewDialog open={viewDialogOpen} onOpenChange={setViewDialogOpen} checklistId={selectedChecklistId} />
