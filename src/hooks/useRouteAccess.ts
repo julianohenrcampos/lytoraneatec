@@ -3,8 +3,8 @@ import { useAuthPermissions } from './useAuthPermissions';
 
 // Mapeamento de rotas para permissões necessárias - CORRIGIDO
 const ROUTE_PERMISSIONS: Record<string, string[]> = {
-  // Dashboard
-  '/dashboard': ['dashboard_view'],
+  // Portal (página inicial)
+  '/': ['dashboard_view'],
   '/dashboard-rh': ['dashboard_rh_view'],
   '/dashboard-maquinas': ['dashboard_maquinas_view'],
   '/dashboard-cbuq': ['dashboard_cbuq_view'],

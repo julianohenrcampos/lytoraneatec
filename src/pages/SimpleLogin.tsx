@@ -41,7 +41,7 @@ const SimpleLogin: React.FC = () => {
         const { data } = await supabase.auth.getSession();
         if (data.session) {
           console.log('🔐 [SimpleLogin] Sessão ativa detectada, redirecionando...');
-          navigate("/dashboard", { replace: true });
+          navigate("/", { replace: true });
           return;
         }
         console.log('🔐 [SimpleLogin] Nenhuma sessão ativa');
@@ -140,10 +140,10 @@ const SimpleLogin: React.FC = () => {
       
       toast({
         title: "Login realizado com sucesso ✅",
-        description: "Redirecionando para o dashboard...",
+        description: "Redirecionando para o portal...",
       });
       
-      navigate("/dashboard", { replace: true });
+      navigate("/", { replace: true });
       
     } catch (error: any) {
       console.error(`❌ [SimpleLogin] Exceção no login para ${data.email}:`, error);

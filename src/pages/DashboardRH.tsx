@@ -155,9 +155,9 @@ export default function DashboardRH() {
             <p className="text-lg text-muted-foreground">Você não tem permissão para acessar esta página.</p>
             <button 
               className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 transition-colors"
-              onClick={() => navigate("/dashboard")}
+              onClick={() => navigate("/")}
             >
-              Voltar para Dashboard
+              Voltar para Portal
             </button>
           </div>
         </ResponsiveContainer>

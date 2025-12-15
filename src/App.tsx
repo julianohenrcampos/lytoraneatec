@@ -11,7 +11,7 @@ import SimplePermissionGuard from "@/components/routing/SimplePermissionGuard";
 
 // Pages
 import SimpleLogin from "@/pages/SimpleLogin";
-import Dashboard from "@/pages/Dashboard";
+import Portal from "@/pages/Portal";
 import WaitingApproval from "@/pages/WaitingApproval";
 import Register from "@/pages/Register";
 import ForgotPassword from "@/pages/ForgotPassword";
@@ -87,17 +87,12 @@ const App = () => {
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/waiting-approval" element={<WaitingApproval />} />
                 
-                {/* Redirect root to dashboard */}
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                
-                {/* Rotas protegidas - Dashboards */}
-            <Route path="/dashboard" element={
-              <SimpleAuthGuard>
-                <SimplePermissionGuard>
-                  <Dashboard />
-                </SimplePermissionGuard>
-              </SimpleAuthGuard>
-            } />
+                {/* Portal - Página inicial */}
+                <Route path="/" element={
+                  <SimpleAuthGuard>
+                    <Portal />
+                  </SimpleAuthGuard>
+                } />
             
             <Route path="/dashboard-rh" element={
               <SimpleAuthGuard>

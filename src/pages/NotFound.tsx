@@ -28,7 +28,7 @@ const NotFound = () => {
           clearInterval(timer);
           // Redirecionar baseado no estado de autenticação
           if (userId) {
-            navigate("/dashboard", { replace: true });
+            navigate("/", { replace: true });
           } else {
             navigate("/login", { replace: true });
           }
@@ -47,7 +47,7 @@ const NotFound = () => {
 
   const handleGoHome = () => {
     if (userId) {
-      navigate("/dashboard", { replace: true });
+      navigate("/", { replace: true });
     } else {
       navigate("/login", { replace: true });
     }
@@ -65,7 +65,7 @@ const NotFound = () => {
     );
   }
 
-  const redirectTarget = userId ? "Dashboard" : "Login";
+  const redirectTarget = userId ? "Início" : "Login";
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">

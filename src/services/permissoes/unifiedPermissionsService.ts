@@ -62,7 +62,7 @@ export class UnifiedPermissionsService {
           userId,
           userRole: 'user',
           permissions: ['dashboard_view'],
-          permissionRoutes: ['/dashboard'],
+        permissionRoutes: ['/'],
           isLoading: false,
           isSuperAdmin: false,
           functionName: 'user'
@@ -73,7 +73,7 @@ export class UnifiedPermissionsService {
       const isSuperAdmin = funcaoPermissao.nome_funcao === 'SuperAdm';
       
       let permissions: string[] = ['dashboard_view'];
-      let permissionRoutes: string[] = ['/dashboard'];
+      let permissionRoutes: string[] = ['/'];
 
       if (isSuperAdmin) {
         // SuperAdmin tem todas as permissões
@@ -105,8 +105,8 @@ export class UnifiedPermissionsService {
           'admin_permissoes_view',
           'relatorio_aplicacao_view'
         ];
-        permissionRoutes = [
-          '/dashboard',
+      permissionRoutes = [
+          '/',
           '/admin/empresas',
           '/admin/departamentos',
           '/admin/centros-custo',
@@ -143,7 +143,7 @@ export class UnifiedPermissionsService {
               ...permissoesList.map(p => p.nome_permissao)
             ];
             permissionRoutes = [
-              '/dashboard',
+              '/',
               ...permissoesList.filter(p => p.rota).map(p => p.rota!)
             ];
           }
@@ -179,7 +179,7 @@ export class UnifiedPermissionsService {
         userId,
         userRole: 'user',
         permissions: ['dashboard_view'],
-        permissionRoutes: ['/dashboard'],
+        permissionRoutes: ['/'],
         isLoading: false,
         isSuperAdmin: false,
         functionName: 'user'

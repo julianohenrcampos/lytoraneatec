@@ -22,7 +22,7 @@ export const usePermissionGuard = ({
   requiredPermission,
   requiredPermissions = [],
   requireAny = true,
-  redirectTo = '/dashboard',
+  redirectTo = '/',
   showToast = true
 }: PermissionGuardOptions) => {
   const { isSuperAdmin, permissions, isLoading, userId, userRole, userEmail } = useAuthPermissions();

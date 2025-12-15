@@ -37,8 +37,8 @@ const Login: React.FC = () => {
     const checkSession = async () => {
       const { data } = await supabase.auth.getSession();
       if (data.session) {
-        console.log('🔐 Sessão ativa detectada, redirecionando para dashboard');
-        navigate("/dashboard");
+        console.log('🔐 Sessão ativa detectada, redirecionando para portal');
+        navigate("/");
       }
       setAuthChecked(true);
     };
@@ -125,13 +125,13 @@ const Login: React.FC = () => {
       
       toast({
         title: "Login realizado com sucesso ✅",
-        description: "Redirecionando para o dashboard...",
+        description: "Redirecionando para o portal...",
       });
       
       // Redirecionamento otimizado
       setTimeout(() => {
-        console.log('🎯 Redirecionando para dashboard...');
-        navigate("/dashboard", { replace: true });
+        console.log('🎯 Redirecionando para portal...');
+        navigate("/", { replace: true });
         
         // Forçar reload para garantir estado limpo
         setTimeout(() => {

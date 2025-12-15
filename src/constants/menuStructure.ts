@@ -22,12 +22,6 @@ export const menuStructure = [
     title: "Dashboard",
     items: [
       {
-        name: "Dashboard Geral",
-        href: "/dashboard",
-        icon: Home,
-        // Sem permissão requerida - todos podem acessar
-      },
-      {
         name: "Dashboard RH",
         href: "/dashboard-rh",
         icon: BarChart3,
