@@ -4,15 +4,17 @@ import { Eye, Edit, Trash2 } from 'lucide-react';
 import { SSOChecklist } from '@/types/sso';
 import { ssoCalculations } from '@/utils/sso/ssoCalculations';
 import { formatBrazilianDateForDisplay } from '@/utils/timezoneUtils';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { SSOChecklistMobileCards } from './SSOChecklistMobileCards';
 
 interface SSOChecklistTableProps {
   checklists: SSOChecklist[];
   onView: (checklist: SSOChecklist) => void;
   onEdit: (checklist: SSOChecklist) => void;
   onDelete: (checklist: SSOChecklist) => void;
-  canEditAll?: boolean;    // SuperAdm/AdmSSO podem editar todos
-  canDeleteAll?: boolean;  // SuperAdm/AdmSSO podem excluir todos
-  currentUserId?: string;  // ID do usuário logado para verificar propriedade
+  canEditAll?: boolean;
+  canDeleteAll?: boolean;
+  currentUserId?: string;
 }
 
 export const SSOChecklistTable = ({ 
@@ -24,11 +26,27 @@ export const SSOChecklistTable = ({
   canDeleteAll = false,
   currentUserId
 }: SSOChecklistTableProps) => {
+  const isMobile = useIsMobile();
+
   if (checklists.length === 0) {
     return (
       <Card className="p-12 text-center">
         <p className="text-muted-foreground">Nenhum checklist encontrado</p>
       </Card>
+    );
+  }
+
+  if (isMobile) {
+    return (
+      <SSOChecklistMobileCards
+        checklists={checklists}
+        onView={onView}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        canEditAll={canEditAll}
+        canDeleteAll={canDeleteAll}
+        currentUserId={currentUserId}
+      />
     );
   }
 

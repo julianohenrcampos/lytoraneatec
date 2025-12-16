@@ -64,6 +64,22 @@ export const SSOPhotoUpload = ({ itemId, fotos, onChange, onFilesChange, cameraO
     };
   }, [fotos]);
 
+  // Salvar estado antes de abrir câmera para recuperar depois
+  const saveStateBeforeCamera = useCallback(() => {
+    try {
+      const stateToSave = {
+        itemId,
+        timestamp: Date.now(),
+        numPreviews: previews.length,
+        numFiles: selectedFiles.length
+      };
+      sessionStorage.setItem('sso-photo-state', JSON.stringify(stateToSave));
+      console.log('📸 [SSOPhotoUpload] Estado salvo antes de abrir câmera:', stateToSave);
+    } catch (error) {
+      console.error('❌ [SSOPhotoUpload] Erro ao salvar estado:', error);
+    }
+  }, [itemId, previews.length, selectedFiles.length]);
+
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -167,7 +183,10 @@ export const SSOPhotoUpload = ({ itemId, fotos, onChange, onFilesChange, cameraO
           </div>
         ))}
 
-        <label className="w-20 h-20 border-2 border-dashed rounded flex flex-col items-center justify-center cursor-pointer hover:bg-blue-50 transition-colors border-blue-300 bg-blue-50/50">
+        <label 
+          className="w-20 h-20 border-2 border-dashed rounded flex flex-col items-center justify-center cursor-pointer hover:bg-blue-50 transition-colors border-blue-300 bg-blue-50/50"
+          onClick={saveStateBeforeCamera}
+        >
           <Camera className="h-5 w-5 text-blue-500 mb-1" />
           <span className="text-xs text-blue-600 text-center leading-tight">Tirar Foto</span>
           <Input
