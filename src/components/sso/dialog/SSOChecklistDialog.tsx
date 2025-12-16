@@ -49,6 +49,9 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
   // Usar useRef para manter arquivos persistentes entre re-renders
   const itemFilesRef = useRef<Map<string, File[]>>(new Map());
   const [isLoadingEditData, setIsLoadingEditData] = useState(false);
+  
+  // Estado para controlar se o scroll chegou ao final (mobile)
+  const [isScrollAtEnd, setIsScrollAtEnd] = useState(false);
 
   // Auto-preencher Técnico de Segurança com usuário logado
   useEffect(() => {
@@ -251,12 +254,13 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
 
   const isLoading = isCreating || isUpdating;
   
-  // Verificar se o último item (questão 36) foi respondido para mostrar botões no mobile
-  const ultimoItem = itens[itens.length - 1];
-  const ultimoItemRespondido = ultimoItem?.avaliacao && ultimoItem.avaliacao !== undefined;
+  // Callback para quando o scroll muda
+  const handleScrollEnd = useCallback((isAtEnd: boolean) => {
+    setIsScrollAtEnd(isAtEnd);
+  }, []);
   
-  // Mostrar botões se: NÃO for mobile OU estiver na aba "dados" OU a questão 36 foi respondida
-  const showFooterButtons = !isMobile || activeTab === 'dados' || ultimoItemRespondido;
+  // Mostrar botões se: NÃO for mobile OU estiver na aba "dados" OU scroll chegou ao final
+  const showFooterButtons = !isMobile || activeTab === 'dados' || isScrollAtEnd;
 
   // Mostrar loading enquanto carrega dados no modo edição
   if (isEdit && isLoadingEditData) {
@@ -313,6 +317,7 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
                 onChange={handleItemChange}
                 onFilesChange={handleItemFilesChange}
                 cameraOnly={isTecSSO}
+                onScrollEnd={handleScrollEnd}
               />
             ) : (
               <div className="flex items-center justify-center py-12">
@@ -323,9 +328,9 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
         </Tabs>
 
         {/* Indicador para mobile quando botões estão escondidos */}
-        {isMobile && activeTab === 'checklist' && !ultimoItemRespondido && (
-          <div className="flex-shrink-0 text-sm text-muted-foreground bg-muted/50 rounded-md p-3 text-center">
-            📝 Responda a questão 36 para habilitar os botões de Salvar
+        {isMobile && activeTab === 'checklist' && !isScrollAtEnd && (
+          <div className="flex-shrink-0 text-xs text-muted-foreground bg-muted/50 rounded-md p-2 text-center">
+            ⬇️ Role até o final para ver os botões de Salvar
           </div>
         )}
 

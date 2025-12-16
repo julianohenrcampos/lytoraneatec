@@ -3,16 +3,19 @@ import { SSOChecklistItem as SSOChecklistItemType } from '@/types/sso';
 import { SSOChecklistItem } from './SSOChecklistItem';
 import { SSOChecklistStats } from './SSOChecklistStats';
 import { ssoCalculations } from '@/utils/sso/ssoCalculations';
-import { useMemo } from 'react';
+import { useMemo, useCallback, useRef } from 'react';
 
 interface SSOChecklistFormItemsProps {
   itens: SSOChecklistItemType[];
   onChange: (itemId: string, field: keyof SSOChecklistItemType, value: any) => void;
   onFilesChange?: (itemId: string, files: File[]) => void;
   cameraOnly?: boolean;
+  onScrollEnd?: (isAtEnd: boolean) => void;
 }
 
-export const SSOChecklistFormItems = ({ itens, onChange, onFilesChange, cameraOnly = false }: SSOChecklistFormItemsProps) => {
+export const SSOChecklistFormItems = ({ itens, onChange, onFilesChange, cameraOnly = false, onScrollEnd }: SSOChecklistFormItemsProps) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  
   // Calcular estatísticas em tempo real
   const stats = useMemo(() => {
     return ssoCalculations.calcularNota(itens);
@@ -30,6 +33,20 @@ export const SSOChecklistFormItems = ({ itens, onChange, onFilesChange, cameraOn
     return grupos;
   }, [itens]);
 
+  // Handler para verificar se scroll chegou ao final
+  const handleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
+    if (!onScrollEnd) return;
+    
+    const target = event.currentTarget;
+    const scrollTop = target.scrollTop;
+    const scrollHeight = target.scrollHeight;
+    const clientHeight = target.clientHeight;
+    
+    // Considera "no final" se estiver a menos de 100px do final
+    const isAtEnd = scrollTop + clientHeight >= scrollHeight - 100;
+    onScrollEnd(isAtEnd);
+  }, [onScrollEnd]);
+
   return (
     <div className="space-y-4">
       <SSOChecklistStats
@@ -40,7 +57,11 @@ export const SSOChecklistFormItems = ({ itens, onChange, onFilesChange, cameraOn
         total_na={stats.total_na}
       />
 
-      <ScrollArea className="h-[300px] sm:h-[400px] md:h-[500px] pr-4">
+      <div 
+        ref={scrollRef}
+        className="h-[300px] sm:h-[400px] md:h-[500px] overflow-y-auto pr-2"
+        onScroll={handleScroll}
+      >
         <div className="space-y-6 pb-24">
           {Object.entries(itensPorTema).map(([tema, itensDoTema]) => (
             <div key={tema}>
@@ -62,7 +83,7 @@ export const SSOChecklistFormItems = ({ itens, onChange, onFilesChange, cameraOn
             </div>
           ))}
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 };
