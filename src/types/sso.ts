@@ -2,6 +2,7 @@
 
 export type AvaliacaoTipo = 'Conforme' | 'Não Conforme' | 'NA';
 export type ResultadoAvaliacao = 'Crítico' | 'Em Atenção' | 'Satisfatório' | 'Excelente';
+export type EtapaVistoria = '1ª Etapa' | '2ª Etapa' | '3ª Etapa' | '4ª Etapa';
 
 export interface SSOItemModelo {
   id: string;
@@ -39,6 +40,7 @@ export interface SSOChecklist {
   engenheiro_obra: string;
   tecnico_seguranca: string;
   data_inspecao: string;
+  etapa_vistoria: EtapaVistoria;
   nota_objetivo: number;
   nota_real?: number;
   resultado_avaliacao?: ResultadoAvaliacao;
@@ -72,6 +74,7 @@ export interface SSOChecklistFormData {
   engenheiro_obra: string;
   tecnico_seguranca: string;
   data_inspecao: string;
+  etapa_vistoria: EtapaVistoria;
   total_efetivo?: number;
   observacoes_gerais?: string;
 }
@@ -81,8 +84,10 @@ export interface SSOChecklistFilters {
   data_inspecao?: string;
   data_inicio?: string;
   data_fim?: string;
+  etapa_vistoria?: EtapaVistoria;
   resultado_avaliacao?: ResultadoAvaliacao;
   criado_por?: string;
+  tecnico_seguranca?: string;
 }
 
 export interface SSODashboardData {

@@ -7,9 +7,9 @@ export const ssoDashboardService = {
    */
   async getDashboardData(filters?: {
     obra_id?: string;
-    data_inicio?: string;
-    data_fim?: string;
+    data_inspecao?: string;
     resultado_avaliacao?: string;
+    tecnico_seguranca?: string;
   }): Promise<SSODashboardData> {
     let query = supabase
       .from('bd_sso_checklists')
@@ -22,14 +22,14 @@ export const ssoDashboardService = {
     if (filters?.obra_id) {
       query = query.eq('obra_id', filters.obra_id);
     }
-    if (filters?.data_inicio) {
-      query = query.gte('data_inspecao', filters.data_inicio);
-    }
-    if (filters?.data_fim) {
-      query = query.lte('data_inspecao', filters.data_fim);
+    if (filters?.data_inspecao) {
+      query = query.eq('data_inspecao', filters.data_inspecao);
     }
     if (filters?.resultado_avaliacao) {
       query = query.eq('resultado_avaliacao', filters.resultado_avaliacao);
+    }
+    if (filters?.tecnico_seguranca) {
+      query = query.ilike('tecnico_seguranca', `%${filters.tecnico_seguranca}%`);
     }
 
     const { data: checklists, error } = await query;

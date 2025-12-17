@@ -58,6 +58,7 @@ export const SSOChecklistTable = ({
             <tr>
               <th className="px-4 py-3 text-left text-sm font-semibold">Data</th>
               <th className="px-4 py-3 text-left text-sm font-semibold">Obra</th>
+              <th className="px-4 py-3 text-center text-sm font-semibold">Etapa</th>
               <th className="px-4 py-3 text-left text-sm font-semibold">Téc. Segurança</th>
               <th className="px-4 py-3 text-center text-sm font-semibold">Nota Real</th>
               <th className="px-4 py-3 text-center text-sm font-semibold">Resultado</th>
@@ -78,6 +79,11 @@ export const SSOChecklistTable = ({
                   </td>
                   <td className="px-4 py-3 text-sm">
                     {checklist.bd_centros_custo?.nome_centro_custo || '-'}
+                  </td>
+                  <td className="px-4 py-3 text-center text-sm">
+                    <span className="inline-block px-2 py-1 text-xs font-medium rounded bg-muted">
+                      {checklist.etapa_vistoria || '-'}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-sm">
                     {checklist.tecnico_seguranca || '-'}

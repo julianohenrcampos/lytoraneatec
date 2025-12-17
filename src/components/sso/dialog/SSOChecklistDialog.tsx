@@ -41,6 +41,7 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
     engenheiro_obra: '',
     tecnico_seguranca: '',
     data_inspecao: new Date().toISOString().split('T')[0],
+    etapa_vistoria: '1ª Etapa',
     total_efetivo: undefined,
     observacoes_gerais: '',
   });
@@ -116,6 +117,7 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
         engenheiro_obra: '',
         tecnico_seguranca: '',
         data_inspecao: new Date().toISOString().split('T')[0],
+        etapa_vistoria: '1ª Etapa',
         total_efetivo: undefined,
         observacoes_gerais: '',
       });
@@ -139,6 +141,7 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
         engenheiro_obra: checklist.engenheiro_obra,
         tecnico_seguranca: checklist.tecnico_seguranca,
         data_inspecao: checklist.data_inspecao,
+        etapa_vistoria: checklist.etapa_vistoria || '1ª Etapa',
         total_efetivo: checklist.total_efetivo,
         observacoes_gerais: checklist.observacoes_gerais || '',
       });
@@ -307,6 +310,7 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
             <SSOChecklistFormHeader
               formData={formData}
               onChange={handleFormChange}
+              checklistId={checklistId}
             />
           </TabsContent>
 

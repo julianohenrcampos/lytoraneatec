@@ -1,15 +1,18 @@
-import { useMemo, useRef, useEffect } from 'react';
+import { useMemo, useRef, useEffect, useState } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Combobox, ComboboxOption } from '@/components/ui/combobox';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { EtapaVistoria } from '@/types/sso';
 
 interface SSOChecklistFormHeaderProps {
   formData: {
     data_inspecao: string;
     obra_id: string;
+    etapa_vistoria: EtapaVistoria;
     gerente_regional: string;
     engenheiro_obra: string;
     tecnico_seguranca: string;
@@ -17,10 +20,14 @@ interface SSOChecklistFormHeaderProps {
     observacoes_gerais?: string;
   };
   onChange: (field: string, value: string) => void;
+  checklistId?: string; // Para edição, verificar etapas excluindo o próprio checklist
 }
 
-export const SSOChecklistFormHeader = ({ formData, onChange }: SSOChecklistFormHeaderProps) => {
+export const SSOChecklistFormHeader = ({ formData, onChange, checklistId }: SSOChecklistFormHeaderProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [etapasUtilizadas, setEtapasUtilizadas] = useState<string[]>([]);
+
+  const ETAPAS: EtapaVistoria[] = ['1ª Etapa', '2ª Etapa', '3ª Etapa', '4ª Etapa'];
 
   // Auto-resize textarea quando o valor muda
   useEffect(() => {
@@ -55,6 +62,30 @@ export const SSOChecklistFormHeader = ({ formData, onChange }: SSOChecklistFormH
     }
   });
 
+  // Buscar etapas já utilizadas quando obra mudar
+  useEffect(() => {
+    const fetchEtapasUtilizadas = async () => {
+      if (!formData.obra_id) {
+        setEtapasUtilizadas([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .rpc('get_etapas_utilizadas', { 
+          p_obra_id: formData.obra_id,
+          p_checklist_id: checklistId || null 
+        });
+
+      if (!error && data) {
+        setEtapasUtilizadas(data);
+      } else {
+        setEtapasUtilizadas([]);
+      }
+    };
+
+    fetchEtapasUtilizadas();
+  }, [formData.obra_id, checklistId]);
+
   // Formatar obras para o Combobox
   const obrasOptions: ComboboxOption[] = useMemo(() => {
     if (!obras) return [];
@@ -82,7 +113,7 @@ export const SSOChecklistFormHeader = ({ formData, onChange }: SSOChecklistFormH
         </div>
 
         <div>
-          <Label htmlFor="obra_id">Obra (L) / Gerente Regional *</Label>
+          <Label htmlFor="obra_id">Obra *</Label>
           <Combobox
             options={obrasOptions}
             value={formData.obra_id}
@@ -92,6 +123,39 @@ export const SSOChecklistFormHeader = ({ formData, onChange }: SSOChecklistFormH
             emptyText="Nenhuma obra encontrada"
             disabled={!obras || obras.length === 0}
           />
+        </div>
+
+        <div>
+          <Label htmlFor="etapa_vistoria">Etapa da Vistoria *</Label>
+          <Select
+            value={formData.etapa_vistoria}
+            onValueChange={(value) => onChange('etapa_vistoria', value)}
+            disabled={!formData.obra_id}
+          >
+            <SelectTrigger id="etapa_vistoria">
+              <SelectValue placeholder="Selecione a etapa" />
+            </SelectTrigger>
+            <SelectContent className="bg-background">
+              {ETAPAS.map(etapa => {
+                const isDisabled = etapasUtilizadas.includes(etapa);
+                return (
+                  <SelectItem 
+                    key={etapa} 
+                    value={etapa}
+                    disabled={isDisabled}
+                    className={isDisabled ? 'opacity-50' : ''}
+                  >
+                    {etapa} {isDisabled && '(já realizada)'}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+          {formData.obra_id && etapasUtilizadas.length > 0 && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Etapas já realizadas: {etapasUtilizadas.join(', ')}
+            </p>
+          )}
         </div>
 
         <div>

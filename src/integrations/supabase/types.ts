@@ -2101,6 +2101,7 @@ export type Database = {
           criado_por: string
           data_inspecao: string
           engenheiro_obra: string
+          etapa_vistoria: string
           gerente_regional: string
           id: string
           nota_objetivo: number
@@ -2121,6 +2122,7 @@ export type Database = {
           criado_por: string
           data_inspecao: string
           engenheiro_obra: string
+          etapa_vistoria?: string
           gerente_regional: string
           id?: string
           nota_objetivo?: number
@@ -2141,6 +2143,7 @@ export type Database = {
           criado_por?: string
           data_inspecao?: string
           engenheiro_obra?: string
+          etapa_vistoria?: string
           gerente_regional?: string
           id?: string
           nota_objetivo?: number
@@ -2390,6 +2393,7 @@ export type Database = {
         Returns: number
       }
       check_is_super_admin: { Args: { user_id?: string }; Returns: boolean }
+      check_vistorias_sso_pendentes: { Args: never; Returns: undefined }
       compute_funcao_sistema: { Args: { _profile_id: string }; Returns: string }
       convert_chamado_para_os: {
         Args: { p_chamado_id: string; p_tipo_falha?: string }
@@ -2448,6 +2452,10 @@ export type Database = {
           p_registro_carga_id: string
         }
         Returns: string
+      }
+      get_etapas_utilizadas: {
+        Args: { p_checklist_id?: string; p_obra_id: string }
+        Returns: string[]
       }
       get_sso_admin_users: {
         Args: never
@@ -2543,6 +2551,10 @@ export type Database = {
       }
       usuario_acessa_equipe: {
         Args: { p_equipe_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      verificar_etapa_disponivel: {
+        Args: { p_checklist_id?: string; p_etapa: string; p_obra_id: string }
         Returns: boolean
       }
     }

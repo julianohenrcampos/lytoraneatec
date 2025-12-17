@@ -34,8 +34,16 @@ export const ssoChecklistService = {
       query = query.eq('resultado_avaliacao', filters.resultado_avaliacao);
     }
 
+    if (filters.etapa_vistoria) {
+      query = query.eq('etapa_vistoria', filters.etapa_vistoria);
+    }
+
     if (filters.criado_por) {
       query = query.eq('criado_por', filters.criado_por);
+    }
+
+    if (filters.tecnico_seguranca) {
+      query = query.ilike('tecnico_seguranca', `%${filters.tecnico_seguranca}%`);
     }
 
     const { data, error } = await query;

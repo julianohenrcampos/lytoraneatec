@@ -44,11 +44,16 @@ export const SSOChecklistMobileCards = ({
       const canEditThis = canEditAll || checklist.criado_por === currentUserId;
       const canDeleteThis = canDeleteAll;
       return <Card key={checklist.id} className="p-4 space-y-3">
-            {/* Header: Data + Resultado */}
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">
-                {formatBrazilianDateForDisplay(checklist.data_inspecao)}
-              </span>
+            {/* Header: Data + Etapa + Resultado */}
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  {formatBrazilianDateForDisplay(checklist.data_inspecao)}
+                </span>
+                <span className="px-2 py-0.5 text-xs font-medium rounded bg-muted">
+                  {checklist.etapa_vistoria || '-'}
+                </span>
+              </div>
               {checklist.resultado_avaliacao && <span className={`px-2.5 py-1 text-xs font-medium rounded-full border ${ssoCalculations.getResultadoColor(checklist.resultado_avaliacao)}`}>
                   {checklist.resultado_avaliacao}
                 </span>}

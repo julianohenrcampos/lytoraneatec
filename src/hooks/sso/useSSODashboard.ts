@@ -3,9 +3,9 @@ import { ssoDashboardService } from '@/services/sso/ssoDashboardService';
 
 export interface DashboardFilters {
   obra_id?: string;
-  data_inicio?: string;
-  data_fim?: string;
+  data_inspecao?: string;
   resultado_avaliacao?: string;
+  tecnico_seguranca?: string;
 }
 
 export const useSSODashboard = (filters?: DashboardFilters) => {

@@ -3,7 +3,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import { useSSOChecklist } from '@/hooks/sso/useSSOChecklist';
 import { useAuthPermissions } from '@/hooks/useAuthPermissions';
 import { Button } from '@/components/ui/button';
-import { Plus, BarChart3 } from 'lucide-react';
+import { Plus, BarChart3, Download } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { SSOChecklistFilters } from '@/components/sso/list/SSOChecklistFilters';
 import { SSOChecklistTable } from '@/components/sso/list/SSOChecklistTable';
@@ -11,6 +11,10 @@ import { SSOChecklistDialog } from '@/components/sso/dialog/SSOChecklistDialog';
 import { SSOChecklistViewDialog } from '@/components/sso/dialog/SSOChecklistViewDialog';
 import { SSOChecklist, SSOChecklistFilters as FilterType } from '@/types/sso';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { ssoExportService } from '@/services/sso/ssoExportService';
+import { generateSSOExcelFormatted } from '@/lib/ssoExcelExport';
+import { toast } from 'sonner';
+
 const SSOChecklistList = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -26,14 +30,16 @@ const SSOChecklistList = () => {
     deleteChecklist
   } = useSSOChecklist(undefined, filters);
 
-  // SuperAdm e AdmSSO podem editar/excluir todos os checklists
+  // SuperAdm e AdmSSO podem editar/excluir todos os checklists e exportar Excel
   const canEditAll = isSuperAdmin || userRole === 'AdmSSO';
   const canDeleteAll = isSuperAdmin || userRole === 'AdmSSO';
+  const canExportExcel = isSuperAdmin || userRole === 'AdmSSO';
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [selectedChecklistId, setSelectedChecklistId] = useState<string | undefined>();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [checklistToDelete, setChecklistToDelete] = useState<SSOChecklist | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Abrir dialog de visualização automaticamente via query param (notificações)
   useEffect(() => {
@@ -77,6 +83,20 @@ const SSOChecklistList = () => {
       setChecklistToDelete(null);
     }
   };
+
+  const handleExportExcel = async () => {
+    try {
+      setIsExporting(true);
+      const data = await ssoExportService.getExportData();
+      generateSSOExcelFormatted(data);
+      toast.success('Planilha exportada com sucesso!');
+    } catch (error) {
+      console.error('Erro ao exportar:', error);
+      toast.error('Erro ao exportar planilha');
+    } finally {
+      setIsExporting(false);
+    }
+  };
   return <MainLayout>
       <div className="container mx-auto py-6 space-y-6">
         {/* Header */}
@@ -88,7 +108,18 @@ const SSOChecklistList = () => {
             </p>
           </div>
           
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {canExportExcel && (
+              <Button 
+                variant="outline" 
+                onClick={handleExportExcel}
+                disabled={isExporting}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                {isExporting ? 'Exportando...' : 'Exportar Excel'}
+              </Button>
+            )}
+            
             <Button variant="outline" onClick={() => navigate('/sso/checklists/dashboard')}>
               <BarChart3 className="mr-2 h-4 w-4" />
               Dashboard
