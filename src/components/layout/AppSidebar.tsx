@@ -7,6 +7,7 @@ import { menuStructure } from "@/constants/menuStructure"
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -14,6 +15,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+import { APP_VERSION } from "@/lib/version"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const location = useLocation()
@@ -155,6 +157,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
+        <SidebarFooter className="border-t border-sidebar-border mt-auto">
+          <div className="flex items-center justify-center py-2 px-3">
+            <span className="text-xs text-muted-foreground">
+              v{APP_VERSION}
+            </span>
+          </div>
+        </SidebarFooter>
       </SidebarContent>
     </Sidebar>
   )

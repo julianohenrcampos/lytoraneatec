@@ -78,6 +78,7 @@ export interface SSOChecklistFormData {
 
 export interface SSOChecklistFilters {
   obra_id?: string;
+  data_inspecao?: string;
   data_inicio?: string;
   data_fim?: string;
   resultado_avaliacao?: ResultadoAvaliacao;

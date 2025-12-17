@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ssoChecklistService } from '@/services/sso/ssoChecklistService';
 import { ssoItemService } from '@/services/sso/ssoItemService';
@@ -6,14 +5,14 @@ import { ssoStorageService } from '@/services/sso/ssoStorageService';
 import { SSOChecklistFormData, SSOChecklistFilters, SSOChecklistItem } from '@/types/sso';
 import { toast } from 'sonner';
 
-export const useSSOChecklist = (checklistId?: string, initialFilters?: SSOChecklistFilters) => {
+export const useSSOChecklist = (checklistId?: string, filters?: SSOChecklistFilters) => {
   const queryClient = useQueryClient();
-  const [filters, setFilters] = useState<SSOChecklistFilters>(initialFilters || {});
+  const activeFilters = filters || {};
 
   // Query: Listar checklists
   const listQuery = useQuery({
-    queryKey: ['sso-checklists', filters],
-    queryFn: () => ssoChecklistService.list(filters),
+    queryKey: ['sso-checklists', activeFilters],
+    queryFn: () => ssoChecklistService.list(activeFilters),
     enabled: !checklistId
   });
 
@@ -118,10 +117,6 @@ export const useSSOChecklist = (checklistId?: string, initialFilters?: SSOCheckl
     checklist: detailQuery.data,
     isLoading: listQuery.isLoading || detailQuery.isLoading,
     error: listQuery.error || detailQuery.error,
-    
-    // Filters
-    filters,
-    setFilters,
     
     // Mutations
     createChecklist: createMutation.mutateAsync,

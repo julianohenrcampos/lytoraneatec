@@ -16,6 +16,12 @@ export const ssoChecklistService = {
       query = query.eq('obra_id', filters.obra_id);
     }
 
+    // Filtro por data exata
+    if (filters.data_inspecao) {
+      query = query.eq('data_inspecao', filters.data_inspecao);
+    }
+
+    // Filtros de intervalo de data (mantidos para compatibilidade)
     if (filters.data_inicio) {
       query = query.gte('data_inspecao', filters.data_inicio);
     }

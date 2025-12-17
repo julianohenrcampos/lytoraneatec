@@ -16,19 +16,24 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface SSOChecklistFiltersProps {
   onFilterChange: (filters: {
-    data_inicio?: string;
-    data_fim?: string;
+    data_inspecao?: string;
     obra_id?: string;
-    criado_por?: string;
+    resultado_avaliacao?: string;
   }) => void;
   onClearFilters: () => void;
 }
 
+const RESULTADOS = [
+  { value: 'Crítico', label: 'Crítico' },
+  { value: 'Em Atenção', label: 'Em Atenção' },
+  { value: 'Satisfatório', label: 'Satisfatório' },
+  { value: 'Excelente', label: 'Excelente' },
+];
+
 export const SSOChecklistFilters = ({ onFilterChange, onClearFilters }: SSOChecklistFiltersProps) => {
-  const [dataInicio, setDataInicio] = useState('');
-  const [dataFim, setDataFim] = useState('');
+  const [dataInspecao, setDataInspecao] = useState('');
   const [obraId, setObraId] = useState('');
-  const [criadoPor, setCriadoPor] = useState('');
+  const [resultado, setResultado] = useState('');
 
   // Buscar obras
   const { data: obras } = useQuery({
@@ -45,34 +50,18 @@ export const SSOChecklistFilters = ({ onFilterChange, onClearFilters }: SSOCheck
     }
   });
 
-  // Buscar usuários (responsáveis)
-  const { data: usuarios } = useQuery({
-    queryKey: ['profiles-sso'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, nome_completo')
-        .order('nome_completo');
-      
-      if (error) throw error;
-      return data;
-    }
-  });
-
   const handleApplyFilters = () => {
     onFilterChange({
-      data_inicio: dataInicio || undefined,
-      data_fim: dataFim || undefined,
-      obra_id: obraId || undefined,
-      criado_por: criadoPor || undefined,
+      data_inspecao: dataInspecao || undefined,
+      obra_id: obraId && obraId !== 'all' ? obraId : undefined,
+      resultado_avaliacao: resultado && resultado !== 'all' ? resultado : undefined,
     });
   };
 
   const handleClear = () => {
-    setDataInicio('');
-    setDataFim('');
+    setDataInspecao('');
     setObraId('');
-    setCriadoPor('');
+    setResultado('');
     onClearFilters();
   };
 
@@ -83,24 +72,14 @@ export const SSOChecklistFilters = ({ onFilterChange, onClearFilters }: SSOCheck
         <h3 className="font-semibold">Filtros</h3>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <Label htmlFor="data-inicio">Data Início</Label>
+          <Label htmlFor="data-inspecao">Data</Label>
           <Input
-            id="data-inicio"
+            id="data-inspecao"
             type="date"
-            value={dataInicio}
-            onChange={(e) => setDataInicio(e.target.value)}
-          />
-        </div>
-
-        <div>
-          <Label htmlFor="data-fim">Data Fim</Label>
-          <Input
-            id="data-fim"
-            type="date"
-            value={dataFim}
-            onChange={(e) => setDataFim(e.target.value)}
+            value={dataInspecao}
+            onChange={(e) => setDataInspecao(e.target.value)}
           />
         </div>
 
@@ -122,16 +101,16 @@ export const SSOChecklistFilters = ({ onFilterChange, onClearFilters }: SSOCheck
         </div>
 
         <div>
-          <Label htmlFor="responsavel">Responsável</Label>
-          <Select value={criadoPor} onValueChange={setCriadoPor}>
-            <SelectTrigger id="responsavel">
-              <SelectValue placeholder="Todos" />
+          <Label htmlFor="resultado">Resultado</Label>
+          <Select value={resultado} onValueChange={setResultado}>
+            <SelectTrigger id="resultado">
+              <SelectValue placeholder="Todos os resultados" />
             </SelectTrigger>
             <SelectContent className="bg-background">
-              <SelectItem value="all">Todos</SelectItem>
-              {usuarios?.map((usuario) => (
-                <SelectItem key={usuario.id} value={usuario.id}>
-                  {usuario.nome_completo}
+              <SelectItem value="all">Todos os resultados</SelectItem>
+              {RESULTADOS.map((r) => (
+                <SelectItem key={r.value} value={r.value}>
+                  {r.label}
                 </SelectItem>
               ))}
             </SelectContent>
