@@ -1,10 +1,8 @@
-# public/_redirects
+# SPA fallback - must be last rule
+/*    /index.html   200
 
-# Rotas de auth (renderizam a SPA)
-/reset-password   /index.html   200
-/login            /index.html   200
-/register         /index.html   200
-/forgot-password  /index.html   200
-
-# SPA fallback - manter por último
-/*                /index.html   200
+# Specific auth routes that should preserve fragments
+/reset-password    /index.html   200
+/login             /index.html   200
+/register          /index.html   200
+/forgot-password   /index.html   200

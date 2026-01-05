@@ -9,42 +9,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, FileText, TrendingUp, Gavel, Target, Award, XCircle, Filter } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { 
-  fetchTodasContratacoes,
-  ContratacaoRaw,
-  formatCurrency,
-  updateStatusResultado,
-} from "@/services/pncpService";
+import { fetchTodasContratacoes, ContratacaoRaw, formatCurrency, updateStatusResultado } from "@/services/pncpService";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { ResultadoLineChart } from "@/components/charts/ResultadoLineChart";
 import { EstatisticaMensal } from "@/services/pncpService";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-
 const CHART_COLORS = {
   estados: ["#3b82f6", "#60a5fa", "#93c5fd", "#2563eb", "#1d4ed8", "#1e40af", "#3730a3", "#4f46e5"],
   cidades: ["#8b5cf6", "#a78bfa", "#c4b5fd", "#7c3aed", "#6d28d9", "#5b21b6", "#4c1d95", "#ec4899"],
   status: {
     ganhou: "#22c55e",
     perdeu: "#ef4444",
-    aguardando: "#f59e0b",
+    aguardando: "#f59e0b"
   }
 };
-
 export default function RelatorioLicitacoes() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -55,16 +35,25 @@ export default function RelatorioLicitacoes() {
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
 
   // Buscar todos os dados brutos
-  const { data: todasContratacoes, isLoading } = useQuery({
+  const {
+    data: todasContratacoes,
+    isLoading
+  } = useQuery({
     queryKey: ["pncp-todas-contratacoes"],
-    queryFn: fetchTodasContratacoes,
+    queryFn: fetchTodasContratacoes
   });
-
   const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) => 
-      updateStatusResultado(id, status),
+    mutationFn: ({
+      id,
+      status
+    }: {
+      id: string;
+      status: string;
+    }) => updateStatusResultado(id, status),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pncp-todas-contratacoes"] });
+      queryClient.invalidateQueries({
+        queryKey: ["pncp-todas-contratacoes"]
+      });
       toast.success("Status atualizado com sucesso!");
     },
     onError: () => {
@@ -108,28 +97,20 @@ export default function RelatorioLicitacoes() {
   // Calcular estatísticas a partir dos dados filtrados
   const estatisticas = useMemo(() => {
     const totalMonitoradas = dadosFiltrados.length;
-    const valorTotalMonitoradas = dadosFiltrados.reduce(
-      (sum, item) => sum + (item.valor_total_estimado || 0), 0
-    );
-
+    const valorTotalMonitoradas = dadosFiltrados.reduce((sum, item) => sum + (item.valor_total_estimado || 0), 0);
     const participando = dadosFiltrados.filter(item => item.participando);
     const totalParticipando = participando.length;
-    const valorTotalParticipando = participando.reduce(
-      (sum, item) => sum + (item.valor_total_estimado || 0), 0
-    );
-
+    const valorTotalParticipando = participando.reduce((sum, item) => sum + (item.valor_total_estimado || 0), 0);
     const ganhou = participando.filter(item => item.status_resultado === 'ganhou');
     const perdeu = participando.filter(item => item.status_resultado === 'perdeu');
     const aguardando = participando.filter(item => item.status_resultado === 'aguardando' || !item.status_resultado);
-
     const totalGanhou = ganhou.length;
     const valorGanhou = ganhou.reduce((sum, item) => sum + (item.valor_total_estimado || 0), 0);
     const totalPerdeu = perdeu.length;
     const valorPerdeu = perdeu.reduce((sum, item) => sum + (item.valor_total_estimado || 0), 0);
     const valorAguardando = aguardando.reduce((sum, item) => sum + (item.valor_total_estimado || 0), 0);
-
     const finalizados = totalGanhou + totalPerdeu;
-    const taxaSucesso = finalizados > 0 ? (totalGanhou / finalizados) * 100 : 0;
+    const taxaSucesso = finalizados > 0 ? totalGanhou / finalizados * 100 : 0;
 
     // Valor por UF
     const valorPorUF = dadosFiltrados.reduce((acc, item) => {
@@ -162,7 +143,6 @@ export default function RelatorioLicitacoes() {
       acc[cidade] = (acc[cidade] || 0) + (item.valor_total_estimado || 0);
       return acc;
     }, {} as Record<string, number>);
-
     return {
       totalMonitoradas,
       valorTotalMonitoradas,
@@ -182,116 +162,98 @@ export default function RelatorioLicitacoes() {
   // Estatísticas mensais (filtradas)
   const estatisticasMensais = useMemo((): EstatisticaMensal[] => {
     const participandoFiltrado = dadosFiltrados.filter(item => item.participando);
-    const comResultado = participandoFiltrado.filter(item => 
-      item.status_resultado === 'ganhou' || item.status_resultado === 'perdeu'
-    );
-
+    const comResultado = participandoFiltrado.filter(item => item.status_resultado === 'ganhou' || item.status_resultado === 'perdeu');
     if (comResultado.length === 0) return [];
-
-    const porMes: Record<string, { ganhou: number; perdeu: number }> = {};
-
-    comResultado.forEach((item) => {
+    const porMes: Record<string, {
+      ganhou: number;
+      perdeu: number;
+    }> = {};
+    comResultado.forEach(item => {
       if (!item.updated_at) return;
-      
       const date = new Date(item.updated_at);
       const mesKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      
       if (!porMes[mesKey]) {
-        porMes[mesKey] = { ganhou: 0, perdeu: 0 };
+        porMes[mesKey] = {
+          ganhou: 0,
+          perdeu: 0
+        };
       }
-      
       if (item.status_resultado === 'ganhou') {
         porMes[mesKey].ganhou++;
       } else if (item.status_resultado === 'perdeu') {
         porMes[mesKey].perdeu++;
       }
     });
-
     const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-
-    return Object.entries(porMes)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-12)
-      .map(([mes, valores]) => {
-        const [ano, mesNum] = mes.split('-');
-        const mesIndex = parseInt(mesNum) - 1;
-        return {
-          mes,
-          mesFormatado: `${mesesNomes[mesIndex]}/${ano.slice(2)}`,
-          ganhou: valores.ganhou,
-          perdeu: valores.perdeu,
-        };
-      });
+    return Object.entries(porMes).sort(([a], [b]) => a.localeCompare(b)).slice(-12).map(([mes, valores]) => {
+      const [ano, mesNum] = mes.split('-');
+      const mesIndex = parseInt(mesNum) - 1;
+      return {
+        mes,
+        mesFormatado: `${mesesNomes[mesIndex]}/${ano.slice(2)}`,
+        ganhou: valores.ganhou,
+        perdeu: valores.perdeu
+      };
+    });
   }, [dadosFiltrados]);
 
   // Licitações participando (filtradas e ordenadas por data fim de propostas)
   const participandoFiltrado = useMemo(() => {
-    return dadosFiltrados
-      .filter(item => item.participando)
-      .sort((a, b) => {
-        // Ordenar por data_fim_propostas crescente (mais próximo primeiro)
-        const dataA = a.data_fim_propostas ? new Date(a.data_fim_propostas).getTime() : Infinity;
-        const dataB = b.data_fim_propostas ? new Date(b.data_fim_propostas).getTime() : Infinity;
-        return dataA - dataB;
-      });
+    return dadosFiltrados.filter(item => item.participando).sort((a, b) => {
+      // Ordenar por data_fim_propostas crescente (mais próximo primeiro)
+      const dataA = a.data_fim_propostas ? new Date(a.data_fim_propostas).getTime() : Infinity;
+      const dataB = b.data_fim_propostas ? new Date(b.data_fim_propostas).getTime() : Infinity;
+      return dataA - dataB;
+    });
   }, [dadosFiltrados]);
 
   // Paginação para a tabela de licitações em participação
-  const paginacao = usePagination(participandoFiltrado, { pageSize: 10 });
+  const paginacao = usePagination(participandoFiltrado, {
+    pageSize: 10
+  });
 
   // Preparar dados dos gráficos
-  const chartDataUF = estatisticas.valorPorUF 
-    ? Object.entries(estatisticas.valorPorUF)
-        .map(([name, value], index) => ({ 
-          name, 
-          value, 
-          color: CHART_COLORS.estados[index % CHART_COLORS.estados.length] 
-        }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 8)
-    : [];
-
-  const chartDataCidade = estatisticas.valorPorCidade 
-    ? Object.entries(estatisticas.valorPorCidade)
-        .map(([name, value], index) => ({ 
-          name, 
-          value, 
-          color: CHART_COLORS.cidades[index % CHART_COLORS.cidades.length] 
-        }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 8)
-    : [];
-
-  const chartDataResultadoValor = [
-    { name: "Ganhou", value: estatisticas.valorGanhou, color: CHART_COLORS.status.ganhou },
-    { name: "Perdeu", value: estatisticas.valorPerdeu, color: CHART_COLORS.status.perdeu },
-    { name: "Aguardando", value: estatisticas.valorAguardando, color: CHART_COLORS.status.aguardando },
-  ];
-
+  const chartDataUF = estatisticas.valorPorUF ? Object.entries(estatisticas.valorPorUF).map(([name, value], index) => ({
+    name,
+    value,
+    color: CHART_COLORS.estados[index % CHART_COLORS.estados.length]
+  })).sort((a, b) => b.value - a.value).slice(0, 8) : [];
+  const chartDataCidade = estatisticas.valorPorCidade ? Object.entries(estatisticas.valorPorCidade).map(([name, value], index) => ({
+    name,
+    value,
+    color: CHART_COLORS.cidades[index % CHART_COLORS.cidades.length]
+  })).sort((a, b) => b.value - a.value).slice(0, 8) : [];
+  const chartDataResultadoValor = [{
+    name: "Ganhou",
+    value: estatisticas.valorGanhou,
+    color: CHART_COLORS.status.ganhou
+  }, {
+    name: "Perdeu",
+    value: estatisticas.valorPerdeu,
+    color: CHART_COLORS.status.perdeu
+  }, {
+    name: "Aguardando",
+    value: estatisticas.valorAguardando,
+    color: CHART_COLORS.status.aguardando
+  }];
   const formatCompactCurrency = (value: number) => {
     if (value >= 1000000000) return `R$ ${(value / 1000000000).toFixed(1)}B`;
     if (value >= 1000000) return `R$ ${(value / 1000000).toFixed(1)}M`;
     if (value >= 1000) return `R$ ${(value / 1000).toFixed(0)}K`;
     return formatCurrency(value);
   };
-
   const limparFiltros = () => {
     setFiltroUF("todos");
     setFiltroCidade("todos");
     setFiltroStatus("todos");
   };
-
   const temFiltroAtivo = filtroUF !== "todos" || filtroCidade !== "todos" || filtroStatus !== "todos";
-
-  return (
-    <MainLayout>
+  return <MainLayout>
       <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/licitacoes/monitoramento-pncp")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+          
           <div>
             <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
               <FileText className="h-7 w-7 text-primary" />
@@ -309,15 +271,16 @@ export default function RelatorioLicitacoes() {
         <Filter className="h-4 w-4 text-muted-foreground" />
         <span className="text-sm text-muted-foreground font-medium">Filtros:</span>
         
-        <Select value={filtroUF} onValueChange={(v) => { setFiltroUF(v); setFiltroCidade("todos"); }}>
+        <Select value={filtroUF} onValueChange={v => {
+          setFiltroUF(v);
+          setFiltroCidade("todos");
+        }}>
           <SelectTrigger className="w-[130px] h-9 border-dashed">
             <SelectValue placeholder="Todos UFs" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos UFs</SelectItem>
-            {ufsDisponiveis.map(uf => (
-              <SelectItem key={uf} value={uf}>{uf}</SelectItem>
-            ))}
+            {ufsDisponiveis.map(uf => <SelectItem key={uf} value={uf}>{uf}</SelectItem>)}
           </SelectContent>
         </Select>
 
@@ -327,9 +290,7 @@ export default function RelatorioLicitacoes() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todas Cidades</SelectItem>
-            {cidadesDisponiveis.map(cidade => (
-              <SelectItem key={cidade} value={cidade}>{cidade}</SelectItem>
-            ))}
+            {cidadesDisponiveis.map(cidade => <SelectItem key={cidade} value={cidade}>{cidade}</SelectItem>)}
           </SelectContent>
         </Select>
 
@@ -360,25 +321,18 @@ export default function RelatorioLicitacoes() {
           </SelectContent>
         </Select>
 
-        {temFiltroAtivo && (
-          <Button variant="ghost" size="sm" onClick={limparFiltros} className="h-9">
+        {temFiltroAtivo && <Button variant="ghost" size="sm" onClick={limparFiltros} className="h-9">
             Limpar filtros
-          </Button>
-        )}
+          </Button>}
 
-        {temFiltroAtivo && (
-          <span className="text-xs text-muted-foreground ml-auto">
+        {temFiltroAtivo && <span className="text-xs text-muted-foreground ml-auto">
             {dadosFiltrados.length} de {todasContratacoes?.length || 0} registros
-          </span>
-        )}
+          </span>}
       </div>
 
-      {isLoading ? (
-        <div className="flex items-center justify-center py-12">
+      {isLoading ? <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-      ) : (
-        <>
+        </div> : <>
           {/* Cards de Métricas - 5 KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <Card>
@@ -469,35 +423,15 @@ export default function RelatorioLicitacoes() {
 
           {/* Gráficos - 3 colunas */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <DonutChart
-              data={chartDataUF}
-              title="Valor por Estado"
-              description="Distribuição por UF (top 8)"
-              valueFormatter={formatCompactCurrency}
-            />
+            <DonutChart data={chartDataUF} title="Valor por Estado" description="Distribuição por UF (top 8)" valueFormatter={formatCompactCurrency} />
 
-            <DonutChart
-              data={chartDataCidade}
-              title="Valor por Cidade"
-              description="Distribuição por município (top 8)"
-              valueFormatter={formatCompactCurrency}
-            />
+            <DonutChart data={chartDataCidade} title="Valor por Cidade" description="Distribuição por município (top 8)" valueFormatter={formatCompactCurrency} />
 
-            <DonutChart
-              data={chartDataResultadoValor}
-              title="Resultado das Participações (R$)"
-              description="Valor ganho vs perdido vs aguardando"
-              valueFormatter={formatCompactCurrency}
-            />
+            <DonutChart data={chartDataResultadoValor} title="Resultado das Participações (R$)" description="Valor ganho vs perdido vs aguardando" valueFormatter={formatCompactCurrency} />
           </div>
 
           {/* Gráfico de Linhas - Evolução Mensal */}
-          <ResultadoLineChart
-            data={estatisticasMensais}
-            title="Evolução Mensal de Resultados"
-            description="Licitações ganhas vs perdidas nos últimos 12 meses"
-            height={350}
-          />
+          <ResultadoLineChart data={estatisticasMensais} title="Evolução Mensal de Resultados" description="Licitações ganhas vs perdidas nos últimos 12 meses" height={350} />
 
           {/* Tabela de Licitações Participando */}
           <Card>
@@ -508,8 +442,7 @@ export default function RelatorioLicitacoes() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {participandoFiltrado.length > 0 ? (
-                <div className="overflow-x-auto">
+              {participandoFiltrado.length > 0 ? <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -522,8 +455,7 @@ export default function RelatorioLicitacoes() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {paginacao.paginatedData.map((item) => (
-                        <TableRow key={item.id}>
+                      {paginacao.paginatedData.map(item => <TableRow key={item.id}>
                           <TableCell>
                             <p className="max-w-[250px] truncate text-sm" title={item.objeto}>
                               {item.objeto}
@@ -531,23 +463,21 @@ export default function RelatorioLicitacoes() {
                           </TableCell>
                           <TableCell className="text-sm">{item.orgao_nome || "N/A"}</TableCell>
                           <TableCell className="text-sm whitespace-nowrap">
-                            {item.municipio_nome 
-                              ? `${item.municipio_nome} / ${item.uf || ""}` 
-                              : item.uf || "N/A"}
+                            {item.municipio_nome ? `${item.municipio_nome} / ${item.uf || ""}` : item.uf || "N/A"}
                           </TableCell>
                           <TableCell className="text-sm whitespace-nowrap">
-                            {item.data_fim_propostas 
-                              ? format(new Date(item.data_fim_propostas), "dd/MM/yyyy", { locale: ptBR })
-                              : "N/A"}
+                            {item.data_fim_propostas ? format(new Date(item.data_fim_propostas), "dd/MM/yyyy", {
+                        locale: ptBR
+                      }) : "N/A"}
                           </TableCell>
                           <TableCell className="text-right font-medium text-primary">
                             {formatCurrency(item.valor_total_estimado)}
                           </TableCell>
                           <TableCell>
-                            <Select
-                              value={item.status_resultado || "aguardando"}
-                              onValueChange={(value) => statusMutation.mutate({ id: item.id, status: value })}
-                            >
+                            <Select value={item.status_resultado || "aguardando"} onValueChange={value => statusMutation.mutate({
+                        id: item.id,
+                        status: value
+                      })}>
                               <SelectTrigger className="w-[130px] h-8">
                                 <SelectValue />
                               </SelectTrigger>
@@ -573,24 +503,18 @@ export default function RelatorioLicitacoes() {
                               </SelectContent>
                             </Select>
                           </TableCell>
-                        </TableRow>
-                      ))}
+                        </TableRow>)}
                     </TableBody>
                   </Table>
                   <div className="mt-4">
                     <TablePagination pagination={paginacao} />
                   </div>
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
+                </div> : <div className="text-center py-8 text-muted-foreground">
                   <p>Nenhuma licitação encontrada com os filtros selecionados.</p>
-                </div>
-              )}
+                </div>}
             </CardContent>
           </Card>
-        </>
-      )}
+        </>}
       </div>
-    </MainLayout>
-  );
+    </MainLayout>;
 }
