@@ -12,6 +12,7 @@ import {
   Settings,
   Factory,
   ClipboardList,
+  Gavel,
 } from "lucide-react";
 
 // Define all modules with their permissions and colors
@@ -87,6 +88,15 @@ const portalModules = [
     route: "/sso/checklists",
     permission: "acesso_sso_checklists",
     color: "hsl(330, 81%, 60%)", // Pink
+  },
+  {
+    id: "licitacoes-pncp",
+    title: "Licitações PNCP",
+    description: "Monitoramento de Oportunidades",
+    icon: Gavel,
+    route: "/licitacoes/monitoramento-pncp",
+    permission: "acesso_monitoramento_pncp",
+    color: "hsl(280, 65%, 50%)", // Purple
   },
   {
     id: "admin",

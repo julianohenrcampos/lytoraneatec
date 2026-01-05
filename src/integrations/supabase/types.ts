@@ -1430,6 +1430,180 @@ export type Database = {
         }
         Relationships: []
       }
+      bd_pncp_config_monitoramento: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          dias_busca_completa: number | null
+          dias_busca_rapida: number | null
+          id: string
+          modalidades_ativas: number[] | null
+          municipios_ibge_interesse: string[] | null
+          palavras_excluir: string[] | null
+          palavras_incluir: string[] | null
+          prazo_minimo_dias: number | null
+          ufs_ativas: string[] | null
+          updated_at: string | null
+          valor_minimo: number | null
+          valor_prioridade_alta: number | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          dias_busca_completa?: number | null
+          dias_busca_rapida?: number | null
+          id?: string
+          modalidades_ativas?: number[] | null
+          municipios_ibge_interesse?: string[] | null
+          palavras_excluir?: string[] | null
+          palavras_incluir?: string[] | null
+          prazo_minimo_dias?: number | null
+          ufs_ativas?: string[] | null
+          updated_at?: string | null
+          valor_minimo?: number | null
+          valor_prioridade_alta?: number | null
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          dias_busca_completa?: number | null
+          dias_busca_rapida?: number | null
+          id?: string
+          modalidades_ativas?: number[] | null
+          municipios_ibge_interesse?: string[] | null
+          palavras_excluir?: string[] | null
+          palavras_incluir?: string[] | null
+          prazo_minimo_dias?: number | null
+          ufs_ativas?: string[] | null
+          updated_at?: string | null
+          valor_minimo?: number | null
+          valor_prioridade_alta?: number | null
+        }
+        Relationships: []
+      }
+      bd_pncp_contratacoes: {
+        Row: {
+          created_at: string | null
+          data_fim_propostas: string | null
+          data_inicio_propostas: string | null
+          data_marcacao_participando: string | null
+          data_publicacao: string | null
+          descartada: boolean | null
+          id: string
+          link_origem_pncp: string | null
+          match_termos: string[] | null
+          modalidade_contratacao: string | null
+          municipio_ibge: string | null
+          municipio_nome: string | null
+          numero_controle_pncp: string
+          objeto: string
+          orgao_cnpj: string | null
+          orgao_nome: string | null
+          participando: boolean | null
+          prioridade: string | null
+          raw_data: Json | null
+          status_resultado: string | null
+          uf: string | null
+          unidade_nome: string | null
+          updated_at: string | null
+          valor_total_estimado: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          data_fim_propostas?: string | null
+          data_inicio_propostas?: string | null
+          data_marcacao_participando?: string | null
+          data_publicacao?: string | null
+          descartada?: boolean | null
+          id?: string
+          link_origem_pncp?: string | null
+          match_termos?: string[] | null
+          modalidade_contratacao?: string | null
+          municipio_ibge?: string | null
+          municipio_nome?: string | null
+          numero_controle_pncp: string
+          objeto: string
+          orgao_cnpj?: string | null
+          orgao_nome?: string | null
+          participando?: boolean | null
+          prioridade?: string | null
+          raw_data?: Json | null
+          status_resultado?: string | null
+          uf?: string | null
+          unidade_nome?: string | null
+          updated_at?: string | null
+          valor_total_estimado?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          data_fim_propostas?: string | null
+          data_inicio_propostas?: string | null
+          data_marcacao_participando?: string | null
+          data_publicacao?: string | null
+          descartada?: boolean | null
+          id?: string
+          link_origem_pncp?: string | null
+          match_termos?: string[] | null
+          modalidade_contratacao?: string | null
+          municipio_ibge?: string | null
+          municipio_nome?: string | null
+          numero_controle_pncp?: string
+          objeto?: string
+          orgao_cnpj?: string | null
+          orgao_nome?: string | null
+          participando?: boolean | null
+          prioridade?: string | null
+          raw_data?: Json | null
+          status_resultado?: string | null
+          uf?: string | null
+          unidade_nome?: string | null
+          updated_at?: string | null
+          valor_total_estimado?: number | null
+        }
+        Relationships: []
+      }
+      bd_pncp_sync_log: {
+        Row: {
+          created_at: string | null
+          data_execucao: string | null
+          duracao_segundos: number | null
+          executado_por: string | null
+          id: string
+          mensagem_erro: string | null
+          status: string | null
+          total_atualizados: number | null
+          total_duplicados: number | null
+          total_encontrados: number | null
+          total_inseridos: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          data_execucao?: string | null
+          duracao_segundos?: number | null
+          executado_por?: string | null
+          id?: string
+          mensagem_erro?: string | null
+          status?: string | null
+          total_atualizados?: number | null
+          total_duplicados?: number | null
+          total_encontrados?: number | null
+          total_inseridos?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          data_execucao?: string | null
+          duracao_segundos?: number | null
+          executado_por?: string | null
+          id?: string
+          mensagem_erro?: string | null
+          status?: string | null
+          total_atualizados?: number | null
+          total_duplicados?: number | null
+          total_encontrados?: number | null
+          total_inseridos?: number | null
+        }
+        Relationships: []
+      }
       bd_programacao_entrega: {
         Row: {
           centro_custo_id: string | null
@@ -2472,6 +2646,7 @@ export type Database = {
         Args: { p_permission_name: string; p_user_id?: string }
         Returns: boolean
       }
+      has_pncp_access: { Args: { p_user_id?: string }; Returns: boolean }
       has_sso_permission: { Args: { p_user_id?: string }; Returns: boolean }
       is_departmental_super_admin: { Args: never; Returns: boolean }
       link_profile_from_funcionario_email: {

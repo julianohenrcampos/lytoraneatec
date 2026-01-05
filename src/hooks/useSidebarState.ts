@@ -25,7 +25,11 @@ export const useSidebarState = () => {
     } else if (path.includes('/gestao-maquinas/')) {
       initialState["Gestão de Máquinas"] = true;
     } else if (path.includes('/requisicoes/')) {
-      initialState["Requisições e Logística"] = true;
+      initialState["Requisições"] = true;
+    } else if (path.includes('/licitacoes/')) {
+      initialState["Licitações"] = true;
+    } else if (path.includes('/sso/')) {
+      initialState["SSO - Segurança"] = true;
     } else if (path.includes('/admin/')) {
       initialState["Administração"] = true;
     }

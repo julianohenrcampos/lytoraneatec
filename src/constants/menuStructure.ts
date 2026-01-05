@@ -14,7 +14,8 @@ import {
   BarChart3,
   Package,
   Map,
-  ShieldCheck
+  ShieldCheck,
+  Gavel
 } from "lucide-react";
 
 export const menuStructure = [
@@ -170,6 +171,29 @@ export const menuStructure = [
         href: "/relatorio-aplicacao-diaria",
         icon: BarChart3,
         requiredPermission: "relatorio_aplicacao_view"
+      }
+    ]
+  },
+  {
+    title: "Licitações",
+    items: [
+      {
+        name: "Dashboard Licitações",
+        href: "/licitacoes/dashboard",
+        icon: BarChart3,
+        requiredPermission: "acesso_monitoramento_pncp"
+      },
+      {
+        name: "Monitoramento PNCP",
+        href: "/licitacoes/monitoramento-pncp",
+        icon: Gavel,
+        requiredPermission: "acesso_monitoramento_pncp"
+      },
+      {
+        name: "Configurações PNCP",
+        href: "/licitacoes/configuracoes-pncp",
+        icon: Settings,
+        requiredPermission: "acesso_monitoramento_pncp"
       }
     ]
   },

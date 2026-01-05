@@ -55,6 +55,11 @@ import GestaoPermissoes from "@/pages/GestaoPermissoes";
 import SSOChecklistList from "@/pages/SSOChecklistList";
 import SSODashboard from "@/pages/SSODashboard";
 
+// Licitações PNCP
+import MonitoramentoPNCP from "@/pages/MonitoramentoPNCP";
+import ConfiguracoesPNCP from "@/pages/ConfiguracoesPNCP";
+import RelatorioLicitacoes from "@/pages/RelatorioLicitacoes";
+
 // Security Components
 import SecureRouteGuard from "@/components/routing/SecureRouteGuard";
 
@@ -299,6 +304,35 @@ const App = () => {
                 <SimplePermissionGuard>
                   <SecureRouteGuard requiredPermission="acesso_sso_dashboard">
                     <SSODashboard />
+                  </SecureRouteGuard>
+                </SimplePermissionGuard>
+                </SimpleAuthGuard>
+            } />
+            
+            {/* Licitações PNCP */}
+            <Route path="/licitacoes/dashboard" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <SecureRouteGuard requiredPermission="acesso_monitoramento_pncp">
+                    <RelatorioLicitacoes />
+                  </SecureRouteGuard>
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/licitacoes/monitoramento-pncp" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <SecureRouteGuard requiredPermission="acesso_monitoramento_pncp">
+                    <MonitoramentoPNCP />
+                  </SecureRouteGuard>
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/licitacoes/configuracoes-pncp" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <SecureRouteGuard requiredPermission="acesso_monitoramento_pncp">
+                    <ConfiguracoesPNCP />
                   </SecureRouteGuard>
                 </SimplePermissionGuard>
               </SimpleAuthGuard>
