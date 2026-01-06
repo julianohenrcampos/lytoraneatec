@@ -9,6 +9,7 @@ import {
 } from "@/services/funcionarioService";
 import { FuncionarioFilter, FuncionarioFormData } from "@/types/funcionario";
 import { useToast } from "../use-toast";
+import { useRhSecurity } from "../dashboard/useRhSecurity";
 
 export function useFuncionarioQueries(
   filters: FuncionarioFilter,
@@ -20,17 +21,26 @@ export function useFuncionarioQueries(
 ) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { departamentoId, shouldFilterByDepartment, isLoading: isSecurityLoading } = useRhSecurity();
+
+  // Aplicar filtro de departamento automaticamente para usuários com acesso restrito
+  const secureFilters: FuncionarioFilter = shouldFilterByDepartment && departamentoId
+    ? { ...filters, departamento_id: departamentoId }
+    : filters;
 
   // Query para buscar funcionários
   const { 
     data: funcionarios, 
-    isLoading, 
+    isLoading: isQueryLoading, 
     isError, 
     refetch 
   } = useQuery({
-    queryKey: ['funcionarios', filters],
-    queryFn: () => fetchFuncionarios(filters)
+    queryKey: ['funcionarios', secureFilters, departamentoId, shouldFilterByDepartment],
+    queryFn: () => fetchFuncionarios(secureFilters),
+    enabled: !isSecurityLoading // Aguarda carregar o contexto de segurança
   });
+
+  const isLoading = isSecurityLoading || isQueryLoading;
 
   // Mutation para criar funcionário
   const createMutation = useMutation({

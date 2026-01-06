@@ -127,35 +127,45 @@ const App = () => {
             <Route path="/gestao-rh/empresas" element={
               <SimpleAuthGuard>
                 <SimplePermissionGuard>
-                  <GestaoEmpresas />
+                  <SecureRouteGuard requiredPermission="gestao_rh_empresas_view">
+                    <GestaoEmpresas />
+                  </SecureRouteGuard>
                 </SimplePermissionGuard>
               </SimpleAuthGuard>
             } />
             <Route path="/gestao-rh/departamentos" element={
               <SimpleAuthGuard>
                 <SimplePermissionGuard>
-                  <GestaoDepartamentos />
+                  <SecureRouteGuard requiredPermission="gestao_rh_departamentos_view">
+                    <GestaoDepartamentos />
+                  </SecureRouteGuard>
                 </SimplePermissionGuard>
               </SimpleAuthGuard>
             } />
             <Route path="/gestao-rh/centros-custo" element={
               <SimpleAuthGuard>
                 <SimplePermissionGuard>
-                  <GestaoCentrosCusto />
+                  <SecureRouteGuard requiredPermission="gestao_rh_centros_custo_view">
+                    <GestaoCentrosCusto />
+                  </SecureRouteGuard>
                 </SimplePermissionGuard>
               </SimpleAuthGuard>
             } />
             <Route path="/gestao-rh/funcoes" element={
               <SimpleAuthGuard>
                 <SimplePermissionGuard>
-                  <GestaoFuncoes />
+                  <SecureRouteGuard requiredPermission="gestao_rh_funcoes_view">
+                    <GestaoFuncoes />
+                  </SecureRouteGuard>
                 </SimplePermissionGuard>
               </SimpleAuthGuard>
             } />
             <Route path="/gestao-rh/funcionarios" element={
               <SimpleAuthGuard>
                 <SimplePermissionGuard>
-                  <GestaoFuncionarios />
+                  <SecureRouteGuard requiredPermission="gestao_rh_funcionarios_view">
+                    <GestaoFuncionarios />
+                  </SecureRouteGuard>
                 </SimplePermissionGuard>
               </SimpleAuthGuard>
             } />
@@ -313,7 +323,7 @@ const App = () => {
             <Route path="/licitacoes/dashboard" element={
               <SimpleAuthGuard>
                 <SimplePermissionGuard>
-                  <SecureRouteGuard requiredPermission="acesso_monitoramento_pncp">
+                  <SecureRouteGuard requiredPermission="dashboard_licitacoes_view">
                     <RelatorioLicitacoes />
                   </SecureRouteGuard>
                 </SimplePermissionGuard>
@@ -331,7 +341,7 @@ const App = () => {
             <Route path="/licitacoes/configuracoes-pncp" element={
               <SimpleAuthGuard>
                 <SimplePermissionGuard>
-                  <SecureRouteGuard requiredPermission="acesso_monitoramento_pncp">
+                  <SecureRouteGuard requiredPermission="configuracoes_pncp_view">
                     <ConfiguracoesPNCP />
                   </SecureRouteGuard>
                 </SimplePermissionGuard>
