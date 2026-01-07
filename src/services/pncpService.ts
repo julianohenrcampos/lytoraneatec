@@ -96,9 +96,16 @@ export const fetchContratacoes = async (filters: PNCPFilters = {}): Promise<PNCP
 };
 
 export const syncContratacoes = async (salvarTodas: boolean = false): Promise<PNCPSyncResult> => {
+  // Obter usuário atual para vincular a sincronização
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user) {
+    throw new Error("Usuário não autenticado para sincronização");
+  }
+
   const { data, error } = await supabase.functions.invoke("pncp-sync", {
     method: "POST",
-    body: { salvarTodas },
+    body: { salvarTodas, user_id: user.id },
   });
 
   if (error) {
@@ -110,9 +117,18 @@ export const syncContratacoes = async (salvarTodas: boolean = false): Promise<PN
 };
 
 export const getLastSyncStatus = async (): Promise<PNCPSyncLog | null> => {
+  // Obter usuário atual para filtrar logs
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user) {
+    console.warn("Usuário não autenticado ao buscar status de sincronização");
+    return null;
+  }
+
   const { data, error } = await supabase
     .from("bd_pncp_sync_log")
     .select("*")
+    .eq("user_id", user.id)
     .order("data_execucao", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -540,11 +556,19 @@ export const fetchContratacoesParticipando = async (): Promise<PNCPContratacao[]
 // PERFIS DE BUSCA
 // =====================================================
 
-// Buscar todos os perfis de busca
+// Buscar todos os perfis de busca do usuário atual
 export const fetchPerfisBusca = async (): Promise<PNCPPerfilBusca[]> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user) {
+    console.warn("Usuário não autenticado ao buscar perfis");
+    return [];
+  }
+
   const { data, error } = await supabase
     .from("bd_pncp_perfis_busca")
     .select("*")
+    .eq("user_id", user.id)
     .order("nome");
 
   if (error) {
@@ -555,12 +579,20 @@ export const fetchPerfisBusca = async (): Promise<PNCPPerfilBusca[]> => {
   return (data || []) as PNCPPerfilBusca[];
 };
 
-// Buscar perfis ativos
+// Buscar perfis ativos do usuário atual
 export const fetchPerfisAtivos = async (): Promise<PNCPPerfilBusca[]> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user) {
+    console.warn("Usuário não autenticado ao buscar perfis ativos");
+    return [];
+  }
+
   const { data, error } = await supabase
     .from("bd_pncp_perfis_busca")
     .select("*")
     .eq("ativo", true)
+    .eq("user_id", user.id)
     .order("nome");
 
   if (error) {

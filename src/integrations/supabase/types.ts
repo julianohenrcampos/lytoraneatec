@@ -1664,6 +1664,7 @@ export type Database = {
           total_duplicados: number | null
           total_encontrados: number | null
           total_inseridos: number | null
+          user_id: string | null
         }
         Insert: {
           created_at?: string | null
@@ -1677,6 +1678,7 @@ export type Database = {
           total_duplicados?: number | null
           total_encontrados?: number | null
           total_inseridos?: number | null
+          user_id?: string | null
         }
         Update: {
           created_at?: string | null
@@ -1690,6 +1692,7 @@ export type Database = {
           total_duplicados?: number | null
           total_encontrados?: number | null
           total_inseridos?: number | null
+          user_id?: string | null
         }
         Relationships: []
       }

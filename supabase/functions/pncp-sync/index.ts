@@ -143,11 +143,13 @@ serve(async (req) => {
     
     // Tentar ler o body para verificar se é chamada do cron e opção salvarTodas
     let body: any = {};
+    let userId: string | null = null;
     try {
       const clonedReq = req.clone();
       body = await clonedReq.json();
       isCronCall = body?.source === "cron";
       salvarTodas = body?.salvarTodas === true;
+      userId = body?.user_id || null;
     } catch {
       // Body vazio ou inválido - ok, pode ser chamada manual
     }
@@ -180,11 +182,18 @@ serve(async (req) => {
       console.error("❌ Erro ao buscar configurações:", configError);
     }
 
-    // Buscar perfis de busca ativos
-const { data: perfisData, error: perfisError } = await supabase
+    // Buscar perfis de busca ativos - filtrar por usuário se especificado
+    let perfisQuery = supabase
       .from("bd_pncp_perfis_busca")
       .select("id, nome, cor, palavras_incluir, palavras_primarias, palavras_secundarias, palavras_excluir, ativo, user_id")
       .eq("ativo", true);
+    
+    // Se usuário especificado, buscar apenas perfis dele
+    if (userId) {
+      perfisQuery = perfisQuery.eq("user_id", userId);
+    }
+
+    const { data: perfisData, error: perfisError } = await perfisQuery;
 
     if (perfisError) {
       console.error("❌ Erro ao buscar perfis:", perfisError);
@@ -227,10 +236,10 @@ const { data: perfisData, error: perfisError } = await supabase
       );
     }
 
-    // Criar log de sincronização
+    // Criar log de sincronização (vinculado ao usuário)
     const { data: logData, error: logError } = await supabase
       .from("bd_pncp_sync_log")
-      .insert({ status: "em_andamento" })
+      .insert({ status: "em_andamento", user_id: userId })
       .select("id")
       .single();
 

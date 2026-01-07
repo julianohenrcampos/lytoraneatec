@@ -236,21 +236,22 @@ export default function ConfiguracoesPNCP() {
   };
 
   const addPalavraToPerfilForm = (tipo: 'incluir' | 'excluir') => {
-    let palavra = "";
-    let campo: keyof typeof perfilForm = 'palavras_incluir';
+    const texto = tipo === 'incluir' ? novaPalavraChave : novaPalavraExcluir;
+    const campo: keyof typeof perfilForm = tipo === 'incluir' ? 'palavras_incluir' : 'palavras_excluir';
     
-    if (tipo === 'incluir') {
-      palavra = novaPalavraChave.trim();
-      campo = 'palavras_incluir';
-    } else {
-      palavra = novaPalavraExcluir.trim();
-      campo = 'palavras_excluir';
-    }
+    // Dividir por vírgula e processar cada palavra
+    const novasPalavras = texto
+      .split(',')
+      .map(p => p.trim().toLowerCase())
+      .filter(p => p.length > 0);
     
-    if (!palavra) return;
-    const lista = (perfilForm[campo] as string[]) || [];
-    if (!lista.includes(palavra.toLowerCase())) {
-      setPerfilForm({ ...perfilForm, [campo]: [...lista, palavra.toLowerCase()] });
+    if (novasPalavras.length === 0) return;
+    
+    const listaAtual = (perfilForm[campo] as string[]) || [];
+    const palavrasUnicas = novasPalavras.filter(p => !listaAtual.includes(p));
+    
+    if (palavrasUnicas.length > 0) {
+      setPerfilForm({ ...perfilForm, [campo]: [...listaAtual, ...palavrasUnicas] });
     }
     
     if (tipo === 'incluir') {
