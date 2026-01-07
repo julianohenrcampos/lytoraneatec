@@ -181,7 +181,7 @@ export const menuStructure = [
         name: "Dashboard Licitações",
         href: "/licitacoes/dashboard",
         icon: BarChart3,
-        requiredPermission: "acesso_monitoramento_pncp"
+        requiredPermission: "dashboard_licitacoes_view"
       },
       {
         name: "Monitoramento PNCP",
@@ -193,7 +193,7 @@ export const menuStructure = [
         name: "Configurações PNCP",
         href: "/licitacoes/configuracoes-pncp",
         icon: Settings,
-        requiredPermission: "acesso_monitoramento_pncp"
+        requiredPermission: "configuracoes_pncp_view"
       }
     ]
   },

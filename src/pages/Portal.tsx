@@ -95,7 +95,7 @@ const portalModules = [
     description: "Monitoramento de Oportunidades",
     icon: Gavel,
     route: "/licitacoes/monitoramento-pncp",
-    permission: "acesso_monitoramento_pncp",
+    permission: ["dashboard_licitacoes_view", "acesso_monitoramento_pncp", "configuracoes_pncp_view"],
     color: "hsl(280, 65%, 50%)", // Purple
   },
   {
@@ -133,8 +133,11 @@ export default function Portal() {
     fetchUserName();
   }, []);
 
-  const hasPermission = (permission: string) => {
+  const hasPermission = (permission: string | string[]) => {
     if (isSuperAdmin) return true;
+    if (Array.isArray(permission)) {
+      return permission.some(p => permissions.includes(p));
+    }
     return permissions.includes(permission);
   };
 

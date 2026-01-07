@@ -1,6 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { PNCPContratacao, PNCPFilters, PNCPSyncLog, PNCPSyncResult, PNCPConfig } from "@/types/pncp";
-
+import { PNCPContratacao, PNCPFilters, PNCPSyncLog, PNCPSyncResult, PNCPConfig, PNCPPerfilBusca } from "@/types/pncp";
 // Interface para dados brutos do dashboard
 export interface ContratacaoRaw {
   id: string;
@@ -34,7 +33,10 @@ export const fetchTodasContratacoes = async (): Promise<ContratacaoRaw[]> => {
 export const fetchContratacoes = async (filters: PNCPFilters = {}): Promise<PNCPContratacao[]> => {
   let query = supabase
     .from("bd_pncp_contratacoes")
-    .select("*")
+    .select(`
+      *,
+      bd_pncp_perfis_busca:perfil_busca_id (cor)
+    `)
     .order("data_fim_propostas", { ascending: true });
 
   // Filtro por prazo de propostas (até a data)
@@ -50,6 +52,11 @@ export const fetchContratacoes = async (filters: PNCPFilters = {}): Promise<PNCP
   // Filtro por órgão (busca parcial)
   if (filters.orgao) {
     query = query.ilike("orgao_nome", `%${filters.orgao}%`);
+  }
+
+  // Filtro por perfil de busca
+  if (filters.perfilBuscaId) {
+    query = query.eq("perfil_busca_id", filters.perfilBuscaId);
   }
 
   // Filtro por categoria de valor (Mega/Alto/Padrão)
@@ -78,12 +85,20 @@ export const fetchContratacoes = async (filters: PNCPFilters = {}): Promise<PNCP
     throw error;
   }
 
-  return (data || []) as PNCPContratacao[];
+  // Map the joined data to include perfil_cor
+  const mapped = (data || []).map((item: any) => ({
+    ...item,
+    perfil_cor: item.bd_pncp_perfis_busca?.cor || null,
+    bd_pncp_perfis_busca: undefined
+  }));
+
+  return mapped as PNCPContratacao[];
 };
 
-export const syncContratacoes = async (): Promise<PNCPSyncResult> => {
+export const syncContratacoes = async (salvarTodas: boolean = false): Promise<PNCPSyncResult> => {
   const { data, error } = await supabase.functions.invoke("pncp-sync", {
     method: "POST",
+    body: { salvarTodas },
   });
 
   if (error) {
@@ -499,7 +514,10 @@ export const updateStatusResultado = async (id: string, status: string): Promise
 export const fetchContratacoesParticipando = async (): Promise<PNCPContratacao[]> => {
   const { data, error } = await supabase
     .from("bd_pncp_contratacoes")
-    .select("*")
+    .select(`
+      *,
+      bd_pncp_perfis_busca:perfil_busca_id (cor)
+    `)
     .eq("participando", true)
     .order("data_marcacao_participando", { ascending: false });
   
@@ -508,5 +526,131 @@ export const fetchContratacoesParticipando = async (): Promise<PNCPContratacao[]
     throw error;
   }
   
-  return (data || []) as PNCPContratacao[];
+  // Map the joined data to include perfil_cor
+  const mapped = (data || []).map((item: any) => ({
+    ...item,
+    perfil_cor: item.bd_pncp_perfis_busca?.cor || null,
+    bd_pncp_perfis_busca: undefined
+  }));
+  
+  return mapped as PNCPContratacao[];
+};
+
+// =====================================================
+// PERFIS DE BUSCA
+// =====================================================
+
+// Buscar todos os perfis de busca
+export const fetchPerfisBusca = async (): Promise<PNCPPerfilBusca[]> => {
+  const { data, error } = await supabase
+    .from("bd_pncp_perfis_busca")
+    .select("*")
+    .order("nome");
+
+  if (error) {
+    console.error("Erro ao buscar perfis de busca:", error);
+    throw error;
+  }
+
+  return (data || []) as PNCPPerfilBusca[];
+};
+
+// Buscar perfis ativos
+export const fetchPerfisAtivos = async (): Promise<PNCPPerfilBusca[]> => {
+  const { data, error } = await supabase
+    .from("bd_pncp_perfis_busca")
+    .select("*")
+    .eq("ativo", true)
+    .order("nome");
+
+  if (error) {
+    console.error("Erro ao buscar perfis ativos:", error);
+    throw error;
+  }
+
+  return (data || []) as PNCPPerfilBusca[];
+};
+
+// Criar novo perfil de busca
+export const createPerfilBusca = async (perfil: Partial<PNCPPerfilBusca>): Promise<PNCPPerfilBusca> => {
+  // Obter o usuário atual
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user) {
+    throw new Error("Usuário não autenticado");
+  }
+
+  // Combinar palavras-chave: usar palavras_incluir OU palavras primarias/secundarias
+  const palavrasChave = [
+    ...(perfil.palavras_incluir || []),
+    ...((perfil as any).palavras_primarias || []),
+    ...((perfil as any).palavras_secundarias || [])
+  ];
+
+  const { data, error } = await supabase
+    .from("bd_pncp_perfis_busca")
+    .insert({
+      nome: perfil.nome,
+      descricao: perfil.descricao || null,
+      palavras_incluir: palavrasChave,
+      palavras_excluir: perfil.palavras_excluir || [],
+      valor_minimo: perfil.valor_minimo || 0,
+      valor_maximo: perfil.valor_maximo || null,
+      ufs_ativas: perfil.ufs_ativas || [],
+      modalidades_ativas: perfil.modalidades_ativas || [],
+      ativo: perfil.ativo ?? true,
+      cor: perfil.cor || '#3B82F6',
+      user_id: user.id, // Vincular perfil ao usuário
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Erro ao criar perfil de busca:", error);
+    throw error;
+  }
+
+  return data as PNCPPerfilBusca;
+};
+
+// Atualizar perfil de busca
+export const updatePerfilBusca = async (id: string, perfil: Partial<PNCPPerfilBusca>): Promise<void> => {
+  const { error } = await supabase
+    .from("bd_pncp_perfis_busca")
+    .update({
+      ...perfil,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Erro ao atualizar perfil de busca:", error);
+    throw error;
+  }
+};
+
+// Excluir perfil de busca
+export const deletePerfilBusca = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from("bd_pncp_perfis_busca")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    console.error("Erro ao excluir perfil de busca:", error);
+    throw error;
+  }
+};
+
+// Toggle ativo do perfil
+export const togglePerfilAtivo = async (id: string, ativo: boolean): Promise<void> => {
+  const { error } = await supabase
+    .from("bd_pncp_perfis_busca")
+    .update({ ativo, updated_at: new Date().toISOString() })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Erro ao toggle perfil ativo:", error);
+    throw error;
+  }
 };

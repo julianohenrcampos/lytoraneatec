@@ -108,3 +108,50 @@ export function downloadRelatorioMedicaoExcel(reportData, manutencaoData, vehicl
 
   saveAs(blob, nomeArquivo);
 }
+
+// ========== Download de licitações por perfil ==========
+export function downloadLicitacoesPerfilExcel(licitacoes: any[], nomePerfil: string) {
+  const dados = licitacoes.map(item => ({
+    "Órgão": item.orgao_nome || "",
+    "UF": item.uf || "",
+    "Município": item.municipio_nome || "",
+    "Objeto": item.objeto || "",
+    "Valor Estimado": item.valor_total_estimado || 0,
+    "Data Fim Propostas": item.data_fim_propostas 
+      ? new Date(item.data_fim_propostas).toLocaleDateString("pt-BR") 
+      : "",
+    "Modalidade": item.modalidade_contratacao || "",
+    "Prioridade": item.prioridade || "",
+    "Participando": item.participando ? "Sim" : "Não",
+    "Status": item.status_resultado || "aguardando",
+    "Link PNCP": item.link_origem_pncp || ""
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(dados);
+  
+  worksheet["!cols"] = [
+    { wch: 40 }, // Órgão
+    { wch: 5 },  // UF
+    { wch: 20 }, // Município
+    { wch: 60 }, // Objeto
+    { wch: 15 }, // Valor
+    { wch: 15 }, // Data
+    { wch: 25 }, // Modalidade
+    { wch: 10 }, // Prioridade
+    { wch: 12 }, // Participando
+    { wch: 12 }, // Status
+    { wch: 50 }, // Link
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Licitações");
+  
+  const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  const blob = new Blob([buffer], { type: "application/octet-stream" });
+  
+  const nomeArquivo = `licitacoes_${nomePerfil.replace(/\s+/g, "_")}_${
+    new Date().toISOString().split("T")[0]
+  }.xlsx`;
+  
+  saveAs(blob, nomeArquivo);
+}

@@ -254,7 +254,15 @@ export const createFuncionario = async (data: FuncionarioFormData): Promise<Func
 
     if (error) {
       console.error("Database error:", error);
-      throw new Error(error.message);
+      
+      // Extrair mensagem amigável de erros de duplicação
+      if (error.message.includes('Já existe um funcionário')) {
+        throw new Error(error.message);
+      } else if (error.message.includes('duplicate key') || error.code === '23505') {
+        throw new Error('Já existe um funcionário com este CPF ou email. Verifique os dados.');
+      }
+      
+      throw new Error(`Erro ao criar funcionário: ${error.message}`);
     }
     
     return newFuncionario as unknown as Funcionario;
@@ -310,7 +318,15 @@ export const updateFuncionario = async (id: string, data: FuncionarioFormData): 
 
     if (error) {
       console.error("Database error:", error);
-      throw new Error(error.message);
+      
+      // Extrair mensagem amigável de erros de duplicação
+      if (error.message.includes('Já existe um funcionário')) {
+        throw new Error(error.message);
+      } else if (error.message.includes('duplicate key') || error.code === '23505') {
+        throw new Error('Já existe um funcionário com este CPF ou email. Verifique os dados.');
+      }
+      
+      throw new Error(`Erro ao atualizar funcionário: ${error.message}`);
     }
     
     return updatedFuncionario as unknown as Funcionario;

@@ -1,6 +1,6 @@
 
 import React from "react";
-import { Users, Eye, Edit, UserCheck, AlertCircle, RefreshCw, Link2, Unlink, Trash2 } from "lucide-react";
+import { Users, Eye, Edit, UserCheck, AlertCircle, RefreshCw, Link2, Unlink, Trash2, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -23,6 +23,8 @@ import {
   isUserSuperAdmin 
 } from "@/utils/hybridPermissions";
 import { getDepartmentDisplay } from "@/utils/departmentDisplay";
+import { usePagination } from "@/hooks/usePagination";
+import TablePagination from "@/components/ui/table-pagination";
 
 interface UserProfilesTableProps {
   profiles: ProfileType[];
@@ -33,6 +35,9 @@ interface UserProfilesTableProps {
   onLinkFuncionario?: (profileId: string) => void;
   onUnlinkFuncionario?: (profileId: string) => void;
   onRemoveAllPermissions?: (profile: ProfileType) => void;
+  onDeleteUser?: (profile: ProfileType) => void;
+  currentUserId?: string;
+  isSuperAdmin?: boolean;
   filters: {
     nome?: string;
     status?: string;
@@ -52,12 +57,18 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
   onLinkFuncionario,
   onUnlinkFuncionario,
   onRemoveAllPermissions,
+  onDeleteUser,
+  currentUserId,
+  isSuperAdmin = false,
   filters,
   onFilterChange,
   onResetFilters,
   profilesError,
   refetchProfiles,
 }) => {
+  // Hook de paginação
+  const pagination = usePagination(profiles, { pageSize: 10 });
+
   // Função para detectar status de permissão usando sistema híbrido
   const getPermissionStatus = (profile: ProfileType) => {
     const hasPermission = userHasAnyPermission(profile);
@@ -135,7 +146,7 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
           <Users className="h-5 w-5" />
           Usuários Cadastrados
           <Badge variant="outline" className="ml-auto">
-            {profiles.length} usuários
+            {pagination.totalItems} usuários
           </Badge>
         </CardTitle>
       </CardHeader>
@@ -202,7 +213,7 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {profiles.length === 0 ? (
+              {pagination.paginatedData.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     <AlertCircle className="h-8 w-8 mx-auto mb-2" />
@@ -213,7 +224,7 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
                   </TableCell>
                 </TableRow>
               ) : (
-                profiles.map((profile, index) => {
+                pagination.paginatedData.map((profile, index) => {
                   const status = getPermissionStatus(profile);
                   const userFunctions = displayUserFunctions(profile);
                   const hasPermissions = status.label === "Com Permissão";
@@ -404,6 +415,27 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
                               )}
                             </>
                           )}
+                          
+                          {/* Botão de exclusão - apenas para SuperAdmin e não pode excluir a si mesmo */}
+                          {isSuperAdmin && onDeleteUser && profile.id !== currentUserId && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => onDeleteUser(profile)}
+                                    className="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
+                                  >
+                                    <UserX className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Excluir usuário permanentemente</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -414,11 +446,14 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
           </Table>
         </div>
 
+        {/* Paginação */}
+        <TablePagination pagination={pagination} className="mt-4" />
+
         {/* Resumo */}
-        {profiles.length > 0 && (
+        {pagination.totalItems > 0 && (
           <div className="text-xs text-muted-foreground text-center space-y-1">
             <div>
-              Mostrando {profiles.length} usuários • 
+              Total: {pagination.totalItems} usuários • 
               {profiles.filter(p => getPermissionStatus(p).label === "Com Permissão").length} com permissões • 
               {profiles.filter(p => getPermissionStatus(p).label === "Sem Permissão").length} sem permissões
             </div>

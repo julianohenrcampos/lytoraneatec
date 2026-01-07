@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Search, X, Filter, Calendar } from "lucide-react";
 import { PNCPFilters as PNCPFiltersType, TODAS_UFS } from "@/types/pncp";
-import { getOrgaosUnicos } from "@/services/pncpService";
+import { getOrgaosUnicos, fetchPerfisBusca } from "@/services/pncpService";
 import { useQuery } from "@tanstack/react-query";
 import { Combobox } from "@/components/ui/combobox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -47,6 +47,14 @@ export function PNCPFilters({
     queryKey: ["pncp-orgaos"],
     queryFn: getOrgaosUnicos,
     staleTime: 5 * 60 * 1000 // 5 minutos
+  });
+
+  const {
+    data: perfis = []
+  } = useQuery({
+    queryKey: ["pncp-perfis"],
+    queryFn: fetchPerfisBusca,
+    staleTime: 5 * 60 * 1000
   });
   useEffect(() => {
     setLocalFilters(filters);
@@ -97,7 +105,7 @@ export function PNCPFilters({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Órgão */}
           <div>
             <Label htmlFor="orgao">Órgão / Unidade</Label>
@@ -158,6 +166,28 @@ export function PNCPFilters({
                 <CalendarComponent mode="single" selected={date} onSelect={handleDateChange} locale={ptBR} initialFocus />
               </PopoverContent>
             </Popover>
+          </div>
+
+          {/* Perfil de Busca */}
+          <div>
+            <Label htmlFor="perfil">Perfil de Busca</Label>
+            <Combobox
+              options={[
+                { value: "_all", label: "Todos os perfis" },
+                ...perfis.map(perfil => ({ 
+                  value: perfil.id, 
+                  label: perfil.nome 
+                }))
+              ]}
+              value={localFilters.perfilBuscaId || "_all"}
+              onChange={(value) => setLocalFilters({
+                ...localFilters,
+                perfilBuscaId: value === "_all" ? undefined : value
+              })}
+              placeholder="Selecione o perfil..."
+              searchPlaceholder="Buscar perfil..."
+              emptyText="Nenhum perfil encontrado"
+            />
           </div>
         </div>
 

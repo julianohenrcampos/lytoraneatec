@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import MainLayout from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Gavel, ArrowLeft, Settings, Trash2, BarChart3 } from "lucide-react";
+import { RefreshCw, Gavel, ArrowLeft, Settings } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { fetchContratacoes, syncContratacoes, getLastSyncStatus, deleteContratacao, deleteMultipleContratacoes, getEncerradasCount, deleteEncerradas, toggleParticipando, toggleDescartada } from "@/services/pncpService";
@@ -13,12 +13,15 @@ import { PNCPFilters } from "@/components/pncp/PNCPFilters";
 import { PNCPMobileCards } from "@/components/pncp/PNCPMobileCards";
 import { PNCPSyncStatus } from "@/components/pncp/PNCPSyncStatus";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Label } from "@/components/ui/label";
 export default function MonitoramentoPNCP() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<PNCPFiltersType>({});
+  const [salvarTodas, setSalvarTodas] = useState(false);
   const {
     data: contratacoes,
     isLoading,
@@ -35,10 +38,10 @@ export default function MonitoramentoPNCP() {
     queryFn: getLastSyncStatus
   });
   const syncMutation = useMutation({
-    mutationFn: syncContratacoes,
+    mutationFn: (salvarTodas: boolean) => syncContratacoes(salvarTodas),
     onSuccess: data => {
       toast.success(`Sincronização concluída!`, {
-        description: `${data.total_inseridos} novas licitações encontradas.`
+        description: `${data.total_inseridos} novas licitações encontradas.${salvarTodas ? ` Todas as ${data.total_encontrados} licitações foram salvas.` : ''}`
       });
       queryClient.invalidateQueries({
         queryKey: ["pncp-contratacoes"]
@@ -96,10 +99,10 @@ export default function MonitoramentoPNCP() {
     }
   });
   const handleSync = () => {
-    toast.loading("Sincronizando com PNCP...", {
+    toast.loading(salvarTodas ? "Sincronizando e salvando TODAS as licitações..." : "Sincronizando com PNCP...", {
       id: "pncp-sync"
     });
-    syncMutation.mutate(undefined, {
+    syncMutation.mutate(salvarTodas, {
       onSettled: () => toast.dismiss("pncp-sync")
     });
   };
@@ -189,8 +192,27 @@ export default function MonitoramentoPNCP() {
           </div>
         </div>
         
-        <div className="flex gap-2 flex-wrap">
-          
+        <div className="flex gap-2 flex-wrap items-center">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-2 px-3 py-2 border rounded-md bg-background">
+                  <Label htmlFor="salvar-todas" className="text-sm whitespace-nowrap cursor-pointer">
+                    Salvar Todas
+                  </Label>
+                  <Switch 
+                    id="salvar-todas"
+                    checked={salvarTodas}
+                    onCheckedChange={setSalvarTodas}
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Salvar todas as licitações analisadas, não apenas as que fazem match</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
           <Button variant="outline" onClick={() => navigate("/licitacoes/configuracoes-pncp")}>
             <Settings className="h-4 w-4 mr-2" />
             Configurações

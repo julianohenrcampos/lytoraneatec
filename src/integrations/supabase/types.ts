@@ -1442,6 +1442,11 @@ export type Database = {
           palavras_excluir: string[] | null
           palavras_incluir: string[] | null
           prazo_minimo_dias: number | null
+          salvar_todas_licitacoes: boolean | null
+          sync_automatico: boolean | null
+          sync_horario_1: string | null
+          sync_horario_2: string | null
+          sync_horario_3: string | null
           ufs_ativas: string[] | null
           updated_at: string | null
           valor_minimo: number | null
@@ -1458,6 +1463,11 @@ export type Database = {
           palavras_excluir?: string[] | null
           palavras_incluir?: string[] | null
           prazo_minimo_dias?: number | null
+          salvar_todas_licitacoes?: boolean | null
+          sync_automatico?: boolean | null
+          sync_horario_1?: string | null
+          sync_horario_2?: string | null
+          sync_horario_3?: string | null
           ufs_ativas?: string[] | null
           updated_at?: string | null
           valor_minimo?: number | null
@@ -1474,6 +1484,11 @@ export type Database = {
           palavras_excluir?: string[] | null
           palavras_incluir?: string[] | null
           prazo_minimo_dias?: number | null
+          salvar_todas_licitacoes?: boolean | null
+          sync_automatico?: boolean | null
+          sync_horario_1?: string | null
+          sync_horario_2?: string | null
+          sync_horario_3?: string | null
           ufs_ativas?: string[] | null
           updated_at?: string | null
           valor_minimo?: number | null
@@ -1500,12 +1515,15 @@ export type Database = {
           orgao_cnpj: string | null
           orgao_nome: string | null
           participando: boolean | null
+          perfil_busca_id: string | null
+          perfil_busca_nome: string | null
           prioridade: string | null
           raw_data: Json | null
           status_resultado: string | null
           uf: string | null
           unidade_nome: string | null
           updated_at: string | null
+          user_id: string | null
           valor_total_estimado: number | null
         }
         Insert: {
@@ -1526,12 +1544,15 @@ export type Database = {
           orgao_cnpj?: string | null
           orgao_nome?: string | null
           participando?: boolean | null
+          perfil_busca_id?: string | null
+          perfil_busca_nome?: string | null
           prioridade?: string | null
           raw_data?: Json | null
           status_resultado?: string | null
           uf?: string | null
           unidade_nome?: string | null
           updated_at?: string | null
+          user_id?: string | null
           valor_total_estimado?: number | null
         }
         Update: {
@@ -1552,13 +1573,81 @@ export type Database = {
           orgao_cnpj?: string | null
           orgao_nome?: string | null
           participando?: boolean | null
+          perfil_busca_id?: string | null
+          perfil_busca_nome?: string | null
           prioridade?: string | null
           raw_data?: Json | null
           status_resultado?: string | null
           uf?: string | null
           unidade_nome?: string | null
           updated_at?: string | null
+          user_id?: string | null
           valor_total_estimado?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_pncp_contratacoes_perfil_busca_id_fkey"
+            columns: ["perfil_busca_id"]
+            isOneToOne: false
+            referencedRelation: "bd_pncp_perfis_busca"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_pncp_perfis_busca: {
+        Row: {
+          ativo: boolean | null
+          cor: string | null
+          created_at: string | null
+          descricao: string | null
+          id: string
+          modalidades_ativas: number[] | null
+          nome: string
+          palavras_excluir: string[] | null
+          palavras_incluir: string[] | null
+          palavras_primarias: string[] | null
+          palavras_secundarias: string[] | null
+          ufs_ativas: string[] | null
+          updated_at: string | null
+          user_id: string | null
+          valor_maximo: number | null
+          valor_minimo: number | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          cor?: string | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          modalidades_ativas?: number[] | null
+          nome: string
+          palavras_excluir?: string[] | null
+          palavras_incluir?: string[] | null
+          palavras_primarias?: string[] | null
+          palavras_secundarias?: string[] | null
+          ufs_ativas?: string[] | null
+          updated_at?: string | null
+          user_id?: string | null
+          valor_maximo?: number | null
+          valor_minimo?: number | null
+        }
+        Update: {
+          ativo?: boolean | null
+          cor?: string | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          modalidades_ativas?: number[] | null
+          nome?: string
+          palavras_excluir?: string[] | null
+          palavras_incluir?: string[] | null
+          palavras_primarias?: string[] | null
+          palavras_secundarias?: string[] | null
+          ufs_ativas?: string[] | null
+          updated_at?: string | null
+          user_id?: string | null
+          valor_maximo?: number | null
+          valor_minimo?: number | null
         }
         Relationships: []
       }
@@ -1603,6 +1692,86 @@ export type Database = {
           total_inseridos?: number | null
         }
         Relationships: []
+      }
+      bd_pncp_todas_licitacoes: {
+        Row: {
+          created_at: string | null
+          data_fim_propostas: string | null
+          data_inicio_propostas: string | null
+          data_publicacao: string | null
+          id: string
+          link_origem_pncp: string | null
+          modalidade_contratacao: string | null
+          motivo_nao_match: string | null
+          municipio_ibge: string | null
+          municipio_nome: string | null
+          numero_controle_pncp: string
+          objeto: string | null
+          orgao_cnpj: string | null
+          orgao_nome: string | null
+          raw_data: Json | null
+          status_analise: string | null
+          sync_id: string | null
+          uf: string | null
+          unidade_nome: string | null
+          updated_at: string | null
+          valor_total_estimado: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          data_fim_propostas?: string | null
+          data_inicio_propostas?: string | null
+          data_publicacao?: string | null
+          id?: string
+          link_origem_pncp?: string | null
+          modalidade_contratacao?: string | null
+          motivo_nao_match?: string | null
+          municipio_ibge?: string | null
+          municipio_nome?: string | null
+          numero_controle_pncp: string
+          objeto?: string | null
+          orgao_cnpj?: string | null
+          orgao_nome?: string | null
+          raw_data?: Json | null
+          status_analise?: string | null
+          sync_id?: string | null
+          uf?: string | null
+          unidade_nome?: string | null
+          updated_at?: string | null
+          valor_total_estimado?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          data_fim_propostas?: string | null
+          data_inicio_propostas?: string | null
+          data_publicacao?: string | null
+          id?: string
+          link_origem_pncp?: string | null
+          modalidade_contratacao?: string | null
+          motivo_nao_match?: string | null
+          municipio_ibge?: string | null
+          municipio_nome?: string | null
+          numero_controle_pncp?: string
+          objeto?: string | null
+          orgao_cnpj?: string | null
+          orgao_nome?: string | null
+          raw_data?: Json | null
+          status_analise?: string | null
+          sync_id?: string | null
+          uf?: string | null
+          unidade_nome?: string | null
+          updated_at?: string | null
+          valor_total_estimado?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_pncp_todas_licitacoes_sync_id_fkey"
+            columns: ["sync_id"]
+            isOneToOne: false
+            referencedRelation: "bd_pncp_sync_log"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       bd_programacao_entrega: {
         Row: {
@@ -2565,6 +2734,10 @@ export type Database = {
       calcular_massa_remanescente_em_tempo_real: {
         Args: { p_registro_aplicacao_id: string }
         Returns: number
+      }
+      check_email_duplicate_normalized: {
+        Args: { p_email: string; p_exclude_id?: string }
+        Returns: boolean
       }
       check_is_super_admin: { Args: { user_id?: string }; Returns: boolean }
       check_vistorias_sso_pendentes: { Args: never; Returns: undefined }

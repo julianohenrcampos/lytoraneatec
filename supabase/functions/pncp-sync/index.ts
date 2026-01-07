@@ -12,11 +12,21 @@ interface PNCPConfig {
   valor_minimo: number;
   valor_prioridade_alta: number;
   ufs_ativas: string[];
-  palavras_incluir: string[];
-  palavras_excluir: string[];
   modalidades_ativas: number[];
   dias_busca_completa: number;
   prazo_minimo_dias: number;
+}
+
+interface PerfilBusca {
+  id: string;
+  nome: string;
+  cor: string | null;
+  palavras_incluir: string[] | null;     // Palavras-chave - basta 1 match
+  palavras_primarias: string[] | null;   // Legado - combina com incluir
+  palavras_secundarias: string[] | null; // Legado - combina com incluir
+  palavras_excluir: string[] | null;
+  ativo: boolean;
+  user_id: string | null; // Dono do perfil
 }
 
 // Função para calcular dias até o fim das propostas
@@ -32,30 +42,25 @@ function calcularDiasRestantes(dataFim: string | null): number | null {
 }
 
 // Função para gerar link correto do PNCP
-// Formato entrada: 33663683000116-1-000637/2025
-// Formato saída: https://pncp.gov.br/app/editais/33663683000116/2025/637
 function gerarLinkPNCP(numeroControle: string): string {
   try {
-    // Extrair partes: "33663683000116-1-000637/2025"
     const [parteIdentificacao, ano] = numeroControle.split('/');
     
     if (!parteIdentificacao || !ano) {
       return `https://pncp.gov.br/app/editais/${numeroControle}`;
     }
     
-    // parteIdentificacao = "33663683000116-1-000637"
     const partes = parteIdentificacao.split('-');
     
     if (partes.length < 3) {
       return `https://pncp.gov.br/app/editais/${numeroControle}`;
     }
     
-    const cnpj = partes[0]; // "33663683000116"
-    const numeroEdital = parseInt(partes[partes.length - 1], 10); // 637 (remove zeros à esquerda)
+    const cnpj = partes[0];
+    const numeroEdital = parseInt(partes[partes.length - 1], 10);
     
     return `https://pncp.gov.br/app/editais/${cnpj}/${ano}/${numeroEdital}`;
   } catch (e) {
-    // Fallback caso o formato seja diferente
     return `https://pncp.gov.br/app/editais/${numeroControle}`;
   }
 }
@@ -134,13 +139,15 @@ serve(async (req) => {
     // Verificar autorização - aceitar chamadas autenticadas ou do cron
     const authHeader = req.headers.get("Authorization");
     let isCronCall = false;
+    let salvarTodas = false;
     
-    // Tentar ler o body para verificar se é chamada do cron
+    // Tentar ler o body para verificar se é chamada do cron e opção salvarTodas
     let body: any = {};
     try {
       const clonedReq = req.clone();
       body = await clonedReq.json();
       isCronCall = body?.source === "cron";
+      salvarTodas = body?.salvarTodas === true;
     } catch {
       // Body vazio ou inválido - ok, pode ser chamada manual
     }
@@ -173,18 +180,23 @@ serve(async (req) => {
       console.error("❌ Erro ao buscar configurações:", configError);
     }
 
+    // Buscar perfis de busca ativos
+const { data: perfisData, error: perfisError } = await supabase
+      .from("bd_pncp_perfis_busca")
+      .select("id, nome, cor, palavras_incluir, palavras_primarias, palavras_secundarias, palavras_excluir, ativo, user_id")
+      .eq("ativo", true);
+
+    if (perfisError) {
+      console.error("❌ Erro ao buscar perfis:", perfisError);
+    }
+
+    const perfisAtivos: PerfilBusca[] = perfisData || [];
+
     // Usar configurações do banco ou defaults
     const config: PNCPConfig = {
       valor_minimo: configData?.valor_minimo || 1000000,
       valor_prioridade_alta: configData?.valor_prioridade_alta || 20000000,
       ufs_ativas: configData?.ufs_ativas?.length > 0 ? configData.ufs_ativas : ["RJ"],
-      palavras_incluir: configData?.palavras_incluir || [
-        "obra", "engenharia", "pavimentação", "reforma", "recapeamento",
-        "drenagem", "infraestrutura", "construção", "execução", "recuperação",
-        "manutenção", "urbanização", "saneamento", "edificação", "restauração",
-        "asfalto", "terraplenagem", "contenção", "ponte", "viaduto"
-      ],
-      palavras_excluir: configData?.palavras_excluir || [],
       modalidades_ativas: configData?.modalidades_ativas || [4, 5, 6, 7, 8, 9, 12, 13],
       dias_busca_completa: configData?.dias_busca_completa || 90,
       prazo_minimo_dias: configData?.prazo_minimo_dias || 7,
@@ -197,7 +209,23 @@ serve(async (req) => {
       - Modalidades: ${config.modalidades_ativas.join(', ')}
       - Dias de busca: ${config.dias_busca_completa}
       - Prazo mínimo para alerta: ${config.prazo_minimo_dias} dias
+      - Perfis ativos: ${perfisAtivos.length} (${perfisAtivos.map(p => p.nome).join(', ') || 'nenhum'})
+      - Salvar todas as licitações: ${salvarTodas ? 'SIM' : 'NÃO'}
     `);
+
+    // Se não há perfis ativos, não há o que buscar
+    if (perfisAtivos.length === 0) {
+      console.log("⚠️ Nenhum perfil de busca ativo. Crie pelo menos um perfil para capturar licitações.");
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "Nenhum perfil de busca ativo. Crie pelo menos um perfil para capturar licitações.",
+          total_encontrados: 0,
+          total_inseridos: 0,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Criar log de sincronização
     const { data: logData, error: logError } = await supabase
@@ -212,8 +240,6 @@ serve(async (req) => {
       syncLogId = logData?.id;
       console.log("📝 Log de sincronização criado:", syncLogId);
     }
-
-    // Filtro de licitações encerradas é feito em processarContratacao
 
     // Configurar datas para consulta
     const hojeDate = new Date();
@@ -268,7 +294,7 @@ serve(async (req) => {
           // Processar cada contratação
           for (const item of contratacoes) {
             const resultado = await processarContratacao(
-              item, uf, config, supabase, processados
+              item, uf, config, perfisAtivos, supabase, processados, salvarTodas, syncLogId
             );
             
             totalEncontrados++;
@@ -314,7 +340,7 @@ serve(async (req) => {
 
           for (const item of contratacoes) {
             const resultado = await processarContratacao(
-              item, uf, config, supabase, processados
+              item, uf, config, perfisAtivos, supabase, processados, salvarTodas, syncLogId
             );
             
             totalEncontrados++;
@@ -342,6 +368,7 @@ serve(async (req) => {
     console.log(`
 📊 Sincronização concluída!
    UFs processadas: ${config.ufs_ativas.join(', ')}
+   Perfis utilizados: ${perfisAtivos.map(p => p.nome).join(', ')}
    Total analisados: ${totalEncontrados}
    ⏭️ Rejeitados por termo: ${rejeitadosPorTermo}
    ⏭️ Rejeitados por valor: ${rejeitadosPorValor}
@@ -411,13 +438,68 @@ serve(async (req) => {
   }
 });
 
+// Função auxiliar para salvar licitação na tabela de todas
+async function salvarLicitacaoCompleta(
+  item: any,
+  uf: string,
+  motivoNaoMatch: string | null,
+  syncId: string | null,
+  supabase: any
+): Promise<void> {
+  const numeroControle = item.numeroControlePNCP || item.numeroControle || item.id;
+  const valorEstimado = parseFloat(item.valorTotalEstimado || item.valorEstimado || 0);
+  
+  const municipioNome = 
+    item.municipio?.nome || 
+    item.municipioTermo || 
+    item.localEntrega?.municipio ||
+    item.localExecucao?.municipio ||
+    null;
+
+  const municipioIbge = 
+    item.municipio?.codigoIbge || 
+    item.codigoMunicipioIbge || 
+    item.localExecucao?.codigoIbge ||
+    null;
+
+  const registro = {
+    numero_controle_pncp: numeroControle,
+    objeto: item.objetoCompra || item.objeto || item.descricao || "Sem descrição",
+    orgao_nome: item.orgaoEntidade?.razaoSocial || item.nomeOrgao || item.orgao || null,
+    orgao_cnpj: item.orgaoEntidade?.cnpj || item.cnpjOrgao || null,
+    unidade_nome: item.unidadeOrgao?.nomeUnidade || item.unidade || null,
+    municipio_nome: municipioNome,
+    municipio_ibge: municipioIbge?.toString() || null,
+    uf: uf,
+    valor_total_estimado: valorEstimado,
+    data_publicacao: item.dataPublicacaoPncp || item.dataPublicacao || null,
+    data_inicio_propostas: item.dataAberturaProposta || item.dataInicioProposta || null,
+    data_fim_propostas: item.dataEncerramentoProposta || item.dataFimProposta || null,
+    link_origem_pncp: gerarLinkPNCP(numeroControle),
+    modalidade_contratacao: item.modalidadeContratacao?.nome || item.modalidade || null,
+    motivo_nao_match: motivoNaoMatch,
+    sync_id: syncId,
+    raw_data: item,
+  };
+
+  await supabase
+    .from("bd_pncp_todas_licitacoes")
+    .upsert(registro, {
+      onConflict: "numero_controle_pncp",
+      ignoreDuplicates: false,
+    });
+}
+
 // Função auxiliar para processar uma contratação
 async function processarContratacao(
   item: any,
   uf: string,
   config: PNCPConfig,
+  perfisAtivos: PerfilBusca[],
   supabase: any,
-  processados: Set<string>
+  processados: Set<string>,
+  salvarTodas: boolean = false,
+  syncLogId: string | null = null
 ): Promise<string> {
   const numeroControle = item.numeroControlePNCP || item.numeroControle || item.id;
 
@@ -434,53 +516,14 @@ async function processarContratacao(
   // Extrair objeto da contratação
   const objeto = (item.objetoCompra || item.objeto || item.descricao || "").toLowerCase();
 
-  // Palavras PRIMÁRIAS: específicas de engenharia civil (sozinhas já qualificam)
-  const palavrasPrimarias = [
-    'obra', 'pavimentação', 'drenagem', 'infraestrutura', 'edificação',
-    'urbanização', 'saneamento', 'terraplenagem', 'asfalto', 'ponte',
-    'viaduto', 'contenção', 'recapeamento', 'pavimento', 'esgoto',
-    'implantação viária', 'implantacao viaria', 'requalificação urbana',
-    'duplicação', 'rodovia', 'estrada', 'rede de água', 'rede de esgoto'
-  ];
-
-  // Palavras SECUNDÁRIAS: genéricas (precisam de combinação com primária ou 2+ secundárias)
-  const palavrasSecundarias = [
-    'manutenção', 'execução', 'construção', 'recuperação', 'reforma',
-    'restauração', 'engenharia', 'engenharia civil', 'serviços de engenharia'
-  ];
-
-  // Verificar matches
-  const primariasEncontradas = palavrasPrimarias.filter(p => objeto.includes(p));
-  const secundariasEncontradas = palavrasSecundarias.filter(s => objeto.includes(s));
-
-  // Lógica de aceitação:
-  // 1. Tem pelo menos UMA palavra primária, OU
-  // 2. Tem pelo menos DUAS palavras secundárias
-  const temPrimaria = primariasEncontradas.length > 0;
-  const temDuasSecundarias = secundariasEncontradas.length >= 2;
-
-  if (!temPrimaria && !temDuasSecundarias) {
-    return 'termo';
-  }
-
-  // Combinar termos encontrados para registro
-  const termosEncontrados = [...primariasEncontradas, ...secundariasEncontradas];
-
-  // Verificar termos de exclusão
-  const contemExclusao = config.palavras_excluir.some(
-    (termo) => objeto.includes(termo.toLowerCase())
-  );
-
-  if (contemExclusao) {
-    console.log(`    ⏭️ Exclusão: contém termo bloqueado`);
-    return 'exclusao';
-  }
-
-  // Verificar valor mínimo
+  // Verificar valor mínimo ANTES de verificar perfis (mais eficiente)
   const valorEstimado = parseFloat(item.valorTotalEstimado || item.valorEstimado || 0);
 
   if (valorEstimado < config.valor_minimo) {
-    console.log(`    ⏭️ Valor: R$ ${valorEstimado.toLocaleString('pt-BR')} < mínimo R$ ${config.valor_minimo.toLocaleString('pt-BR')}`);
+    // Salvar na tabela completa se opção ativada
+    if (salvarTodas) {
+      await salvarLicitacaoCompleta(item, uf, 'valor', syncLogId, supabase);
+    }
     return 'valor';
   }
 
@@ -493,8 +536,75 @@ async function processarContratacao(
     dataFim.setHours(0, 0, 0, 0);
     
     if (dataFim < hoje) {
+      // Salvar na tabela completa se opção ativada
+      if (salvarTodas) {
+        await salvarLicitacaoCompleta(item, uf, 'prazo', syncLogId, supabase);
+      }
       return 'prazo';
     }
+  }
+
+  // Tentar fazer match com um dos perfis ativos
+  let perfilMatch: PerfilBusca | null = null;
+  let termosEncontrados: string[] = [];
+
+  for (const perfil of perfisAtivos) {
+    // Combinar todas as palavras-chave (incluir + primarias + secundarias legado)
+    const todasPalavras = [
+      ...(perfil.palavras_incluir || []),
+      ...(perfil.palavras_primarias || []),
+      ...(perfil.palavras_secundarias || [])
+    ];
+    const palavrasExcluir = perfil.palavras_excluir || [];
+
+    // Verificar se contém algum termo de exclusão do perfil
+    const contemExclusao = palavrasExcluir.some(
+      (termo) => objeto.includes(termo.toLowerCase())
+    );
+
+    if (contemExclusao) {
+      // Salvar na tabela completa se opção ativada (com motivo exclusão)
+      if (salvarTodas) {
+        await salvarLicitacaoCompleta(item, uf, 'exclusao', syncLogId, supabase);
+      }
+      continue; // Pular este perfil, mas tentar próximo
+    }
+
+    // Verificar matches - BASTA 1 match de qualquer palavra-chave
+    // Para termos compostos, verificar se TODAS as palavras aparecem (ex: "material escritório" -> "material" E "escritório")
+    const matches = todasPalavras.filter(termo => {
+      const termoLower = termo.toLowerCase().trim();
+      
+      // Dividir em palavras, ignorando palavras pequenas (de, da, do, para, etc)
+      const palavras = termoLower.split(/\s+/).filter(p => p.length > 2);
+      
+      if (palavras.length === 0) {
+        return false;
+      }
+      
+      if (palavras.length === 1) {
+        // Palavra única: busca direta
+        return objeto.includes(palavras[0]);
+      }
+      
+      // Múltiplas palavras: TODAS devem aparecer no objeto (em qualquer ordem)
+      return palavras.every(palavra => objeto.includes(palavra));
+    });
+
+    if (matches.length >= 1) {
+      perfilMatch = perfil;
+      termosEncontrados = matches;
+      break; // Encontrou match, usar este perfil
+    }
+  }
+
+  // Se nenhum perfil deu match, rejeitar a licitação
+  if (!perfilMatch) {
+    // Salvar na tabela completa se opção ativada (sem match de termo)
+    if (salvarTodas) {
+      await salvarLicitacaoCompleta(item, uf, 'termo', syncLogId, supabase);
+    }
+    return 'termo';
   }
 
   // Calcular prioridade
@@ -536,6 +646,9 @@ async function processarContratacao(
     modalidade_contratacao: item.modalidadeContratacao?.nome || item.modalidade || null,
     prioridade: prioridade,
     match_termos: termosEncontrados,
+    perfil_busca_id: perfilMatch.id,
+    perfil_busca_nome: perfilMatch.nome,
+    user_id: perfilMatch.user_id, // Herdar user_id do perfil que deu match
     raw_data: item,
   };
 
@@ -556,6 +669,11 @@ async function processarContratacao(
     }
   }
 
-  console.log(`    ✅ ${prioridade.toUpperCase()}: R$ ${valorEstimado.toLocaleString('pt-BR')} - ${municipioNome || uf}`);
+  // Salvar também na tabela completa se opção ativada (com match)
+  if (salvarTodas) {
+    await salvarLicitacaoCompleta(item, uf, 'match', syncLogId, supabase);
+  }
+
+  console.log(`    ✅ [${perfilMatch.nome}] ${prioridade.toUpperCase()}: R$ ${valorEstimado.toLocaleString('pt-BR')} - ${municipioNome || uf}`);
   return 'inserido';
 }

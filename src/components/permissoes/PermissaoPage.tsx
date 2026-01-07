@@ -1,7 +1,7 @@
-
-import React from "react";
-import { UserCircle } from "lucide-react";
+import React, { useState } from "react";
+import { UserCircle, UserPlus } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { usePermissao } from "@/hooks/usePermissao";
 import PermissaoHeaderActions from "./PermissaoHeaderActions";
 import PermissaoTable from "./PermissaoTable";
@@ -16,10 +16,20 @@ import DepartamentoStatusCard from "./DepartamentoStatusCard";
 import DeletePermissaoDialog from "./DeletePermissaoDialog";
 import DeleteFuncaoPermissaoDialog from "./DeleteFuncaoPermissaoDialog";
 import RemoveAllPermissionsDialog from "./RemoveAllPermissionsDialog";
+import DeleteUserDialog from "./DeleteUserDialog";
+import CreateGestorModal from "./CreateGestorModal";
 import { useVincularFuncionario } from "@/hooks/useVincularFuncionario";
 import { useRemoverPermissoes } from "@/hooks/useRemoverPermissoes";
+import { useExcluirUsuario } from "@/hooks/useExcluirUsuario";
+import { useAuthPermissions } from "@/hooks/useAuthPermissions";
 
 const PermissaoPage: React.FC = () => {
+  // Hook de autenticação para verificar se é SuperAdmin
+  const { userId, isSuperAdmin } = useAuthPermissions();
+  
+  // Estado para modal de criação de gestor
+  const [isCreateGestorOpen, setIsCreateGestorOpen] = useState(false);
+
   // Hook de vinculação
   const {
     isLinkModalOpen,
@@ -95,6 +105,16 @@ const PermissaoPage: React.FC = () => {
 
   const { removerTodasFuncoes, isRemoving } = useRemoverPermissoes();
 
+  // Hook de exclusão de usuário
+  const {
+    isDeleting: isDeletingUser,
+    isDeleteDialogOpen,
+    userToDelete,
+    openDeleteDialog,
+    closeDeleteDialog,
+    excluirUsuario,
+  } = useExcluirUsuario(refetchProfiles);
+
   const handleRemoveAllPermissions = async () => {
     if (!currentProfile) return;
     
@@ -163,6 +183,16 @@ const PermissaoPage: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="users" className="space-y-4">
+          {/* Botão Novo Gestor - apenas para SuperAdmin */}
+          {isSuperAdmin && (
+            <div className="flex justify-end">
+              <Button onClick={() => setIsCreateGestorOpen(true)}>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Novo Gestor
+              </Button>
+            </div>
+          )}
+          
           <DepartamentoStatusCard />
           
           <UserProfilesTable 
@@ -178,6 +208,9 @@ const PermissaoPage: React.FC = () => {
               }
             }}
             onRemoveAllPermissions={openRemoveAllPermissions}
+            onDeleteUser={openDeleteDialog}
+            currentUserId={userId}
+            isSuperAdmin={isSuperAdmin}
             filters={profileFilter}
             onFilterChange={handleProfileFilterChange}
             onResetFilters={resetProfileFilters}
@@ -252,6 +285,22 @@ const PermissaoPage: React.FC = () => {
         funcaoPermissaoId={currentFuncaoPermissao?.id}
         funcaoPermissaoNome={currentFuncaoPermissao?.nome_funcao}
         isDeleting={isDeleting}
+      />
+
+      {/* Modal de exclusão de usuário */}
+      <DeleteUserDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={closeDeleteDialog}
+        profile={userToDelete}
+        onConfirm={excluirUsuario}
+        isDeleting={isDeletingUser}
+      />
+
+      {/* Modal de criação de gestor */}
+      <CreateGestorModal
+        isOpen={isCreateGestorOpen}
+        onClose={() => setIsCreateGestorOpen(false)}
+        onSuccess={refetchProfiles}
       />
     </div>
   );

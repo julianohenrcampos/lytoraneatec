@@ -27,29 +27,15 @@ export const useRhSecurity = (): RhSecurityContext => {
       try {
         setSecurityContext(prev => ({ ...prev, isLoading: true }));
 
-        // SuperAdm global (sem departamento) pode ver todos os dados
+        // SuperAdm SEMPRE tem acesso global - não filtrar por departamento
         if (isSuperAdmin) {
-          // Verificar se tem funcionário vinculado e departamento
-          const { data: funcionario } = await supabase
-            .from("bd_funcionarios")
-            .select("departamento_id")
-            .eq("email", (await supabase.auth.getUser()).data.user?.email)
-            .single();
-
-          // SuperAdm sem departamento = acesso global
-          if (!funcionario || !funcionario.departamento_id) {
-            console.log("🔐 SuperAdmin Global - acesso total sem filtro departamental");
-            setSecurityContext({
-              isLoading: false,
-              canViewAllData: true,
-              shouldFilterByDepartment: false,
-            });
-            return;
-          }
-          
-          // SuperAdm com departamento = acesso filtrado por departamento
-          console.log("🔐 SuperAdmin Departamental - filtrado por departamento");
-          // Continua o fluxo para buscar dados do departamento
+          console.log("🔐 SuperAdmin - acesso total sem filtro departamental");
+          setSecurityContext({
+            isLoading: false,
+            canViewAllData: true,
+            shouldFilterByDepartment: false,
+          });
+          return;
         }
 
         if (!userId && !isSuperAdmin) {

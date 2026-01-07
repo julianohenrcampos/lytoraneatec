@@ -22,6 +22,9 @@ export interface PNCPContratacao {
   descartada: boolean;
   data_marcacao_participando: string | null;
   status_resultado: StatusResultado;
+  perfil_busca_id: string | null;
+  perfil_busca_nome: string | null;
+  perfil_cor: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -31,6 +34,7 @@ export interface PNCPFilters {
   uf?: string;
   orgao?: string;
   categoriaValor?: string[];
+  perfilBuscaId?: string;
 }
 
 export interface PNCPSyncLog {
@@ -75,6 +79,37 @@ export interface PNCPConfig {
   created_at: string;
   updated_at: string;
 }
+
+// Nova interface para Perfis de Busca
+export interface PNCPPerfilBusca {
+  id: string;
+  nome: string;
+  descricao: string | null;
+  palavras_primarias: string[];  // Específicas - basta 1 match
+  palavras_secundarias: string[]; // Genéricas - precisa 2+ matches
+  palavras_incluir: string[];     // Mantido para compatibilidade
+  palavras_excluir: string[];
+  valor_minimo: number | null;
+  valor_maximo: number | null;
+  ufs_ativas: string[];
+  modalidades_ativas: number[];
+  ativo: boolean;
+  cor: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Cores predefinidas para perfis
+export const CORES_PERFIL = [
+  { valor: '#3B82F6', nome: 'Azul' },
+  { valor: '#10B981', nome: 'Verde' },
+  { valor: '#F59E0B', nome: 'Amarelo' },
+  { valor: '#EF4444', nome: 'Vermelho' },
+  { valor: '#8B5CF6', nome: 'Roxo' },
+  { valor: '#EC4899', nome: 'Rosa' },
+  { valor: '#06B6D4', nome: 'Ciano' },
+  { valor: '#F97316', nome: 'Laranja' },
+];
 
 // Função utilitária para calcular dias restantes
 export function calcularDiasRestantes(dataFim: string | null): number | null {
