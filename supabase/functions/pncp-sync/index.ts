@@ -27,6 +27,8 @@ interface PerfilBusca {
   palavras_excluir: string[] | null;
   ativo: boolean;
   user_id: string | null; // Dono do perfil
+  valor_minimo: number | null;  // Valor mínimo específico do perfil
+  valor_maximo: number | null;  // Valor alta prioridade específico do perfil
 }
 
 // Função para calcular dias até o fim das propostas
@@ -185,7 +187,7 @@ serve(async (req) => {
     // Buscar perfis de busca ativos - filtrar por usuário se especificado
     let perfisQuery = supabase
       .from("bd_pncp_perfis_busca")
-      .select("id, nome, cor, palavras_incluir, palavras_primarias, palavras_secundarias, palavras_excluir, ativo, user_id")
+      .select("id, nome, cor, palavras_incluir, palavras_primarias, palavras_secundarias, palavras_excluir, ativo, user_id, valor_minimo, valor_maximo")
       .eq("ativo", true);
     
     // Se usuário especificado, buscar apenas perfis dele
@@ -525,16 +527,8 @@ async function processarContratacao(
   // Extrair objeto da contratação
   const objeto = (item.objetoCompra || item.objeto || item.descricao || "").toLowerCase();
 
-  // Verificar valor mínimo ANTES de verificar perfis (mais eficiente)
+  // Extrair valor estimado
   const valorEstimado = parseFloat(item.valorTotalEstimado || item.valorEstimado || 0);
-
-  if (valorEstimado < config.valor_minimo) {
-    // Salvar na tabela completa se opção ativada
-    if (salvarTodas) {
-      await salvarLicitacaoCompleta(item, uf, 'valor', syncLogId, supabase);
-    }
-    return 'valor';
-  }
 
   // Verificar se prazo já está encerrado (não salvar licitações vencidas)
   const dataFimPropostas = item.dataEncerramentoProposta || item.dataFimProposta;
@@ -616,11 +610,22 @@ async function processarContratacao(
     return 'termo';
   }
 
-  // Calcular prioridade
+  // Verificar valor mínimo DO PERFIL (após encontrar match)
+  const perfilValorMinimo = perfilMatch.valor_minimo || 0;
+  if (valorEstimado < perfilValorMinimo) {
+    // Salvar na tabela completa se opção ativada
+    if (salvarTodas) {
+      await salvarLicitacaoCompleta(item, uf, 'valor', syncLogId, supabase);
+    }
+    return 'valor';
+  }
+
+  // Calcular prioridade usando valor do perfil ou fallback para config global
+  const valorAltaPrioridade = perfilMatch.valor_maximo || config.valor_prioridade_alta;
   let prioridade = "media";
-  if (valorEstimado >= config.valor_prioridade_alta) {
+  if (valorEstimado >= valorAltaPrioridade) {
     prioridade = "alta";
-  } else if (valorEstimado < config.valor_minimo * 1.5) {
+  } else if (perfilValorMinimo > 0 && valorEstimado < perfilValorMinimo * 1.5) {
     prioridade = "baixa";
   }
 

@@ -59,6 +59,12 @@ export const fetchContratacoes = async (filters: PNCPFilters = {}): Promise<PNCP
     query = query.eq("perfil_busca_id", filters.perfilBuscaId);
   }
 
+  // Filtro para ocultar licitações encerradas (data_fim_propostas < hoje)
+  if (filters.ocultarEncerradas) {
+    const hoje = new Date().toISOString().split('T')[0];
+    query = query.gte("data_fim_propostas", hoje);
+  }
+
   // Filtro por categoria de valor (Mega/Alto/Padrão)
   if (filters.categoriaValor && filters.categoriaValor.length > 0) {
     const conditions: string[] = [];

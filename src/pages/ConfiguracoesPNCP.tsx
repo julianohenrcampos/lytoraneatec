@@ -17,7 +17,24 @@ import { getConfig, updateConfig, fetchPerfisBusca, createPerfilBusca, updatePer
 import { PNCPConfig, PNCPPerfilBusca, TODAS_UFS, MODALIDADES_PNCP, CORES_PERFIL } from "@/types/pncp";
 import { downloadLicitacoesPerfilExcel } from "@/lib/excel";
 
-const DEFAULT_PALAVRAS = ["obra", "engenharia", "pavimentação", "reforma", "recapeamento", "drenagem", "infraestrutura", "construção", "execução", "recuperação", "manutenção", "urbanização", "saneamento", "edificação", "restauração", "asfalto", "terraplenagem", "contenção", "ponte", "viaduto"];
+const DEFAULT_PALAVRAS = [
+  "obra", "engenharia", "pavimentação", "reforma", "recapeamento", "drenagem", 
+  "infraestrutura", "construção", "execução", "recuperação", "manutenção", 
+  "urbanização", "saneamento", "edificação", "restauração", "asfalto", 
+  "terraplenagem", "contenção", "ponte", "viaduto",
+  // Palavras específicas de infraestrutura
+  "trecho", "ligante", "rodovia", "rodovias", "requalificação", "reabilitação",
+  "duplicação", "alargamento", "adequação", "implantação", "ciclovia", 
+  "passarela", "travessia", "sinalização viária"
+];
+
+const DEFAULT_PALAVRAS_EXCLUIR = [
+  "ônibus", "cozinha", "hospitalar", "mobiliário", "informática",
+  // Termos para evitar falsos positivos
+  "limpeza", "predial", "conservação predial", "zelador", "zeladoria",
+  "jardinagem", "dedetização", "portaria", "vigilância", 
+  "segurança patrimonial", "material de limpeza", "higienização"
+];
 
 export default function ConfiguracoesPNCP() {
   const navigate = useNavigate();
@@ -25,8 +42,6 @@ export default function ConfiguracoesPNCP() {
   
   // Estado para configurações gerais
   const [formData, setFormData] = useState<Partial<PNCPConfig>>({
-    valor_minimo: 1000000,
-    valor_prioridade_alta: 20000000,
     ufs_ativas: ["RJ"],
     palavras_incluir: DEFAULT_PALAVRAS,
     palavras_excluir: [],
@@ -47,13 +62,15 @@ export default function ConfiguracoesPNCP() {
   const [novaPalavraChave, setNovaPalavraChave] = useState("");
   const [novaPalavraExcluir, setNovaPalavraExcluir] = useState("");
   const [downloadingPerfilId, setDownloadingPerfilId] = useState<string | null>(null);
-  const [perfilForm, setPerfilForm] = useState<Partial<PNCPPerfilBusca>>({
+const [perfilForm, setPerfilForm] = useState<Partial<PNCPPerfilBusca>>({
     nome: "",
     descricao: "",
-    palavras_incluir: [],
-    palavras_excluir: ["ônibus", "cozinha", "hospitalar", "mobiliário", "informática"],
+    palavras_incluir: DEFAULT_PALAVRAS,
+    palavras_excluir: DEFAULT_PALAVRAS_EXCLUIR,
     cor: "#3B82F6",
     ativo: true,
+    valor_minimo: 1000000,
+    valor_maximo: null,
   });
 
   // Queries
@@ -70,8 +87,6 @@ export default function ConfiguracoesPNCP() {
   useEffect(() => {
     if (config) {
       setFormData({
-        valor_minimo: config.valor_minimo,
-        valor_prioridade_alta: config.valor_prioridade_alta,
         ufs_ativas: config.ufs_ativas || ["RJ"],
         palavras_incluir: config.palavras_incluir || DEFAULT_PALAVRAS,
         palavras_excluir: config.palavras_excluir || [],
@@ -150,9 +165,7 @@ export default function ConfiguracoesPNCP() {
   };
 
   const handleResetDefaults = () => {
-    setFormData({
-      valor_minimo: 1000000,
-      valor_prioridade_alta: 20000000,
+    const defaultConfig = {
       ufs_ativas: ["RJ"],
       palavras_incluir: DEFAULT_PALAVRAS,
       palavras_excluir: [],
@@ -164,8 +177,10 @@ export default function ConfiguracoesPNCP() {
       sync_horario_1: "09:00:00",
       sync_horario_2: "14:00:00",
       sync_horario_3: "17:00:00"
-    });
-    toast.info("Valores padrão restaurados. Clique em Salvar para confirmar.");
+    };
+    
+    setFormData(defaultConfig);
+    configMutation.mutate(defaultConfig);
   };
 
   const toggleUF = (sigla: string) => {
@@ -190,10 +205,12 @@ export default function ConfiguracoesPNCP() {
     setPerfilForm({
       nome: "",
       descricao: "",
-      palavras_incluir: [],
-      palavras_excluir: ["ônibus", "cozinha", "hospitalar", "mobiliário", "informática"],
+      palavras_incluir: DEFAULT_PALAVRAS,
+      palavras_excluir: DEFAULT_PALAVRAS_EXCLUIR,
       cor: "#3B82F6",
       ativo: true,
+      valor_minimo: 1000000,
+      valor_maximo: null,
     });
   };
 
@@ -212,6 +229,8 @@ export default function ConfiguracoesPNCP() {
       palavras_excluir: perfil.palavras_excluir || [],
       cor: perfil.cor || "#3B82F6",
       ativo: perfil.ativo,
+      valor_minimo: perfil.valor_minimo || 0,
+      valor_maximo: perfil.valor_maximo || null,
     });
     setPerfilDialogOpen(true);
   };
@@ -415,6 +434,16 @@ export default function ConfiguracoesPNCP() {
                           <Button variant="outline" onClick={() => addPalavraToPerfilForm('incluir')}>
                             Adicionar
                           </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            className="text-destructive hover:bg-destructive/10"
+                            onClick={() => setPerfilForm({ ...perfilForm, palavras_incluir: [] })}
+                            disabled={(perfilForm.palavras_incluir?.length || 0) === 0}
+                            title="Limpar todas as palavras-chave"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                         <div className="flex flex-wrap gap-2 min-h-[32px]">
                           {perfilForm.palavras_incluir?.map((palavra) => (
@@ -452,6 +481,16 @@ export default function ConfiguracoesPNCP() {
                           <Button variant="outline" onClick={() => addPalavraToPerfilForm('excluir')}>
                             Adicionar
                           </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            className="text-destructive hover:bg-destructive/10"
+                            onClick={() => setPerfilForm({ ...perfilForm, palavras_excluir: [] })}
+                            disabled={(perfilForm.palavras_excluir?.length || 0) === 0}
+                            title="Limpar todas as palavras de exclusão"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                         <div className="flex flex-wrap gap-2 min-h-[32px]">
                           {perfilForm.palavras_excluir?.map((palavra) => (
@@ -467,6 +506,36 @@ export default function ConfiguracoesPNCP() {
                           {perfilForm.palavras_excluir?.length === 0 && (
                             <span className="text-sm text-muted-foreground">Nenhuma palavra de exclusão</span>
                           )}
+                        </div>
+                      </div>
+
+                      {/* Valores de Referência do Perfil */}
+                      <div className="grid gap-4 sm:grid-cols-2 pt-2 border-t">
+                        <div className="space-y-2">
+                          <Label htmlFor="perfil-valor-minimo">Valor Mínimo (R$)</Label>
+                          <Input
+                            id="perfil-valor-minimo"
+                            type="number"
+                            placeholder="0"
+                            value={perfilForm.valor_minimo || ""}
+                            onChange={(e) => setPerfilForm({ ...perfilForm, valor_minimo: e.target.value ? Number(e.target.value) : 0 })}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Licitações abaixo deste valor serão ignoradas para este perfil
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="perfil-valor-maximo">Valor Alta Prioridade (R$)</Label>
+                          <Input
+                            id="perfil-valor-maximo"
+                            type="number"
+                            placeholder="Opcional"
+                            value={perfilForm.valor_maximo || ""}
+                            onChange={(e) => setPerfilForm({ ...perfilForm, valor_maximo: e.target.value ? Number(e.target.value) : null })}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Licitações acima deste valor são marcadas como alta prioridade
+                          </p>
                         </div>
                       </div>
 
@@ -527,6 +596,7 @@ export default function ConfiguracoesPNCP() {
                             </div>
                             <p className="text-sm text-muted-foreground">
                               {(perfil.palavras_incluir?.length || 0) + ((perfil as any).palavras_primarias?.length || 0) + ((perfil as any).palavras_secundarias?.length || 0)} palavras-chave
+                              {perfil.valor_minimo ? ` · Mín: R$ ${perfil.valor_minimo.toLocaleString('pt-BR')}` : ''}
                               {perfil.descricao && ` · ${perfil.descricao}`}
                             </p>
                           </div>
@@ -621,44 +691,6 @@ export default function ConfiguracoesPNCP() {
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
-
-          {/* Valores */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Valores de Referência (Global)</CardTitle>
-              <CardDescription>
-                Define os limites de valor padrão para captura e priorização de licitações
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="valor_minimo">Valor Mínimo (R$)</Label>
-                <Input
-                  id="valor_minimo"
-                  type="number"
-                  value={formData.valor_minimo || 0}
-                  onChange={(e) => setFormData({ ...formData, valor_minimo: Number(e.target.value) })}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Licitações abaixo deste valor serão ignoradas
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="valor_prioridade_alta">Valor Alta Prioridade (R$)</Label>
-                <Input
-                  id="valor_prioridade_alta"
-                  type="number"
-                  value={formData.valor_prioridade_alta || 0}
-                  onChange={(e) =>
-                    setFormData({ ...formData, valor_prioridade_alta: Number(e.target.value) })
-                  }
-                />
-                <p className="text-xs text-muted-foreground">
-                  Licitações acima deste valor são marcadas como alta prioridade
-                </p>
-              </div>
             </CardContent>
           </Card>
 

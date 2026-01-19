@@ -4,20 +4,32 @@ import { ChamadoOS, ChamadoFilterParams } from "@/types/chamadoOS";
 import { uploadImage } from "./storageService";
 
 // Helper function to generate sequential number for chamados
+// Uses MAX(numero_chamado) to avoid UNIQUE constraint violations with gaps
 const generateChamadoNumber = async (): Promise<string> => {
   const year = new Date().getFullYear();
   
-  // Get count of chamados for the current year
-  const { count, error } = await supabase
+  // Get the highest numero_chamado for the current year
+  const { data, error } = await supabase
     .from('bd_chamados_os')
-    .select('*', { count: 'exact', head: true })
-    .like('numero_chamado', `${year}%`);
+    .select('numero_chamado')
+    .like('numero_chamado', `${year}%`)
+    .order('numero_chamado', { ascending: false })
+    .limit(1)
+    .maybeSingle();
     
   if (error) throw error;
   
-  // Generate number in format YYYY + sequential 3-digit number (e.g., 2024001)
-  const sequentialNumber = (count || 0) + 1;
-  return `${year}${sequentialNumber.toString().padStart(3, '0')}`;
+  if (!data) {
+    // No chamados for this year yet
+    return `${year}001`;
+  }
+  
+  // Extract the sequential part (last 3 digits) and increment
+  const lastNumber = data.numero_chamado;
+  const sequentialPart = parseInt(lastNumber.slice(-3), 10);
+  const newSequential = sequentialPart + 1;
+  
+  return `${year}${newSequential.toString().padStart(3, '0')}`;
 };
 
 // Function to fetch chamados with filters
@@ -58,23 +70,23 @@ export const fetchChamados = async (
   
   if (error) throw error;
   
-  // Get solicitante details separately
+  // Get solicitante details from bd_funcionarios (FK now points there)
   if (data && data.length > 0) {
     const solicitanteIds = [...new Set(data.map(chamado => chamado.solicitante_id))].filter(Boolean);
     
     if (solicitanteIds.length > 0) {
-      const { data: solicitantes, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, email, nome_completo')
+      const { data: solicitantes, error: funcError } = await supabase
+        .from('bd_funcionarios')
+        .select('id, nome_completo, email')
         .in('id', solicitanteIds);
       
-      if (!profileError && solicitantes) {
+      if (!funcError && solicitantes) {
         // Map solicitante details to chamados
         return data.map(chamado => {
           const solicitante = solicitantes.find(s => s.id === chamado.solicitante_id);
           return {
             ...chamado,
-            solicitante: solicitante ? solicitante : null
+            solicitante: solicitante ? { email: solicitante.email, nome_completo: solicitante.nome_completo } : null
           };
         }) as ChamadoOS[];
       }
@@ -121,16 +133,16 @@ export const createChamado = async (
       
     if (error) throw error;
     
-    // Get solicitante details
+    // Get solicitante details from bd_funcionarios
     if (data && data.solicitante_id) {
-      const { data: solicitante, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, email, nome_completo')
+      const { data: solicitante, error: funcError } = await supabase
+        .from('bd_funcionarios')
+        .select('id, nome_completo, email')
         .eq('id', data.solicitante_id)
         .single();
         
-      if (!profileError && solicitante) {
-        return { ...data, solicitante } as ChamadoOS;
+      if (!funcError && solicitante) {
+        return { ...data, solicitante: { email: solicitante.email, nome_completo: solicitante.nome_completo } } as ChamadoOS;
       }
     }
     
@@ -183,16 +195,16 @@ export const updateChamado = async (
       
     if (error) throw error;
     
-    // Get solicitante details
+    // Get solicitante details from bd_funcionarios
     if (data && data.solicitante_id) {
-      const { data: solicitante, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, email, nome_completo')
+      const { data: solicitante, error: funcError } = await supabase
+        .from('bd_funcionarios')
+        .select('id, nome_completo, email')
         .eq('id', data.solicitante_id)
         .single();
         
-      if (!profileError && solicitante) {
-        return { ...data, solicitante } as ChamadoOS;
+      if (!funcError && solicitante) {
+        return { ...data, solicitante: { email: solicitante.email, nome_completo: solicitante.nome_completo } } as ChamadoOS;
       }
     }
     
@@ -227,16 +239,16 @@ export const getChamadoById = async (id: string): Promise<ChamadoOS> => {
     
   if (error) throw error;
   
-  // Get solicitante details
+  // Get solicitante details from bd_funcionarios
   if (data && data.solicitante_id) {
-    const { data: solicitante, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, email, nome_completo')
+    const { data: solicitante, error: funcError } = await supabase
+      .from('bd_funcionarios')
+      .select('id, nome_completo, email')
       .eq('id', data.solicitante_id)
       .single();
       
-    if (!profileError && solicitante) {
-      return { ...data, solicitante } as ChamadoOS;
+    if (!funcError && solicitante) {
+      return { ...data, solicitante: { email: solicitante.email, nome_completo: solicitante.nome_completo } } as ChamadoOS;
     }
   }
   

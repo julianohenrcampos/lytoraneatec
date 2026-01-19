@@ -46,16 +46,31 @@ const ChamadosOS: React.FC = () => {
       try {
         const { data: veiculos, error: veiculosError } = await supabase
           .from('bd_caminhoes_equipamentos')
-          .select('id, placa, tipo_veiculo, marca, modelo');
+          .select('id, frota, numero_frota, placa, tipo_veiculo, marca, modelo');
         
         if (veiculosError) {
           console.error('Error loading veículos:', veiculosError);
         } else if (veiculos) {
           setVeiculosDropdown(
-            veiculos.map(veiculo => ({
-              id: veiculo.id,
-              label: `${veiculo.placa || ''} ${veiculo.marca || ''} ${veiculo.modelo || ''}`.trim()
-            }))
+            veiculos.map(veiculo => {
+              // Gerar identificador igual à tabela de veículos
+              let identificador = "";
+              
+              if (veiculo.frota && veiculo.numero_frota) {
+                identificador = `${veiculo.frota}${veiculo.numero_frota}`;
+              }
+              
+              if (veiculo.placa) {
+                identificador += identificador 
+                  ? ` - ${veiculo.placa}` 
+                  : veiculo.placa;
+              }
+              
+              return {
+                id: veiculo.id,
+                label: identificador || `${veiculo.marca || ''} ${veiculo.modelo || ''}`.trim() || 'Sem identificação'
+              };
+            })
           );
         }
         

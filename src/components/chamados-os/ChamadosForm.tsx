@@ -23,13 +23,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { ImageUpload } from "@/components/ui/image-upload";
+import { Combobox } from "@/components/ui/combobox";
 
 interface ChamadosFormProps {
   isOpen: boolean;
@@ -63,7 +62,7 @@ const ChamadosForm: React.FC<ChamadosFormProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState("header");
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
-  const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
+  const [existingPhotoUrls, setExistingPhotoUrls] = useState<string[]>([]);
   
   const form = useForm<z.infer<typeof chamadoFormSchema>>({
     resolver: zodResolver(chamadoFormSchema),
@@ -89,9 +88,9 @@ const ChamadosForm: React.FC<ChamadosFormProps> = ({
       });
       
       if (currentChamado.fotos_avarias && currentChamado.fotos_avarias.length > 0) {
-        setPhotoPreviewUrls(currentChamado.fotos_avarias);
+        setExistingPhotoUrls(currentChamado.fotos_avarias);
       } else {
-        setPhotoPreviewUrls([]);
+        setExistingPhotoUrls([]);
       }
     } else {
       form.reset({
@@ -102,7 +101,7 @@ const ChamadosForm: React.FC<ChamadosFormProps> = ({
         descricao_problema: "",
         status: "Aberto",
       });
-      setPhotoPreviewUrls([]);
+      setExistingPhotoUrls([]);
     }
     setPhotoFiles([]);
     setActiveTab("header");
@@ -129,9 +128,6 @@ const ChamadosForm: React.FC<ChamadosFormProps> = ({
   
   const handlePhotoUpload = (files: File[]) => {
     setPhotoFiles(files);
-    
-    const newPreviewUrls = files.map(file => URL.createObjectURL(file));
-    setPhotoPreviewUrls(newPreviewUrls);
   };
 
   return (
@@ -202,24 +198,17 @@ const ChamadosForm: React.FC<ChamadosFormProps> = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Caminhão/Equipamento <span className="text-destructive">*</span></FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                        disabled={isLoading}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="bg-white">
-                            <SelectValue placeholder="Selecione o caminhão/equipamento" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {veiculosOptions.map((option) => (
-                            <SelectItem key={option.id} value={option.id}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <Combobox
+                          options={veiculosOptions.map(v => ({ value: v.id, label: v.label }))}
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder="Selecione o caminhão/equipamento"
+                          searchPlaceholder="Buscar por placa, marca ou modelo..."
+                          emptyText="Nenhum caminhão/equipamento encontrado"
+                          disabled={isLoading}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -232,24 +221,15 @@ const ChamadosForm: React.FC<ChamadosFormProps> = ({
                     <FormItem>
                       <FormLabel>Centro de Custo <span className="text-destructive">*</span></FormLabel>
                       <FormControl>
-                        <div>
-                          <Input
-                            list="centrosCustoList"
-                            placeholder="Digite ou selecione o centro de custo"
-                            disabled={isLoading}
-                            value={field.value}
-                            onChange={field.onChange}
-                            className="bg-white"
-                          />
-                          <datalist id="centrosCustoList">
-                            {centrosCustoOptions.map((option) => (
-                              <option
-                                key={option.id}
-                                value={option.codigo_centro_custo || option.label}
-                              />
-                            ))}
-                          </datalist>
-                        </div>
+                        <Combobox
+                          options={centrosCustoOptions.map(c => ({ value: c.id, label: c.label }))}
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder="Selecione o centro de custo"
+                          searchPlaceholder="Buscar por código ou nome..."
+                          emptyText="Nenhum centro de custo encontrado"
+                          disabled={isLoading}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -349,7 +329,7 @@ const ChamadosForm: React.FC<ChamadosFormProps> = ({
                   <ImageUpload
                     onFilesSelected={handlePhotoUpload}
                     maxFiles={4}
-                    existingImages={photoPreviewUrls}
+                    existingImages={existingPhotoUrls}
                     isLoading={isLoading}
                   />
                   <p className="text-xs text-muted-foreground">

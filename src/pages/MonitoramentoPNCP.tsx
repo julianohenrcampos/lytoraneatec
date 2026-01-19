@@ -20,7 +20,7 @@ export default function MonitoramentoPNCP() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
-  const [filters, setFilters] = useState<PNCPFiltersType>({});
+  const [filters, setFilters] = useState<PNCPFiltersType>({ ocultarEncerradas: true });
   const [salvarTodas, setSalvarTodas] = useState(false);
   const {
     data: contratacoes,
@@ -197,6 +197,26 @@ export default function MonitoramentoPNCP() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="flex items-center gap-2 px-3 py-2 border rounded-md bg-background">
+                  <Label htmlFor="mostrar-encerradas" className="text-sm whitespace-nowrap cursor-pointer">
+                    Mostrar Encerradas
+                  </Label>
+                  <Switch 
+                    id="mostrar-encerradas"
+                    checked={!filters.ocultarEncerradas}
+                    onCheckedChange={(checked) => setFilters(prev => ({ ...prev, ocultarEncerradas: !checked }))}
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Exibir licitações com prazo de propostas encerrado</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-2 px-3 py-2 border rounded-md bg-background">
                   <Label htmlFor="salvar-todas" className="text-sm whitespace-nowrap cursor-pointer">
                     Salvar Todas
                   </Label>
@@ -229,7 +249,7 @@ export default function MonitoramentoPNCP() {
 
       <PNCPSyncStatus lastSync={lastSync} isSyncing={syncMutation.isPending} />
 
-      <PNCPFilters filters={filters} onFilterChange={setFilters} onClearFilters={() => setFilters({})} />
+      <PNCPFilters filters={filters} onFilterChange={(newFilters) => setFilters(prev => ({ ...prev, ...newFilters }))} onClearFilters={() => setFilters({ ocultarEncerradas: filters.ocultarEncerradas })} />
 
       <Card>
         <CardHeader className="pb-3">

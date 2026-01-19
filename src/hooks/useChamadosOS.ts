@@ -138,10 +138,15 @@ export const useChamadosOS = () => {
           description: `Chamado #${updated.numero_chamado} foi atualizado com sucesso.`
         });
       } else {
+        // Aviso se usuário não está vinculado a funcionário
+        if (!currentUser?.funcionario_id) {
+          console.warn("Usuário não vinculado a funcionário - chamado será criado sem solicitante");
+        }
+        
         const created = await createChamado(
           {
             ...formData,
-            solicitante_id: currentUser.id
+            solicitante_id: currentUser?.funcionario_id ?? null
           },
           photoFiles
         );
@@ -155,11 +160,12 @@ export const useChamadosOS = () => {
       }
       
       setIsFormModalOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving chamado:", error);
+      const errorMsg = error?.message || "Ocorreu um erro ao salvar o chamado. Tente novamente.";
       toast({
         title: "Erro ao salvar",
-        description: "Ocorreu um erro ao salvar o chamado. Tente novamente.",
+        description: errorMsg,
         variant: "destructive"
       });
     } finally {
