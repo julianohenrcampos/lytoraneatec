@@ -2,12 +2,12 @@ import { useState, useMemo } from "react";
 import { PNCPContratacao, calcularDiasRestantes } from "@/types/pncp";
 import { usePagination } from "@/hooks/usePagination";
 import TablePagination from "@/components/ui/table-pagination";
-import { formatCurrency, formatDate } from "@/services/pncpService";
+import { formatCurrency, formatDate, formatTime, isNovaLicitacao } from "@/services/pncpService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ExternalLink, Building2, MapPin, Calendar, DollarSign, Eye, Trash2, Clock, AlertTriangle, CheckCircle } from "lucide-react";
+import { ExternalLink, Building2, MapPin, Calendar, DollarSign, Eye, Trash2, Clock, AlertTriangle, CheckCircle, Sparkles } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -207,14 +207,27 @@ export function PNCPMobileCards({ contratacoes, onDelete, onDeleteMultiple, onTo
                 />
                 <div className="flex-1">
                   <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-base line-clamp-3">{item.objeto}</CardTitle>
+                    <div className="flex items-start gap-2">
+                      {isNovaLicitacao(item.created_at) && (
+                        <Badge className="bg-blue-500 hover:bg-blue-600 text-white text-xs animate-pulse flex items-center gap-1 shrink-0">
+                          <Sparkles className="h-3 w-3" />
+                          NOVA
+                        </Badge>
+                      )}
+                      <CardTitle className="text-base line-clamp-3">{item.objeto}</CardTitle>
+                    </div>
                     {getValorBadge(item.valor_total_estimado)}
                   </div>
-                  {item.modalidade_contratacao && (
-                    <Badge variant="outline" className="w-fit text-xs mt-1">
-                      {item.modalidade_contratacao}
-                    </Badge>
-                  )}
+                  <div className="flex items-center gap-2 mt-1">
+                    {item.modalidade_contratacao && (
+                      <Badge variant="outline" className="w-fit text-xs">
+                        {item.modalidade_contratacao}
+                      </Badge>
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      Capturado: {formatDate(item.created_at)} {formatTime(item.created_at)}
+                    </span>
+                  </div>
                 </div>
               </div>
             </CardHeader>

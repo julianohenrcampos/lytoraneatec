@@ -2,12 +2,12 @@ import { useState, useMemo } from "react";
 import { PNCPContratacao, calcularDiasRestantes } from "@/types/pncp";
 import { usePagination } from "@/hooks/usePagination";
 import TablePagination from "@/components/ui/table-pagination";
-import { formatCurrency, formatDate } from "@/services/pncpService";
+import { formatCurrency, formatDate, formatTime, isNovaLicitacao } from "@/services/pncpService";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { ExternalLink, Eye, Trash2, Clock, AlertTriangle, CheckCircle, XCircle, RotateCcw } from "lucide-react";
+import { ExternalLink, Eye, Trash2, Clock, AlertTriangle, CheckCircle, XCircle, RotateCcw, Sparkles } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -184,6 +184,7 @@ export function PNCPTable({
               <TableHead>Perfil</TableHead>
               <TableHead className="text-right">Valor Estimado</TableHead>
               <TableHead>Prazo Propostas</TableHead>
+              <TableHead>Capturado em</TableHead>
               {showParticipandoColumn && <TableHead className="text-center">Participando</TableHead>}
               <TableHead className="text-center">Ações</TableHead>
             </TableRow>
@@ -253,6 +254,22 @@ export function PNCPTable({
                       <span className="text-muted-foreground">Fim:</span>{" "}
                       {formatDate(item.data_fim_propostas)}
                       {getPrazoBadge(item.data_fim_propostas)}
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    {isNovaLicitacao(item.created_at) && (
+                      <Badge className="bg-blue-500 hover:bg-blue-600 text-white text-xs animate-pulse flex items-center gap-1">
+                        <Sparkles className="h-3 w-3" />
+                        NOVA
+                      </Badge>
+                    )}
+                    <div className="text-sm">
+                      <div>{formatDate(item.created_at)}</div>
+                      <div className="text-muted-foreground text-xs">
+                        {formatTime(item.created_at)}
+                      </div>
                     </div>
                   </div>
                 </TableCell>

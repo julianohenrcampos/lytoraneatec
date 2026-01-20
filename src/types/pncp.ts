@@ -36,6 +36,7 @@ export interface PNCPFilters {
   categoriaValor?: string[];
   perfilBuscaId?: string;
   ocultarEncerradas?: boolean;
+  ordenacao?: 'recentes' | 'prazo' | 'valor';
 }
 
 export interface PNCPSyncLog {

@@ -36,8 +36,21 @@ export const fetchContratacoes = async (filters: PNCPFilters = {}): Promise<PNCP
     .select(`
       *,
       bd_pncp_perfis_busca:perfil_busca_id (cor)
-    `)
-    .order("data_fim_propostas", { ascending: true });
+    `);
+
+  // Ordenação dinâmica baseada no filtro (padrão: mais recentes primeiro)
+  switch (filters.ordenacao) {
+    case 'prazo':
+      query = query.order("data_fim_propostas", { ascending: true });
+      break;
+    case 'valor':
+      query = query.order("valor_total_estimado", { ascending: false, nullsFirst: false });
+      break;
+    case 'recentes':
+    default:
+      query = query.order("created_at", { ascending: false });
+      break;
+  }
 
   // Filtro por prazo de propostas (até a data)
   if (filters.dataFim) {
@@ -217,6 +230,24 @@ export const formatDate = (dateString: string | null): string => {
 export const formatDateTime = (dateString: string | null): string => {
   if (!dateString) return "N/A";
   return new Date(dateString).toLocaleString("pt-BR");
+};
+
+export const formatTime = (dateString: string | null | undefined): string => {
+  if (!dateString) return "-";
+  return new Date(dateString).toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+// Verifica se a licitação foi capturada nas últimas 24 horas
+export const isNovaLicitacao = (createdAt: string | undefined): boolean => {
+  if (!createdAt) return false;
+  const created = new Date(createdAt);
+  const agora = new Date();
+  const horasAtras = 24;
+  const limite = new Date(agora.getTime() - horasAtras * 60 * 60 * 1000);
+  return created > limite;
 };
 
 export const deleteContratacao = async (id: string): Promise<void> => {
