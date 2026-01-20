@@ -280,11 +280,12 @@ serve(async (req) => {
       for (const modalidade of config.modalidades_ativas) {
         console.log(`  🔍 Modalidade ${modalidade}...`);
         
-        // BUSCA 1: Por propostas abertas (endpoint atual)
+        // BUSCA 1: Por propostas abertas (limite reduzido para evitar timeout)
         let pagina = 1;
         let temMaisPaginas = true;
+        const MAX_PAGINAS_PROPOSTA = 5; // Limite para evitar WORKER_LIMIT
 
-        while (temMaisPaginas && pagina <= 20) {
+        while (temMaisPaginas && pagina <= MAX_PAGINAS_PROPOSTA) {
           const contratacoes = await fetchContratacoes(
             "/v1/contratacoes/proposta",
             {
@@ -323,14 +324,15 @@ serve(async (req) => {
             pagina++;
           }
 
-          await new Promise((resolve) => setTimeout(resolve, 300));
+          await new Promise((resolve) => setTimeout(resolve, 200));
         }
 
-        // BUSCA 2: Por data de publicação (para licitações recém-publicadas com prazo maior)
+        // BUSCA 2: Por data de publicação (limite reduzido para evitar timeout)
         pagina = 1;
         temMaisPaginas = true;
+        const MAX_PAGINAS_PUBLICACAO = 3; // Limite para evitar WORKER_LIMIT
 
-        while (temMaisPaginas && pagina <= 10) {
+        while (temMaisPaginas && pagina <= MAX_PAGINAS_PUBLICACAO) {
           const contratacoes = await fetchContratacoes(
             "/v1/contratacoes/publicacao",
             {
@@ -369,7 +371,7 @@ serve(async (req) => {
             pagina++;
           }
 
-          await new Promise((resolve) => setTimeout(resolve, 300));
+          await new Promise((resolve) => setTimeout(resolve, 200));
         }
       }
     }
@@ -527,8 +529,19 @@ async function processarContratacao(
   // Extrair objeto da contratação
   const objeto = (item.objetoCompra || item.objeto || item.descricao || "").toLowerCase();
 
-  // Extrair valor estimado
-  const valorEstimado = parseFloat(item.valorTotalEstimado || item.valorEstimado || 0);
+  // Função para extrair valor numérico de forma robusta (trata formatação BR)
+  const extrairValor = (valor: any): number => {
+    if (!valor) return 0;
+    if (typeof valor === 'number') return valor;
+    // Remover formatação BR: "1.234.567,89" -> "1234567.89"
+    const valorStr = String(valor)
+      .replace(/\./g, '')      // Remove pontos de milhar
+      .replace(',', '.');       // Converte vírgula decimal para ponto
+    return parseFloat(valorStr) || 0;
+  };
+
+  // Extrair valor estimado de forma robusta
+  const valorEstimado = extrairValor(item.valorTotalEstimado || item.valorEstimado);
 
   // Verificar se prazo já está encerrado (não salvar licitações vencidas)
   const dataFimPropostas = item.dataEncerramentoProposta || item.dataFimProposta;
@@ -611,8 +624,14 @@ async function processarContratacao(
   }
 
   // Verificar valor mínimo DO PERFIL (após encontrar match)
-  const perfilValorMinimo = perfilMatch.valor_minimo || 0;
-  if (valorEstimado < perfilValorMinimo) {
+  const perfilValorMinimo = perfilMatch.valor_minimo ?? 0;
+  const perfilValorMaximo = perfilMatch.valor_maximo ?? null;
+  
+  console.log(`    📊 Valor check: R$ ${valorEstimado.toLocaleString('pt-BR')} | Perfil "${perfilMatch.nome}" | Min: R$ ${perfilValorMinimo.toLocaleString('pt-BR')} | Max: ${perfilValorMaximo ? 'R$ ' + perfilValorMaximo.toLocaleString('pt-BR') : 'sem limite'}`);
+  
+  // Só bloquear por valor mínimo se há um mínimo definido (> 0) E o valor é inferior
+  if (perfilValorMinimo > 0 && valorEstimado < perfilValorMinimo) {
+    console.log(`    ⛔ Rejeitado por valor mínimo: R$ ${valorEstimado.toLocaleString('pt-BR')} < R$ ${perfilValorMinimo.toLocaleString('pt-BR')}`);
     // Salvar na tabela completa se opção ativada
     if (salvarTodas) {
       await salvarLicitacaoCompleta(item, uf, 'valor', syncLogId, supabase);
@@ -620,10 +639,12 @@ async function processarContratacao(
     return 'valor';
   }
 
-  // Calcular prioridade usando valor do perfil ou fallback para config global
-  const valorAltaPrioridade = perfilMatch.valor_maximo || config.valor_prioridade_alta;
+  // Calcular prioridade usando valor máximo do perfil para alta prioridade
   let prioridade = "media";
-  if (valorEstimado >= valorAltaPrioridade) {
+  
+  // valor_maximo marca o limiar para alta prioridade (não é um filtro de exclusão)
+  const valorAltaPrioridade = perfilValorMaximo ?? config.valor_prioridade_alta ?? Infinity;
+  if (valorAltaPrioridade > 0 && valorEstimado >= valorAltaPrioridade) {
     prioridade = "alta";
   } else if (perfilValorMinimo > 0 && valorEstimado < perfilValorMinimo * 1.5) {
     prioridade = "baixa";
