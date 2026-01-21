@@ -259,7 +259,7 @@ export function PNCPTable({
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    {isNovaLicitacao(item.created_at) && (
+                    {isNovaLicitacao(item.created_at, item.updated_at) && (
                       <Badge className="bg-blue-500 hover:bg-blue-600 text-white text-xs animate-pulse flex items-center gap-1">
                         <Sparkles className="h-3 w-3" />
                         NOVA

@@ -48,7 +48,7 @@ export const fetchContratacoes = async (filters: PNCPFilters = {}): Promise<PNCP
       break;
     case 'recentes':
     default:
-      query = query.order("created_at", { ascending: false });
+      query = query.order("updated_at", { ascending: false, nullsFirst: false });
       break;
   }
 
@@ -240,14 +240,17 @@ export const formatTime = (dateString: string | null | undefined): string => {
   });
 };
 
-// Verifica se a licitação foi capturada nas últimas 24 horas
-export const isNovaLicitacao = (createdAt: string | undefined): boolean => {
-  if (!createdAt) return false;
-  const created = new Date(createdAt);
+// Verifica se a licitação foi capturada ou atualizada nas últimas 24 horas
+export const isNovaLicitacao = (createdAt: string | undefined, updatedAt?: string | undefined): boolean => {
+  // Usar a data mais recente entre created_at e updated_at
+  const dataReferencia = updatedAt || createdAt;
+  if (!dataReferencia) return false;
+  
+  const data = new Date(dataReferencia);
   const agora = new Date();
   const horasAtras = 24;
   const limite = new Date(agora.getTime() - horasAtras * 60 * 60 * 1000);
-  return created > limite;
+  return data > limite;
 };
 
 export const deleteContratacao = async (id: string): Promise<void> => {

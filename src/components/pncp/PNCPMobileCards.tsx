@@ -208,7 +208,7 @@ export function PNCPMobileCards({ contratacoes, onDelete, onDeleteMultiple, onTo
                 <div className="flex-1">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-start gap-2">
-                      {isNovaLicitacao(item.created_at) && (
+                      {isNovaLicitacao(item.created_at, item.updated_at) && (
                         <Badge className="bg-blue-500 hover:bg-blue-600 text-white text-xs animate-pulse flex items-center gap-1 shrink-0">
                           <Sparkles className="h-3 w-3" />
                           NOVA
