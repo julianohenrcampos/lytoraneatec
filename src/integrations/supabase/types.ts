@@ -2276,6 +2276,125 @@ export type Database = {
           },
         ]
       }
+      bd_registro_desvios_fotos: {
+        Row: {
+          created_at: string | null
+          id: string
+          legenda: string | null
+          path: string
+          registro_id: string
+          url: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          legenda?: string | null
+          path: string
+          registro_id: string
+          url?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          legenda?: string | null
+          path?: string
+          registro_id?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_registro_desvios_fotos_registro_id_fkey"
+            columns: ["registro_id"]
+            isOneToOne: false
+            referencedRelation: "bd_registro_desvios_sso"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_registro_desvios_sso: {
+        Row: {
+          adequacao_imediata: string | null
+          analise_tecnica: string
+          atualizado_em: string | null
+          classificacao_desvio: string
+          criado_em: string | null
+          criado_por: string | null
+          data_registro: string
+          encarregado_mestre: string | null
+          engenheiro_obra: string
+          gerente_regional: string
+          id: string
+          numero_relatorio: string | null
+          obra_id: string
+          prazo_correcao: string | null
+          reincidencia: boolean
+          responsavel_acao: string | null
+          status_acao: string
+          tecnico_seguranca: string
+          tipo_outros: string | null
+          tipos_desvio: string[]
+        }
+        Insert: {
+          adequacao_imediata?: string | null
+          analise_tecnica: string
+          atualizado_em?: string | null
+          classificacao_desvio?: string
+          criado_em?: string | null
+          criado_por?: string | null
+          data_registro?: string
+          encarregado_mestre?: string | null
+          engenheiro_obra: string
+          gerente_regional: string
+          id?: string
+          numero_relatorio?: string | null
+          obra_id: string
+          prazo_correcao?: string | null
+          reincidencia?: boolean
+          responsavel_acao?: string | null
+          status_acao?: string
+          tecnico_seguranca: string
+          tipo_outros?: string | null
+          tipos_desvio?: string[]
+        }
+        Update: {
+          adequacao_imediata?: string | null
+          analise_tecnica?: string
+          atualizado_em?: string | null
+          classificacao_desvio?: string
+          criado_em?: string | null
+          criado_por?: string | null
+          data_registro?: string
+          encarregado_mestre?: string | null
+          engenheiro_obra?: string
+          gerente_regional?: string
+          id?: string
+          numero_relatorio?: string | null
+          obra_id?: string
+          prazo_correcao?: string | null
+          reincidencia?: boolean
+          responsavel_acao?: string | null
+          status_acao?: string
+          tecnico_seguranca?: string
+          tipo_outros?: string | null
+          tipos_desvio?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_registro_desvios_sso_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_registro_desvios_sso_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_requisicoes: {
         Row: {
           centro_custo_id: string | null

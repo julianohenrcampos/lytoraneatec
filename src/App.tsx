@@ -54,6 +54,7 @@ import GestaoPermissoes from "@/pages/GestaoPermissoes";
 // SSO - Saúde e Segurança Ocupacional
 import SSOChecklistList from "@/pages/SSOChecklistList";
 import SSODashboard from "@/pages/SSODashboard";
+import SSODesviosList from "@/pages/SSODesviosList";
 
 // Licitações PNCP
 import MonitoramentoPNCP from "@/pages/MonitoramentoPNCP";
@@ -308,6 +309,16 @@ const App = () => {
               </SimpleAuthGuard>
             } />
             
+            {/* SSO - Registro de Desvios */}
+            <Route path="/sso/desvios" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <SecureRouteGuard requiredPermission="acesso_sso_desvios">
+                    <SSODesviosList />
+                  </SecureRouteGuard>
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
             
             <Route path="/sso/checklists/dashboard" element={
               <SimpleAuthGuard>

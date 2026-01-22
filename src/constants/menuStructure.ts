@@ -207,6 +207,12 @@ export const menuStructure = [
         requiredPermission: "acesso_sso_checklists"
       },
       {
+        name: "Registro de Desvios",
+        href: "/sso/desvios",
+        icon: ShieldCheck,
+        requiredPermission: "acesso_sso_desvios"
+      },
+      {
         name: "Dashboard SSO",
         href: "/sso/checklists/dashboard",
         icon: BarChart3,
