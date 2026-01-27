@@ -126,6 +126,19 @@ export const useAgendamentoExames = (agendamentoId?: string, filters?: Agendamen
     }
   });
 
+  // Mutation: Atualizar status em massa
+  const updateStatusBulkMutation = useMutation({
+    mutationFn: (params: { ids: string[]; status: string }) => 
+      agendamentoExamesService.updateStatusBulk(params.ids, params.status),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['agendamentos-exames'] });
+      toast.success(`Status de ${variables.ids.length} agendamento(s) atualizado(s)!`);
+    },
+    onError: (error: any) => {
+      toast.error(`Erro ao atualizar status em massa: ${error.message}`);
+    }
+  });
+
   // Mutation: Upload anexo
   const uploadAnexoMutation = useMutation({
     mutationFn: (params: { agendamentoId: string; file: File; tipo?: string }) =>
@@ -172,6 +185,7 @@ export const useAgendamentoExames = (agendamentoId?: string, filters?: Agendamen
     update: updateMutation.mutateAsync,
     delete: deleteMutation.mutateAsync,
     updateStatus: updateStatusMutation.mutateAsync,
+    updateStatusBulk: updateStatusBulkMutation.mutateAsync,
     uploadAnexo: uploadAnexoMutation.mutateAsync,
     deleteAnexo: deleteAnexoMutation.mutateAsync,
     
@@ -179,6 +193,7 @@ export const useAgendamentoExames = (agendamentoId?: string, filters?: Agendamen
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
+    isUpdatingStatusBulk: updateStatusBulkMutation.isPending,
     isUploadingAnexo: uploadAnexoMutation.isPending,
     isDeletingAnexo: deleteAnexoMutation.isPending
   };

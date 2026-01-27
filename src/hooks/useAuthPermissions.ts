@@ -50,6 +50,18 @@ export const useAuthPermissions = (): UserPermissions => {
         // Emails SuperAdmin automáticos
         const SUPER_ADMIN_EMAILS = ['julianohcampos@yahoo.com.br', 'ramonvalentevalente@gmail.com'];
 
+        // 🔧 FALLBACK GARANTIDO PARA FUNÇÕES SSO
+        const SSO_ROLE_PERMISSIONS: Record<string, string[]> = {
+          'TecSSO': ['acesso_sso_checklists', 'acesso_sso_desvios', 'dashboard_view'],
+          'AdmSSO': [
+            'acesso_sso_checklists', 'acesso_sso_desvios', 'acesso_sso_dashboard',
+            'acesso_sso_agendamento_exames', 'dashboard_view', 'dashboard_rh_view',
+            'gestao_rh_empresas_view', 'gestao_rh_departamentos_view',
+            'gestao_rh_funcionarios_view', 'gestao_rh_funcoes_view',
+            'gestao_rh_centros_custo_view', 'gestao_rh_equipes_view'
+          ]
+        };
+
         // Query usando o sistema profiles com funcoes[] como fonte primária
         const { data: profile, error: profileErr } = await supabase
           .from('profiles')
@@ -174,6 +186,17 @@ export const useAuthPermissions = (): UserPermissions => {
         } else {
           console.log('⚠️ Nenhuma função encontrada, aplicando usuário básico');
           userRole = 'user';
+        }
+
+        // 🔧 FALLBACK SSO: Garantir permissões mínimas para roles SSO
+        if (profile?.funcoes?.includes('TecSSO') || profile?.funcoes?.includes('AdmSSO')) {
+          const ssoRole = profile.funcoes.includes('AdmSSO') ? 'AdmSSO' : 'TecSSO';
+          const minimumPermissions = SSO_ROLE_PERMISSIONS[ssoRole];
+          
+          console.log(`🔧 Aplicando fallback SSO para ${ssoRole}:`, minimumPermissions);
+          
+          // Mesclar permissões do banco com permissões mínimas garantidas
+          userPermissions = [...new Set([...userPermissions, ...minimumPermissions])];
         }
 
         // Garantir que não há duplicatas

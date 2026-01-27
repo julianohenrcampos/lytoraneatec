@@ -119,3 +119,26 @@ export function formatBrazilianDateForDisplay(dateString?: string): string {
     return dateString;
   }
 }
+
+/**
+ * Verifica se o horário atual brasileiro está dentro do período permitido
+ * @param startHour Hora de início (ex: 6 para 06:00)
+ * @param endHour Hora de fim (ex: 16 para 16:00)
+ * @returns true se está dentro do horário permitido
+ */
+export function isWithinBrazilianBusinessHours(startHour: number = 6, endHour: number = 16): boolean {
+  const now = new Date();
+  const brazilianNow = toZonedTime(now, BRAZIL_TIMEZONE);
+  const currentHour = brazilianNow.getHours();
+  
+  return currentHour >= startHour && currentHour < endHour;
+}
+
+/**
+ * Retorna o horário atual brasileiro formatado
+ */
+export function getCurrentBrazilianTime(): string {
+  const now = new Date();
+  const brazilianNow = toZonedTime(now, BRAZIL_TIMEZONE);
+  return format(brazilianNow, 'HH:mm', { locale: ptBR });
+}

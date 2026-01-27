@@ -17,9 +17,22 @@ const SUPER_ADMIN_EMAILS = [
   'ramonvalentevalente@gmail.com'
 ];
 
+// 🔧 FALLBACK GARANTIDO PARA FUNÇÕES SSO - Garante acesso mesmo em falhas de rede/cache
+const SSO_ROLE_PERMISSIONS: Record<string, string[]> = {
+  'TecSSO': ['acesso_sso_checklists', 'acesso_sso_desvios', 'dashboard_view'],
+  'AdmSSO': [
+    'acesso_sso_checklists', 'acesso_sso_desvios', 'acesso_sso_dashboard',
+    'acesso_sso_agendamento_exames', 'dashboard_view', 'dashboard_rh_view',
+    'gestao_rh_empresas_view', 'gestao_rh_departamentos_view',
+    'gestao_rh_funcionarios_view', 'gestao_rh_funcoes_view',
+    'gestao_rh_centros_custo_view', 'gestao_rh_equipes_view'
+  ]
+};
+
 // Cache local otimizado com TTL maior
 let permissionsCache: DynamicPermissions | null = null;
 let lastCacheTime = 0;
+let lastUserId: string | null = null; // Para detectar mudança de usuário
 const CACHE_DURATION = 60000; // 1 minuto para reduzir consultas
 
 export const useDynamicPermissions = (): DynamicPermissions => {
@@ -66,9 +79,9 @@ export const useDynamicPermissions = (): DynamicPermissions => {
         .eq('id', user.id)
         .single();
 
-      // Timeout menor para evitar travamentos
+      // Timeout aumentado para conexões lentas (mobile)
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout')), 3000)
+        setTimeout(() => reject(new Error('Timeout')), 5000)
       );
 
       try {
@@ -169,6 +182,17 @@ export const useDynamicPermissions = (): DynamicPermissions => {
             console.log('⚠️ [DYNAMIC] Função sem permissões definidas');
             userPermissions = ['dashboard_view'];
           }
+        }
+
+        // 🔧 FALLBACK SSO: Garantir permissões mínimas para roles SSO
+        if (profile.funcoes.includes('TecSSO') || profile.funcoes.includes('AdmSSO')) {
+          const ssoRole = profile.funcoes.includes('AdmSSO') ? 'AdmSSO' : 'TecSSO';
+          const minimumPermissions = SSO_ROLE_PERMISSIONS[ssoRole];
+          
+          console.log(`🔧 [DYNAMIC] Aplicando fallback SSO para ${ssoRole}:`, minimumPermissions);
+          
+          // Mesclar permissões do banco com permissões mínimas garantidas
+          userPermissions = [...new Set([...userPermissions, ...minimumPermissions])];
         }
 
         // Garantir permissões únicas
@@ -288,10 +312,20 @@ export const useDynamicPermissions = (): DynamicPermissions => {
     loadDynamicPermissions();
 
     // Listener otimizado para mudanças de auth
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('🔄 [DYNAMIC] Auth state changed:', event);
-      if (event === 'SIGNED_OUT' || event === 'SIGNED_IN') {
-        // Limpar cache apenas em mudanças significativas
+      
+      // Detectar mudança de usuário (logout/login de outro usuário)
+      const newUserId = session?.user?.id || null;
+      if (newUserId !== lastUserId) {
+        console.log('🔄 [DYNAMIC] Usuário mudou, limpando cache:', { old: lastUserId, new: newUserId });
+        permissionsCache = null;
+        lastCacheTime = 0;
+        lastUserId = newUserId;
+      }
+      
+      if (event === 'SIGNED_OUT' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        // Limpar cache em mudanças significativas
         permissionsCache = null;
         lastCacheTime = 0;
         loadDynamicPermissions();

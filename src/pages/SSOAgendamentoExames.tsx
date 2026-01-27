@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import MainLayout from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { AgendamentoExamesFilters, AgendamentoExamesTable } from '@/components/ssoAgendamentoExames/list';
+import { BulkActionBar } from '@/components/ssoAgendamentoExames/list/BulkActionBar';
 import { AgendamentoExamesDialog, AgendamentoExamesViewDialog } from '@/components/ssoAgendamentoExames/dialog';
 import { useAgendamentoExames } from '@/hooks/ssoAgendamentoExames';
 import { AgendamentoExameFilters } from '@/types/ssoAgendamentoExames';
 import { useAuthPermissions } from '@/hooks/useAuthPermissions';
 import { Plus, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { isWithinBrazilianBusinessHours } from '@/utils/timezoneUtils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
@@ -29,12 +32,27 @@ const SSOAgendamentoExames: React.FC = () => {
   const [viewingId, setViewingId] = useState<string | undefined>();
   const [editingId, setEditingId] = useState<string | undefined>();
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  const { agendamentos, isLoading, delete: deleteAgendamento, updateStatus, isDeleting } = useAgendamentoExames(undefined, filters);
+  const { 
+    agendamentos, 
+    isLoading, 
+    delete: deleteAgendamento, 
+    updateStatus, 
+    updateStatusBulk,
+    isDeleting,
+    isUpdatingStatusBulk 
+  } = useAgendamentoExames(undefined, filters);
   const { isSuperAdmin, userRole } = useAuthPermissions();
 
   const canEdit = isSuperAdmin || ['SuperAdm', 'Admin', 'AdmRH', 'AdmSSO'].includes(userRole || '');
   const canDelete = isSuperAdmin || ['SuperAdm', 'Admin', 'AdmRH'].includes(userRole || '');
+  const isWithinSchedulingHours = isWithinBrazilianBusinessHours(6, 16);
+
+  // Clear selection when filters change
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [filters]);
 
   const handleNew = () => {
     setEditingId(undefined);
@@ -56,6 +74,7 @@ const SSOAgendamentoExames: React.FC = () => {
     try {
       await deleteAgendamento(deleteId);
       setDeleteId(null);
+      setSelectedIds(prev => prev.filter(id => id !== deleteId));
     } catch (error) {
       console.error('Erro ao excluir:', error);
     }
@@ -66,6 +85,15 @@ const SSOAgendamentoExames: React.FC = () => {
       await updateStatus({ id, status });
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
+    }
+  };
+
+  const handleBulkStatusChange = async (status: string) => {
+    try {
+      await updateStatusBulk({ ids: selectedIds, status });
+      setSelectedIds([]);
+    } catch (error) {
+      console.error('Erro ao atualizar status em massa:', error);
     }
   };
 
@@ -113,10 +141,26 @@ const SSOAgendamentoExames: React.FC = () => {
               Exportar Excel
             </Button>
             {canEdit && (
-              <Button onClick={handleNew}>
-                <Plus className="h-4 w-4 mr-2" />
-                Novo Agendamento
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button 
+                        onClick={handleNew} 
+                        disabled={!isWithinSchedulingHours}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Novo Agendamento
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {!isWithinSchedulingHours && (
+                    <TooltipContent>
+                      <p>Agendamentos permitidos apenas das 06:00 às 16:00</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
         </div>
@@ -126,6 +170,16 @@ const SSOAgendamentoExames: React.FC = () => {
           onFilterChange={setFilters}
           onClearFilters={() => setFilters({})}
         />
+
+        {/* Bulk Action Bar */}
+        {canEdit && (
+          <BulkActionBar
+            selectedCount={selectedIds.length}
+            onStatusChange={handleBulkStatusChange}
+            onClearSelection={() => setSelectedIds([])}
+            isLoading={isUpdatingStatusBulk}
+          />
+        )}
 
         {/* Table */}
         {isLoading ? (
@@ -142,6 +196,8 @@ const SSOAgendamentoExames: React.FC = () => {
             onStatusChange={handleStatusChange}
             canEdit={canEdit}
             canDelete={canDelete}
+            selectedIds={selectedIds}
+            onSelectionChange={setSelectedIds}
           />
         )}
 

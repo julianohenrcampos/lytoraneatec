@@ -129,5 +129,14 @@ export const agendamentoExamesService = {
       .eq('id', id);
 
     if (error) throw error;
+  },
+
+  async updateStatusBulk(ids: string[], status: string): Promise<void> {
+    const { error } = await (supabase
+      .from('bd_agendamentos_exames' as any) as any)
+      .update({ status })
+      .in('id', ids);
+
+    if (error) throw error;
   }
 };

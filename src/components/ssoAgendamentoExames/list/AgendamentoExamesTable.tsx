@@ -2,6 +2,7 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -32,6 +33,8 @@ interface AgendamentoExamesTableProps {
   onStatusChange: (id: string, status: string) => void;
   canEdit: boolean;
   canDelete: boolean;
+  selectedIds: string[];
+  onSelectionChange: (ids: string[]) => void;
 }
 
 export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
@@ -42,7 +45,9 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
   onAnexos,
   onStatusChange,
   canEdit,
-  canDelete
+  canDelete,
+  selectedIds,
+  onSelectionChange
 }) => {
   const isMobile = useIsMobile();
 
@@ -65,6 +70,8 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
         onStatusChange={onStatusChange}
         canEdit={canEdit}
         canDelete={canDelete}
+        selectedIds={selectedIds}
+        onSelectionChange={onSelectionChange}
       />
     );
   }
@@ -82,11 +89,42 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
     return timeStr.substring(0, 5);
   };
 
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      onSelectionChange(agendamentos.map(a => a.id));
+    } else {
+      onSelectionChange([]);
+    }
+  };
+
+  const handleSelectOne = (id: string, checked: boolean) => {
+    if (checked) {
+      onSelectionChange([...selectedIds, id]);
+    } else {
+      onSelectionChange(selectedIds.filter(selectedId => selectedId !== id));
+    }
+  };
+
+  const isAllSelected = agendamentos.length > 0 && selectedIds.length === agendamentos.length;
+  const isIndeterminate = selectedIds.length > 0 && selectedIds.length < agendamentos.length;
+
   return (
     <Card>
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-[50px]">
+              <Checkbox
+                checked={isAllSelected}
+                ref={(ref) => {
+                  if (ref) {
+                    (ref as any).indeterminate = isIndeterminate;
+                  }
+                }}
+                onCheckedChange={handleSelectAll}
+                aria-label="Selecionar todos"
+              />
+            </TableHead>
             <TableHead>Data</TableHead>
             <TableHead>Hora</TableHead>
             <TableHead>Colaborador</TableHead>
@@ -100,7 +138,14 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
         </TableHeader>
         <TableBody>
           {agendamentos.map((agendamento) => (
-            <TableRow key={agendamento.id}>
+            <TableRow key={agendamento.id} className={selectedIds.includes(agendamento.id) ? 'bg-muted/50' : ''}>
+              <TableCell>
+                <Checkbox
+                  checked={selectedIds.includes(agendamento.id)}
+                  onCheckedChange={(checked) => handleSelectOne(agendamento.id, checked as boolean)}
+                  aria-label={`Selecionar ${agendamento.nome_colaborador}`}
+                />
+              </TableCell>
               <TableCell>{formatDate(agendamento.data_agendamento)}</TableCell>
               <TableCell>{formatTime(agendamento.horario_agendamento)}</TableCell>
               <TableCell className="font-medium">{agendamento.nome_colaborador}</TableCell>
