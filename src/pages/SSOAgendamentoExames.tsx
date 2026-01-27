@@ -8,8 +8,6 @@ import { useAgendamentoExames } from '@/hooks/ssoAgendamentoExames';
 import { AgendamentoExameFilters } from '@/types/ssoAgendamentoExames';
 import { useAuthPermissions } from '@/hooks/useAuthPermissions';
 import { Plus, FileSpreadsheet, Loader2 } from 'lucide-react';
-import { isWithinBrazilianBusinessHours } from '@/utils/timezoneUtils';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
@@ -47,7 +45,6 @@ const SSOAgendamentoExames: React.FC = () => {
 
   const canEdit = isSuperAdmin || ['SuperAdm', 'Admin', 'AdmRH', 'AdmSSO'].includes(userRole || '');
   const canDelete = isSuperAdmin || ['SuperAdm', 'Admin', 'AdmRH'].includes(userRole || '');
-  const isWithinSchedulingHours = isWithinBrazilianBusinessHours(6, 16);
 
   // Clear selection when filters change
   useEffect(() => {
@@ -141,26 +138,10 @@ const SSOAgendamentoExames: React.FC = () => {
               Exportar Excel
             </Button>
             {canEdit && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span>
-                      <Button 
-                        onClick={handleNew} 
-                        disabled={!isWithinSchedulingHours}
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Novo Agendamento
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  {!isWithinSchedulingHours && (
-                    <TooltipContent>
-                      <p>Agendamentos permitidos apenas das 06:00 às 16:00</p>
-                    </TooltipContent>
-                  )}
-                </Tooltip>
-              </TooltipProvider>
+              <Button onClick={handleNew}>
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Agendamento
+              </Button>
             )}
           </div>
         </div>
