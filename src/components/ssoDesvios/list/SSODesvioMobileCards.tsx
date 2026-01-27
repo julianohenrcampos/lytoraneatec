@@ -2,7 +2,7 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { SSODesvio, getClassificacaoColor, getStatusColor } from '@/types/ssoDesvios';
+import { SSODesvio, getClassificacaoColor } from '@/types/ssoDesvios';
 import { Eye, Pencil, Trash2, Calendar, Building2, User, AlertTriangle } from 'lucide-react';
 import { usePagination } from '@/hooks/usePagination';
 
@@ -79,10 +79,7 @@ export const SSODesvioMobileCards: React.FC<SSODesvioMobileCardsProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t">
-              <Badge className={getStatusColor(desvio.status_acao)}>
-                {desvio.status_acao}
-              </Badge>
+            <div className="flex items-center justify-end pt-2 border-t">
               <div className="flex gap-2">
                 <Button
                   variant="ghost"

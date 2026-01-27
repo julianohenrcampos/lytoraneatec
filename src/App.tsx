@@ -55,6 +55,7 @@ import GestaoPermissoes from "@/pages/GestaoPermissoes";
 import SSOChecklistList from "@/pages/SSOChecklistList";
 import SSODashboard from "@/pages/SSODashboard";
 import SSODesviosList from "@/pages/SSODesviosList";
+import SSOAgendamentoExames from "@/pages/SSOAgendamentoExames";
 
 // Licitações PNCP
 import MonitoramentoPNCP from "@/pages/MonitoramentoPNCP";
@@ -315,6 +316,17 @@ const App = () => {
                 <SimplePermissionGuard>
                   <SecureRouteGuard requiredPermission="acesso_sso_desvios">
                     <SSODesviosList />
+                  </SecureRouteGuard>
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            
+            {/* SSO - Agendamento de Exames */}
+            <Route path="/sso/agendamento-exames" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <SecureRouteGuard requiredPermission="acesso_sso_agendamento_exames">
+                    <SSOAgendamentoExames />
                   </SecureRouteGuard>
                 </SimplePermissionGuard>
               </SimpleAuthGuard>

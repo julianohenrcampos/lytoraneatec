@@ -82,7 +82,7 @@ const portalModules = [
   },
   {
     id: "sso-checklists",
-    title: "CHECK LIST - MTE_TAC",
+    title: "SSO",
     description: "Inspeções de Segurança",
     icon: ClipboardList,
     route: "/sso/checklists",

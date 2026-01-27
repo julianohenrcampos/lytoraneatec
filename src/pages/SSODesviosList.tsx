@@ -23,7 +23,7 @@ export default function SSODesviosList() {
   const { isSuperAdmin, userRole, userId } = useAuthPermissions();
 
   const canEditAll = isSuperAdmin || userRole === 'AdmSSO';
-  const canDeleteAll = isSuperAdmin;
+  const canDeleteAll = isSuperAdmin || userRole === 'AdmSSO';
 
   const handleFilterChange = (newFilters: SSODesvioFilters) => {
     setFilters(newFilters);

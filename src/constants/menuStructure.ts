@@ -15,7 +15,8 @@ import {
   Package,
   Map,
   ShieldCheck,
-  Gavel
+  Gavel,
+  Calendar
 } from "lucide-react";
 
 export const menuStructure = [
@@ -211,6 +212,12 @@ export const menuStructure = [
         href: "/sso/desvios",
         icon: ShieldCheck,
         requiredPermission: "acesso_sso_desvios"
+      },
+      {
+        name: "Agendamento de Exames",
+        href: "/sso/agendamento-exames",
+        icon: Calendar,
+        requiredPermission: "acesso_sso_agendamento_exames"
       },
       {
         name: "Dashboard SSO",

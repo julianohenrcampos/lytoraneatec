@@ -170,6 +170,129 @@ export type Database = {
         }
         Relationships: []
       }
+      bd_agendamentos_exames: {
+        Row: {
+          contrato: string | null
+          cpf: string | null
+          criado_em: string
+          criado_por: string
+          data_agendamento: string
+          data_nascimento: string | null
+          documentos_anexados: boolean
+          empresa: string
+          funcao: string
+          horario_agendamento: string
+          id: string
+          local_atendimento_id: string
+          nome_colaborador: string
+          observacoes: string | null
+          rg: string | null
+          status: string
+          tecnico_seguranca: string | null
+          tipo_exame: string
+        }
+        Insert: {
+          contrato?: string | null
+          cpf?: string | null
+          criado_em?: string
+          criado_por: string
+          data_agendamento: string
+          data_nascimento?: string | null
+          documentos_anexados?: boolean
+          empresa: string
+          funcao: string
+          horario_agendamento: string
+          id?: string
+          local_atendimento_id: string
+          nome_colaborador: string
+          observacoes?: string | null
+          rg?: string | null
+          status?: string
+          tecnico_seguranca?: string | null
+          tipo_exame: string
+        }
+        Update: {
+          contrato?: string | null
+          cpf?: string | null
+          criado_em?: string
+          criado_por?: string
+          data_agendamento?: string
+          data_nascimento?: string | null
+          documentos_anexados?: boolean
+          empresa?: string
+          funcao?: string
+          horario_agendamento?: string
+          id?: string
+          local_atendimento_id?: string
+          nome_colaborador?: string
+          observacoes?: string | null
+          rg?: string | null
+          status?: string
+          tecnico_seguranca?: string | null
+          tipo_exame?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_agendamentos_exames_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_agendamentos_exames_local_atendimento_id_fkey"
+            columns: ["local_atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_locais_atendimento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_agendamentos_exames_anexos: {
+        Row: {
+          agendamento_id: string
+          arquivo_nome: string
+          arquivo_path: string
+          criado_em: string
+          criado_por: string
+          id: string
+          tipo: string | null
+        }
+        Insert: {
+          agendamento_id: string
+          arquivo_nome: string
+          arquivo_path: string
+          criado_em?: string
+          criado_por: string
+          id?: string
+          tipo?: string | null
+        }
+        Update: {
+          agendamento_id?: string
+          arquivo_nome?: string
+          arquivo_path?: string
+          criado_em?: string
+          criado_por?: string
+          id?: string
+          tipo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_agendamentos_exames_anexos_agendamento_id_fkey"
+            columns: ["agendamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_agendamentos_exames"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_agendamentos_exames_anexos_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_apontamento_equipe: {
         Row: {
           colaborador_id: string | null
@@ -1098,6 +1221,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      bd_locais_atendimento: {
+        Row: {
+          ativo: boolean
+          cidade: string | null
+          criado_em: string
+          endereco: string
+          id: string
+          nome_local: string
+          telefone: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          cidade?: string | null
+          criado_em?: string
+          endereco: string
+          id?: string
+          nome_local: string
+          telefone?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          cidade?: string | null
+          criado_em?: string
+          endereco?: string
+          id?: string
+          nome_local?: string
+          telefone?: string | null
+        }
+        Relationships: []
       }
       bd_notificacoes: {
         Row: {

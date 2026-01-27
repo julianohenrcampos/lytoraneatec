@@ -1,0 +1,194 @@
+import React, { useState } from 'react';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AgendamentoExameFilters, TIPOS_EXAME, STATUS_AGENDAMENTO } from '@/types/ssoAgendamentoExames';
+import { useAgendamentoExames } from '@/hooks/ssoAgendamentoExames';
+import { Filter, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+
+interface AgendamentoExamesFiltersProps {
+  onFilterChange: (filters: AgendamentoExameFilters) => void;
+  onClearFilters: () => void;
+}
+
+export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> = ({
+  onFilterChange,
+  onClearFilters
+}) => {
+  const isMobile = useIsMobile();
+  const [isOpen, setIsOpen] = useState(!isMobile);
+  
+  const [data, setData] = useState('');
+  const [status, setStatus] = useState('');
+  const [tipoExame, setTipoExame] = useState('');
+  const [localAtendimentoId, setLocalAtendimentoId] = useState('');
+  const [empresa, setEmpresa] = useState('');
+  const [nomeColaborador, setNomeColaborador] = useState('');
+  const [cpf, setCpf] = useState('');
+
+  const { locais } = useAgendamentoExames();
+
+  const handleApplyFilters = () => {
+    const filters: AgendamentoExameFilters = {};
+    
+    if (data) filters.data = data;
+    if (status && status !== 'all') filters.status = status;
+    if (tipoExame && tipoExame !== 'all') filters.tipo_exame = tipoExame;
+    if (localAtendimentoId && localAtendimentoId !== 'all') filters.local_atendimento_id = localAtendimentoId;
+    if (empresa) filters.empresa = empresa;
+    if (nomeColaborador) filters.nome_colaborador = nomeColaborador;
+    if (cpf) filters.cpf = cpf;
+    
+    onFilterChange(filters);
+  };
+
+  const handleClear = () => {
+    setData('');
+    setStatus('');
+    setTipoExame('');
+    setLocalAtendimentoId('');
+    setEmpresa('');
+    setNomeColaborador('');
+    setCpf('');
+    onClearFilters();
+  };
+
+  const filtersContent = (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Data */}
+      <div className="space-y-2">
+        <Label>Data</Label>
+        <Input
+          type="date"
+          value={data}
+          onChange={(e) => setData(e.target.value)}
+        />
+      </div>
+
+      {/* Status */}
+      <div className="space-y-2">
+        <Label>Status</Label>
+        <Select value={status} onValueChange={setStatus}>
+          <SelectTrigger>
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            {STATUS_AGENDAMENTO.map((s) => (
+              <SelectItem key={s} value={s}>{s}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Tipo de Exame */}
+      <div className="space-y-2">
+        <Label>Tipo de Exame</Label>
+        <Select value={tipoExame} onValueChange={setTipoExame}>
+          <SelectTrigger>
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            {TIPOS_EXAME.map((t) => (
+              <SelectItem key={t} value={t}>{t}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Local de Atendimento */}
+      <div className="space-y-2">
+        <Label>Local de Atendimento</Label>
+        <Select value={localAtendimentoId} onValueChange={setLocalAtendimentoId}>
+          <SelectTrigger>
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            {locais.map((local) => (
+              <SelectItem key={local.id} value={local.id}>{local.nome_local}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Empresa */}
+      <div className="space-y-2">
+        <Label>Empresa</Label>
+        <Input
+          placeholder="Buscar empresa..."
+          value={empresa}
+          onChange={(e) => setEmpresa(e.target.value)}
+        />
+      </div>
+
+      {/* Nome do Colaborador */}
+      <div className="space-y-2">
+        <Label>Nome do Colaborador</Label>
+        <Input
+          placeholder="Buscar colaborador..."
+          value={nomeColaborador}
+          onChange={(e) => setNomeColaborador(e.target.value)}
+        />
+      </div>
+
+      {/* CPF */}
+      <div className="space-y-2">
+        <Label>CPF</Label>
+        <Input
+          placeholder="Buscar CPF..."
+          value={cpf}
+          onChange={(e) => setCpf(e.target.value)}
+        />
+      </div>
+
+      {/* Botões */}
+      <div className="col-span-full flex flex-wrap gap-2 pt-2">
+        <Button onClick={handleApplyFilters}>
+          <Filter className="h-4 w-4 mr-2" />
+          Aplicar Filtros
+        </Button>
+        <Button variant="outline" onClick={handleClear}>
+          <X className="h-4 w-4 mr-2" />
+          Limpar
+        </Button>
+      </div>
+    </div>
+  );
+
+  if (isMobile) {
+    return (
+      <Card className="p-4">
+        <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" className="w-full flex justify-between">
+              <span className="flex items-center gap-2">
+                <Filter className="h-4 w-4" />
+                Filtros
+              </span>
+              {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-4">
+            {filtersContent}
+          </CollapsibleContent>
+        </Collapsible>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-4">
+      <h3 className="font-semibold mb-4 flex items-center gap-2">
+        <Filter className="h-4 w-4" />
+        Filtros
+      </h3>
+      {filtersContent}
+    </Card>
+  );
+};

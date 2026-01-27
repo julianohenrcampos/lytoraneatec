@@ -1,10 +1,12 @@
-
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { pdf } from '@react-pdf/renderer';
 import { SSOReportDocument } from '@/components/sso/pdf/SSOReportDocument';
+import { DesvioReportDocument } from '@/components/ssoDesvios/pdf/DesvioReportDocument';
 import { SSOChecklist, SSOChecklistItem } from '@/types/sso';
+import { SSODesvio, SSODesvioFoto } from '@/types/ssoDesvios';
 import { ssoStorageService } from '@/services/sso/ssoStorageService';
+import { ssoDesvioStorageService } from '@/services/ssoDesvios/ssoDesvioStorageService';
 import { createElement } from 'react';
 
 export const generatePDF = async (elementId: string, fileName: string): Promise<void> => {
@@ -147,6 +149,72 @@ export const generateSSOReportPDF = async (
     URL.revokeObjectURL(url);
   } catch (error) {
     console.error('Erro ao gerar PDF:', error);
+    throw error;
+  }
+};
+
+// Helper para pré-carregar fotos de desvios
+const preloadDesvioPhotos = async (
+  fotos: SSODesvioFoto[]
+): Promise<Record<string, string>> => {
+  const photoUrls: Record<string, string> = {};
+  
+  for (const foto of fotos) {
+    if (!foto.path) continue;
+    
+    try {
+      // Obter URL válida
+      let url = foto.url;
+      
+      // Se não tem URL ou é inválida, gerar signed URL
+      if (!url || !url.startsWith('https://')) {
+        url = await ssoDesvioStorageService.getSignedUrl(foto.path) || '';
+      }
+      
+      // Converter para base64 para garantir renderização no PDF
+      if (url) {
+        const base64 = await loadImageAsBase64(url);
+        if (base64) {
+          photoUrls[foto.path] = base64;
+        }
+      }
+    } catch (error) {
+      console.error(`Erro ao carregar foto ${foto.path}:`, error);
+    }
+  }
+  
+  return photoUrls;
+};
+
+export const generateDesvioReportPDF = async (
+  desvio: SSODesvio,
+  fileName: string
+): Promise<void> => {
+  try {
+    // Pré-carregar todas as fotos como base64
+    const fotos = desvio.bd_registro_desvios_fotos || [];
+    const photoUrls = await preloadDesvioPhotos(fotos);
+    
+    // Criar o documento React-PDF
+    const doc = createElement(DesvioReportDocument, {
+      desvio,
+      photoUrls
+    });
+    
+    // Gerar o blob do PDF
+    const blob = await pdf(doc as any).toBlob();
+    
+    // Fazer download
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${fileName}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Erro ao gerar PDF de desvio:', error);
     throw error;
   }
 };

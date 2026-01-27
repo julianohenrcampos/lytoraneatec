@@ -10,10 +10,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { SSODesvio, getClassificacaoColor, getStatusColor } from '@/types/ssoDesvios';
+import { SSODesvio, getClassificacaoColor } from '@/types/ssoDesvios';
 import { Eye, Pencil, Trash2 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { SSODesvioMobileCards } from './SSODesvioMobileCards';
+import { usePagination } from '@/hooks/usePagination';
+import TablePagination from '@/components/ui/table-pagination';
 
 interface SSODesvioTableProps {
   desvios: SSODesvio[];
@@ -35,6 +37,7 @@ export const SSODesvioTable: React.FC<SSODesvioTableProps> = ({
   currentUserId
 }) => {
   const isMobile = useIsMobile();
+  const pagination = usePagination(desvios, { pageSize: 10 });
 
   if (desvios.length === 0) {
     return (
@@ -77,12 +80,11 @@ export const SSODesvioTable: React.FC<SSODesvioTableProps> = ({
               <TableHead>Téc. Segurança</TableHead>
               <TableHead>Tipo de Desvio</TableHead>
               <TableHead>Classificação</TableHead>
-              <TableHead>Status</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {desvios.map((desvio) => {
+            {pagination.paginatedData.map((desvio) => {
               const canEditThis = canEditAll || desvio.criado_por === currentUserId;
               const canDeleteThis = canDeleteAll;
               const isEncerrado = desvio.status_acao === 'Encerrado';
@@ -111,11 +113,6 @@ export const SSODesvioTable: React.FC<SSODesvioTableProps> = ({
                   <TableCell>
                     <Badge className={getClassificacaoColor(desvio.classificacao_desvio)}>
                       {desvio.classificacao_desvio}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={getStatusColor(desvio.status_acao)}>
-                      {desvio.status_acao}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -157,6 +154,9 @@ export const SSODesvioTable: React.FC<SSODesvioTableProps> = ({
           </TableBody>
         </Table>
       </div>
+      {desvios.length > 0 && (
+        <TablePagination pagination={pagination} className="p-4 border-t" />
+      )}
     </Card>
   );
 };

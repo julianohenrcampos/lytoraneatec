@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -6,14 +6,17 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { SSODesvio, getClassificacaoColor, getStatusColor } from '@/types/ssoDesvios';
 import { useSSODesvio } from '@/hooks/ssoDesvios/useSSODesvio';
 import { ssoDesvioStorageService } from '@/services/ssoDesvios';
-import { Loader2, Building2, User, Calendar, FileText, AlertTriangle, CheckCircle, Camera } from 'lucide-react';
+import { generateDesvioReportPDF } from '@/services/pdfService';
+import { Loader2, Building2, User, Calendar, FileText, AlertTriangle, CheckCircle, Camera, Download } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 interface SSODesvioViewDialogProps {
   open: boolean;
@@ -27,6 +30,7 @@ export const SSODesvioViewDialog: React.FC<SSODesvioViewDialogProps> = ({
   desvioId
 }) => {
   const { desvio, isLoading } = useSSODesvio(desvioId);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   // Carregar URLs das fotos
   const { data: fotosComUrl = [] } = useQuery({
@@ -51,6 +55,22 @@ export const SSODesvioViewDialog: React.FC<SSODesvioViewDialogProps> = ({
     return date.toLocaleDateString('pt-BR');
   };
 
+  const handleDownloadPDF = async () => {
+    if (!desvio) return;
+    
+    setIsGeneratingPDF(true);
+    try {
+      const fileName = `Desvio_SSO_${desvio.numero_relatorio.replace(/\//g, '_')}`;
+      await generateDesvioReportPDF(desvio, fileName);
+      toast.success('PDF gerado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      toast.error('Erro ao gerar PDF. Tente novamente.');
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -71,12 +91,28 @@ export const SSODesvioViewDialog: React.FC<SSODesvioViewDialogProps> = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
-            <span>Registro de Desvio</span>
-            <Badge variant="outline" className="font-mono">
-              {desvio.numero_relatorio}
-            </Badge>
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-3">
+              <span>Registro de Desvio</span>
+              <Badge variant="outline" className="font-mono">
+                {desvio.numero_relatorio}
+              </Badge>
+            </DialogTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadPDF}
+              disabled={isGeneratingPDF}
+              className="ml-4"
+            >
+              {isGeneratingPDF ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
+              Baixar PDF
+            </Button>
+          </div>
         </DialogHeader>
 
         <ScrollArea className="max-h-[70vh] pr-4">

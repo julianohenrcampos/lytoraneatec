@@ -6,6 +6,8 @@ import { ssoCalculations } from '@/utils/sso/ssoCalculations';
 import { formatBrazilianDateForDisplay } from '@/utils/timezoneUtils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { SSOChecklistMobileCards } from './SSOChecklistMobileCards';
+import { usePagination } from '@/hooks/usePagination';
+import TablePagination from '@/components/ui/table-pagination';
 
 interface SSOChecklistTableProps {
   checklists: SSOChecklist[];
@@ -27,6 +29,7 @@ export const SSOChecklistTable = ({
   currentUserId
 }: SSOChecklistTableProps) => {
   const isMobile = useIsMobile();
+  const pagination = usePagination(checklists, { pageSize: 10 });
 
   if (checklists.length === 0) {
     return (
@@ -66,7 +69,7 @@ export const SSOChecklistTable = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {checklists.map((checklist) => {
+            {pagination.paginatedData.map((checklist) => {
               // TecSSO pode editar apenas seus próprios checklists
               const canEditThis = canEditAll || checklist.criado_por === currentUserId;
               // Apenas SuperAdm/AdmSSO podem excluir
@@ -141,6 +144,9 @@ export const SSOChecklistTable = ({
           </tbody>
         </table>
       </div>
+      {checklists.length > 0 && (
+        <TablePagination pagination={pagination} className="p-4 border-t" />
+      )}
     </Card>
   );
 };

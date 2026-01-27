@@ -1,0 +1,1 @@
+export { useAgendamentoExames } from './useAgendamentoExames';
