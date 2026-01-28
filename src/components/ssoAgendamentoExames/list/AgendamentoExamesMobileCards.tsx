@@ -11,8 +11,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { AgendamentoExame, getStatusColor, STATUS_AGENDAMENTO } from '@/types/ssoAgendamentoExames';
 import { Eye, Pencil, Trash2, Paperclip, Calendar, Clock, Building2, User, ChevronDown } from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatBrazilianDateForDisplay } from '@/utils/timezoneUtils';
+import { usePagination } from '@/hooks/usePagination';
 
 interface AgendamentoExamesMobileCardsProps {
   agendamentos: AgendamentoExame[];
@@ -39,13 +39,7 @@ export const AgendamentoExamesMobileCards: React.FC<AgendamentoExamesMobileCards
   selectedIds,
   onSelectionChange
 }) => {
-  const formatDate = (dateStr: string) => {
-    try {
-      return format(new Date(dateStr), 'dd/MM/yyyy', { locale: ptBR });
-    } catch {
-      return dateStr;
-    }
-  };
+  const { paginatedData, currentPage, totalPages, previousPage, nextPage, canPreviousPage, canNextPage } = usePagination(agendamentos, { pageSize: 5 });
 
   const formatTime = (timeStr: string) => {
     return timeStr.substring(0, 5);
@@ -61,7 +55,7 @@ export const AgendamentoExamesMobileCards: React.FC<AgendamentoExamesMobileCards
 
   return (
     <div className="space-y-3">
-      {agendamentos.map((agendamento) => (
+      {paginatedData.map((agendamento) => (
         <Card 
           key={agendamento.id} 
           className={`p-4 ${selectedIds.includes(agendamento.id) ? 'ring-2 ring-primary bg-muted/50' : ''}`}
@@ -110,7 +104,7 @@ export const AgendamentoExamesMobileCards: React.FC<AgendamentoExamesMobileCards
               <div className="grid grid-cols-2 gap-2 text-sm mb-3">
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span>{formatDate(agendamento.data_agendamento)}</span>
+                  <span>{formatBrazilianDateForDisplay(agendamento.data_agendamento)}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground" />
@@ -157,6 +151,30 @@ export const AgendamentoExamesMobileCards: React.FC<AgendamentoExamesMobileCards
           </div>
         </Card>
       ))}
+      
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-2 pt-4">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={previousPage} 
+            disabled={!canPreviousPage}
+          >
+            Anterior
+          </Button>
+          <span className="flex items-center px-3 text-sm text-muted-foreground">
+            {currentPage + 1} de {totalPages}
+          </span>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={nextPage} 
+            disabled={!canNextPage}
+          >
+            Próxima
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

@@ -21,8 +21,9 @@ import { AgendamentoExame, getStatusColor, STATUS_AGENDAMENTO } from '@/types/ss
 import { Eye, Pencil, Trash2, Paperclip, ChevronDown } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AgendamentoExamesMobileCards } from './AgendamentoExamesMobileCards';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatBrazilianDateForDisplay } from '@/utils/timezoneUtils';
+import { usePagination } from '@/hooks/usePagination';
+import TablePagination from '@/components/ui/table-pagination';
 
 interface AgendamentoExamesTableProps {
   agendamentos: AgendamentoExame[];
@@ -50,6 +51,7 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
   onSelectionChange
 }) => {
   const isMobile = useIsMobile();
+  const pagination = usePagination(agendamentos, { pageSize: 10 });
 
   if (agendamentos.length === 0) {
     return (
@@ -76,14 +78,6 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
     );
   }
 
-  const formatDate = (dateStr: string) => {
-    try {
-      return format(new Date(dateStr), 'dd/MM/yyyy', { locale: ptBR });
-    } catch {
-      return dateStr;
-    }
-  };
-
   const formatTime = (timeStr: string) => {
     // Remove seconds if present
     return timeStr.substring(0, 5);
@@ -91,7 +85,7 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      onSelectionChange(agendamentos.map(a => a.id));
+      onSelectionChange(pagination.paginatedData.map(a => a.id));
     } else {
       onSelectionChange([]);
     }
@@ -105,8 +99,10 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
     }
   };
 
-  const isAllSelected = agendamentos.length > 0 && selectedIds.length === agendamentos.length;
-  const isIndeterminate = selectedIds.length > 0 && selectedIds.length < agendamentos.length;
+  const isAllSelected = pagination.paginatedData.length > 0 && 
+    pagination.paginatedData.every(a => selectedIds.includes(a.id));
+  const isIndeterminate = pagination.paginatedData.some(a => selectedIds.includes(a.id)) && 
+    !pagination.paginatedData.every(a => selectedIds.includes(a.id));
 
   return (
     <Card>
@@ -125,7 +121,7 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
                 aria-label="Selecionar todos"
               />
             </TableHead>
-            <TableHead>Data</TableHead>
+            <TableHead>Data/Agendamento</TableHead>
             <TableHead>Hora</TableHead>
             <TableHead>Colaborador</TableHead>
             <TableHead>CPF</TableHead>
@@ -137,7 +133,7 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {agendamentos.map((agendamento) => (
+          {pagination.paginatedData.map((agendamento) => (
             <TableRow key={agendamento.id} className={selectedIds.includes(agendamento.id) ? 'bg-muted/50' : ''}>
               <TableCell>
                 <Checkbox
@@ -146,7 +142,7 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
                   aria-label={`Selecionar ${agendamento.nome_colaborador}`}
                 />
               </TableCell>
-              <TableCell>{formatDate(agendamento.data_agendamento)}</TableCell>
+              <TableCell>{formatBrazilianDateForDisplay(agendamento.data_agendamento)}</TableCell>
               <TableCell>{formatTime(agendamento.horario_agendamento)}</TableCell>
               <TableCell className="font-medium">{agendamento.nome_colaborador}</TableCell>
               <TableCell>{agendamento.cpf || '-'}</TableCell>
@@ -208,6 +204,9 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
           ))}
         </TableBody>
       </Table>
+      {agendamentos.length > 0 && (
+        <TablePagination pagination={pagination} className="p-4 border-t" />
+      )}
     </Card>
   );
 };

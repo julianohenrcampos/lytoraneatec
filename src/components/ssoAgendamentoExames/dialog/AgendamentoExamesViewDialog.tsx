@@ -11,8 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAgendamentoExames } from '@/hooks/ssoAgendamentoExames';
 import { getStatusColor } from '@/types/ssoAgendamentoExames';
 import { Loader2, Building2, User, Calendar, Clock, MapPin, Stethoscope, FileText, UserCheck } from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatBrazilianDateForDisplay } from '@/utils/timezoneUtils';
 
 interface AgendamentoExamesViewDialogProps {
   open: boolean;
@@ -26,15 +25,6 @@ export const AgendamentoExamesViewDialog: React.FC<AgendamentoExamesViewDialogPr
   agendamentoId
 }) => {
   const { agendamento, isLoading } = useAgendamentoExames(agendamentoId);
-
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '-';
-    try {
-      return format(new Date(dateStr + 'T00:00:00'), 'dd/MM/yyyy', { locale: ptBR });
-    } catch {
-      return dateStr;
-    }
-  };
 
   const formatTime = (timeStr?: string) => {
     if (!timeStr) return '-';
@@ -103,7 +93,7 @@ export const AgendamentoExamesViewDialog: React.FC<AgendamentoExamesViewDialogPr
                 </div>
                 <div>
                   <span className="text-muted-foreground">Data de Nascimento:</span>
-                  <p className="font-medium">{formatDate(agendamento.data_nascimento)}</p>
+                  <p className="font-medium">{formatBrazilianDateForDisplay(agendamento.data_nascimento)}</p>
                 </div>
               </div>
             </Card>
@@ -143,7 +133,7 @@ export const AgendamentoExamesViewDialog: React.FC<AgendamentoExamesViewDialogPr
                   <span className="text-muted-foreground">Data do Agendamento:</span>
                   <p className="font-medium flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
-                    {formatDate(agendamento.data_agendamento)}
+                    {formatBrazilianDateForDisplay(agendamento.data_agendamento)}
                   </p>
                 </div>
                 <div>
