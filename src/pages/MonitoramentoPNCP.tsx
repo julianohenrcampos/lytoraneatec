@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import MainLayout from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Gavel, ArrowLeft, Settings, Clock, Calendar, DollarSign } from "lucide-react";
+import { RefreshCw, Gavel, ArrowLeft, Settings } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { fetchContratacoes, syncContratacoes, getLastSyncStatus, deleteContratacao, deleteMultipleContratacoes, getEncerradasCount, deleteEncerradas, toggleParticipando, toggleDescartada } from "@/services/pncpService";
@@ -16,12 +16,11 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 export default function MonitoramentoPNCP() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
-  const [filters, setFilters] = useState<PNCPFiltersType>({ ocultarEncerradas: true, ordenacao: 'recentes' });
+  const [filters, setFilters] = useState<PNCPFiltersType>({ ocultarEncerradas: true, ordenacao: 'prazo' });
   const [salvarTodas, setSalvarTodas] = useState(false);
   const {
     data: contratacoes,
@@ -194,55 +193,6 @@ export default function MonitoramentoPNCP() {
         </div>
         
         <div className="flex gap-2 flex-wrap items-center">
-          <Select
-            value={filters.ordenacao || 'recentes'}
-            onValueChange={(value) => setFilters(prev => ({ ...prev, ordenacao: value as 'recentes' | 'prazo' | 'valor' }))}
-          >
-            <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="Ordenar por" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="recentes">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  Mais Recentes
-                </div>
-              </SelectItem>
-              <SelectItem value="prazo">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  Prazo
-                </div>
-              </SelectItem>
-              <SelectItem value="valor">
-                <div className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4" />
-                  Maior Valor
-                </div>
-              </SelectItem>
-            </SelectContent>
-          </Select>
-
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex items-center gap-2 px-3 py-2 border rounded-md bg-background">
-                  <Label htmlFor="mostrar-encerradas" className="text-sm whitespace-nowrap cursor-pointer">
-                    Mostrar Encerradas
-                  </Label>
-                  <Switch 
-                    id="mostrar-encerradas"
-                    checked={!filters.ocultarEncerradas}
-                    onCheckedChange={(checked) => setFilters(prev => ({ ...prev, ocultarEncerradas: !checked }))}
-                  />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Exibir licitações com prazo de propostas encerrado</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>

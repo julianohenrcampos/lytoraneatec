@@ -78,6 +78,13 @@ export const fetchContratacoes = async (filters: PNCPFilters = {}): Promise<PNCP
     query = query.gte("data_fim_propostas", hoje);
   }
 
+  // Filtro para mostrar apenas licitações sincronizadas hoje
+  if (filters.sincronizadasHoje) {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    query = query.gte("updated_at", hoje.toISOString());
+  }
+
   // Filtro por categoria de valor (Mega/Alto/Padrão)
   if (filters.categoriaValor && filters.categoriaValor.length > 0) {
     const conditions: string[] = [];

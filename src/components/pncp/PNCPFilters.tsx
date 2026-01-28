@@ -3,7 +3,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Search, X, Filter, Calendar } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Search, X, Filter, Calendar, Clock, DollarSign } from "lucide-react";
 import { PNCPFilters as PNCPFiltersType, TODAS_UFS } from "@/types/pncp";
 import { getOrgaosUnicos, fetchPerfisBusca } from "@/services/pncpService";
 import { useQuery } from "@tanstack/react-query";
@@ -13,6 +15,11 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { 
+  normalizeDateToBrazilianNoon, 
+  formatBrazilianDateToString,
+  parseBrazilianDate 
+} from "@/utils/timezoneUtils";
 interface PNCPFiltersProps {
   filters: PNCPFiltersType;
   onFilterChange: (filters: PNCPFiltersType) => void;
@@ -40,7 +47,7 @@ export function PNCPFilters({
   onClearFilters
 }: PNCPFiltersProps) {
   const [localFilters, setLocalFilters] = useState<PNCPFiltersType>(filters);
-  const [date, setDate] = useState<Date | undefined>(filters.dataFim ? new Date(filters.dataFim) : undefined);
+  const [date, setDate] = useState<Date | undefined>(filters.dataFim ? parseBrazilianDate(filters.dataFim) : undefined);
   const {
     data: orgaos = []
   } = useQuery({
@@ -58,7 +65,7 @@ export function PNCPFilters({
   });
   useEffect(() => {
     setLocalFilters(filters);
-    setDate(filters.dataFim ? new Date(filters.dataFim) : undefined);
+    setDate(filters.dataFim ? parseBrazilianDate(filters.dataFim) : undefined);
   }, [filters]);
   const handleSearch = () => {
     onFilterChange(localFilters);
@@ -77,11 +84,20 @@ export function PNCPFilters({
     });
   };
   const handleDateChange = (selectedDate: Date | undefined) => {
-    setDate(selectedDate);
-    setLocalFilters({
-      ...localFilters,
-      dataFim: selectedDate ? format(selectedDate, "yyyy-MM-dd") : undefined
-    });
+    if (selectedDate) {
+      const normalizedDate = normalizeDateToBrazilianNoon(selectedDate);
+      setDate(normalizedDate);
+      setLocalFilters({
+        ...localFilters,
+        dataFim: formatBrazilianDateToString(normalizedDate)
+      });
+    } else {
+      setDate(undefined);
+      setLocalFilters({
+        ...localFilters,
+        dataFim: undefined
+      });
+    }
   };
   const hasFilters = Object.values(localFilters).some(v => v !== undefined && v !== "" && (Array.isArray(v) ? v.length > 0 : true));
   return <Card>
@@ -91,21 +107,77 @@ export function PNCPFilters({
           <span className="font-medium">Filtros</span>
         </div>
         
-        {/* Categoria de Valor */}
-        <div className="mb-4">
-          <Label className="mb-2 block text-sm text-muted-foreground">Categoria de Valor</Label>
-          <div className="flex flex-wrap gap-3">
-            {CATEGORIAS_VALOR.map(cat => <label key={cat.id} className="flex items-center gap-2 cursor-pointer">
-                <Checkbox checked={localFilters.categoriaValor?.includes(cat.id) || false} onCheckedChange={() => toggleCategoria(cat.id)} />
-                <span className={cn("px-2 py-0.5 rounded text-xs font-medium", cat.className)}>
-                  {cat.label}
-                </span>
-                
-              </label>)}
+        {/* Linha superior: Categoria de Valor (esquerda) + Ordenação/Encerradas (direita) */}
+        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-4">
+          {/* Categoria de Valor - ESQUERDA */}
+          <div>
+            <Label className="mb-2 block text-sm text-muted-foreground">Categoria de Valor</Label>
+            <div className="flex flex-wrap gap-3">
+              {CATEGORIAS_VALOR.map(cat => <label key={cat.id} className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox checked={localFilters.categoriaValor?.includes(cat.id) || false} onCheckedChange={() => toggleCategoria(cat.id)} />
+                  <span className={cn("px-2 py-0.5 rounded text-xs font-medium", cat.className)}>
+                    {cat.label}
+                  </span>
+                </label>)}
+            </div>
+          </div>
+          
+          {/* Ordenação + Encerradas - DIREITA */}
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Ordenar por */}
+            <div className="flex items-center gap-2">
+              <Label className="text-sm text-muted-foreground whitespace-nowrap">Ordenar por</Label>
+              <Select
+                value={localFilters.ordenacao || 'prazo'}
+                onValueChange={(value) => setLocalFilters({
+                  ...localFilters,
+                  ordenacao: value as 'recentes' | 'prazo' | 'valor'
+                })}
+              >
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Ordenar por" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="prazo">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      Prazo
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="recentes">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      Mais Recentes
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="valor">
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      Maior Valor
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Mostrar Encerradas */}
+            <div className="flex items-center gap-2">
+              <Switch 
+                id="mostrar-encerradas-filter"
+                checked={!localFilters.ocultarEncerradas}
+                onCheckedChange={(checked) => setLocalFilters({
+                  ...localFilters,
+                  ocultarEncerradas: !checked
+                })}
+              />
+              <Label htmlFor="mostrar-encerradas-filter" className="cursor-pointer text-sm">
+                Mostrar encerradas
+              </Label>
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Órgão */}
           <div>
             <Label htmlFor="orgao">Órgão / Unidade</Label>
@@ -187,6 +259,25 @@ export function PNCPFilters({
               placeholder="Selecione o perfil..."
               searchPlaceholder="Buscar perfil..."
               emptyText="Nenhum perfil encontrado"
+            />
+          </div>
+
+          {/* Sincronização */}
+          <div>
+            <Label htmlFor="sincronizacao">Sincronização</Label>
+            <Combobox
+              options={[
+                { value: "_all", label: "Todas" },
+                { value: "hoje", label: "Novas de Hoje" }
+              ]}
+              value={localFilters.sincronizadasHoje ? "hoje" : "_all"}
+              onChange={(value) => setLocalFilters({
+                ...localFilters,
+                sincronizadasHoje: value === "hoje"
+              })}
+              placeholder="Selecione..."
+              searchPlaceholder="Buscar..."
+              emptyText="Nenhuma opção"
             />
           </div>
         </div>
