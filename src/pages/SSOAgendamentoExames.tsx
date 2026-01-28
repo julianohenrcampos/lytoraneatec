@@ -44,7 +44,7 @@ const SSOAgendamentoExames: React.FC = () => {
   const { isSuperAdmin, userRole } = useAuthPermissions();
 
   const canEdit = isSuperAdmin || ['SuperAdm', 'Admin', 'AdmRH', 'AdmSSO'].includes(userRole || '');
-  const canDelete = isSuperAdmin || ['SuperAdm', 'Admin', 'AdmRH'].includes(userRole || '');
+  const canDelete = isSuperAdmin || ['SuperAdm', 'Admin', 'AdmRH', 'AdmSSO'].includes(userRole || '');
 
   // Clear selection when filters change
   useEffect(() => {
