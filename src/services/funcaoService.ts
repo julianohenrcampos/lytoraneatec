@@ -128,9 +128,12 @@ export const deleteFuncao = async (id: string): Promise<void> => {
 
 // Export data to Excel
 export const exportToExcel = (data: Funcao[]): void => {
-  // Format data for export - using just "Função" as the column name to match the expected format
+  // Format data for export
   const formattedData = data.map((item) => ({
-    "Função": item.nome_funcao
+    "Função": item.nome_funcao,
+    "Valor Diária": item.valor_diaria 
+      ? item.valor_diaria.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+      : '-'
   }));
   
   // Create worksheet
@@ -169,9 +172,19 @@ export const processImportData = async (data: any[]): Promise<{ success: string[
         continue;
       }
       
+      // Parse valor diária from import (handle various formats)
+      const valorDiariaStr = row["Valor Diária"] || row["Valor da Diária"] || row["Valor_Diaria"] || "";
+      let valorDiaria = 0;
+      if (valorDiariaStr) {
+        // Remove R$, espaços e trocar vírgula por ponto
+        const cleanValue = valorDiariaStr.toString().replace(/[R$\s]/g, '').replace(',', '.');
+        valorDiaria = parseFloat(cleanValue) || 0;
+      }
+      
       // Format data for insertion
       const funcaoData: FuncaoFormData = {
-        nome_funcao: funcaoNome
+        nome_funcao: funcaoNome,
+        valor_diaria: valorDiaria
       };
       
       // Insert into database

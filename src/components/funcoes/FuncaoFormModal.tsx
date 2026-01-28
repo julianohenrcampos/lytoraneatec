@@ -23,7 +23,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
-  nome_funcao: z.string().min(1, "Nome da função é obrigatório")
+  nome_funcao: z.string().min(1, "Nome da função é obrigatório"),
+  valor_diaria: z.number().min(0, "Valor deve ser maior ou igual a zero").optional().nullable()
 });
 
 interface FuncaoFormModalProps {
@@ -46,14 +47,16 @@ const FuncaoFormModal: React.FC<FuncaoFormModalProps> = ({
   const form = useForm<FuncaoFormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      nome_funcao: funcao?.nome_funcao || ""
+      nome_funcao: funcao?.nome_funcao || "",
+      valor_diaria: funcao?.valor_diaria || 0
     }
   });
   
   React.useEffect(() => {
     if (isOpen) {
       form.reset({
-        nome_funcao: funcao?.nome_funcao || ""
+        nome_funcao: funcao?.nome_funcao || "",
+        valor_diaria: funcao?.valor_diaria || 0
       });
     }
   }, [isOpen, funcao, form]);
@@ -146,6 +149,28 @@ const FuncaoFormModal: React.FC<FuncaoFormModalProps> = ({
                   <FormLabel>Nome da Função</FormLabel>
                   <FormControl>
                     <Input {...field} placeholder="Ex: Motorista" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="valor_diaria"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Valor da Diária (R$)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="number" 
+                      step="0.01"
+                      min="0"
+                      placeholder="0,00" 
+                      {...field}
+                      value={field.value || ''}
+                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

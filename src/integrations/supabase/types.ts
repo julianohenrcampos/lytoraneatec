@@ -1079,6 +1079,7 @@ export type Database = {
           nome_funcao: string
           situacao: string | null
           updated_at: string | null
+          valor_diaria: number | null
         }
         Insert: {
           created_at?: string | null
@@ -1087,6 +1088,7 @@ export type Database = {
           nome_funcao: string
           situacao?: string | null
           updated_at?: string | null
+          valor_diaria?: number | null
         }
         Update: {
           created_at?: string | null
@@ -1095,6 +1097,7 @@ export type Database = {
           nome_funcao?: string
           situacao?: string | null
           updated_at?: string | null
+          valor_diaria?: number | null
         }
         Relationships: []
       }

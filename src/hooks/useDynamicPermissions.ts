@@ -29,11 +29,11 @@ const SSO_ROLE_PERMISSIONS: Record<string, string[]> = {
   ]
 };
 
-// Cache local otimizado com TTL maior
+// Cache local otimizado com TTL maior para evitar revalidações frequentes
 let permissionsCache: DynamicPermissions | null = null;
 let lastCacheTime = 0;
 let lastUserId: string | null = null; // Para detectar mudança de usuário
-const CACHE_DURATION = 60000; // 1 minuto para reduzir consultas
+const CACHE_DURATION = 300000; // 5 minutos para evitar perda de formulários durante preenchimento
 
 export const useDynamicPermissions = (): DynamicPermissions => {
   const [permissions, setPermissions] = useState<DynamicPermissions>({
@@ -231,10 +231,16 @@ export const useDynamicPermissions = (): DynamicPermissions => {
         );
 
       } catch (dbError) {
-        console.warn('⚠️ [DYNAMIC] Erro no banco, usando fallback de emergência:', dbError);
+        console.warn('⚠️ [DYNAMIC] Erro no banco, tentando MANTER permissões anteriores:', dbError);
         
-        // FALLBACK DE EMERGÊNCIA: Só para falhas críticas do banco
-        // Em caso de erro de banco, usar SuperAdmin emails como última opção
+        // PRIORIDADE 1: Se já temos permissões válidas no cache, MANTER (não revogar)
+        if (permissionsCache && permissionsCache.permissions.length > 0) {
+          console.log('✅ [DYNAMIC] Usando cache válido como fallback - NÃO revogando permissões');
+          setPermissions(permissionsCache);
+          return; // NÃO resetar!
+        }
+        
+        // PRIORIDADE 2: Fallback de emergência para SuperAdmin
         const isEmergencySuperAdmin = SUPER_ADMIN_EMAILS.includes(user.email || '');
         
         if (isEmergencySuperAdmin) {
@@ -257,18 +263,63 @@ export const useDynamicPermissions = (): DynamicPermissions => {
           };
           setPermissions(emergencyPermissions);
           permissionsCache = emergencyPermissions;
-        } else {
-          // Usuários normais ficam bloqueados até o banco voltar
-          console.log('🚨 [DYNAMIC] Banco fora do ar - bloqueando usuário comum');
-          setPermissions({
-            userId: user.id,
-            isSuperAdmin: false,
-            userRole: null,
-            permissions: [],
-            isLoading: false,
-            canAccessDashboard: false,
-          });
+          lastCacheTime = Date.now();
+          return;
         }
+        
+        // PRIORIDADE 3: Tentar buscar apenas funcoes[] para fallback SSO
+        try {
+          const { data: profileFallback } = await supabase
+            .from('profiles')
+            .select('funcoes')
+            .eq('id', user.id)
+            .single();
+          
+          if (profileFallback?.funcoes?.includes('TecSSO')) {
+            console.log('✅ [DYNAMIC] Fallback TecSSO ativado - mantendo acesso');
+            const tecSSOFallback = {
+              userId: user.id,
+              isSuperAdmin: false,
+              userRole: 'TecSSO',
+              permissions: ['acesso_sso_checklists', 'acesso_sso_desvios', 'dashboard_view'],
+              isLoading: false,
+              canAccessDashboard: true,
+            };
+            setPermissions(tecSSOFallback);
+            permissionsCache = tecSSOFallback;
+            lastCacheTime = Date.now();
+            return;
+          }
+          
+          if (profileFallback?.funcoes?.includes('AdmSSO')) {
+            console.log('✅ [DYNAMIC] Fallback AdmSSO ativado - mantendo acesso');
+            const admSSOFallback = {
+              userId: user.id,
+              isSuperAdmin: false,
+              userRole: 'AdmSSO',
+              permissions: SSO_ROLE_PERMISSIONS['AdmSSO'],
+              isLoading: false,
+              canAccessDashboard: true,
+            };
+            setPermissions(admSSOFallback);
+            permissionsCache = admSSOFallback;
+            lastCacheTime = Date.now();
+            return;
+          }
+        } catch (profileError) {
+          console.warn('⚠️ [DYNAMIC] Não foi possível buscar perfil para fallback:', profileError);
+        }
+        
+        // ÚLTIMO RECURSO: Bloquear apenas se não houver nenhum cache
+        console.log('🚨 [DYNAMIC] Banco fora do ar e sem cache - bloqueando usuário');
+        setPermissions({
+          userId: user.id,
+          isSuperAdmin: false,
+          userRole: null,
+          permissions: [],
+          isLoading: false,
+          canAccessDashboard: false,
+        });
         lastCacheTime = Date.now();
       }
 

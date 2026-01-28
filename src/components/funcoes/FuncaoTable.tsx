@@ -35,14 +35,15 @@ const FuncaoTable: React.FC<FuncaoTableProps> = ({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-full">Nome da Função</TableHead>
+                <TableHead>Nome da Função</TableHead>
+                <TableHead>Valor da Diária</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={2} className="h-24 text-center">
+                  <TableCell colSpan={3} className="h-24 text-center">
                     <div className="flex justify-center items-center">
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       <span>Carregando...</span>
@@ -51,7 +52,7 @@ const FuncaoTable: React.FC<FuncaoTableProps> = ({
                 </TableRow>
               ) : isError ? (
                 <TableRow>
-                  <TableCell colSpan={2} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
                     Erro ao carregar os dados. Tente novamente.
                   </TableCell>
                 </TableRow>
@@ -63,6 +64,12 @@ const FuncaoTable: React.FC<FuncaoTableProps> = ({
                       onClick={() => onView(funcao)}
                     >
                       {funcao.nome_funcao}
+                    </TableCell>
+                    <TableCell>
+                      {funcao.valor_diaria 
+                        ? funcao.valor_diaria.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                        : '-'
+                      }
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
@@ -97,7 +104,7 @@ const FuncaoTable: React.FC<FuncaoTableProps> = ({
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={2} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
                     Nenhuma função encontrada
                   </TableCell>
                 </TableRow>
