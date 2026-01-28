@@ -36,7 +36,7 @@ export interface PNCPFilters {
   categoriaValor?: string[];
   perfilBuscaId?: string;
   ocultarEncerradas?: boolean;
-  ordenacao?: 'recentes' | 'prazo' | 'valor';
+  ordenacao?: 'recentes' | 'prazo' | 'valor' | 'hoje';
   sincronizadasHoje?: boolean;
 }
 

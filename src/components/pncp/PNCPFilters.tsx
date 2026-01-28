@@ -129,12 +129,16 @@ export function PNCPFilters({
               <Label className="text-sm text-muted-foreground whitespace-nowrap">Ordenar por</Label>
               <Select
                 value={localFilters.ordenacao || 'prazo'}
-                onValueChange={(value) => setLocalFilters({
-                  ...localFilters,
-                  ordenacao: value as 'recentes' | 'prazo' | 'valor'
-                })}
+                onValueChange={(value) => {
+                  const isHoje = value === 'hoje';
+                  setLocalFilters({
+                    ...localFilters,
+                    ordenacao: value as 'recentes' | 'prazo' | 'valor' | 'hoje',
+                    sincronizadasHoje: isHoje
+                  });
+                }}
               >
-                <SelectTrigger className="w-[140px]">
+                <SelectTrigger className="w-[160px]">
                   <SelectValue placeholder="Ordenar por" />
                 </SelectTrigger>
                 <SelectContent>
@@ -154,6 +158,12 @@ export function PNCPFilters({
                     <div className="flex items-center gap-2">
                       <DollarSign className="h-4 w-4" />
                       Maior Valor
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="hoje">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-primary" />
+                      🆕 Apenas de Hoje
                     </div>
                   </SelectItem>
                 </SelectContent>
@@ -177,7 +187,7 @@ export function PNCPFilters({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Órgão */}
           <div>
             <Label htmlFor="orgao">Órgão / Unidade</Label>
@@ -259,25 +269,6 @@ export function PNCPFilters({
               placeholder="Selecione o perfil..."
               searchPlaceholder="Buscar perfil..."
               emptyText="Nenhum perfil encontrado"
-            />
-          </div>
-
-          {/* Sincronização */}
-          <div>
-            <Label htmlFor="sincronizacao">Sincronização</Label>
-            <Combobox
-              options={[
-                { value: "_all", label: "Todas" },
-                { value: "hoje", label: "Novas de Hoje" }
-              ]}
-              value={localFilters.sincronizadasHoje ? "hoje" : "_all"}
-              onChange={(value) => setLocalFilters({
-                ...localFilters,
-                sincronizadasHoje: value === "hoje"
-              })}
-              placeholder="Selecione..."
-              searchPlaceholder="Buscar..."
-              emptyText="Nenhuma opção"
             />
           </div>
         </div>

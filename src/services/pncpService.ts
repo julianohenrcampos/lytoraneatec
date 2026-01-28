@@ -38,16 +38,17 @@ export const fetchContratacoes = async (filters: PNCPFilters = {}): Promise<PNCP
       bd_pncp_perfis_busca:perfil_busca_id (cor)
     `);
 
-  // Ordenação dinâmica baseada no filtro (padrão: mais recentes primeiro)
+  // Ordenação dinâmica baseada no filtro (padrão: prazo)
   switch (filters.ordenacao) {
     case 'prazo':
+    default:
       query = query.order("data_fim_propostas", { ascending: true });
       break;
     case 'valor':
       query = query.order("valor_total_estimado", { ascending: false, nullsFirst: false });
       break;
+    case 'hoje':
     case 'recentes':
-    default:
       query = query.order("updated_at", { ascending: false, nullsFirst: false });
       break;
   }
