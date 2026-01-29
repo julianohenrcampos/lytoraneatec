@@ -68,6 +68,8 @@ export function PNCPFilters({
     setDate(filters.dataFim ? parseBrazilianDate(filters.dataFim) : undefined);
   }, [filters]);
   const handleSearch = () => {
+    console.log("🔍 PNCP Filters - Aplicando:", localFilters);
+    console.log("🔍 PNCP Filters - UF selecionada:", localFilters.uf);
     onFilterChange(localFilters);
   };
   const handleClear = () => {
@@ -222,10 +224,13 @@ export function PNCPFilters({
                 }))
               ]}
               value={localFilters.uf || "_all"}
-              onChange={(value) => setLocalFilters({
-                ...localFilters,
-                uf: value === "_all" ? undefined : value
-              })}
+              onChange={(value) => {
+                console.log("📍 UF selecionada:", value);
+                setLocalFilters(prev => ({
+                  ...prev,
+                  uf: value === "_all" ? undefined : value
+                }));
+              }}
               placeholder="Selecione o estado..."
               searchPlaceholder="Buscar estado..."
               emptyText="Nenhum estado encontrado"

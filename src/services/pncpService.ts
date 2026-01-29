@@ -31,6 +31,9 @@ export const fetchTodasContratacoes = async (): Promise<ContratacaoRaw[]> => {
 };
 
 export const fetchContratacoes = async (filters: PNCPFilters = {}): Promise<PNCPContratacao[]> => {
+  console.log("🔍 fetchContratacoes - Filters recebidos:", filters);
+  console.log("🔍 fetchContratacoes - UF filtro:", filters.uf);
+  
   let query = supabase
     .from("bd_pncp_contratacoes")
     .select(`

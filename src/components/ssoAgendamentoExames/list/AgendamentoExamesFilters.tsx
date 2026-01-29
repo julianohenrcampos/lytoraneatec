@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Combobox } from '@/components/ui/combobox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AgendamentoExameFilters, TIPOS_EXAME, STATUS_AGENDAMENTO } from '@/types/ssoAgendamentoExames';
 import { useAgendamentoExames } from '@/hooks/ssoAgendamentoExames';
@@ -30,7 +31,12 @@ export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> =
   const [nomeColaborador, setNomeColaborador] = useState('');
   const [cpf, setCpf] = useState('');
 
-  const { locais } = useAgendamentoExames();
+  const { locais, empresas } = useAgendamentoExames();
+
+  const empresasOptions = useMemo(() => [
+    { value: '', label: 'Todas as empresas' },
+    ...empresas.map(e => ({ value: e.nome_empresa, label: e.nome_empresa }))
+  ], [empresas]);
 
   const handleApplyFilters = () => {
     const filters: AgendamentoExameFilters = {};
@@ -120,10 +126,13 @@ export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> =
       {/* Empresa */}
       <div className="space-y-2">
         <Label>Empresa</Label>
-        <Input
-          placeholder="Buscar empresa..."
+        <Combobox
+          options={empresasOptions}
           value={empresa}
-          onChange={(e) => setEmpresa(e.target.value)}
+          onChange={setEmpresa}
+          placeholder="Todas as empresas"
+          searchPlaceholder="Buscar empresa..."
+          emptyText="Nenhuma empresa encontrada"
         />
       </div>
 

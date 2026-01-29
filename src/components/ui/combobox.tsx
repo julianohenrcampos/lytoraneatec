@@ -68,15 +68,11 @@ export function Combobox({
       return;
     }
     
-    // Chamar onChange imediatamente
+    // Chamar onChange imediatamente sem delay
     onChange(selectedValue);
-    
-    // Delay mínimo para garantir que o evento complete
-    setTimeout(() => {
-      setInputValue("");
-      setOpen(false);
-      console.log("✅ Combobox closed");
-    }, 50);
+    setInputValue("");
+    setOpen(false);
+    console.log("✅ Combobox closed");
   }, [onChange]);
 
   return (
