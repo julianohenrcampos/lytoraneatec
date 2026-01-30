@@ -13,6 +13,7 @@ import {
   Factory,
   ClipboardList,
   Gavel,
+  Calendar,
 } from "lucide-react";
 
 // Define all modules with their permissions and colors
@@ -88,6 +89,15 @@ const portalModules = [
     route: "/sso/checklists",
     permission: "acesso_sso_checklists",
     color: "hsl(330, 81%, 60%)", // Pink
+  },
+  {
+    id: "sso-agendamento",
+    title: "Agendamento de Exames",
+    description: "Exames Ocupacionais",
+    icon: Calendar,
+    route: "/sso/agendamento-exames",
+    permission: "acesso_sso_agendamento_exames",
+    color: "hsl(200, 70%, 50%)", // Light Blue
   },
   {
     id: "licitacoes-pncp",

@@ -1,10 +1,10 @@
 // Tipos para Agendamento de Exames - Módulo SSO
 
 export type TipoExame = 'Admissional' | 'Periódico' | 'Mudança de Risco' | 'Demissional' | 'Retorno ao Trabalho';
-export type StatusAgendamento = 'Pendente' | 'Agendado' | 'Apto' | 'Apto com Restrição' | 'Inapto';
+export type StatusAgendamento = 'Pendente' | 'Agendado' | 'Apto' | 'Apto com Restrição' | 'Inapto' | 'Não Compareceu';
 
 export const TIPOS_EXAME: TipoExame[] = ['Admissional', 'Periódico', 'Mudança de Risco', 'Demissional', 'Retorno ao Trabalho'];
-export const STATUS_AGENDAMENTO: StatusAgendamento[] = ['Pendente', 'Agendado', 'Apto', 'Apto com Restrição', 'Inapto'];
+export const STATUS_AGENDAMENTO: StatusAgendamento[] = ['Pendente', 'Agendado', 'Apto', 'Apto com Restrição', 'Inapto', 'Não Compareceu'];
 
 export interface LocalAtendimento {
   id: string;
@@ -100,6 +100,8 @@ export const getStatusColor = (status: StatusAgendamento): "default" | "secondar
       return 'warning';
     case 'Inapto':
       return 'destructive';
+    case 'Não Compareceu':
+      return 'secondary';
     default:
       return 'default';
   }

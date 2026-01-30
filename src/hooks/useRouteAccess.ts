@@ -38,6 +38,7 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   '/sso/checklists': ['acesso_sso_checklists'],
   '/sso/desvios': ['acesso_sso_desvios'],
   '/sso/checklists/dashboard': ['acesso_sso_dashboard'],
+  '/sso/agendamento-exames': ['acesso_sso_agendamento_exames'],
 
   // Administração
   '/admin/permissoes': ['admin_permissoes_view'],

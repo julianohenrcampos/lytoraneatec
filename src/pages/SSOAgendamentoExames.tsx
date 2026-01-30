@@ -45,6 +45,7 @@ const SSOAgendamentoExames: React.FC = () => {
 
   const canEdit = isSuperAdmin || ['SuperAdm', 'Admin', 'AdmRH', 'AdmSSO'].includes(userRole || '');
   const canDelete = isSuperAdmin || ['SuperAdm', 'Admin', 'AdmRH', 'AdmSSO'].includes(userRole || '');
+  const canChangeStatus = isSuperAdmin || ['SuperAdm', 'Admin', 'AdmRH', 'AdmSSO', 'TecEnferSSO', 'EnferAdm'].includes(userRole || '');
 
   // Clear selection when filters change
   useEffect(() => {
@@ -153,7 +154,7 @@ const SSOAgendamentoExames: React.FC = () => {
         />
 
         {/* Bulk Action Bar */}
-        {canEdit && (
+        {canChangeStatus && (
           <BulkActionBar
             selectedCount={selectedIds.length}
             onStatusChange={handleBulkStatusChange}
@@ -177,6 +178,7 @@ const SSOAgendamentoExames: React.FC = () => {
             onStatusChange={handleStatusChange}
             canEdit={canEdit}
             canDelete={canDelete}
+            canChangeStatus={canChangeStatus}
             selectedIds={selectedIds}
             onSelectionChange={setSelectedIds}
           />

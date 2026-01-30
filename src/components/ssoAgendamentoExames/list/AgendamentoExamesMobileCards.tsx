@@ -23,6 +23,7 @@ interface AgendamentoExamesMobileCardsProps {
   onStatusChange: (id: string, status: string) => void;
   canEdit: boolean;
   canDelete: boolean;
+  canChangeStatus: boolean;
   selectedIds: string[];
   onSelectionChange: (ids: string[]) => void;
 }
@@ -36,6 +37,7 @@ export const AgendamentoExamesMobileCards: React.FC<AgendamentoExamesMobileCards
   onStatusChange,
   canEdit,
   canDelete,
+  canChangeStatus,
   selectedIds,
   onSelectionChange
 }) => {
@@ -137,7 +139,7 @@ export const AgendamentoExamesMobileCards: React.FC<AgendamentoExamesMobileCards
                       <DropdownMenuItem
                         key={status}
                         onClick={() => onStatusChange(agendamento.id, status)}
-                        disabled={!canEdit}
+                        disabled={!canChangeStatus}
                       >
                         <Badge variant={getStatusColor(status)} className="mr-2">
                           {status}

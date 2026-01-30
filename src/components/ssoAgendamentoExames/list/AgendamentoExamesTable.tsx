@@ -34,6 +34,7 @@ interface AgendamentoExamesTableProps {
   onStatusChange: (id: string, status: string) => void;
   canEdit: boolean;
   canDelete: boolean;
+  canChangeStatus: boolean;
   selectedIds: string[];
   onSelectionChange: (ids: string[]) => void;
 }
@@ -47,6 +48,7 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
   onStatusChange,
   canEdit,
   canDelete,
+  canChangeStatus,
   selectedIds,
   onSelectionChange
 }) => {
@@ -72,6 +74,7 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
         onStatusChange={onStatusChange}
         canEdit={canEdit}
         canDelete={canDelete}
+        canChangeStatus={canChangeStatus}
         selectedIds={selectedIds}
         onSelectionChange={onSelectionChange}
       />
@@ -164,7 +167,7 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
                       <DropdownMenuItem
                         key={status}
                         onClick={() => onStatusChange(agendamento.id, status)}
-                        disabled={!canEdit}
+                        disabled={!canChangeStatus}
                       >
                         <Badge variant={getStatusColor(status)} className="mr-2">
                           {status}
