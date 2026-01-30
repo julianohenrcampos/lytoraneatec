@@ -43,6 +43,7 @@ const SSOAgendamentoExames: React.FC = () => {
   } = useAgendamentoExames(undefined, filters);
   const { isSuperAdmin, userRole } = useAuthPermissions();
 
+  const canCreate = isSuperAdmin || ['SuperAdm', 'Admin', 'AdmRH', 'AdmSSO', 'TecEnferSSO', 'EnferAdm', 'JovemAdm'].includes(userRole || '');
   const canEdit = isSuperAdmin || ['SuperAdm', 'Admin', 'AdmRH', 'AdmSSO'].includes(userRole || '');
   const canDelete = isSuperAdmin || ['SuperAdm', 'Admin', 'AdmRH', 'AdmSSO'].includes(userRole || '');
   const canChangeStatus = isSuperAdmin || ['SuperAdm', 'Admin', 'AdmRH', 'AdmSSO', 'TecEnferSSO', 'EnferAdm'].includes(userRole || '');
@@ -138,7 +139,7 @@ const SSOAgendamentoExames: React.FC = () => {
               <FileSpreadsheet className="h-4 w-4 mr-2" />
               Exportar Excel
             </Button>
-            {canEdit && (
+            {canCreate && (
               <Button onClick={handleNew}>
                 <Plus className="h-4 w-4 mr-2" />
                 Novo Agendamento
@@ -189,6 +190,7 @@ const SSOAgendamentoExames: React.FC = () => {
           open={dialogOpen}
           onOpenChange={setDialogOpen}
           agendamentoId={editingId}
+          canChangeStatus={canChangeStatus}
         />
 
         {/* View Dialog */}

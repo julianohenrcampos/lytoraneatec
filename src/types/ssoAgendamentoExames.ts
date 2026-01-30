@@ -88,7 +88,7 @@ export interface AgendamentoExameFilters {
 }
 
 // Helper functions para badges de status
-export const getStatusColor = (status: StatusAgendamento): "default" | "secondary" | "success" | "destructive" | "info" | "warning" => {
+export const getStatusColor = (status: StatusAgendamento): "default" | "secondary" | "success" | "destructive" | "info" | "warning" | "purple" => {
   switch (status) {
     case 'Pendente':
       return 'secondary';
@@ -101,7 +101,7 @@ export const getStatusColor = (status: StatusAgendamento): "default" | "secondar
     case 'Inapto':
       return 'destructive';
     case 'Não Compareceu':
-      return 'secondary';
+      return 'purple';
     default:
       return 'default';
   }

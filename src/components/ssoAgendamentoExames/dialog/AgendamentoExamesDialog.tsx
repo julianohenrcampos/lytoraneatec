@@ -21,6 +21,7 @@ interface AgendamentoExamesDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   agendamentoId?: string;
+  canChangeStatus?: boolean;
 }
 
 const initialFormData: AgendamentoExameFormData = {
@@ -44,7 +45,8 @@ const initialFormData: AgendamentoExameFormData = {
 export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = ({
   open,
   onOpenChange,
-  agendamentoId
+  agendamentoId,
+  canChangeStatus = true
 }) => {
   const [formData, setFormData] = useState<AgendamentoExameFormData>(initialFormData);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -331,15 +333,21 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
                     )}
                   </div>
                 )}
-                <div className="space-y-2">
-                  <Label>Status *</Label>
-                  <Select value={formData.status} onValueChange={(v) => handleChange('status', v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {STATUS_AGENDAMENTO.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {(canChangeStatus || agendamentoId) && (
+                  <div className="space-y-2">
+                    <Label>Status *</Label>
+                    <Select 
+                      value={formData.status} 
+                      onValueChange={(v) => handleChange('status', v)}
+                      disabled={!canChangeStatus}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {STATUS_AGENDAMENTO.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             </Card>
 
