@@ -942,7 +942,11 @@ export type Database = {
       bd_funcionarios: {
         Row: {
           adicional_noturno: number | null
+          agencia: string | null
+          banco: string | null
           centro_custo_id: string | null
+          chave_pix: string | null
+          conta_corrente: string | null
           cpf: string
           created_at: string | null
           custo_passagem: number | null
@@ -973,7 +977,11 @@ export type Database = {
         }
         Insert: {
           adicional_noturno?: number | null
+          agencia?: string | null
+          banco?: string | null
           centro_custo_id?: string | null
+          chave_pix?: string | null
+          conta_corrente?: string | null
           cpf: string
           created_at?: string | null
           custo_passagem?: number | null
@@ -1004,7 +1012,11 @@ export type Database = {
         }
         Update: {
           adicional_noturno?: number | null
+          agencia?: string | null
+          banco?: string | null
           centro_custo_id?: string | null
+          chave_pix?: string | null
+          conta_corrente?: string | null
           cpf?: string
           created_at?: string | null
           custo_passagem?: number | null
@@ -1080,6 +1092,7 @@ export type Database = {
           situacao: string | null
           updated_at: string | null
           valor_diaria: number | null
+          valor_diaria_exclusiva: number | null
         }
         Insert: {
           created_at?: string | null
@@ -1089,6 +1102,7 @@ export type Database = {
           situacao?: string | null
           updated_at?: string | null
           valor_diaria?: number | null
+          valor_diaria_exclusiva?: number | null
         }
         Update: {
           created_at?: string | null
@@ -1098,6 +1112,7 @@ export type Database = {
           situacao?: string | null
           updated_at?: string | null
           valor_diaria?: number | null
+          valor_diaria_exclusiva?: number | null
         }
         Relationships: []
       }
@@ -3013,6 +3028,10 @@ export type Database = {
         Args: { p_registro_aplicacao_id: string }
         Returns: number
       }
+      can_delete_agendamento_exame: {
+        Args: { p_user_id?: string }
+        Returns: boolean
+      }
       check_email_duplicate_normalized: {
         Args: { p_email: string; p_exclude_id?: string }
         Returns: boolean
@@ -3098,6 +3117,7 @@ export type Database = {
         Returns: boolean
       }
       has_pncp_access: { Args: { p_user_id?: string }; Returns: boolean }
+      has_sso_full_access: { Args: { p_user_id?: string }; Returns: boolean }
       has_sso_permission: { Args: { p_user_id?: string }; Returns: boolean }
       is_departmental_super_admin: { Args: never; Returns: boolean }
       link_profile_from_funcionario_email: {

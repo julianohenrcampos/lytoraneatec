@@ -24,7 +24,8 @@ import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
   nome_funcao: z.string().min(1, "Nome da função é obrigatório"),
-  valor_diaria: z.number().min(0, "Valor deve ser maior ou igual a zero").optional().nullable()
+  valor_diaria: z.number().min(0, "Valor deve ser maior ou igual a zero").optional().nullable(),
+  valor_diaria_exclusiva: z.number().min(0, "Valor deve ser maior ou igual a zero").optional().nullable()
 });
 
 interface FuncaoFormModalProps {
@@ -48,7 +49,8 @@ const FuncaoFormModal: React.FC<FuncaoFormModalProps> = ({
     resolver: zodResolver(formSchema),
     defaultValues: {
       nome_funcao: funcao?.nome_funcao || "",
-      valor_diaria: funcao?.valor_diaria || 0
+      valor_diaria: funcao?.valor_diaria || 0,
+      valor_diaria_exclusiva: funcao?.valor_diaria_exclusiva || 0
     }
   });
   
@@ -56,7 +58,8 @@ const FuncaoFormModal: React.FC<FuncaoFormModalProps> = ({
     if (isOpen) {
       form.reset({
         nome_funcao: funcao?.nome_funcao || "",
-        valor_diaria: funcao?.valor_diaria || 0
+        valor_diaria: funcao?.valor_diaria || 0,
+        valor_diaria_exclusiva: funcao?.valor_diaria_exclusiva || 0
       });
     }
   }, [isOpen, funcao, form]);
@@ -155,27 +158,53 @@ const FuncaoFormModal: React.FC<FuncaoFormModalProps> = ({
               )}
             />
             
-            <FormField
-              control={form.control}
-              name="valor_diaria"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Valor da Diária (R$)</FormLabel>
-                  <FormControl>
-                    <Input 
-                      type="number" 
-                      step="0.01"
-                      min="0"
-                      placeholder="0,00" 
-                      {...field}
-                      value={field.value || ''}
-                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="valor_diaria"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Valor da Diária (R$)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="number" 
+                        step="0.01"
+                        min="0"
+                        placeholder="0,00" 
+                        {...field}
+                        value={field.value || ''}
+                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                      />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">Segunda a Sexta</p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="valor_diaria_exclusiva"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Diária Exclusiva (R$)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="number" 
+                        step="0.01"
+                        min="0"
+                        placeholder="0,00" 
+                        {...field}
+                        value={field.value || ''}
+                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                      />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">Finais de Semana e Feriados</p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             
             <DialogFooter className="pt-4">
               <Button

@@ -43,10 +43,10 @@ const SSOAgendamentoExames: React.FC = () => {
   } = useAgendamentoExames(undefined, filters);
   const { isSuperAdmin, userRole } = useAuthPermissions();
 
-  const canCreate = isSuperAdmin || ['SuperAdm', 'Admin', 'AdmRH', 'AdmSSO', 'TecEnferSSO', 'EnferAdm', 'JovemAdm'].includes(userRole || '');
-  const canEdit = isSuperAdmin || ['SuperAdm', 'Admin', 'AdmRH', 'AdmSSO'].includes(userRole || '');
-  const canDelete = isSuperAdmin || ['SuperAdm', 'Admin', 'AdmRH', 'AdmSSO'].includes(userRole || '');
-  const canChangeStatus = isSuperAdmin || ['SuperAdm', 'Admin', 'AdmRH', 'AdmSSO', 'TecEnferSSO', 'EnferAdm'].includes(userRole || '');
+  const canCreate = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'TecEnferSSO', 'JovemAdm', 'EnferAdm', 'TecSSO'].includes(userRole || '');
+  const canEdit = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'TecEnferSSO'].includes(userRole || '');
+  const canDelete = isSuperAdmin || ['SuperAdm', 'AdmSSO'].includes(userRole || '');
+  const canChangeStatus = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'TecEnferSSO'].includes(userRole || '');
 
   // Clear selection when filters change
   useEffect(() => {

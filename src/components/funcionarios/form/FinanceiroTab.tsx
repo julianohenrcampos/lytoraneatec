@@ -207,6 +207,86 @@ const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
           )}
         />
       </div>
+
+      {/* Dados Bancários */}
+      <div className="border-t pt-4 mt-4">
+        <h3 className="text-lg font-medium mb-4">Dados Bancários</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="banco"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Banco</FormLabel>
+                <FormControl>
+                  <Input 
+                    placeholder="Ex: Bradesco, Itaú, Caixa"
+                    {...field}
+                    value={field.value || ""}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="agencia"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Agência</FormLabel>
+                <FormControl>
+                  <Input 
+                    placeholder="Ex: 1234-5"
+                    {...field}
+                    value={field.value || ""}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+          <FormField
+            control={form.control}
+            name="conta_corrente"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Conta Corrente/Salário</FormLabel>
+                <FormControl>
+                  <Input 
+                    placeholder="Ex: 12345-6"
+                    {...field}
+                    value={field.value || ""}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="chave_pix"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Chave Pix</FormLabel>
+                <FormControl>
+                  <Input 
+                    placeholder="CPF, email ou telefone"
+                    {...field}
+                    value={field.value || ""}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+      </div>
       
       {/* Navegação */}
       <div className="flex justify-between gap-2 pt-4">

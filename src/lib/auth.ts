@@ -78,7 +78,7 @@ export const loginUser = async (email: string, password: string): Promise<AuthRe
         return {
           success: false,
           error: {
-            message: "Email não confirmado. Entre em contato com o administrador para confirmar seu email.",
+            message: "Email não confirmado. Verifique sua caixa de email e clique no link de confirmação.",
             code: error.code
           }
         };

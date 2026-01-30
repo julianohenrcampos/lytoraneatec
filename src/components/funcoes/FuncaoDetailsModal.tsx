@@ -53,6 +53,18 @@ const FuncaoDetailsModal: React.FC<FuncaoDetailsModalProps> = ({
                 ? funcao.valor_diaria.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
                 : 'Não definido'
               }
+              <p className="text-xs text-muted-foreground">Segunda a Sexta</p>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label className="text-right">Diária Exclusiva</Label>
+            <div className="col-span-3 font-medium">
+              {funcao.valor_diaria_exclusiva 
+                ? funcao.valor_diaria_exclusiva.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                : 'Não definido'
+              }
+              <p className="text-xs text-muted-foreground">Finais de Semana e Feriados</p>
             </div>
           </div>
           

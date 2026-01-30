@@ -24,11 +24,11 @@ export const PWAInstallBanner: React.FC = () => {
   const isMobile = useIsMobile();
   const { toast } = useToast();
 
-  // Auto-dismiss após 30 segundos se não interagir
+  // Auto-dismiss após 5 minutos se não interagir
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsDismissed(true);
-    }, 30000);
+    }, 300000); // 5 minutos
 
     return () => clearTimeout(timer);
   }, []);

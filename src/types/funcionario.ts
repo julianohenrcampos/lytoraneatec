@@ -19,7 +19,7 @@ export interface Funcionario {
   data_admissao?: string;
   data_ferias?: string;
   data_demissao?: string;
-  status?: 'Ativo' | 'Aviso Prévio' | 'Inativo' | 'INSS';
+  status?: 'Ativo' | 'Ativo/Diária' | 'Aviso Prévio' | 'Inativo' | 'INSS';
   salario_base?: number;
   insalubridade?: number;
   periculosidade?: number;
@@ -29,6 +29,10 @@ export interface Funcionario {
   refeicao?: number;
   diarias?: number;
   observacoes?: string;
+  banco?: string;
+  agencia?: string;
+  conta_corrente?: string;
+  chave_pix?: string;
   created_at?: string;
   updated_at?: string;
   
@@ -74,7 +78,7 @@ export interface FuncionarioFormData {
   data_admissao?: string | null;
   data_ferias?: string | null;
   data_demissao?: string | null;
-  status?: "Ativo" | "Inativo" | "Aviso Prévio" | "INSS";
+  status?: "Ativo" | "Ativo/Diária" | "Inativo" | "Aviso Prévio" | "INSS";
   salario_base?: number;
   insalubridade?: number;
   periculosidade?: number;
@@ -84,6 +88,10 @@ export interface FuncionarioFormData {
   refeicao?: number;
   diarias?: number;
   observacoes?: string;
+  banco?: string;
+  agencia?: string;
+  conta_corrente?: string;
+  chave_pix?: string;
 }
 
 // Filter options for funcionarios
@@ -94,5 +102,5 @@ export interface FuncionarioFilter {
   centro_custo_id?: string;
   departamento_id?: string;
   funcao_id?: string;
-  status?: "Ativo" | "Inativo" | "Aviso Prévio" | "INSS";
+  status?: "Ativo" | "Ativo/Diária" | "Inativo" | "Aviso Prévio" | "INSS";
 }

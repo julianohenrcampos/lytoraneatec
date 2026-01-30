@@ -25,7 +25,7 @@ const funcionarioSchema = z.object({
   data_admissao: z.string().nullable().optional(),
   salario_base: z.number().min(0, { message: "Salário deve ser positivo" }).optional(),
   data_ferias: z.string().nullable().optional(),
-  status: z.enum(["Ativo", "Inativo", "Aviso Prévio", "INSS"]).optional(),
+  status: z.enum(["Ativo", "Ativo/Diária", "Inativo", "Aviso Prévio", "INSS"]).optional(),
   data_demissao: z.string().nullable().optional(),
   insalubridade: z.number().min(0, { message: "Valor deve ser positivo" }).optional(),
   periculosidade: z.number().min(0, { message: "Valor deve ser positivo" }).optional(),
@@ -36,6 +36,10 @@ const funcionarioSchema = z.object({
   diarias: z.number().min(0, { message: "Valor deve ser positivo" }).optional(),
   equipe_id: z.string().optional(),
   observacoes: z.string().optional(),
+  banco: z.string().optional(),
+  agencia: z.string().optional(),
+  conta_corrente: z.string().optional(),
+  chave_pix: z.string().optional(),
 });
 
 export type FuncionarioFormSchema = z.infer<typeof funcionarioSchema>;
@@ -78,6 +82,10 @@ export const useFuncionarioForm = (
       refeicao: undefined,
       diarias: undefined,
       observacoes: "",
+      banco: "",
+      agencia: "",
+      conta_corrente: "",
+      chave_pix: "",
     },
   });
 
@@ -109,6 +117,10 @@ export const useFuncionarioForm = (
         refeicao: funcionario.refeicao || undefined,
         diarias: funcionario.diarias || undefined,
         observacoes: funcionario.observacoes || "",
+        banco: funcionario.banco || "",
+        agencia: funcionario.agencia || "",
+        conta_corrente: funcionario.conta_corrente || "",
+        chave_pix: funcionario.chave_pix || "",
       });
       setUploadedImageUrl(funcionario.foto_url || null);
       setImagePreview(funcionario.foto_url || null);
