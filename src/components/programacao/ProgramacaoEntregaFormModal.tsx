@@ -35,6 +35,7 @@ import ProgressBar from "./ProgressBar";
 import MassaControlAlert from "./MassaControlAlert";
 import { checkCancellationPermission } from "@/services/programacao/permissionService";
 import { formatMassaFromDatabase, normalizeToToneladas } from "@/utils/massaConversionUtils";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 interface ProgramacaoEntregaFormModalProps {
   isOpen: boolean;
@@ -58,7 +59,10 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
     setIsAddingItem,
     onSubmit,
     addItem,
-    removeItem,
+    openRemoveDialog,
+    closeRemoveDialog,
+    confirmRemove,
+    showRemoveDialog,
     openCancelDialog,
     closeCancelDialog,
     confirmCancel,
@@ -353,7 +357,7 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
                                     type="button" 
                                     variant="destructive" 
                                     size="sm" 
-                                    onClick={() => removeItem(index)}
+                                    onClick={() => openRemoveDialog(index)}
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
@@ -533,6 +537,17 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
           isOpen={showCancelDialog}
           onClose={closeCancelDialog}
           onConfirm={confirmCancel}
+        />
+
+        {/* Dialog de remoção */}
+        <ConfirmDialog
+          isOpen={showRemoveDialog}
+          onClose={closeRemoveDialog}
+          onConfirm={confirmRemove}
+          title="Remover Entrega"
+          description="Deseja realmente remover esta entrega da lista? A massa será devolvida para o pool disponível."
+          confirmText="Remover"
+          variant="danger"
         />
       </DialogContent>
     </Dialog>

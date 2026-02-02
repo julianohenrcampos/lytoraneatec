@@ -1,0 +1,306 @@
+// =====================================================
+// TIPOS DO MÓDULO DIÁRIAS (Fim de Semana/Feriado)
+// =====================================================
+
+// Status types
+export type StatusSolicitacao = 'rascunho' | 'enviada' | 'autorizada' | 'reprovada';
+export type StatusConvocacao = 'rascunho' | 'enviada_aprovacao' | 'aprovada' | 'reprovada' | 'executando' | 'finalizada' | 'cancelada';
+export type StatusPresenca = 'pendente' | 'presente' | 'ausente' | 'substituido';
+export type StatusRelatorio = 'enviado_sede' | 'analisado' | 'divergencia' | 'aprovado_final' | 'pronto_lancamento';
+export type EntidadeAprovacao = 'solicitacao' | 'convocacao' | 'relatorio';
+
+// =====================================================
+// ENTIDADES PRINCIPAIS
+// =====================================================
+
+export interface DiariaSolicitacao {
+  id: string;
+  data: string;
+  centro_custo_id: string;
+  justificativa: string;
+  status: StatusSolicitacao;
+  criado_por: string | null;
+  autorizado_por: string | null;
+  autorizado_em: string | null;
+  created_at: string;
+  updated_at: string;
+  // Relations
+  bd_centros_custo?: {
+    id: string;
+    codigo_centro_custo: string;
+    nome_centro_custo: string;
+  };
+  profiles?: {
+    id: string;
+    nome_completo: string;
+    email: string;
+  };
+}
+
+export interface DiariaConvocacao {
+  id: string;
+  solicitacao_id: string;
+  data: string;
+  centro_custo_id: string;
+  observacao: string | null;
+  status: StatusConvocacao;
+  criado_por: string | null;
+  enviado_em: string | null;
+  aprovado_por: string | null;
+  aprovado_em: string | null;
+  created_at: string;
+  updated_at: string;
+  // Relations
+  bd_diaria_solicitacoes?: DiariaSolicitacao;
+  bd_centros_custo?: {
+    id: string;
+    codigo_centro_custo: string;
+    nome_centro_custo: string;
+  };
+  profiles?: {
+    id: string;
+    nome_completo: string;
+    email: string;
+  };
+  bd_diaria_convocados?: DiariaConvocado[];
+}
+
+export interface DiariaConvocado {
+  id: string;
+  convocacao_id: string;
+  funcionario_id: string;
+  funcao_id: string;
+  valor_diaria_aplicada: number;
+  hora_entrada: string | null;
+  hora_saida: string | null;
+  intervalo_inicio: string | null;
+  intervalo_fim: string | null;
+  presenca_status: StatusPresenca;
+  confirmado_por: string | null;
+  confirmado_em: string | null;
+  created_at: string;
+  updated_at: string;
+  // Relations
+  bd_funcionarios?: {
+    id: string;
+    nome_completo: string;
+    cpf: string;
+    imagem: string | null;
+  };
+  bd_funcoes?: {
+    id: string;
+    nome_funcao: string;
+    valor_diaria: number | null;
+    valor_diaria_exclusiva: number | null;
+  };
+  bd_diaria_convocacoes?: DiariaConvocacao;
+}
+
+export interface DiariaAprovacao {
+  id: string;
+  entidade: EntidadeAprovacao;
+  entidade_id: string;
+  acao: string;
+  comentario: string | null;
+  feito_por: string | null;
+  feito_em: string;
+  // Relations
+  profiles?: {
+    id: string;
+    nome_completo: string;
+    email: string;
+  };
+}
+
+// =====================================================
+// FORM DATA (para criar/editar)
+// =====================================================
+
+// Funcionário pré-convocado (antes da aprovação)
+export interface FuncionarioPreConvocado {
+  funcionario_id: string;
+  funcao_id: string;
+  valor_diaria: number;
+  nome_funcionario?: string;
+  nome_funcao?: string;
+}
+
+export interface SolicitacaoFormData {
+  data: string;
+  centro_custo_id: string;
+  justificativa: string;
+  convocados_pre?: FuncionarioPreConvocado[];
+}
+
+export interface ConvocacaoFormData {
+  solicitacao_id: string;
+  data: string;
+  centro_custo_id: string;
+  observacao?: string;
+}
+
+export interface ConvocadoFormData {
+  convocacao_id: string;
+  funcionario_id: string;
+  funcao_id: string;
+  valor_diaria_aplicada: number;
+  hora_entrada?: string;
+  hora_saida?: string;
+  intervalo_inicio?: string;
+  intervalo_fim?: string;
+}
+
+export interface PresencaFormData {
+  convocado_id: string;
+  presenca_status: StatusPresenca;
+  hora_entrada?: string;
+  hora_saida?: string;
+  intervalo_inicio?: string;
+  intervalo_fim?: string;
+}
+
+export interface AprovacaoFormData {
+  entidade: EntidadeAprovacao;
+  entidade_id: string;
+  acao: string;
+  comentario?: string;
+}
+
+// =====================================================
+// FILTROS
+// =====================================================
+
+export interface SolicitacaoFilters {
+  data_inicio?: string;
+  data_fim?: string;
+  centro_custo_id?: string;
+  status?: StatusSolicitacao;
+  criado_por?: string;
+}
+
+export interface ConvocacaoFilters {
+  data_inicio?: string;
+  data_fim?: string;
+  centro_custo_id?: string;
+  status?: StatusConvocacao;
+  criado_por?: string;
+  solicitacao_id?: string;
+}
+
+export interface PresencaFilters {
+  data?: string;
+  centro_custo_id?: string;
+  convocacao_id?: string;
+  presenca_status?: StatusPresenca;
+}
+
+export interface RelatorioFilters {
+  data_inicio?: string;
+  data_fim?: string;
+  centro_custo_id?: string;
+  funcionario_id?: string;
+  status_convocacao?: StatusConvocacao;
+  presenca_status?: StatusPresenca;
+}
+
+// =====================================================
+// VIEWS (Relatórios)
+// =====================================================
+
+export interface RelatorioFolhaItem {
+  convocado_id: string;
+  convocacao_id: string;
+  solicitacao_id: string;
+  data: string;
+  codigo_centro_custo: string;
+  nome_centro_custo: string;
+  funcionario_id: string;
+  nome_funcionario: string;
+  funcao_id: string;
+  nome_funcao: string;
+  valor_diaria_aplicada: number;
+  hora_entrada: string | null;
+  hora_saida: string | null;
+  intervalo_inicio: string | null;
+  intervalo_fim: string | null;
+  presenca_status: StatusPresenca;
+  confirmado_por: string | null;
+  confirmado_em: string | null;
+  status_convocacao: StatusConvocacao;
+  status_solicitacao: StatusSolicitacao;
+  convocacao_criado_por: string | null;
+  solicitacao_criado_por: string | null;
+  created_at: string;
+}
+
+export interface ResumoDiarias {
+  data: string;
+  centro_custo_id: string;
+  codigo_centro_custo: string;
+  nome_centro_custo: string;
+  total_presentes: number;
+  total_ausentes: number;
+  total_pendentes: number;
+  total_substituidos: number;
+  total_convocados: number;
+  total_valor_presentes: number;
+  total_valor_previsto: number;
+}
+
+// =====================================================
+// RESUMOS E ESTATÍSTICAS
+// =====================================================
+
+export interface SolicitacaoResumo {
+  total: number;
+  rascunho: number;
+  enviada: number;
+  autorizada: number;
+  reprovada: number;
+}
+
+export interface ConvocacaoResumo {
+  total: number;
+  rascunho: number;
+  enviada_aprovacao: number;
+  aprovada: number;
+  reprovada: number;
+  executando: number;
+  finalizada: number;
+  cancelada: number;
+}
+
+export interface PresencaResumo {
+  total: number;
+  presentes: number;
+  ausentes: number;
+  pendentes: number;
+  substituidos: number;
+  valor_total_presentes: number;
+  valor_total_previsto: number;
+}
+
+// =====================================================
+// EXPORTAÇÃO EXCEL
+// =====================================================
+
+export interface ExcelDetalhado {
+  data: string;
+  centro_custo: string;
+  funcionario: string;
+  funcao: string;
+  valor_diaria: number;
+  hora_entrada: string;
+  hora_saida: string;
+  intervalo: string;
+  presenca: string;
+  status_convocacao: string;
+}
+
+export interface ExcelResumo {
+  data: string;
+  centro_custo: string;
+  total_presentes: number;
+  total_ausentes: number;
+  total_valor: number;
+}

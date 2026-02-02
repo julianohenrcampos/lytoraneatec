@@ -118,7 +118,7 @@ export const AgendamentoExamesMobileCards: React.FC<AgendamentoExamesMobileCards
                 </div>
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-muted-foreground" />
-                  <span className="truncate">{agendamento.bd_locais_atendimento?.nome_local || '-'}</span>
+                  <span className="truncate">{agendamento.bd_locais_atendimento?.cidade || agendamento.bd_locais_atendimento?.nome_local || '-'}</span>
                 </div>
               </div>
 

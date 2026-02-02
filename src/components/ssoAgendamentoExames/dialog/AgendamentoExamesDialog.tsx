@@ -249,7 +249,7 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
                   <Select value={formData.local_atendimento_id} onValueChange={(v) => handleChange('local_atendimento_id', v)}>
                     <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                     <SelectContent>
-                      {locais.map((l) => (<SelectItem key={l.id} value={l.id}>{l.nome_local}</SelectItem>))}
+                      {locais.map((l) => (<SelectItem key={l.id} value={l.id}>{l.cidade || l.nome_local}</SelectItem>))}
                     </SelectContent>
                   </Select>
                 </div>

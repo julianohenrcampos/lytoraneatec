@@ -3,91 +3,163 @@ import { supabase } from "@/integrations/supabase/client";
 import { Funcionario, FuncionarioFormData, FuncionarioFilter } from "@/types/funcionario";
 import { addDays } from "date-fns";
 
+// Helper to build base filters on query
+const applyFilters = (query: any, filters: FuncionarioFilter) => {
+  if (filters.nome_completo) {
+    query = query.ilike("nome_completo", `%${filters.nome_completo}%`);
+  }
+
+  if (filters.data_admissao_inicio) {
+    query = query.gte("data_admissao", filters.data_admissao_inicio);
+  }
+
+  if (filters.data_admissao_fim) {
+    query = query.lte("data_admissao", filters.data_admissao_fim);
+  }
+
+  if (filters.funcao_id) {
+    query = query.not('funcao_id', 'is', null);
+    if (filters.funcao_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+      query = query.eq("funcao_id", filters.funcao_id);
+    }
+  }
+
+  if (filters.departamento_id) {
+    query = query.not('departamento_id', 'is', null);
+    if (filters.departamento_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+      query = query.eq("departamento_id", filters.departamento_id);
+    }
+  }
+
+  if (filters.centro_custo_id) {
+    query = query.not('centro_custo_id', 'is', null);
+    if (filters.centro_custo_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+      query = query.eq("centro_custo_id", filters.centro_custo_id);
+    }
+  }
+
+  if (filters.status) {
+    query = query.eq("status", filters.status);
+  }
+
+  return query;
+};
+
+// Fallback: load catalogs separately and merge with funcionarios
+const fetchFuncionariosFallback = async (filters: FuncionarioFilter): Promise<Funcionario[]> => {
+  console.log("🔄 Usando fallback para carregar funcionários...");
+  
+  // 1. Load base funcionarios without embeds
+  let query = supabase
+    .from("bd_funcionarios")
+    .select("id, nome_completo, cpf, data_nascimento, email, endereco_completo, escolaridade, genero, funcao_id, departamento_id, centro_custo_id, empresa_id, equipe_id, data_admissao, data_ferias, data_demissao, status, salario_base, insalubridade, periculosidade, gratificacao, adicional_noturno, custo_passagem, refeicao, diarias, observacoes, banco, agencia, conta_corrente, chave_pix, imagem, created_at, updated_at");
+  
+  query = applyFilters(query, filters);
+  
+  const { data: funcionariosBase, error: baseError } = await query;
+  
+  if (baseError) {
+    console.error("❌ Fallback também falhou:", baseError);
+    throw new Error(`Erro ao carregar funcionários: ${baseError.message}. Código: ${baseError.code || 'N/A'}. Detalhes: ${baseError.details || baseError.hint || 'N/A'}`);
+  }
+  
+  if (!funcionariosBase || funcionariosBase.length === 0) {
+    return [];
+  }
+  
+  // 2. Collect unique IDs for related tables
+  const funcaoIds = [...new Set(funcionariosBase.map(f => f.funcao_id).filter(Boolean))];
+  const departamentoIds = [...new Set(funcionariosBase.map(f => f.departamento_id).filter(Boolean))];
+  const centroCustoIds = [...new Set(funcionariosBase.map(f => f.centro_custo_id).filter(Boolean))];
+  const empresaIds = [...new Set(funcionariosBase.map(f => f.empresa_id).filter(Boolean))];
+  const equipeIds = [...new Set(funcionariosBase.map(f => f.equipe_id).filter(Boolean))];
+  
+  // 3. Load catalogs in parallel
+  const [funcoesRes, departamentosRes, centrosCustoRes, empresasRes, equipesRes] = await Promise.all([
+    funcaoIds.length > 0 
+      ? supabase.from("bd_funcoes").select("id, nome_funcao").in("id", funcaoIds)
+      : { data: [], error: null },
+    departamentoIds.length > 0 
+      ? supabase.from("bd_departamentos").select("id, nome_departamento").in("id", departamentoIds)
+      : { data: [], error: null },
+    centroCustoIds.length > 0 
+      ? supabase.from("bd_centros_custo").select("id, codigo_centro_custo, nome_centro_custo").in("id", centroCustoIds)
+      : { data: [], error: null },
+    empresaIds.length > 0 
+      ? supabase.from("bd_empresas").select("id, nome_empresa").in("id", empresaIds)
+      : { data: [], error: null },
+    equipeIds.length > 0 
+      ? supabase.from("bd_equipes").select("id, nome_equipe").in("id", equipeIds)
+      : { data: [], error: null },
+  ]);
+  
+  // Build lookup maps
+  const funcoesMap = new Map((funcoesRes.data || []).map(f => [f.id, f]));
+  const departamentosMap = new Map((departamentosRes.data || []).map(d => [d.id, d]));
+  const centrosCustoMap = new Map((centrosCustoRes.data || []).map(c => [c.id, c]));
+  const empresasMap = new Map((empresasRes.data || []).map(e => [e.id, e]));
+  const equipesMap = new Map((equipesRes.data || []).map(eq => [eq.id, eq]));
+  
+  // 4. Merge data
+  const funcionariosCompletos = funcionariosBase.map(func => ({
+    ...func,
+    bd_funcoes: func.funcao_id ? funcoesMap.get(func.funcao_id) || null : null,
+    bd_departamentos: func.departamento_id ? departamentosMap.get(func.departamento_id) || null : null,
+    bd_centros_custo: func.centro_custo_id ? centrosCustoMap.get(func.centro_custo_id) || null : null,
+    bd_empresas: func.empresa_id ? empresasMap.get(func.empresa_id) || null : null,
+    bd_equipes: func.equipe_id ? equipesMap.get(func.equipe_id) || null : null,
+  }));
+  
+  console.log("✅ Fallback carregou", funcionariosCompletos.length, "funcionários");
+  return funcionariosCompletos as unknown as Funcionario[];
+};
+
 // Function to fetch funcionarios with filters
 export const fetchFuncionarios = async (filters: FuncionarioFilter = {}): Promise<Funcionario[]> => {
   try {
+    // First attempt: use explicit FK-based embeds for robustness
     let query = supabase
       .from("bd_funcionarios")
       .select(`
-        *,
-        bd_funcoes (*),
-        bd_departamentos (*),
-        bd_centros_custo (*),
-        bd_empresas (*)
+        id, nome_completo, cpf, data_nascimento, email, endereco_completo, escolaridade, genero,
+        funcao_id, departamento_id, centro_custo_id, empresa_id, equipe_id,
+        data_admissao, data_ferias, data_demissao, status,
+        salario_base, insalubridade, periculosidade, gratificacao, adicional_noturno,
+        custo_passagem, refeicao, diarias, observacoes,
+        banco, agencia, conta_corrente, chave_pix, imagem, created_at, updated_at,
+        bd_funcoes!bd_funcionarios_funcao_id_fkey ( id, nome_funcao ),
+        bd_departamentos!bd_funcionarios_departamento_id_fkey ( id, nome_departamento ),
+        bd_centros_custo!bd_funcionarios_centro_custo_id_fkey ( id, codigo_centro_custo, nome_centro_custo ),
+        bd_empresas!bd_funcionarios_empresa_id_fkey ( id, nome_empresa )
       `);
 
-    // Apply filters
-    if (filters.nome_completo) {
-      query = query.ilike("nome_completo", `%${filters.nome_completo}%`);
-    }
-
-    if (filters.data_admissao_inicio) {
-      query = query.gte("data_admissao", filters.data_admissao_inicio);
-    }
-
-    if (filters.data_admissao_fim) {
-      query = query.lte("data_admissao", filters.data_admissao_fim);
-    }
-
-    // For function filter - handle both UUID and text search, exclude nulls
-    if (filters.funcao_id) {
-      // First exclude null values
-      query = query.not('funcao_id', 'is', null);
-      
-      // Check if it's a UUID or a search string
-      if (filters.funcao_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-        query = query.eq("funcao_id", filters.funcao_id);
-      } else {
-        // If not a UUID, search by funcao name using a join
-        query = query.filter('bd_funcoes.nome_funcao', 'ilike', `%${filters.funcao_id}%`);
-      }
-    }
-
-    // For department filter - handle both UUID and text search, exclude nulls
-    if (filters.departamento_id) {
-      // First exclude null values
-      query = query.not('departamento_id', 'is', null);
-      
-      // Check if it's a UUID or a search string
-      if (filters.departamento_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-        query = query.eq("departamento_id", filters.departamento_id);
-      } else {
-        // If not a UUID, search by departamento name using a join
-        query = query.filter('bd_departamentos.nome_departamento', 'ilike', `%${filters.departamento_id}%`);
-      }
-    }
-
-    // For cost center filter - handle both UUID and text search, exclude nulls
-    if (filters.centro_custo_id) {
-      // First exclude null values
-      query = query.not('centro_custo_id', 'is', null);
-      
-      // Check if it's a UUID or a search string
-      if (filters.centro_custo_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-        query = query.eq("centro_custo_id", filters.centro_custo_id);
-      } else {
-        // If not a UUID, search by centro_custo name using a join
-        query = query.filter('bd_centros_custo.nome_centro_custo', 'ilike', `%${filters.centro_custo_id}%`);
-      }
-    }
-
-    if (filters.status) {
-      query = query.eq("status", filters.status);
-    }
+    query = applyFilters(query, filters);
 
     const { data, error } = await query;
 
-    if (error) throw new Error(error.message);
+    if (error) {
+      // Log full error for diagnosis
+      console.error("❌ Erro na query principal de funcionários:", {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      });
+      
+      // Try fallback approach
+      console.warn("⚠️ Tentando fallback sem embeds...");
+      return await fetchFuncionariosFallback(filters);
+    }
     
-    // Buscar as equipes separadamente para evitar conflito de relacionamentos múltiplos
+    // Load equipes separately to avoid multiple FK conflict
     const funcionariosComEquipes = await Promise.all(
       (data || []).map(async (funcionario) => {
         if (funcionario.equipe_id) {
           const { data: equipe } = await supabase
             .from("bd_equipes")
-            .select("*")
+            .select("id, nome_equipe")
             .eq("id", funcionario.equipe_id)
-            .single();
+            .maybeSingle();
           
           return {
             ...funcionario,
@@ -99,9 +171,22 @@ export const fetchFuncionarios = async (filters: FuncionarioFilter = {}): Promis
     );
     
     return funcionariosComEquipes as unknown as Funcionario[];
-  } catch (error) {
-    console.error("Error fetching funcionarios:", error);
-    throw error;
+  } catch (error: any) {
+    console.error("❌ Erro ao carregar funcionários:", {
+      message: error?.message,
+      code: error?.code,
+      details: error?.details,
+      hint: error?.hint,
+      stack: error?.stack,
+    });
+    
+    // Throw with detailed message
+    const errorMessage = error?.message || "Erro desconhecido";
+    const errorCode = error?.code ? ` (Código: ${error.code})` : "";
+    const errorHint = error?.hint ? `. Dica: ${error.hint}` : "";
+    const errorDetails = error?.details ? `. Detalhes: ${error.details}` : "";
+    
+    throw new Error(`${errorMessage}${errorCode}${errorHint}${errorDetails}`);
   }
 };
 

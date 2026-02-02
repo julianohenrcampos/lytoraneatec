@@ -1,11 +1,21 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Building2, Globe, Users } from "lucide-react";
+import { Building2, Globe, Users, Shield, Eye } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { userHasAnyPermission } from "@/utils/hybridPermissions";
+import { useProfileSecurity } from "@/hooks/useProfileSecurity";
+
 const DepartamentoStatusCard: React.FC = () => {
+  // Contexto de segurança do usuário logado
+  const { 
+    hasGlobalAccess, 
+    shouldFilterByDepartment, 
+    departamentoNome, 
+    isLoading: isSecurityLoading 
+  } = useProfileSecurity();
+
   const {
     data: statusData,
     isLoading
@@ -79,7 +89,8 @@ const DepartamentoStatusCard: React.FC = () => {
       };
     }
   });
-  if (isLoading) {
+  
+  if (isLoading || isSecurityLoading) {
     return <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -93,6 +104,7 @@ const DepartamentoStatusCard: React.FC = () => {
       </Card>;
   }
   if (!statusData) return null;
+  
   return <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
@@ -101,6 +113,34 @@ const DepartamentoStatusCard: React.FC = () => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Card de Contexto do Usuário Atual */}
+        <div className={`p-3 rounded-lg border ${
+          hasGlobalAccess 
+            ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800' 
+            : 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800'
+        }`}>
+          <div className="flex items-center gap-2">
+            {hasGlobalAccess ? (
+              <Globe className="h-4 w-4 text-green-600 dark:text-green-400" />
+            ) : (
+              <Eye className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            )}
+            <span className={`text-sm font-medium ${
+              hasGlobalAccess 
+                ? 'text-green-900 dark:text-green-100' 
+                : 'text-blue-900 dark:text-blue-100'
+            }`}>
+              {hasGlobalAccess ? (
+                'Você tem acesso global - visualizando todos os usuários'
+              ) : shouldFilterByDepartment ? (
+                <>Visualizando usuários do departamento: <strong>{departamentoNome || 'Não identificado'}</strong></>
+              ) : (
+                'Carregando seu contexto de acesso...'
+              )}
+            </span>
+          </div>
+        </div>
+
         <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-primary" />

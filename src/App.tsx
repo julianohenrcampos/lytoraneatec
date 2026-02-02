@@ -51,11 +51,18 @@ import RelatorioAplicacaoDiaria from "@/pages/RelatorioAplicacaoDiaria";
 // Admin - using correct file names
 import GestaoPermissoes from "@/pages/GestaoPermissoes";
 
+// Diárias (Fim de Semana/Feriado)
+import DiariasSolicitacoes from "@/pages/DiariasSolicitacoes";
+import DiariasConvocacoes from "@/pages/DiariasConvocacoes";
+import DiariasPresenca from "@/pages/DiariasPresenca";
+import DiariasRelatorio from "@/pages/DiariasRelatorio";
+
 // SSO - Saúde e Segurança Ocupacional
 import SSOChecklistList from "@/pages/SSOChecklistList";
 import SSODashboard from "@/pages/SSODashboard";
 import SSODesviosList from "@/pages/SSODesviosList";
 import SSOAgendamentoExames from "@/pages/SSOAgendamentoExames";
+import SSOClinicas from "@/pages/SSOClinicas";
 
 // Licitações PNCP
 import MonitoramentoPNCP from "@/pages/MonitoramentoPNCP";
@@ -332,6 +339,17 @@ const App = () => {
               </SimpleAuthGuard>
             } />
             
+            {/* SSO - Clínicas/Locais de Atendimento */}
+            <Route path="/sso/clinicas" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <SecureRouteGuard requiredPermission="acesso_sso_agendamento_exames">
+                    <SSOClinicas />
+                  </SecureRouteGuard>
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            
             <Route path="/sso/checklists/dashboard" element={
               <SimpleAuthGuard>
                 <SimplePermissionGuard>
@@ -340,6 +358,36 @@ const App = () => {
                   </SecureRouteGuard>
                 </SimplePermissionGuard>
                 </SimpleAuthGuard>
+            } />
+            
+            {/* Diárias (Fim de Semana/Feriado) - SEM SecureRouteGuard para evitar race conditions */}
+            <Route path="/requisicoes/diarias/solicitacoes" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <DiariasSolicitacoes />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/requisicoes/diarias/convocacoes" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <DiariasConvocacoes />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/requisicoes/diarias/presenca" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <DiariasPresenca />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/requisicoes/diarias/relatorio" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <DiariasRelatorio />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
             } />
             
             {/* Licitações PNCP */}

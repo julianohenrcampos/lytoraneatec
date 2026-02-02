@@ -151,7 +151,7 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
               <TableCell>{agendamento.cpf || '-'}</TableCell>
               <TableCell>{agendamento.empresa}</TableCell>
               <TableCell>{agendamento.tipo_exame}</TableCell>
-              <TableCell>{agendamento.bd_locais_atendimento?.nome_local || '-'}</TableCell>
+              <TableCell>{agendamento.bd_locais_atendimento?.cidade || agendamento.bd_locais_atendimento?.nome_local || '-'}</TableCell>
               <TableCell>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

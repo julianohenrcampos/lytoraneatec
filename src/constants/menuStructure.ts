@@ -176,6 +176,35 @@ export const menuStructure = [
     ]
   },
   {
+    title: "Diárias",
+    items: [
+      {
+        name: "Solicitações",
+        href: "/requisicoes/diarias/solicitacoes",
+        icon: FileText,
+        requiredPermission: "diarias_view"
+      },
+      {
+        name: "Convocações",
+        href: "/requisicoes/diarias/convocacoes",
+        icon: Users,
+        requiredPermission: "diarias_view"
+      },
+      {
+        name: "Presença em Campo",
+        href: "/requisicoes/diarias/presenca",
+        icon: UserCheck,
+        requiredPermission: "diarias_view"
+      },
+      {
+        name: "Relatório/Folha",
+        href: "/requisicoes/diarias/relatorio",
+        icon: BarChart3,
+        requiredPermission: "diarias_relatorio_view"
+      }
+    ]
+  },
+  {
     title: "Licitações",
     items: [
       {
@@ -217,6 +246,12 @@ export const menuStructure = [
         name: "Agendamento de Exames",
         href: "/sso/agendamento-exames",
         icon: Calendar,
+        requiredPermission: "acesso_sso_agendamento_exames"
+      },
+      {
+        name: "Clínicas",
+        href: "/sso/clinicas",
+        icon: Building2,
         requiredPermission: "acesso_sso_agendamento_exames"
       },
       {

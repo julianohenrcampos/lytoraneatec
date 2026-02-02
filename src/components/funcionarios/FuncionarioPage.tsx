@@ -33,6 +33,7 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
     funcionarios,
     isLoading,
     isError,
+    error,
     setIsFormModalOpen,
     setIsDetailsModalOpen,
     setIsImportModalOpen,
@@ -103,6 +104,7 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
         funcionarios={funcionarios || []}
         isLoading={isLoading}
         isError={isError}
+        error={error}
         onEdit={openFormModal}
         onDelete={confirmDelete}
         onViewDetails={openDetailsModal}

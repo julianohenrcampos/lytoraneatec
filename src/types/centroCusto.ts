@@ -6,8 +6,15 @@ export interface CentroCusto {
   cnpj_vinculado: string | null;
   telefone: string | null;
   situacao: 'Ativo' | 'Inativo';
+  aprovador_diarias_id: string | null;
   created_at?: string;
   updated_at?: string;
+  // Relação expandida
+  aprovador_diarias?: {
+    id: string;
+    nome_completo: string;
+    email?: string;
+  };
 }
 
 export interface CentroCustoFormData {
@@ -16,6 +23,7 @@ export interface CentroCustoFormData {
   cnpj_vinculado?: string;
   telefone?: string;
   situacao: 'Ativo' | 'Inativo';
+  aprovador_diarias_id?: string;
 }
 
 export interface CentroCustoFilter {

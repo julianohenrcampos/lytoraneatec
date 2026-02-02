@@ -18,6 +18,7 @@ import DeleteFuncaoPermissaoDialog from "./DeleteFuncaoPermissaoDialog";
 import RemoveAllPermissionsDialog from "./RemoveAllPermissionsDialog";
 import DeleteUserDialog from "./DeleteUserDialog";
 import CreateGestorModal from "./CreateGestorModal";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useVincularFuncionario } from "@/hooks/useVincularFuncionario";
 import { useRemoverPermissoes } from "@/hooks/useRemoverPermissoes";
 import { useExcluirUsuario } from "@/hooks/useExcluirUsuario";
@@ -29,6 +30,8 @@ const PermissaoPage: React.FC = () => {
   
   // Estado para modal de criação de gestor
   const [isCreateGestorOpen, setIsCreateGestorOpen] = useState(false);
+  const [isUnlinkDialogOpen, setIsUnlinkDialogOpen] = useState(false);
+  const [unlinkingProfileId, setUnlinkingProfileId] = useState<string | null>(null);
 
   // Hook de vinculação
   const {
@@ -203,9 +206,8 @@ const PermissaoPage: React.FC = () => {
             onViewDetails={openUserDetails}
             onLinkFuncionario={openLinkModal}
             onUnlinkFuncionario={(profileId) => {
-              if (confirm('⚠️ Este usuário passará a ter acesso global a todos os dados. Confirma?')) {
-                desvincularFuncionario(profileId);
-              }
+              setUnlinkingProfileId(profileId);
+              setIsUnlinkDialogOpen(true);
             }}
             onRemoveAllPermissions={openRemoveAllPermissions}
             onDeleteUser={openDeleteDialog}
@@ -301,6 +303,27 @@ const PermissaoPage: React.FC = () => {
         isOpen={isCreateGestorOpen}
         onClose={() => setIsCreateGestorOpen(false)}
         onSuccess={refetchProfiles}
+      />
+
+      {/* Diálogo de confirmação para desvincular funcionário */}
+      <ConfirmDialog
+        isOpen={isUnlinkDialogOpen}
+        onClose={() => {
+          setIsUnlinkDialogOpen(false);
+          setUnlinkingProfileId(null);
+        }}
+        onConfirm={async () => {
+          if (unlinkingProfileId) {
+            await desvincularFuncionario(unlinkingProfileId);
+            setIsUnlinkDialogOpen(false);
+            setUnlinkingProfileId(null);
+          }
+        }}
+        title="Desvincular Funcionário"
+        description="⚠️ Este usuário passará a ter acesso global a todos os dados. Tem certeza que deseja desvincular?"
+        confirmText="Desvincular"
+        variant="warning"
+        isLoading={isDesvinculando}
       />
     </div>
   );

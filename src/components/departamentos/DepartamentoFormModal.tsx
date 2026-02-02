@@ -143,7 +143,7 @@ const DepartamentoFormModal: React.FC<DepartamentoFormModalProps> = ({
                     </FormControl>
                     <SelectContent>
                       {isLoadingEmpresas ? (
-                        <SelectItem value="" disabled>Carregando empresas...</SelectItem>
+                        <SelectItem value="__loading__" disabled>Carregando empresas...</SelectItem>
                       ) : empresas && empresas.length > 0 ? (
                         empresas.map((empresa) => (
                           <SelectItem key={empresa.id} value={empresa.id}>
@@ -151,7 +151,7 @@ const DepartamentoFormModal: React.FC<DepartamentoFormModalProps> = ({
                           </SelectItem>
                         ))
                       ) : (
-                        <SelectItem value="" disabled>Nenhuma empresa encontrada</SelectItem>
+                        <SelectItem value="__empty__" disabled>Nenhuma empresa encontrada</SelectItem>
                       )}
                     </SelectContent>
                   </Select>

@@ -13,6 +13,7 @@ interface FuncionarioTableProps {
   funcionarios: Funcionario[];
   isLoading: boolean;
   isError: boolean;
+  error?: Error | null;
   onEdit: (funcionario: Funcionario) => void;
   onViewDetails: (funcionario: Funcionario) => void;
   onDelete: (funcionario: Funcionario) => void;
@@ -24,6 +25,7 @@ const FuncionarioTable: React.FC<FuncionarioTableProps> = ({
   funcionarios,
   isLoading,
   isError,
+  error,
   onEdit,
   onViewDetails,
   onDelete,
@@ -37,7 +39,23 @@ const FuncionarioTable: React.FC<FuncionarioTableProps> = ({
   }
 
   if (isError) {
-    return <div className="text-center p-4 text-red-500">Erro ao carregar funcionários.</div>;
+    const errorMessage = error?.message || "Erro desconhecido ao carregar funcionários";
+    return (
+      <div className="text-center p-6 space-y-4">
+        <div className="text-destructive font-medium">
+          Não foi possível carregar os funcionários.
+        </div>
+        <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md text-left max-w-2xl mx-auto">
+          <strong>Detalhes do erro:</strong>
+          <pre className="mt-2 whitespace-pre-wrap break-words text-xs">
+            {errorMessage}
+          </pre>
+        </div>
+        <Button variant="outline" size="sm" onClick={onRefetch}>
+          Tentar novamente
+        </Button>
+      </div>
+    );
   }
 
   if (funcionarios.length === 0) {

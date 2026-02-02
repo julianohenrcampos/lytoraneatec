@@ -16,7 +16,8 @@ export function useFuncionarioActions() {
   const { 
     funcionarios, 
     isLoading, 
-    isError, 
+    isError,
+    error,
     refetch,
     createMutation,
     updateMutation,
@@ -150,6 +151,7 @@ export function useFuncionarioActions() {
     funcionarios,
     isLoading,
     isError,
+    error,
     
     // Ações
     setIsFormModalOpen: state.setIsFormModalOpen,

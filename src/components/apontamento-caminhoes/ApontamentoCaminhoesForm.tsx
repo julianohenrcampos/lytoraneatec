@@ -25,6 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApontamentoCaminhao, ApontamentoInspecao } from "@/services/apontamentoCaminhoesService";
 import { ComboboxCaminhao } from "@/components/combobox/ComboboxCaminhao";
 import { mapSituacaoToDatabase, mapSituacaoFromDatabase } from "@/utils/situacaoMapping";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 interface ApontamentoCaminhoesFormProps {
   isOpen: boolean;
@@ -60,6 +61,7 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
   uploadFoto
 }) => {
   const [activeTab, setActiveTab] = useState('dados');
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [formData, setFormData] = useState<{
     apontamento: Partial<ApontamentoCaminhao>;
     inspecao: Partial<ApontamentoInspecao>;
@@ -269,12 +271,15 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
                       Object.keys(formData.inspecao).length > 0;
                       
     if (hasChanges && !isSubmitting && !isEditing) {
-      if (window.confirm("Deseja realmente cancelar? Todas as alterações serão perdidas.")) {
-        onClose();
-      }
+      setShowCancelDialog(true);
     } else {
       onClose();
     }
+  };
+
+  const handleConfirmCancel = () => {
+    setShowCancelDialog(false);
+    onClose();
   };
 
   // Get the correct label for horimetro or km
@@ -294,6 +299,7 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
   };
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={handleDialogClose}>
       <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -830,6 +836,19 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
         </form>
       </DialogContent>
     </Dialog>
+
+      {/* Cancel Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showCancelDialog}
+        onClose={() => setShowCancelDialog(false)}
+        onConfirm={handleConfirmCancel}
+        title="Cancelar Apontamento"
+        description="Deseja realmente cancelar? Todas as alterações serão perdidas."
+        confirmText="Sim, cancelar"
+        cancelText="Voltar"
+        variant="warning"
+      />
+    </>
   );
 };
 

@@ -35,6 +35,7 @@ export const safeProfilesQuery = async (supabase: any) => {
           id,
           nome_completo,
           departamento_id,
+          status,
           bd_departamentos(
             id,
             nome_departamento

@@ -12,6 +12,8 @@ export const useItemManagement = (
   const { toast } = useToast();
   const [itemToCancel, setItemToCancel] = useState<number | null>(null);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [itemToRemove, setItemToRemove] = useState<number | null>(null);
+  const [showRemoveDialog, setShowRemoveDialog] = useState(false);
 
   const addItem = useCallback((data: ItemFormValues) => {
     // Validação inteligente de massa
@@ -68,31 +70,38 @@ export const useItemManagement = (
     }
   }, [form, toast, progressHook]);
 
-  const removeItem = useCallback(
-    async (index: number) => {
+  const openRemoveDialog = useCallback((index: number) => {
+    const currentItems = form.getValues().itens || [];
+    const item = currentItems[index];
+
+    if (!item) return;
+
+    // Prevent removal of already sent or delivered items
+    if (item.status === "Enviada" || item.status === "Entregue") {
+      toast({
+        title: "Operação não permitida",
+        description:
+          "Não é possível excluir uma entrega que já foi enviada ou entregue.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setItemToRemove(index);
+    setShowRemoveDialog(true);
+  }, [form, toast]);
+
+  const closeRemoveDialog = useCallback(() => {
+    setShowRemoveDialog(false);
+    setItemToRemove(null);
+  }, []);
+
+  const confirmRemove = useCallback(
+    async () => {
+      if (itemToRemove === null) return;
+
       const currentItems = form.getValues().itens || [];
-      const item = currentItems[index];
-
-      if (!item) return;
-
-      // Prevent removal of already sent or delivered items
-      if (item.status === "Enviada" || item.status === "Entregue") {
-        toast({
-          title: "Operação não permitida",
-          description:
-            "Não é possível excluir uma entrega que já foi enviada ou entregue.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Basic confirmation to avoid accidental deletion
-      if (typeof window !== "undefined") {
-        const confirmDelete = window.confirm(
-          "Deseja realmente remover esta entrega da lista? A massa será devolvida para o pool disponível."
-        );
-        if (!confirmDelete) return;
-      }
+      const item = currentItems[itemToRemove];
 
       try {
         // 🔄 Se item tem ID (já existe no banco), chamar devolverMassaCancelada antes de remover
@@ -103,7 +112,7 @@ export const useItemManagement = (
         }
 
         const newItems = [...currentItems];
-        newItems.splice(index, 1);
+        newItems.splice(itemToRemove, 1);
         form.setValue("itens", newItems, { shouldValidate: true });
 
         toast({
@@ -124,8 +133,11 @@ export const useItemManagement = (
           variant: "destructive",
         });
       }
+
+      setShowRemoveDialog(false);
+      setItemToRemove(null);
     },
-    [form, toast, progressHook]
+    [form, itemToRemove, toast, progressHook]
   );
 
   const openCancelDialog = useCallback((index: number) => {
@@ -218,7 +230,11 @@ export const useItemManagement = (
 
   return {
     addItem,
-    removeItem,
+    openRemoveDialog,
+    closeRemoveDialog,
+    confirmRemove,
+    showRemoveDialog,
+    itemToRemove,
     openCancelDialog,
     closeCancelDialog,
     confirmCancel,

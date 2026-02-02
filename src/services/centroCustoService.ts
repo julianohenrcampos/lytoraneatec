@@ -84,9 +84,22 @@ export const checkCentroCustoExists = async (
 
 // Create a new centro de custo
 export const createCentroCusto = async (data: CentroCustoFormData): Promise<CentroCusto> => {
+  const insertData: any = {
+    codigo_centro_custo: data.codigo_centro_custo,
+    nome_centro_custo: data.nome_centro_custo,
+    cnpj_vinculado: data.cnpj_vinculado || null,
+    telefone: data.telefone || null,
+    situacao: data.situacao
+  };
+  
+  // Only include aprovador_diarias_id if it's set and not the placeholder
+  if (data.aprovador_diarias_id && data.aprovador_diarias_id !== '__none__') {
+    insertData.aprovador_diarias_id = data.aprovador_diarias_id;
+  }
+
   const { data: newData, error } = await supabase
     .from("bd_centros_custo")
-    .insert(data)
+    .insert(insertData)
     .select()
     .single();
   
@@ -95,14 +108,29 @@ export const createCentroCusto = async (data: CentroCustoFormData): Promise<Cent
     throw new Error(`Erro ao criar centro de custo: ${error.message}`);
   }
   
-  return newData as CentroCusto;
+  return newData as unknown as CentroCusto;
 };
 
 // Update an existing centro de custo
 export const updateCentroCusto = async (id: string, data: CentroCustoFormData): Promise<CentroCusto> => {
+  const updateData: any = {
+    codigo_centro_custo: data.codigo_centro_custo,
+    nome_centro_custo: data.nome_centro_custo,
+    cnpj_vinculado: data.cnpj_vinculado || null,
+    telefone: data.telefone || null,
+    situacao: data.situacao
+  };
+  
+  // Handle aprovador_diarias_id - can be null to remove
+  if (data.aprovador_diarias_id && data.aprovador_diarias_id !== '__none__') {
+    updateData.aprovador_diarias_id = data.aprovador_diarias_id;
+  } else {
+    updateData.aprovador_diarias_id = null;
+  }
+
   const { data: updatedData, error } = await supabase
     .from("bd_centros_custo")
-    .update(data)
+    .update(updateData)
     .eq("id", id)
     .select()
     .single();
@@ -112,7 +140,7 @@ export const updateCentroCusto = async (id: string, data: CentroCustoFormData): 
     throw new Error(`Erro ao atualizar centro de custo: ${error.message}`);
   }
   
-  return updatedData as CentroCusto;
+  return updatedData as unknown as CentroCusto;
 };
 
 // Delete a centro de custo

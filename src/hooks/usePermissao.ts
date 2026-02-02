@@ -5,6 +5,7 @@ import { usePermissionCacheInvalidation } from "@/hooks/usePermissionCacheInvali
 import { validateFunctionAssignment, cleanFunctionArray } from "@/utils/permissionValidation";
 import { safeProfilesQuery } from "@/hooks/useSimpleTypeWorkaround";
 import { userHasAnyPermission } from "@/utils/hybridPermissions";
+import { useProfileSecurity } from "@/hooks/useProfileSecurity";
 import { 
   Permissao, 
   PermissaoFilter, 
@@ -30,6 +31,15 @@ export const usePermissao = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { invalidatePermissionCache, refetchUserPermissions } = usePermissionCacheInvalidation();
+  
+  // Hook de segurança para filtro departamental
+  const { 
+    hasGlobalAccess, 
+    shouldFilterByDepartment, 
+    departamentoId, 
+    departamentoNome,
+    isLoading: isSecurityLoading 
+  } = useProfileSecurity();
   
   // Form states
   const [isPermissaoFormOpen, setIsPermissaoFormOpen] = useState(false);
@@ -177,11 +187,12 @@ export const usePermissao = () => {
     }
   });
 
-  // Processar filtros nos dados retornados
+  // Processar filtros nos dados retornados - incluindo filtro departamental
   const profiles = React.useMemo(() => {
     console.log('🔄 ====== PROCESSANDO FILTROS ======');
     console.log('📋 Filtros ativos:', profileFilter);
     console.log('📊 Total de usuários disponíveis:', allProfiles?.length || 0);
+    console.log('🔐 Filtro departamental:', { shouldFilterByDepartment, departamentoId, departamentoNome });
     
     if (!allProfiles || allProfiles.length === 0) {
       console.log('⚠️ Nenhum dado disponível para filtrar');
@@ -189,6 +200,17 @@ export const usePermissao = () => {
     }
     
     let filteredData = [...allProfiles];
+    
+    // NOVO: Aplicar filtro departamental para admins não-globais
+    if (shouldFilterByDepartment && departamentoId) {
+      const beforeFilter = filteredData.length;
+      filteredData = filteredData.filter(profile => {
+        // Verificar se o perfil pertence ao mesmo departamento
+        const profileDeptId = profile.bd_funcionarios?.departamento_id;
+        return profileDeptId === departamentoId;
+      });
+      console.log(`🏢 Filtro departamental (${departamentoNome}): ${beforeFilter} → ${filteredData.length} usuários`);
+    }
     
     // Aplicar filtro de nome
     if (profileFilter.nome && profileFilter.nome.trim() !== '') {
@@ -225,7 +247,7 @@ export const usePermissao = () => {
     console.log(`📈 Total para exibição: ${filteredData.length} usuários`);
 
     return filteredData;
-  }, [allProfiles, profileFilter]);
+  }, [allProfiles, profileFilter, shouldFilterByDepartment, departamentoId, departamentoNome]);
 
   // Lista de funções disponíveis
   const availableFunctions = availableFunctionsFromDB || [

@@ -32,12 +32,14 @@ export function useFuncionarioQueries(
   const { 
     data: funcionarios, 
     isLoading: isQueryLoading, 
-    isError, 
+    isError,
+    error,
     refetch 
   } = useQuery({
     queryKey: ['funcionarios', secureFilters, departamentoId, shouldFilterByDepartment],
     queryFn: () => fetchFuncionarios(secureFilters),
-    enabled: !isSecurityLoading // Aguarda carregar o contexto de segurança
+    enabled: !isSecurityLoading, // Aguarda carregar o contexto de segurança
+    retry: 1, // Tentar apenas uma vez (fallback já é tentado internamente)
   });
 
   const isLoading = isSecurityLoading || isQueryLoading;
@@ -140,6 +142,7 @@ export function useFuncionarioQueries(
     funcionarios,
     isLoading,
     isError,
+    error, // Expose error object for detailed display
     refetch,
     createMutation,
     updateMutation,
