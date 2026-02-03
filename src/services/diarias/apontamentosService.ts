@@ -5,19 +5,29 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { DiariaApontamento, StatusApontamento } from '@/types/diarias';
 
+// Interface de escopo para filtros obrigatórios
+interface ApontamentoScopeFilters {
+  responsavel_campo_id?: string;  // Apontador: filtra por responsável
+  centro_custo_ids?: string[];  // Gerente: filtra por CCs gerenciados
+}
+
 // Buscar apontamentos com filtros
-export async function getApontamentos(filters?: {
-  status?: StatusApontamento;
-  responsavel_campo_id?: string;
-  data_inicio?: string;
-  data_fim?: string;
-}) {
+export async function getApontamentos(
+  filters?: {
+    status?: StatusApontamento;
+    responsavel_campo_id?: string;
+    data_inicio?: string;
+    data_fim?: string;
+  },
+  scope?: ApontamentoScopeFilters
+) {
   let query = supabase
     .from('bd_diaria_apontamentos')
     .select(`
       *,
       bd_diaria_solicitacoes!inner (
         id,
+        numero_solicitacao,
         data_inicio,
         data_fim,
         centro_custo_id,
@@ -40,11 +50,17 @@ export async function getApontamentos(filters?: {
     `)
     .order('created_at', { ascending: false });
 
+  // Aplicar filtros de ESCOPO OBRIGATÓRIOS
+  if (scope?.responsavel_campo_id) {
+    query = query.eq('responsavel_campo_id', scope.responsavel_campo_id);
+  }
+
+  // Aplicar filtros opcionais
   if (filters?.status) {
     query = query.eq('status', filters.status);
   }
   
-  if (filters?.responsavel_campo_id) {
+  if (filters?.responsavel_campo_id && !scope?.responsavel_campo_id) {
     query = query.eq('responsavel_campo_id', filters.responsavel_campo_id);
   }
 
@@ -62,6 +78,7 @@ export async function getApontamentoById(id: string) {
       *,
       bd_diaria_solicitacoes!inner (
         id,
+        numero_solicitacao,
         data_inicio,
         data_fim,
         centro_custo_id,
@@ -97,6 +114,7 @@ export async function getApontamentoBySolicitacaoId(solicitacaoId: string) {
       *,
       bd_diaria_solicitacoes!inner (
         id,
+        numero_solicitacao,
         data_inicio,
         data_fim,
         centro_custo_id,

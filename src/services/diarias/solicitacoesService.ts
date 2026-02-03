@@ -11,7 +11,16 @@ import type {
 // CRUD - SOLICITAÇÕES DE DIÁRIA
 // =====================================================
 
-export async function getSolicitacoes(filters?: SolicitacaoFilters): Promise<DiariaSolicitacao[]> {
+// Interface de escopo para filtros obrigatórios
+interface SolicitacaoScopeFilters {
+  criado_por?: string;  // Engenheiro: filtra por criador
+  centro_custo_ids?: string[];  // Gerente: filtra por CCs gerenciados
+}
+
+export async function getSolicitacoes(
+  filters?: SolicitacaoFilters,
+  scope?: SolicitacaoScopeFilters
+): Promise<DiariaSolicitacao[]> {
   let query = supabase
     .from('bd_diaria_solicitacoes')
     .select(`
@@ -24,6 +33,15 @@ export async function getSolicitacoes(filters?: SolicitacaoFilters): Promise<Dia
     `)
     .order('data_inicio', { ascending: false });
 
+  // Aplicar filtros de ESCOPO OBRIGATÓRIOS
+  if (scope?.criado_por) {
+    query = query.eq('criado_por', scope.criado_por);
+  }
+  if (scope?.centro_custo_ids?.length) {
+    query = query.in('centro_custo_id', scope.centro_custo_ids);
+  }
+
+  // Aplicar filtros opcionais do usuário
   if (filters?.periodo_inicio) {
     query = query.gte('data_inicio', filters.periodo_inicio);
   }
@@ -36,7 +54,8 @@ export async function getSolicitacoes(filters?: SolicitacaoFilters): Promise<Dia
   if (filters?.status) {
     query = query.eq('status', filters.status);
   }
-  if (filters?.criado_por) {
+  if (filters?.criado_por && !scope?.criado_por) {
+    // Aplicar apenas se não veio do scope
     query = query.eq('criado_por', filters.criado_por);
   }
 
@@ -73,8 +92,43 @@ export async function getSolicitacaoById(id: string): Promise<DiariaSolicitacao 
   return data as unknown as DiariaSolicitacao;
 }
 
+// Função para gerar número de solicitação
+async function generateNumeroSolicitacao(): Promise<string> {
+  const year = new Date().getFullYear();
+  
+  // Buscar o maior numero_solicitacao do ano atual
+  const { data, error } = await supabase
+    .from('bd_diaria_solicitacoes')
+    .select('numero_solicitacao')
+    .like('numero_solicitacao', `${year}-%`)
+    .order('numero_solicitacao', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+    
+  if (error) {
+    console.error('Erro ao buscar último número:', error);
+    throw error;
+  }
+  
+  if (!data) {
+    // Primeira solicitação do ano
+    return `${year}-001`;
+  }
+  
+  // Extrair parte sequencial e incrementar
+  const lastNumber = data.numero_solicitacao;
+  const sequentialPart = parseInt(lastNumber.split('-')[1], 10);
+  const newSequential = sequentialPart + 1;
+  
+  return `${year}-${newSequential.toString().padStart(3, '0')}`;
+}
+
 export async function createSolicitacao(formData: SolicitacaoFormData): Promise<DiariaSolicitacao> {
+  // Gerar número de solicitação
+  const numero_solicitacao = await generateNumeroSolicitacao();
+  
   const insertData = {
+    numero_solicitacao,
     data_inicio: formData.data_inicio,
     data_fim: formData.data_fim,
     centro_custo_id: formData.centro_custo_id,
@@ -318,8 +372,11 @@ export async function cancelarEnvioSolicitacao(id: string): Promise<DiariaSolici
 // RESUMO E ESTATÍSTICAS
 // =====================================================
 
-export async function getSolicitacoesResumo(filters?: SolicitacaoFilters): Promise<SolicitacaoResumo> {
-  const solicitacoes = await getSolicitacoes(filters);
+export async function getSolicitacoesResumo(
+  filters?: SolicitacaoFilters,
+  scope?: SolicitacaoScopeFilters
+): Promise<SolicitacaoResumo> {
+  const solicitacoes = await getSolicitacoes(filters, scope);
   
   return {
     total: solicitacoes.length,

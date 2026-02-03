@@ -15,16 +15,25 @@ import {
   updateApontamentoObservacoes
 } from '@/services/diarias/apontamentosService';
 
-// Query: Listar apontamentos
-export function useApontamentosCampo(filters?: {
-  status?: StatusApontamento;
+// Interface de escopo para filtros obrigatórios
+interface ApontamentoScopeFilters {
   responsavel_campo_id?: string;
-  data_inicio?: string;
-  data_fim?: string;
-}) {
+  centro_custo_ids?: string[];
+}
+
+// Query: Listar apontamentos
+export function useApontamentosCampo(
+  filters?: {
+    status?: StatusApontamento;
+    responsavel_campo_id?: string;
+    data_inicio?: string;
+    data_fim?: string;
+  },
+  scope?: ApontamentoScopeFilters
+) {
   return useQuery({
-    queryKey: ['diaria-apontamentos', filters],
-    queryFn: () => getApontamentos(filters)
+    queryKey: ['diaria-apontamentos', filters, scope],
+    queryFn: () => getApontamentos(filters, scope)
   });
 }
 

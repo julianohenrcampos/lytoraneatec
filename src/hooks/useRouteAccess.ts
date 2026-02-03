@@ -34,8 +34,9 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   '/requisicoes/chamados-os': ['requisicoes_chamados_os_view'],
   '/requisicoes/gestao-os': ['requisicoes_gestao_os_view'],
 
-  // Diárias (Fim de Semana/Feriado) - Fluxo simplificado
-  '/requisicoes/diarias/solicitacoes': ['diarias_view'],
+  // Diárias (Fim de Semana/Feriado) - Permissões granulares
+  '/requisicoes/diarias/dashboard': ['diarias_dashboard_view'],
+  '/requisicoes/diarias/solicitacoes': ['diarias_solicitacoes_view', 'diarias_view'],
   '/requisicoes/diarias/apontamento-campo': ['diarias_apontamento_view'],
   '/requisicoes/diarias/relatorio': ['diarias_relatorio_view'],
 

@@ -151,7 +151,23 @@ export const useAuthPermissions = (): UserPermissions => {
             'requisicoes_gestao_os_view',
             'registro_aplicacao_view',
             'programacao_entrega_view',
-            'admin_permissoes_view'
+            'admin_permissoes_view',
+            // Permissões Diárias (novas)
+            'diarias_view',
+            'diarias_dashboard_view',
+            'diarias_solicitacoes_view',
+            'diarias_apontamento_view',
+            'diarias_relatorio_view',
+            'diarias_solicitar_create',
+            'diarias_solicitar_edit_own',
+            'diarias_solicitar_cancel_own',
+            'diarias_solicitar_resend_own',
+            'diarias_aprovar',
+            'diarias_autorizar',
+            'diarias_apontar_own',
+            'diarias_export',
+            'diarias_solicitar',
+            'diarias_exportar_excel'
           ];
         } else if (userRole) {
           // Buscar permissões da função no banco de dados

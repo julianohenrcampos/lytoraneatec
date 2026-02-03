@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 import { 
   Plus, 
   Send, 
@@ -66,7 +65,8 @@ import {
   useEnviarParaAutorizacao,
   useAutorizarSolicitacao,
   useReprovarSolicitacao,
-  useCancelarEnvioSolicitacao
+  useCancelarEnvioSolicitacao,
+  useDiariasDataScope
 } from "@/hooks/diarias";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -74,6 +74,9 @@ import type { StatusSolicitacao, SolicitacaoFormData, SolicitacaoFilters, Diaria
 import { SolicitacaoFormModal } from "@/components/diarias/SolicitacaoFormModal";
 import { AprovacaoModal } from "@/components/diarias/AprovacaoModal";
 import { SolicitacaoDetalhesModal } from "@/components/diarias/SolicitacaoDetalhesModal";
+import { usePagination } from "@/hooks/usePagination";
+import TablePagination from "@/components/ui/table-pagination";
+import { toast } from "sonner";
 
 // Status Badge Component
 function StatusBadge({ status }: { status: StatusSolicitacao }) {
@@ -92,8 +95,21 @@ export default function DiariasSolicitacoes() {
   const { permissions, userId, isSuperAdmin, isLoading: isLoadingPermissions } = useDynamicPermissions();
   const hasPermission = (perm: string) => permissions.includes(perm);
   
+  // Hook de escopo de dados - RBAC
+  const {
+    userScope,
+    scopeFilters,
+    isLoading: isLoadingScope,
+    canCreateSolicitacao,
+    canEditSolicitacao,
+    canDeleteSolicitacao,
+    canResendSolicitacao,
+    canApproveSolicitacao,
+    isOwnSolicitacao
+  } = useDiariasDataScope();
+  
   // Verificar permissão de acesso
-  const hasAccess = isSuperAdmin || hasPermission('diarias_view');
+  const hasAccess = isSuperAdmin || hasPermission('diarias_view') || hasPermission('diarias_solicitacoes_view');
   
   // Filters
   const [filters, setFilters] = useState<SolicitacaoFilters>({});
@@ -110,9 +126,12 @@ export default function DiariasSolicitacoes() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Queries - DEVE VIR ANTES DOS EARLY RETURNS
-  const { data: solicitacoes = [], isLoading } = useSolicitacoesDiaria(filters);
-  const { data: resumo } = useSolicitacoesResumo(filters);
+  // Queries - COM ESCOPO OBRIGATÓRIO
+  const { data: solicitacoes = [], isLoading } = useSolicitacoesDiaria(filters, scopeFilters);
+  const { data: resumo } = useSolicitacoesResumo(filters, scopeFilters);
+  
+  // Pagination
+  const pagination = usePagination(solicitacoes, { pageSize: 10 });
   
   // Centro de custos
   const { data: centrosCusto = [] } = useQuery({
@@ -134,13 +153,9 @@ export default function DiariasSolicitacoes() {
   const autorizarMutation = useAutorizarSolicitacao();
   const reprovarMutation = useReprovarSolicitacao();
   const cancelarEnvioMutation = useCancelarEnvioSolicitacao();
-
-  // Permissions
-  const canSolicitar = isSuperAdmin || hasPermission('diarias_solicitar');
-  const canAutorizar = isSuperAdmin || hasPermission('diarias_autorizar');
   
-  // Loading de permissões - APÓS TODOS OS HOOKS
-  if (isLoadingPermissions) {
+  // Loading de permissões e escopo
+  if (isLoadingPermissions || isLoadingScope) {
     return (
       <MainLayout>
         <div className="flex items-center justify-center min-h-[400px]">
@@ -151,14 +166,14 @@ export default function DiariasSolicitacoes() {
     );
   }
   
-  // Sem permissão - APÓS TODOS OS HOOKS
+  // Sem permissão
   if (!hasAccess) {
     return (
       <MainLayout>
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
             <p className="text-muted-foreground">Você não tem permissão para acessar esta página.</p>
-            <p className="text-xs text-muted-foreground mt-1">Permissão necessária: diarias_view</p>
+            <p className="text-xs text-muted-foreground mt-1">Permissão necessária: diarias_solicitacoes_view</p>
           </div>
         </div>
       </MainLayout>
@@ -186,6 +201,11 @@ export default function DiariasSolicitacoes() {
   };
 
   const handleOpenAprovacao = (solicitacao: DiariaSolicitacao, action: 'autorizar' | 'reprovar') => {
+    // Bloquear aprovação se não tiver responsável de campo definido
+    if (action === 'autorizar' && !solicitacao.responsavel_campo_id) {
+      toast.error('Defina o responsável pelo apontamento de campo antes de aprovar.');
+      return;
+    }
     setSelectedId(solicitacao.id);
     setAprovacaoAction(action);
     setIsAprovacaoOpen(true);
@@ -235,13 +255,22 @@ export default function DiariasSolicitacoes() {
     setIsDetalhesOpen(true);
   };
 
-  // Check segregation - SuperAdm pode aprovar qualquer solicitação
-  const canUserAutorizar = (criadoPor: string | null) => {
-    // SuperAdmin pode aprovar TUDO (inclusive próprias, para testes/emergências)
-    if (isSuperAdmin) return true;
-    
-    // Demais usuários: precisa ter permissão E não ter criado a solicitação
-    return canAutorizar && criadoPor !== userId;
+  // Check segregation - usando hook de escopo
+  const canUserAutorizar = (sol: DiariaSolicitacao) => {
+    return canApproveSolicitacao(sol);
+  };
+
+  // Verificar permissão de edição/exclusão
+  const canUserEdit = (sol: DiariaSolicitacao) => {
+    return canEditSolicitacao(sol) && ['rascunho', 'enviada'].includes(sol.status);
+  };
+
+  const canUserDelete = (sol: DiariaSolicitacao) => {
+    return canDeleteSolicitacao(sol) && ['rascunho', 'enviada'].includes(sol.status);
+  };
+
+  const canUserResend = (sol: DiariaSolicitacao) => {
+    return canResendSolicitacao(sol);
   };
 
   return (
@@ -255,7 +284,7 @@ export default function DiariasSolicitacoes() {
               Gerencie solicitações de diária para fins de semana e feriados
             </p>
           </div>
-          {canSolicitar && (
+          {canCreateSolicitacao && (
             <Button onClick={() => handleOpenForm()}>
               <Plus className="h-4 w-4 mr-2" />
               Nova Solicitação
@@ -387,6 +416,7 @@ export default function DiariasSolicitacoes() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-24">Nº</TableHead>
                     <TableHead>Período</TableHead>
                     <TableHead>Centro de Custo</TableHead>
                     <TableHead>Justificativa</TableHead>
@@ -395,14 +425,20 @@ export default function DiariasSolicitacoes() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {solicitacoes.map((sol) => (
-                    <TableRow key={sol.id}>
+                  {pagination.paginatedData.map((sol) => (
+                    <TableRow 
+                      key={sol.id}
+                      className={sol.status === 'reprovada' ? 'bg-red-50 hover:bg-red-100' : ''}
+                    >
+                      <TableCell className="font-mono font-medium text-primary">
+                        {sol.numero_solicitacao}
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                          {format(new Date(sol.data_inicio), 'dd/MM/yyyy', { locale: ptBR })}
+                          {formatBrazilianDateForDisplay(sol.data_inicio)}
                           {sol.data_fim !== sol.data_inicio && (
-                            <> → {format(new Date(sol.data_fim), 'dd/MM/yyyy', { locale: ptBR })}</>
+                            <> → {formatBrazilianDateForDisplay(sol.data_fim)}</>
                           )}
                         </div>
                       </TableCell>
@@ -420,8 +456,20 @@ export default function DiariasSolicitacoes() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
+                          {/* Botão Ver Detalhes para status finalizados (autorizada/reprovada) */}
+                          {(sol.status === 'autorizada' || sol.status === 'reprovada') && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              onClick={() => handleVerDetalhes(sol)}
+                              title="Ver Detalhes"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          )}
                           {/* Botões diretos de aprovação para status "enviada" */}
-                          {sol.status === 'enviada' && canUserAutorizar(sol.criado_por) && (
+                          {sol.status === 'enviada' && canUserAutorizar(sol) && (
                             <>
                               <Button 
                                 variant="ghost" 
@@ -459,7 +507,7 @@ export default function DiariasSolicitacoes() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            {sol.status === 'rascunho' && canSolicitar && sol.criado_por === userId && (
+                            {canUserEdit(sol) && (
                               <>
                                 <DropdownMenuItem onClick={() => handleOpenForm(sol)}>
                                   Editar
@@ -476,7 +524,7 @@ export default function DiariasSolicitacoes() {
                             {sol.status === 'enviada' && (
                               <>
                                 {/* Opções do aprovador */}
-                                {canUserAutorizar(sol.criado_por) && (
+                                {canUserAutorizar(sol) && (
                                   <>
                                     <DropdownMenuItem onClick={() => handleOpenAprovacao(sol, 'autorizar')}>
                                       <Check className="h-4 w-4 mr-2 text-green-500" />
@@ -489,9 +537,9 @@ export default function DiariasSolicitacoes() {
                                   </>
                                 )}
                                 {/* Opções do criador */}
-                                {sol.criado_por === userId && (
+                                {isOwnSolicitacao(sol) && (
                                   <>
-                                    {canUserAutorizar(sol.criado_por) && <DropdownMenuSeparator />}
+                                    {canUserAutorizar(sol) && <DropdownMenuSeparator />}
                                     <DropdownMenuItem onClick={() => handleCancelarEnvio(sol.id)}>
                                       <Undo2 className="h-4 w-4 mr-2 text-orange-500" />
                                       Cancelar Envio
@@ -499,6 +547,13 @@ export default function DiariasSolicitacoes() {
                                   </>
                                 )}
                               </>
+                            )}
+                            {/* Botão reenviar para reprovadas */}
+                            {canUserResend(sol) && (
+                              <DropdownMenuItem onClick={() => handleOpenForm(sol)}>
+                                <Undo2 className="h-4 w-4 mr-2 text-blue-500" />
+                                Reenviar
+                              </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
                           </DropdownMenu>
@@ -550,9 +605,10 @@ export default function DiariasSolicitacoes() {
           isOpen={isDetalhesOpen}
           onClose={() => setIsDetalhesOpen(false)}
           solicitacao={solicitacoes.find(s => s.id === detalhesId) || null}
-          canAutorizar={canUserAutorizar(
-            solicitacoes.find(s => s.id === detalhesId)?.criado_por ?? null
-          )}
+          canAutorizar={(() => {
+            const sol = solicitacoes.find(s => s.id === detalhesId);
+            return sol ? canUserAutorizar(sol) : false;
+          })()}
           onAutorizar={(sol) => {
             setIsDetalhesOpen(false);
             handleOpenAprovacao(sol, 'autorizar');
@@ -562,6 +618,11 @@ export default function DiariasSolicitacoes() {
             handleOpenAprovacao(sol, 'reprovar');
           }}
         />
+
+        {/* Pagination */}
+        {solicitacoes.length > 0 && (
+          <TablePagination pagination={pagination} className="mt-4" />
+        )}
 
         {/* Delete Confirmation Dialog */}
         <ConfirmDialog

@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
+import { toast } from "sonner";
 import {
   Calendar,
   Building2,
@@ -13,7 +14,10 @@ import {
   CalendarDays,
   FileText,
   Check,
-  X
+  X,
+  MessageSquare,
+  FileDown,
+  Loader2
 } from "lucide-react";
 
 import {
@@ -37,6 +41,7 @@ import {
 } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import { EstimativaAviso } from "./EstimativaAviso";
+import { generateSolicitacaoPDF } from "@/services/pdfService";
 
 import { supabase } from "@/integrations/supabase/client";
 import type { DiariaSolicitacao, FuncionarioPreConvocado } from "@/types/diarias";
@@ -65,6 +70,7 @@ export function SolicitacaoDetalhesModal({
   onReprovar,
   canAutorizar = false
 }: SolicitacaoDetalhesModalProps) {
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   // Buscar dados complementares + nomes de funcionários/funções quando não existirem no JSON
   const { data: dadosComplementares } = useQuery({
     queryKey: ['solicitacao-detalhes', solicitacao?.id],
@@ -200,14 +206,52 @@ export function SolicitacaoDetalhesModal({
 
   const totalGeral = totalDiasUteis + totalDiasEspeciais;
 
+  // Função para baixar PDF
+  const handleDownloadPDF = async () => {
+    if (!solicitacao) return;
+    
+    setIsGeneratingPDF(true);
+    try {
+      const fileName = `Solicitacao_Diaria_${solicitacao.bd_centros_custo?.codigo_centro_custo || 'CC'}_${solicitacao.data_inicio.replace(/-/g, '')}`;
+      await generateSolicitacaoPDF(
+        solicitacao,
+        convocadosPre,
+        dadosComplementares || {},
+        fileName
+      );
+      toast.success('PDF gerado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      toast.error('Erro ao gerar PDF.');
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Detalhes da Solicitação
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Detalhes da Solicitação
+            </DialogTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadPDF}
+              disabled={isGeneratingPDF}
+              className="mr-4"
+            >
+              {isGeneratingPDF ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+              ) : (
+                <FileDown className="h-4 w-4 mr-1" />
+              )}
+              PDF
+            </Button>
+          </div>
           <DialogDescription>
             Visualize todas as informações da solicitação antes de tomar uma decisão.
           </DialogDescription>
@@ -228,9 +272,9 @@ export function SolicitacaoDetalhesModal({
                     Período
                   </p>
                   <p className="font-medium">
-                    {format(new Date(solicitacao.data_inicio), "dd/MM/yyyy", { locale: ptBR })}
+                    {formatBrazilianDateForDisplay(solicitacao.data_inicio)}
                     {solicitacao.data_fim !== solicitacao.data_inicio && (
-                      <> → {format(new Date(solicitacao.data_fim), "dd/MM/yyyy", { locale: ptBR })}</>
+                      <> → {formatBrazilianDateForDisplay(solicitacao.data_fim)}</>
                     )}
                   </p>
                 </div>
@@ -326,6 +370,38 @@ export function SolicitacaoDetalhesModal({
                   {solicitacao.justificativa}
                 </p>
               </div>
+
+              {/* Observação do Gerente / Motivo da Reprovação */}
+              {solicitacao.status === 'reprovada' && solicitacao.observacao_gerente && (
+                <>
+                  <Separator />
+                  <div className="space-y-1">
+                    <p className="text-sm text-destructive font-medium flex items-center gap-1">
+                      <X className="h-3 w-3" />
+                      Motivo da Reprovação
+                    </p>
+                    <p className="text-sm bg-red-50 border border-red-200 p-3 rounded-md text-red-700">
+                      {solicitacao.observacao_gerente}
+                    </p>
+                  </div>
+                </>
+              )}
+
+              {/* Observação do Gerente (para autorizadas) */}
+              {solicitacao.status === 'autorizada' && solicitacao.observacao_gerente && (
+                <>
+                  <Separator />
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                      <MessageSquare className="h-3 w-3" />
+                      Observação do Gerente
+                    </p>
+                    <p className="text-sm bg-muted/30 p-3 rounded-md">
+                      {solicitacao.observacao_gerente}
+                    </p>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 

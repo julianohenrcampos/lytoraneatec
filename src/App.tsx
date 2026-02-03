@@ -52,6 +52,7 @@ import RelatorioAplicacaoDiaria from "@/pages/RelatorioAplicacaoDiaria";
 import GestaoPermissoes from "@/pages/GestaoPermissoes";
 
 // Diárias (Fim de Semana/Feriado)
+import DashboardDiarias from "@/pages/DashboardDiarias";
 import DiariasSolicitacoes from "@/pages/DiariasSolicitacoes";
 import DiariasRelatorio from "@/pages/DiariasRelatorio";
 import DiariasApontamentoCampo from "@/pages/DiariasApontamentoCampo";
@@ -360,6 +361,13 @@ const App = () => {
             } />
             
             {/* Diárias (Fim de Semana/Feriado) - Fluxo simplificado */}
+            <Route path="/requisicoes/diarias/dashboard" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <DashboardDiarias />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
             <Route path="/requisicoes/diarias/solicitacoes" element={
               <SimpleAuthGuard>
                 <SimplePermissionGuard>

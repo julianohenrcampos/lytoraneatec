@@ -17,10 +17,16 @@ import {
 
 const QUERY_KEY = 'diarias-solicitacoes';
 
-export function useSolicitacoesDiaria(filters?: SolicitacaoFilters) {
+// Interface de escopo para filtros obrigatórios
+interface SolicitacaoScopeFilters {
+  criado_por?: string;
+  centro_custo_ids?: string[];
+}
+
+export function useSolicitacoesDiaria(filters?: SolicitacaoFilters, scope?: SolicitacaoScopeFilters) {
   return useQuery({
-    queryKey: [QUERY_KEY, filters],
-    queryFn: () => getSolicitacoes(filters),
+    queryKey: [QUERY_KEY, filters, scope],
+    queryFn: () => getSolicitacoes(filters, scope),
     retry: 2,
     retryDelay: 1000,
     staleTime: 30000,
@@ -38,10 +44,10 @@ export function useSolicitacaoById(id: string | undefined) {
   });
 }
 
-export function useSolicitacoesResumo(filters?: SolicitacaoFilters) {
+export function useSolicitacoesResumo(filters?: SolicitacaoFilters, scope?: SolicitacaoScopeFilters) {
   return useQuery({
-    queryKey: [QUERY_KEY, 'resumo', filters],
-    queryFn: () => getSolicitacoesResumo(filters),
+    queryKey: [QUERY_KEY, 'resumo', filters, scope],
+    queryFn: () => getSolicitacoesResumo(filters, scope),
     retry: 2,
     retryDelay: 1000,
     staleTime: 30000,

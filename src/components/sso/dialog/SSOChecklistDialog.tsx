@@ -31,9 +31,6 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
   const { isSuperAdmin, userRole } = useAuthPermissions();
   const isMobile = useIsMobile();
   
-  // Determinar se é TecSSO (só pode usar câmera, sem galeria)
-  const isTecSSO = userRole === 'TecSSO' && !isSuperAdmin;
-  
   const [activeTab, setActiveTab] = useState('dados');
   const [formData, setFormData] = useState<SSOChecklistFormData>({
     obra_id: '',
@@ -320,7 +317,6 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
                 itens={itens}
                 onChange={handleItemChange}
                 onFilesChange={handleItemFilesChange}
-                cameraOnly={isTecSSO}
                 onScrollEnd={handleScrollEnd}
               />
             ) : (

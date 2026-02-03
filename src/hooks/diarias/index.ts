@@ -2,6 +2,10 @@
 // HOOKS DIÁRIAS - EXPORTAÇÕES CENTRALIZADAS
 // =====================================================
 
+// Escopo de Dados (RBAC)
+export { useDiariasDataScope } from './useDiariasDataScope';
+export type { DiariasUserScope, DiariasDataScope, DiariasDataScopeFilters } from './useDiariasDataScope';
+
 // Solicitações
 export {
   useSolicitacoesDiaria,

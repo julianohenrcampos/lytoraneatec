@@ -1,24 +1,26 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
 import { 
   Download, 
-  FileSpreadsheet,
-  Users,
+  FileText,
   DollarSign,
   Building2,
   Filter,
   Loader2,
   Calendar as CalendarIcon,
   CheckCircle,
-  XCircle,
-  Clock
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from "lucide-react";
+import { generateRelatorioDiariasPDF } from "@/services/pdfService";
 
 import MainLayout from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -36,49 +38,37 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Combobox } from "@/components/ui/combobox";
 
 import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
 import { 
   useRelatorioFolha,
-  usePresencaResumo,
-  useExportarExcel
+  useExportarExcel,
+  useDiariasDataScope
 } from "@/hooks/diarias";
+import { usePagination } from "@/hooks/usePagination";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { RelatorioFilters, StatusPresenca } from "@/types/diarias";
-
-// Status Badge Component
-function PresencaBadge({ status }: { status: StatusPresenca }) {
-  const config: Record<StatusPresenca, { variant: "default" | "secondary" | "destructive" | "outline"; label: string; icon: React.ReactNode }> = {
-    presente: { variant: "default", label: "Presente", icon: <CheckCircle className="h-3 w-3" /> },
-    ausente: { variant: "destructive", label: "Ausente", icon: <XCircle className="h-3 w-3" /> },
-    pendente: { variant: "secondary", label: "Pendente", icon: <Clock className="h-3 w-3" /> },
-    substituido: { variant: "outline", label: "Substituído", icon: <Users className="h-3 w-3" /> },
-  };
-  const c = config[status];
-  return (
-    <Badge variant={c.variant} className="gap-1">
-      {c.icon}
-      {c.label}
-    </Badge>
-  );
-}
+import type { RelatorioFilters, RelatorioFolhaItem } from "@/types/diarias";
 
 export default function DiariasRelatorio() {
   const { permissions, isSuperAdmin, isLoading: isLoadingPermissions } = useDynamicPermissions();
   const hasPermission = (perm: string) => permissions.includes(perm);
   
+  // Hook de escopo de dados - RBAC
+  const { 
+    scopeFilters,
+    isLoading: isLoadingScope 
+  } = useDiariasDataScope();
+  
   // Verificar permissão de acesso
   const hasAccess = isSuperAdmin || hasPermission('diarias_relatorio_view') || hasPermission('diarias_view');
   
-  // Filters
-  const [filters, setFilters] = useState<RelatorioFilters>({
-    presenca_status: 'presente' // Por padrão só mostra presentes
-  });
+  // Filters - sem filtro padrão para exibir todos os registros
+  const [filters, setFilters] = useState<RelatorioFilters>({});
 
-  // Queries - DEVE VIR ANTES DOS EARLY RETURNS
-  const { data: relatorio = [], isLoading } = useRelatorioFolha(filters);
-  const { data: resumo } = usePresencaResumo(filters);
+  // Queries - COM ESCOPO OBRIGATÓRIO
+  const { data: relatorio = [], isLoading } = useRelatorioFolha(filters, scopeFilters);
   
   // Centro de custos
   const { data: centrosCusto = [] } = useQuery({
@@ -92,24 +82,79 @@ export default function DiariasRelatorio() {
     }
   });
 
-  // Funcionários
-  const { data: funcionarios = [] } = useQuery({
-    queryKey: ['funcionarios-lista'],
+  // Funcionários que já foram apontados (distinct)
+  const { data: funcionariosApontados = [] } = useQuery({
+    queryKey: ['funcionarios-apontados'],
+    queryFn: async () => {
+      const { data: presencas } = await supabase
+        .from('bd_diaria_presencas')
+        .select('funcionario_id, bd_funcionarios!inner(id, nome_completo)');
+      
+      // Extrair funcionários únicos
+      const funcionariosMap = new Map();
+      presencas?.forEach((p: any) => {
+        if (p.bd_funcionarios && !funcionariosMap.has(p.bd_funcionarios.id)) {
+          funcionariosMap.set(p.bd_funcionarios.id, {
+            id: p.bd_funcionarios.id,
+            nome_completo: p.bd_funcionarios.nome_completo
+          });
+        }
+      });
+      
+      // Ordenar por nome
+      return Array.from(funcionariosMap.values()).sort((a, b) => 
+        a.nome_completo.localeCompare(b.nome_completo)
+      );
+    }
+  });
+
+  // Solicitações autorizadas para filtro por número
+  const { data: solicitacoesAutorizadas = [] } = useQuery({
+    queryKey: ['solicitacoes-autorizadas'],
     queryFn: async () => {
       const { data } = await supabase
-        .from('bd_funcionarios')
-        .select('id, nome_completo')
-        .order('nome_completo');
+        .from('bd_diaria_solicitacoes')
+        .select('id, numero_solicitacao')
+        .eq('status', 'autorizada')
+        .order('numero_solicitacao', { ascending: false });
       return data || [];
     }
   });
 
+  // Feriados para classificação de dias no PDF
+  const { data: feriados = [] } = useQuery({
+    queryKey: ['feriados-relatorio'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('bd_feriados')
+        .select('data');
+      return data?.map(f => f.data) || [];
+    },
+    staleTime: 1000 * 60 * 60 // 1 hora
+  });
+
+  // Pagination
+  const {
+    paginatedData,
+    currentPage,
+    totalPages,
+    totalItems,
+    canPreviousPage,
+    canNextPage,
+    nextPage,
+    previousPage,
+    goToFirstPage,
+    goToLastPage,
+    setPageSize,
+    pageSize
+  } = usePagination<RelatorioFolhaItem>(relatorio, { pageSize: 25 });
+
   // Export mutation
   const exportMutation = useExportarExcel();
+  const [isPDFLoading, setIsPDFLoading] = useState(false);
 
   // Permissions
   const canExport = isSuperAdmin || hasPermission('diarias_exportar_excel');
-  const canViewRelatorio = isSuperAdmin || hasPermission('diarias_relatorio_view');
 
   // Format currency
   const formatCurrency = (value: number) => {
@@ -119,17 +164,58 @@ export default function DiariasRelatorio() {
     }).format(value);
   };
 
-  // Calcular total da tabela
-  const totalValor = relatorio
-    .filter((r: any) => r.presenca_status === 'presente')
-    .reduce((acc: number, r: any) => acc + (r.valor_diaria_aplicada || 0), 0);
+  // Calcular totais (somente presentes com entrada e saída)
+  // A view retorna presenca_status como string "true"/"false"
+  const resumo = useMemo(() => {
+    const diariasCompletas = relatorio.filter(
+      (r) => String(r.presenca_status) === 'true' && r.hora_entrada && r.hora_saida
+    );
+    return {
+      total_diarias: diariasCompletas.length,
+      valor_total: diariasCompletas.reduce((acc, r) => acc + (r.valor_diaria_aplicada || 0), 0)
+    };
+  }, [relatorio]);
 
   const handleExport = () => {
     exportMutation.mutate(filters);
   };
+
+  const handleExportPDF = async () => {
+    if (relatorio.length === 0) {
+      toast.error('Não há dados para exportar.');
+      return;
+    }
+    
+    setIsPDFLoading(true);
+    try {
+      const dateStr = filters.data_inicio 
+        ? format(new Date(filters.data_inicio + 'T12:00:00'), 'yyyyMMdd') 
+        : format(new Date(), 'yyyyMMdd');
+      const fileName = `Relatorio_Diarias_${dateStr}`;
+      
+      // Usar resumo calculado localmente
+      const resumoParaPDF = {
+        total: relatorio.length,
+        presentes: resumo.total_diarias,
+        ausentes: 0,
+        pendentes: 0,
+        substituidos: 0,
+        valor_total_presentes: resumo.valor_total,
+        valor_total_previsto: resumo.valor_total
+      };
+      
+      await generateRelatorioDiariasPDF(relatorio, resumoParaPDF, filters, feriados, fileName);
+      toast.success('PDF gerado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      toast.error('Erro ao gerar PDF.');
+    } finally {
+      setIsPDFLoading(false);
+    }
+  };
   
-  // Loading de permissões - APÓS TODOS OS HOOKS
-  if (isLoadingPermissions) {
+  // Loading de permissões e escopo
+  if (isLoadingPermissions || isLoadingScope) {
     return (
       <MainLayout>
         <div className="flex items-center justify-center min-h-[400px]">
@@ -140,7 +226,7 @@ export default function DiariasRelatorio() {
     );
   }
   
-  // Sem permissão - APÓS TODOS OS HOOKS
+  // Sem permissão
   if (!hasAccess) {
     return (
       <MainLayout>
@@ -162,74 +248,62 @@ export default function DiariasRelatorio() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Relatório de Diárias</h1>
             <p className="text-muted-foreground">
-              Folha de ponto e controle de pagamentos de diárias
+              Folha de ponto e controle de pagamentos
             </p>
           </div>
           {canExport && (
-            <Button onClick={handleExport} disabled={exportMutation.isPending}>
-              {exportMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4 mr-2" />
-              )}
-              Exportar Excel
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={handleExportPDF}
+                disabled={isPDFLoading || relatorio.length === 0}
+              >
+                {isPDFLoading ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <FileText className="h-4 w-4 mr-2" />
+                )}
+                Exportar PDF
+              </Button>
+              <Button onClick={handleExport} disabled={exportMutation.isPending}>
+                {exportMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                Exportar Excel
+              </Button>
+            </div>
           )}
         </div>
 
-        {/* Summary Cards */}
-        {resumo && (
-          <div className="grid gap-4 md:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Convocados</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{resumo.total}</div>
-                <p className="text-xs text-muted-foreground">
-                  {resumo.presentes} presentes, {resumo.ausentes} ausentes
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Presentes</CardTitle>
-                <CheckCircle className="h-4 w-4 text-green-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600">{resumo.presentes}</div>
-                <p className="text-xs text-muted-foreground">
-                  {resumo.pendentes} pendentes
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Valor Presentes</CardTitle>
-                <DollarSign className="h-4 w-4 text-green-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(resumo.valor_total_presentes)}</div>
-                <p className="text-xs text-muted-foreground">
-                  a pagar
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Valor Previsto</CardTitle>
-                <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(resumo.valor_total_previsto)}</div>
-                <p className="text-xs text-muted-foreground">
-                  total convocado
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+        {/* 2 Summary Cards */}
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Diárias Executadas</CardTitle>
+              <CheckCircle className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{resumo.total_diarias}</div>
+              <p className="text-xs text-muted-foreground">
+                diárias apontadas
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Valor Total a Pagar</CardTitle>
+              <DollarSign className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatCurrency(resumo.valor_total)}</div>
+              <p className="text-xs text-muted-foreground">
+                a pagar
+              </p>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Filters */}
         <Card>
@@ -240,7 +314,7 @@ export default function DiariasRelatorio() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-5">
+            <div className="grid gap-4 md:grid-cols-4">
               <div>
                 <Label>Data Início</Label>
                 <Input
@@ -258,65 +332,61 @@ export default function DiariasRelatorio() {
                 />
               </div>
               <div>
+                <Label>Nº Solicitação</Label>
+                <Combobox
+                  options={[
+                    { value: '__all__', label: 'Todas' },
+                    ...solicitacoesAutorizadas.map((s: any) => ({
+                      value: s.id,
+                      label: s.numero_solicitacao
+                    }))
+                  ]}
+                  value={filters.solicitacao_id ?? '__all__'}
+                  onChange={(v) => setFilters({ ...filters, solicitacao_id: v === '__all__' ? undefined : v })}
+                  placeholder="Todas"
+                  searchPlaceholder="Buscar por número..."
+                  emptyText="Nenhuma solicitação encontrada"
+                />
+              </div>
+              <div>
                 <Label>Centro de Custo</Label>
-                <Select
+                <Combobox
+                  options={[
+                    { value: '__all__', label: 'Todos' },
+                    ...centrosCusto.map((cc: any) => ({
+                      value: cc.id,
+                      label: `${cc.codigo_centro_custo} - ${cc.nome_centro_custo}`
+                    }))
+                  ]}
                   value={filters.centro_custo_id ?? '__all__'}
-                  onValueChange={(v) => setFilters({ ...filters, centro_custo_id: v === '__all__' ? undefined : v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Todos</SelectItem>
-                    {centrosCusto.map((cc: any) => (
-                      <SelectItem key={cc.id} value={cc.id}>
-                        {cc.codigo_centro_custo} - {cc.nome_centro_custo}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onChange={(v) => setFilters({ ...filters, centro_custo_id: v === '__all__' ? undefined : v })}
+                  placeholder="Todos"
+                  searchPlaceholder="Buscar centro de custo..."
+                  emptyText="Nenhum centro de custo encontrado"
+                />
               </div>
               <div>
                 <Label>Funcionário</Label>
-                <Select
+                <Combobox
+                  options={[
+                    { value: '__all__', label: 'Todos' },
+                    ...funcionariosApontados.map((f: any) => ({
+                      value: f.id,
+                      label: f.nome_completo
+                    }))
+                  ]}
                   value={filters.funcionario_id ?? '__all__'}
-                  onValueChange={(v) => setFilters({ ...filters, funcionario_id: v === '__all__' ? undefined : v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Todos</SelectItem>
-                    {funcionarios.map((f: any) => (
-                      <SelectItem key={f.id} value={f.id}>
-                        {f.nome_completo}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Presença</Label>
-                <Select
-                  value={filters.presenca_status ?? '__all__'}
-                  onValueChange={(v) => setFilters({ ...filters, presenca_status: (v === '__all__' ? undefined : (v as StatusPresenca)) })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Todos</SelectItem>
-                    <SelectItem value="presente">Presente</SelectItem>
-                    <SelectItem value="ausente">Ausente</SelectItem>
-                    <SelectItem value="pendente">Pendente</SelectItem>
-                  </SelectContent>
-                </Select>
+                  onChange={(v) => setFilters({ ...filters, funcionario_id: v === '__all__' ? undefined : v })}
+                  placeholder="Todos"
+                  searchPlaceholder="Buscar funcionário..."
+                  emptyText="Nenhum funcionário encontrado"
+                />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Table */}
+        {/* Table with 7 columns */}
         <Card>
           <CardContent className="p-0">
             {isLoading ? (
@@ -332,24 +402,26 @@ export default function DiariasRelatorio() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-24">Nº Sol.</TableHead>
                       <TableHead>Data</TableHead>
                       <TableHead>Centro de Custo</TableHead>
+                      <TableHead>Solicitante</TableHead>
+                      <TableHead>Apontador</TableHead>
                       <TableHead>Funcionário</TableHead>
                       <TableHead>Função</TableHead>
-                      <TableHead>Entrada</TableHead>
-                      <TableHead>Saída</TableHead>
-                      <TableHead>Intervalo</TableHead>
-                      <TableHead>Valor</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {relatorio.map((item: any) => (
-                      <TableRow key={item.convocado_id}>
+                    {paginatedData.map((item, idx) => (
+                      <TableRow key={item.presenca_id || idx}>
+                        <TableCell className="font-mono text-sm text-primary">
+                          {item.numero_solicitacao}
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                            {format(new Date(item.data), 'dd/MM/yyyy', { locale: ptBR })}
+                            {format(new Date(item.data + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR })}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -360,28 +432,20 @@ export default function DiariasRelatorio() {
                             </span>
                           </div>
                         </TableCell>
+                        <TableCell>
+                          {item.solicitante_nome || '-'}
+                        </TableCell>
+                        <TableCell>
+                          {item.apontador_nome || '-'}
+                        </TableCell>
                         <TableCell className="font-medium">
                           {item.nome_funcionario}
                         </TableCell>
                         <TableCell>
-                          {item.nome_funcao}
+                          {item.nome_funcao || '-'}
                         </TableCell>
-                        <TableCell>
-                          {item.hora_entrada || '-'}
-                        </TableCell>
-                        <TableCell>
-                          {item.hora_saida || '-'}
-                        </TableCell>
-                        <TableCell>
-                          {item.intervalo_inicio && item.intervalo_fim 
-                            ? `${item.intervalo_inicio} - ${item.intervalo_fim}`
-                            : '-'}
-                        </TableCell>
-                        <TableCell className="font-medium">
+                        <TableCell className="text-right font-medium">
                           {formatCurrency(item.valor_diaria_aplicada)}
-                        </TableCell>
-                        <TableCell>
-                          <PresencaBadge status={item.presenca_status} />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -391,14 +455,71 @@ export default function DiariasRelatorio() {
             )}
           </CardContent>
           
-          {/* Footer com total */}
+          {/* Pagination Footer */}
           {relatorio.length > 0 && (
-            <div className="border-t p-4 flex items-center justify-between bg-muted/50">
+            <div className="border-t p-4 flex flex-col sm:flex-row items-center justify-between gap-4 bg-muted/50">
               <div className="text-sm text-muted-foreground">
-                {relatorio.length} registros encontrados
+                {totalItems} registros encontrados
               </div>
+              
+              <div className="flex items-center gap-2">
+                <Select
+                  value={pageSize.toString()}
+                  onValueChange={(v) => setPageSize(Number(v))}
+                >
+                  <SelectTrigger className="w-[100px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span className="text-sm text-muted-foreground">por página</span>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={goToFirstPage}
+                  disabled={!canPreviousPage}
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={previousPage}
+                  disabled={!canPreviousPage}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm px-2">
+                  {currentPage + 1} de {totalPages || 1}
+                </span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={nextPage}
+                  disabled={!canNextPage}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={goToLastPage}
+                  disabled={!canNextPage}
+                >
+                  <ChevronsRight className="h-4 w-4" />
+                </Button>
+              </div>
+
               <div className="text-lg font-bold">
-                Total: {formatCurrency(totalValor)}
+                Total: {formatCurrency(resumo.valor_total)}
               </div>
             </div>
           )}

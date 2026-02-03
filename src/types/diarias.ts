@@ -16,6 +16,7 @@ export type EntidadeAprovacao = 'solicitacao' | 'convocacao' | 'relatorio';
 
 export interface DiariaSolicitacao {
   id: string;
+  numero_solicitacao: string;
   data_inicio: string;
   data_fim: string;
   centro_custo_id: string;
@@ -221,6 +222,7 @@ export interface RelatorioFilters {
   data_fim?: string;
   centro_custo_id?: string;
   funcionario_id?: string;
+  solicitacao_id?: string;
   status_convocacao?: StatusConvocacao;
   presenca_status?: StatusPresenca;
 }
@@ -230,29 +232,69 @@ export interface RelatorioFilters {
 // =====================================================
 
 export interface RelatorioFolhaItem {
-  convocado_id: string;
-  convocacao_id: string;
+  presenca_id: string;
   solicitacao_id: string;
+  numero_solicitacao: string;
+  solicitacao_data_inicio: string;
+  solicitacao_data_fim: string;
   data: string;
+  centro_custo_id: string;
   codigo_centro_custo: string;
   nome_centro_custo: string;
   funcionario_id: string;
   nome_funcionario: string;
-  funcao_id: string;
-  nome_funcao: string;
+  // Dados bancários do funcionário
+  cpf_funcionario: string | null;
+  banco_funcionario: string | null;
+  agencia_funcionario: string | null;
+  conta_funcionario: string | null;
+  pix_funcionario: string | null;
+  funcao_id: string | null;
+  nome_funcao: string | null;
   valor_diaria_aplicada: number;
   hora_entrada: string | null;
   hora_saida: string | null;
   intervalo_inicio: string | null;
   intervalo_fim: string | null;
-  presenca_status: StatusPresenca;
+  presenca_status: string;
   confirmado_por: string | null;
   confirmado_em: string | null;
-  status_convocacao: StatusConvocacao;
   status_solicitacao: StatusSolicitacao;
-  convocacao_criado_por: string | null;
-  solicitacao_criado_por: string | null;
+  solicitante_id: string | null;
+  solicitante_nome: string | null;
+  apontador_id: string | null;
+  apontador_nome: string | null;
   created_at: string;
+}
+
+// Tipos para exportação Excel com dados bancários
+export interface ExcelDetalhadoComBanco {
+  data: string;
+  centro_custo: string;
+  solicitante: string;
+  apontador: string;
+  funcionario: string;
+  funcao: string;
+  valor_diaria: number;
+  hora_entrada: string;
+  hora_saida: string;
+  cpf: string;
+  banco: string;
+  agencia: string;
+  conta_corrente: string;
+  chave_pix: string;
+}
+
+export interface ExcelTotalizadoPorFuncionario {
+  funcionario: string;
+  funcao: string;
+  cpf: string;
+  banco: string;
+  agencia: string;
+  conta_corrente: string;
+  chave_pix: string;
+  qtd_dias_trabalhados: number;
+  valor_total: number;
 }
 
 export interface ResumoDiarias {
@@ -309,14 +351,13 @@ export interface PresencaResumo {
 export interface ExcelDetalhado {
   data: string;
   centro_custo: string;
+  solicitante: string;
+  apontador: string;
   funcionario: string;
   funcao: string;
   valor_diaria: number;
   hora_entrada: string;
   hora_saida: string;
-  intervalo: string;
-  presenca: string;
-  status_convocacao: string;
 }
 
 export interface ExcelResumo {

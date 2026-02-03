@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { format, parseISO, eachDayOfInterval } from "date-fns";
+import { format, eachDayOfInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { parseBrazilianDate, formatBrazilianDateForDisplay, getCurrentBrazilianDate } from "@/utils/timezoneUtils";
 import {
   ClipboardCheck,
   Calendar,
@@ -29,11 +30,14 @@ import { cn } from "@/lib/utils";
 
 import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
 import { useApontamentosCampo } from "@/hooks/diarias/useApontamentosCampo";
+import { useDiariasDataScope } from "@/hooks/diarias";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { StatusApontamento, FuncionarioPreConvocado, DiariaApontamento } from "@/types/diarias";
 import ApontamentoDiariasModal from "@/components/diarias/ApontamentoDiariasModal";
 import { toast } from "sonner";
+import { usePagination } from "@/hooks/usePagination";
+import TablePagination from "@/components/ui/table-pagination";
 
 
 export default function DiariasApontamentoCampo() {
@@ -41,6 +45,13 @@ export default function DiariasApontamentoCampo() {
   const queryClient = useQueryClient();
   const { permissions, isSuperAdmin, isLoading: isLoadingPermissions } = useDynamicPermissions();
   const hasPermission = (perm: string) => permissions.includes(perm);
+
+  // Hook de escopo de dados - RBAC
+  const { 
+    userScope, 
+    getApontamentosFilter,
+    isLoading: isLoadingScope 
+  } = useDiariasDataScope();
 
   const hasAccess = isSuperAdmin || hasPermission('diarias_apontamento_view') || hasPermission('diarias_view');
 
@@ -52,10 +63,15 @@ export default function DiariasApontamentoCampo() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedApontamento, setSelectedApontamento] = useState<DiariaApontamento | null>(null);
 
-  // Query apontamentos
+  // Query apontamentos - COM ESCOPO OBRIGATÓRIO
+  const apontamentoScopeFilters = getApontamentosFilter();
   const { data: apontamentos = [], isLoading, refetch } = useApontamentosCampo(
-    statusFilter !== '__all__' ? { status: statusFilter } : undefined
+    statusFilter !== '__all__' ? { status: statusFilter } : undefined,
+    apontamentoScopeFilters
   );
+  
+  // Pagination
+  const pagination = usePagination(apontamentos, { pageSize: 6 });
 
   // Query para buscar datas apontadas por solicitação
   const { data: datasApontadasMap = {} } = useQuery({
@@ -92,7 +108,7 @@ export default function DiariasApontamentoCampo() {
     queryClient.invalidateQueries({ queryKey: ['datas-apontadas-por-solicitacao'] });
   };
 
-  if (isLoadingPermissions) {
+  if (isLoadingPermissions || isLoadingScope) {
     return (
       <MainLayout>
         <div className="flex items-center justify-center min-h-[400px]">
@@ -123,7 +139,7 @@ export default function DiariasApontamentoCampo() {
   };
 
   // Data de hoje para comparação
-  const hojeStr = format(new Date(), 'yyyy-MM-dd');
+  const hojeStr = getCurrentBrazilianDate();
 
   return (
     <MainLayout>
@@ -207,7 +223,7 @@ export default function DiariasApontamentoCampo() {
           </Card>
         ) : (
           <div className="grid gap-4">
-            {apontamentos.map((apontamento: any) => {
+            {pagination.paginatedData.map((apontamento: any) => {
               const solicitacao = apontamento.bd_diaria_solicitacoes;
               const convocados = parseConvocados(solicitacao?.convocados_pre);
               const centroCusto = solicitacao?.bd_centros_custo;
@@ -217,8 +233,8 @@ export default function DiariasApontamentoCampo() {
                 if (!solicitacao?.data_inicio || !solicitacao?.data_fim) return [];
                 try {
                   return eachDayOfInterval({
-                    start: parseISO(solicitacao.data_inicio),
-                    end: parseISO(solicitacao.data_fim)
+                    start: parseBrazilianDate(solicitacao.data_inicio),
+                    end: parseBrazilianDate(solicitacao.data_fim)
                   }).map(d => format(d, 'yyyy-MM-dd'));
                 } catch {
                   return [];
@@ -230,11 +246,16 @@ export default function DiariasApontamentoCampo() {
 
               return (
                 <Card key={apontamento.id} className="hover:shadow-md transition-shadow">
-                  {/* Header: Centro de Custo */}
+                  {/* Header: Centro de Custo + Nº Solicitação */}
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base flex items-center gap-2">
                       <Building2 className="h-4 w-4 text-primary" />
-                      {centroCusto?.codigo_centro_custo} - {centroCusto?.nome_centro_custo}
+                      <span>{centroCusto?.codigo_centro_custo} - {centroCusto?.nome_centro_custo}</span>
+                      {solicitacao?.numero_solicitacao && (
+                        <Badge variant="secondary" className="font-mono text-xs ml-auto">
+                          {solicitacao.numero_solicitacao}
+                        </Badge>
+                      )}
                     </CardTitle>
                   </CardHeader>
 
@@ -260,7 +281,7 @@ export default function DiariasApontamentoCampo() {
                         <div>
                           <p className="text-xs text-muted-foreground">Período</p>
                           <p className="font-medium">
-                            {solicitacao?.data_inicio && format(parseISO(solicitacao.data_inicio), 'dd/MM')} → {solicitacao?.data_fim && format(parseISO(solicitacao.data_fim), 'dd/MM/yyyy')}
+                            {solicitacao?.data_inicio && format(parseBrazilianDate(solicitacao.data_inicio), 'dd/MM')} → {solicitacao?.data_fim && formatBrazilianDateForDisplay(solicitacao.data_fim)}
                           </p>
                         </div>
                       </div>
@@ -272,7 +293,7 @@ export default function DiariasApontamentoCampo() {
                         {todasDatas.map((dataStr) => {
                           const isApontado = datasApontadas.includes(dataStr);
                           const isHoje = dataStr === hojeStr;
-                          const dia = format(parseISO(dataStr), 'dd');
+                          const dia = format(parseBrazilianDate(dataStr), 'dd');
 
                           return (
                             <Badge
@@ -283,7 +304,7 @@ export default function DiariasApontamentoCampo() {
                                 !isApontado && isHoje && "border-primary text-primary border-2",
                                 !isApontado && !isHoje && "bg-muted text-muted-foreground"
                               )}
-                              title={`${format(parseISO(dataStr), 'dd/MM/yyyy', { locale: ptBR })}${isApontado ? ' - Apontado' : isHoje ? ' - Hoje' : ''}`}
+                              title={`${formatBrazilianDateForDisplay(dataStr)}${isApontado ? ' - Apontado' : isHoje ? ' - Hoje' : ''}`}
                             >
                               {dia}
                             </Badge>
@@ -303,6 +324,11 @@ export default function DiariasApontamentoCampo() {
               );
             })}
           </div>
+        )}
+
+        {/* Pagination */}
+        {apontamentos.length > 0 && (
+          <TablePagination pagination={pagination} className="mt-4" />
         )}
 
         {/* Modal de Apontamento */}

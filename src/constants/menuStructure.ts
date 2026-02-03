@@ -180,10 +180,16 @@ export const menuStructure = [
     title: "Diárias",
     items: [
       {
+        name: "Dashboard Diárias",
+        href: "/requisicoes/diarias/dashboard",
+        icon: BarChart3,
+        requiredPermission: "diarias_dashboard_view"
+      },
+      {
         name: "Solicitações",
         href: "/requisicoes/diarias/solicitacoes",
         icon: FileText,
-        requiredPermission: "diarias_view"
+        requiredPermission: "diarias_solicitacoes_view"
       },
       {
         name: "Apontamento de Campo",

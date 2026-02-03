@@ -14,10 +14,16 @@ import {
 
 const QUERY_KEY = 'diarias-relatorio';
 
-export function useRelatorioFolha(filters?: RelatorioFilters) {
+// Interface de escopo para filtros obrigatórios
+interface RelatorioScopeFilters {
+  criado_por?: string;
+  centro_custo_ids?: string[];
+}
+
+export function useRelatorioFolha(filters?: RelatorioFilters, scope?: RelatorioScopeFilters) {
   return useQuery({
-    queryKey: [QUERY_KEY, 'folha', filters],
-    queryFn: () => getRelatorioFolha(filters),
+    queryKey: [QUERY_KEY, 'folha', filters, scope],
+    queryFn: () => getRelatorioFolha(filters, scope),
     retry: 2,
     retryDelay: 1000,
     staleTime: 30000,

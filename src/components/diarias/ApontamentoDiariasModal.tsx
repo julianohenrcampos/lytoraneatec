@@ -4,8 +4,9 @@
 // =====================================================
 
 import React, { useEffect, useState, useMemo } from "react";
-import { format, parseISO, isWeekend } from "date-fns";
+import { format, isWeekend } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { parseBrazilianDate, formatBrazilianDateForDisplay, getCurrentBrazilianDate } from "@/utils/timezoneUtils";
 import {
   Dialog,
   DialogContent,
@@ -67,6 +68,7 @@ export default function ApontamentoDiariasModal({
   const [isSaving, setIsSaving] = useState(false);
   const [hasExistingData, setHasExistingData] = useState(false);
   const [isLoadingExisting, setIsLoadingExisting] = useState(false);
+  const [hasSaved, setHasSaved] = useState(false);
 
   // Extrair dados da solicitação
   const solicitacao = apontamento?.bd_diaria_solicitacoes;
@@ -89,16 +91,17 @@ export default function ApontamentoDiariasModal({
 
   // Verificar se hoje está no período (apontamento apenas para data atual)
   const dataHoje = useMemo(() => {
-    const hoje = format(new Date(), 'yyyy-MM-dd');
+    const hoje = getCurrentBrazilianDate();
     if (!solicitacao?.data_inicio || !solicitacao?.data_fim) return null;
 
     // Verificar se hoje está dentro do período
     if (hoje >= solicitacao.data_inicio && hoje <= solicitacao.data_fim) {
       const feriado = feriados.find((f) => f.data === hoje);
-      const ehFDS = isWeekend(new Date());
+      const hojeDate = parseBrazilianDate(hoje);
+      const ehFDS = isWeekend(hojeDate);
       return {
         value: hoje,
-        label: format(new Date(), "EEEE, dd/MM/yyyy", { locale: ptBR }),
+        label: format(hojeDate, "EEEE, dd/MM/yyyy", { locale: ptBR }),
         isFeriado: !!feriado,
         nomeFeriado: feriado?.nome,
         isWeekend: ehFDS
@@ -197,6 +200,7 @@ export default function ApontamentoDiariasModal({
       setSelectedDate("");
       setColaboradores([]);
       setHasExistingData(false);
+      setHasSaved(false);
     }
   }, [isOpen, dataHoje]);
 
@@ -233,6 +237,7 @@ export default function ApontamentoDiariasModal({
     setIsSaving(true);
     try {
       await salvarPresencas(solicitacao.id, selectedDate, colaboradores);
+      setHasSaved(true);
       onSaveSuccess?.();
       onClose();
     } catch (error: any) {
@@ -253,6 +258,11 @@ export default function ApontamentoDiariasModal({
           <DialogTitle className="flex items-center gap-2">
             <Users className="h-5 w-5 text-primary" />
             Apontamento de Diária
+            {solicitacao?.numero_solicitacao && (
+              <Badge variant="outline" className="font-mono text-xs">
+                Nº {solicitacao.numero_solicitacao}
+              </Badge>
+            )}
           </DialogTitle>
           <DialogDescription>
             Registre a presença e horários dos funcionários para esta data
@@ -267,8 +277,8 @@ export default function ApontamentoDiariasModal({
               <div>
                 <p className="text-xs text-muted-foreground">Período</p>
                 <p className="font-medium">
-                  {format(parseISO(solicitacao.data_inicio), "dd/MM/yyyy")} →{" "}
-                  {format(parseISO(solicitacao.data_fim), "dd/MM/yyyy")}
+                  {formatBrazilianDateForDisplay(solicitacao.data_inicio)} →{" "}
+                  {formatBrazilianDateForDisplay(solicitacao.data_fim)}
                 </p>
               </div>
             </div>
@@ -445,7 +455,7 @@ export default function ApontamentoDiariasModal({
           </Button>
           <Button
             onClick={handleSalvar}
-            disabled={isSaving || !dataHoje || colaboradores.length === 0}
+            disabled={isSaving || hasSaved || !dataHoje || colaboradores.length === 0}
             className="bg-primary hover:bg-primary/90"
           >
             {isSaving ? (

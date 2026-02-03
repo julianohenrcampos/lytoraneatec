@@ -3,8 +3,11 @@ import html2canvas from 'html2canvas';
 import { pdf } from '@react-pdf/renderer';
 import { SSOReportDocument } from '@/components/sso/pdf/SSOReportDocument';
 import { DesvioReportDocument } from '@/components/ssoDesvios/pdf/DesvioReportDocument';
+import { SolicitacaoPDFDocument } from '@/components/diarias/pdf/SolicitacaoPDFDocument';
+import { RelatorioDiariasPDF } from '@/components/diarias/pdf/RelatorioDiariasPDF';
 import { SSOChecklist, SSOChecklistItem } from '@/types/sso';
 import { SSODesvio, SSODesvioFoto } from '@/types/ssoDesvios';
+import { DiariaSolicitacao, FuncionarioPreConvocado, RelatorioFolhaItem, PresencaResumo, RelatorioFilters } from '@/types/diarias';
 import { ssoStorageService } from '@/services/sso/ssoStorageService';
 import { ssoDesvioStorageService } from '@/services/ssoDesvios/ssoDesvioStorageService';
 import { createElement } from 'react';
@@ -215,6 +218,94 @@ export const generateDesvioReportPDF = async (
     URL.revokeObjectURL(url);
   } catch (error) {
     console.error('Erro ao gerar PDF de desvio:', error);
+    throw error;
+  }
+};
+
+// =====================================================
+// DIÁRIAS PDF - Solicitação Individual
+// =====================================================
+
+export const generateSolicitacaoPDF = async (
+  solicitacao: DiariaSolicitacao,
+  convocados: FuncionarioPreConvocado[],
+  dadosComplementares: {
+    aprovadorNome?: string | null;
+    apontadorNome?: string | null;
+    criadorNome?: string | null;
+    funcionariosMap?: Record<string, string>;
+    funcoesMap?: Record<string, string>;
+  },
+  fileName: string
+): Promise<void> => {
+  try {
+    // Carregar logo como base64
+    const logoUrl = await loadImageAsBase64('/logo-lyto.svg');
+    
+    // Criar o documento React-PDF
+    const doc = createElement(SolicitacaoPDFDocument, {
+      solicitacao,
+      convocados,
+      dadosComplementares,
+      logoUrl: logoUrl || undefined
+    });
+    
+    // Gerar o blob do PDF
+    const blob = await pdf(doc as any).toBlob();
+    
+    // Fazer download
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${fileName}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Erro ao gerar PDF de solicitação:', error);
+    throw error;
+  }
+};
+
+// =====================================================
+// DIÁRIAS PDF - Relatório de Folha
+// =====================================================
+
+export const generateRelatorioDiariasPDF = async (
+  relatorio: RelatorioFolhaItem[],
+  resumo: PresencaResumo,
+  filtros: RelatorioFilters,
+  feriados: string[],
+  fileName: string
+): Promise<void> => {
+  try {
+    // Carregar logo como base64
+    const logoUrl = await loadImageAsBase64('/logo-lyto.svg');
+    
+    // Criar o documento React-PDF
+    const doc = createElement(RelatorioDiariasPDF, {
+      relatorio,
+      resumo,
+      filtros,
+      feriados,
+      logoUrl: logoUrl || undefined
+    });
+    
+    // Gerar o blob do PDF
+    const blob = await pdf(doc as any).toBlob();
+    
+    // Fazer download
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${fileName}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Erro ao gerar PDF de relatório de diárias:', error);
     throw error;
   }
 };

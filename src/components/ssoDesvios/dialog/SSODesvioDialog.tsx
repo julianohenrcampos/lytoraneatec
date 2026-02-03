@@ -68,9 +68,6 @@ export const SSODesvioDialog: React.FC<SSODesvioDialogProps> = ({
 
   const { desvio, isLoading, createDesvio, updateDesvio } = useSSODesvio(desvioId);
   const isEditing = !!desvioId;
-  
-  // Determinar se é TecSSO (só pode usar câmera, sem galeria)
-  const isTecSSO = userRole === 'TecSSO' && !isSuperAdmin;
 
   // Buscar obras
   const { data: obras = [] } = useQuery({
@@ -500,23 +497,21 @@ export const SSODesvioDialog: React.FC<SSODesvioDialogProps> = ({
                   />
                 </label>
 
-                {!isTecSSO && (
-                  <label className="cursor-pointer">
-                    <Button variant="outline" asChild>
-                      <span>
-                        <ImageIcon className="h-4 w-4 mr-2" />
-                        Galeria
-                      </span>
-                    </Button>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                      onChange={handleFileSelect}
-                    />
-                  </label>
-                )}
+                <label className="cursor-pointer">
+                  <Button variant="outline" asChild>
+                    <span>
+                      <ImageIcon className="h-4 w-4 mr-2" />
+                      Galeria
+                    </span>
+                  </Button>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={handleFileSelect}
+                  />
+                </label>
               </div>
 
               {previews.length > 0 ? (

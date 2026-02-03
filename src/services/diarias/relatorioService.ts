@@ -15,13 +15,31 @@ import { ptBR } from 'date-fns/locale';
 // RELATÓRIO DETALHADO (VIEW)
 // =====================================================
 
-export async function getRelatorioFolha(filters?: RelatorioFilters): Promise<RelatorioFolhaItem[]> {
+// Interface de escopo para filtros obrigatórios
+interface RelatorioScopeFilters {
+  criado_por?: string;  // Engenheiro: filtra por solicitante
+  centro_custo_ids?: string[];  // Gerente: filtra por CCs gerenciados
+}
+
+export async function getRelatorioFolha(
+  filters?: RelatorioFilters,
+  scope?: RelatorioScopeFilters
+): Promise<RelatorioFolhaItem[]> {
   let query = supabase
     .from('vw_relatorio_diarias_folha')
     .select('*')
     .order('data', { ascending: false })
     .order('nome_funcionario', { ascending: true });
 
+  // Aplicar filtros de ESCOPO OBRIGATÓRIOS
+  if (scope?.criado_por) {
+    query = query.eq('solicitante_id', scope.criado_por);
+  }
+  if (scope?.centro_custo_ids?.length) {
+    query = query.in('centro_custo_id', scope.centro_custo_ids);
+  }
+
+  // Aplicar filtros opcionais
   if (filters?.data_inicio) {
     query = query.gte('data', filters.data_inicio);
   }
@@ -43,11 +61,13 @@ export async function getRelatorioFolha(filters?: RelatorioFilters): Promise<Rel
   if (filters?.funcionario_id) {
     query = query.eq('funcionario_id', filters.funcionario_id);
   }
-  if (filters?.status_convocacao) {
-    query = query.eq('status_convocacao', filters.status_convocacao);
+  if (filters?.solicitacao_id) {
+    query = query.eq('solicitacao_id', filters.solicitacao_id);
   }
   if (filters?.presenca_status) {
-    query = query.eq('presenca_status', filters.presenca_status);
+    // A view retorna presenca_status como booleano - converter string para boolean
+    const statusBoolean = filters.presenca_status === 'presente';
+    query = query.eq('presenca_status', statusBoolean as unknown as string);
   }
 
   const { data, error } = await query;
@@ -120,89 +140,120 @@ export async function getPresencaResumo(filters?: RelatorioFilters): Promise<Pre
 export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promise<Blob> {
   // Buscar dados
   const relatorio = await getRelatorioFolha(filters);
-  const resumo = await getResumoDiarias(filters);
-
-  // Preparar dados detalhados
-  const dadosDetalhados: ExcelDetalhado[] = relatorio.map(item => ({
-    data: format(new Date(item.data), 'dd/MM/yyyy', { locale: ptBR }),
-    centro_custo: `${item.codigo_centro_custo} - ${item.nome_centro_custo}`,
-    funcionario: item.nome_funcionario,
-    funcao: item.nome_funcao,
-    valor_diaria: item.valor_diaria_aplicada,
-    hora_entrada: item.hora_entrada || '-',
-    hora_saida: item.hora_saida || '-',
-    intervalo: item.intervalo_inicio && item.intervalo_fim 
-      ? `${item.intervalo_inicio} - ${item.intervalo_fim}` 
-      : '-',
-    presenca: traduzirStatusPresenca(item.presenca_status),
-    status_convocacao: traduzirStatusConvocacao(item.status_convocacao)
-  }));
-
-  // Preparar dados resumo
-  const dadosResumo: ExcelResumo[] = resumo.map(item => ({
-    data: format(new Date(item.data), 'dd/MM/yyyy', { locale: ptBR }),
-    centro_custo: `${item.codigo_centro_custo} - ${item.nome_centro_custo}`,
-    total_presentes: item.total_presentes,
-    total_ausentes: item.total_ausentes,
-    total_valor: item.total_valor_presentes
-  }));
 
   // Criar workbook
   const wb = XLSX.utils.book_new();
 
-  // Aba Detalhado
-  const wsDetalhado = XLSX.utils.json_to_sheet(dadosDetalhados, {
-    header: ['data', 'centro_custo', 'funcionario', 'funcao', 'valor_diaria', 'hora_entrada', 'hora_saida', 'intervalo', 'presenca', 'status_convocacao']
-  });
-  
-  // Renomear headers
-  wsDetalhado['A1'] = { v: 'Data', t: 's' };
-  wsDetalhado['B1'] = { v: 'Centro de Custo', t: 's' };
-  wsDetalhado['C1'] = { v: 'Funcionário', t: 's' };
-  wsDetalhado['D1'] = { v: 'Função', t: 's' };
-  wsDetalhado['E1'] = { v: 'Valor Diária', t: 's' };
-  wsDetalhado['F1'] = { v: 'Entrada', t: 's' };
-  wsDetalhado['G1'] = { v: 'Saída', t: 's' };
-  wsDetalhado['H1'] = { v: 'Intervalo', t: 's' };
-  wsDetalhado['I1'] = { v: 'Presença', t: 's' };
-  wsDetalhado['J1'] = { v: 'Status', t: 's' };
+  // =====================================================
+  // ABA 1: DETALHADO (com dados bancários)
+  // =====================================================
+  const dadosDetalhados = relatorio.map(item => ({
+    'Data': format(new Date(item.data + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }),
+    'Centro de Custo': `${item.codigo_centro_custo} - ${item.nome_centro_custo}`,
+    'Solicitante': item.solicitante_nome || '-',
+    'Apontador': item.apontador_nome || '-',
+    'Funcionário': item.nome_funcionario,
+    'Função': item.nome_funcao || '-',
+    'Valor Diária': item.valor_diaria_aplicada,
+    'Entrada': item.hora_entrada || '-',
+    'Saída': item.hora_saida || '-',
+    // DADOS BANCÁRIOS NOVOS
+    'CPF': item.cpf_funcionario || '-',
+    'Banco': item.banco_funcionario || '-',
+    'Agência': item.agencia_funcionario || '-',
+    'Conta': item.conta_funcionario || '-',
+    'Chave Pix': item.pix_funcionario || '-'
+  }));
 
-  // Definir larguras das colunas
+  const wsDetalhado = XLSX.utils.json_to_sheet(dadosDetalhados);
+
   wsDetalhado['!cols'] = [
     { wch: 12 },  // Data
     { wch: 35 },  // Centro de Custo
+    { wch: 25 },  // Solicitante
+    { wch: 25 },  // Apontador
     { wch: 30 },  // Funcionário
     { wch: 20 },  // Função
     { wch: 12 },  // Valor
     { wch: 10 },  // Entrada
     { wch: 10 },  // Saída
-    { wch: 15 },  // Intervalo
-    { wch: 12 },  // Presença
-    { wch: 15 },  // Status
+    { wch: 15 },  // CPF
+    { wch: 20 },  // Banco
+    { wch: 12 },  // Agência
+    { wch: 15 },  // Conta
+    { wch: 30 },  // Chave Pix
   ];
 
   XLSX.utils.book_append_sheet(wb, wsDetalhado, 'Detalhado');
 
-  // Aba Resumo
-  const wsResumo = XLSX.utils.json_to_sheet(dadosResumo, {
-    header: ['data', 'centro_custo', 'total_presentes', 'total_ausentes', 'total_valor']
+  // =====================================================
+  // ABA 2: RESUMO POR FUNCIONÁRIO (TOTALIZAÇÃO)
+  // =====================================================
+  
+  // Agrupar por funcionário
+  const porFuncionario = new Map<string, {
+    nome_funcionario: string;
+    funcao: string;
+    cpf: string;
+    banco: string;
+    agencia: string;
+    conta: string;
+    pix: string;
+    qtd_dias: number;
+    valor_total: number;
+  }>();
+
+  relatorio.forEach(item => {
+    const key = item.funcionario_id;
+    const existing = porFuncionario.get(key);
+
+    if (existing) {
+      existing.qtd_dias += 1;
+      existing.valor_total += item.valor_diaria_aplicada || 0;
+    } else {
+      porFuncionario.set(key, {
+        nome_funcionario: item.nome_funcionario,
+        funcao: item.nome_funcao || '-',
+        cpf: item.cpf_funcionario || '-',
+        banco: item.banco_funcionario || '-',
+        agencia: item.agencia_funcionario || '-',
+        conta: item.conta_funcionario || '-',
+        pix: item.pix_funcionario || '-',
+        qtd_dias: 1,
+        valor_total: item.valor_diaria_aplicada || 0
+      });
+    }
   });
 
-  wsResumo['A1'] = { v: 'Data', t: 's' };
-  wsResumo['B1'] = { v: 'Centro de Custo', t: 's' };
-  wsResumo['C1'] = { v: 'Total Presentes', t: 's' };
-  wsResumo['D1'] = { v: 'Total Ausentes', t: 's' };
-  wsResumo['E1'] = { v: 'Valor Total (R$)', t: 's' };
+  const resumoFuncionarios = Array.from(porFuncionario.values())
+    .sort((a, b) => a.nome_funcionario.localeCompare(b.nome_funcionario))
+    .map(f => ({
+      'Funcionário': f.nome_funcionario,
+      'Função': f.funcao,
+      'CPF': f.cpf,
+      'Banco': f.banco,
+      'Agência': f.agencia,
+      'Conta': f.conta,
+      'Chave Pix': f.pix,
+      'Qtd. Dias Trabalhados': f.qtd_dias,
+      'Valor Total (R$)': f.valor_total
+    }));
 
-  wsResumo['!cols'] = [
-    { wch: 12 },
-    { wch: 35 },
-    { wch: 15 },
-    { wch: 15 },
-    { wch: 15 },
+  const wsResumoFunc = XLSX.utils.json_to_sheet(resumoFuncionarios);
+
+  wsResumoFunc['!cols'] = [
+    { wch: 30 },  // Funcionário
+    { wch: 20 },  // Função
+    { wch: 15 },  // CPF
+    { wch: 20 },  // Banco
+    { wch: 12 },  // Agência
+    { wch: 15 },  // Conta
+    { wch: 30 },  // Pix
+    { wch: 20 },  // Qtd Dias
+    { wch: 18 },  // Valor Total
   ];
 
-  XLSX.utils.book_append_sheet(wb, wsResumo, 'Resumo');
+  XLSX.utils.book_append_sheet(wb, wsResumoFunc, 'Resumo por Funcionário');
 
   // Gerar arquivo
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
