@@ -480,14 +480,10 @@ export const SSODesvioDialog: React.FC<SSODesvioDialogProps> = ({
             <Card className="p-4">
               <h3 className="font-medium mb-4">Registro Fotográfico</h3>
               
-              <div className="flex gap-2 mb-4">
-                <label className="cursor-pointer">
-                  <Button variant="outline" asChild>
-                    <span>
-                      <Camera className="h-4 w-4 mr-2" />
-                      Tirar Foto
-                    </span>
-                  </Button>
+              <div className="flex flex-wrap gap-2 mb-4">
+                <label className="inline-flex items-center gap-2 px-4 py-2 border border-input rounded-md cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors text-sm font-medium">
+                  <Camera className="h-4 w-4" />
+                  <span>Tirar Foto</span>
                   <input
                     type="file"
                     accept="image/*"
@@ -497,13 +493,9 @@ export const SSODesvioDialog: React.FC<SSODesvioDialogProps> = ({
                   />
                 </label>
 
-                <label className="cursor-pointer">
-                  <Button variant="outline" asChild>
-                    <span>
-                      <ImageIcon className="h-4 w-4 mr-2" />
-                      Galeria
-                    </span>
-                  </Button>
+                <label className="inline-flex items-center gap-2 px-4 py-2 border border-input rounded-md cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors text-sm font-medium">
+                  <ImageIcon className="h-4 w-4" />
+                  <span>Galeria</span>
                   <input
                     type="file"
                     accept="image/*"
