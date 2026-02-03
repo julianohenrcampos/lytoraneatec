@@ -13,7 +13,8 @@ import {
   Filter,
   MoreHorizontal,
   Loader2,
-  Undo2
+  Undo2,
+  Eye
 } from "lucide-react";
 
 import MainLayout from "@/components/layout/MainLayout";
@@ -71,6 +72,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { StatusSolicitacao, SolicitacaoFormData, SolicitacaoFilters, DiariaSolicitacao } from "@/types/diarias";
 import { SolicitacaoFormModal } from "@/components/diarias/SolicitacaoFormModal";
+import { AprovacaoModal } from "@/components/diarias/AprovacaoModal";
+import { SolicitacaoDetalhesModal } from "@/components/diarias/SolicitacaoDetalhesModal";
 
 // Status Badge Component
 function StatusBadge({ status }: { status: StatusSolicitacao }) {
@@ -98,7 +101,9 @@ export default function DiariasSolicitacoes() {
   // Dialogs
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isAprovacaoOpen, setIsAprovacaoOpen] = useState(false);
+  const [isDetalhesOpen, setIsDetalhesOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detalhesId, setDetalhesId] = useState<string | null>(null);
   const [aprovacaoAction, setAprovacaoAction] = useState<'autorizar' | 'reprovar'>('autorizar');
   const [comentario, setComentario] = useState("");
   const [editingSolicitacao, setEditingSolicitacao] = useState<DiariaSolicitacao | null>(null);
@@ -180,20 +185,29 @@ export default function DiariasSolicitacoes() {
     await enviarMutation.mutateAsync(id);
   };
 
-  const handleOpenAprovacao = (id: string, action: 'autorizar' | 'reprovar') => {
-    setSelectedId(id);
+  const handleOpenAprovacao = (solicitacao: DiariaSolicitacao, action: 'autorizar' | 'reprovar') => {
+    setSelectedId(solicitacao.id);
     setAprovacaoAction(action);
-    setComentario("");
     setIsAprovacaoOpen(true);
   };
 
-  const handleConfirmarAprovacao = async () => {
+  const handleConfirmarAprovacao = async (data: {
+    responsavel_campo_id?: string;
+    observacao_gerente?: string;
+  }) => {
     if (!selectedId) return;
     
     if (aprovacaoAction === 'autorizar') {
-      await autorizarMutation.mutateAsync({ id: selectedId, comentario });
+      await autorizarMutation.mutateAsync({ 
+        id: selectedId, 
+        responsavelCampoId: data.responsavel_campo_id,
+        observacaoGerente: data.observacao_gerente
+      });
     } else {
-      await reprovarMutation.mutateAsync({ id: selectedId, comentario });
+      await reprovarMutation.mutateAsync({ 
+        id: selectedId, 
+        observacaoGerente: data.observacao_gerente
+      });
     }
     setIsAprovacaoOpen(false);
   };
@@ -211,16 +225,22 @@ export default function DiariasSolicitacoes() {
     }
   };
 
-  const handleCriarConvocacao = (solicitacao: any) => {
-    navigate(`/requisicoes/diarias/convocacoes?solicitacao_id=${solicitacao.id}`);
-  };
 
   const handleCancelarEnvio = async (id: string) => {
     await cancelarEnvioMutation.mutateAsync(id);
   };
 
-  // Check segregation
+  const handleVerDetalhes = (solicitacao: DiariaSolicitacao) => {
+    setDetalhesId(solicitacao.id);
+    setIsDetalhesOpen(true);
+  };
+
+  // Check segregation - SuperAdm pode aprovar qualquer solicitação
   const canUserAutorizar = (criadoPor: string | null) => {
+    // SuperAdmin pode aprovar TUDO (inclusive próprias, para testes/emergências)
+    if (isSuperAdmin) return true;
+    
+    // Demais usuários: precisa ter permissão E não ter criado a solicitação
     return canAutorizar && criadoPor !== userId;
   };
 
@@ -299,16 +319,16 @@ export default function DiariasSolicitacoes() {
                 <Label>Data Início</Label>
                 <Input
                   type="date"
-                  value={filters.data_inicio || ''}
-                  onChange={(e) => setFilters({ ...filters, data_inicio: e.target.value || undefined })}
+                  value={filters.periodo_inicio || ''}
+                  onChange={(e) => setFilters({ ...filters, periodo_inicio: e.target.value || undefined })}
                 />
               </div>
               <div>
                 <Label>Data Fim</Label>
                 <Input
                   type="date"
-                  value={filters.data_fim || ''}
-                  onChange={(e) => setFilters({ ...filters, data_fim: e.target.value || undefined })}
+                  value={filters.periodo_fim || ''}
+                  onChange={(e) => setFilters({ ...filters, periodo_fim: e.target.value || undefined })}
                 />
               </div>
               <div>
@@ -367,7 +387,7 @@ export default function DiariasSolicitacoes() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Data</TableHead>
+                    <TableHead>Período</TableHead>
                     <TableHead>Centro de Custo</TableHead>
                     <TableHead>Justificativa</TableHead>
                     <TableHead>Status</TableHead>
@@ -380,7 +400,10 @@ export default function DiariasSolicitacoes() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                          {format(new Date(sol.data), 'dd/MM/yyyy', { locale: ptBR })}
+                          {format(new Date(sol.data_inicio), 'dd/MM/yyyy', { locale: ptBR })}
+                          {sol.data_fim !== sol.data_inicio && (
+                            <> → {format(new Date(sol.data_fim), 'dd/MM/yyyy', { locale: ptBR })}</>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -396,7 +419,40 @@ export default function DiariasSolicitacoes() {
                         <StatusBadge status={sol.status} />
                       </TableCell>
                       <TableCell className="text-right">
-                        <DropdownMenu>
+                        <div className="flex items-center justify-end gap-1">
+                          {/* Botões diretos de aprovação para status "enviada" */}
+                          {sol.status === 'enviada' && canUserAutorizar(sol.criado_por) && (
+                            <>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                onClick={() => handleVerDetalhes(sol)}
+                                title="Ver Detalhes"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                onClick={() => handleOpenAprovacao(sol, 'autorizar')}
+                                title="Autorizar"
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => handleOpenAprovacao(sol, 'reprovar')}
+                                title="Reprovar"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                          <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm">
                               <MoreHorizontal className="h-4 w-4" />
@@ -422,11 +478,11 @@ export default function DiariasSolicitacoes() {
                                 {/* Opções do aprovador */}
                                 {canUserAutorizar(sol.criado_por) && (
                                   <>
-                                    <DropdownMenuItem onClick={() => handleOpenAprovacao(sol.id, 'autorizar')}>
+                                    <DropdownMenuItem onClick={() => handleOpenAprovacao(sol, 'autorizar')}>
                                       <Check className="h-4 w-4 mr-2 text-green-500" />
                                       Autorizar
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleOpenAprovacao(sol.id, 'reprovar')}>
+                                    <DropdownMenuItem onClick={() => handleOpenAprovacao(sol, 'reprovar')}>
                                       <X className="h-4 w-4 mr-2 text-red-500" />
                                       Reprovar
                                     </DropdownMenuItem>
@@ -444,14 +500,9 @@ export default function DiariasSolicitacoes() {
                                 )}
                               </>
                             )}
-                            {sol.status === 'autorizada' && (
-                              <DropdownMenuItem onClick={() => handleCriarConvocacao(sol)}>
-                                <Plus className="h-4 w-4 mr-2" />
-                                Criar Convocação
-                              </DropdownMenuItem>
-                            )}
                           </DropdownMenuContent>
-                        </DropdownMenu>
+                          </DropdownMenu>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -484,45 +535,33 @@ export default function DiariasSolicitacoes() {
           isSaving={createMutation.isPending || updateMutation.isPending || enviarMutation.isPending}
         />
 
-        {/* Aprovação Dialog */}
-        <Dialog open={isAprovacaoOpen} onOpenChange={setIsAprovacaoOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {aprovacaoAction === 'autorizar' ? 'Autorizar Solicitação' : 'Reprovar Solicitação'}
-              </DialogTitle>
-              <DialogDescription>
-                {aprovacaoAction === 'autorizar' 
-                  ? 'Confirme a autorização desta solicitação de diária.'
-                  : 'Informe o motivo da reprovação.'}
-              </DialogDescription>
-            </DialogHeader>
-            <div>
-              <Label>Comentário {aprovacaoAction === 'reprovar' && '*'}</Label>
-              <Textarea
-                value={comentario}
-                onChange={(e) => setComentario(e.target.value)}
-                placeholder="Adicione um comentário..."
-                rows={3}
-              />
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAprovacaoOpen(false)}>
-                Cancelar
-              </Button>
-              <Button 
-                variant={aprovacaoAction === 'autorizar' ? 'default' : 'destructive'}
-                onClick={handleConfirmarAprovacao}
-                disabled={autorizarMutation.isPending || reprovarMutation.isPending}
-              >
-                {(autorizarMutation.isPending || reprovarMutation.isPending) && (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                )}
-                {aprovacaoAction === 'autorizar' ? 'Autorizar' : 'Reprovar'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {/* Aprovação Modal */}
+        <AprovacaoModal
+          isOpen={isAprovacaoOpen}
+          onClose={() => setIsAprovacaoOpen(false)}
+          solicitacao={solicitacoes.find(s => s.id === selectedId) || null}
+          action={aprovacaoAction}
+          onConfirm={handleConfirmarAprovacao}
+          isLoading={autorizarMutation.isPending || reprovarMutation.isPending}
+        />
+
+        {/* Detalhes Modal */}
+        <SolicitacaoDetalhesModal
+          isOpen={isDetalhesOpen}
+          onClose={() => setIsDetalhesOpen(false)}
+          solicitacao={solicitacoes.find(s => s.id === detalhesId) || null}
+          canAutorizar={canUserAutorizar(
+            solicitacoes.find(s => s.id === detalhesId)?.criado_por ?? null
+          )}
+          onAutorizar={(sol) => {
+            setIsDetalhesOpen(false);
+            handleOpenAprovacao(sol, 'autorizar');
+          }}
+          onReprovar={(sol) => {
+            setIsDetalhesOpen(false);
+            handleOpenAprovacao(sol, 'reprovar');
+          }}
+        />
 
         {/* Delete Confirmation Dialog */}
         <ConfirmDialog

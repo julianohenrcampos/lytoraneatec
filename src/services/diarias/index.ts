@@ -17,34 +17,6 @@ export {
   getHistoricoAprovacoes
 } from './solicitacoesService';
 
-// Convocações
-export {
-  getConvocacoes,
-  getConvocacaoById,
-  createConvocacao,
-  updateConvocacao,
-  deleteConvocacao,
-  enviarParaAprovacao,
-  aprovarConvocacao,
-  reprovarConvocacao,
-  iniciarExecucao,
-  finalizarConvocacao,
-  cancelarConvocacao,
-  getConvocacoesResumo
-} from './convocacoesService';
-
-// Convocados
-export {
-  getConvocadosByConvocacao,
-  getConvocadoById,
-  addConvocado,
-  removeConvocado,
-  updateConvocadoHorarios,
-  confirmarPresenca,
-  getConvocadosParaPresenca,
-  getConvocadosStats
-} from './convocadosService';
-
 // Relatório
 export {
   getRelatorioFolha,
@@ -56,3 +28,24 @@ export {
   registrarDivergencia,
   aprovarRelatorioFinal
 } from './relatorioService';
+
+// Apontamentos
+export {
+  getApontamentos,
+  getApontamentoById,
+  getApontamentoBySolicitacaoId,
+  iniciarApontamento,
+  finalizarApontamento,
+  cancelarApontamento,
+  updateApontamentoObservacoes
+} from './apontamentosService';
+
+// Presenças (Nova estrutura)
+export {
+  getPresencasPorSolicitacao,
+  salvarPresencas,
+  getResumoPresencas,
+  verificarPresencasExistentes
+} from './presencasService';
+
+export type { PresencaDiaria, PresencaFormData } from './presencasService';

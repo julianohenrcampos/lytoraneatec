@@ -124,11 +124,21 @@ export function useAutorizarSolicitacao() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, comentario }: { id: string; comentario?: string }) =>
-      autorizarSolicitacao(id, comentario),
+    mutationFn: ({ 
+      id, 
+      comentario,
+      responsavelCampoId,
+      observacaoGerente
+    }: { 
+      id: string; 
+      comentario?: string;
+      responsavelCampoId?: string;
+      observacaoGerente?: string;
+    }) => autorizarSolicitacao(id, comentario, responsavelCampoId, observacaoGerente),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
-      toast.success('Solicitação autorizada com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ['diaria-apontamentos'] });
+      toast.success('Solicitação autorizada! Apontamento de campo criado.');
     },
     onError: (error: Error) => {
       toast.error(`Erro ao autorizar: ${error.message}`);
@@ -140,8 +150,15 @@ export function useReprovarSolicitacao() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, comentario }: { id: string; comentario?: string }) =>
-      reprovarSolicitacao(id, comentario),
+    mutationFn: ({ 
+      id, 
+      comentario,
+      observacaoGerente
+    }: { 
+      id: string; 
+      comentario?: string;
+      observacaoGerente?: string;
+    }) => reprovarSolicitacao(id, comentario, observacaoGerente),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
       toast.success('Solicitação reprovada.');

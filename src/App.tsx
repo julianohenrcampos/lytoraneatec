@@ -53,9 +53,8 @@ import GestaoPermissoes from "@/pages/GestaoPermissoes";
 
 // Diárias (Fim de Semana/Feriado)
 import DiariasSolicitacoes from "@/pages/DiariasSolicitacoes";
-import DiariasConvocacoes from "@/pages/DiariasConvocacoes";
-import DiariasPresenca from "@/pages/DiariasPresenca";
 import DiariasRelatorio from "@/pages/DiariasRelatorio";
+import DiariasApontamentoCampo from "@/pages/DiariasApontamentoCampo";
 
 // SSO - Saúde e Segurança Ocupacional
 import SSOChecklistList from "@/pages/SSOChecklistList";
@@ -360,7 +359,7 @@ const App = () => {
                 </SimpleAuthGuard>
             } />
             
-            {/* Diárias (Fim de Semana/Feriado) - SEM SecureRouteGuard para evitar race conditions */}
+            {/* Diárias (Fim de Semana/Feriado) - Fluxo simplificado */}
             <Route path="/requisicoes/diarias/solicitacoes" element={
               <SimpleAuthGuard>
                 <SimplePermissionGuard>
@@ -368,24 +367,17 @@ const App = () => {
                 </SimplePermissionGuard>
               </SimpleAuthGuard>
             } />
-            <Route path="/requisicoes/diarias/convocacoes" element={
-              <SimpleAuthGuard>
-                <SimplePermissionGuard>
-                  <DiariasConvocacoes />
-                </SimplePermissionGuard>
-              </SimpleAuthGuard>
-            } />
-            <Route path="/requisicoes/diarias/presenca" element={
-              <SimpleAuthGuard>
-                <SimplePermissionGuard>
-                  <DiariasPresenca />
-                </SimplePermissionGuard>
-              </SimpleAuthGuard>
-            } />
             <Route path="/requisicoes/diarias/relatorio" element={
               <SimpleAuthGuard>
                 <SimplePermissionGuard>
                   <DiariasRelatorio />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/requisicoes/diarias/apontamento-campo" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <DiariasApontamentoCampo />
                 </SimplePermissionGuard>
               </SimpleAuthGuard>
             } />

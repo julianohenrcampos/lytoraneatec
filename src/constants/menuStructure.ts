@@ -16,7 +16,8 @@ import {
   Map,
   ShieldCheck,
   Gavel,
-  Calendar
+  Calendar,
+  ClipboardCheck
 } from "lucide-react";
 
 export const menuStructure = [
@@ -185,16 +186,10 @@ export const menuStructure = [
         requiredPermission: "diarias_view"
       },
       {
-        name: "Convocações",
-        href: "/requisicoes/diarias/convocacoes",
-        icon: Users,
-        requiredPermission: "diarias_view"
-      },
-      {
-        name: "Presença em Campo",
-        href: "/requisicoes/diarias/presenca",
-        icon: UserCheck,
-        requiredPermission: "diarias_view"
+        name: "Apontamento de Campo",
+        href: "/requisicoes/diarias/apontamento-campo",
+        icon: ClipboardCheck,
+        requiredPermission: "diarias_apontamento_view"
       },
       {
         name: "Relatório/Folha",

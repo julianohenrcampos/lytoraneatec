@@ -81,7 +81,8 @@ export const useRhSecurity = (): RhSecurityContext => {
         }
 
         // Determinar se deve filtrar por departamento
-        const shouldFilter = isSuperAdmin && !!funcionario.departamento_id;
+        // NÃO SuperAdmin E tem departamento = deve filtrar
+        const shouldFilter = !isSuperAdmin && !!funcionario.departamento_id;
 
         console.log("🔐 User security context:", {
           departamentoId: funcionario.departamento_id,
@@ -96,7 +97,7 @@ export const useRhSecurity = (): RhSecurityContext => {
           centroCustoId: funcionario.centro_custo_id || undefined,
           departamentoNome,
           isLoading: false,
-          canViewAllData: isSuperAdmin && !!funcionario.departamento_id, // SuperAdm Departamental tem acesso ao seu departamento
+          canViewAllData: false, // Usuários departamentais NÃO veem todos os dados
           shouldFilterByDepartment: shouldFilter,
         });
 

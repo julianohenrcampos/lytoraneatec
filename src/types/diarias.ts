@@ -7,6 +7,7 @@ export type StatusSolicitacao = 'rascunho' | 'enviada' | 'autorizada' | 'reprova
 export type StatusConvocacao = 'rascunho' | 'enviada_aprovacao' | 'aprovada' | 'reprovada' | 'executando' | 'finalizada' | 'cancelada';
 export type StatusPresenca = 'pendente' | 'presente' | 'ausente' | 'substituido';
 export type StatusRelatorio = 'enviado_sede' | 'analisado' | 'divergencia' | 'aprovado_final' | 'pronto_lancamento';
+export type StatusApontamento = 'aberto' | 'em_andamento' | 'finalizado' | 'cancelado';
 export type EntidadeAprovacao = 'solicitacao' | 'convocacao' | 'relatorio';
 
 // =====================================================
@@ -15,10 +16,19 @@ export type EntidadeAprovacao = 'solicitacao' | 'convocacao' | 'relatorio';
 
 export interface DiariaSolicitacao {
   id: string;
-  data: string;
+  data_inicio: string;
+  data_fim: string;
   centro_custo_id: string;
   justificativa: string;
   status: StatusSolicitacao;
+  considera_fds_feriado: boolean;
+  qtde_dias_uteis_estimado: number;
+  qtde_fds_estimado: number;
+  qtde_feriados_estimado: number;
+  valor_estimado_total: number;
+  convocados_pre?: FuncionarioPreConvocado[];
+  responsavel_campo_id: string | null;
+  observacao_gerente: string | null;
   criado_por: string | null;
   autorizado_por: string | null;
   autorizado_em: string | null;
@@ -34,6 +44,10 @@ export interface DiariaSolicitacao {
     id: string;
     nome_completo: string;
     email: string;
+  };
+  responsavel_campo?: {
+    id: string;
+    nome_completo: string;
   };
 }
 
@@ -121,15 +135,23 @@ export interface FuncionarioPreConvocado {
   funcionario_id: string;
   funcao_id: string;
   valor_diaria: number;
+  valor_diaria_exclusiva?: number; // Para FDS/feriados
   nome_funcionario?: string;
   nome_funcao?: string;
 }
 
 export interface SolicitacaoFormData {
-  data: string;
+  data_inicio: string;
+  data_fim: string;
   centro_custo_id: string;
   justificativa: string;
+  considera_fds_feriado: boolean;
+  qtde_dias_uteis_estimado: number;
+  qtde_fds_estimado: number;
+  qtde_feriados_estimado: number;
+  valor_estimado_total: number;
   convocados_pre?: FuncionarioPreConvocado[];
+  responsavel_campo_id?: string;
 }
 
 export interface ConvocacaoFormData {
@@ -171,8 +193,8 @@ export interface AprovacaoFormData {
 // =====================================================
 
 export interface SolicitacaoFilters {
-  data_inicio?: string;
-  data_fim?: string;
+  periodo_inicio?: string;
+  periodo_fim?: string;
   centro_custo_id?: string;
   status?: StatusSolicitacao;
   criado_por?: string;
@@ -303,4 +325,27 @@ export interface ExcelResumo {
   total_presentes: number;
   total_ausentes: number;
   total_valor: number;
+}
+
+// =====================================================
+// APONTAMENTO DE CAMPO
+// =====================================================
+
+export interface DiariaApontamento {
+  id: string;
+  solicitacao_id: string;
+  responsavel_campo_id: string;
+  status: StatusApontamento;
+  data_abertura: string;
+  data_finalizacao: string | null;
+  observacoes: string | null;
+  criado_por: string | null;
+  created_at: string;
+  updated_at: string;
+  // Relations
+  bd_diaria_solicitacoes?: DiariaSolicitacao;
+  responsavel_campo?: {
+    id: string;
+    nome_completo: string;
+  };
 }

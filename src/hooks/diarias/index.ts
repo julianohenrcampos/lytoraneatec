@@ -17,34 +17,6 @@ export {
   useCancelarEnvioSolicitacao
 } from './useSolicitacoesDiaria';
 
-// Convocações
-export {
-  useConvocacoesDiaria,
-  useConvocacaoById,
-  useConvocacoesResumo,
-  useCreateConvocacao,
-  useUpdateConvocacao,
-  useDeleteConvocacao,
-  useEnviarParaAprovacao,
-  useAprovarConvocacao,
-  useReprovarConvocacao,
-  useIniciarExecucao,
-  useFinalizarConvocacao,
-  useCancelarConvocacao
-} from './useConvocacoesDiaria';
-
-// Convocados
-export {
-  useConvocadosByConvocacao,
-  useConvocadoById,
-  useConvocadosStats,
-  useConvocadosParaPresenca,
-  useAddConvocado,
-  useRemoveConvocado,
-  useUpdateConvocadoHorarios,
-  useConfirmarPresenca
-} from './useConvocadosDiaria';
-
 // Relatório
 export {
   useRelatorioFolha,
@@ -55,3 +27,14 @@ export {
   useRegistrarDivergencia,
   useAprovarRelatorioFinal
 } from './useRelatorioDiaria';
+
+// Apontamentos de Campo
+export {
+  useApontamentosCampo,
+  useApontamentoById,
+  useApontamentoBySolicitacao,
+  useIniciarApontamento,
+  useFinalizarApontamento,
+  useCancelarApontamento,
+  useUpdateApontamentoObservacoes
+} from './useApontamentosCampo';

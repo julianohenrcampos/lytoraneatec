@@ -22,13 +22,13 @@ export async function getSolicitacoes(filters?: SolicitacaoFilters): Promise<Dia
         nome_centro_custo
       )
     `)
-    .order('data', { ascending: false });
+    .order('data_inicio', { ascending: false });
 
-  if (filters?.data_inicio) {
-    query = query.gte('data', filters.data_inicio);
+  if (filters?.periodo_inicio) {
+    query = query.gte('data_inicio', filters.periodo_inicio);
   }
-  if (filters?.data_fim) {
-    query = query.lte('data', filters.data_fim);
+  if (filters?.periodo_fim) {
+    query = query.lte('data_fim', filters.periodo_fim);
   }
   if (filters?.centro_custo_id) {
     query = query.eq('centro_custo_id', filters.centro_custo_id);
@@ -47,7 +47,7 @@ export async function getSolicitacoes(filters?: SolicitacaoFilters): Promise<Dia
     throw new Error(error.message);
   }
 
-  return (data || []) as DiariaSolicitacao[];
+  return (data || []) as unknown as DiariaSolicitacao[];
 }
 
 export async function getSolicitacaoById(id: string): Promise<DiariaSolicitacao | null> {
@@ -70,19 +70,28 @@ export async function getSolicitacaoById(id: string): Promise<DiariaSolicitacao 
     throw new Error(error.message);
   }
 
-  return data as DiariaSolicitacao;
+  return data as unknown as DiariaSolicitacao;
 }
 
 export async function createSolicitacao(formData: SolicitacaoFormData): Promise<DiariaSolicitacao> {
+  const insertData = {
+    data_inicio: formData.data_inicio,
+    data_fim: formData.data_fim,
+    centro_custo_id: formData.centro_custo_id,
+    justificativa: formData.justificativa,
+    considera_fds_feriado: formData.considera_fds_feriado ?? false,
+    qtde_dias_uteis_estimado: formData.qtde_dias_uteis_estimado ?? 0,
+    qtde_fds_estimado: formData.qtde_fds_estimado ?? 0,
+    qtde_feriados_estimado: formData.qtde_feriados_estimado ?? 0,
+    valor_estimado_total: formData.valor_estimado_total ?? 0,
+    convocados_pre: formData.convocados_pre || [],
+    responsavel_campo_id: formData.responsavel_campo_id || null,
+    status: 'rascunho'
+  };
+
   const { data, error } = await supabase
     .from('bd_diaria_solicitacoes')
-    .insert({
-      data: formData.data,
-      centro_custo_id: formData.centro_custo_id,
-      justificativa: formData.justificativa,
-      convocados_pre: formData.convocados_pre || [],
-      status: 'rascunho'
-    })
+    .insert(insertData as any)
     .select(`
       *,
       bd_centros_custo (
@@ -98,7 +107,7 @@ export async function createSolicitacao(formData: SolicitacaoFormData): Promise<
     throw new Error(error.message);
   }
 
-  return data as DiariaSolicitacao;
+  return data as unknown as DiariaSolicitacao;
 }
 
 export async function updateSolicitacao(id: string, formData: Partial<SolicitacaoFormData>): Promise<DiariaSolicitacao> {
@@ -106,10 +115,17 @@ export async function updateSolicitacao(id: string, formData: Partial<Solicitaca
     updated_at: new Date().toISOString()
   };
   
-  if (formData.data !== undefined) updateData.data = formData.data;
+  if (formData.data_inicio !== undefined) updateData.data_inicio = formData.data_inicio;
+  if (formData.data_fim !== undefined) updateData.data_fim = formData.data_fim;
   if (formData.centro_custo_id !== undefined) updateData.centro_custo_id = formData.centro_custo_id;
   if (formData.justificativa !== undefined) updateData.justificativa = formData.justificativa;
+  if (formData.considera_fds_feriado !== undefined) updateData.considera_fds_feriado = formData.considera_fds_feriado;
+  if (formData.qtde_dias_uteis_estimado !== undefined) updateData.qtde_dias_uteis_estimado = formData.qtde_dias_uteis_estimado;
+  if (formData.qtde_fds_estimado !== undefined) updateData.qtde_fds_estimado = formData.qtde_fds_estimado;
+  if (formData.qtde_feriados_estimado !== undefined) updateData.qtde_feriados_estimado = formData.qtde_feriados_estimado;
+  if (formData.valor_estimado_total !== undefined) updateData.valor_estimado_total = formData.valor_estimado_total;
   if (formData.convocados_pre !== undefined) updateData.convocados_pre = formData.convocados_pre;
+  if (formData.responsavel_campo_id !== undefined) updateData.responsavel_campo_id = formData.responsavel_campo_id || null;
 
   const { data, error } = await supabase
     .from('bd_diaria_solicitacoes')
@@ -130,7 +146,7 @@ export async function updateSolicitacao(id: string, formData: Partial<Solicitaca
     throw new Error(error.message);
   }
 
-  return data as DiariaSolicitacao;
+  return data as unknown as DiariaSolicitacao;
 }
 
 export async function deleteSolicitacao(id: string): Promise<void> {
@@ -175,20 +191,35 @@ export async function enviarParaAutorizacao(id: string): Promise<DiariaSolicitac
   // Registrar na auditoria
   await registrarAprovacao(id, 'solicitacao', 'enviar');
 
-  return data as DiariaSolicitacao;
+  return data as unknown as DiariaSolicitacao;
 }
 
-export async function autorizarSolicitacao(id: string, comentario?: string): Promise<DiariaSolicitacao> {
+export async function autorizarSolicitacao(
+  id: string, 
+  comentario?: string,
+  responsavelCampoId?: string,
+  observacaoGerente?: string
+): Promise<DiariaSolicitacao> {
   const { data: userData } = await supabase.auth.getUser();
+  
+  const updateData: any = {
+    status: 'autorizada' as StatusSolicitacao,
+    autorizado_por: userData?.user?.id,
+    autorizado_em: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  
+  if (responsavelCampoId) {
+    updateData.responsavel_campo_id = responsavelCampoId;
+  }
+  
+  if (observacaoGerente) {
+    updateData.observacao_gerente = observacaoGerente;
+  }
   
   const { data, error } = await supabase
     .from('bd_diaria_solicitacoes')
-    .update({
-      status: 'autorizada' as StatusSolicitacao,
-      autorizado_por: userData?.user?.id,
-      autorizado_em: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    })
+    .update(updateData)
     .eq('id', id)
     .select(`
       *,
@@ -206,22 +237,32 @@ export async function autorizarSolicitacao(id: string, comentario?: string): Pro
   }
 
   // Registrar na auditoria
-  await registrarAprovacao(id, 'solicitacao', 'aprovar', comentario);
+  await registrarAprovacao(id, 'solicitacao', 'aprovar', comentario || observacaoGerente);
 
-  return data as DiariaSolicitacao;
+  return data as unknown as DiariaSolicitacao;
 }
 
-export async function reprovarSolicitacao(id: string, comentario?: string): Promise<DiariaSolicitacao> {
+export async function reprovarSolicitacao(
+  id: string, 
+  comentario?: string,
+  observacaoGerente?: string
+): Promise<DiariaSolicitacao> {
   const { data: userData } = await supabase.auth.getUser();
+  
+  const updateData: any = {
+    status: 'reprovada' as StatusSolicitacao,
+    autorizado_por: userData?.user?.id,
+    autorizado_em: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  
+  if (observacaoGerente) {
+    updateData.observacao_gerente = observacaoGerente;
+  }
   
   const { data, error } = await supabase
     .from('bd_diaria_solicitacoes')
-    .update({
-      status: 'reprovada' as StatusSolicitacao,
-      autorizado_por: userData?.user?.id,
-      autorizado_em: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    })
+    .update(updateData)
     .eq('id', id)
     .select(`
       *,
@@ -239,9 +280,9 @@ export async function reprovarSolicitacao(id: string, comentario?: string): Prom
   }
 
   // Registrar na auditoria
-  await registrarAprovacao(id, 'solicitacao', 'reprovar', comentario);
+  await registrarAprovacao(id, 'solicitacao', 'reprovar', comentario || observacaoGerente);
 
-  return data as DiariaSolicitacao;
+  return data as unknown as DiariaSolicitacao;
 }
 
 export async function cancelarEnvioSolicitacao(id: string): Promise<DiariaSolicitacao> {
@@ -270,7 +311,7 @@ export async function cancelarEnvioSolicitacao(id: string): Promise<DiariaSolici
   // Registrar na auditoria
   await registrarAprovacao(id, 'solicitacao', 'cancelar_envio');
 
-  return data as DiariaSolicitacao;
+  return data as unknown as DiariaSolicitacao;
 }
 
 // =====================================================

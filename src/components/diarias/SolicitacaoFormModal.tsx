@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 import { Combobox } from "@/components/ui/combobox";
-import { Plus, Trash2, Loader2, Users, FileText, Check, ChevronRight, ChevronLeft, Info, Lock, User, Send } from "lucide-react";
+import { Plus, Trash2, Loader2, Users, FileText, Check, ChevronRight, ChevronLeft, Info, Lock, User, Send, ClipboardCheck } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 import {
@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -33,6 +34,16 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { SolicitacaoFormData, FuncionarioPreConvocado, DiariaSolicitacao } from "@/types/diarias";
+import { useFeriadosPeriodo } from "@/hooks/diarias/useFeriados";
+import { 
+  analisarPeriodo, 
+  calcularEstimativaTotal, 
+  validarPeriodo,
+  formatCurrency 
+} from "@/utils/diariasPeriodoUtils";
+import { PeriodoResumo } from "./PeriodoResumo";
+import { EstimativaAviso } from "./EstimativaAviso";
+import { SimulacaoValores } from "./SimulacaoValores";
 
 interface CentroCustoComAprovador {
   id: string;
@@ -63,14 +74,32 @@ export function SolicitacaoFormModal({
   const [step, setStep] = useState<Step>('dados');
   const { user } = useAuth();
   
-  // Form data
-  const [data, setData] = useState(format(new Date(), 'yyyy-MM-dd'));
+  // Form data - Período
+  const [dataInicio, setDataInicio] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [dataFim, setDataFim] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [consideraFdsFeriado, setConsideraFdsFeriado] = useState(false);
+  
   const [centroCustoId, setCentroCustoId] = useState('');
   const [justificativa, setJustificativa] = useState('');
   const [convocadosPre, setConvocadosPre] = useState<FuncionarioPreConvocado[]>([]);
+  const [responsavelCampoId, setResponsavelCampoId] = useState('');
   
   // Selection state for adding funcionarios
   const [selectedFuncionarioId, setSelectedFuncionarioId] = useState('');
+  
+  // Buscar feriados do período
+  const { data: feriados = [] } = useFeriadosPeriodo(dataInicio, dataFim);
+  
+  // Analisar período em tempo real
+  const analise = useMemo(() => {
+    const feriadosFormatados = feriados.map(f => ({ data: f.data, nome: f.nome }));
+    return analisarPeriodo(dataInicio, dataFim, feriadosFormatados, consideraFdsFeriado);
+  }, [dataInicio, dataFim, feriados, consideraFdsFeriado]);
+  
+  // Validar período
+  const periodoValidacao = useMemo(() => {
+    return validarPeriodo(dataInicio, dataFim, 30);
+  }, [dataInicio, dataFim]);
   
   // Centro de custos query com fallback
   const { data: centrosCusto = [] } = useQuery({
@@ -101,7 +130,7 @@ export function SolicitacaoFormModal({
 
   // Funcionarios query (com função e valor de diária)
   const { data: funcionarios = [] } = useQuery({
-    queryKey: ['funcionarios-com-funcao'],
+    queryKey: ['funcionarios-com-funcao-diarias'],
     queryFn: async () => {
       const { data } = await supabase
         .from('bd_funcionarios')
@@ -113,7 +142,8 @@ export function SolicitacaoFormModal({
           bd_funcoes (
             id,
             nome_funcao,
-            valor_diaria
+            valor_diaria,
+            valor_diaria_exclusiva
           )
         `)
         .eq('status', 'Ativo')
@@ -126,26 +156,22 @@ export function SolicitacaoFormModal({
   const { data: aprovadores = [] } = useQuery({
     queryKey: ['gerentes-regionais-aprovadores'],
     queryFn: async () => {
-      // Primeiro buscar o ID da função "Gerente Regional"
       const { data: funcaoGerente } = await supabase
         .from('bd_funcoes')
         .select('id')
         .eq('nome_funcao', 'Gerente Regional')
         .single();
 
-      if (!funcaoGerente?.id) {
-        return [];
-      }
+      if (!funcaoGerente?.id) return [];
 
-      // Buscar funcionários com essa função
-      const { data: funcionarios } = await supabase
+      const { data: funcionariosData } = await supabase
         .from('bd_funcionarios')
         .select('id, nome_completo, email')
         .eq('funcao_id', funcaoGerente.id)
         .eq('status', 'Ativo')
         .order('nome_completo');
 
-      return funcionarios || [];
+      return funcionariosData || [];
     }
   });
 
@@ -168,20 +194,27 @@ export function SolicitacaoFormModal({
   useEffect(() => {
     if (isOpen) {
       if (editingSolicitacao) {
-        setData(editingSolicitacao.data);
+        setDataInicio(editingSolicitacao.data_inicio);
+        setDataFim(editingSolicitacao.data_fim);
+        setConsideraFdsFeriado(editingSolicitacao.considera_fds_feriado || false);
         setCentroCustoId(editingSolicitacao.centro_custo_id);
         setJustificativa(editingSolicitacao.justificativa);
-        const convocadosRaw = (editingSolicitacao as any).convocados_pre;
+        setResponsavelCampoId(editingSolicitacao.responsavel_campo_id || '');
+        const convocadosRaw = editingSolicitacao.convocados_pre;
         if (convocadosRaw && Array.isArray(convocadosRaw)) {
           setConvocadosPre(convocadosRaw);
         } else {
           setConvocadosPre([]);
         }
       } else {
-        setData(format(new Date(), 'yyyy-MM-dd'));
+        const hoje = format(new Date(), 'yyyy-MM-dd');
+        setDataInicio(hoje);
+        setDataFim(hoje);
+        setConsideraFdsFeriado(false);
         setCentroCustoId('');
         setJustificativa('');
         setConvocadosPre([]);
+        setResponsavelCampoId('');
       }
       setStep('dados');
       setSelectedFuncionarioId('');
@@ -194,6 +227,13 @@ export function SolicitacaoFormModal({
   }, [centrosCusto, centroCustoId]);
 
   // Get aprovador name
+  // Get apontador name
+  const apontadorNome = useMemo(() => {
+    if (!responsavelCampoId) return null;
+    const func = funcionarios.find((f: any) => f.id === responsavelCampoId);
+    return func?.nome_completo || null;
+  }, [responsavelCampoId, funcionarios]);
+
   const aprovadorNome = useMemo(() => {
     if (!selectedCentroCusto?.aprovador_diarias_id) return null;
     const aprov = aprovadores.find((a: any) => a.id === selectedCentroCusto.aprovador_diarias_id);
@@ -205,7 +245,7 @@ export function SolicitacaoFormModal({
     const addedIds = convocadosPre.map(c => c.funcionario_id);
     return funcionarios.filter((f: any) => 
       !addedIds.includes(f.id) && 
-      f.bd_funcoes  // Apenas exigir que tenha função associada
+      f.bd_funcoes
     );
   }, [funcionarios, convocadosPre]);
 
@@ -220,6 +260,7 @@ export function SolicitacaoFormModal({
       funcionario_id: func.id,
       funcao_id: func.funcao_id,
       valor_diaria: func.bd_funcoes.valor_diaria || 0,
+      valor_diaria_exclusiva: func.bd_funcoes.valor_diaria_exclusiva || undefined,
       nome_funcionario: func.nome_completo,
       nome_funcao: func.bd_funcoes.nome_funcao
     };
@@ -233,26 +274,36 @@ export function SolicitacaoFormModal({
     setConvocadosPre(convocadosPre.filter(c => c.funcionario_id !== funcionarioId));
   };
 
-  // Calculate total
-  const totalValor = useMemo(() => {
-    return convocadosPre.reduce((sum, c) => sum + c.valor_diaria, 0);
-  }, [convocadosPre]);
+  // Calculate simulação de valores
+  const simulacao = useMemo(() => {
+    return calcularEstimativaTotal(convocadosPre, analise, consideraFdsFeriado);
+  }, [convocadosPre, analise, consideraFdsFeriado]);
 
   // Validation
-const canProceedToDados = data && centroCustoId;
+  const canProceedToDados = dataInicio && dataFim && centroCustoId && periodoValidacao.valido;
   const canProceedToFuncionarios = convocadosPre.length > 0 && justificativa.trim().length >= 10;
   const canSave = canProceedToDados && canProceedToFuncionarios;
 
   // Build form data
   const buildFormData = (): SolicitacaoFormData => ({
-    data,
+    data_inicio: dataInicio,
+    data_fim: dataFim,
     centro_custo_id: centroCustoId,
     justificativa,
+    considera_fds_feriado: consideraFdsFeriado,
+    qtde_dias_uteis_estimado: analise.diasUteis,
+    qtde_fds_estimado: analise.finaisDeSemana,
+    qtde_feriados_estimado: analise.feriados,
+    valor_estimado_total: simulacao.totalEstimado,
     convocados_pre: convocadosPre.map(c => ({
       funcionario_id: c.funcionario_id,
       funcao_id: c.funcao_id,
-      valor_diaria: c.valor_diaria
-    }))
+      valor_diaria: c.valor_diaria,
+      valor_diaria_exclusiva: c.valor_diaria_exclusiva,
+      nome_funcionario: c.nome_funcionario,
+      nome_funcao: c.nome_funcao
+    })),
+    responsavel_campo_id: responsavelCampoId || undefined
   });
 
   // Handle save as draft
@@ -271,15 +322,15 @@ const canProceedToDados = data && centroCustoId;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh]">
+      <DialogContent className="sm:max-w-[750px] max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>
             {editingSolicitacao ? 'Editar Solicitação' : 'Nova Solicitação de Diária'}
           </DialogTitle>
           <DialogDescription>
-            {step === 'dados' && 'Preencha os dados básicos da solicitação.'}
+            {step === 'dados' && 'Defina o período e centro de custo da solicitação.'}
             {step === 'funcionarios' && 'Selecione os funcionários que participarão.'}
-            {step === 'revisao' && 'Revise os dados antes de salvar.'}
+            {step === 'revisao' && 'Revise os dados e valores estimados.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -301,19 +352,67 @@ const canProceedToDados = data && centroCustoId;
           </Badge>
         </div>
 
-        <ScrollArea className="max-h-[50vh] pr-4">
+        <ScrollArea className="max-h-[55vh] pr-4">
           {/* Step 1: Dados Básicos */}
           {step === 'dados' && (
             <div className="space-y-4">
-              <div>
-                <Label>Data *</Label>
-                <Input
-                  type="date"
-                  value={data}
-                  onChange={(e) => setData(e.target.value)}
+              {/* Período */}
+              <div className="space-y-2">
+                <Label>Período da Solicitação *</Label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Data Início</Label>
+                    <Input
+                      type="date"
+                      value={dataInicio}
+                      onChange={(e) => setDataInicio(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Data Fim</Label>
+                    <Input
+                      type="date"
+                      value={dataFim}
+                      onChange={(e) => setDataFim(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {!periodoValidacao.valido && periodoValidacao.erro && (
+                  <p className="text-sm text-destructive">{periodoValidacao.erro}</p>
+                )}
+              </div>
+              
+              {/* Toggle FDS/Feriados */}
+              <div className="flex items-center justify-between p-3 border rounded-lg">
+                <div className="space-y-0.5">
+                  <Label htmlFor="considera-fds" className="text-sm font-medium">
+                    Considerar finais de semana e feriados
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Quando ativo, inclui FDS e feriados no cálculo estimado
+                  </p>
+                </div>
+                <Switch
+                  id="considera-fds"
+                  checked={consideraFdsFeriado}
+                  onCheckedChange={setConsideraFdsFeriado}
                 />
               </div>
               
+              {/* Resumo do Período */}
+              {periodoValidacao.valido && (
+                <PeriodoResumo
+                  dataInicio={dataInicio}
+                  dataFim={dataFim}
+                  analise={analise}
+                  consideraFdsFeriado={consideraFdsFeriado}
+                />
+              )}
+              
+              {/* Aviso de Estimativa */}
+              <EstimativaAviso />
+              
+              {/* Centro de Custo */}
               <div>
                 <Label>Centro de Custo *</Label>
                 <Combobox
@@ -328,7 +427,7 @@ const canProceedToDados = data && centroCustoId;
                   emptyText="Nenhum centro de custo encontrado"
                 />
                 
-              {selectedCentroCusto && (
+                {selectedCentroCusto && (
                   <div className="mt-2 p-3 bg-muted rounded-md space-y-2">
                     <div className="flex items-center gap-2 text-sm">
                       <User className="h-4 w-4 text-primary" />
@@ -339,7 +438,7 @@ const canProceedToDados = data && centroCustoId;
                     </div>
                     {selectedCentroCusto.aprovador_diarias_id ? (
                       <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Check className="h-3 w-3 text-green-600" />
+                        <Check className="h-3 w-3 text-primary" />
                         Este centro de custo tem aprovador definido
                       </p>
                     ) : (
@@ -350,6 +449,29 @@ const canProceedToDados = data && centroCustoId;
                     )}
                   </div>
                 )}
+              </div>
+              
+              {/* Campo Apontador (Responsável em Campo) */}
+              <div>
+                <Label className="flex items-center gap-2">
+                  <ClipboardCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                  Apontador (Responsável em Campo)
+                </Label>
+                <Combobox
+                  options={funcionarios.map((f: any) => ({
+                    value: f.id,
+                    label: f.nome_completo
+                  }))}
+                  value={responsavelCampoId}
+                  onChange={setResponsavelCampoId}
+                  placeholder="Selecione o funcionário apontador..."
+                  searchPlaceholder="Buscar funcionário..."
+                  emptyText="Nenhum funcionário encontrado"
+                  className="mt-1.5"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Este funcionário será responsável por registrar presença em campo.
+                </p>
               </div>
               
               {/* Campo Responsável pela Solicitação */}
@@ -363,15 +485,11 @@ const canProceedToDados = data && centroCustoId;
                   <span className="text-sm font-medium">
                     {usuarioLogado?.nome_completo || user?.email || 'Carregando...'}
                   </span>
-                  {usuarioLogado?.email && usuarioLogado.email !== user?.email && (
-                    <span className="text-xs text-muted-foreground">({usuarioLogado.email})</span>
-                  )}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   Preenchido automaticamente com o usuário logado
                 </p>
               </div>
-              
             </div>
           )}
 
@@ -413,7 +531,8 @@ const canProceedToDados = data && centroCustoId;
                     <TableRow>
                       <TableHead>Funcionário</TableHead>
                       <TableHead>Função</TableHead>
-                      <TableHead className="text-right">Valor Diária</TableHead>
+                      <TableHead className="text-right">Diária</TableHead>
+                      <TableHead className="text-right">FDS/Fer</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -423,7 +542,10 @@ const canProceedToDados = data && centroCustoId;
                         <TableCell>{conv.nome_funcionario}</TableCell>
                         <TableCell>{conv.nome_funcao}</TableCell>
                         <TableCell className="text-right">
-                          R$ {conv.valor_diaria.toFixed(2)}
+                          {formatCurrency(conv.valor_diaria)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(conv.valor_diaria_exclusiva || conv.valor_diaria * 1.2)}
                         </TableCell>
                         <TableCell>
                           <Button
@@ -436,15 +558,17 @@ const canProceedToDados = data && centroCustoId;
                         </TableCell>
                       </TableRow>
                     ))}
-                    <TableRow>
-                      <TableCell colSpan={2} className="font-semibold">Total</TableCell>
-                      <TableCell className="text-right font-semibold">
-                        R$ {totalValor.toFixed(2)}
-                      </TableCell>
-                      <TableCell></TableCell>
-                    </TableRow>
                   </TableBody>
                 </Table>
+              )}
+
+              {/* Simulação de Valores */}
+              {convocadosPre.length > 0 && (
+                <SimulacaoValores
+                  simulacao={simulacao}
+                  diasUteis={analise.diasUteis}
+                  diasFdsFeriados={consideraFdsFeriado ? analise.finaisDeSemana + analise.feriados : 0}
+                />
               )}
 
               <div className="pt-4 border-t">
@@ -470,9 +594,12 @@ const canProceedToDados = data && centroCustoId;
                 <CardContent className="pt-4 space-y-3">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-muted-foreground">Data</Label>
+                      <Label className="text-muted-foreground">Período</Label>
                       <p className="font-medium">
-                        {formatBrazilianDateForDisplay(data)}
+                        {formatBrazilianDateForDisplay(dataInicio)}
+                        {dataFim !== dataInicio && (
+                          <> → {formatBrazilianDateForDisplay(dataFim)}</>
+                        )}
                       </p>
                     </div>
                     <div>
@@ -483,17 +610,47 @@ const canProceedToDados = data && centroCustoId;
                     </div>
                   </div>
                   
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <Label className="text-muted-foreground">Dias úteis</Label>
+                      <p className="font-medium">{analise.diasUteis}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">FDS</Label>
+                      <p className="font-medium">{analise.finaisDeSemana}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Feriados</Label>
+                      <p className="font-medium">{analise.feriados}</p>
+                    </div>
+                  </div>
+                  
                   <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-muted-foreground">Considera FDS/Feriados</Label>
+                      <Badge variant={consideraFdsFeriado ? 'default' : 'outline'}>
+                        {consideraFdsFeriado ? 'Sim' : 'Não'}
+                      </Badge>
+                    </div>
                     <div>
                       <Label className="text-muted-foreground">Aprovador</Label>
                       <p className="font-medium">
                         {aprovadorNome || 'Não definido (qualquer admin)'}
                       </p>
                     </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="text-muted-foreground">Responsável</Label>
                       <p className="font-medium">
                         {usuarioLogado?.nome_completo || user?.email || '-'}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Apontador</Label>
+                      <p className="font-medium">
+                        {apontadorNome || 'Não definido'}
                       </p>
                     </div>
                   </div>
@@ -515,7 +672,8 @@ const canProceedToDados = data && centroCustoId;
                       <TableRow>
                         <TableHead>Funcionário</TableHead>
                         <TableHead>Função</TableHead>
-                        <TableHead className="text-right">Valor</TableHead>
+                        <TableHead className="text-right">Diária</TableHead>
+                        <TableHead className="text-right">FDS/Fer</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -523,17 +681,25 @@ const canProceedToDados = data && centroCustoId;
                         <TableRow key={conv.funcionario_id}>
                           <TableCell>{conv.nome_funcionario}</TableCell>
                           <TableCell>{conv.nome_funcao}</TableCell>
-                          <TableCell className="text-right">R$ {conv.valor_diaria.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(conv.valor_diaria)}</TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(conv.valor_diaria_exclusiva || conv.valor_diaria * 1.2)}
+                          </TableCell>
                         </TableRow>
                       ))}
-                      <TableRow className="font-semibold">
-                        <TableCell colSpan={2}>Total Estimado</TableCell>
-                        <TableCell className="text-right">R$ {totalValor.toFixed(2)}</TableCell>
-                      </TableRow>
                     </TableBody>
                   </Table>
                 </CardContent>
               </Card>
+
+              {/* Valor Total Estimado */}
+              <SimulacaoValores
+                simulacao={simulacao}
+                diasUteis={analise.diasUteis}
+                diasFdsFeriados={consideraFdsFeriado ? analise.finaisDeSemana + analise.feriados : 0}
+              />
+              
+              <EstimativaAviso />
             </div>
           )}
         </ScrollArea>

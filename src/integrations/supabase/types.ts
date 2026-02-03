@@ -903,6 +903,74 @@ export type Database = {
           },
         ]
       }
+      bd_diaria_apontamentos: {
+        Row: {
+          created_at: string | null
+          criado_por: string | null
+          data_abertura: string | null
+          data_finalizacao: string | null
+          id: string
+          observacoes: string | null
+          responsavel_campo_id: string
+          solicitacao_id: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          criado_por?: string | null
+          data_abertura?: string | null
+          data_finalizacao?: string | null
+          id?: string
+          observacoes?: string | null
+          responsavel_campo_id: string
+          solicitacao_id: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          criado_por?: string | null
+          data_abertura?: string | null
+          data_finalizacao?: string | null
+          id?: string
+          observacoes?: string | null
+          responsavel_campo_id?: string
+          solicitacao_id?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_diaria_apontamentos_responsavel_campo_id_fkey"
+            columns: ["responsavel_campo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_apontamentos_responsavel_campo_id_fkey"
+            columns: ["responsavel_campo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["funcionario_id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_apontamentos_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: true
+            referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_apontamentos_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: true
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["solicitacao_id"]
+          },
+        ]
+      }
       bd_diaria_aprovacoes: {
         Row: {
           acao: string
@@ -1101,42 +1169,166 @@ export type Database = {
           },
         ]
       }
+      bd_diaria_presencas: {
+        Row: {
+          confirmado_em: string | null
+          confirmado_por: string | null
+          created_at: string | null
+          data: string
+          funcao_id: string | null
+          funcionario_id: string
+          hora_entrada: string | null
+          hora_saida: string | null
+          id: string
+          intervalo_fim: string | null
+          intervalo_inicio: string | null
+          presente: boolean | null
+          solicitacao_id: string
+          updated_at: string | null
+          valor_diaria_aplicada: number
+        }
+        Insert: {
+          confirmado_em?: string | null
+          confirmado_por?: string | null
+          created_at?: string | null
+          data: string
+          funcao_id?: string | null
+          funcionario_id: string
+          hora_entrada?: string | null
+          hora_saida?: string | null
+          id?: string
+          intervalo_fim?: string | null
+          intervalo_inicio?: string | null
+          presente?: boolean | null
+          solicitacao_id: string
+          updated_at?: string | null
+          valor_diaria_aplicada?: number
+        }
+        Update: {
+          confirmado_em?: string | null
+          confirmado_por?: string | null
+          created_at?: string | null
+          data?: string
+          funcao_id?: string | null
+          funcionario_id?: string
+          hora_entrada?: string | null
+          hora_saida?: string | null
+          id?: string
+          intervalo_fim?: string | null
+          intervalo_inicio?: string | null
+          presente?: boolean | null
+          solicitacao_id?: string
+          updated_at?: string | null
+          valor_diaria_aplicada?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_diaria_presencas_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_presencas_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["funcao_id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_presencas_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_presencas_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["funcionario_id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_presencas_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_presencas_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["solicitacao_id"]
+          },
+        ]
+      }
       bd_diaria_solicitacoes: {
         Row: {
           autorizado_em: string | null
           autorizado_por: string | null
           centro_custo_id: string
+          considera_fds_feriado: boolean | null
+          convocados_pre: Json | null
           created_at: string | null
           criado_por: string | null
-          data: string
+          data_fim: string
+          data_inicio: string
           id: string
           justificativa: string
+          observacao_gerente: string | null
+          qtde_dias_uteis_estimado: number | null
+          qtde_fds_estimado: number | null
+          qtde_feriados_estimado: number | null
+          responsavel_campo_id: string | null
           status: string
           updated_at: string | null
+          valor_estimado_total: number | null
         }
         Insert: {
           autorizado_em?: string | null
           autorizado_por?: string | null
           centro_custo_id: string
+          considera_fds_feriado?: boolean | null
+          convocados_pre?: Json | null
           created_at?: string | null
           criado_por?: string | null
-          data: string
+          data_fim: string
+          data_inicio: string
           id?: string
           justificativa: string
+          observacao_gerente?: string | null
+          qtde_dias_uteis_estimado?: number | null
+          qtde_fds_estimado?: number | null
+          qtde_feriados_estimado?: number | null
+          responsavel_campo_id?: string | null
           status?: string
           updated_at?: string | null
+          valor_estimado_total?: number | null
         }
         Update: {
           autorizado_em?: string | null
           autorizado_por?: string | null
           centro_custo_id?: string
+          considera_fds_feriado?: boolean | null
+          convocados_pre?: Json | null
           created_at?: string | null
           criado_por?: string | null
-          data?: string
+          data_fim?: string
+          data_inicio?: string
           id?: string
           justificativa?: string
+          observacao_gerente?: string | null
+          qtde_dias_uteis_estimado?: number | null
+          qtde_fds_estimado?: number | null
+          qtde_feriados_estimado?: number | null
+          responsavel_campo_id?: string | null
           status?: string
           updated_at?: string | null
+          valor_estimado_total?: number | null
         }
         Relationships: [
           {
@@ -1152,6 +1344,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_resumo_diarias"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_responsavel_campo_id_fkey"
+            columns: ["responsavel_campo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_responsavel_campo_id_fkey"
+            columns: ["responsavel_campo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["funcionario_id"]
           },
         ]
       }
@@ -1271,6 +1477,39 @@ export type Database = {
             referencedColumns: ["funcionario_id"]
           },
         ]
+      }
+      bd_feriados: {
+        Row: {
+          created_at: string | null
+          data: string
+          id: string
+          municipio: string | null
+          nome: string
+          tipo: string | null
+          uf: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          data: string
+          id?: string
+          municipio?: string | null
+          nome: string
+          tipo?: string | null
+          uf?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          data?: string
+          id?: string
+          municipio?: string | null
+          nome?: string
+          tipo?: string | null
+          uf?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       bd_funcionarios: {
         Row: {
