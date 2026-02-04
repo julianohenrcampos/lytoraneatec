@@ -15,6 +15,13 @@ const sanitizeFormData = (formData: Partial<AgendamentoExameFormData>) => {
     cpf: formData.cpf || null,
     observacoes: formData.observacoes || null,
     tecnico_seguranca: formData.tecnico_seguranca || null,
+    // Novos campos
+    telefone_celular: formData.telefone_celular || null,
+    email: formData.email || null,
+    data_inicio_prevista: formData.data_inicio_prevista || null,
+    data_registro_carteira: formData.data_registro_carteira || null,
+    banco_agencia: formData.banco_agencia || null,
+    banco_conta: formData.banco_conta || null,
   };
 };
 
@@ -136,6 +143,24 @@ export const agendamentoExamesService = {
       .from('bd_agendamentos_exames' as any) as any)
       .update({ status })
       .in('id', ids);
+
+    if (error) throw error;
+  },
+
+  async updateCarteira(id: string, assinada: boolean): Promise<void> {
+    const { error } = await (supabase
+      .from('bd_agendamentos_exames' as any) as any)
+      .update({ carteira_assinada: assinada })
+      .eq('id', id);
+
+    if (error) throw error;
+  },
+
+  async updateIntegracao(id: string, status: string): Promise<void> {
+    const { error } = await (supabase
+      .from('bd_agendamentos_exames' as any) as any)
+      .update({ status_integracao: status })
+      .eq('id', id);
 
     if (error) throw error;
   }

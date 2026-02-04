@@ -17,13 +17,22 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { AgendamentoExame, getStatusColor, STATUS_AGENDAMENTO } from '@/types/ssoAgendamentoExames';
+import { 
+  AgendamentoExame, 
+  getStatusColor, 
+  STATUS_AGENDAMENTO,
+  getStatusIntegracoColor,
+  STATUS_INTEGRACAO,
+  isPrazoVencido
+} from '@/types/ssoAgendamentoExames';
 import { Eye, Pencil, Trash2, Paperclip, ChevronDown } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AgendamentoExamesMobileCards } from './AgendamentoExamesMobileCards';
+import { PrazoContratacaoProgress } from './PrazoContratacaoProgress';
 import { formatBrazilianDateForDisplay } from '@/utils/timezoneUtils';
 import { usePagination } from '@/hooks/usePagination';
 import TablePagination from '@/components/ui/table-pagination';
+import { cn } from '@/lib/utils';
 
 interface AgendamentoExamesTableProps {
   agendamentos: AgendamentoExame[];
@@ -32,6 +41,8 @@ interface AgendamentoExamesTableProps {
   onDelete: (id: string) => void;
   onAnexos: (id: string) => void;
   onStatusChange: (id: string, status: string) => void;
+  onIntegracoChange?: (id: string, status: string) => void;
+  onCarteiraChange?: (id: string, assinada: boolean) => void;
   canEdit: boolean;
   canDelete: boolean;
   canChangeStatus: boolean;
@@ -46,6 +57,8 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
   onDelete,
   onAnexos,
   onStatusChange,
+  onIntegracoChange,
+  onCarteiraChange,
   canEdit,
   canDelete,
   canChangeStatus,
@@ -81,11 +94,6 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
     );
   }
 
-  const formatTime = (timeStr: string) => {
-    // Remove seconds if present
-    return timeStr.substring(0, 5);
-  };
-
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
       onSelectionChange(pagination.paginatedData.map(a => a.id));
@@ -107,6 +115,22 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
   const isIndeterminate = pagination.paginatedData.some(a => selectedIds.includes(a.id)) && 
     !pagination.paginatedData.every(a => selectedIds.includes(a.id));
 
+  // Helper para verificar se é exame admissional
+  const isAdmissional = (tipoExame: string) => tipoExame === 'Admissional';
+
+  // Função para verificar se a linha está irregular (apenas para Admissional)
+  const getRowClassName = (agendamento: AgendamentoExame) => {
+    const isAdm = isAdmissional(agendamento.tipo_exame);
+    const vencido = isAdm && isPrazoVencido(agendamento.data_registro_carteira, agendamento.carteira_assinada);
+    if (vencido) {
+      return 'bg-destructive/10 hover:bg-destructive/15 border-l-4 border-l-destructive';
+    }
+    if (selectedIds.includes(agendamento.id)) {
+      return 'bg-muted/50';
+    }
+    return '';
+  };
+
   return (
     <Card>
       <Table>
@@ -124,20 +148,20 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
                 aria-label="Selecionar todos"
               />
             </TableHead>
-            <TableHead>Data/Agendamento</TableHead>
-            <TableHead>Hora</TableHead>
+            <TableHead>Data Agend.</TableHead>
             <TableHead>Colaborador</TableHead>
-            <TableHead>CPF</TableHead>
             <TableHead>Empresa</TableHead>
             <TableHead>Tipo Exame</TableHead>
-            <TableHead>Local</TableHead>
+            <TableHead className="text-center">Prazo Contrat.</TableHead>
+            <TableHead>Status Carteira</TableHead>
+            <TableHead>Integração</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {pagination.paginatedData.map((agendamento) => (
-            <TableRow key={agendamento.id} className={selectedIds.includes(agendamento.id) ? 'bg-muted/50' : ''}>
+            <TableRow key={agendamento.id} className={getRowClassName(agendamento)}>
               <TableCell>
                 <Checkbox
                   checked={selectedIds.includes(agendamento.id)}
@@ -146,12 +170,104 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
                 />
               </TableCell>
               <TableCell>{formatBrazilianDateForDisplay(agendamento.data_agendamento)}</TableCell>
-              <TableCell>{formatTime(agendamento.horario_agendamento)}</TableCell>
-              <TableCell className="font-medium">{agendamento.nome_colaborador}</TableCell>
-              <TableCell>{agendamento.cpf || '-'}</TableCell>
-              <TableCell>{agendamento.empresa}</TableCell>
-              <TableCell>{agendamento.tipo_exame}</TableCell>
-              <TableCell>{agendamento.bd_locais_atendimento?.cidade || agendamento.bd_locais_atendimento?.nome_local || '-'}</TableCell>
+              <TableCell className="font-medium max-w-[180px] truncate" title={agendamento.nome_colaborador}>
+                {agendamento.nome_colaborador}
+              </TableCell>
+              <TableCell className="max-w-[120px] truncate" title={agendamento.empresa}>
+                {agendamento.empresa}
+              </TableCell>
+              <TableCell>
+                <Badge variant="outline" className="text-xs">
+                  {agendamento.tipo_exame}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-center">
+                {isAdmissional(agendamento.tipo_exame) ? (
+                  <PrazoContratacaoProgress
+                    dataInicio={agendamento.data_inicio_prevista}
+                    dataLimite={agendamento.data_registro_carteira}
+                    carteiraAssinada={agendamento.carteira_assinada}
+                  />
+                ) : (
+                  <span className="text-muted-foreground">-</span>
+                )}
+              </TableCell>
+              <TableCell>
+                {isAdmissional(agendamento.tipo_exame) ? (
+                  canChangeStatus && onCarteiraChange ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="p-0 h-auto">
+                          <Badge 
+                            variant={agendamento.carteira_assinada ? 'success' : 
+                              isPrazoVencido(agendamento.data_registro_carteira, agendamento.carteira_assinada) ? 'destructive' : 'secondary'
+                            }
+                          >
+                            {agendamento.carteira_assinada ? 'Assinada' : 
+                              isPrazoVencido(agendamento.data_registro_carteira, agendamento.carteira_assinada) ? 'IRREGULAR' : 'Pendente'
+                            }
+                            <ChevronDown className="h-3 w-3 ml-1" />
+                          </Badge>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem onClick={() => onCarteiraChange(agendamento.id, true)}>
+                          <Badge variant="success" className="mr-2">Assinada</Badge>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onCarteiraChange(agendamento.id, false)}>
+                          <Badge variant="secondary" className="mr-2">Pendente</Badge>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <Badge 
+                      variant={agendamento.carteira_assinada ? 'success' : 
+                        isPrazoVencido(agendamento.data_registro_carteira, agendamento.carteira_assinada) ? 'destructive' : 'secondary'
+                      }
+                    >
+                      {agendamento.carteira_assinada ? 'Assinada' : 
+                        isPrazoVencido(agendamento.data_registro_carteira, agendamento.carteira_assinada) ? 'IRREGULAR' : 'Pendente'
+                      }
+                    </Badge>
+                  )
+                ) : (
+                  <span className="text-muted-foreground">-</span>
+                )}
+              </TableCell>
+              <TableCell>
+                {isAdmissional(agendamento.tipo_exame) ? (
+                  canChangeStatus && onIntegracoChange ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="p-0 h-auto">
+                          <Badge variant={getStatusIntegracoColor(agendamento.status_integracao)}>
+                            {agendamento.status_integracao}
+                            <ChevronDown className="h-3 w-3 ml-1" />
+                          </Badge>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        {STATUS_INTEGRACAO.map((status) => (
+                          <DropdownMenuItem
+                            key={status}
+                            onClick={() => onIntegracoChange(agendamento.id, status)}
+                          >
+                            <Badge variant={getStatusIntegracoColor(status)} className="mr-2">
+                              {status}
+                            </Badge>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <Badge variant={getStatusIntegracoColor(agendamento.status_integracao)}>
+                      {agendamento.status_integracao}
+                    </Badge>
+                  )
+                ) : (
+                  <span className="text-muted-foreground">-</span>
+                )}
+              </TableCell>
               <TableCell>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

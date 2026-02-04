@@ -1,0 +1,71 @@
+import React from 'react';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Plus, ChevronDown, UserPlus, RotateCcw, UserMinus, RefreshCw } from 'lucide-react';
+
+interface NovoAgendamentoDropdownProps {
+  onNovoAgendamento: () => void;
+  onRetorno: () => void;
+  onDemissional: () => void;
+  onPeriodico: () => void;
+}
+
+export const NovoAgendamentoDropdown: React.FC<NovoAgendamentoDropdownProps> = ({
+  onNovoAgendamento,
+  onRetorno,
+  onDemissional,
+  onPeriodico
+}) => {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button>
+          <Plus className="h-4 w-4 mr-2" />
+          Novo Agendamento
+          <ChevronDown className="h-4 w-4 ml-2" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuItem onClick={onNovoAgendamento} className="cursor-pointer">
+          <UserPlus className="h-4 w-4 mr-2 text-success" />
+          <div className="flex flex-col">
+            <span className="font-medium">Novo Agendamento</span>
+            <span className="text-xs text-muted-foreground">Admissional completo</span>
+          </div>
+        </DropdownMenuItem>
+        
+        <DropdownMenuSeparator />
+        
+        <DropdownMenuItem onClick={onRetorno} className="cursor-pointer">
+          <RotateCcw className="h-4 w-4 mr-2 text-info" />
+          <div className="flex flex-col">
+            <span className="font-medium">Retorno ao Trabalho</span>
+            <span className="text-xs text-muted-foreground">Funcionário existente</span>
+          </div>
+        </DropdownMenuItem>
+        
+        <DropdownMenuItem onClick={onDemissional} className="cursor-pointer">
+          <UserMinus className="h-4 w-4 mr-2 text-destructive" />
+          <div className="flex flex-col">
+            <span className="font-medium">Demissional</span>
+            <span className="text-xs text-muted-foreground">Funcionário existente</span>
+          </div>
+        </DropdownMenuItem>
+        
+        <DropdownMenuItem onClick={onPeriodico} className="cursor-pointer">
+          <RefreshCw className="h-4 w-4 mr-2 text-warning" />
+          <div className="flex flex-col">
+            <span className="font-medium">Periódico</span>
+            <span className="text-xs text-muted-foreground">Funcionário existente</span>
+          </div>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};

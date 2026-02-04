@@ -139,6 +139,32 @@ export const useAgendamentoExames = (agendamentoId?: string, filters?: Agendamen
     }
   });
 
+  // Mutation: Atualizar carteira assinada
+  const updateCarteiraMutation = useMutation({
+    mutationFn: (params: { id: string; assinada: boolean }) => 
+      agendamentoExamesService.updateCarteira(params.id, params.assinada),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agendamentos-exames'] });
+      toast.success('Status da carteira atualizado!');
+    },
+    onError: (error: any) => {
+      toast.error(`Erro ao atualizar carteira: ${error.message}`);
+    }
+  });
+
+  // Mutation: Atualizar status integração
+  const updateIntegracoMutation = useMutation({
+    mutationFn: (params: { id: string; status: string }) => 
+      agendamentoExamesService.updateIntegracao(params.id, params.status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agendamentos-exames'] });
+      toast.success('Status de integração atualizado!');
+    },
+    onError: (error: any) => {
+      toast.error(`Erro ao atualizar integração: ${error.message}`);
+    }
+  });
+
   // Mutation: Upload anexo
   const uploadAnexoMutation = useMutation({
     mutationFn: (params: { agendamentoId: string; file: File; tipo?: string }) =>
@@ -186,6 +212,8 @@ export const useAgendamentoExames = (agendamentoId?: string, filters?: Agendamen
     delete: deleteMutation.mutateAsync,
     updateStatus: updateStatusMutation.mutateAsync,
     updateStatusBulk: updateStatusBulkMutation.mutateAsync,
+    updateCarteira: updateCarteiraMutation.mutateAsync,
+    updateIntegracao: updateIntegracoMutation.mutateAsync,
     uploadAnexo: uploadAnexoMutation.mutateAsync,
     deleteAnexo: deleteAnexoMutation.mutateAsync,
     
@@ -194,6 +222,8 @@ export const useAgendamentoExames = (agendamentoId?: string, filters?: Agendamen
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
     isUpdatingStatusBulk: updateStatusBulkMutation.isPending,
+    isUpdatingCarteira: updateCarteiraMutation.isPending,
+    isUpdatingIntegracao: updateIntegracoMutation.isPending,
     isUploadingAnexo: uploadAnexoMutation.isPending,
     isDeletingAnexo: deleteAnexoMutation.isPending
   };

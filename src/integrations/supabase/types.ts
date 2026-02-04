@@ -172,63 +172,123 @@ export type Database = {
       }
       bd_agendamentos_exames: {
         Row: {
+          banco_agencia: string | null
+          banco_conta: string | null
+          carteira_assinada: boolean | null
           contrato: string | null
           cpf: string | null
           criado_em: string
           criado_por: string
           data_agendamento: string
+          data_inicio_prevista: string | null
           data_nascimento: string | null
+          data_registro_carteira: string | null
+          doc_certidao_filhos: boolean | null
+          doc_certificado_reservista: boolean | null
+          doc_cnh: boolean | null
+          doc_comprovante_escolaridade: boolean | null
+          doc_comprovante_residencia: boolean | null
+          doc_exame_toxicologico: boolean | null
+          doc_pis_pasep: boolean | null
+          doc_titulo_eleitor: boolean | null
           documentos_anexados: boolean
+          email: string | null
           empresa: string
+          etapa_atual: number | null
+          etapa1_concluida: boolean | null
           funcao: string
           horario_agendamento: string
           id: string
           local_atendimento_id: string
           nome_colaborador: string
           observacoes: string | null
+          possui_carteira_digital: boolean | null
+          possui_conta_santander: boolean | null
           rg: string | null
           status: string
+          status_integracao: string | null
           tecnico_seguranca: string | null
+          telefone_celular: string | null
           tipo_exame: string
         }
         Insert: {
+          banco_agencia?: string | null
+          banco_conta?: string | null
+          carteira_assinada?: boolean | null
           contrato?: string | null
           cpf?: string | null
           criado_em?: string
           criado_por: string
           data_agendamento: string
+          data_inicio_prevista?: string | null
           data_nascimento?: string | null
+          data_registro_carteira?: string | null
+          doc_certidao_filhos?: boolean | null
+          doc_certificado_reservista?: boolean | null
+          doc_cnh?: boolean | null
+          doc_comprovante_escolaridade?: boolean | null
+          doc_comprovante_residencia?: boolean | null
+          doc_exame_toxicologico?: boolean | null
+          doc_pis_pasep?: boolean | null
+          doc_titulo_eleitor?: boolean | null
           documentos_anexados?: boolean
+          email?: string | null
           empresa: string
+          etapa_atual?: number | null
+          etapa1_concluida?: boolean | null
           funcao: string
           horario_agendamento: string
           id?: string
           local_atendimento_id: string
           nome_colaborador: string
           observacoes?: string | null
+          possui_carteira_digital?: boolean | null
+          possui_conta_santander?: boolean | null
           rg?: string | null
           status?: string
+          status_integracao?: string | null
           tecnico_seguranca?: string | null
+          telefone_celular?: string | null
           tipo_exame: string
         }
         Update: {
+          banco_agencia?: string | null
+          banco_conta?: string | null
+          carteira_assinada?: boolean | null
           contrato?: string | null
           cpf?: string | null
           criado_em?: string
           criado_por?: string
           data_agendamento?: string
+          data_inicio_prevista?: string | null
           data_nascimento?: string | null
+          data_registro_carteira?: string | null
+          doc_certidao_filhos?: boolean | null
+          doc_certificado_reservista?: boolean | null
+          doc_cnh?: boolean | null
+          doc_comprovante_escolaridade?: boolean | null
+          doc_comprovante_residencia?: boolean | null
+          doc_exame_toxicologico?: boolean | null
+          doc_pis_pasep?: boolean | null
+          doc_titulo_eleitor?: boolean | null
           documentos_anexados?: boolean
+          email?: string | null
           empresa?: string
+          etapa_atual?: number | null
+          etapa1_concluida?: boolean | null
           funcao?: string
           horario_agendamento?: string
           id?: string
           local_atendimento_id?: string
           nome_colaborador?: string
           observacoes?: string | null
+          possui_carteira_digital?: boolean | null
+          possui_conta_santander?: boolean | null
           rg?: string | null
           status?: string
+          status_integracao?: string | null
           tecnico_seguranca?: string | null
+          telefone_celular?: string | null
           tipo_exame?: string
         }
         Relationships: [

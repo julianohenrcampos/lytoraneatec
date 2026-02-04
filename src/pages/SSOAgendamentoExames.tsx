@@ -4,10 +4,12 @@ import { Button } from '@/components/ui/button';
 import { AgendamentoExamesFilters, AgendamentoExamesTable } from '@/components/ssoAgendamentoExames/list';
 import { BulkActionBar } from '@/components/ssoAgendamentoExames/list/BulkActionBar';
 import { AgendamentoExamesDialog, AgendamentoExamesViewDialog } from '@/components/ssoAgendamentoExames/dialog';
+import { NovoAgendamentoDropdown } from '@/components/ssoAgendamentoExames/NovoAgendamentoDropdown';
+import { FuncionarioSelectorDialog } from '@/components/ssoAgendamentoExames/FuncionarioSelectorDialog';
 import { useAgendamentoExames } from '@/hooks/ssoAgendamentoExames';
-import { AgendamentoExameFilters } from '@/types/ssoAgendamentoExames';
+import { AgendamentoExameFilters, TipoExame, FuncionarioSelecionado } from '@/types/ssoAgendamentoExames';
 import { useAuthPermissions } from '@/hooks/useAuthPermissions';
-import { Plus, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { FileSpreadsheet, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
@@ -31,6 +33,12 @@ const SSOAgendamentoExames: React.FC = () => {
   const [editingId, setEditingId] = useState<string | undefined>();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  
+  // Estados para dropdown de novo agendamento
+  const [selectorOpen, setSelectorOpen] = useState(false);
+  const [tipoExameSelecionado, setTipoExameSelecionado] = useState<TipoExame | null>(null);
+  const [funcionarioSelecionado, setFuncionarioSelecionado] = useState<FuncionarioSelecionado | null>(null);
+  const [modoFuncionario, setModoFuncionario] = useState(false);
 
   const { 
     agendamentos, 
@@ -38,6 +46,8 @@ const SSOAgendamentoExames: React.FC = () => {
     delete: deleteAgendamento, 
     updateStatus, 
     updateStatusBulk,
+    updateCarteira,
+    updateIntegracao,
     isDeleting,
     isUpdatingStatusBulk 
   } = useAgendamentoExames(undefined, filters);
@@ -53,9 +63,47 @@ const SSOAgendamentoExames: React.FC = () => {
     setSelectedIds([]);
   }, [filters]);
 
-  const handleNew = () => {
+  // Handlers para dropdown
+  const handleNovoAgendamento = () => {
+    setEditingId(undefined);
+    setFuncionarioSelecionado(null);
+    setTipoExameSelecionado(null);
+    setModoFuncionario(false);
+    setDialogOpen(true);
+  };
+
+  const handleRetorno = () => {
+    setTipoExameSelecionado('Retorno ao Trabalho');
+    setSelectorOpen(true);
+  };
+
+  const handleDemissional = () => {
+    setTipoExameSelecionado('Demissional');
+    setSelectorOpen(true);
+  };
+
+  const handlePeriodico = () => {
+    setTipoExameSelecionado('Periódico');
+    setSelectorOpen(true);
+  };
+
+  const handleFuncionarioSelected = (funcionario: FuncionarioSelecionado) => {
+    setFuncionarioSelecionado(funcionario);
+    setSelectorOpen(false);
+    setModoFuncionario(true);
     setEditingId(undefined);
     setDialogOpen(true);
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    setDialogOpen(open);
+    if (!open) {
+      // Limpar estados ao fechar
+      setFuncionarioSelecionado(null);
+      setTipoExameSelecionado(null);
+      setModoFuncionario(false);
+      setEditingId(undefined);
+    }
   };
 
   const handleEdit = (id: string) => {
@@ -93,6 +141,22 @@ const SSOAgendamentoExames: React.FC = () => {
       setSelectedIds([]);
     } catch (error) {
       console.error('Erro ao atualizar status em massa:', error);
+    }
+  };
+
+  const handleCarteiraChange = async (id: string, assinada: boolean) => {
+    try {
+      await updateCarteira({ id, assinada });
+    } catch (error) {
+      console.error('Erro ao atualizar carteira:', error);
+    }
+  };
+
+  const handleIntegracoChange = async (id: string, status: string) => {
+    try {
+      await updateIntegracao({ id, status });
+    } catch (error) {
+      console.error('Erro ao atualizar integração:', error);
     }
   };
 
@@ -140,10 +204,12 @@ const SSOAgendamentoExames: React.FC = () => {
               Exportar Excel
             </Button>
             {canCreate && (
-              <Button onClick={handleNew}>
-                <Plus className="h-4 w-4 mr-2" />
-                Novo Agendamento
-              </Button>
+              <NovoAgendamentoDropdown
+                onNovoAgendamento={handleNovoAgendamento}
+                onRetorno={handleRetorno}
+                onDemissional={handleDemissional}
+                onPeriodico={handlePeriodico}
+              />
             )}
           </div>
         </div>
@@ -177,6 +243,8 @@ const SSOAgendamentoExames: React.FC = () => {
             onDelete={(id) => setDeleteId(id)}
             onAnexos={() => toast.info('Funcionalidade de anexos em desenvolvimento')}
             onStatusChange={handleStatusChange}
+            onCarteiraChange={handleCarteiraChange}
+            onIntegracoChange={handleIntegracoChange}
             canEdit={canEdit}
             canDelete={canDelete}
             canChangeStatus={canChangeStatus}
@@ -185,12 +253,25 @@ const SSOAgendamentoExames: React.FC = () => {
           />
         )}
 
-        {/* Edit Dialog */}
+        {/* Funcionario Selector Dialog */}
+        {tipoExameSelecionado && (
+          <FuncionarioSelectorDialog
+            open={selectorOpen}
+            onOpenChange={setSelectorOpen}
+            tipoExame={tipoExameSelecionado}
+            onSelect={handleFuncionarioSelected}
+          />
+        )}
+
+        {/* Edit/Create Dialog */}
         <AgendamentoExamesDialog
           open={dialogOpen}
-          onOpenChange={setDialogOpen}
+          onOpenChange={handleDialogClose}
           agendamentoId={editingId}
           canChangeStatus={canChangeStatus}
+          modoFuncionario={modoFuncionario}
+          tipoExamePreSelecionado={tipoExameSelecionado || undefined}
+          funcionarioData={funcionarioSelecionado || undefined}
         />
 
         {/* View Dialog */}
