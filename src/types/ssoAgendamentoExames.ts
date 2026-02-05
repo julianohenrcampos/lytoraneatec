@@ -190,6 +190,7 @@ export interface FuncionarioSelecionado {
   email: string | null;
   cpf: string;
   data_nascimento: string | null;
+  telefone_celular: string | null;
   funcao: string;
   empresa: string;
   centro_custo: string | null;
@@ -287,7 +288,7 @@ export const mapFuncionarioToEtapa1 = (func: FuncionarioSelecionado): Partial<Et
   contrato: func.centro_custo || '',
   banco_agencia: func.banco_agencia || '',
   banco_conta: func.banco_conta || '',
-  telefone_celular: '',
+  telefone_celular: func.telefone_celular || '',
   rg: '',
   data_inicio_prevista: '',
   doc_titulo_eleitor: false,

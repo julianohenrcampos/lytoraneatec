@@ -54,6 +54,7 @@ export const useFuncionarioSearch = () => {
       email: func.email,
       cpf: func.cpf,
       data_nascimento: func.data_nascimento,
+      telefone_celular: null, // Não existe no cadastro de funcionários
       funcao: func.bd_funcoes?.nome_funcao || '',
       empresa: func.bd_empresas?.nome_empresa || '',
       centro_custo: func.bd_centros_custo?.nome_centro_custo || null,

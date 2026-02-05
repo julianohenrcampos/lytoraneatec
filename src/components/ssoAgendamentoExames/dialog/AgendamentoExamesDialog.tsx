@@ -185,7 +185,18 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
 
   // Validação da Etapa 1 (data_inicio_prevista removido - será calculado na Etapa 2)
   const isEtapa1Valid = useMemo(() => {
-    // Campos de dados pessoais sempre obrigatórios (menos RG)
+    // Se for funcionário existente (Retorno/Demissional/Periódico), validar apenas campos essenciais
+    if (modoFuncionario) {
+      const camposEssenciais = [
+        etapa1Data.nome_colaborador,
+        etapa1Data.funcao,
+        etapa1Data.empresa,
+        etapa1Data.cpf
+      ];
+      return camposEssenciais.every(field => field && field.trim() !== '');
+    }
+    
+    // Para NOVO funcionário (Admissional), validar TODOS os campos
     const requiredFields = [
       etapa1Data.nome_colaborador,
       etapa1Data.telefone_celular,
@@ -203,11 +214,6 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
       if (!etapa1Data.banco_agencia || !etapa1Data.banco_conta) {
         return false;
       }
-    }
-    
-    // Se for funcionário existente (Retorno/Demissional/Periódico), NÃO validar checklist
-    if (modoFuncionario) {
-      return true;
     }
     
     // Para NOVO (Admissional), validar checklist obrigatório (menos conta Santander que já foi validado acima)
