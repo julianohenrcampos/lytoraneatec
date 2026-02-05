@@ -5,8 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Combobox } from '@/components/ui/combobox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AgendamentoExameFilters, TIPOS_EXAME, STATUS_AGENDAMENTO } from '@/types/ssoAgendamentoExames';
-import { STATUS_INTEGRACAO } from '@/types/ssoAgendamentoExames';
+import { AgendamentoExameFilters, TIPOS_EXAME, STATUS_AGENDAMENTO, STATUS_INTEGRACAO } from '@/types/ssoAgendamentoExames';
 import { useAgendamentoExames } from '@/hooks/ssoAgendamentoExames';
 import { Filter, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -24,7 +23,10 @@ export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> =
   const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = useState(!isMobile);
   
-  const [data, setData] = useState('');
+  // Estados dos filtros
+  const [dataInicio, setDataInicio] = useState('');
+  const [dataFim, setDataFim] = useState('');
+  const [funcao, setFuncao] = useState('');
   const [status, setStatus] = useState('');
   const [tipoExame, setTipoExame] = useState('');
   const [localAtendimentoId, setLocalAtendimentoId] = useState('');
@@ -34,17 +36,24 @@ export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> =
   const [statusIntegracao, setStatusIntegracao] = useState('');
   const [carteiraAssinada, setCarteiraAssinada] = useState('');
 
-  const { locais, empresas } = useAgendamentoExames();
+  const { locais, empresas, funcoes } = useAgendamentoExames();
 
   const empresasOptions = useMemo(() => [
     { value: '', label: 'Todas as empresas' },
     ...empresas.map(e => ({ value: e.nome_empresa, label: e.nome_empresa }))
   ], [empresas]);
 
+  const funcoesOptions = useMemo(() => [
+    { value: '', label: 'Todas as funções' },
+    ...funcoes.map(f => ({ value: f.nome_funcao, label: f.nome_funcao }))
+  ], [funcoes]);
+
   const handleApplyFilters = () => {
     const filters: AgendamentoExameFilters = {};
     
-    if (data) filters.data = data;
+    if (dataInicio) filters.data_inicio = dataInicio;
+    if (dataFim) filters.data_fim = dataFim;
+    if (funcao) filters.funcao = funcao;
     if (status && status !== 'all') filters.status = status;
     if (tipoExame && tipoExame !== 'all') filters.tipo_exame = tipoExame;
     if (localAtendimentoId && localAtendimentoId !== 'all') filters.local_atendimento_id = localAtendimentoId;
@@ -58,7 +67,9 @@ export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> =
   };
 
   const handleClear = () => {
-    setData('');
+    setDataInicio('');
+    setDataFim('');
+    setFuncao('');
     setStatus('');
     setTipoExame('');
     setLocalAtendimentoId('');
@@ -72,13 +83,23 @@ export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> =
 
   const filtersContent = (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      {/* Data */}
+      {/* Data Início */}
       <div className="space-y-2">
-        <Label>Data</Label>
+        <Label>Data Início</Label>
         <Input
           type="date"
-          value={data}
-          onChange={(e) => setData(e.target.value)}
+          value={dataInicio}
+          onChange={(e) => setDataInicio(e.target.value)}
+        />
+      </div>
+
+      {/* Data Fim */}
+      <div className="space-y-2">
+        <Label>Data Fim</Label>
+        <Input
+          type="date"
+          value={dataFim}
+          onChange={(e) => setDataFim(e.target.value)}
         />
       </div>
 
@@ -140,6 +161,19 @@ export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> =
           placeholder="Todas as empresas"
           searchPlaceholder="Buscar empresa..."
           emptyText="Nenhuma empresa encontrada"
+        />
+      </div>
+
+      {/* Função */}
+      <div className="space-y-2">
+        <Label>Função</Label>
+        <Combobox
+          options={funcoesOptions}
+          value={funcao}
+          onChange={setFuncao}
+          placeholder="Todas as funções"
+          searchPlaceholder="Buscar função..."
+          emptyText="Nenhuma função encontrada"
         />
       </div>
 

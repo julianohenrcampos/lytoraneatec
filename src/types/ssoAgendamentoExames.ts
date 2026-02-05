@@ -172,7 +172,9 @@ export interface AgendamentoExameAnexo {
 }
 
 export interface AgendamentoExameFilters {
-  data?: string;
+  data_inicio?: string;
+  data_fim?: string;
+  funcao?: string;
   status?: string;
   tipo_exame?: string;
   local_atendimento_id?: string;

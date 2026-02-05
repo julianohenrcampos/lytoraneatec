@@ -37,8 +37,14 @@ export const agendamentoExamesService = {
       .order('data_agendamento', { ascending: false });
 
     // Aplicar filtros
-    if (filters.data) {
-      query = query.eq('data_agendamento', filters.data);
+    if (filters.data_inicio) {
+      query = query.gte('data_agendamento', filters.data_inicio);
+    }
+    if (filters.data_fim) {
+      query = query.lte('data_agendamento', filters.data_fim);
+    }
+    if (filters.funcao) {
+      query = query.ilike('funcao', `%${filters.funcao}%`);
     }
     if (filters.status && filters.status !== 'all') {
       query = query.eq('status', filters.status);
