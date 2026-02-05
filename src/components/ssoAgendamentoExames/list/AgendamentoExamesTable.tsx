@@ -152,10 +152,10 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
             <TableHead>Colaborador</TableHead>
             <TableHead>Empresa</TableHead>
             <TableHead>Tipo Exame</TableHead>
+            <TableHead>Status Exame</TableHead>
+            <TableHead>Integração</TableHead>
             <TableHead className="text-center">Prazo Contrat.</TableHead>
             <TableHead>Status Carteira</TableHead>
-            <TableHead>Integração</TableHead>
-            <TableHead>Status</TableHead>
             <TableHead className="text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
@@ -180,6 +180,65 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
                 <Badge variant="outline" className="text-xs">
                   {agendamento.tipo_exame}
                 </Badge>
+              </TableCell>
+              <TableCell>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="p-0 h-auto">
+                      <Badge variant={getStatusColor(agendamento.status)}>
+                        {agendamento.status}
+                        <ChevronDown className="h-3 w-3 ml-1" />
+                      </Badge>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    {STATUS_AGENDAMENTO.map((status) => (
+                      <DropdownMenuItem
+                        key={status}
+                        onClick={() => onStatusChange(agendamento.id, status)}
+                        disabled={!canChangeStatus}
+                      >
+                        <Badge variant={getStatusColor(status)} className="mr-2">
+                          {status}
+                        </Badge>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </TableCell>
+              <TableCell>
+                {isAdmissional(agendamento.tipo_exame) ? (
+                  canChangeStatus && onIntegracoChange ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="p-0 h-auto">
+                          <Badge variant={getStatusIntegracoColor(agendamento.status_integracao)}>
+                            {agendamento.status_integracao}
+                            <ChevronDown className="h-3 w-3 ml-1" />
+                          </Badge>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        {STATUS_INTEGRACAO.map((status) => (
+                          <DropdownMenuItem
+                            key={status}
+                            onClick={() => onIntegracoChange(agendamento.id, status)}
+                          >
+                            <Badge variant={getStatusIntegracoColor(status)} className="mr-2">
+                              {status}
+                            </Badge>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <Badge variant={getStatusIntegracoColor(agendamento.status_integracao)}>
+                      {agendamento.status_integracao}
+                    </Badge>
+                  )
+                ) : (
+                  <span className="text-muted-foreground">-</span>
+                )}
               </TableCell>
               <TableCell className="text-center">
                 {isAdmissional(agendamento.tipo_exame) ? (
@@ -233,65 +292,6 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
                 ) : (
                   <span className="text-muted-foreground">-</span>
                 )}
-              </TableCell>
-              <TableCell>
-                {isAdmissional(agendamento.tipo_exame) ? (
-                  canChangeStatus && onIntegracoChange ? (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="p-0 h-auto">
-                          <Badge variant={getStatusIntegracoColor(agendamento.status_integracao)}>
-                            {agendamento.status_integracao}
-                            <ChevronDown className="h-3 w-3 ml-1" />
-                          </Badge>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        {STATUS_INTEGRACAO.map((status) => (
-                          <DropdownMenuItem
-                            key={status}
-                            onClick={() => onIntegracoChange(agendamento.id, status)}
-                          >
-                            <Badge variant={getStatusIntegracoColor(status)} className="mr-2">
-                              {status}
-                            </Badge>
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  ) : (
-                    <Badge variant={getStatusIntegracoColor(agendamento.status_integracao)}>
-                      {agendamento.status_integracao}
-                    </Badge>
-                  )
-                ) : (
-                  <span className="text-muted-foreground">-</span>
-                )}
-              </TableCell>
-              <TableCell>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="p-0 h-auto">
-                      <Badge variant={getStatusColor(agendamento.status)}>
-                        {agendamento.status}
-                        <ChevronDown className="h-3 w-3 ml-1" />
-                      </Badge>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    {STATUS_AGENDAMENTO.map((status) => (
-                      <DropdownMenuItem
-                        key={status}
-                        onClick={() => onStatusChange(agendamento.id, status)}
-                        disabled={!canChangeStatus}
-                      >
-                        <Badge variant={getStatusColor(status)} className="mr-2">
-                          {status}
-                        </Badge>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-1">

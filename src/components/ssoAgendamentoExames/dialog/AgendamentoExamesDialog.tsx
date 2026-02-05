@@ -185,6 +185,7 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
 
   // Validação da Etapa 1 (data_inicio_prevista removido - será calculado na Etapa 2)
   const isEtapa1Valid = useMemo(() => {
+    // Campos de dados pessoais sempre obrigatórios (menos RG)
     const requiredFields = [
       etapa1Data.nome_colaborador,
       etapa1Data.telefone_celular,
@@ -195,6 +196,7 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
     ];
     
     const allFieldsFilled = requiredFields.every(field => field && field.trim() !== '');
+    if (!allFieldsFilled) return false;
     
     // Se tem conta Santander, verificar agência e conta
     if (etapa1Data.possui_conta_santander) {
@@ -203,8 +205,26 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
       }
     }
     
-    return allFieldsFilled;
-  }, [etapa1Data]);
+    // Se for funcionário existente (Retorno/Demissional/Periódico), NÃO validar checklist
+    if (modoFuncionario) {
+      return true;
+    }
+    
+    // Para NOVO (Admissional), validar checklist obrigatório (menos conta Santander que já foi validado acima)
+    const checklistObrigatorio = [
+      etapa1Data.doc_titulo_eleitor,
+      etapa1Data.doc_pis_pasep,
+      etapa1Data.doc_certificado_reservista,
+      etapa1Data.doc_comprovante_residencia,
+      etapa1Data.doc_comprovante_escolaridade,
+      etapa1Data.doc_cnh,
+      etapa1Data.doc_exame_toxicologico,
+      etapa1Data.doc_certidao_filhos,
+      etapa1Data.possui_carteira_digital
+    ];
+    
+    return checklistObrigatorio.every(field => field === true);
+  }, [etapa1Data, modoFuncionario]);
 
   // Validação da Etapa 2
   const isEtapa2Valid = useMemo(() => {

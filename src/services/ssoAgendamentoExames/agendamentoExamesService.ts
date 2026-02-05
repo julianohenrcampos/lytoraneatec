@@ -58,6 +58,13 @@ export const agendamentoExamesService = {
     if (filters.cpf) {
       query = query.ilike('cpf', `%${filters.cpf}%`);
     }
+    if (filters.status_integracao && filters.status_integracao !== 'all') {
+      query = query.eq('status_integracao', filters.status_integracao);
+    }
+    if (filters.carteira_assinada && filters.carteira_assinada !== 'all') {
+      const assinada = filters.carteira_assinada === 'sim';
+      query = query.eq('carteira_assinada', assinada);
+    }
 
     const { data, error } = await query;
     if (error) throw error;

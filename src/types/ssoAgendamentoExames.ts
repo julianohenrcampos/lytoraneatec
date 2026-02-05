@@ -179,6 +179,8 @@ export interface AgendamentoExameFilters {
   empresa?: string;
   nome_colaborador?: string;
   cpf?: string;
+  status_integracao?: string;
+  carteira_assinada?: string;
 }
 
 // Interface para funcionário selecionado (vindo de bd_funcionarios)
