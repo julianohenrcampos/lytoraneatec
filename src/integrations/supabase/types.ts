@@ -3438,6 +3438,131 @@ export type Database = {
         }
         Relationships: []
       }
+      bd_sso_ver_agir: {
+        Row: {
+          centro_custo_id: string | null
+          created_at: string
+          criado_por: string
+          data_registro: string
+          descricao_nao_conformidade: string
+          engenheiro_id: string | null
+          engenheiro_nome: string
+          foto_antes_url: string | null
+          foto_depois_url: string | null
+          hora_registro: string
+          id: string
+          local: string
+          obra: string
+          observacao_gestao: string | null
+          resultado_alcancado_solucao: string
+          status: string
+          tecnico_seguranca_id: string | null
+          tecnico_seguranca_nome: string
+          updated_at: string | null
+          visto_gestao: boolean | null
+          visto_gestao_em: string | null
+          visto_gestao_por: string | null
+        }
+        Insert: {
+          centro_custo_id?: string | null
+          created_at?: string
+          criado_por: string
+          data_registro: string
+          descricao_nao_conformidade: string
+          engenheiro_id?: string | null
+          engenheiro_nome: string
+          foto_antes_url?: string | null
+          foto_depois_url?: string | null
+          hora_registro: string
+          id?: string
+          local: string
+          obra: string
+          observacao_gestao?: string | null
+          resultado_alcancado_solucao: string
+          status?: string
+          tecnico_seguranca_id?: string | null
+          tecnico_seguranca_nome: string
+          updated_at?: string | null
+          visto_gestao?: boolean | null
+          visto_gestao_em?: string | null
+          visto_gestao_por?: string | null
+        }
+        Update: {
+          centro_custo_id?: string | null
+          created_at?: string
+          criado_por?: string
+          data_registro?: string
+          descricao_nao_conformidade?: string
+          engenheiro_id?: string | null
+          engenheiro_nome?: string
+          foto_antes_url?: string | null
+          foto_depois_url?: string | null
+          hora_registro?: string
+          id?: string
+          local?: string
+          obra?: string
+          observacao_gestao?: string | null
+          resultado_alcancado_solucao?: string
+          status?: string
+          tecnico_seguranca_id?: string | null
+          tecnico_seguranca_nome?: string
+          updated_at?: string | null
+          visto_gestao?: boolean | null
+          visto_gestao_em?: string | null
+          visto_gestao_por?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_sso_ver_agir_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_sso_ver_agir_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_sso_ver_agir_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_resumo_diarias"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_sso_ver_agir_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_sso_ver_agir_engenheiro_id_fkey"
+            columns: ["engenheiro_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_sso_ver_agir_tecnico_seguranca_id_fkey"
+            columns: ["tecnico_seguranca_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_sso_ver_agir_visto_gestao_por_fkey"
+            columns: ["visto_gestao_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_usinas: {
         Row: {
           created_at: string | null

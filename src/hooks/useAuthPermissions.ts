@@ -52,10 +52,10 @@ export const useAuthPermissions = (): UserPermissions => {
 
         // 🔧 FALLBACK GARANTIDO PARA FUNÇÕES SSO
         const SSO_ROLE_PERMISSIONS: Record<string, string[]> = {
-          'TecSSO': ['acesso_sso_checklists', 'acesso_sso_desvios', 'dashboard_view'],
+          'TecSSO': ['acesso_sso_checklists', 'acesso_sso_desvios', 'acesso_sso_ver_agir', 'dashboard_view'],
           'AdmSSO': [
             'acesso_sso_checklists', 'acesso_sso_desvios', 'acesso_sso_dashboard',
-            'acesso_sso_agendamento_exames', 'dashboard_view', 'dashboard_rh_view',
+            'acesso_sso_agendamento_exames', 'acesso_sso_ver_agir', 'dashboard_view', 'dashboard_rh_view',
             'gestao_rh_empresas_view', 'gestao_rh_departamentos_view',
             'gestao_rh_funcionarios_view', 'gestao_rh_funcoes_view',
             'gestao_rh_centros_custo_view', 'gestao_rh_equipes_view'

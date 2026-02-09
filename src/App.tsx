@@ -63,6 +63,7 @@ import SSODashboard from "@/pages/SSODashboard";
 import SSODesviosList from "@/pages/SSODesviosList";
 import SSOAgendamentoExames from "@/pages/SSOAgendamentoExames";
 import SSOClinicas from "@/pages/SSOClinicas";
+import SSOVerAgir from "@/pages/SSOVerAgir";
 
 // Licitações PNCP
 import MonitoramentoPNCP from "@/pages/MonitoramentoPNCP";
@@ -358,6 +359,17 @@ const App = () => {
                   </SecureRouteGuard>
                 </SimplePermissionGuard>
                 </SimpleAuthGuard>
+            } />
+            
+            {/* SSO - Ver e Agir */}
+            <Route path="/sso/ver-e-agir" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <SecureRouteGuard requiredPermission="acesso_sso_ver_agir">
+                    <SSOVerAgir />
+                  </SecureRouteGuard>
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
             } />
             
             {/* Diárias (Fim de Semana/Feriado) - Fluxo simplificado */}

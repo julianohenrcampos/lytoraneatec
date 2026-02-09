@@ -244,6 +244,12 @@ export const menuStructure = [
         requiredPermission: "acesso_sso_desvios"
       },
       {
+        name: "Ver e Agir",
+        href: "/sso/ver-e-agir",
+        icon: ClipboardCheck,
+        requiredPermission: "acesso_sso_ver_agir"
+      },
+      {
         name: "Agendamento de Exames",
         href: "/sso/agendamento-exames",
         icon: Calendar,
