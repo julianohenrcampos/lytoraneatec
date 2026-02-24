@@ -1,0 +1,1 @@
+ALTER TABLE bd_funcoes ADD COLUMN valor_refeicao numeric NULL;

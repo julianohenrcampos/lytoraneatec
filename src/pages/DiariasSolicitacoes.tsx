@@ -55,7 +55,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import DeleteSolicitacaoDialog from "@/components/diarias/DeleteSolicitacaoDialog";
 import { 
   useSolicitacoesDiaria, 
   useSolicitacoesResumo,
@@ -266,7 +266,7 @@ export default function DiariasSolicitacoes() {
   };
 
   const canUserDelete = (sol: DiariaSolicitacao) => {
-    return canDeleteSolicitacao(sol) && ['rascunho', 'enviada'].includes(sol.status);
+    return canDeleteSolicitacao(sol);
   };
 
   const canUserResend = (sol: DiariaSolicitacao) => {
@@ -508,11 +508,13 @@ export default function DiariasSolicitacoes() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             {canUserEdit(sol) && (
+                              <DropdownMenuItem onClick={() => handleOpenForm(sol)}>
+                                Editar
+                              </DropdownMenuItem>
+                            )}
+                            {canUserDelete(sol) && (
                               <>
-                                <DropdownMenuItem onClick={() => handleOpenForm(sol)}>
-                                  Editar
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
+                                {canUserEdit(sol) && <DropdownMenuSeparator />}
                                 <DropdownMenuItem 
                                   className="text-destructive"
                                   onClick={() => handleOpenDeleteDialog(sol.id)}
@@ -625,15 +627,13 @@ export default function DiariasSolicitacoes() {
         )}
 
         {/* Delete Confirmation Dialog */}
-        <ConfirmDialog
+        <DeleteSolicitacaoDialog
           isOpen={deleteDialogOpen}
           onClose={() => setDeleteDialogOpen(false)}
           onConfirm={handleConfirmDelete}
-          title="Excluir Solicitação"
-          description="Tem certeza que deseja excluir esta solicitação? Esta ação não poderá ser desfeita."
-          confirmText="Excluir"
-          variant="danger"
-          isLoading={deleteMutation.isPending}
+          solicitacaoId={deletingId}
+          solicitacaoNumero={solicitacoes.find(s => s.id === deletingId)?.numero_solicitacao || null}
+          isDeleting={deleteMutation.isPending}
         />
       </div>
     </MainLayout>

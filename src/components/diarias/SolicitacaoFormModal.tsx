@@ -83,6 +83,7 @@ export function SolicitacaoFormModal({
   const [justificativa, setJustificativa] = useState('');
   const [convocadosPre, setConvocadosPre] = useState<FuncionarioPreConvocado[]>([]);
   const [responsavelCampoId, setResponsavelCampoId] = useState('');
+  const [engenheiroSolicitanteId, setEngenheiroSolicitanteId] = useState('');
   
   // Selection state for adding funcionarios
   const [selectedFuncionarioId, setSelectedFuncionarioId] = useState('');
@@ -143,7 +144,8 @@ export function SolicitacaoFormModal({
             id,
             nome_funcao,
             valor_diaria,
-            valor_diaria_exclusiva
+            valor_diaria_exclusiva,
+            valor_refeicao
           )
         `)
         .eq('status', 'Ativo')
@@ -200,6 +202,7 @@ export function SolicitacaoFormModal({
         setCentroCustoId(editingSolicitacao.centro_custo_id);
         setJustificativa(editingSolicitacao.justificativa);
         setResponsavelCampoId(editingSolicitacao.responsavel_campo_id || '');
+        setEngenheiroSolicitanteId(editingSolicitacao.engenheiro_solicitante_id || '');
         const convocadosRaw = editingSolicitacao.convocados_pre;
         if (convocadosRaw && Array.isArray(convocadosRaw)) {
           setConvocadosPre(convocadosRaw);
@@ -215,6 +218,7 @@ export function SolicitacaoFormModal({
         setJustificativa('');
         setConvocadosPre([]);
         setResponsavelCampoId('');
+        setEngenheiroSolicitanteId('');
       }
       setStep('dados');
       setSelectedFuncionarioId('');
@@ -261,6 +265,7 @@ export function SolicitacaoFormModal({
       funcao_id: func.funcao_id,
       valor_diaria: func.bd_funcoes.valor_diaria || 0,
       valor_diaria_exclusiva: func.bd_funcoes.valor_diaria_exclusiva || undefined,
+      valor_refeicao: func.bd_funcoes.valor_refeicao || 0,
       nome_funcionario: func.nome_completo,
       nome_funcao: func.bd_funcoes.nome_funcao
     };
@@ -300,10 +305,12 @@ export function SolicitacaoFormModal({
       funcao_id: c.funcao_id,
       valor_diaria: c.valor_diaria,
       valor_diaria_exclusiva: c.valor_diaria_exclusiva,
+      valor_refeicao: c.valor_refeicao,
       nome_funcionario: c.nome_funcionario,
       nome_funcao: c.nome_funcao
     })),
-    responsavel_campo_id: responsavelCampoId || undefined
+    responsavel_campo_id: responsavelCampoId || undefined,
+    engenheiro_solicitante_id: engenheiroSolicitanteId || undefined
   });
 
   // Handle save as draft
@@ -451,6 +458,29 @@ export function SolicitacaoFormModal({
                 )}
               </div>
               
+              {/* Campo Engenheiro Solicitante */}
+              <div>
+                <Label className="flex items-center gap-2">
+                  <User className="h-3.5 w-3.5 text-muted-foreground" />
+                  Engenheiro Solicitante
+                </Label>
+                <Combobox
+                  options={funcionarios.map((f: any) => ({
+                    value: f.id,
+                    label: f.nome_completo
+                  }))}
+                  value={engenheiroSolicitanteId}
+                  onChange={setEngenheiroSolicitanteId}
+                  placeholder="Selecione o engenheiro responsável..."
+                  searchPlaceholder="Buscar engenheiro..."
+                  emptyText="Nenhum funcionário encontrado"
+                  className="mt-1.5"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Engenheiro responsável por esta solicitação de diária
+                </p>
+              </div>
+
               {/* Campo Apontador (Responsável em Campo) */}
               <div>
                 <Label className="flex items-center gap-2">
@@ -533,6 +563,7 @@ export function SolicitacaoFormModal({
                       <TableHead>Função</TableHead>
                       <TableHead className="text-right">Diária</TableHead>
                       <TableHead className="text-right">FDS/Fer</TableHead>
+                      <TableHead className="text-right">Refeição</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -546,6 +577,9 @@ export function SolicitacaoFormModal({
                         </TableCell>
                         <TableCell className="text-right">
                           {formatCurrency(conv.valor_diaria_exclusiva || conv.valor_diaria * 1.2)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(conv.valor_refeicao || 0)}
                         </TableCell>
                         <TableCell>
                           <Button
@@ -568,6 +602,7 @@ export function SolicitacaoFormModal({
                   simulacao={simulacao}
                   diasUteis={analise.diasUteis}
                   diasFdsFeriados={consideraFdsFeriado ? analise.finaisDeSemana + analise.feriados : 0}
+                  diasParaRefeicao={consideraFdsFeriado ? analise.diasUteis + analise.finaisDeSemana + analise.feriados : analise.diasUteis}
                 />
               )}
 
@@ -669,11 +704,12 @@ export function SolicitacaoFormModal({
                   </Label>
                   <Table>
                     <TableHeader>
-                      <TableRow>
+                    <TableRow>
                         <TableHead>Funcionário</TableHead>
                         <TableHead>Função</TableHead>
                         <TableHead className="text-right">Diária</TableHead>
                         <TableHead className="text-right">FDS/Fer</TableHead>
+                        <TableHead className="text-right">Refeição</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -684,6 +720,9 @@ export function SolicitacaoFormModal({
                           <TableCell className="text-right">{formatCurrency(conv.valor_diaria)}</TableCell>
                           <TableCell className="text-right">
                             {formatCurrency(conv.valor_diaria_exclusiva || conv.valor_diaria * 1.2)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(conv.valor_refeicao || 0)}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -697,6 +736,7 @@ export function SolicitacaoFormModal({
                 simulacao={simulacao}
                 diasUteis={analise.diasUteis}
                 diasFdsFeriados={consideraFdsFeriado ? analise.finaisDeSemana + analise.feriados : 0}
+                diasParaRefeicao={consideraFdsFeriado ? analise.diasUteis + analise.finaisDeSemana + analise.feriados : analise.diasUteis}
               />
               
               <EstimativaAviso />

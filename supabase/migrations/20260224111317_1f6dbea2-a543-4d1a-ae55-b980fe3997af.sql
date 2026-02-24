@@ -1,0 +1,1 @@
+UPDATE bd_funcoes SET valor_refeicao = 28.00;

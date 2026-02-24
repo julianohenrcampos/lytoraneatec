@@ -26,6 +26,7 @@ export interface FuncionarioParaCalculo {
   funcionario_id: string;
   valor_diaria: number;
   valor_diaria_exclusiva?: number;
+  valor_refeicao?: number;
   nome_funcionario?: string;
   nome_funcao?: string;
 }
@@ -33,12 +34,14 @@ export interface FuncionarioParaCalculo {
 export interface SimulacaoValores {
   totalDiasUteis: number;
   totalFdsFeriados: number;
+  totalRefeicoes: number;
   totalEstimado: number;
   detalhePorFuncionario: {
     funcionario_id: string;
     nome: string;
     valorDiasUteis: number;
     valorFdsFeriados: number;
+    valorRefeicoes: number;
     valorTotal: number;
   }[];
 }
@@ -134,6 +137,7 @@ export function calcularEstimativaTotal(
   const detalhePorFuncionario = funcionarios.map(func => {
     const valorDiaria = func.valor_diaria || 0;
     const valorDiariaExclusiva = func.valor_diaria_exclusiva || valorDiaria * 1.2; // Default: 20% extra
+    const valorRefeicao = func.valor_refeicao || 0;
     
     // Dias úteis sempre contam
     const valorDiasUteis = analise.diasUteis * valorDiaria;
@@ -144,18 +148,26 @@ export function calcularEstimativaTotal(
       ? diasFdsFeriado * valorDiariaExclusiva 
       : 0;
     
+    // Refeição conta para todos os dias que o funcionário trabalha
+    const diasParaRefeicao = considerarFdsFeriado
+      ? analise.diasUteis + diasFdsFeriado
+      : analise.diasUteis;
+    const valorRefeicoes = diasParaRefeicao * valorRefeicao;
+    
     return {
       funcionario_id: func.funcionario_id,
       nome: func.nome_funcionario || '',
       valorDiasUteis,
       valorFdsFeriados,
-      valorTotal: valorDiasUteis + valorFdsFeriados
+      valorRefeicoes,
+      valorTotal: valorDiasUteis + valorFdsFeriados + valorRefeicoes
     };
   });
 
   return {
     totalDiasUteis: detalhePorFuncionario.reduce((sum, f) => sum + f.valorDiasUteis, 0),
     totalFdsFeriados: detalhePorFuncionario.reduce((sum, f) => sum + f.valorFdsFeriados, 0),
+    totalRefeicoes: detalhePorFuncionario.reduce((sum, f) => sum + f.valorRefeicoes, 0),
     totalEstimado: detalhePorFuncionario.reduce((sum, f) => sum + f.valorTotal, 0),
     detalhePorFuncionario
   };

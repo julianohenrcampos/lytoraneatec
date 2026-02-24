@@ -140,6 +140,7 @@ export async function createSolicitacao(formData: SolicitacaoFormData): Promise<
     valor_estimado_total: formData.valor_estimado_total ?? 0,
     convocados_pre: formData.convocados_pre || [],
     responsavel_campo_id: formData.responsavel_campo_id || null,
+    engenheiro_solicitante_id: formData.engenheiro_solicitante_id || null,
     status: 'rascunho'
   };
 
@@ -180,6 +181,7 @@ export async function updateSolicitacao(id: string, formData: Partial<Solicitaca
   if (formData.valor_estimado_total !== undefined) updateData.valor_estimado_total = formData.valor_estimado_total;
   if (formData.convocados_pre !== undefined) updateData.convocados_pre = formData.convocados_pre;
   if (formData.responsavel_campo_id !== undefined) updateData.responsavel_campo_id = formData.responsavel_campo_id || null;
+  if (formData.engenheiro_solicitante_id !== undefined) updateData.engenheiro_solicitante_id = formData.engenheiro_solicitante_id || null;
 
   const { data, error } = await supabase
     .from('bd_diaria_solicitacoes')
@@ -204,6 +206,13 @@ export async function updateSolicitacao(id: string, formData: Partial<Solicitaca
 }
 
 export async function deleteSolicitacao(id: string): Promise<void> {
+  // Deletar aprovações relacionadas (sem FK cascade)
+  await supabase
+    .from('bd_diaria_aprovacoes')
+    .delete()
+    .eq('entidade_id', id);
+
+  // Deletar solicitação (apontamentos, presenças e convocações são cascateados pelo banco)
   const { error } = await supabase
     .from('bd_diaria_solicitacoes')
     .delete()
@@ -410,6 +419,24 @@ async function registrarAprovacao(
     console.error('Erro ao registrar aprovação:', error);
     // Não lança erro para não interromper o fluxo principal
   }
+}
+
+export async function checkSolicitacaoCanBeDeleted(id: string) {
+  const [apontamentos, presencas, aprovacoes, convocacoes] = await Promise.all([
+    supabase.from('bd_diaria_apontamentos').select('id', { count: 'exact', head: true }).eq('solicitacao_id', id),
+    supabase.from('bd_diaria_presencas').select('id', { count: 'exact', head: true }).eq('solicitacao_id', id),
+    supabase.from('bd_diaria_aprovacoes').select('id', { count: 'exact', head: true }).eq('entidade_id', id),
+    supabase.from('bd_diaria_convocacoes').select('id', { count: 'exact', head: true }).eq('solicitacao_id', id),
+  ]);
+  return {
+    canDelete: true,
+    details: {
+      totalApontamentos: apontamentos.count || 0,
+      totalPresencas: presencas.count || 0,
+      totalAprovacoes: aprovacoes.count || 0,
+      totalConvocacoes: convocacoes.count || 0,
+    }
+  };
 }
 
 export async function getHistoricoAprovacoes(entidadeId: string): Promise<any[]> {

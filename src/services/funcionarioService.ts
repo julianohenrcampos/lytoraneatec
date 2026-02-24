@@ -331,41 +331,47 @@ export const createFuncionario = async (data: FuncionarioFormData): Promise<Func
     // Log the data being sent to the database for debugging
     console.log("Creating funcionario with data:", funcionarioData);
 
-    const { data: newFuncionario, error } = await supabase
+    // Separar INSERT do SELECT para evitar conflito RLS no RETURNING
+    // AdmSSO pode inserir em qualquer departamento, mas só pode visualizar o seu
+    const { error: insertError } = await supabase
       .from("bd_funcionarios")
-      .insert(funcionarioData as any)
-      .select()
-      .single();
+      .insert(funcionarioData as any);
 
-    if (error) {
-      console.error("Database error:", error);
-      
-      // Se o erro for de RLS no SELECT (registro criado mas não pode ser lido)
-      // O INSERT pode ter funcionado mesmo assim - PGRST116 = "0 rows returned"
-      if (error.code === 'PGRST116' || error.message.includes('0 rows')) {
-        console.warn("⚠️ Funcionário criado, mas sem permissão para visualizar (RLS departamental)");
-        
-        // Retornar dados do formulário como resposta parcial
-        // O registro foi criado com sucesso, apenas não pode ser lido pelo usuário atual
-        return {
-          ...funcionarioData,
-          id: crypto.randomUUID(), // ID temporário (o real está no banco)
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        } as unknown as Funcionario;
-      }
+    if (insertError) {
+      console.error("Database INSERT error:", insertError);
       
       // Extrair mensagem amigável de erros de duplicação
-      if (error.message.includes('Já existe um funcionário')) {
-        throw new Error(error.message);
-      } else if (error.message.includes('duplicate key') || error.code === '23505') {
+      if (insertError.message.includes('Já existe um funcionário')) {
+        throw new Error(insertError.message);
+      } else if (insertError.message.includes('duplicate key') || insertError.code === '23505') {
         throw new Error('Já existe um funcionário com este CPF ou email. Verifique os dados.');
       }
       
-      throw new Error(`Erro ao criar funcionário: ${error.message}`);
+      throw new Error(`Erro ao criar funcionário: ${insertError.message}`);
     }
-    
-    return newFuncionario as unknown as Funcionario;
+
+    // INSERT bem-sucedido — tentar buscar o registro criado
+    // Pode falhar por RLS departamental (AdmSSO inserindo em outro departamento)
+    const { data: newFuncionario } = await supabase
+      .from("bd_funcionarios")
+      .select()
+      .eq('cpf', funcionarioData.cpf)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (newFuncionario) {
+      return newFuncionario as unknown as Funcionario;
+    }
+
+    // Fallback: registro criado com sucesso mas não visível por RLS
+    console.warn("⚠️ Funcionário criado com sucesso, mas sem permissão para visualizar (RLS departamental)");
+    return {
+      ...funcionarioData,
+      id: crypto.randomUUID(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as unknown as Funcionario;
   } catch (error) {
     console.error("Error creating funcionario:", error);
     throw error;

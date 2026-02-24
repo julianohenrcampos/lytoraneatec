@@ -14,7 +14,8 @@ export {
   reprovarSolicitacao,
   cancelarEnvioSolicitacao,
   getSolicitacoesResumo,
-  getHistoricoAprovacoes
+  getHistoricoAprovacoes,
+  checkSolicitacaoCanBeDeleted
 } from './solicitacoesService';
 
 // Relatório

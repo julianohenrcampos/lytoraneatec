@@ -111,6 +111,20 @@ export function SolicitacaoDetalhesModal({
         }
       }
 
+      // Buscar nome do engenheiro solicitante
+      let engenheiroSolicitanteNome = null;
+      if ((solicitacao as any).engenheiro_solicitante_id) {
+        const { data: engenheiro } = await supabase
+          .from('bd_funcionarios')
+          .select('nome_completo')
+          .eq('id', (solicitacao as any).engenheiro_solicitante_id)
+          .maybeSingle();
+        
+        if (engenheiro) {
+          engenheiroSolicitanteNome = engenheiro.nome_completo;
+        }
+      }
+
       // Buscar nome do criador
       let criadorNome = null;
       if (solicitacao.criado_por) {
@@ -171,6 +185,7 @@ export function SolicitacaoDetalhesModal({
         aprovadorNome,
         apontadorNome,
         criadorNome,
+        engenheiroSolicitanteNome,
         funcionariosMap,
         funcoesMap
       };
@@ -323,7 +338,7 @@ export function SolicitacaoDetalhesModal({
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground flex items-center gap-1">
                     <User className="h-3 w-3" />
-                    Solicitante
+                    Solicitante (Sistema)
                   </p>
                   <p className="font-medium">
                     {dadosComplementares?.criadorNome || solicitacao.profiles?.nome_completo || "-"}
@@ -332,10 +347,31 @@ export function SolicitacaoDetalhesModal({
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground flex items-center gap-1">
                     <User className="h-3 w-3" />
+                    Engenheiro Solicitante
+                  </p>
+                  <p className="font-medium">
+                    {dadosComplementares?.engenheiroSolicitanteNome || "-"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground flex items-center gap-1">
+                    <User className="h-3 w-3" />
                     Aprovador do CC
                   </p>
                   <p className="font-medium">
                     {dadosComplementares?.aprovadorNome || "-"}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground flex items-center gap-1">
+                    <User className="h-3 w-3" />
+                    Responsável em Campo
+                  </p>
+                  <p className="font-medium">
+                    {dadosComplementares?.apontadorNome || solicitacao.responsavel_campo?.nome_completo || "-"}
                   </p>
                 </div>
               </div>

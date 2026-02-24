@@ -4,6 +4,8 @@
 
 import { supabase } from '@/integrations/supabase/client';
 
+export type TipoDiaria = 'completa' | 'meia' | 'nenhuma';
+
 export interface PresencaDiaria {
   id: string;
   solicitacao_id: string;
@@ -16,6 +18,9 @@ export interface PresencaDiaria {
   intervalo_fim: string | null;
   valor_diaria_aplicada: number;
   funcao_id: string | null;
+  tipo_diaria: TipoDiaria | null;
+  recebe_refeicao: boolean | null;
+  valor_refeicao_aplicado: number | null;
   confirmado_por: string | null;
   confirmado_em: string | null;
   created_at: string;
@@ -39,9 +44,13 @@ export interface PresencaFormData {
   funcao_id: string;
   nome_funcao?: string;
   valor_diaria: number;
+  valor_diaria_original: number;
   presente: boolean;
   hora_entrada?: string;
   hora_saida?: string;
+  tipo_diaria?: TipoDiaria;
+  recebe_refeicao?: boolean;
+  valor_refeicao_aplicado?: number;
 }
 
 // Buscar presenças por solicitação e data
@@ -81,7 +90,7 @@ export async function getPresencasPorSolicitacao(
   return (presencas || []) as PresencaDiaria[];
 }
 
-// Salvar ou atualizar presenças em batch (upsert)
+// Salvar ou atualizar presenças em batch (upsert) - DEPRECATED, usar salvarInicio/salvarFinalizacao
 export async function salvarPresencas(
   solicitacaoId: string,
   data: string,
@@ -90,7 +99,6 @@ export async function salvarPresencas(
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData?.user?.id;
 
-  // Preparar dados para upsert
   const presencasData = presencas.map((p) => ({
     solicitacao_id: solicitacaoId,
     funcionario_id: p.funcionario_id,
@@ -100,12 +108,14 @@ export async function salvarPresencas(
     hora_saida: p.presente && p.hora_saida ? p.hora_saida : null,
     valor_diaria_aplicada: p.valor_diaria,
     funcao_id: p.funcao_id || null,
+    tipo_diaria: p.tipo_diaria || 'completa',
+    recebe_refeicao: p.recebe_refeicao ?? true,
+    valor_refeicao_aplicado: p.valor_refeicao_aplicado ?? 0,
     confirmado_por: userId,
     confirmado_em: new Date().toISOString(),
     updated_at: new Date().toISOString()
   }));
 
-  // Upsert: insere ou atualiza baseado na constraint unique
   const { error } = await supabase
     .from('bd_diaria_presencas')
     .upsert(presencasData, {
@@ -117,6 +127,98 @@ export async function salvarPresencas(
     console.error('Erro ao salvar presenças:', error);
     throw new Error(error.message);
   }
+}
+
+// =====================================================
+// NOVO FLUXO: Salvar em dois tempos (imutável)
+// =====================================================
+
+export interface InicioFormData {
+  funcionario_id: string;
+  funcao_id: string;
+  presente: boolean;
+  hora_entrada?: string;
+  valor_diaria_original: number;
+}
+
+export interface FinalizacaoFormData {
+  funcionario_id: string;
+  hora_saida: string;
+  tipo_diaria: TipoDiaria;
+  valor_diaria_aplicada: number;
+  recebe_refeicao: boolean;
+  valor_refeicao_aplicado: number;
+}
+
+// Salvar INÍCIO — INSERT only, rejeita se já existir
+export async function salvarInicio(
+  solicitacaoId: string,
+  data: string,
+  registros: InicioFormData[]
+): Promise<void> {
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData?.user?.id;
+
+  const rows = registros.map((r) => ({
+    solicitacao_id: solicitacaoId,
+    funcionario_id: r.funcionario_id,
+    data,
+    presente: r.presente,
+    hora_entrada: r.presente && r.hora_entrada ? r.hora_entrada : null,
+    hora_saida: null,
+    valor_diaria_aplicada: r.valor_diaria_original,
+    funcao_id: r.funcao_id || null,
+    tipo_diaria: null,
+    recebe_refeicao: null,
+    valor_refeicao_aplicado: null,
+    confirmado_por: userId,
+    confirmado_em: new Date().toISOString(),
+  }));
+
+  const { error } = await supabase
+    .from('bd_diaria_presencas')
+    .insert(rows);
+
+  if (error) {
+    console.error('Erro ao salvar início:', error);
+    throw new Error(error.message);
+  }
+}
+
+// Salvar FINALIZAÇÃO — UPDATE only, não toca hora_entrada
+export async function salvarFinalizacao(
+  solicitacaoId: string,
+  data: string,
+  registros: FinalizacaoFormData[]
+): Promise<void> {
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData?.user?.id;
+
+  // Atualizar cada registro individualmente (update por funcionario_id + solicitacao_id + data)
+  const promises = registros.map(async (r) => {
+    const { error } = await supabase
+      .from('bd_diaria_presencas')
+      .update({
+        hora_saida: r.hora_saida,
+        tipo_diaria: r.tipo_diaria,
+        valor_diaria_aplicada: r.valor_diaria_aplicada,
+        recebe_refeicao: r.recebe_refeicao,
+        valor_refeicao_aplicado: r.valor_refeicao_aplicado,
+        confirmado_por: userId,
+        confirmado_em: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('solicitacao_id', solicitacaoId)
+      .eq('funcionario_id', r.funcionario_id)
+      .eq('data', data);
+
+    if (error) {
+      console.error(`Erro ao finalizar presença de ${r.funcionario_id}:`, error);
+      throw new Error(error.message);
+    }
+  });
+
+  await Promise.all(promises);
 }
 
 // Buscar resumo de presenças de uma solicitação

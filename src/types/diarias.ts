@@ -29,6 +29,7 @@ export interface DiariaSolicitacao {
   valor_estimado_total: number;
   convocados_pre?: FuncionarioPreConvocado[];
   responsavel_campo_id: string | null;
+  engenheiro_solicitante_id: string | null;
   observacao_gerente: string | null;
   criado_por: string | null;
   autorizado_por: string | null;
@@ -47,6 +48,10 @@ export interface DiariaSolicitacao {
     email: string;
   };
   responsavel_campo?: {
+    id: string;
+    nome_completo: string;
+  };
+  engenheiro_solicitante?: {
     id: string;
     nome_completo: string;
   };
@@ -137,6 +142,7 @@ export interface FuncionarioPreConvocado {
   funcao_id: string;
   valor_diaria: number;
   valor_diaria_exclusiva?: number; // Para FDS/feriados
+  valor_refeicao?: number;
   nome_funcionario?: string;
   nome_funcao?: string;
 }
@@ -153,6 +159,7 @@ export interface SolicitacaoFormData {
   valor_estimado_total: number;
   convocados_pre?: FuncionarioPreConvocado[];
   responsavel_campo_id?: string;
+  engenheiro_solicitante_id?: string;
 }
 
 export interface ConvocacaoFormData {
@@ -259,6 +266,8 @@ export interface RelatorioFolhaItem {
   presenca_status: string;
   confirmado_por: string | null;
   confirmado_em: string | null;
+  recebe_refeicao: boolean | null;
+  valor_refeicao_aplicado: number | null;
   status_solicitacao: StatusSolicitacao;
   solicitante_id: string | null;
   solicitante_nome: string | null;

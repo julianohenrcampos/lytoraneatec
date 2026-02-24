@@ -1,8 +1,11 @@
-import { Document, Page, View, Text, Image } from '@react-pdf/renderer';
+import { Document, Page, View, Text, Image, Font } from '@react-pdf/renderer';
 import { diariaStyles as styles } from './DiariaReportStyles';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { RelatorioFolhaItem, PresencaResumo, RelatorioFilters } from '@/types/diarias';
+
+// Desabilitar hifenização automática para evitar quebra de palavras (ex: "CAMIN-HÃO")
+Font.registerHyphenationCallback(word => [word]);
 
 interface FuncionarioConsolidado {
   funcionario_id: string;
@@ -13,6 +16,7 @@ interface FuncionarioConsolidado {
   dias_fds: number;
   dias_feriados: number;
   valor_total: number;
+  valor_refeicao: number;
 }
 
 interface RelatorioDiariasPDFProps {
@@ -62,6 +66,7 @@ function consolidarFuncionarios(
     if (existing) {
       existing.total_dias += 1;
       existing.valor_total += item.valor_diaria_aplicada || 0;
+      existing.valor_refeicao += item.valor_refeicao_aplicado || 0;
       if (isFeriado) existing.dias_feriados += 1;
       else if (isFds) existing.dias_fds += 1;
       else existing.dias_uteis += 1;
@@ -74,7 +79,8 @@ function consolidarFuncionarios(
         dias_uteis: isFds || isFeriado ? 0 : 1,
         dias_fds: isFds && !isFeriado ? 1 : 0,
         dias_feriados: isFeriado ? 1 : 0,
-        valor_total: item.valor_diaria_aplicada || 0
+        valor_total: item.valor_diaria_aplicada || 0,
+        valor_refeicao: item.valor_refeicao_aplicado || 0
       });
     }
   });
@@ -131,7 +137,9 @@ export const RelatorioDiariasPDF = ({
   const totaisDias = calcularTotaisDias(relatorio, feriadosSet);
   
   // Calcular valor total
-  const valorTotal = funcionariosConsolidados.reduce((acc, f) => acc + f.valor_total, 0);
+  const valorDiarias = funcionariosConsolidados.reduce((acc, f) => acc + f.valor_total, 0);
+  const valorRefeicoes = funcionariosConsolidados.reduce((acc, f) => acc + f.valor_refeicao, 0);
+  const valorTotal = valorDiarias + valorRefeicoes;
   const totalDiarias = funcionariosConsolidados.reduce((acc, f) => acc + f.total_dias, 0);
 
   // Extrair informações do primeiro registro para cabeçalho
@@ -244,7 +252,9 @@ export const RelatorioDiariasPDF = ({
               <Text style={[styles.tableHeaderCell, { flex: 0.8, textAlign: 'center' }]}>FDS</Text>
               <Text style={[styles.tableHeaderCell, { flex: 0.8, textAlign: 'center' }]}>Fer.</Text>
               <Text style={[styles.tableHeaderCell, { flex: 0.8, textAlign: 'center' }]}>Total</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1.5, textAlign: 'right' }]}>Valor</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1.2, textAlign: 'right' }]}>Diária</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}>Ref.</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1.2, textAlign: 'right' }]}>Total</Text>
             </View>
             {/* Rows */}
             {funcionariosConsolidados.map((func, idx) => (
@@ -252,10 +262,10 @@ export const RelatorioDiariasPDF = ({
                 key={func.funcionario_id} 
                 style={idx % 2 === 0 ? styles.tableRow : styles.tableRowAlternate}
               >
-                <Text style={[styles.tableCellBold, { flex: 3 }]}>
+                <Text style={[styles.tableCellBold, { flex: 3, fontSize: 7 }]}>
                   {func.nome_funcionario}
                 </Text>
-                <Text style={[styles.tableCell, { flex: 2 }]}>
+                <Text style={[styles.tableCell, { flex: 2, fontSize: 7 }]}>
                   {func.nome_funcao}
                 </Text>
                 <Text style={[styles.tableCell, { flex: 0.8, textAlign: 'center' }]}>
@@ -270,8 +280,14 @@ export const RelatorioDiariasPDF = ({
                 <Text style={[styles.tableCellBold, { flex: 0.8, textAlign: 'center' }]}>
                   {func.total_dias}
                 </Text>
-                <Text style={[styles.tableCellBold, { flex: 1.5, textAlign: 'right' }]}>
+                <Text style={[styles.tableCell, { flex: 1.2, textAlign: 'right' }]}>
                   {formatCurrency(func.valor_total)}
+                </Text>
+                <Text style={[styles.tableCell, { flex: 1, textAlign: 'right' }]}>
+                  {formatCurrency(func.valor_refeicao)}
+                </Text>
+                <Text style={[styles.tableCellBold, { flex: 1.2, textAlign: 'right' }]}>
+                  {formatCurrency(func.valor_total + func.valor_refeicao)}
                 </Text>
               </View>
             ))}
@@ -295,6 +311,14 @@ export const RelatorioDiariasPDF = ({
             <Text style={styles.totalValue}>
               {funcionariosConsolidados.reduce((acc, f) => acc + f.dias_fds + f.dias_feriados, 0)} diárias
             </Text>
+          </View>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Subtotal Diárias</Text>
+            <Text style={styles.totalValue}>{formatCurrency(valorDiarias)}</Text>
+          </View>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Subtotal Refeições</Text>
+            <Text style={styles.totalValue}>{formatCurrency(valorRefeicoes)}</Text>
           </View>
           <View style={styles.totalRowMain}>
             <Text style={styles.totalLabelMain}>TOTAL A PAGAR</Text>

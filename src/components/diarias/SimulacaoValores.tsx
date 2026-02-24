@@ -9,12 +9,14 @@ interface SimulacaoValoresProps {
   simulacao: SimulacaoValoresType;
   diasUteis: number;
   diasFdsFeriados: number;
+  diasParaRefeicao: number;
 }
 
 export function SimulacaoValores({ 
   simulacao, 
   diasUteis, 
-  diasFdsFeriados 
+  diasFdsFeriados,
+  diasParaRefeicao
 }: SimulacaoValoresProps) {
   return (
     <Card className="border-primary/30 bg-primary/5">
@@ -25,7 +27,7 @@ export function SimulacaoValores({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="grid grid-cols-2 gap-3 text-sm">
+        <div className="grid grid-cols-3 gap-3 text-sm">
           <div className="space-y-1">
             <p className="text-muted-foreground">
               Total dias úteis ({diasUteis}):
@@ -41,6 +43,15 @@ export function SimulacaoValores({
             </p>
             <p className="font-semibold">
               {formatCurrency(simulacao.totalFdsFeriados)}
+            </p>
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-muted-foreground">
+              Total Refeições ({diasParaRefeicao}):
+            </p>
+            <p className="font-semibold">
+              {formatCurrency(simulacao.totalRefeicoes)}
             </p>
           </div>
         </div>

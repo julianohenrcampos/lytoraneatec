@@ -67,6 +67,17 @@ const FuncaoDetailsModal: React.FC<FuncaoDetailsModalProps> = ({
               <p className="text-xs text-muted-foreground">Finais de Semana e Feriados</p>
             </div>
           </div>
+
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label className="text-right">Valor Refeição</Label>
+            <div className="col-span-3 font-medium">
+              {funcao.valor_refeicao 
+                ? funcao.valor_refeicao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                : 'Não definido'
+              }
+              <p className="text-xs text-muted-foreground">Valor por refeição</p>
+            </div>
+          </div>
           
           <div className="grid grid-cols-4 items-center gap-4">
             <Label className="text-right">Código</Label>

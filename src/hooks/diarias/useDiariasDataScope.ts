@@ -185,16 +185,18 @@ export function useDiariasDataScope(): DiariasDataScope {
   }, [userId, isSuperAdmin, hasPermission]);
 
   const canDeleteSolicitacao = useCallback((sol: DiariaSolicitacao) => {
+    // SuperAdmin pode excluir qualquer solicitação
     if (isSuperAdmin) return true;
     
-    // Apenas o criador pode excluir
-    if (sol.criado_por !== userId) return false;
+    // AdmSSO pode excluir qualquer solicitação (cascata)
+    if (permissions.includes('acesso_sso_checklists')) return true;
     
-    // Apenas em status editáveis
+    // Criador pode excluir apenas rascunho/enviada
+    if (sol.criado_por !== userId) return false;
     if (!['rascunho', 'enviada'].includes(sol.status)) return false;
     
     return hasPermission('diarias_solicitar_cancel_own') || hasPermission('diarias_solicitar');
-  }, [userId, isSuperAdmin, hasPermission]);
+  }, [userId, isSuperAdmin, hasPermission, permissions]);
 
   const canResendSolicitacao = useCallback((sol: DiariaSolicitacao) => {
     if (isSuperAdmin) return true;

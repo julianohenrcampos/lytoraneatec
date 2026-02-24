@@ -172,7 +172,7 @@ export default function DiariasRelatorio() {
     );
     return {
       total_diarias: diariasCompletas.length,
-      valor_total: diariasCompletas.reduce((acc, r) => acc + (r.valor_diaria_aplicada || 0), 0)
+      valor_total: diariasCompletas.reduce((acc, r) => acc + (r.valor_diaria_aplicada || 0) + (r.valor_refeicao_aplicado || 0), 0)
     };
   }, [relatorio]);
 
@@ -409,7 +409,8 @@ export default function DiariasRelatorio() {
                       <TableHead>Apontador</TableHead>
                       <TableHead>Funcionário</TableHead>
                       <TableHead>Função</TableHead>
-                      <TableHead className="text-right">Valor</TableHead>
+                      <TableHead className="text-right">Refeição</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -444,8 +445,11 @@ export default function DiariasRelatorio() {
                         <TableCell>
                           {item.nome_funcao || '-'}
                         </TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(item.valor_refeicao_aplicado || 0)}
+                        </TableCell>
                         <TableCell className="text-right font-medium">
-                          {formatCurrency(item.valor_diaria_aplicada)}
+                          {formatCurrency((item.valor_diaria_aplicada || 0) + (item.valor_refeicao_aplicado || 0))}
                         </TableCell>
                       </TableRow>
                     ))}

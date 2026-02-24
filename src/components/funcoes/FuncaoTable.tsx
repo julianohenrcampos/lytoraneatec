@@ -38,24 +38,25 @@ const FuncaoTable: React.FC<FuncaoTableProps> = ({
                 <TableHead>Nome da Função</TableHead>
                 <TableHead>Valor da Diária</TableHead>
                 <TableHead>Diária Exclusiva</TableHead>
+                <TableHead>Valor Refeição</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
-                    <div className="flex justify-center items-center">
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      <span>Carregando...</span>
-                    </div>
-                  </TableCell>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                     <div className="flex justify-center items-center">
+                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                       <span>Carregando...</span>
+                     </div>
+                   </TableCell>
                 </TableRow>
               ) : isError ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                     Erro ao carregar os dados. Tente novamente.
-                  </TableCell>
+                   </TableCell>
                 </TableRow>
               ) : funcoes && funcoes.length > 0 ? (
                 pagination.paginatedData.map((funcao) => (
@@ -75,6 +76,12 @@ const FuncaoTable: React.FC<FuncaoTableProps> = ({
                     <TableCell>
                       {funcao.valor_diaria_exclusiva 
                         ? funcao.valor_diaria_exclusiva.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                        : '-'
+                      }
+                    </TableCell>
+                    <TableCell>
+                      {funcao.valor_refeicao 
+                        ? funcao.valor_refeicao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
                         : '-'
                       }
                     </TableCell>
@@ -111,9 +118,9 @@ const FuncaoTable: React.FC<FuncaoTableProps> = ({
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                     Nenhuma função encontrada
-                  </TableCell>
+                   </TableCell>
                 </TableRow>
               )}
             </TableBody>

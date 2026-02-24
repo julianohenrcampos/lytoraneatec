@@ -103,6 +103,8 @@ export function useDeleteSolicitacao() {
     mutationFn: (id: string) => deleteSolicitacao(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['diaria-apontamentos'] });
+      queryClient.invalidateQueries({ queryKey: ['diarias-aprovacoes'] });
       toast.success('Solicitação excluída com sucesso!');
     },
     onError: (error: Error) => {

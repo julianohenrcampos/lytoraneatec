@@ -136,6 +136,9 @@ export const exportToExcel = (data: Funcao[]): void => {
       : '-',
     "Diária Exclusiva": item.valor_diaria_exclusiva 
       ? item.valor_diaria_exclusiva.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+      : '-',
+    "Valor Refeição": item.valor_refeicao 
+      ? item.valor_refeicao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
       : '-'
   }));
   
@@ -191,12 +194,21 @@ export const processImportData = async (data: any[]): Promise<{ success: string[
         const cleanValue = valorDiariaExclusivaStr.toString().replace(/[R$\s]/g, '').replace(',', '.');
         valorDiariaExclusiva = parseFloat(cleanValue) || 0;
       }
+
+      // Parse valor refeição from import
+      const valorRefeicaoStr = row["Valor Refeição"] || row["Valor Refeicao"] || "";
+      let valorRefeicao = 0;
+      if (valorRefeicaoStr) {
+        const cleanValue = valorRefeicaoStr.toString().replace(/[R$\s]/g, '').replace(',', '.');
+        valorRefeicao = parseFloat(cleanValue) || 0;
+      }
       
       // Format data for insertion
       const funcaoData: FuncaoFormData = {
         nome_funcao: funcaoNome,
         valor_diaria: valorDiaria,
-        valor_diaria_exclusiva: valorDiariaExclusiva
+        valor_diaria_exclusiva: valorDiariaExclusiva,
+        valor_refeicao: valorRefeicao
       };
       
       // Insert into database

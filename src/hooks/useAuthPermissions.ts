@@ -59,6 +59,15 @@ export const useAuthPermissions = (): UserPermissions => {
             'gestao_rh_empresas_view', 'gestao_rh_departamentos_view',
             'gestao_rh_funcionarios_view', 'gestao_rh_funcoes_view',
             'gestao_rh_centros_custo_view', 'gestao_rh_equipes_view'
+          ],
+          'GerenteRegional': [
+            'dashboard_view', 'dashboard_rh_view',
+            'gestao_rh_funcionarios_view', 'gestao_rh_centros_custo_view',
+            'gestao_rh_departamentos_view', 'gestao_rh_funcoes_view',
+            'diarias_view', 'diarias_solicitacoes_view',
+            'diarias_autorizar', 'diarias_aprovar',
+            'diarias_apontamento_view', 'diarias_relatorio_view',
+            'diarias_dashboard_view'
           ]
         };
 
@@ -205,8 +214,8 @@ export const useAuthPermissions = (): UserPermissions => {
         }
 
         // 🔧 FALLBACK SSO: Garantir permissões mínimas para roles SSO
-        if (profile?.funcoes?.includes('TecSSO') || profile?.funcoes?.includes('AdmSSO')) {
-          const ssoRole = profile.funcoes.includes('AdmSSO') ? 'AdmSSO' : 'TecSSO';
+        if (profile?.funcoes?.includes('TecSSO') || profile?.funcoes?.includes('AdmSSO') || profile?.funcoes?.includes('GerenteRegional')) {
+          const ssoRole = profile.funcoes.includes('AdmSSO') ? 'AdmSSO' : profile.funcoes.includes('GerenteRegional') ? 'GerenteRegional' : 'TecSSO';
           const minimumPermissions = SSO_ROLE_PERMISSIONS[ssoRole];
           
           console.log(`🔧 Aplicando fallback SSO para ${ssoRole}:`, minimumPermissions);

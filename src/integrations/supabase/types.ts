@@ -1180,9 +1180,12 @@ export type Database = {
           intervalo_fim: string | null
           intervalo_inicio: string | null
           presente: boolean | null
+          recebe_refeicao: boolean | null
           solicitacao_id: string
+          tipo_diaria: string | null
           updated_at: string | null
           valor_diaria_aplicada: number
+          valor_refeicao_aplicado: number | null
         }
         Insert: {
           confirmado_em?: string | null
@@ -1197,9 +1200,12 @@ export type Database = {
           intervalo_fim?: string | null
           intervalo_inicio?: string | null
           presente?: boolean | null
+          recebe_refeicao?: boolean | null
           solicitacao_id: string
+          tipo_diaria?: string | null
           updated_at?: string | null
           valor_diaria_aplicada?: number
+          valor_refeicao_aplicado?: number | null
         }
         Update: {
           confirmado_em?: string | null
@@ -1214,9 +1220,12 @@ export type Database = {
           intervalo_fim?: string | null
           intervalo_inicio?: string | null
           presente?: boolean | null
+          recebe_refeicao?: boolean | null
           solicitacao_id?: string
+          tipo_diaria?: string | null
           updated_at?: string | null
           valor_diaria_aplicada?: number
+          valor_refeicao_aplicado?: number | null
         }
         Relationships: [
           {
@@ -1253,6 +1262,7 @@ export type Database = {
           criado_por: string | null
           data_fim: string
           data_inicio: string
+          engenheiro_solicitante_id: string | null
           id: string
           justificativa: string
           numero_solicitacao: string
@@ -1275,6 +1285,7 @@ export type Database = {
           criado_por?: string | null
           data_fim: string
           data_inicio: string
+          engenheiro_solicitante_id?: string | null
           id?: string
           justificativa: string
           numero_solicitacao: string
@@ -1297,6 +1308,7 @@ export type Database = {
           criado_por?: string | null
           data_fim?: string
           data_inicio?: string
+          engenheiro_solicitante_id?: string | null
           id?: string
           justificativa?: string
           numero_solicitacao?: string
@@ -1330,6 +1342,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_resumo_diarias"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_engenheiro_solicitante_id_fkey"
+            columns: ["engenheiro_solicitante_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "bd_diaria_solicitacoes_responsavel_campo_id_fkey"
@@ -1630,6 +1649,7 @@ export type Database = {
           updated_at: string | null
           valor_diaria: number | null
           valor_diaria_exclusiva: number | null
+          valor_refeicao: number | null
         }
         Insert: {
           created_at?: string | null
@@ -1640,6 +1660,7 @@ export type Database = {
           updated_at?: string | null
           valor_diaria?: number | null
           valor_diaria_exclusiva?: number | null
+          valor_refeicao?: number | null
         }
         Update: {
           created_at?: string | null
@@ -1650,6 +1671,7 @@ export type Database = {
           updated_at?: string | null
           valor_diaria?: number | null
           valor_diaria_exclusiva?: number | null
+          valor_refeicao?: number | null
         }
         Relationships: []
       }
@@ -3730,6 +3752,7 @@ export type Database = {
           pix_funcionario: string | null
           presenca_id: string | null
           presenca_status: string | null
+          recebe_refeicao: boolean | null
           solicitacao_data_fim: string | null
           solicitacao_data_inicio: string | null
           solicitacao_id: string | null
@@ -3737,6 +3760,7 @@ export type Database = {
           solicitante_nome: string | null
           status_solicitacao: string | null
           valor_diaria_aplicada: number | null
+          valor_refeicao_aplicado: number | null
         }
         Relationships: [
           {
