@@ -43,31 +43,17 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Query para buscar funcionários com função "Gerente Regional" como aprovadores
   const { data: aprovadores = [] } = useQuery({
     queryKey: ['gerentes-regionais-aprovadores'],
     queryFn: async () => {
-      // Primeiro buscar o ID da função "Gerente Regional"
-      const { data: funcaoGerente } = await supabase
-        .from('bd_funcoes')
-        .select('id')
-        .eq('nome_funcao', 'Gerente Regional')
-        .single();
-
-      if (!funcaoGerente?.id) {
-        console.warn('Função "Gerente Regional" não encontrada');
-        return [];
-      }
-
-      // Buscar funcionários com essa função
-      const { data: funcionarios } = await supabase
-        .from('bd_funcionarios')
-        .select('id, nome_completo, email')
-        .eq('funcao_id', funcaoGerente.id)
-        .eq('status', 'Ativo')
-        .order('nome_completo');
-
-      return funcionarios || [];
+      const { data } = await supabase.rpc('get_funcionarios_para_diarias');
+      return (data || [])
+        .filter((f: any) => f.funcao_nome?.toLowerCase() === 'gerente regional')
+        .map((f: any) => ({
+          id: f.id,
+          nome_completo: f.nome_completo,
+          email: null
+        }));
     },
     enabled: isOpen
   });
