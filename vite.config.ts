@@ -25,12 +25,7 @@ export default defineConfig(({ mode }) => ({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         sourcemap: false
       },
-      includeAssets: [
-        'favicon.ico', 
-        'icons/*.png', 
-        'apple-touch-icon.png', 
-        'masked-icon.svg'
-      ],
+      includeAssets: ['favicon.ico', 'icons/maskable-icon1.png', 'icons/dcf6c980-f927-4180-b109-b425da1323ba.png'],
       manifest: {
         name: 'Lytorânea Construtora - Sistema ERP',
         short_name: 'LYTOTEC ERP',
@@ -45,30 +40,9 @@ export default defineConfig(({ mode }) => ({
         prefer_related_applications: false,
         categories: ['business', 'productivity'],
         icons: [
-          {
-            src: 'icons/icon-192x192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any'
-          },
-          {
-            src: 'icons/icon-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any'
-          },
-          {
-            src: 'icons/maskable-icon-192x192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'maskable'
-          },
-          {
-            src: 'icons/maskable-icon.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable'
-          }
+          { src: 'icons/maskable-icon1.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icons/maskable-icon1.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'maskable-icon.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
         ]
       },
       devOptions: {

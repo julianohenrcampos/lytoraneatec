@@ -25,7 +25,10 @@ const SSO_ROLE_PERMISSIONS: Record<string, string[]> = {
     'acesso_sso_agendamento_exames', 'dashboard_view', 'dashboard_rh_view',
     'gestao_rh_empresas_view', 'gestao_rh_departamentos_view',
     'gestao_rh_funcionarios_view', 'gestao_rh_funcoes_view',
-    'gestao_rh_centros_custo_view', 'gestao_rh_equipes_view'
+    'gestao_rh_centros_custo_view', 'gestao_rh_equipes_view',
+    'diarias_view', 'diarias_solicitacoes_view',
+    'diarias_apontamento_view', 'diarias_relatorio_view',
+    'diarias_dashboard_view'
   ],
   'GerenteRegional': [
     'dashboard_view', 'dashboard_rh_view',

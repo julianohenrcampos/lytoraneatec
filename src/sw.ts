@@ -1,6 +1,6 @@
 
-import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
-import { registerRoute } from 'workbox-routing';
+import { precacheAndRoute, cleanupOutdatedCaches, createHandlerBoundToURL } from 'workbox-precaching';
+import { registerRoute, NavigationRoute } from 'workbox-routing';
 import { NetworkFirst, CacheFirst, StaleWhileRevalidate } from 'workbox-strategies';
 import { CacheableResponsePlugin } from 'workbox-cacheable-response';
 import { ExpirationPlugin } from 'workbox-expiration';
@@ -18,11 +18,18 @@ precacheAndRoute(self.__WB_MANIFEST);
 // Clean up outdated caches
 cleanupOutdatedCaches();
 
+// SPA Navigation Route — serve index.html for all navigation requests
+const navigationHandler = createHandlerBoundToURL('/index.html');
+const navigationRoute = new NavigationRoute(navigationHandler, {
+  denylist: [/^\/_/, /\/[^/?]+\.[^/]+$/],
+});
+registerRoute(navigationRoute);
+
 // Cache names - versioned to v4 for PWA fix
-const DATA_CACHE = 'lytotec-data-v4';
-const API_CACHE = 'lytotec-api-v4';
-const LARGE_FILES_CACHE = 'lytotec-large-files-v4';
-const ASSETS_CACHE = 'lytotec-assets-v4';
+const DATA_CACHE = 'lytotec-data-v5';
+const API_CACHE = 'lytotec-api-v5';
+const LARGE_FILES_CACHE = 'lytotec-large-files-v5';
+const ASSETS_CACHE = 'lytotec-assets-v5';
 
 // Cache large JavaScript files with specific strategy
 registerRoute(
@@ -73,7 +80,7 @@ registerRoute(
     return supabasePattern.test(url.origin) && url.pathname.startsWith('/auth/v1/');
   },
   new NetworkFirst({
-    cacheName: 'lytotec-auth-v3',
+    cacheName: 'lytotec-auth-v5',
     plugins: [
       new CacheableResponsePlugin({
         statuses: [0, 200],
@@ -109,7 +116,7 @@ registerRoute(
 registerRoute(
   ({ url }) => url.origin === 'https://fonts.googleapis.com' || url.origin === 'https://fonts.gstatic.com',
   new StaleWhileRevalidate({
-    cacheName: 'lytotec-fonts-v3',
+    cacheName: 'lytotec-fonts-v5',
     plugins: [
       new CacheableResponsePlugin({
         statuses: [0, 200],
@@ -197,10 +204,18 @@ self.addEventListener('install', () => {
   // skipWaiting já é chamado no topo do arquivo
 });
 
-// Activate event
+// Activate event - clean old caches
 self.addEventListener('activate', (event) => {
-  console.log('✅ Service Worker activated');
-  event.waitUntil(self.clients.claim());
+  console.log('✅ Service Worker activated - cleaning old caches');
+  const currentCaches = [DATA_CACHE, API_CACHE, LARGE_FILES_CACHE, ASSETS_CACHE, 'lytotec-auth-v5', 'lytotec-fonts-v5'];
+  event.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys
+        .filter(key => key.startsWith('lytotec-') && !currentCaches.includes(key))
+        .map(key => { console.log('🗑️ Deleting old cache:', key); return caches.delete(key); })
+      )
+    ).then(() => self.clients.claim())
+  );
 });
 
 console.log('🏗️ Service Worker loaded and ready');

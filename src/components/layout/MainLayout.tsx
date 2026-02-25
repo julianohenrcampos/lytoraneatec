@@ -51,10 +51,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
       themeColorMeta.setAttribute('content', '#ffffff');
       document.head.appendChild(themeColorMeta);
     }
-    
-    return () => {
-      viewportMeta.setAttribute('content', 'width=device-width, initial-scale=1.0');
-    };
   }, []);
 
   console.log("MainLayout rendering, user:", user ? "loaded" : "not loaded");

@@ -8,11 +8,11 @@ export const usePWAUpdate = () => {
     onRegistered(registration) {
       console.log('PWA: Service Worker registrado com sucesso', registration);
       
-      // Verificar updates periodicamente (a cada minuto)
+      // Verificar updates periodicamente (a cada 5 minutos)
       if (registration) {
         setInterval(() => {
           registration.update();
-        }, 60000);
+        }, 300000);
       }
     },
     onRegisterError(error) {

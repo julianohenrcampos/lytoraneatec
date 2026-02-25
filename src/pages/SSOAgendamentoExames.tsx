@@ -6,6 +6,7 @@ import { BulkActionBar } from '@/components/ssoAgendamentoExames/list/BulkAction
 import { AgendamentoExamesDialog, AgendamentoExamesViewDialog } from '@/components/ssoAgendamentoExames/dialog';
 import { NovoAgendamentoDropdown } from '@/components/ssoAgendamentoExames/NovoAgendamentoDropdown';
 import { FuncionarioSelectorDialog } from '@/components/ssoAgendamentoExames/FuncionarioSelectorDialog';
+import { ImportStatusCarteiraModal } from '@/components/ssoAgendamentoExames/import';
 import { useAgendamentoExames } from '@/hooks/ssoAgendamentoExames';
 import { AgendamentoExameFilters, TipoExame, FuncionarioSelecionado } from '@/types/ssoAgendamentoExames';
 import { useAuthPermissions } from '@/hooks/useAuthPermissions';
@@ -39,6 +40,7 @@ const SSOAgendamentoExames: React.FC = () => {
   const [tipoExameSelecionado, setTipoExameSelecionado] = useState<TipoExame | null>(null);
   const [funcionarioSelecionado, setFuncionarioSelecionado] = useState<FuncionarioSelecionado | null>(null);
   const [modoFuncionario, setModoFuncionario] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
 
   const { 
     agendamentos, 
@@ -194,7 +196,8 @@ const SSOAgendamentoExames: React.FC = () => {
       'Status': a.status,
       'Responsável': a.tecnico_seguranca || '',
       'Docs Anexados': a.documentos_anexados ? 'Sim' : 'Não',
-      'Observações': a.observacoes || ''
+      'Observações': a.observacoes || '',
+      'Status Carteira': a.status_carteira || 'Pendente'
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -216,6 +219,10 @@ const SSOAgendamentoExames: React.FC = () => {
             <Button variant="outline" onClick={handleExportExcel}>
               <FileSpreadsheet className="h-4 w-4 mr-2" />
               Exportar Excel
+            </Button>
+            <Button variant="outline" onClick={() => setImportModalOpen(true)}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Importar Excel
             </Button>
             {canCreate && (
               <NovoAgendamentoDropdown
@@ -295,6 +302,14 @@ const SSOAgendamentoExames: React.FC = () => {
           open={viewDialogOpen}
           onOpenChange={setViewDialogOpen}
           agendamentoId={viewingId}
+        />
+
+        {/* Import Status Carteira Modal */}
+        <ImportStatusCarteiraModal
+          open={importModalOpen}
+          onOpenChange={setImportModalOpen}
+          agendamentos={agendamentos}
+          updateStatusCarteira={updateStatusCarteira}
         />
 
         {/* Delete Confirmation */}
