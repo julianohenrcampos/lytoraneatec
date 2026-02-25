@@ -58,12 +58,13 @@ export default function DiariasRelatorio() {
   
   // Hook de escopo de dados - RBAC
   const { 
+    userScope,
     scopeFilters,
     isLoading: isLoadingScope 
   } = useDiariasDataScope();
   
-  // Verificar permissão de acesso
-  const hasAccess = isSuperAdmin || hasPermission('diarias_relatorio_view') || hasPermission('diarias_view');
+  // Verificar permissão de acesso (inclui AdmSSO explicitamente)
+  const hasAccess = isSuperAdmin || userScope === 'admsso' || hasPermission('diarias_relatorio_view') || hasPermission('diarias_view');
   
   // Filters - sem filtro padrão para exibir todos os registros
   const [filters, setFilters] = useState<RelatorioFilters>({});

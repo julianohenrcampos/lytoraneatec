@@ -248,10 +248,17 @@ export function SolicitacaoFormModal({
   const funcionariosDisponiveis = useMemo(() => {
     const addedIds = convocadosPre.map(c => c.funcionario_id);
     return funcionarios.filter((f: any) => 
-      !addedIds.includes(f.id) && 
-      f.bd_funcoes
+      !addedIds.includes(f.id)
     );
   }, [funcionarios, convocadosPre]);
+
+  // Lista filtrada para Engenheiro Solicitante (apenas engenheiros e gerentes regionais)
+  const engenheirosEGerentes = useMemo(() => {
+    return funcionarios.filter((f: any) => {
+      const nomeFuncao = f.bd_funcoes?.nome_funcao?.toLowerCase() || '';
+      return nomeFuncao.includes('engenheiro') || nomeFuncao.includes('gerente regional');
+    });
+  }, [funcionarios]);
 
   // Add funcionario
   const handleAddFuncionario = () => {
@@ -465,7 +472,7 @@ export function SolicitacaoFormModal({
                   Engenheiro Solicitante
                 </Label>
                 <Combobox
-                  options={funcionarios.map((f: any) => ({
+                  options={engenheirosEGerentes.map((f: any) => ({
                     value: f.id,
                     label: f.nome_completo
                   }))}
@@ -473,7 +480,7 @@ export function SolicitacaoFormModal({
                   onChange={setEngenheiroSolicitanteId}
                   placeholder="Selecione o engenheiro responsável..."
                   searchPlaceholder="Buscar engenheiro..."
-                  emptyText="Nenhum funcionário encontrado"
+                  emptyText="Nenhum engenheiro ou gerente regional encontrado"
                   className="mt-1.5"
                 />
                 <p className="text-xs text-muted-foreground mt-1">

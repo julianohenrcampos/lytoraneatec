@@ -9,9 +9,9 @@ import { Loader2 } from "lucide-react";
 
 export default function DashboardDiarias() {
   const { isSuperAdmin, permissions, isLoading: isLoadingPermissions } = useDynamicPermissions();
-  const { isLoading: isLoadingScope } = useDiariasDataScope();
+  const { userScope, isLoading: isLoadingScope } = useDiariasDataScope();
   
-  const hasAccess = isSuperAdmin || permissions.includes('diarias_dashboard_view') || permissions.includes('diarias_view');
+  const hasAccess = isSuperAdmin || userScope === 'admsso' || permissions.includes('diarias_dashboard_view') || permissions.includes('diarias_view');
   
   const [filters, setFilters] = useState<DiariasFilters>({
     periodo: "month",
