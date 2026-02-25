@@ -3958,6 +3958,19 @@ export type Database = {
         Args: { p_checklist_id?: string; p_obra_id: string }
         Returns: string[]
       }
+      get_funcionarios_para_diarias: {
+        Args: never
+        Returns: {
+          cpf: string
+          funcao_id: string
+          funcao_nome: string
+          id: string
+          nome_completo: string
+          valor_diaria: number
+          valor_diaria_exclusiva: number
+          valor_refeicao: number
+        }[]
+      }
       get_sso_admin_users: {
         Args: never
         Returns: {

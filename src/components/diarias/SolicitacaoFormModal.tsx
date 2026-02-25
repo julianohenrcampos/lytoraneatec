@@ -129,28 +129,24 @@ export function SolicitacaoFormModal({
     }
   });
 
-  // Funcionarios query (com função e valor de diária)
+  // Funcionarios query via RPC (SECURITY DEFINER - ignora RLS departamental)
   const { data: funcionarios = [] } = useQuery({
-    queryKey: ['funcionarios-com-funcao-diarias'],
+    queryKey: ['funcionarios-para-diarias'],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('bd_funcionarios')
-        .select(`
-          id,
-          nome_completo,
-          cpf,
-          funcao_id,
-          bd_funcoes (
-            id,
-            nome_funcao,
-            valor_diaria,
-            valor_diaria_exclusiva,
-            valor_refeicao
-          )
-        `)
-        .eq('status', 'Ativo')
-        .order('nome_completo');
-      return data || [];
+      const { data } = await supabase.rpc('get_funcionarios_para_diarias');
+      return (data || []).map((f: any) => ({
+        id: f.id,
+        nome_completo: f.nome_completo,
+        cpf: f.cpf,
+        funcao_id: f.funcao_id,
+        bd_funcoes: f.funcao_nome ? {
+          id: f.funcao_id,
+          nome_funcao: f.funcao_nome,
+          valor_diaria: f.valor_diaria,
+          valor_diaria_exclusiva: f.valor_diaria_exclusiva,
+          valor_refeicao: f.valor_refeicao
+        } : null
+      }));
     }
   });
 
@@ -240,9 +236,9 @@ export function SolicitacaoFormModal({
 
   const aprovadorNome = useMemo(() => {
     if (!selectedCentroCusto?.aprovador_diarias_id) return null;
-    const aprov = aprovadores.find((a: any) => a.id === selectedCentroCusto.aprovador_diarias_id);
+    const aprov = funcionarios.find((f: any) => f.id === selectedCentroCusto.aprovador_diarias_id);
     return aprov?.nome_completo || 'Aprovador não encontrado';
-  }, [selectedCentroCusto, aprovadores]);
+  }, [selectedCentroCusto, funcionarios]);
 
   // Funcionarios available (not already added)
   const funcionariosDisponiveis = useMemo(() => {
