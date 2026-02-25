@@ -268,6 +268,7 @@ export interface RelatorioFolhaItem {
   confirmado_em: string | null;
   recebe_refeicao: boolean | null;
   valor_refeicao_aplicado: number | null;
+  tipo_diaria: string | null;
   status_solicitacao: StatusSolicitacao;
   solicitante_id: string | null;
   solicitante_nome: string | null;

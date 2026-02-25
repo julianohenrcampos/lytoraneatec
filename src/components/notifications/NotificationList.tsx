@@ -1,7 +1,7 @@
 import { useNotifications } from '@/hooks/useNotifications';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { CheckCheck, AlertTriangle, Info, Bell } from 'lucide-react';
+import { CheckCheck, AlertTriangle, Info, Bell, FileText, CheckCircle, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -38,6 +38,12 @@ export const NotificationList = () => {
     switch (tipo) {
       case 'sso_critico':
         return <AlertTriangle className="h-5 w-5 text-destructive" />;
+      case 'diaria_pendente':
+        return <FileText className="h-5 w-5 text-orange-500" />;
+      case 'diaria_autorizada':
+        return <CheckCircle className="h-5 w-5 text-green-500" />;
+      case 'diaria_reprovada':
+        return <XCircle className="h-5 w-5 text-destructive" />;
       default:
         return <Info className="h-5 w-5 text-blue-500" />;
     }

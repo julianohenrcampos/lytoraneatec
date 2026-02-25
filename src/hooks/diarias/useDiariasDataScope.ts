@@ -8,7 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
 import type { DiariaSolicitacao, SolicitacaoFilters, RelatorioFilters } from '@/types/diarias';
 
-export type DiariasUserScope = 'superadmin' | 'engenheiro' | 'gerente' | 'apontador' | 'nenhum';
+export type DiariasUserScope = 'superadmin' | 'admsso' | 'engenheiro' | 'gerente' | 'apontador' | 'nenhum';
 
 export interface DiariasDataScopeFilters {
   criado_por?: string;
@@ -27,7 +27,7 @@ export interface DiariasDataScope {
   // Filtros automáticos para queries
   scopeFilters: DiariasDataScopeFilters;
   getSolicitacoesFilter: () => SolicitacaoFilters & DiariasDataScopeFilters;
-  getApontamentosFilter: () => { responsavel_campo_id?: string };
+  getApontamentosFilter: () => { responsavel_campo_id?: string; centro_custo_ids?: string[] };
   getRelatorioFilter: () => RelatorioFilters & DiariasDataScopeFilters;
   
   // Verificações de ação
@@ -70,12 +70,21 @@ export function useDiariasDataScope(): DiariasDataScope {
           return;
         }
 
-        // 2. Buscar funcionario_id do perfil do usuário
+        // 2. Buscar funcionario_id e funcoes do perfil do usuário
         const { data: profile } = await supabase
           .from('profiles')
-          .select('funcionario_id')
+          .select('funcionario_id, funcoes')
           .eq('id', userId)
           .single();
+
+        // 2b. Verificar se é AdmSSO (visão ampla, sem aprovação)
+        const funcoes = (profile?.funcoes as string[]) || [];
+        if (funcoes.includes('AdmSSO')) {
+          setFuncionarioId(profile?.funcionario_id || null);
+          setUserScope('admsso');
+          setIsLoading(false);
+          return;
+        }
 
         const funcId = profile?.funcionario_id || null;
         setFuncionarioId(funcId);
@@ -129,7 +138,7 @@ export function useDiariasDataScope(): DiariasDataScope {
 
   // Filtros de escopo baseado no perfil
   const scopeFilters = useMemo((): DiariasDataScopeFilters => {
-    if (userScope === 'superadmin') return {};
+    if (userScope === 'superadmin' || userScope === 'admsso') return {};
     if (userScope === 'engenheiro') return { criado_por: userId || undefined };
     if (userScope === 'gerente') return { centro_custo_ids: centrosCustoGerenciados };
     if (userScope === 'apontador') return { responsavel_campo_id: funcionarioId || undefined };
@@ -141,15 +150,18 @@ export function useDiariasDataScope(): DiariasDataScope {
     return { ...scopeFilters };
   }, [scopeFilters]);
 
-  const getApontamentosFilter = useCallback((): { responsavel_campo_id?: string } => {
+  const getApontamentosFilter = useCallback((): { responsavel_campo_id?: string; centro_custo_ids?: string[] } => {
     if (userScope === 'apontador' && funcionarioId) {
       return { responsavel_campo_id: funcionarioId };
     }
+    if (userScope === 'gerente' && centrosCustoGerenciados.length > 0) {
+      return { centro_custo_ids: centrosCustoGerenciados };
+    }
     return {};
-  }, [userScope, funcionarioId]);
+  }, [userScope, funcionarioId, centrosCustoGerenciados]);
 
   const getRelatorioFilter = useCallback((): RelatorioFilters & DiariasDataScopeFilters => {
-    if (userScope === 'superadmin') return {};
+    if (userScope === 'superadmin' || userScope === 'admsso') return {};
     if (userScope === 'engenheiro') return { criado_por: userId || undefined };
     if (userScope === 'gerente') return { centro_custo_ids: centrosCustoGerenciados };
     return {};
@@ -169,8 +181,10 @@ export function useDiariasDataScope(): DiariasDataScope {
   }, [centrosCustoGerenciados]);
 
   const canCreateSolicitacao = useMemo(() => {
+    if (userScope === 'admsso') return true;
+    if (userScope === 'apontador') return false;
     return hasPermission('diarias_solicitar_create') || hasPermission('diarias_solicitar') || hasPermission('diarias_view');
-  }, [hasPermission]);
+  }, [hasPermission, userScope]);
 
   const canEditSolicitacao = useCallback((sol: DiariaSolicitacao) => {
     if (isSuperAdmin) return true;
@@ -214,6 +228,9 @@ export function useDiariasDataScope(): DiariasDataScope {
     // SuperAdmin pode aprovar TUDO (inclusive próprias, para testes/emergências)
     if (isSuperAdmin) return true;
     
+    // AdmSSO NÃO pode aprovar
+    if (userScope === 'admsso') return false;
+    
     // Verificar se tem permissão de aprovação
     if (!hasPermission('diarias_aprovar') && !hasPermission('diarias_autorizar')) return false;
     
@@ -236,12 +253,15 @@ export function useDiariasDataScope(): DiariasDataScope {
   const canApontar = useCallback((responsavelCampoId: string) => {
     if (isSuperAdmin) return true;
     
+    // Responsável pela solicitação pode apontar (mesmo sem role especial)
+    if (funcionarioId && responsavelCampoId === funcionarioId) return true;
+    
     // Apontador só pode apontar nos seus próprios
     if (userScope === 'apontador') {
       return responsavelCampoId === funcionarioId && hasPermission('diarias_apontar_own');
     }
     
-    // Gerente pode ver mas não apontar (apenas auditoria)
+    // AdmSSO e Gerente = somente leitura
     return false;
   }, [isSuperAdmin, userScope, funcionarioId, hasPermission]);
 

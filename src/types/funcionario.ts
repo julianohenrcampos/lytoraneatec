@@ -11,6 +11,7 @@ export interface Funcionario {
   endereco_completo?: string;
   escolaridade?: string;
   genero?: string;
+  matricula?: string;
   funcao_id?: string;
   departamento_id?: string;
   centro_custo_id?: string;
@@ -70,6 +71,7 @@ export interface FuncionarioFormData {
   endereco_completo?: string;
   escolaridade?: string;
   genero?: string;
+  matricula?: string;
   funcao_id?: string;
   departamento_id?: string;
   centro_custo_id?: string;

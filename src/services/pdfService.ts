@@ -4,6 +4,8 @@ import { pdf } from '@react-pdf/renderer';
 import { SSOReportDocument } from '@/components/sso/pdf/SSOReportDocument';
 import { DesvioReportDocument } from '@/components/ssoDesvios/pdf/DesvioReportDocument';
 import { SolicitacaoPDFDocument } from '@/components/diarias/pdf/SolicitacaoPDFDocument';
+import { ListaPresencaPDFDocument } from '@/components/diarias/pdf/ListaPresencaPDF';
+import type { ListaPresencaItem } from '@/components/diarias/pdf/ListaPresencaPDF';
 import { RelatorioDiariasPDF } from '@/components/diarias/pdf/RelatorioDiariasPDF';
 import { SSOChecklist, SSOChecklistItem } from '@/types/sso';
 import { SSODesvio, SSODesvioFoto } from '@/types/ssoDesvios';
@@ -306,6 +308,41 @@ export const generateRelatorioDiariasPDF = async (
     URL.revokeObjectURL(url);
   } catch (error) {
     console.error('Erro ao gerar PDF de relatório de diárias:', error);
+    throw error;
+  }
+};
+
+// =====================================================
+// DIÁRIAS PDF - Lista de Presença para Assinatura
+// =====================================================
+
+export const generateListaPresencaPDF = async (
+  numeroSolicitacao: string,
+  centroCusto: string,
+  dataApontamento: string,
+  funcionarios: ListaPresencaItem[],
+  fileName: string
+): Promise<void> => {
+  try {
+    const doc = createElement(ListaPresencaPDFDocument, {
+      numeroSolicitacao,
+      centroCusto,
+      dataApontamento,
+      funcionarios
+    });
+
+    const blob = await pdf(doc as any).toBlob();
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${fileName}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Erro ao gerar PDF de lista de presença:', error);
     throw error;
   }
 };

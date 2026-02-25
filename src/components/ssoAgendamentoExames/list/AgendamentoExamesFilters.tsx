@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Combobox } from '@/components/ui/combobox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AgendamentoExameFilters, TIPOS_EXAME, STATUS_AGENDAMENTO, STATUS_INTEGRACAO } from '@/types/ssoAgendamentoExames';
+import { AgendamentoExameFilters, TIPOS_EXAME, STATUS_AGENDAMENTO, STATUS_INTEGRACAO, STATUS_CARTEIRA } from '@/types/ssoAgendamentoExames';
 import { useAgendamentoExames } from '@/hooks/ssoAgendamentoExames';
 import { Filter, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -34,7 +34,7 @@ export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> =
   const [nomeColaborador, setNomeColaborador] = useState('');
   const [cpf, setCpf] = useState('');
   const [statusIntegracao, setStatusIntegracao] = useState('');
-  const [carteiraAssinada, setCarteiraAssinada] = useState('');
+  const [statusCarteira, setStatusCarteira] = useState('');
 
   const { locais, empresas, funcoes } = useAgendamentoExames();
 
@@ -61,7 +61,7 @@ export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> =
     if (nomeColaborador) filters.nome_colaborador = nomeColaborador;
     if (cpf) filters.cpf = cpf;
     if (statusIntegracao && statusIntegracao !== 'all') filters.status_integracao = statusIntegracao;
-    if (carteiraAssinada && carteiraAssinada !== 'all') filters.carteira_assinada = carteiraAssinada;
+    if (statusCarteira && statusCarteira !== 'all') filters.status_carteira = statusCarteira;
     
     onFilterChange(filters);
   };
@@ -77,7 +77,7 @@ export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> =
     setNomeColaborador('');
     setCpf('');
     setStatusIntegracao('');
-    setCarteiraAssinada('');
+    setStatusCarteira('');
     onClearFilters();
   };
 
@@ -216,14 +216,15 @@ export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> =
       {/* Status Carteira */}
       <div className="space-y-2">
         <Label>Status Carteira</Label>
-        <Select value={carteiraAssinada} onValueChange={setCarteiraAssinada}>
+        <Select value={statusCarteira} onValueChange={setStatusCarteira}>
           <SelectTrigger>
             <SelectValue placeholder="Todos" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
-            <SelectItem value="sim">Assinada</SelectItem>
-            <SelectItem value="nao">Pendente</SelectItem>
+            {STATUS_CARTEIRA.map((s) => (
+              <SelectItem key={s} value={s}>{s}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

@@ -7,16 +7,16 @@ import { differenceInDays } from 'date-fns';
 interface PrazoContratacaoProgressProps {
   dataInicio: string | null;
   dataLimite: string | null;
-  carteiraAssinada: boolean;
+  statusCarteira: string;
 }
 
 export const PrazoContratacaoProgress: React.FC<PrazoContratacaoProgressProps> = ({
   dataInicio,
   dataLimite,
-  carteiraAssinada
+  statusCarteira
 }) => {
-  // Se carteira já assinada, mostrar badge de sucesso
-  if (carteiraAssinada) {
+  // Se carteira já registrada ou revisada, mostrar badge de sucesso
+  if (statusCarteira === 'Registrado' || statusCarteira === 'Revisado') {
     return (
       <Badge variant="success" className="whitespace-nowrap">
         ✓ Concluído
@@ -30,7 +30,7 @@ export const PrazoContratacaoProgress: React.FC<PrazoContratacaoProgressProps> =
   }
 
   const progresso = calcularProgressoPrazo(dataInicio, dataLimite);
-  const vencido = isPrazoVencido(dataLimite, carteiraAssinada);
+  const vencido = isPrazoVencido(dataLimite, statusCarteira);
   
   // Calcular dias restantes
   const hoje = new Date();

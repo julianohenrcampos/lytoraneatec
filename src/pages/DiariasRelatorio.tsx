@@ -50,6 +50,7 @@ import { usePagination } from "@/hooks/usePagination";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { RelatorioFilters, RelatorioFolhaItem } from "@/types/diarias";
+import { Badge } from "@/components/ui/badge";
 
 export default function DiariasRelatorio() {
   const { permissions, isSuperAdmin, isLoading: isLoadingPermissions } = useDynamicPermissions();
@@ -409,7 +410,10 @@ export default function DiariasRelatorio() {
                       <TableHead>Apontador</TableHead>
                       <TableHead>Funcionário</TableHead>
                       <TableHead>Função</TableHead>
-                      <TableHead className="text-right">Refeição</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead className="text-right">V. Diária</TableHead>
+                      <TableHead className="text-right">V. ½ Diária</TableHead>
+                      <TableHead className="text-right">V. Refeição</TableHead>
                       <TableHead className="text-right">Total</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -444,6 +448,34 @@ export default function DiariasRelatorio() {
                         </TableCell>
                         <TableCell>
                           {item.nome_funcao || '-'}
+                        </TableCell>
+                        <TableCell>
+                          {item.tipo_diaria === 'uma_e_meia' && (
+                            <Badge className="text-xs bg-blue-600 text-white">1½ Diária</Badge>
+                          )}
+                          {item.tipo_diaria === 'completa' && (
+                            <Badge variant="default" className="text-xs bg-green-600 text-white">1 Diária</Badge>
+                          )}
+                          {item.tipo_diaria === 'meia' && (
+                            <Badge variant="secondary" className="text-xs bg-yellow-500 text-white">½ Diária</Badge>
+                          )}
+                          {(!item.tipo_diaria || item.tipo_diaria === 'nenhuma') && (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(
+                            item.tipo_diaria === 'completa' ? (item.valor_diaria_aplicada || 0) :
+                            item.tipo_diaria === 'uma_e_meia' ? (item.valor_diaria_aplicada || 0) * (2/3) :
+                            0
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(
+                            item.tipo_diaria === 'meia' ? (item.valor_diaria_aplicada || 0) :
+                            item.tipo_diaria === 'uma_e_meia' ? (item.valor_diaria_aplicada || 0) * (1/3) :
+                            0
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           {formatCurrency(item.valor_refeicao_aplicado || 0)}

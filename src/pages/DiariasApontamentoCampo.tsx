@@ -10,7 +10,8 @@ import {
   User,
   Loader2,
   Filter,
-  Users
+  Users,
+  Eye
 } from "lucide-react";
 
 import MainLayout from "@/components/layout/MainLayout";
@@ -50,10 +51,11 @@ export default function DiariasApontamentoCampo() {
   const { 
     userScope, 
     getApontamentosFilter,
+    canApontar,
     isLoading: isLoadingScope 
   } = useDiariasDataScope();
 
-  const hasAccess = isSuperAdmin || hasPermission('diarias_apontamento_view') || hasPermission('diarias_view');
+  const hasAccess = isSuperAdmin || hasPermission('diarias_apontamento_view') || hasPermission('diarias_view') || userScope === 'admsso';
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<StatusApontamento | '__all__'>('__all__');
@@ -62,6 +64,7 @@ export default function DiariasApontamentoCampo() {
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedApontamento, setSelectedApontamento] = useState<DiariaApontamento | null>(null);
+  const [modalReadOnly, setModalReadOnly] = useState(false);
 
   // Query apontamentos - COM ESCOPO OBRIGATÓRIO
   const apontamentoScopeFilters = getApontamentosFilter();
@@ -96,8 +99,9 @@ export default function DiariasApontamentoCampo() {
   });
 
   // Handlers
-  const handleOpenModal = (apontamento: any) => {
+  const handleOpenModal = (apontamento: any, readOnly: boolean = false) => {
     setSelectedApontamento(apontamento as DiariaApontamento);
+    setModalReadOnly(readOnly);
     setIsModalOpen(true);
   };
 
@@ -313,10 +317,20 @@ export default function DiariasApontamentoCampo() {
                       </div>
                       <Button
                         size="sm"
-                        onClick={() => handleOpenModal(apontamento)}
+                        variant={canApontar(apontamento.responsavel_campo_id) ? "default" : "outline"}
+                        onClick={() => handleOpenModal(apontamento, !canApontar(apontamento.responsavel_campo_id))}
                       >
-                        <ClipboardCheck className="h-4 w-4 mr-1" />
-                        Apontamento de Diária
+                        {canApontar(apontamento.responsavel_campo_id) ? (
+                          <>
+                            <ClipboardCheck className="h-4 w-4 mr-1" />
+                            Apontamento de Diária
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="h-4 w-4 mr-1" />
+                            Visualizar
+                          </>
+                        )}
                       </Button>
                     </div>
                   </CardContent>
@@ -337,6 +351,7 @@ export default function DiariasApontamentoCampo() {
           onClose={() => setIsModalOpen(false)}
           apontamento={selectedApontamento}
           onSaveSuccess={handleSaveSuccess}
+          readOnly={modalReadOnly}
         />
       </div>
     </MainLayout>

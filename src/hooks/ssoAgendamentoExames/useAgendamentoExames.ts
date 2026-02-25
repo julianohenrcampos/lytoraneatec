@@ -139,10 +139,10 @@ export const useAgendamentoExames = (agendamentoId?: string, filters?: Agendamen
     }
   });
 
-  // Mutation: Atualizar carteira assinada
-  const updateCarteiraMutation = useMutation({
-    mutationFn: (params: { id: string; assinada: boolean }) => 
-      agendamentoExamesService.updateCarteira(params.id, params.assinada),
+  // Mutation: Atualizar status carteira
+  const updateStatusCarteiraMutation = useMutation({
+    mutationFn: (params: { id: string; status: string }) => 
+      agendamentoExamesService.updateStatusCarteira(params.id, params.status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agendamentos-exames'] });
       toast.success('Status da carteira atualizado!');
@@ -162,6 +162,19 @@ export const useAgendamentoExames = (agendamentoId?: string, filters?: Agendamen
     },
     onError: (error: any) => {
       toast.error(`Erro ao atualizar integração: ${error.message}`);
+    }
+  });
+
+  // Mutation: Atualizar benefício VT/VR
+  const updateBeneficioMutation = useMutation({
+    mutationFn: (params: { id: string; field: string; value: string | null }) =>
+      agendamentoExamesService.updateBeneficio(params.id, params.field, params.value),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agendamentos-exames'] });
+      toast.success('Benefício atualizado!');
+    },
+    onError: (error: any) => {
+      toast.error(`Erro ao atualizar benefício: ${error.message}`);
     }
   });
 
@@ -212,8 +225,9 @@ export const useAgendamentoExames = (agendamentoId?: string, filters?: Agendamen
     delete: deleteMutation.mutateAsync,
     updateStatus: updateStatusMutation.mutateAsync,
     updateStatusBulk: updateStatusBulkMutation.mutateAsync,
-    updateCarteira: updateCarteiraMutation.mutateAsync,
+    updateStatusCarteira: updateStatusCarteiraMutation.mutateAsync,
     updateIntegracao: updateIntegracoMutation.mutateAsync,
+    updateBeneficio: updateBeneficioMutation.mutateAsync,
     uploadAnexo: uploadAnexoMutation.mutateAsync,
     deleteAnexo: deleteAnexoMutation.mutateAsync,
     
@@ -222,8 +236,9 @@ export const useAgendamentoExames = (agendamentoId?: string, filters?: Agendamen
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
     isUpdatingStatusBulk: updateStatusBulkMutation.isPending,
-    isUpdatingCarteira: updateCarteiraMutation.isPending,
+    isUpdatingStatusCarteira: updateStatusCarteiraMutation.isPending,
     isUpdatingIntegracao: updateIntegracoMutation.isPending,
+    isUpdatingBeneficio: updateBeneficioMutation.isPending,
     isUploadingAnexo: uploadAnexoMutation.isPending,
     isDeletingAnexo: deleteAnexoMutation.isPending
   };

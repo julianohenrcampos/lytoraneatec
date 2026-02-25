@@ -4,6 +4,7 @@ import { Link, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
 import { useDynamicPermissions } from "@/hooks/useDynamicPermissions"
 import { menuStructure } from "@/constants/menuStructure"
+import { useDiariasPendentes } from "@/hooks/diarias/useDiariasPendentes"
 import {
   Sidebar,
   SidebarContent,
@@ -20,6 +21,7 @@ import { APP_VERSION } from "@/lib/version"
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const location = useLocation()
   const { isSuperAdmin, userRole, permissions, isLoading } = useDynamicPermissions()
+  const { count: pendentesCount } = useDiariasPendentes()
 
   console.log('🎯 SIDEBAR DEBUG - Estado atual DINÂMICO:', {
     isLoading,
@@ -82,6 +84,26 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return visibleGroups
   }
 
+  const visibleGroups = getVisibleGroups()
+
+  // Auto-scroll para o grupo que contém a rota ativa
+  React.useEffect(() => {
+    if (isLoading) return;
+    const activeGroup = visibleGroups.find(group =>
+      group.items.some(item => location.pathname === item.href)
+    );
+    if (activeGroup) {
+      const groupElement = document.querySelector(
+        `[data-sidebar-group="${activeGroup.title}"]`
+      );
+      if (groupElement) {
+        setTimeout(() => {
+          groupElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 100);
+      }
+    }
+  }, [location.pathname, isLoading]);
+
   // Loading state
   if (isLoading) {
     return (
@@ -100,8 +122,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </Sidebar>
     )
   }
-
-  const visibleGroups = getVisibleGroups()
 
   console.log('🎯 RESULTADO FINAL - Renderizando sidebar DINÂMICO:', {
     isSuperAdmin,
@@ -139,20 +159,31 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     <Sidebar {...props}>
       <SidebarContent>
         {visibleGroups.map((group, index) => (
-          <SidebarGroup key={index}>
+          <SidebarGroup key={index} data-sidebar-group={group.title}>
             <SidebarGroupLabel>{group.title}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {group.items.map((item) => (
+                {group.items.map((item) => {
+                  const isPendenteSolicitacoes = item.href === '/requisicoes/diarias/solicitacoes' && pendentesCount > 0;
+                  return (
                   <SidebarMenuItem key={item.name}>
                     <SidebarMenuButton asChild isActive={location.pathname === item.href}>
-                      <Link to={item.href}>
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.name}</span>
+                      <Link to={item.href} className={cn(
+                        "relative",
+                        isPendenteSolicitacoes && "animate-pulse"
+                      )}>
+                        <item.icon className={cn("h-4 w-4", isPendenteSolicitacoes && "text-orange-500")} />
+                        <span className={cn(isPendenteSolicitacoes && "text-orange-600 font-semibold")}>{item.name}</span>
+                        {isPendenteSolicitacoes && (
+                          <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-bold text-white">
+                            {pendentesCount}
+                          </span>
+                        )}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                ))}
+                  );
+                })}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

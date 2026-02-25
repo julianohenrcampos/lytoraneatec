@@ -70,7 +70,8 @@ const initialEtapa2Data: Etapa2FormData = {
   horario_agendamento: '08:00',
   observacoes: '',
   status: 'Pendente',
-  documentos_anexados: false
+  documentos_anexados: false,
+  motivo_mudanca_risco: ''
 };
 
 export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = ({
@@ -166,7 +167,8 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
         horario_agendamento: agendamento.horario_agendamento.substring(0, 5),
         observacoes: agendamento.observacoes || '',
         status: agendamento.status,
-        documentos_anexados: agendamento.documentos_anexados
+        documentos_anexados: agendamento.documentos_anexados,
+        motivo_mudanca_risco: agendamento.motivo_mudanca_risco || ''
       });
       
       setTecnicoSeguranca(agendamento.tecnico_seguranca || '');
@@ -234,12 +236,17 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
 
   // Validação da Etapa 2
   const isEtapa2Valid = useMemo(() => {
-    return (
+    const baseValid = (
       etapa2Data.tipo_exame &&
       etapa2Data.local_atendimento_id &&
       etapa2Data.data_agendamento &&
       etapa2Data.horario_agendamento
     );
+    // Mudança de Risco requer motivo
+    if (etapa2Data.tipo_exame === 'Mudança de Risco') {
+      return baseValid && !!etapa2Data.motivo_mudanca_risco;
+    }
+    return baseValid;
   }, [etapa2Data]);
 
   // Handlers
@@ -297,7 +304,7 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
         ...etapa2Data,
         tecnico_seguranca: tecnicoSeguranca,
         data_registro_carteira: calcularDataRegistroCarteira(etapa1Data.data_inicio_prevista),
-        carteira_assinada: false,
+        status_carteira: 'Pendente',
         status_integracao: 'Sem integração',
         etapa_atual: 2,
         etapa1_concluida: true

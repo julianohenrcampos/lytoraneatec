@@ -42,3 +42,6 @@ export {
   useCancelarApontamento,
   useUpdateApontamentoObservacoes
 } from './useApontamentosCampo';
+
+// Pendentes (badge sidebar)
+export { useDiariasPendentes } from './useDiariasPendentes';

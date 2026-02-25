@@ -154,7 +154,11 @@ export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promis
     'Apontador': item.apontador_nome || '-',
     'Funcionário': item.nome_funcionario,
     'Função': item.nome_funcao || '-',
-    'Valor Diária': item.valor_diaria_aplicada,
+    'Tipo Diária': item.tipo_diaria === 'uma_e_meia' ? '1½ Diária' : item.tipo_diaria === 'completa' ? '1 Diária' : item.tipo_diaria === 'meia' ? '½ Diária' : '-',
+    'V. Diária': item.tipo_diaria === 'completa' ? (item.valor_diaria_aplicada || 0) : item.tipo_diaria === 'uma_e_meia' ? (item.valor_diaria_aplicada || 0) * (2/3) : 0,
+    'V. ½ Diária': item.tipo_diaria === 'meia' ? (item.valor_diaria_aplicada || 0) : item.tipo_diaria === 'uma_e_meia' ? (item.valor_diaria_aplicada || 0) * (1/3) : 0,
+    'V. Refeição': item.valor_refeicao_aplicado || 0,
+    'Total': (item.valor_diaria_aplicada || 0) + (item.valor_refeicao_aplicado || 0),
     'Entrada': item.hora_entrada || '-',
     'Saída': item.hora_saida || '-',
     // DADOS BANCÁRIOS NOVOS
@@ -174,7 +178,11 @@ export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promis
     { wch: 25 },  // Apontador
     { wch: 30 },  // Funcionário
     { wch: 20 },  // Função
-    { wch: 12 },  // Valor
+    { wch: 12 },  // Tipo Diária
+    { wch: 14 },  // V. Diária
+    { wch: 14 },  // V. ½ Diária
+    { wch: 14 },  // V. Refeição
+    { wch: 14 },  // Total
     { wch: 10 },  // Entrada
     { wch: 10 },  // Saída
     { wch: 15 },  // CPF

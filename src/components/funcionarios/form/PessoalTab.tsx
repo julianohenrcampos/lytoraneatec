@@ -105,6 +105,21 @@ export default function PessoalTab({
           )}
         />
 
+        {/* Matrícula */}
+        <FormField
+          control={form.control}
+          name="matricula"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Matrícula</FormLabel>
+              <FormControl>
+                <Input placeholder="Número da matrícula" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         {/* Gênero */}
         <FormField
           control={form.control}

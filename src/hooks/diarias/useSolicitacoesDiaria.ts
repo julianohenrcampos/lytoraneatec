@@ -12,7 +12,11 @@ import {
   reprovarSolicitacao,
   cancelarEnvioSolicitacao,
   getSolicitacoesResumo,
-  getHistoricoAprovacoes
+  getHistoricoAprovacoes,
+  notificarAprovador,
+  notificarSolicitanteAprovacao,
+  notificarSolicitanteReprovacao,
+  notificarApontador
 } from '@/services/diarias';
 
 const QUERY_KEY = 'diarias-solicitacoes';
@@ -118,9 +122,19 @@ export function useEnviarParaAutorizacao() {
 
   return useMutation({
     mutationFn: (id: string) => enviarParaAutorizacao(id),
-    onSuccess: () => {
+    onSuccess: (solicitacao) => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['diarias-pendentes-count'] });
       toast.success('Solicitação enviada para autorização!');
+
+      // Notificar aprovador (silencioso)
+      try {
+        notificarAprovador({
+          id: solicitacao.id,
+          numero_solicitacao: solicitacao.numero_solicitacao,
+          centro_custo_id: solicitacao.centro_custo_id,
+        });
+      } catch (e) { /* silencioso */ }
     },
     onError: (error: Error) => {
       toast.error(`Erro ao enviar: ${error.message}`);
@@ -143,10 +157,27 @@ export function useAutorizarSolicitacao() {
       responsavelCampoId?: string;
       observacaoGerente?: string;
     }) => autorizarSolicitacao(id, comentario, responsavelCampoId, observacaoGerente),
-    onSuccess: () => {
+    onSuccess: (solicitacao) => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
       queryClient.invalidateQueries({ queryKey: ['diaria-apontamentos'] });
+      queryClient.invalidateQueries({ queryKey: ['diarias-pendentes-count'] });
       toast.success('Solicitação autorizada! Apontamento de campo criado.');
+
+      // Notificar solicitante e apontador (silencioso)
+      try {
+        notificarSolicitanteAprovacao({
+          id: solicitacao.id,
+          numero_solicitacao: solicitacao.numero_solicitacao,
+          criado_por: solicitacao.criado_por,
+        });
+        if (solicitacao.responsavel_campo_id) {
+          notificarApontador({
+            id: solicitacao.id,
+            numero_solicitacao: solicitacao.numero_solicitacao,
+            responsavel_campo_id: solicitacao.responsavel_campo_id,
+          });
+        }
+      } catch (e) { /* silencioso */ }
     },
     onError: (error: Error) => {
       toast.error(`Erro ao autorizar: ${error.message}`);
@@ -167,9 +198,19 @@ export function useReprovarSolicitacao() {
       comentario?: string;
       observacaoGerente?: string;
     }) => reprovarSolicitacao(id, comentario, observacaoGerente),
-    onSuccess: () => {
+    onSuccess: (solicitacao) => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['diarias-pendentes-count'] });
       toast.success('Solicitação reprovada.');
+
+      // Notificar solicitante (silencioso)
+      try {
+        notificarSolicitanteReprovacao({
+          id: solicitacao.id,
+          numero_solicitacao: solicitacao.numero_solicitacao,
+          criado_por: solicitacao.criado_por,
+        });
+      } catch (e) { /* silencioso */ }
     },
     onError: (error: Error) => {
       toast.error(`Erro ao reprovar: ${error.message}`);

@@ -7,20 +7,22 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Plus, ChevronDown, UserPlus, RotateCcw, UserMinus, RefreshCw } from 'lucide-react';
+import { Plus, ChevronDown, UserPlus, RotateCcw, UserMinus, RefreshCw, ArrowLeftRight } from 'lucide-react';
 
 interface NovoAgendamentoDropdownProps {
   onNovoAgendamento: () => void;
   onRetorno: () => void;
   onDemissional: () => void;
   onPeriodico: () => void;
+  onMudancaRisco: () => void;
 }
 
 export const NovoAgendamentoDropdown: React.FC<NovoAgendamentoDropdownProps> = ({
   onNovoAgendamento,
   onRetorno,
   onDemissional,
-  onPeriodico
+  onPeriodico,
+  onMudancaRisco
 }) => {
   return (
     <DropdownMenu>
@@ -63,6 +65,14 @@ export const NovoAgendamentoDropdown: React.FC<NovoAgendamentoDropdownProps> = (
           <div className="flex flex-col">
             <span className="font-medium">Periódico</span>
             <span className="text-xs text-muted-foreground">Funcionário existente</span>
+          </div>
+        </DropdownMenuItem>
+        
+        <DropdownMenuItem onClick={onMudancaRisco} className="cursor-pointer">
+          <ArrowLeftRight className="h-4 w-4 mr-2 text-purple-500" />
+          <div className="flex flex-col">
+            <span className="font-medium">Mudança de Risco</span>
+            <span className="text-xs text-muted-foreground">Promoção ou Mudança de Setor</span>
           </div>
         </DropdownMenuItem>
       </DropdownMenuContent>

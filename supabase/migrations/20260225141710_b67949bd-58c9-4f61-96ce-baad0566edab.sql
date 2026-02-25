@@ -1,0 +1,1 @@
+ALTER TABLE bd_funcionarios ADD COLUMN matricula TEXT;

@@ -3,11 +3,15 @@
 export type TipoExame = 'Admissional' | 'Periódico' | 'Mudança de Risco' | 'Demissional' | 'Retorno ao Trabalho';
 export type StatusAgendamento = 'Pendente' | 'Agendado' | 'Apto' | 'Apto com Restrição' | 'Inapto' | 'Não Compareceu';
 export type StatusIntegracao = 'Sem integração' | 'Integrado';
+export type StatusCarteira = 'Pendente' | 'Registrado' | 'Revisado';
 export type ModoAgendamento = 'novo' | 'funcionario_existente';
+export type MotivoMudancaRisco = 'Promoção' | 'Mudança de Setor';
+export const MOTIVOS_MUDANCA_RISCO: MotivoMudancaRisco[] = ['Promoção', 'Mudança de Setor'];
 
 export const TIPOS_EXAME: TipoExame[] = ['Admissional', 'Periódico', 'Mudança de Risco', 'Demissional', 'Retorno ao Trabalho'];
 export const STATUS_AGENDAMENTO: StatusAgendamento[] = ['Pendente', 'Agendado', 'Apto', 'Apto com Restrição', 'Inapto', 'Não Compareceu'];
 export const STATUS_INTEGRACAO: StatusIntegracao[] = ['Sem integração', 'Integrado'];
+export const STATUS_CARTEIRA: StatusCarteira[] = ['Pendente', 'Registrado', 'Revisado'];
 
 export interface LocalAtendimento {
   id: string;
@@ -62,12 +66,21 @@ export interface AgendamentoExame {
   banco_conta: string | null;
   
   // NOVOS - Status Contratação
-  carteira_assinada: boolean;
+  status_carteira: StatusCarteira;
   status_integracao: StatusIntegracao;
   
   // NOVOS - Controle de Etapa
   etapa_atual: number;
   etapa1_concluida: boolean;
+  
+  // Mudança de Risco
+  motivo_mudanca_risco: MotivoMudancaRisco | null;
+  
+  // Benefícios VT/VR
+  vt_solicitado_em: string | null;
+  vt_entregue_em: string | null;
+  vr_solicitado_em: string | null;
+  vr_entregue_em: string | null;
   
   // Relações
   bd_locais_atendimento?: LocalAtendimento;
@@ -114,6 +127,7 @@ export interface Etapa2FormData {
   observacoes: string;
   status: StatusAgendamento;
   documentos_anexados: boolean;
+  motivo_mudanca_risco: string;
 }
 
 // FormData completo (combinação das duas etapas)
@@ -150,10 +164,11 @@ export interface AgendamentoExameFormData {
   possui_conta_santander: boolean;
   banco_agencia: string;
   banco_conta: string;
-  carteira_assinada: boolean;
+  status_carteira: StatusCarteira;
   status_integracao: StatusIntegracao;
   etapa_atual: number;
   etapa1_concluida: boolean;
+  motivo_mudanca_risco: string;
 }
 
 export interface AgendamentoExameAnexo {
@@ -182,7 +197,7 @@ export interface AgendamentoExameFilters {
   nome_colaborador?: string;
   cpf?: string;
   status_integracao?: string;
-  carteira_assinada?: string;
+  status_carteira?: string;
 }
 
 // Interface para funcionário selecionado (vindo de bd_funcionarios)
@@ -241,6 +256,14 @@ export const getStatusIntegracoColor = (status: StatusIntegracao): "default" | "
   return status === 'Integrado' ? 'success' : 'default';
 };
 
+export const getStatusCarteiraColor = (status: string): "default" | "secondary" | "success" | "info" | "destructive" => {
+  switch (status) {
+    case 'Registrado': return 'success';
+    case 'Revisado': return 'info';
+    default: return 'secondary';
+  }
+};
+
 // Helper para calcular data de inicio prevista (+2 dias após agendamento)
 export const calcularDataInicioPrevista = (dataAgendamento: string): string => {
   if (!dataAgendamento) return '';
@@ -272,8 +295,8 @@ export const calcularProgressoPrazo = (dataInicio: string | null, dataLimite: st
 };
 
 // Helper para verificar se prazo está vencido
-export const isPrazoVencido = (dataLimite: string | null, carteiraAssinada: boolean): boolean => {
-  if (!dataLimite || carteiraAssinada) return false;
+export const isPrazoVencido = (dataLimite: string | null, statusCarteira: string): boolean => {
+  if (!dataLimite || statusCarteira === 'Registrado' || statusCarteira === 'Revisado') return false;
   const hoje = new Date();
   const limite = new Date(dataLimite + 'T23:59:59');
   return hoje > limite;
@@ -304,3 +327,47 @@ export const mapFuncionarioToEtapa1 = (func: FuncionarioSelecionado): Partial<Et
   possui_carteira_digital: false,
   possui_conta_santander: !!func.banco_conta,
 });
+
+// Helper para calcular estado de um benefício (VT ou VR)
+export type EstadoBeneficio = 'entregue' | 'em_andamento' | 'atrasado' | 'pendente';
+
+export const calcularEstadoBeneficio = (
+  solicitadoEm: string | null,
+  entregueEm: string | null,
+  dataFallback: string
+): { estado: EstadoBeneficio; diasDecorridos: number; percentual: number } => {
+  if (entregueEm) {
+    return { estado: 'entregue', diasDecorridos: 0, percentual: 100 };
+  }
+  
+  const dataInicio = solicitadoEm || dataFallback;
+  if (!dataInicio) {
+    return { estado: 'pendente', diasDecorridos: 0, percentual: 0 };
+  }
+  
+  const inicio = new Date(dataInicio + 'T12:00:00');
+  const hoje = new Date();
+  const diasDecorridos = Math.max(0, Math.ceil((hoje.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24)));
+  const percentual = Math.min(diasDecorridos / 10, 1) * 100;
+  
+  if (diasDecorridos > 10) {
+    return { estado: 'atrasado', diasDecorridos, percentual: 100 };
+  }
+  
+  if (solicitadoEm) {
+    return { estado: 'em_andamento', diasDecorridos, percentual };
+  }
+  
+  return { estado: 'pendente', diasDecorridos, percentual: 0 };
+};
+
+export type EstadoGeralBeneficios = 'concluido' | 'em_andamento' | 'a_solicitar';
+
+export const calcularEstadoGeralBeneficios = (agendamento: AgendamentoExame): EstadoGeralBeneficios => {
+  const vtEstado = calcularEstadoBeneficio(agendamento.vt_solicitado_em, agendamento.vt_entregue_em, agendamento.data_agendamento);
+  const vrEstado = calcularEstadoBeneficio(agendamento.vr_solicitado_em, agendamento.vr_entregue_em, agendamento.data_agendamento);
+  
+  if (vtEstado.estado === 'entregue' && vrEstado.estado === 'entregue') return 'concluido';
+  if (vtEstado.estado === 'pendente' && vrEstado.estado === 'pendente') return 'a_solicitar';
+  return 'em_andamento';
+};

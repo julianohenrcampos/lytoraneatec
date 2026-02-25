@@ -55,6 +55,10 @@ export async function getApontamentos(
     query = query.eq('responsavel_campo_id', scope.responsavel_campo_id);
   }
 
+  if (scope?.centro_custo_ids?.length) {
+    query = query.in('bd_diaria_solicitacoes.centro_custo_id', scope.centro_custo_ids);
+  }
+
   // Aplicar filtros opcionais
   if (filters?.status) {
     query = query.eq('status', filters.status);

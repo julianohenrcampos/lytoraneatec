@@ -12,6 +12,7 @@ import {
   Settings,
   Factory,
   ClipboardList,
+  ClipboardCheck,
   Gavel,
   Calendar,
 } from "lucide-react";
@@ -80,6 +81,15 @@ const portalModules = [
     route: "/requisicoes/cadastro",
     permission: "requisicoes_cadastro_view",
     color: "hsl(45, 93%, 47%)", // Yellow/Gold
+  },
+  {
+    id: "diarias",
+    title: "Diárias",
+    description: "Solicitações e Apontamentos",
+    icon: ClipboardCheck,
+    route: "/requisicoes/diarias/solicitacoes",
+    permission: ["diarias_view", "diarias_solicitacoes_view", "diarias_dashboard_view"],
+    color: "hsl(35, 85%, 50%)",
   },
   {
     id: "sso-checklists",

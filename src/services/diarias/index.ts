@@ -50,3 +50,12 @@ export {
 } from './presencasService';
 
 export type { PresencaDiaria, PresencaFormData } from './presencasService';
+
+// Notificações de Diárias
+export {
+  notificarAprovador,
+  notificarSolicitanteAprovacao,
+  notificarSolicitanteReprovacao,
+  notificarApontador,
+  getCountPendentesPorAprovador
+} from './diariaNotificationService';

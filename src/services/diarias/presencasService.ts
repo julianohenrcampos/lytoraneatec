@@ -4,7 +4,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 
-export type TipoDiaria = 'completa' | 'meia' | 'nenhuma';
+export type TipoDiaria = 'completa' | 'meia' | 'uma_e_meia' | 'nenhuma';
 
 export interface PresencaDiaria {
   id: string;

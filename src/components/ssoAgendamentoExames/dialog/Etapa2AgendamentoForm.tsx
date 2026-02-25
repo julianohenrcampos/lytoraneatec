@@ -11,6 +11,7 @@ import {
   Etapa2FormData, 
   TIPOS_EXAME, 
   STATUS_AGENDAMENTO,
+  MOTIVOS_MUDANCA_RISCO,
   LocalAtendimento,
   calcularDataRegistroCarteira
 } from '@/types/ssoAgendamentoExames';
@@ -60,7 +61,7 @@ export const Etapa2AgendamentoForm: React.FC<Etapa2AgendamentoFormProps> = ({
             </div>
           </div>
           
-          {formData.tipo_exame === 'Admissional' && (
+          {(formData.tipo_exame === 'Admissional' || formData.tipo_exame === 'Mudança de Risco') && (
             <div className="flex flex-wrap gap-2 mt-2">
               {etapa1Data.data_inicio_prevista && (
                 <Badge variant="outline" className="text-xs">
@@ -73,6 +74,11 @@ export const Etapa2AgendamentoForm: React.FC<Etapa2AgendamentoFormProps> = ({
                   Carteira até: {formatBrazilianDateForDisplay(dataRegistroCarteira)}
                 </Badge>
               )}
+              {formData.tipo_exame === 'Mudança de Risco' && formData.motivo_mudanca_risco && (
+                <Badge variant="purple" className="text-xs">
+                  {formData.motivo_mudanca_risco}
+                </Badge>
+              )}
             </div>
           )}
         </div>
@@ -83,22 +89,34 @@ export const Etapa2AgendamentoForm: React.FC<Etapa2AgendamentoFormProps> = ({
         <h4 className="font-semibold mb-4">Agendamento do Exame</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label>Tipo de Exame *</Label>
-            <Select
+            <Label>Tipo de Exame</Label>
+            <Input
               value={formData.tipo_exame}
-              onValueChange={(v) => onChange('tipo_exame', v)}
-              disabled={disabled}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o tipo..." />
-              </SelectTrigger>
-              <SelectContent>
-                {TIPOS_EXAME.map((tipo) => (
-                  <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              readOnly
+              disabled
+              className="bg-muted"
+            />
           </div>
+          
+          {formData.tipo_exame === 'Mudança de Risco' && (
+            <div className="space-y-2">
+              <Label>Motivo da Mudança *</Label>
+              <Select
+                value={formData.motivo_mudanca_risco || ''}
+                onValueChange={(v) => onChange('motivo_mudanca_risco', v)}
+                disabled={disabled}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o motivo..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {MOTIVOS_MUDANCA_RISCO.map((motivo) => (
+                    <SelectItem key={motivo} value={motivo}>{motivo}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           
           <div className="space-y-2">
             <Label>Local de Atendimento *</Label>

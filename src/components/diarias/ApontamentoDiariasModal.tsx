@@ -33,7 +33,8 @@ import {
   AlertCircle,
   Users,
   UtensilsCrossed,
-  Lock
+  Lock,
+  Printer
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
@@ -50,12 +51,14 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-
+import { generateListaPresencaPDF } from "@/services/pdfService";
+import type { ListaPresencaItem } from "@/components/diarias/pdf/ListaPresencaPDF";
 interface ApontamentoDiariasModalProps {
   isOpen: boolean;
   onClose: () => void;
   apontamento: DiariaApontamento | null;
   onSaveSuccess?: () => void;
+  readOnly?: boolean;
 }
 
 interface ColaboradorPresenca extends PresencaFormData {
@@ -65,8 +68,8 @@ interface ColaboradorPresenca extends PresencaFormData {
 type FaseApontamento = 'inicio' | 'finalizacao' | 'concluido';
 
 // Calcula horas trabalhadas e tipo de diária
-function calcularJornada(entrada: string | undefined, saida: string | undefined): { horas: number; tipo: TipoDiaria } {
-  if (!entrada || !saida) return { horas: 0, tipo: 'nenhuma' };
+function calcularJornada(entrada: string | undefined, saida: string | undefined): { horas: number; tipo: TipoDiaria; excede12h: boolean } {
+  if (!entrada || !saida) return { horas: 0, tipo: 'nenhuma', excede12h: false };
 
   const [hE, mE] = entrada.split(':').map(Number);
   const [hS, mS] = saida.split(':').map(Number);
@@ -76,13 +79,16 @@ function calcularJornada(entrada: string | undefined, saida: string | undefined)
   
   const horas = totalMinutos / 60;
 
-  if (horas > 4 + 20/60) return { horas, tipo: 'completa' };
-  if (horas > 0) return { horas, tipo: 'meia' };
-  return { horas, tipo: 'nenhuma' };
+  if (horas > 12) return { horas, tipo: 'uma_e_meia', excede12h: true };
+  if (horas > 9) return { horas, tipo: 'uma_e_meia', excede12h: false };
+  if (horas > 4 + 20/60) return { horas, tipo: 'completa', excede12h: false };
+  if (horas > 0) return { horas, tipo: 'meia', excede12h: false };
+  return { horas, tipo: 'nenhuma', excede12h: false };
 }
 
 function calcularValorDiaria(valorOriginal: number, tipo: TipoDiaria): number {
   switch (tipo) {
+    case 'uma_e_meia': return valorOriginal * 1.5;
     case 'completa': return valorOriginal;
     case 'meia': return valorOriginal * 0.5;
     case 'nenhuma': return 0;
@@ -92,6 +98,8 @@ function calcularValorDiaria(valorOriginal: number, tipo: TipoDiaria): number {
 function getBadgeJornada(tipo: TipoDiaria, horas: number) {
   const horasStr = horas > 0 ? ` ${horas.toFixed(1)}h` : '';
   switch (tipo) {
+    case 'uma_e_meia':
+      return <Badge className="text-xs bg-blue-600 text-white">1½ Diária{horasStr}</Badge>;
     case 'completa':
       return <Badge variant="success" className="text-xs">Completa{horasStr}</Badge>;
     case 'meia':
@@ -122,7 +130,8 @@ export default function ApontamentoDiariasModal({
   isOpen,
   onClose,
   apontamento,
-  onSaveSuccess
+  onSaveSuccess,
+  readOnly = false
 }: ApontamentoDiariasModalProps) {
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [colaboradores, setColaboradores] = useState<ColaboradorPresenca[]>([]);
@@ -193,6 +202,50 @@ export default function ApontamentoDiariasModal({
     return [];
   }, [solicitacao?.convocados_pre]);
 
+  // Buscar matricula e cpf dos funcionários para o PDF
+  const funcionarioIds = useMemo(() => convocadosPre.map(c => c.funcionario_id), [convocadosPre]);
+  const { data: funcionariosData = [] } = useQuery({
+    queryKey: ['funcionarios-matricula-cpf', funcionarioIds],
+    queryFn: async () => {
+      if (funcionarioIds.length === 0) return [];
+      const { data } = await supabase
+        .from('bd_funcionarios')
+        .select('id, nome_completo, matricula, cpf')
+        .in('id', funcionarioIds);
+      return data || [];
+    },
+    enabled: funcionarioIds.length > 0
+  });
+
+  const [isPrinting, setIsPrinting] = useState(false);
+
+  const handleImprimirLista = async () => {
+    if (!solicitacao || !centroCusto || !selectedDate) return;
+    setIsPrinting(true);
+    try {
+      const itens: ListaPresencaItem[] = convocadosPre.map(conv => {
+        const func = funcionariosData.find(f => f.id === conv.funcionario_id);
+        const colab = colaboradores.find(c => c.funcionario_id === conv.funcionario_id);
+        return {
+          nome_completo: func?.nome_completo || conv.nome_funcionario || '',
+          matricula: func?.matricula || null,
+          cpf: func?.cpf || '',
+          hora_entrada: colab?.hora_entrada || '',
+          hora_saida: colab?.hora_saida || '',
+        };
+      });
+      const ccLabel = `${centroCusto.codigo_centro_custo} - ${centroCusto.nome_centro_custo}`;
+      const fileName = `Lista_Presenca_${solicitacao.numero_solicitacao}_${selectedDate}`;
+      await generateListaPresencaPDF(solicitacao.numero_solicitacao, ccLabel, selectedDate, itens, fileName);
+      toast.success('PDF gerado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      toast.error('Erro ao gerar PDF da lista de presença.');
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
   // Inicializar colaboradores quando mudar a data ou abrir o modal
   useEffect(() => {
     if (!isOpen || !selectedDate || convocadosPre.length === 0) return;
@@ -212,7 +265,15 @@ export default function ApontamentoDiariasModal({
             const existente = existentes.find(
               (e) => e.funcionario_id === conv.funcionario_id
             );
-            const valorOriginal = conv.valor_diaria_exclusiva || conv.valor_diaria;
+            // Determinar valor base pelo tipo de dia (seg-sáb = normal, dom/feriado = exclusiva)
+            const dateSel = parseBrazilianDate(selectedDate);
+            const isDomingo = dateSel.getDay() === 0;
+            const isFeriado = feriados.some(f => f.data === selectedDate);
+            const usarExclusiva = isDomingo || isFeriado;
+
+            const valorOriginal = usarExclusiva
+              ? (conv.valor_diaria_exclusiva || conv.valor_diaria)
+              : conv.valor_diaria;
             return {
               index,
               funcionario_id: conv.funcionario_id,
@@ -234,7 +295,15 @@ export default function ApontamentoDiariasModal({
         } else {
           setHasExistingData(false);
           const mapped: ColaboradorPresenca[] = convocadosPre.map((conv, index) => {
-            const valorOriginal = conv.valor_diaria_exclusiva || conv.valor_diaria;
+            // Determinar valor base pelo tipo de dia
+            const dateSel2 = parseBrazilianDate(selectedDate);
+            const isDomingo2 = dateSel2.getDay() === 0;
+            const isFeriado2 = feriados.some(f => f.data === selectedDate);
+            const usarExclusiva2 = isDomingo2 || isFeriado2;
+
+            const valorOriginal = usarExclusiva2
+              ? (conv.valor_diaria_exclusiva || conv.valor_diaria)
+              : conv.valor_diaria;
             return {
               index,
               funcionario_id: conv.funcionario_id,
@@ -309,7 +378,7 @@ export default function ApontamentoDiariasModal({
 
   // Handlers
   const handlePresencaChange = (index: number, presente: boolean) => {
-    if (fase !== 'inicio') return; // Só pode mudar presença na fase início
+    if (fase !== 'inicio' || readOnly) return; // Só pode mudar presença na fase início
     setColaboradores((prev) =>
       prev.map((col) => {
         if (col.index !== index) return col;
@@ -331,6 +400,7 @@ export default function ApontamentoDiariasModal({
     value: string
   ) => {
     // Na fase início, só pode editar entrada; na finalização, só saída
+    if (readOnly) return;
     if (fase === 'inicio' && field === 'hora_saida') return;
     if (fase === 'finalizacao' && field === 'hora_entrada') return;
     if (fase === 'concluido') return;
@@ -346,7 +416,7 @@ export default function ApontamentoDiariasModal({
   };
 
   const handleRefeicaoChange = (index: number, recebe: boolean) => {
-    if (fase !== 'finalizacao') return; // Só edita refeição na finalização
+    if (fase === 'concluido' || readOnly) return;
     setColaboradores((prev) =>
       prev.map((col) =>
         col.index === index ? { ...col, recebe_refeicao: recebe } : col
@@ -386,9 +456,21 @@ export default function ApontamentoDiariasModal({
   const handleSalvarFinalizacao = async () => {
     if (!solicitacao?.id || !selectedDate) return;
 
+    // Validar limite de 12h
+    const presentes = colaboradores.filter(c => c.presente);
+    const excedem12h = presentes.filter(col => {
+      const { excede12h } = calcularJornada(col.hora_entrada, col.hora_saida);
+      return excede12h;
+    });
+
+    if (excedem12h.length > 0) {
+      const nomes = excedem12h.map(c => c.nome_funcionario).join(', ');
+      toast.error(`Jornada acima de 12h não permitida: ${nomes}. Corrija os horários antes de finalizar.`);
+      return;
+    }
+
     setIsSaving(true);
     try {
-      const presentes = colaboradores.filter(c => c.presente);
       const registros: FinalizacaoFormData[] = presentes.map(col => {
         const { tipo } = calcularJornada(col.hora_entrada, col.hora_saida);
         const valorFinal = calcularValorDiaria(col.valor_diaria_original, tipo);
@@ -439,7 +521,9 @@ export default function ApontamentoDiariasModal({
             )}
           </DialogTitle>
           <DialogDescription>
-            Registre a presença e horários dos funcionários para esta data
+            {readOnly 
+              ? "Visualização somente leitura — você não tem permissão para editar este apontamento."
+              : "Registre a presença e horários dos funcionários para esta data"}
           </DialogDescription>
         </DialogHeader>
 
@@ -562,11 +646,11 @@ export default function ApontamentoDiariasModal({
                     const { horas, tipo } = calcularJornada(colaborador.hora_entrada, colaborador.hora_saida);
                     const valorRefeicao = funcoesMap[colaborador.funcao_id] || 0;
 
-                    // Lógica de campos travados por fase
-                    const presencaDisabled = fase !== 'inicio';
-                    const entradaDisabled = fase !== 'inicio' || !colaborador.presente;
-                    const saidaDisabled = fase !== 'finalizacao' || !colaborador.presente;
-                    const refeicaoDisabled = fase !== 'finalizacao' || !colaborador.presente;
+                    // Lógica de campos travados por fase e readOnly
+                    const presencaDisabled = fase !== 'inicio' || readOnly;
+                    const entradaDisabled = fase !== 'inicio' || !colaborador.presente || readOnly;
+                    const saidaDisabled = fase !== 'finalizacao' || !colaborador.presente || readOnly;
+                    const refeicaoDisabled = fase === 'concluido' || !colaborador.presente || readOnly;
 
                     return (
                       <div
@@ -669,8 +753,8 @@ export default function ApontamentoDiariasModal({
                           </div>
                         </div>
 
-                        {/* Linha 3: Toggle Refeição (visível na finalização e concluído) */}
-                        {(fase === 'finalizacao' || fase === 'concluido') && (
+                        {/* Linha 3: Toggle Refeição (sempre visível) */}
+                        {(
                           <div className="flex items-center justify-between mt-3 pt-3 border-t border-dashed">
                             <div className="flex items-center gap-2">
                               <UtensilsCrossed className="h-4 w-4 text-muted-foreground" />
@@ -717,11 +801,26 @@ export default function ApontamentoDiariasModal({
         </div>
 
         <DialogFooter className="sm:justify-between flex-col sm:flex-row gap-3 mt-6 pt-4 border-t">
-          <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
-            {fase === 'concluido' ? 'Fechar' : 'Cancelar'}
-          </Button>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
+              {fase === 'concluido' || readOnly ? 'Fechar' : 'Cancelar'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleImprimirLista}
+              disabled={isPrinting || !selectedDate || convocadosPre.length === 0}
+            >
+              {isPrinting ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Printer className="h-4 w-4 mr-2" />
+              )}
+              Imprimir Lista
+            </Button>
+          </div>
 
-          {fase === 'inicio' && (
+          {fase === 'inicio' && !readOnly && (
             <Button
               onClick={handleSalvarInicio}
               disabled={isSaving || hasSaved || !dataHoje || colaboradores.length === 0}
@@ -741,7 +840,7 @@ export default function ApontamentoDiariasModal({
             </Button>
           )}
 
-          {fase === 'finalizacao' && (
+          {fase === 'finalizacao' && !readOnly && (
             <Button
               onClick={handleSalvarFinalizacao}
               disabled={isSaving || !dataHoje || colaboradores.length === 0}

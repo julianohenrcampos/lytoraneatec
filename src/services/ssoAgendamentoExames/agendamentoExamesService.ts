@@ -67,9 +67,8 @@ export const agendamentoExamesService = {
     if (filters.status_integracao && filters.status_integracao !== 'all') {
       query = query.eq('status_integracao', filters.status_integracao);
     }
-    if (filters.carteira_assinada && filters.carteira_assinada !== 'all') {
-      const assinada = filters.carteira_assinada === 'sim';
-      query = query.eq('carteira_assinada', assinada);
+    if (filters.status_carteira && filters.status_carteira !== 'all') {
+      query = query.eq('status_carteira', filters.status_carteira);
     }
 
     const { data, error } = await query;
@@ -160,10 +159,10 @@ export const agendamentoExamesService = {
     if (error) throw error;
   },
 
-  async updateCarteira(id: string, assinada: boolean): Promise<void> {
+  async updateStatusCarteira(id: string, status: string): Promise<void> {
     const { error } = await (supabase
       .from('bd_agendamentos_exames' as any) as any)
-      .update({ carteira_assinada: assinada })
+      .update({ status_carteira: status })
       .eq('id', id);
 
     if (error) throw error;
@@ -173,6 +172,15 @@ export const agendamentoExamesService = {
     const { error } = await (supabase
       .from('bd_agendamentos_exames' as any) as any)
       .update({ status_integracao: status })
+      .eq('id', id);
+
+    if (error) throw error;
+  },
+
+  async updateBeneficio(id: string, field: string, value: string | null): Promise<void> {
+    const { error } = await (supabase
+      .from('bd_agendamentos_exames' as any) as any)
+      .update({ [field]: value })
       .eq('id', id);
 
     if (error) throw error;

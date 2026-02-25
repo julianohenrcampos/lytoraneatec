@@ -23,12 +23,15 @@ import {
   STATUS_AGENDAMENTO,
   getStatusIntegracoColor,
   STATUS_INTEGRACAO,
+  STATUS_CARTEIRA,
+  getStatusCarteiraColor,
   isPrazoVencido
 } from '@/types/ssoAgendamentoExames';
 import { Eye, Pencil, Trash2, Paperclip, ChevronDown } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AgendamentoExamesMobileCards } from './AgendamentoExamesMobileCards';
 import { PrazoContratacaoProgress } from './PrazoContratacaoProgress';
+import { BeneficiosVtVrCell } from './BeneficiosVtVrCell';
 import { formatBrazilianDateForDisplay } from '@/utils/timezoneUtils';
 import { usePagination } from '@/hooks/usePagination';
 import TablePagination from '@/components/ui/table-pagination';
@@ -42,7 +45,8 @@ interface AgendamentoExamesTableProps {
   onAnexos: (id: string) => void;
   onStatusChange: (id: string, status: string) => void;
   onIntegracoChange?: (id: string, status: string) => void;
-  onCarteiraChange?: (id: string, assinada: boolean) => void;
+  onCarteiraChange?: (id: string, status: string) => void;
+  onBeneficioUpdate?: (id: string, field: string, value: string | null) => void;
   canEdit: boolean;
   canDelete: boolean;
   canChangeStatus: boolean;
@@ -59,6 +63,7 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
   onStatusChange,
   onIntegracoChange,
   onCarteiraChange,
+  onBeneficioUpdate,
   canEdit,
   canDelete,
   canChangeStatus,
@@ -115,13 +120,13 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
   const isIndeterminate = pagination.paginatedData.some(a => selectedIds.includes(a.id)) && 
     !pagination.paginatedData.every(a => selectedIds.includes(a.id));
 
-  // Helper para verificar se é exame admissional
-  const isAdmissional = (tipoExame: string) => tipoExame === 'Admissional';
+  // Helper para verificar se exibe campos de contratação (Admissional ou Mudança de Risco)
+  const showHiringFields = (tipoExame: string) => tipoExame === 'Admissional' || tipoExame === 'Mudança de Risco';
 
   // Função para verificar se a linha está irregular (apenas para Admissional)
   const getRowClassName = (agendamento: AgendamentoExame) => {
-    const isAdm = isAdmissional(agendamento.tipo_exame);
-    const vencido = isAdm && isPrazoVencido(agendamento.data_registro_carteira, agendamento.carteira_assinada);
+    const isHiring = showHiringFields(agendamento.tipo_exame);
+    const vencido = isHiring && isPrazoVencido(agendamento.data_registro_carteira, agendamento.status_carteira || 'Pendente');
     if (vencido) {
       return 'bg-destructive/10 hover:bg-destructive/15 border-l-4 border-l-destructive';
     }
@@ -150,10 +155,11 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
             </TableHead>
             <TableHead>Data Agend.</TableHead>
             <TableHead>Colaborador</TableHead>
-            <TableHead>Empresa</TableHead>
+            
             <TableHead>Tipo Exame</TableHead>
             <TableHead>Status Exame</TableHead>
             <TableHead>Integração</TableHead>
+            <TableHead className="text-center">Benefícios (VT/VR)</TableHead>
             <TableHead className="text-center">Prazo Contrat.</TableHead>
             <TableHead>Status Carteira</TableHead>
             <TableHead className="text-right">Ações</TableHead>
@@ -172,9 +178,6 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
               <TableCell>{formatBrazilianDateForDisplay(agendamento.data_agendamento)}</TableCell>
               <TableCell className="font-medium max-w-[180px] truncate" title={agendamento.nome_colaborador}>
                 {agendamento.nome_colaborador}
-              </TableCell>
-              <TableCell className="max-w-[120px] truncate" title={agendamento.empresa}>
-                {agendamento.empresa}
               </TableCell>
               <TableCell>
                 <Badge variant="outline" className="text-xs">
@@ -207,7 +210,7 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
                 </DropdownMenu>
               </TableCell>
               <TableCell>
-                {isAdmissional(agendamento.tipo_exame) ? (
+                {showHiringFields(agendamento.tipo_exame) ? (
                   canChangeStatus && onIntegracoChange ? (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -240,52 +243,73 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
                   <span className="text-muted-foreground">-</span>
                 )}
               </TableCell>
+              <TableCell>
+                {showHiringFields(agendamento.tipo_exame) && onBeneficioUpdate ? (
+                  <BeneficiosVtVrCell
+                    agendamento={agendamento}
+                    onBeneficioUpdate={onBeneficioUpdate}
+                    canEdit={canChangeStatus}
+                  />
+                ) : (
+                  <span className="text-muted-foreground">-</span>
+                )}
+              </TableCell>
               <TableCell className="text-center">
-                {isAdmissional(agendamento.tipo_exame) ? (
+                {showHiringFields(agendamento.tipo_exame) ? (
                   <PrazoContratacaoProgress
                     dataInicio={agendamento.data_inicio_prevista}
                     dataLimite={agendamento.data_registro_carteira}
-                    carteiraAssinada={agendamento.carteira_assinada}
+                    statusCarteira={agendamento.status_carteira || 'Pendente'}
                   />
                 ) : (
                   <span className="text-muted-foreground">-</span>
                 )}
               </TableCell>
               <TableCell>
-                {isAdmissional(agendamento.tipo_exame) ? (
+                {showHiringFields(agendamento.tipo_exame) ? (
                   canChangeStatus && onCarteiraChange ? (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="sm" className="p-0 h-auto">
                           <Badge 
-                            variant={agendamento.carteira_assinada ? 'success' : 
-                              isPrazoVencido(agendamento.data_registro_carteira, agendamento.carteira_assinada) ? 'destructive' : 'secondary'
+                            variant={
+                              isPrazoVencido(agendamento.data_registro_carteira, agendamento.status_carteira || 'Pendente') 
+                                ? 'destructive' 
+                                : getStatusCarteiraColor(agendamento.status_carteira || 'Pendente')
                             }
                           >
-                            {agendamento.carteira_assinada ? 'Assinada' : 
-                              isPrazoVencido(agendamento.data_registro_carteira, agendamento.carteira_assinada) ? 'IRREGULAR' : 'Pendente'
+                            {isPrazoVencido(agendamento.data_registro_carteira, agendamento.status_carteira || 'Pendente') 
+                              ? 'IRREGULAR' 
+                              : (agendamento.status_carteira || 'Pendente')
                             }
                             <ChevronDown className="h-3 w-3 ml-1" />
                           </Badge>
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent>
-                        <DropdownMenuItem onClick={() => onCarteiraChange(agendamento.id, true)}>
-                          <Badge variant="success" className="mr-2">Assinada</Badge>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onCarteiraChange(agendamento.id, false)}>
-                          <Badge variant="secondary" className="mr-2">Pendente</Badge>
-                        </DropdownMenuItem>
+                        {STATUS_CARTEIRA.map((status) => (
+                          <DropdownMenuItem
+                            key={status}
+                            onClick={() => onCarteiraChange(agendamento.id, status)}
+                          >
+                            <Badge variant={getStatusCarteiraColor(status)} className="mr-2">
+                              {status}
+                            </Badge>
+                          </DropdownMenuItem>
+                        ))}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   ) : (
                     <Badge 
-                      variant={agendamento.carteira_assinada ? 'success' : 
-                        isPrazoVencido(agendamento.data_registro_carteira, agendamento.carteira_assinada) ? 'destructive' : 'secondary'
+                      variant={
+                        isPrazoVencido(agendamento.data_registro_carteira, agendamento.status_carteira || 'Pendente') 
+                          ? 'destructive' 
+                          : getStatusCarteiraColor(agendamento.status_carteira || 'Pendente')
                       }
                     >
-                      {agendamento.carteira_assinada ? 'Assinada' : 
-                        isPrazoVencido(agendamento.data_registro_carteira, agendamento.carteira_assinada) ? 'IRREGULAR' : 'Pendente'
+                      {isPrazoVencido(agendamento.data_registro_carteira, agendamento.status_carteira || 'Pendente') 
+                        ? 'IRREGULAR' 
+                        : (agendamento.status_carteira || 'Pendente')
                       }
                     </Badge>
                   )

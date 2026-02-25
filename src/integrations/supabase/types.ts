@@ -174,7 +174,6 @@ export type Database = {
         Row: {
           banco_agencia: string | null
           banco_conta: string | null
-          carteira_assinada: boolean | null
           contrato: string | null
           cpf: string | null
           criado_em: string
@@ -200,21 +199,26 @@ export type Database = {
           horario_agendamento: string
           id: string
           local_atendimento_id: string
+          motivo_mudanca_risco: string | null
           nome_colaborador: string
           observacoes: string | null
           possui_carteira_digital: boolean | null
           possui_conta_santander: boolean | null
           rg: string | null
           status: string
+          status_carteira: string | null
           status_integracao: string | null
           tecnico_seguranca: string | null
           telefone_celular: string | null
           tipo_exame: string
+          vr_entregue_em: string | null
+          vr_solicitado_em: string | null
+          vt_entregue_em: string | null
+          vt_solicitado_em: string | null
         }
         Insert: {
           banco_agencia?: string | null
           banco_conta?: string | null
-          carteira_assinada?: boolean | null
           contrato?: string | null
           cpf?: string | null
           criado_em?: string
@@ -240,21 +244,26 @@ export type Database = {
           horario_agendamento: string
           id?: string
           local_atendimento_id: string
+          motivo_mudanca_risco?: string | null
           nome_colaborador: string
           observacoes?: string | null
           possui_carteira_digital?: boolean | null
           possui_conta_santander?: boolean | null
           rg?: string | null
           status?: string
+          status_carteira?: string | null
           status_integracao?: string | null
           tecnico_seguranca?: string | null
           telefone_celular?: string | null
           tipo_exame: string
+          vr_entregue_em?: string | null
+          vr_solicitado_em?: string | null
+          vt_entregue_em?: string | null
+          vt_solicitado_em?: string | null
         }
         Update: {
           banco_agencia?: string | null
           banco_conta?: string | null
-          carteira_assinada?: boolean | null
           contrato?: string | null
           cpf?: string | null
           criado_em?: string
@@ -280,16 +289,22 @@ export type Database = {
           horario_agendamento?: string
           id?: string
           local_atendimento_id?: string
+          motivo_mudanca_risco?: string | null
           nome_colaborador?: string
           observacoes?: string | null
           possui_carteira_digital?: boolean | null
           possui_conta_santander?: boolean | null
           rg?: string | null
           status?: string
+          status_carteira?: string | null
           status_integracao?: string | null
           tecnico_seguranca?: string | null
           telefone_celular?: string | null
           tipo_exame?: string
+          vr_entregue_em?: string | null
+          vr_solicitado_em?: string | null
+          vt_entregue_em?: string | null
+          vt_solicitado_em?: string | null
         }
         Relationships: [
           {
@@ -1509,6 +1524,7 @@ export type Database = {
           id: string
           imagem: string | null
           insalubridade: number | null
+          matricula: string | null
           nome_completo: string
           observacoes: string | null
           periculosidade: number | null
@@ -1544,6 +1560,7 @@ export type Database = {
           id?: string
           imagem?: string | null
           insalubridade?: number | null
+          matricula?: string | null
           nome_completo: string
           observacoes?: string | null
           periculosidade?: number | null
@@ -1579,6 +1596,7 @@ export type Database = {
           id?: string
           imagem?: string | null
           insalubridade?: number | null
+          matricula?: string | null
           nome_completo?: string
           observacoes?: string | null
           periculosidade?: number | null
@@ -3759,6 +3777,7 @@ export type Database = {
           solicitante_id: string | null
           solicitante_nome: string | null
           status_solicitacao: string | null
+          tipo_diaria: string | null
           valor_diaria_aplicada: number | null
           valor_refeicao_aplicado: number | null
         }

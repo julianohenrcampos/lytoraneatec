@@ -109,7 +109,7 @@ export default function DiariasSolicitacoes() {
   } = useDiariasDataScope();
   
   // Verificar permissão de acesso
-  const hasAccess = isSuperAdmin || hasPermission('diarias_view') || hasPermission('diarias_solicitacoes_view');
+  const hasAccess = isSuperAdmin || hasPermission('diarias_view') || hasPermission('diarias_solicitacoes_view') || userScope === 'admsso';
   
   // Filters
   const [filters, setFilters] = useState<SolicitacaoFilters>({});
@@ -187,17 +187,25 @@ export default function DiariasSolicitacoes() {
   };
 
   const handleSaveForm = async (formData: SolicitacaoFormData) => {
-    if (editingSolicitacao) {
-      await updateMutation.mutateAsync({ id: editingSolicitacao.id, formData });
-    } else {
-      await createMutation.mutateAsync(formData);
+    try {
+      if (editingSolicitacao) {
+        await updateMutation.mutateAsync({ id: editingSolicitacao.id, formData });
+      } else {
+        await createMutation.mutateAsync(formData);
+      }
+      setIsFormOpen(false);
+      setEditingSolicitacao(null);
+    } catch (error) {
+      console.error("Erro ao salvar solicitação:", error);
     }
-    setIsFormOpen(false);
-    setEditingSolicitacao(null);
   };
 
   const handleEnviar = async (id: string) => {
-    await enviarMutation.mutateAsync(id);
+    try {
+      await enviarMutation.mutateAsync(id);
+    } catch (error) {
+      console.error("Erro ao enviar solicitação:", error);
+    }
   };
 
   const handleOpenAprovacao = (solicitacao: DiariaSolicitacao, action: 'autorizar' | 'reprovar') => {
@@ -216,20 +224,23 @@ export default function DiariasSolicitacoes() {
     observacao_gerente?: string;
   }) => {
     if (!selectedId) return;
-    
-    if (aprovacaoAction === 'autorizar') {
-      await autorizarMutation.mutateAsync({ 
-        id: selectedId, 
-        responsavelCampoId: data.responsavel_campo_id,
-        observacaoGerente: data.observacao_gerente
-      });
-    } else {
-      await reprovarMutation.mutateAsync({ 
-        id: selectedId, 
-        observacaoGerente: data.observacao_gerente
-      });
+    try {
+      if (aprovacaoAction === 'autorizar') {
+        await autorizarMutation.mutateAsync({ 
+          id: selectedId, 
+          responsavelCampoId: data.responsavel_campo_id,
+          observacaoGerente: data.observacao_gerente
+        });
+      } else {
+        await reprovarMutation.mutateAsync({ 
+          id: selectedId, 
+          observacaoGerente: data.observacao_gerente
+        });
+      }
+      setIsAprovacaoOpen(false);
+    } catch (error) {
+      console.error("Erro na aprovação:", error);
     }
-    setIsAprovacaoOpen(false);
   };
 
   const handleOpenDeleteDialog = (id: string) => {
@@ -238,8 +249,12 @@ export default function DiariasSolicitacoes() {
   };
 
   const handleConfirmDelete = async () => {
-    if (deletingId) {
+    if (!deletingId) return;
+    try {
       await deleteMutation.mutateAsync(deletingId);
+    } catch (error) {
+      console.error("Erro ao excluir solicitação:", error);
+    } finally {
       setDeleteDialogOpen(false);
       setDeletingId(null);
     }
@@ -247,7 +262,11 @@ export default function DiariasSolicitacoes() {
 
 
   const handleCancelarEnvio = async (id: string) => {
-    await cancelarEnvioMutation.mutateAsync(id);
+    try {
+      await cancelarEnvioMutation.mutateAsync(id);
+    } catch (error) {
+      console.error("Erro ao cancelar envio:", error);
+    }
   };
 
   const handleVerDetalhes = (solicitacao: DiariaSolicitacao) => {

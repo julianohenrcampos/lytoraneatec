@@ -46,8 +46,9 @@ const SSOAgendamentoExames: React.FC = () => {
     delete: deleteAgendamento, 
     updateStatus, 
     updateStatusBulk,
-    updateCarteira,
+    updateStatusCarteira,
     updateIntegracao,
+    updateBeneficio,
     isDeleting,
     isUpdatingStatusBulk 
   } = useAgendamentoExames(undefined, filters);
@@ -84,6 +85,11 @@ const SSOAgendamentoExames: React.FC = () => {
 
   const handlePeriodico = () => {
     setTipoExameSelecionado('Periódico');
+    setSelectorOpen(true);
+  };
+
+  const handleMudancaRisco = () => {
+    setTipoExameSelecionado('Mudança de Risco');
     setSelectorOpen(true);
   };
 
@@ -144,9 +150,9 @@ const SSOAgendamentoExames: React.FC = () => {
     }
   };
 
-  const handleCarteiraChange = async (id: string, assinada: boolean) => {
+  const handleCarteiraChange = async (id: string, status: string) => {
     try {
-      await updateCarteira({ id, assinada });
+      await updateStatusCarteira({ id, status });
     } catch (error) {
       console.error('Erro ao atualizar carteira:', error);
     }
@@ -157,6 +163,14 @@ const SSOAgendamentoExames: React.FC = () => {
       await updateIntegracao({ id, status });
     } catch (error) {
       console.error('Erro ao atualizar integração:', error);
+    }
+  };
+
+  const handleBeneficioUpdate = async (id: string, field: string, value: string | null) => {
+    try {
+      await updateBeneficio({ id, field, value });
+    } catch (error) {
+      console.error('Erro ao atualizar benefício:', error);
     }
   };
 
@@ -209,6 +223,7 @@ const SSOAgendamentoExames: React.FC = () => {
                 onRetorno={handleRetorno}
                 onDemissional={handleDemissional}
                 onPeriodico={handlePeriodico}
+                onMudancaRisco={handleMudancaRisco}
               />
             )}
           </div>
@@ -245,6 +260,7 @@ const SSOAgendamentoExames: React.FC = () => {
             onStatusChange={handleStatusChange}
             onCarteiraChange={handleCarteiraChange}
             onIntegracoChange={handleIntegracoChange}
+            onBeneficioUpdate={handleBeneficioUpdate}
             canEdit={canEdit}
             canDelete={canDelete}
             canChangeStatus={canChangeStatus}
