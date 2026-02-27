@@ -96,10 +96,16 @@ export function AprovacaoModal({
   const canConfirm = action === 'reprovar' || solicitacao?.responsavel_campo_id;
 
   const handleConfirm = async () => {
-    await onConfirm({
-      responsavel_campo_id: action === 'autorizar' ? solicitacao?.responsavel_campo_id : undefined,
-      observacao_gerente: observacaoGerente.trim() || undefined
-    });
+    try {
+      await onConfirm({
+        responsavel_campo_id: action === 'autorizar' ? solicitacao?.responsavel_campo_id : undefined,
+        observacao_gerente: observacaoGerente.trim() || undefined
+      });
+    } catch (error) {
+      console.error('Erro na aprovação:', error);
+    } finally {
+      onClose();
+    }
   };
 
   if (!solicitacao) return null;

@@ -16,7 +16,8 @@ import {
   notificarAprovador,
   notificarSolicitanteAprovacao,
   notificarSolicitanteReprovacao,
-  notificarApontador
+  notificarApontador,
+  cancelarAutorizacao
 } from '@/services/diarias';
 
 const QUERY_KEY = 'diarias-solicitacoes';
@@ -229,6 +230,24 @@ export function useCancelarEnvioSolicitacao() {
     },
     onError: (error: Error) => {
       toast.error(`Erro ao cancelar: ${error.message}`);
+    },
+  });
+}
+
+export function useCancelarAutorizacao() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => cancelarAutorizacao(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['diaria-apontamentos'] });
+      queryClient.invalidateQueries({ queryKey: ['diarias-pendentes-count'] });
+      queryClient.invalidateQueries({ queryKey: ['diarias-aprovacoes'] });
+      toast.success('Autorização cancelada. Solicitação voltou para aprovação.');
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao cancelar autorização: ${error.message}`);
     },
   });
 }

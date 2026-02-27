@@ -37,6 +37,7 @@ export interface DiariasDataScope {
   canResendSolicitacao: (sol: DiariaSolicitacao) => boolean;
   canApproveSolicitacao: (sol: DiariaSolicitacao) => boolean;
   canRejectSolicitacao: (sol: DiariaSolicitacao) => boolean;
+  canCancelAutorizacao: (sol: DiariaSolicitacao) => boolean;
   canApontar: (responsavelCampoId: string) => boolean;
   
   // Verificação de segregação
@@ -250,6 +251,13 @@ export function useDiariasDataScope(): DiariasDataScope {
     return canApproveSolicitacao(sol);
   }, [canApproveSolicitacao]);
 
+  const canCancelAutorizacao = useCallback((sol: DiariaSolicitacao) => {
+    if (sol.status !== 'autorizada') return false;
+    if (isSuperAdmin) return true;
+    if (userScope === 'gerente' && centrosCustoGerenciados.includes(sol.centro_custo_id)) return true;
+    return false;
+  }, [isSuperAdmin, userScope, centrosCustoGerenciados]);
+
   const canApontar = useCallback((responsavelCampoId: string) => {
     if (isSuperAdmin) return true;
     
@@ -281,6 +289,7 @@ export function useDiariasDataScope(): DiariasDataScope {
     canResendSolicitacao,
     canApproveSolicitacao,
     canRejectSolicitacao,
+    canCancelAutorizacao,
     canApontar,
     isOwnSolicitacao,
     isGerenciaCentroCusto,

@@ -439,6 +439,51 @@ export async function checkSolicitacaoCanBeDeleted(id: string) {
   };
 }
 
+export async function cancelarAutorizacao(id: string): Promise<DiariaSolicitacao> {
+  // 1. Deletar presenças vinculadas
+  await supabase
+    .from('bd_diaria_presencas')
+    .delete()
+    .eq('solicitacao_id', id);
+
+  // 2. Deletar apontamento vinculado
+  await supabase
+    .from('bd_diaria_apontamentos')
+    .delete()
+    .eq('solicitacao_id', id);
+
+  // 3. Reverter status para enviada e limpar campos de aprovação
+  const { data, error } = await supabase
+    .from('bd_diaria_solicitacoes')
+    .update({
+      status: 'enviada' as StatusSolicitacao,
+      autorizado_por: null,
+      autorizado_em: null,
+      observacao_gerente: null,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', id)
+    .select(`
+      *,
+      bd_centros_custo (
+        id,
+        codigo_centro_custo,
+        nome_centro_custo
+      )
+    `)
+    .single();
+
+  if (error) {
+    console.error('Erro ao cancelar autorização:', error);
+    throw new Error(error.message);
+  }
+
+  // 4. Registrar na auditoria
+  await registrarAprovacao(id, 'solicitacao', 'cancelar_autorizacao');
+
+  return data as unknown as DiariaSolicitacao;
+}
+
 export async function getHistoricoAprovacoes(entidadeId: string): Promise<any[]> {
   const { data, error } = await supabase
     .from('bd_diaria_aprovacoes')
@@ -452,4 +497,110 @@ export async function getHistoricoAprovacoes(entidadeId: string): Promise<any[]>
   }
 
   return data || [];
+}
+
+// =====================================================
+// ADICIONAR / REMOVER FUNCIONÁRIO DO CONVOCADOS_PRE
+// =====================================================
+
+export async function adicionarFuncionarioConvocado(
+  solicitacaoId: string,
+  funcionarioData: {
+    funcionario_id: string;
+    funcao_id: string;
+    valor_diaria: number;
+    valor_diaria_exclusiva?: number;
+    valor_refeicao?: number;
+    nome_funcionario: string;
+    nome_funcao: string;
+  }
+): Promise<void> {
+  // Buscar convocados_pre atual
+  const { data: solicitacao, error: fetchError } = await supabase
+    .from('bd_diaria_solicitacoes')
+    .select('convocados_pre')
+    .eq('id', solicitacaoId)
+    .single();
+
+  if (fetchError) throw new Error(fetchError.message);
+
+  const currentList = Array.isArray(solicitacao?.convocados_pre) 
+    ? solicitacao.convocados_pre as any[] 
+    : [];
+
+  // Verificar se já existe
+  if (currentList.some((c: any) => c.funcionario_id === funcionarioData.funcionario_id)) {
+    throw new Error('Funcionário já está na lista de convocados');
+  }
+
+  const updatedList = [...currentList, funcionarioData];
+
+  const { error } = await supabase
+    .from('bd_diaria_solicitacoes')
+    .update({ 
+      convocados_pre: updatedList,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', solicitacaoId);
+
+  if (error) throw new Error(error.message);
+}
+
+export async function removerFuncionarioConvocado(
+  solicitacaoId: string,
+  funcionarioId: string
+): Promise<void> {
+  const { data: solicitacao, error: fetchError } = await supabase
+    .from('bd_diaria_solicitacoes')
+    .select('convocados_pre')
+    .eq('id', solicitacaoId)
+    .single();
+
+  if (fetchError) throw new Error(fetchError.message);
+
+  const currentList = Array.isArray(solicitacao?.convocados_pre) 
+    ? solicitacao.convocados_pre as any[] 
+    : [];
+
+  const updatedList = currentList.filter((c: any) => c.funcionario_id !== funcionarioId);
+
+  const { error } = await supabase
+    .from('bd_diaria_solicitacoes')
+    .update({ 
+      convocados_pre: updatedList,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', solicitacaoId);
+
+  if (error) throw new Error(error.message);
+}
+
+// Verificar se funcionário está em outra solicitação autorizada no mesmo período
+export async function verificarFuncionarioEmOutraSolicitacao(
+  funcionarioId: string,
+  dataInicio: string,
+  dataFim: string,
+  solicitacaoAtualId: string
+): Promise<{ emOutra: boolean; numeroSolicitacao?: string }> {
+  const { data: solicitacoes, error } = await supabase
+    .from('bd_diaria_solicitacoes')
+    .select('id, numero_solicitacao, convocados_pre')
+    .eq('status', 'autorizada')
+    .neq('id', solicitacaoAtualId)
+    .lte('data_inicio', dataFim)
+    .gte('data_fim', dataInicio);
+
+  if (error) {
+    console.error('Erro ao verificar duplicidade:', error);
+    return { emOutra: false };
+  }
+
+  for (const sol of solicitacoes || []) {
+    const convocados = Array.isArray(sol.convocados_pre) ? sol.convocados_pre as any[] : [];
+    if (convocados.some((c: any) => c.funcionario_id === funcionarioId)) {
+      return { emOutra: true, numeroSolicitacao: sol.numero_solicitacao };
+    }
+  }
+
+  return { emOutra: false };
 }

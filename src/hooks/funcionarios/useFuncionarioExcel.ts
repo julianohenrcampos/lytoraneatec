@@ -13,6 +13,7 @@ export function useFuncionarioExcel(funcionarios: Funcionario[] | undefined) {
       const worksheet = XLSX.utils.json_to_sheet(funcionarios.map(f => ({
         'Nome Completo': f.nome_completo || '',
         'CPF': f.cpf || '',
+        'Matrícula': f.matricula || '',
         'Data de Nascimento': f.data_nascimento || '',
         'Email': f.email || '',
         'Endereço Completo': f.endereco_completo || '',
@@ -23,7 +24,7 @@ export function useFuncionarioExcel(funcionarios: Funcionario[] | undefined) {
         'Centro de Custo': f.bd_centros_custo ? 
           `${f.bd_centros_custo.codigo_centro_custo} - ${f.bd_centros_custo.nome_centro_custo}` : '',
         'Empresa': f.bd_empresas?.nome_empresa || '',
-        'Equipe': f.equipe_id || '', // Assuming equipe_id contains the name, adjust if needed
+        'Equipe': f.bd_equipes?.nome_equipe || '',
         'Data de Admissão': f.data_admissao || '',
         'Data de Férias': f.data_ferias || '',
         'Data de Demissão': f.data_demissao || '',
@@ -35,13 +36,19 @@ export function useFuncionarioExcel(funcionarios: Funcionario[] | undefined) {
         'Adicional Noturno': f.adicional_noturno || 0,
         'Custo Passagem': f.custo_passagem || 0,
         'Refeição': f.refeicao || 0,
-        'Diárias': f.diarias || 0
+        'Diárias': f.diarias || 0,
+        'Banco': f.banco || '',
+        'Agência': f.agencia || '',
+        'Conta Corrente': f.conta_corrente || '',
+        'Chave PIX': f.chave_pix || '',
+        'Observações': f.observacoes || '',
       })));
       
       // Set column widths for better readability
       const columnWidths = [
         { wch: 30 }, // Nome Completo
         { wch: 15 }, // CPF
+        { wch: 15 }, // Matrícula
         { wch: 15 }, // Data de Nascimento
         { wch: 30 }, // Email
         { wch: 40 }, // Endereço Completo
@@ -63,7 +70,12 @@ export function useFuncionarioExcel(funcionarios: Funcionario[] | undefined) {
         { wch: 15 }, // Adicional Noturno
         { wch: 15 }, // Custo Passagem
         { wch: 15 }, // Refeição
-        { wch: 15 }  // Diárias
+        { wch: 15 }, // Diárias
+        { wch: 15 }, // Banco
+        { wch: 15 }, // Agência
+        { wch: 15 }, // Conta Corrente
+        { wch: 20 }, // Chave PIX
+        { wch: 30 }, // Observações
       ];
       
       worksheet['!cols'] = columnWidths;

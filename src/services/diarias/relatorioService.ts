@@ -28,6 +28,7 @@ export async function getRelatorioFolha(
   let query = supabase
     .from('vw_relatorio_diarias_folha')
     .select('*')
+    .not('hora_saida', 'is', null)
     .order('data', { ascending: false })
     .order('nome_funcionario', { ascending: true });
 
@@ -166,7 +167,8 @@ export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promis
     'Banco': item.banco_funcionario || '-',
     'Agência': item.agencia_funcionario || '-',
     'Conta': item.conta_funcionario || '-',
-    'Chave Pix': item.pix_funcionario || '-'
+    'Chave Pix': item.pix_funcionario || '-',
+    'Observações': item.observacoes || '-'
   }));
 
   const wsDetalhado = XLSX.utils.json_to_sheet(dadosDetalhados);
@@ -190,6 +192,7 @@ export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promis
     { wch: 12 },  // Agência
     { wch: 15 },  // Conta
     { wch: 30 },  // Chave Pix
+    { wch: 50 },  // Observações
   ];
 
   XLSX.utils.book_append_sheet(wb, wsDetalhado, 'Detalhado');

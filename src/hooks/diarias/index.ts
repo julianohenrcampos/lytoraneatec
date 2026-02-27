@@ -18,7 +18,8 @@ export {
   useEnviarParaAutorizacao,
   useAutorizarSolicitacao,
   useReprovarSolicitacao,
-  useCancelarEnvioSolicitacao
+  useCancelarEnvioSolicitacao,
+  useCancelarAutorizacao
 } from './useSolicitacoesDiaria';
 
 // Relatório

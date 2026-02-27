@@ -604,19 +604,22 @@ export const processImportData = async (
         const funcionarioData: FuncionarioFormData = {
           nome_completo: item["Nome Completo"] || item.nome_completo || "",
           cpf: item.CPF || item.cpf || "",
+          matricula: item['Matrícula'] || item.matricula || null,
           data_nascimento: formatExcelDate(item["Data de Nascimento"] || item.data_nascimento),
           email: item.Email || item.email || null,
-          endereco_completo: item.Endereço || item.endereco_completo || null,
+          endereco_completo: item['Endereço Completo'] || item['Endereço'] || item.endereco_completo || null,
           escolaridade: item.Escolaridade || item.escolaridade || null,
-          genero: item.Gênero || item.genero || null,
+          genero: item['Gênero'] || item.genero || null,
           
           // Buscar IDs com base nos nomes
-          funcao_id: await getFuncaoIdByName(item.Função || item.funcao),
+          funcao_id: await getFuncaoIdByName(item['Função'] || item.funcao),
           departamento_id: await getDepartamentoIdByName(item.Departamento || item.departamento),
           centro_custo_id: await getCentroCustoIdByName(item["Centro de Custo"] || item.centro_custo),
           empresa_id: await getEmpresaIdByName(item.Empresa || item.empresa),
+          equipe_id: await getEquipeIdByName(item.Equipe || item.equipe),
           
           data_admissao: formatExcelDate(item["Data de Admissão"] || item.data_admissao),
+          data_ferias: formatExcelDate(item["Data de Férias"] || item.data_ferias),
           data_demissao: formatExcelDate(item["Data de Demissão"] || item.data_demissao),
           status: item.Status || item.status || "Ativo",
           
@@ -624,11 +627,18 @@ export const processImportData = async (
           salario_base: parseNumericField(item["Salário Base"] || item.salario_base),
           insalubridade: parseNumericField(item.Insalubridade || item.insalubridade),
           periculosidade: parseNumericField(item.Periculosidade || item.periculosidade),
-          gratificacao: parseNumericField(item.Gratificação || item.gratificacao),
-          adicional_noturno: parseNumericField(item.Adicional || item.adicional_noturno),
+          gratificacao: parseNumericField(item['Gratificação'] || item.gratificacao),
+          adicional_noturno: parseNumericField(item['Adicional Noturno'] || item.adicional_noturno),
           custo_passagem: parseNumericField(item["Custo Passagem"] || item.custo_passagem),
-          refeicao: parseNumericField(item.Refeição || item.refeicao),
-          diarias: parseNumericField(item.Diárias || item.diarias),
+          refeicao: parseNumericField(item['Refeição'] || item.refeicao),
+          diarias: parseNumericField(item['Diárias'] || item.diarias),
+          
+          // Dados bancários
+          banco: item.Banco || item.banco || null,
+          agencia: item['Agência'] || item.agencia || null,
+          conta_corrente: item['Conta Corrente'] || item.conta_corrente || null,
+          chave_pix: item['Chave PIX'] || item.chave_pix || null,
+          observacoes: item['Observações'] || item.observacoes || null,
         };
 
         console.log("Dados processados:", funcionarioData);
@@ -862,6 +872,21 @@ async function getEmpresaIdByName(empresaName: string | undefined | null): Promi
     .limit(1);
     
   console.log("Resultado da busca de empresa:", data);
+  return data && data.length > 0 ? data[0].id : undefined;
+}
+
+async function getEquipeIdByName(equipeName: string | undefined | null): Promise<string | undefined> {
+  if (!equipeName) return undefined;
+  
+  console.log("Buscando equipe:", equipeName);
+  
+  const { data } = await supabase
+    .from('bd_equipes')
+    .select('id')
+    .ilike('nome_equipe', equipeName)
+    .limit(1);
+    
+  console.log("Resultado da busca de equipe:", data);
   return data && data.length > 0 ? data[0].id : undefined;
 }
 

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import GlobalErrorBoundary from "@/components/error/GlobalErrorBoundary";
+import { useBodyPointerEvents } from "@/hooks/useBodyPointerEvents";
 
 // Simple Auth Components
 import SimpleAuthGuard from "@/components/routing/SimpleAuthGuard";
@@ -87,6 +88,8 @@ const queryClient = new QueryClient({
 });
 
 const App = () => {
+  useBodyPointerEvents();
+
   return (
     <GlobalErrorBoundary>
       <QueryClientProvider client={queryClient}>

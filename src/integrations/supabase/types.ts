@@ -1194,6 +1194,7 @@ export type Database = {
           id: string
           intervalo_fim: string | null
           intervalo_inicio: string | null
+          observacoes: string | null
           presente: boolean | null
           recebe_refeicao: boolean | null
           solicitacao_id: string
@@ -1214,6 +1215,7 @@ export type Database = {
           id?: string
           intervalo_fim?: string | null
           intervalo_inicio?: string | null
+          observacoes?: string | null
           presente?: boolean | null
           recebe_refeicao?: boolean | null
           solicitacao_id: string
@@ -1234,6 +1236,7 @@ export type Database = {
           id?: string
           intervalo_fim?: string | null
           intervalo_inicio?: string | null
+          observacoes?: string | null
           presente?: boolean | null
           recebe_refeicao?: boolean | null
           solicitacao_id?: string
@@ -3767,6 +3770,7 @@ export type Database = {
           nome_funcao: string | null
           nome_funcionario: string | null
           numero_solicitacao: string | null
+          observacoes: string | null
           pix_funcionario: string | null
           presenca_id: string | null
           presenca_status: string | null
@@ -3961,6 +3965,7 @@ export type Database = {
       get_funcionarios_para_diarias: {
         Args: never
         Returns: {
+          centro_custo_id: string
           cpf: string
           funcao_id: string
           funcao_nome: string

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 import { toast } from "sonner";
 import {
@@ -17,7 +17,8 @@ import {
   X,
   MessageSquare,
   FileDown,
-  Loader2
+  Loader2,
+  UserMinus
 } from "lucide-react";
 
 import {
@@ -40,11 +41,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { EstimativaAviso } from "./EstimativaAviso";
 import { generateSolicitacaoPDF } from "@/services/pdfService";
 
 import { supabase } from "@/integrations/supabase/client";
 import type { DiariaSolicitacao, FuncionarioPreConvocado } from "@/types/diarias";
+import { removerFuncionarioConvocado } from "@/services/diarias/solicitacoesService";
 
 interface SolicitacaoDetalhesModalProps {
   isOpen: boolean;
@@ -71,6 +74,8 @@ export function SolicitacaoDetalhesModal({
   canAutorizar = false
 }: SolicitacaoDetalhesModalProps) {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [removingFuncId, setRemovingFuncId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   // Buscar dados complementares + nomes de funcionários/funções quando não existirem no JSON
   const { data: dadosComplementares } = useQuery({
     queryKey: ['solicitacao-detalhes', solicitacao?.id],
@@ -196,19 +201,17 @@ export function SolicitacaoDetalhesModal({
 
   if (!solicitacao) return null;
 
-  // Parse convocados_pre (é armazenado como JSON)
   const convocadosPre: FuncionarioPreConvocado[] = Array.isArray(solicitacao.convocados_pre) 
     ? solicitacao.convocados_pre 
     : [];
 
-  // Cálculos de simulação
   const diasUteis = solicitacao.qtde_dias_uteis_estimado || 0;
   const diasFds = solicitacao.qtde_fds_estimado || 0;
   const diasFeriados = solicitacao.qtde_feriados_estimado || 0;
   const diasEspeciais = diasFds + diasFeriados;
   const consideraFdsEFeriado = solicitacao.considera_fds_feriado;
+  const mostrarColunaDiariaEspecial = consideraFdsEFeriado && diasEspeciais > 0;
 
-  // Calcular totais por tipo de dia
   let totalDiasUteis = 0;
   let totalDiasEspeciais = 0;
 
@@ -221,7 +224,9 @@ export function SolicitacaoDetalhesModal({
 
   const totalGeral = totalDiasUteis + totalDiasEspeciais;
 
-  // Função para baixar PDF
+
+
+
   const handleDownloadPDF = async () => {
     if (!solicitacao) return;
     
@@ -243,10 +248,25 @@ export function SolicitacaoDetalhesModal({
     }
   };
 
+  const handleLiberarFuncionario = async (funcionarioId: string, nomeFuncionario: string) => {
+    if (!solicitacao?.id) return;
+    setRemovingFuncId(funcionarioId);
+    try {
+      await removerFuncionarioConvocado(solicitacao.id, funcionarioId);
+      queryClient.invalidateQueries({ queryKey: ['solicitacao-detalhes'] });
+      queryClient.invalidateQueries({ queryKey: ['diarias-solicitacoes'] });
+      toast.success(`${nomeFuncionario} liberado da lista de convocados.`);
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao liberar funcionário.');
+    } finally {
+      setRemovingFuncId(null);
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-3xl max-h-[92vh] flex flex-col overflow-hidden">
+        <DialogHeader className="flex-shrink-0">
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
@@ -272,7 +292,8 @@ export function SolicitacaoDetalhesModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        {/* Scrollable middle section */}
+        <div className="flex-1 overflow-y-auto space-y-4 min-h-0">
           {/* Informações Gerais */}
           <Card>
             <CardHeader className="pb-3">
@@ -280,7 +301,6 @@ export function SolicitacaoDetalhesModal({
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                {/* Período */}
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground flex items-center gap-1">
                     <Calendar className="h-3 w-3" />
@@ -294,7 +314,6 @@ export function SolicitacaoDetalhesModal({
                   </p>
                 </div>
 
-                {/* Centro de Custo */}
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground flex items-center gap-1">
                     <Building2 className="h-3 w-3" />
@@ -306,7 +325,6 @@ export function SolicitacaoDetalhesModal({
                 </div>
               </div>
 
-              {/* Contagem de dias */}
               <div className="grid grid-cols-3 gap-4 p-3 bg-muted/50 rounded-lg">
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-1 text-muted-foreground">
@@ -333,7 +351,6 @@ export function SolicitacaoDetalhesModal({
 
               <Separator />
 
-              {/* Pessoas */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground flex items-center gap-1">
@@ -379,15 +396,6 @@ export function SolicitacaoDetalhesModal({
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    <User className="h-3 w-3" />
-                    Responsável em Campo
-                  </p>
-                  <p className="font-medium">
-                    {dadosComplementares?.apontadorNome || solicitacao.responsavel_campo?.nome_completo || "-"}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground flex items-center gap-1">
                     <Clock className="h-3 w-3" />
                     Considera FDS/Feriados
                   </p>
@@ -407,6 +415,7 @@ export function SolicitacaoDetalhesModal({
                 </p>
               </div>
 
+
               {/* Observação do Gerente / Motivo da Reprovação */}
               {solicitacao.status === 'reprovada' && solicitacao.observacao_gerente && (
                 <>
@@ -423,7 +432,6 @@ export function SolicitacaoDetalhesModal({
                 </>
               )}
 
-              {/* Observação do Gerente (para autorizadas) */}
               {solicitacao.status === 'autorizada' && solicitacao.observacao_gerente && (
                 <>
                   <Separator />
@@ -451,56 +459,86 @@ export function SolicitacaoDetalhesModal({
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Funcionário</TableHead>
-                      <TableHead>Função</TableHead>
-                      <TableHead className="text-right">Diária Útil</TableHead>
-                      <TableHead className="text-right">Diária FDS/Fer</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {convocadosPre.map((conv, idx) => (
-                      <TableRow key={conv.funcionario_id || idx}>
-                        <TableCell className="font-medium">
-                          {conv.nome_funcionario || 
-                           dadosComplementares?.funcionariosMap?.[conv.funcionario_id] || 
-                           conv.funcionario_id}
-                        </TableCell>
-                        <TableCell>
-                          {conv.nome_funcao || 
-                           dadosComplementares?.funcoesMap?.[conv.funcao_id] || 
-                           conv.funcao_id}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(conv.valor_diaria || 0)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(conv.valor_diaria_exclusiva || conv.valor_diaria || 0)}
-                        </TableCell>
+                <ScrollArea className="h-[300px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Funcionário</TableHead>
+                        <TableHead>Função</TableHead>
+                        <TableHead className="text-right">Diária Útil</TableHead>
+                        {mostrarColunaDiariaEspecial && (
+                          <TableHead className="text-right">Diária FDS/Fer</TableHead>
+                        )}
+                        {(solicitacao.status === 'autorizada' || solicitacao.status === 'enviada') && (
+                          <TableHead className="text-center w-[60px]">Ação</TableHead>
+                        )}
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {convocadosPre.map((conv, idx) => (
+                        <TableRow key={conv.funcionario_id || idx}>
+                          <TableCell className="font-medium">
+                            {conv.nome_funcionario || 
+                             dadosComplementares?.funcionariosMap?.[conv.funcionario_id] || 
+                             conv.funcionario_id}
+                          </TableCell>
+                          <TableCell>
+                            {conv.nome_funcao || 
+                             dadosComplementares?.funcoesMap?.[conv.funcao_id] || 
+                             conv.funcao_id}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(conv.valor_diaria || 0)}
+                          </TableCell>
+                          {mostrarColunaDiariaEspecial && (
+                            <TableCell className="text-right">
+                              {formatCurrency(conv.valor_diaria_exclusiva || conv.valor_diaria || 0)}
+                            </TableCell>
+                          )}
+                          {(solicitacao.status === 'autorizada' || solicitacao.status === 'enviada') && (
+                            <TableCell className="text-center">
+                              <Button
+                                variant="ghost"
+                                size="xs"
+                                onClick={() => handleLiberarFuncionario(
+                                  conv.funcionario_id, 
+                                  conv.nome_funcionario || 'Funcionário'
+                                )}
+                                disabled={removingFuncId === conv.funcionario_id}
+                                className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                title="Liberar funcionário"
+                              >
+                                {removingFuncId === conv.funcionario_id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <UserMinus className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
               </CardContent>
             </Card>
           )}
+        </div>
 
-          {/* Simulação de Valores */}
+        {/* Valor Total Estimado - FIXO na base */}
+        <div className="flex-shrink-0 pt-2 border-t">
           <Card className="border-primary/20 bg-primary/5">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
+            <CardContent className="py-3 space-y-2">
+              <div className="flex items-center gap-2 text-sm font-semibold">
                 <DollarSign className="h-4 w-4" />
                 Valor Total Estimado
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
+              </div>
               <div className="flex justify-between items-center text-sm">
                 <span>Dias úteis ({diasUteis} dias × {convocadosPre.length} func.)</span>
                 <span className="font-medium">{formatCurrency(totalDiasUteis)}</span>
               </div>
-              {consideraFdsEFeriado && diasEspeciais > 0 && (
+              {mostrarColunaDiariaEspecial && (
                 <div className="flex justify-between items-center text-sm">
                   <span>FDS/Feriados ({diasEspeciais} dias × {convocadosPre.length} func.)</span>
                   <span className="font-medium">{formatCurrency(totalDiasEspeciais)}</span>
@@ -518,8 +556,7 @@ export function SolicitacaoDetalhesModal({
           </Card>
         </div>
 
-        <DialogFooter className="flex justify-between gap-2 sm:justify-between">
-          {/* Botão Reprovar (esquerda) */}
+        <DialogFooter className="flex-shrink-0 flex justify-between gap-2 sm:justify-between">
           {solicitacao.status === 'enviada' && canAutorizar && onReprovar && (
             <Button 
               variant="destructive" 
@@ -536,7 +573,6 @@ export function SolicitacaoDetalhesModal({
               Fechar
             </Button>
             
-            {/* Botão Autorizar (direita) */}
             {solicitacao.status === 'enviada' && canAutorizar && onAutorizar && (
               <Button 
                 className="bg-green-600 hover:bg-green-700 text-white"

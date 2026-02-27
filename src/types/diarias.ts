@@ -274,6 +274,7 @@ export interface RelatorioFolhaItem {
   solicitante_nome: string | null;
   apontador_id: string | null;
   apontador_nome: string | null;
+  observacoes: string | null;
   created_at: string;
 }
 

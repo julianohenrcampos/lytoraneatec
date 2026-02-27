@@ -221,6 +221,37 @@ export async function salvarFinalizacao(
   await Promise.all(promises);
 }
 
+// Salvar saída individual de um funcionário (sem finalizar o apontamento completo)
+export async function salvarSaidaIndividual(
+  solicitacaoId: string,
+  data: string,
+  registro: FinalizacaoFormData
+): Promise<void> {
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData?.user?.id;
+
+  const { error } = await supabase
+    .from('bd_diaria_presencas')
+    .update({
+      hora_saida: registro.hora_saida,
+      tipo_diaria: registro.tipo_diaria,
+      valor_diaria_aplicada: registro.valor_diaria_aplicada,
+      recebe_refeicao: registro.recebe_refeicao,
+      valor_refeicao_aplicado: registro.valor_refeicao_aplicado,
+      confirmado_por: userId,
+      confirmado_em: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    .eq('solicitacao_id', solicitacaoId)
+    .eq('funcionario_id', registro.funcionario_id)
+    .eq('data', data);
+
+  if (error) {
+    console.error(`Erro ao salvar saída individual de ${registro.funcionario_id}:`, error);
+    throw new Error(error.message);
+  }
+}
+
 // Buscar resumo de presenças de uma solicitação
 export async function getResumoPresencas(solicitacaoId: string): Promise<{
   total_dias: number;
@@ -287,4 +318,98 @@ export async function getDatasApontadas(
 
   // Retornar datas únicas
   return [...new Set((data || []).map((p) => p.data))];
+}
+
+// =====================================================
+// EDITAR HORA DE SAÍDA PÓS-CONCLUSÃO
+// =====================================================
+
+export async function editarHoraSaida(
+  presencaId: string,
+  novaHoraSaida: string,
+  justificativa: string,
+  engenheiroSolicitanteId: string | null
+): Promise<void> {
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData?.user?.id;
+
+  // Buscar presença atual para recalcular
+  const { data: presenca, error: fetchError } = await supabase
+    .from('bd_diaria_presencas')
+    .select('hora_entrada, valor_diaria_aplicada, funcao_id, solicitacao_id, funcionario_id, data')
+    .eq('id', presencaId)
+    .single();
+
+  if (fetchError || !presenca) {
+    throw new Error('Presença não encontrada');
+  }
+
+  // Buscar valor original do convocado_pre na solicitação
+  const { data: solicitacao } = await supabase
+    .from('bd_diaria_solicitacoes')
+    .select('convocados_pre')
+    .eq('id', presenca.solicitacao_id)
+    .single();
+
+  let valorOriginal = presenca.valor_diaria_aplicada;
+  if (solicitacao?.convocados_pre && Array.isArray(solicitacao.convocados_pre)) {
+    const conv = (solicitacao.convocados_pre as any[]).find(
+      (c: any) => c.funcionario_id === presenca.funcionario_id
+    );
+    if (conv) {
+      valorOriginal = conv.valor_diaria || presenca.valor_diaria_aplicada;
+    }
+  }
+
+  // Recalcular jornada
+  const entrada = presenca.hora_entrada;
+  if (!entrada) throw new Error('Hora de entrada não registrada');
+
+  const [hE, mE] = entrada.split(':').map(Number);
+  const [hS, mS] = novaHoraSaida.split(':').map(Number);
+  let totalMinutos = (hS * 60 + mS) - (hE * 60 + mE);
+  if (totalMinutos < 0) totalMinutos += 24 * 60;
+  const horas = totalMinutos / 60;
+
+  let tipoDiaria: TipoDiaria = 'nenhuma';
+  if (horas > 9) tipoDiaria = 'uma_e_meia';
+  else if (horas > 4 + 20/60) tipoDiaria = 'completa';
+  else if (horas > 0) tipoDiaria = 'meia';
+
+  let novoValor = 0;
+  switch (tipoDiaria) {
+    case 'uma_e_meia': novoValor = valorOriginal * 1.5; break;
+    case 'completa': novoValor = valorOriginal; break;
+    case 'meia': novoValor = valorOriginal * 0.5; break;
+  }
+
+  const justificativaCompleta = `[EDIÇÃO PÓS-CONCLUSÃO] ${justificativa}${engenheiroSolicitanteId ? ` | Eng: ${engenheiroSolicitanteId}` : ''} | Por: ${userId} em ${new Date().toISOString()}`;
+
+  const { error } = await supabase
+    .from('bd_diaria_presencas')
+    .update({
+      hora_saida: novaHoraSaida,
+      tipo_diaria: tipoDiaria,
+      valor_diaria_aplicada: novoValor,
+      observacoes: justificativaCompleta,
+      confirmado_por: userId,
+      confirmado_em: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', presencaId);
+
+  if (error) {
+    console.error('Erro ao editar hora de saída:', error);
+    throw new Error(error.message);
+  }
+
+  // Registrar auditoria
+  await supabase
+    .from('bd_diaria_aprovacoes')
+    .insert({
+      entidade: 'relatorio',
+      entidade_id: presencaId,
+      acao: 'editar_hora_saida',
+      comentario: justificativaCompleta
+    });
 }

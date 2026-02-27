@@ -3,6 +3,8 @@ import { format } from "date-fns";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 import { Combobox } from "@/components/ui/combobox";
 import { Plus, Trash2, Loader2, Users, FileText, Check, ChevronRight, ChevronLeft, Info, Lock, User, Send, ClipboardCheck } from "lucide-react";
+import { SmartFuncionarioSearch } from "./SmartFuncionarioSearch";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 
 import {
@@ -139,6 +141,7 @@ export function SolicitacaoFormModal({
         nome_completo: f.nome_completo,
         cpf: f.cpf,
         funcao_id: f.funcao_id,
+        centro_custo_id: f.centro_custo_id || null,
         bd_funcoes: f.funcao_nome ? {
           id: f.funcao_id,
           nome_funcao: f.funcao_nome,
@@ -256,12 +259,20 @@ export function SolicitacaoFormModal({
     });
   }, [funcionarios]);
 
-  // Add funcionario
-  const handleAddFuncionario = () => {
-    if (!selectedFuncionarioId) return;
+  // Add funcionario by ID (used by SmartSearch)
+  const handleAddFuncionarioById = (funcId: string) => {
+    const func = funcionarios.find((f: any) => f.id === funcId);
+    if (!func) return;
     
-    const func = funcionarios.find((f: any) => f.id === selectedFuncionarioId);
-    if (!func || !func.bd_funcoes) return;
+    if (convocadosPre.some(c => c.funcionario_id === funcId)) {
+      toast.warning("Este funcionário já está na lista.");
+      return;
+    }
+
+    if (!func.bd_funcoes) {
+      toast.warning(`${func.nome_completo} não possui função cadastrada.`);
+      return;
+    }
 
     const novoConvocado: FuncionarioPreConvocado = {
       funcionario_id: func.id,
@@ -274,6 +285,60 @@ export function SolicitacaoFormModal({
     };
 
     setConvocadosPre([...convocadosPre, novoConvocado]);
+    toast.success(`${func.nome_completo} adicionado.`);
+  };
+
+  // Add all funcionarios from a Centro de Custo
+  const handleAddByCentroCusto = (centroCustoIdSelected: string) => {
+    const funcsNoCc = funcionarios.filter((f: any) => f.centro_custo_id === centroCustoIdSelected && f.bd_funcoes);
+    const addedIds = new Set(convocadosPre.map(c => c.funcionario_id));
+    
+    const novos: FuncionarioPreConvocado[] = [];
+    let jaExistentes = 0;
+    let semFuncao = 0;
+
+    for (const func of funcsNoCc) {
+      if (addedIds.has(func.id)) {
+        jaExistentes++;
+        continue;
+      }
+      if (!func.bd_funcoes) {
+        semFuncao++;
+        continue;
+      }
+      novos.push({
+        funcionario_id: func.id,
+        funcao_id: func.funcao_id,
+        valor_diaria: func.bd_funcoes.valor_diaria || 0,
+        valor_diaria_exclusiva: func.bd_funcoes.valor_diaria_exclusiva || undefined,
+        valor_refeicao: func.bd_funcoes.valor_refeicao || 0,
+        nome_funcionario: func.nome_completo,
+        nome_funcao: func.bd_funcoes.nome_funcao
+      });
+    }
+
+    if (novos.length > 0) {
+      setConvocadosPre([...convocadosPre, ...novos]);
+    }
+
+    const parts: string[] = [];
+    if (novos.length > 0) parts.push(`${novos.length} funcionário${novos.length > 1 ? 's' : ''} adicionado${novos.length > 1 ? 's' : ''}`);
+    if (jaExistentes > 0) parts.push(`${jaExistentes} já estava${jaExistentes > 1 ? 'm' : ''} na lista`);
+    if (semFuncao > 0) parts.push(`${semFuncao} sem função cadastrada`);
+    
+    if (novos.length > 0) {
+      toast.success(parts.join(". ") + ".");
+    } else if (jaExistentes > 0) {
+      toast.info("Todos os funcionários deste centro já estão na lista.");
+    } else {
+      toast.warning("Nenhum funcionário ativo encontrado neste centro de custo.");
+    }
+  };
+
+  // Legacy add handler (keeping for compatibility)
+  const handleAddFuncionario = () => {
+    if (!selectedFuncionarioId) return;
+    handleAddFuncionarioById(selectedFuncionarioId);
     setSelectedFuncionarioId('');
   };
 
@@ -318,21 +383,31 @@ export function SolicitacaoFormModal({
 
   // Handle save as draft
   const handleSave = async () => {
-    await onSave(buildFormData());
-    onClose();
+    try {
+      await onSave(buildFormData());
+    } catch (error) {
+      console.error('Erro ao salvar:', error);
+    } finally {
+      onClose();
+    }
   };
 
   // Handle save and send for authorization
   const handleSaveAndSend = async () => {
-    if (onSaveAndSend) {
-      await onSaveAndSend(buildFormData());
+    try {
+      if (onSaveAndSend) {
+        await onSaveAndSend(buildFormData());
+      }
+    } catch (error) {
+      console.error('Erro ao salvar e enviar:', error);
+    } finally {
       onClose();
     }
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[750px] max-h-[90vh]">
+      <DialogContent className="sm:max-w-[850px] max-h-[92vh]">
         <DialogHeader>
           <DialogTitle>
             {editingSolicitacao ? 'Editar Solicitação' : 'Nova Solicitação de Diária'}
@@ -362,7 +437,7 @@ export function SolicitacaoFormModal({
           </Badge>
         </div>
 
-        <ScrollArea className="max-h-[55vh] pr-4">
+        <div className="overflow-y-auto max-h-[60vh] pr-4">
           {/* Step 1: Dados Básicos */}
           {step === 'dados' && (
             <div className="space-y-4">
@@ -422,136 +497,121 @@ export function SolicitacaoFormModal({
               {/* Aviso de Estimativa */}
               <EstimativaAviso />
               
-              {/* Centro de Custo */}
-              <div>
-                <Label>Centro de Custo *</Label>
-                <Combobox
-                  options={centrosCusto.map((cc) => ({
-                    value: cc.id,
-                    label: `${cc.codigo_centro_custo} - ${cc.nome_centro_custo}`
-                  }))}
-                  value={centroCustoId}
-                  onChange={setCentroCustoId}
-                  placeholder="Selecione o centro de custo..."
-                  searchPlaceholder="Buscar centro de custo..."
-                  emptyText="Nenhum centro de custo encontrado"
-                />
-                
-                {selectedCentroCusto && (
-                  <div className="mt-2 p-3 bg-muted rounded-md space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      <User className="h-4 w-4 text-primary" />
-                      <span className="font-medium">Aprovador:</span>
-                      <span>
-                        {aprovadorNome || <span className="text-destructive">Não definido</span>}
-                      </span>
-                    </div>
-                    {selectedCentroCusto.aprovador_diarias_id ? (
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Check className="h-3 w-3 text-primary" />
-                        Este centro de custo tem aprovador definido
-                      </p>
-                    ) : (
-                      <p className="text-xs text-amber-600 flex items-center gap-1">
-                        <Info className="h-3 w-3" />
-                        Sem aprovador definido - qualquer administrador pode aprovar
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-              
-              {/* Campo Engenheiro Solicitante */}
-              <div>
-                <Label className="flex items-center gap-2">
-                  <User className="h-3.5 w-3.5 text-muted-foreground" />
-                  Engenheiro Solicitante
-                </Label>
-                <Combobox
-                  options={engenheirosEGerentes.map((f: any) => ({
-                    value: f.id,
-                    label: f.nome_completo
-                  }))}
-                  value={engenheiroSolicitanteId}
-                  onChange={setEngenheiroSolicitanteId}
-                  placeholder="Selecione o engenheiro responsável..."
-                  searchPlaceholder="Buscar engenheiro..."
-                  emptyText="Nenhum engenheiro ou gerente regional encontrado"
-                  className="mt-1.5"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Engenheiro responsável por esta solicitação de diária
-                </p>
+              {/* Centro de Custo + Engenheiro lado a lado */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Centro de Custo *</Label>
+                  <Combobox
+                    options={centrosCusto.map((cc) => ({
+                      value: cc.id,
+                      label: `${cc.codigo_centro_custo} - ${cc.nome_centro_custo}`
+                    }))}
+                    value={centroCustoId}
+                    onChange={setCentroCustoId}
+                    placeholder="Selecione o centro de custo..."
+                    searchPlaceholder="Buscar centro de custo..."
+                    emptyText="Nenhum centro de custo encontrado"
+                  />
+                </div>
+                <div>
+                  <Label className="flex items-center gap-2">
+                    <User className="h-3.5 w-3.5 text-muted-foreground" />
+                    Engenheiro Solicitante
+                  </Label>
+                  <Combobox
+                    options={engenheirosEGerentes.map((f: any) => ({
+                      value: f.id,
+                      label: f.nome_completo
+                    }))}
+                    value={engenheiroSolicitanteId}
+                    onChange={setEngenheiroSolicitanteId}
+                    placeholder="Selecione o engenheiro..."
+                    searchPlaceholder="Buscar engenheiro..."
+                    emptyText="Nenhum engenheiro encontrado"
+                    className="mt-1.5"
+                  />
+                </div>
               </div>
 
-              {/* Campo Apontador (Responsável em Campo) */}
-              <div>
-                <Label className="flex items-center gap-2">
-                  <ClipboardCheck className="h-3.5 w-3.5 text-muted-foreground" />
-                  Apontador (Responsável em Campo)
-                </Label>
-                <Combobox
-                  options={funcionarios.map((f: any) => ({
-                    value: f.id,
-                    label: f.nome_completo
-                  }))}
-                  value={responsavelCampoId}
-                  onChange={setResponsavelCampoId}
-                  placeholder="Selecione o funcionário apontador..."
-                  searchPlaceholder="Buscar funcionário..."
-                  emptyText="Nenhum funcionário encontrado"
-                  className="mt-1.5"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Este funcionário será responsável por registrar presença em campo.
-                </p>
-              </div>
-              
-              {/* Campo Responsável pela Solicitação */}
-              <div>
-                <Label className="flex items-center gap-2">
-                  <Lock className="h-3.5 w-3.5 text-muted-foreground" />
-                  Responsável pela Solicitação
-                </Label>
-                <div className="mt-1.5 p-3 bg-muted/50 border rounded-md flex items-center gap-2">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">
-                    {usuarioLogado?.nome_completo || user?.email || 'Carregando...'}
-                  </span>
+              {/* Aprovador info */}
+              {selectedCentroCusto && (
+                <div className="p-3 bg-muted rounded-md space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <User className="h-4 w-4 text-primary" />
+                    <span className="font-medium">Aprovador:</span>
+                    <span>
+                      {aprovadorNome || <span className="text-destructive">Não definido</span>}
+                    </span>
+                  </div>
+                  {selectedCentroCusto.aprovador_diarias_id ? (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Check className="h-3 w-3 text-primary" />
+                      Este centro de custo tem aprovador definido
+                    </p>
+                  ) : (
+                    <p className="text-xs text-amber-600 flex items-center gap-1">
+                      <Info className="h-3 w-3" />
+                      Sem aprovador definido - qualquer administrador pode aprovar
+                    </p>
+                  )}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Preenchido automaticamente com o usuário logado
-                </p>
+              )}
+
+              {/* Apontador + Responsável lado a lado */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="flex items-center gap-2">
+                    <ClipboardCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                    Apontador (Resp. Campo)
+                  </Label>
+                  <Combobox
+                    options={funcionarios.map((f: any) => ({
+                      value: f.id,
+                      label: f.nome_completo
+                    }))}
+                    value={responsavelCampoId}
+                    onChange={setResponsavelCampoId}
+                    placeholder="Selecione o apontador..."
+                    searchPlaceholder="Buscar funcionário..."
+                    emptyText="Nenhum funcionário encontrado"
+                    className="mt-1.5"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Responsável por registrar presença em campo
+                  </p>
+                </div>
+                <div>
+                  <Label className="flex items-center gap-2">
+                    <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                    Responsável pela Solicitação
+                  </Label>
+                  <div className="mt-1.5 p-3 bg-muted/50 border rounded-md flex items-center gap-2">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">
+                      {usuarioLogado?.nome_completo || user?.email || 'Carregando...'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Preenchido automaticamente
+                  </p>
+                </div>
               </div>
             </div>
           )}
 
           {/* Step 2: Funcionários */}
           {step === 'funcionarios' && (
-            <div className="space-y-4">
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Combobox
-                    options={funcionariosDisponiveis.map((f: any) => ({
-                      value: f.id,
-                      label: f.nome_completo
-                    }))}
-                    value={selectedFuncionarioId}
-                    onChange={setSelectedFuncionarioId}
-                    placeholder="Selecione um funcionário..."
-                    searchPlaceholder="Buscar funcionário..."
-                    emptyText="Nenhum funcionário disponível"
-                  />
-                </div>
-                <Button 
-                  onClick={handleAddFuncionario}
-                  disabled={!selectedFuncionarioId}
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Adicionar
-                </Button>
-              </div>
+            <div className="flex flex-col gap-4">
+              {/* Topo fixo: busca */}
+              <SmartFuncionarioSearch
+                funcionarios={funcionarios}
+                centrosCusto={centrosCusto}
+                convocadosPre={convocadosPre}
+                onSelectFuncionario={handleAddFuncionarioById}
+                onSelectCentroCusto={handleAddByCentroCusto}
+              />
 
+              {/* Meio: lista com scroll isolado */}
               {convocadosPre.length === 0 ? (
                 <Alert>
                   <AlertDescription>
@@ -559,47 +619,49 @@ export function SolicitacaoFormModal({
                   </AlertDescription>
                 </Alert>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Funcionário</TableHead>
-                      <TableHead>Função</TableHead>
-                      <TableHead className="text-right">Diária</TableHead>
-                      <TableHead className="text-right">FDS/Fer</TableHead>
-                      <TableHead className="text-right">Refeição</TableHead>
-                      <TableHead className="w-[50px]"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {convocadosPre.map((conv) => (
-                      <TableRow key={conv.funcionario_id}>
-                        <TableCell>{conv.nome_funcionario}</TableCell>
-                        <TableCell>{conv.nome_funcao}</TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(conv.valor_diaria)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(conv.valor_diaria_exclusiva || conv.valor_diaria * 1.2)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(conv.valor_refeicao || 0)}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleRemoveFuncionario(conv.funcionario_id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
+                <ScrollArea className="h-[280px] border rounded-md">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Funcionário</TableHead>
+                        <TableHead>Função</TableHead>
+                        <TableHead className="text-right">Diária</TableHead>
+                        <TableHead className="text-right">FDS/Fer</TableHead>
+                        <TableHead className="text-right">Refeição</TableHead>
+                        <TableHead className="w-[50px]"></TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {convocadosPre.map((conv) => (
+                        <TableRow key={conv.funcionario_id}>
+                          <TableCell>{conv.nome_funcionario}</TableCell>
+                          <TableCell>{conv.nome_funcao}</TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(conv.valor_diaria)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(conv.valor_diaria_exclusiva || conv.valor_diaria * 1.2)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(conv.valor_refeicao || 0)}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRemoveFuncionario(conv.funcionario_id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
               )}
 
-              {/* Simulação de Valores */}
+              {/* Baixo fixo: Simulação + Justificativa */}
               {convocadosPre.length > 0 && (
                 <SimulacaoValores
                   simulacao={simulacao}
@@ -615,7 +677,7 @@ export function SolicitacaoFormModal({
                   value={justificativa}
                   onChange={(e) => setJustificativa(e.target.value)}
                   placeholder="Descreva o motivo da solicitação de diária..."
-                  rows={4}
+                  rows={3}
                   className="mt-1.5"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
@@ -745,7 +807,7 @@ export function SolicitacaoFormModal({
               <EstimativaAviso />
             </div>
           )}
-        </ScrollArea>
+        </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
           {step !== 'dados' && (

@@ -53,12 +53,16 @@ const VALID_STATUSES = Object.keys(STATUS_HIERARCHY);
 
 function normalizeCpf(cpf: string | null | undefined): string {
   if (!cpf) return '';
-  return cpf.replace(/[\.\-\/\s]/g, '').trim();
+  const cleaned = String(cpf).replace(/[\.\-\/\s]/g, '').trim();
+  if (cleaned.length === 0) return '';
+  return cleaned.padStart(11, '0');
 }
 
 function normalizeText(text: string | null | undefined): string {
   if (!text) return '';
-  return text.trim().toLowerCase();
+  return text.trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
 }
 
 export const ImportStatusCarteiraModal: React.FC<ImportStatusCarteiraModalProps> = ({
@@ -99,12 +103,15 @@ export const ImportStatusCarteiraModal: React.FC<ImportStatusCarteiraModalProps>
 
     let matches: Agendamento[] = [];
 
-    if (normalCpf.length >= 11) {
+    if (normalCpf.length >= 9) {
       matches = agendamentos.filter(a => normalizeCpf(a.cpf) === normalCpf);
     }
 
     if (matches.length === 0 && normalNome) {
-      matches = agendamentos.filter(a => normalizeText(a.nome_colaborador) === normalNome);
+      matches = agendamentos.filter(a => {
+        const nomeA = normalizeText(a.nome_colaborador);
+        return nomeA === normalNome || nomeA.includes(normalNome) || normalNome.includes(nomeA);
+      });
     }
 
     if (matches.length === 0) return null;
@@ -144,9 +151,14 @@ export const ImportStatusCarteiraModal: React.FC<ImportStatusCarteiraModalProps>
       };
 
       for (const row of rows) {
-        const cpf = String(row['CPF'] || row['cpf'] || '');
-        const nome = String(row['Nome Colaborador'] || row['nome_colaborador'] || row['Nome'] || '');
-        const statusExcel = String(row['Status Carteira'] || row['status_carteira'] || '').trim();
+        const cpf = String(row['CPF'] || row['cpf'] || row['C.P.F.'] || row['Cpf'] || row['C.P.F'] || '');
+        const nome = String(
+          row['Nome Colaborador'] || row['nome_colaborador'] || row['Nome'] || row['nome'] ||
+          row['Funcionário'] || row['Funcionario'] || row['funcionario'] ||
+          row['Nome Funcionário'] || row['Nome Funcionario'] ||
+          row['Colaborador'] || row['colaborador'] || ''
+        );
+        const statusExcel = String(row['Status Carteira'] || row['status_carteira'] || row['Status'] || row['status'] || '').trim();
 
         // Validate status
         if (!VALID_STATUSES.includes(statusExcel)) {

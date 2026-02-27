@@ -66,6 +66,7 @@ import {
   useAutorizarSolicitacao,
   useReprovarSolicitacao,
   useCancelarEnvioSolicitacao,
+  useCancelarAutorizacao,
   useDiariasDataScope
 } from "@/hooks/diarias";
 import { useQuery } from "@tanstack/react-query";
@@ -74,6 +75,7 @@ import type { StatusSolicitacao, SolicitacaoFormData, SolicitacaoFilters, Diaria
 import { SolicitacaoFormModal } from "@/components/diarias/SolicitacaoFormModal";
 import { AprovacaoModal } from "@/components/diarias/AprovacaoModal";
 import { SolicitacaoDetalhesModal } from "@/components/diarias/SolicitacaoDetalhesModal";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { usePagination } from "@/hooks/usePagination";
 import TablePagination from "@/components/ui/table-pagination";
 import { toast } from "sonner";
@@ -105,6 +107,7 @@ export default function DiariasSolicitacoes() {
     canDeleteSolicitacao,
     canResendSolicitacao,
     canApproveSolicitacao,
+    canCancelAutorizacao,
     isOwnSolicitacao
   } = useDiariasDataScope();
   
@@ -125,6 +128,8 @@ export default function DiariasSolicitacoes() {
   const [editingSolicitacao, setEditingSolicitacao] = useState<DiariaSolicitacao | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [cancelAutorizacaoDialogOpen, setCancelAutorizacaoDialogOpen] = useState(false);
+  const [cancelAutorizacaoId, setCancelAutorizacaoId] = useState<string | null>(null);
 
   // Queries - COM ESCOPO OBRIGATÓRIO
   const { data: solicitacoes = [], isLoading } = useSolicitacoesDiaria(filters, scopeFilters);
@@ -153,6 +158,7 @@ export default function DiariasSolicitacoes() {
   const autorizarMutation = useAutorizarSolicitacao();
   const reprovarMutation = useReprovarSolicitacao();
   const cancelarEnvioMutation = useCancelarEnvioSolicitacao();
+  const cancelarAutorizacaoMutation = useCancelarAutorizacao();
   
   // Loading de permissões e escopo
   if (isLoadingPermissions || isLoadingScope) {
@@ -260,6 +266,23 @@ export default function DiariasSolicitacoes() {
     }
   };
 
+
+  const handleOpenCancelarAutorizacao = (id: string) => {
+    setCancelAutorizacaoId(id);
+    setCancelAutorizacaoDialogOpen(true);
+  };
+
+  const handleConfirmCancelarAutorizacao = async () => {
+    if (!cancelAutorizacaoId) return;
+    try {
+      await cancelarAutorizacaoMutation.mutateAsync(cancelAutorizacaoId);
+    } catch (error) {
+      console.error("Erro ao cancelar autorização:", error);
+    } finally {
+      setCancelAutorizacaoDialogOpen(false);
+      setCancelAutorizacaoId(null);
+    }
+  };
 
   const handleCancelarEnvio = async (id: string) => {
     try {
@@ -569,6 +592,19 @@ export default function DiariasSolicitacoes() {
                                 )}
                               </>
                             )}
+                            {/* Cancelar autorização para autorizadas */}
+                            {sol.status === 'autorizada' && canCancelAutorizacao(sol) && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem 
+                                  className="text-orange-600"
+                                  onClick={() => handleOpenCancelarAutorizacao(sol.id)}
+                                >
+                                  <Undo2 className="h-4 w-4 mr-2 text-orange-500" />
+                                  Cancelar Autorização
+                                </DropdownMenuItem>
+                              </>
+                            )}
                             {/* Botão reenviar para reprovadas */}
                             {canUserResend(sol) && (
                               <DropdownMenuItem onClick={() => handleOpenForm(sol)}>
@@ -597,14 +633,18 @@ export default function DiariasSolicitacoes() {
           }}
           onSave={handleSaveForm}
           onSaveAndSend={async (formData) => {
-            if (editingSolicitacao) {
-              await updateMutation.mutateAsync({ id: editingSolicitacao.id, formData });
-              await enviarMutation.mutateAsync(editingSolicitacao.id);
-            } else {
-              const result = await createMutation.mutateAsync(formData);
-              if (result?.id) {
-                await enviarMutation.mutateAsync(result.id);
+            try {
+              if (editingSolicitacao) {
+                await updateMutation.mutateAsync({ id: editingSolicitacao.id, formData });
+                await enviarMutation.mutateAsync(editingSolicitacao.id);
+              } else {
+                const result = await createMutation.mutateAsync(formData);
+                if (result?.id) {
+                  await enviarMutation.mutateAsync(result.id);
+                }
               }
+            } catch (error) {
+              console.error('Erro ao salvar e enviar:', error);
             }
           }}
           editingSolicitacao={editingSolicitacao}
@@ -632,11 +672,11 @@ export default function DiariasSolicitacoes() {
           })()}
           onAutorizar={(sol) => {
             setIsDetalhesOpen(false);
-            handleOpenAprovacao(sol, 'autorizar');
+            setTimeout(() => handleOpenAprovacao(sol, 'autorizar'), 300);
           }}
           onReprovar={(sol) => {
             setIsDetalhesOpen(false);
-            handleOpenAprovacao(sol, 'reprovar');
+            setTimeout(() => handleOpenAprovacao(sol, 'reprovar'), 300);
           }}
         />
 
@@ -644,6 +684,19 @@ export default function DiariasSolicitacoes() {
         {solicitacoes.length > 0 && (
           <TablePagination pagination={pagination} className="mt-4" />
         )}
+
+        {/* Cancelar Autorização Dialog */}
+        <ConfirmDialog
+          isOpen={cancelAutorizacaoDialogOpen}
+          onClose={() => setCancelAutorizacaoDialogOpen(false)}
+          onConfirm={handleConfirmCancelarAutorizacao}
+          title="Cancelar Autorização"
+          description="Tem certeza que deseja cancelar a autorização desta solicitação? Os apontamentos de campo e presenças registradas serão removidos permanentemente. A solicitação voltará para o status 'Aguardando Aprovação'."
+          confirmText="Sim, Cancelar Autorização"
+          cancelText="Não, Manter"
+          variant="warning"
+          isLoading={cancelarAutorizacaoMutation.isPending}
+        />
 
         {/* Delete Confirmation Dialog */}
         <DeleteSolicitacaoDialog
