@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { 
   Plus, 
   Send, 
@@ -13,7 +14,9 @@ import {
   MoreHorizontal,
   Loader2,
   Undo2,
-  Eye
+  Eye,
+  Users,
+  DollarSign
 } from "lucide-react";
 
 import MainLayout from "@/components/layout/MainLayout";
@@ -80,6 +83,14 @@ import { usePagination } from "@/hooks/usePagination";
 import TablePagination from "@/components/ui/table-pagination";
 import { toast } from "sonner";
 
+// Format currency helper
+function formatCurrencyValue(value: number): string {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  }).format(value);
+}
+
 // Status Badge Component
 function StatusBadge({ status }: { status: StatusSolicitacao }) {
   const variants: Record<StatusSolicitacao, { variant: "default" | "secondary" | "destructive" | "outline"; label: string }> = {
@@ -93,6 +104,7 @@ function StatusBadge({ status }: { status: StatusSolicitacao }) {
 }
 
 export default function DiariasSolicitacoes() {
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const { permissions, userId, isSuperAdmin, isLoading: isLoadingPermissions } = useDynamicPermissions();
   const hasPermission = (perm: string) => permissions.includes(perm);
@@ -336,41 +348,41 @@ export default function DiariasSolicitacoes() {
 
         {/* Summary Cards */}
         {resumo && (
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total</CardTitle>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+                <CardTitle className="text-xs font-medium">Total</CardTitle>
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{resumo.total}</div>
+              <CardContent className="pt-0">
+                <div className="text-xl md:text-2xl font-bold">{resumo.total}</div>
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Aguardando</CardTitle>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+                <CardTitle className="text-xs font-medium">Aguardando</CardTitle>
                 <Send className="h-4 w-4 text-yellow-500" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{resumo.enviada}</div>
+              <CardContent className="pt-0">
+                <div className="text-xl md:text-2xl font-bold">{resumo.enviada}</div>
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Autorizadas</CardTitle>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+                <CardTitle className="text-xs font-medium">Autorizadas</CardTitle>
                 <Check className="h-4 w-4 text-green-500" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{resumo.autorizada}</div>
+              <CardContent className="pt-0">
+                <div className="text-xl md:text-2xl font-bold">{resumo.autorizada}</div>
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Reprovadas</CardTitle>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+                <CardTitle className="text-xs font-medium">Reprovadas</CardTitle>
                 <X className="h-4 w-4 text-red-500" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{resumo.reprovada}</div>
+              <CardContent className="pt-0">
+                <div className="text-xl md:text-2xl font-bold">{resumo.reprovada}</div>
               </CardContent>
             </Card>
           </div>
@@ -455,73 +467,72 @@ export default function DiariasSolicitacoes() {
                 Nenhuma solicitação encontrada.
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-24">Nº</TableHead>
-                    <TableHead>Período</TableHead>
-                    <TableHead>Centro de Custo</TableHead>
-                    <TableHead>Justificativa</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              isMobile ? (
+                /* Mobile Card View */
+                <div className="p-3 space-y-3">
                   {pagination.paginatedData.map((sol) => (
-                    <TableRow 
-                      key={sol.id}
-                      className={sol.status === 'reprovada' ? 'bg-red-50 hover:bg-red-100' : ''}
-                    >
-                      <TableCell className="font-mono font-medium text-primary">
-                        {sol.numero_solicitacao}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                          {formatBrazilianDateForDisplay(sol.data_inicio)}
-                          {sol.data_fim !== sol.data_inicio && (
-                            <> → {formatBrazilianDateForDisplay(sol.data_fim)}</>
-                          )}
+                    <Card key={sol.id} className={sol.status === 'reprovada' ? 'border-destructive/50 bg-destructive/5' : ''}>
+                      <CardContent className="p-4 space-y-3">
+                        {/* Header: Nº + Status */}
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono font-semibold text-primary text-sm">
+                            {sol.numero_solicitacao}
+                          </span>
+                          <StatusBadge status={sol.status} />
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Building2 className="h-4 w-4 text-muted-foreground" />
-                          {sol.bd_centros_custo?.codigo_centro_custo} - {sol.bd_centros_custo?.nome_centro_custo}
+
+                        {/* Centro de Custo */}
+                        <div className="flex items-center gap-2 text-sm">
+                          <Building2 className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                          <span className="truncate">
+                            {sol.bd_centros_custo?.codigo_centro_custo} - {sol.bd_centros_custo?.nome_centro_custo}
+                          </span>
                         </div>
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate">
-                        {sol.justificativa}
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={sol.status} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {/* Botão Ver Detalhes para status finalizados (autorizada/reprovada) */}
-                          {(sol.status === 'autorizada' || sol.status === 'reprovada') && (
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                              onClick={() => handleVerDetalhes(sol)}
-                              title="Ver Detalhes"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {/* Botões diretos de aprovação para status "enviada" */}
+
+                        {/* Engenheiro Solicitante */}
+                        <div className="flex items-center gap-2 text-sm">
+                          <Users className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                          <span className="truncate">
+                            {(sol as any).engenheiro_solicitante?.nome_completo || '-'}
+                          </span>
+                        </div>
+
+                        {/* Período */}
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <CalendarIcon className="h-3.5 w-3.5 flex-shrink-0" />
+                          <span>
+                            {formatBrazilianDateForDisplay(sol.data_inicio)}
+                            {sol.data_fim !== sol.data_inicio && (
+                              <> → {formatBrazilianDateForDisplay(sol.data_fim)}</>
+                            )}
+                          </span>
+                        </div>
+
+                        {/* Convocados + Valor */}
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <Users className="h-3.5 w-3.5" />
+                            <span>{sol.convocados_pre?.length || 0} convocados</span>
+                          </div>
+                          <div className="flex items-center gap-1 font-medium">
+                            <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span>{formatCurrencyValue(sol.valor_estimado_total || 0)}</span>
+                          </div>
+                        </div>
+
+                        {/* Ações */}
+                        <div className="flex items-center justify-end gap-1 pt-1 border-t">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 w-8 p-0"
+                            onClick={() => handleVerDetalhes(sol)}
+                            title="Ver Detalhes"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
                           {sol.status === 'enviada' && canUserAutorizar(sol) && (
                             <>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                onClick={() => handleVerDetalhes(sol)}
-                                title="Ver Detalhes"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
@@ -543,83 +554,216 @@ export default function DiariasSolicitacoes() {
                             </>
                           )}
                           <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            {canUserEdit(sol) && (
-                              <DropdownMenuItem onClick={() => handleOpenForm(sol)}>
-                                Editar
-                              </DropdownMenuItem>
-                            )}
-                            {canUserDelete(sol) && (
-                              <>
-                                {canUserEdit(sol) && <DropdownMenuSeparator />}
-                                <DropdownMenuItem 
-                                  className="text-destructive"
-                                  onClick={() => handleOpenDeleteDialog(sol.id)}
-                                >
-                                  Excluir
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {canUserEdit(sol) && (
+                                <DropdownMenuItem onClick={() => handleOpenForm(sol)}>Editar</DropdownMenuItem>
+                              )}
+                              {canUserDelete(sol) && (
+                                <DropdownMenuItem className="text-destructive" onClick={() => handleOpenDeleteDialog(sol.id)}>Excluir</DropdownMenuItem>
+                              )}
+                              {sol.status === 'enviada' && isOwnSolicitacao(sol) && (
+                                <DropdownMenuItem onClick={() => handleCancelarEnvio(sol.id)}>
+                                  <Undo2 className="h-4 w-4 mr-2" />Cancelar Envio
                                 </DropdownMenuItem>
-                              </>
-                            )}
-                            {sol.status === 'enviada' && (
-                              <>
-                                {/* Opções do aprovador */}
-                                {canUserAutorizar(sol) && (
-                                  <>
-                                    <DropdownMenuItem onClick={() => handleOpenAprovacao(sol, 'autorizar')}>
-                                      <Check className="h-4 w-4 mr-2 text-green-500" />
-                                      Autorizar
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleOpenAprovacao(sol, 'reprovar')}>
-                                      <X className="h-4 w-4 mr-2 text-red-500" />
-                                      Reprovar
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
-                                {/* Opções do criador */}
-                                {isOwnSolicitacao(sol) && (
-                                  <>
-                                    {canUserAutorizar(sol) && <DropdownMenuSeparator />}
-                                    <DropdownMenuItem onClick={() => handleCancelarEnvio(sol.id)}>
-                                      <Undo2 className="h-4 w-4 mr-2 text-orange-500" />
-                                      Cancelar Envio
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
-                              </>
-                            )}
-                            {/* Cancelar autorização para autorizadas */}
-                            {sol.status === 'autorizada' && canCancelAutorizacao(sol) && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem 
-                                  className="text-orange-600"
-                                  onClick={() => handleOpenCancelarAutorizacao(sol.id)}
-                                >
-                                  <Undo2 className="h-4 w-4 mr-2 text-orange-500" />
-                                  Cancelar Autorização
+                              )}
+                              {sol.status === 'autorizada' && canCancelAutorizacao(sol) && (
+                                <DropdownMenuItem className="text-orange-600" onClick={() => handleOpenCancelarAutorizacao(sol.id)}>
+                                  <Undo2 className="h-4 w-4 mr-2" />Cancelar Autorização
                                 </DropdownMenuItem>
-                              </>
-                            )}
-                            {/* Botão reenviar para reprovadas */}
-                            {canUserResend(sol) && (
-                              <DropdownMenuItem onClick={() => handleOpenForm(sol)}>
-                                <Undo2 className="h-4 w-4 mr-2 text-blue-500" />
-                                Reenviar
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
+                              )}
+                              {canUserResend(sol) && (
+                                <DropdownMenuItem onClick={() => handleOpenForm(sol)}>
+                                  <Undo2 className="h-4 w-4 mr-2" />Reenviar
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
-                      </TableCell>
-                    </TableRow>
+                      </CardContent>
+                    </Card>
                   ))}
-                </TableBody>
-              </Table>
+                </div>
+              ) : (
+                /* Desktop Table View */
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-24">Nº</TableHead>
+                      <TableHead>Período</TableHead>
+                      <TableHead>Centro de Custo</TableHead>
+                      <TableHead>Eng. Solicitante</TableHead>
+                      <TableHead className="text-center">Convocados</TableHead>
+                      <TableHead className="text-right">Valor Estimado</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pagination.paginatedData.map((sol) => (
+                      <TableRow 
+                        key={sol.id}
+                        className={sol.status === 'reprovada' ? 'bg-red-50 hover:bg-red-100' : ''}
+                      >
+                        <TableCell className="font-mono font-medium text-primary">
+                          {sol.numero_solicitacao}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                            {formatBrazilianDateForDisplay(sol.data_inicio)}
+                            {sol.data_fim !== sol.data_inicio && (
+                              <> → {formatBrazilianDateForDisplay(sol.data_fim)}</>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-4 w-4 text-muted-foreground" />
+                            {sol.bd_centros_custo?.codigo_centro_custo} - {sol.bd_centros_custo?.nome_centro_custo}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {(sol as any).engenheiro_solicitante?.nome_completo || '-'}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {sol.convocados_pre?.length || 0}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {formatCurrencyValue(sol.valor_estimado_total || 0)}
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={sol.status} />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            {/* Botão Ver Detalhes para status finalizados (autorizada/reprovada) */}
+                            {(sol.status === 'autorizada' || sol.status === 'reprovada') && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                onClick={() => handleVerDetalhes(sol)}
+                                title="Ver Detalhes"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {/* Botões diretos de aprovação para status "enviada" */}
+                            {sol.status === 'enviada' && canUserAutorizar(sol) && (
+                              <>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                  onClick={() => handleVerDetalhes(sol)}
+                                  title="Ver Detalhes"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                  onClick={() => handleOpenAprovacao(sol, 'autorizar')}
+                                  title="Autorizar"
+                                >
+                                  <Check className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  onClick={() => handleOpenAprovacao(sol, 'reprovar')}
+                                  title="Reprovar"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                            <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {canUserEdit(sol) && (
+                                <DropdownMenuItem onClick={() => handleOpenForm(sol)}>
+                                  Editar
+                                </DropdownMenuItem>
+                              )}
+                              {canUserDelete(sol) && (
+                                <>
+                                  {canUserEdit(sol) && <DropdownMenuSeparator />}
+                                  <DropdownMenuItem 
+                                    className="text-destructive"
+                                    onClick={() => handleOpenDeleteDialog(sol.id)}
+                                  >
+                                    Excluir
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              {sol.status === 'enviada' && (
+                                <>
+                                  {/* Opções do aprovador */}
+                                  {canUserAutorizar(sol) && (
+                                    <>
+                                      <DropdownMenuItem onClick={() => handleOpenAprovacao(sol, 'autorizar')}>
+                                        <Check className="h-4 w-4 mr-2 text-green-500" />
+                                        Autorizar
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => handleOpenAprovacao(sol, 'reprovar')}>
+                                        <X className="h-4 w-4 mr-2 text-red-500" />
+                                        Reprovar
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                  {/* Opções do criador */}
+                                  {isOwnSolicitacao(sol) && (
+                                    <>
+                                      {canUserAutorizar(sol) && <DropdownMenuSeparator />}
+                                      <DropdownMenuItem onClick={() => handleCancelarEnvio(sol.id)}>
+                                        <Undo2 className="h-4 w-4 mr-2 text-orange-500" />
+                                        Cancelar Envio
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                </>
+                              )}
+                              {/* Cancelar autorização para autorizadas */}
+                              {sol.status === 'autorizada' && canCancelAutorizacao(sol) && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    className="text-orange-600"
+                                    onClick={() => handleOpenCancelarAutorizacao(sol.id)}
+                                  >
+                                    <Undo2 className="h-4 w-4 mr-2 text-orange-500" />
+                                    Cancelar Autorização
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              {/* Botão reenviar para reprovadas */}
+                              {canUserResend(sol) && (
+                                <DropdownMenuItem onClick={() => handleOpenForm(sol)}>
+                                  <Undo2 className="h-4 w-4 mr-2 text-blue-500" />
+                                  Reenviar
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )
             )}
           </CardContent>
         </Card>

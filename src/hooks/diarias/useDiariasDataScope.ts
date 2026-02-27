@@ -38,7 +38,7 @@ export interface DiariasDataScope {
   canApproveSolicitacao: (sol: DiariaSolicitacao) => boolean;
   canRejectSolicitacao: (sol: DiariaSolicitacao) => boolean;
   canCancelAutorizacao: (sol: DiariaSolicitacao) => boolean;
-  canApontar: (responsavelCampoId: string) => boolean;
+  canApontar: (responsavelCampoId: string, criadoPor?: string | null) => boolean;
   
   // Verificação de segregação
   isOwnSolicitacao: (sol: DiariaSolicitacao) => boolean;
@@ -258,11 +258,14 @@ export function useDiariasDataScope(): DiariasDataScope {
     return false;
   }, [isSuperAdmin, userScope, centrosCustoGerenciados]);
 
-  const canApontar = useCallback((responsavelCampoId: string) => {
+  const canApontar = useCallback((responsavelCampoId: string, criadoPor?: string | null) => {
     if (isSuperAdmin) return true;
     
-    // Responsável pela solicitação pode apontar (mesmo sem role especial)
+    // Responsável em campo pode apontar
     if (funcionarioId && responsavelCampoId === funcionarioId) return true;
+    
+    // Criador da solicitação também pode apontar (cobertura de urgência)
+    if (criadoPor && userId === criadoPor) return true;
     
     // Apontador só pode apontar nos seus próprios
     if (userScope === 'apontador') {
@@ -271,7 +274,7 @@ export function useDiariasDataScope(): DiariasDataScope {
     
     // AdmSSO e Gerente = somente leitura
     return false;
-  }, [isSuperAdmin, userScope, funcionarioId, hasPermission]);
+  }, [isSuperAdmin, userScope, funcionarioId, userId, hasPermission]);
 
   return {
     userScope,

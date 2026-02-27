@@ -230,6 +230,7 @@ export interface RelatorioFilters {
   centro_custo_id?: string;
   funcionario_id?: string;
   solicitacao_id?: string;
+  empresa_id?: string;
   status_convocacao?: StatusConvocacao;
   presenca_status?: StatusPresenca;
 }
@@ -250,6 +251,8 @@ export interface RelatorioFolhaItem {
   nome_centro_custo: string;
   funcionario_id: string;
   nome_funcionario: string;
+  empresa_id: string | null;
+  empresa_funcionario: string | null;
   // Dados bancários do funcionário
   cpf_funcionario: string | null;
   banco_funcionario: string | null;

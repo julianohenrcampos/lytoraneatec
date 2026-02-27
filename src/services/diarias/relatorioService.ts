@@ -154,6 +154,7 @@ export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promis
     'Solicitante': item.solicitante_nome || '-',
     'Apontador': item.apontador_nome || '-',
     'Funcionário': item.nome_funcionario,
+    'Empresa': item.empresa_funcionario || '-',
     'Função': item.nome_funcao || '-',
     'Tipo Diária': item.tipo_diaria === 'uma_e_meia' ? '1½ Diária' : item.tipo_diaria === 'completa' ? '1 Diária' : item.tipo_diaria === 'meia' ? '½ Diária' : '-',
     'V. Diária': item.tipo_diaria === 'completa' ? (item.valor_diaria_aplicada || 0) : item.tipo_diaria === 'uma_e_meia' ? (item.valor_diaria_aplicada || 0) * (2/3) : 0,
@@ -179,6 +180,7 @@ export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promis
     { wch: 25 },  // Solicitante
     { wch: 25 },  // Apontador
     { wch: 30 },  // Funcionário
+    { wch: 25 },  // Empresa
     { wch: 20 },  // Função
     { wch: 12 },  // Tipo Diária
     { wch: 14 },  // V. Diária
@@ -204,6 +206,7 @@ export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promis
   // Agrupar por funcionário
   const porFuncionario = new Map<string, {
     nome_funcionario: string;
+    empresa: string;
     funcao: string;
     cpf: string;
     banco: string;
@@ -224,6 +227,7 @@ export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promis
     } else {
       porFuncionario.set(key, {
         nome_funcionario: item.nome_funcionario,
+        empresa: item.empresa_funcionario || '-',
         funcao: item.nome_funcao || '-',
         cpf: item.cpf_funcionario || '-',
         banco: item.banco_funcionario || '-',
@@ -239,8 +243,9 @@ export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promis
   const resumoFuncionarios = Array.from(porFuncionario.values())
     .sort((a, b) => a.nome_funcionario.localeCompare(b.nome_funcionario))
     .map(f => ({
-      'Funcionário': f.nome_funcionario,
-      'Função': f.funcao,
+    'Funcionário': f.nome_funcionario,
+    'Empresa': f.empresa || '-',
+    'Função': f.funcao,
       'CPF': f.cpf,
       'Banco': f.banco,
       'Agência': f.agencia,
@@ -254,6 +259,7 @@ export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promis
 
   wsResumoFunc['!cols'] = [
     { wch: 30 },  // Funcionário
+    { wch: 25 },  // Empresa
     { wch: 20 },  // Função
     { wch: 15 },  // CPF
     { wch: 20 },  // Banco

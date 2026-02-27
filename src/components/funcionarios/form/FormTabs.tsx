@@ -2,7 +2,7 @@
 import React from "react";
 import { Form } from "@/components/ui/form";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { UseFormReturn } from "react-hook-form";
+import { UseFormReturn, FieldErrors } from "react-hook-form";
 import { FuncionarioFormData, Funcionario } from "@/types/funcionario";
 import PessoalTab from "./PessoalTab";
 import ProfissionalTab from "./ProfissionalTab";
@@ -10,6 +10,7 @@ import ContratualTab from "./ContratualTab";
 import FinanceiroTab from "./FinanceiroTab";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface FormTabsProps {
   form: UseFormReturn<FuncionarioFormData>;
@@ -89,18 +90,38 @@ const FormTabs: React.FC<FormTabsProps> = ({
     }
   });
 
+  const { toast } = useToast();
+
   const handleFormSubmit = (data: FuncionarioFormData) => {
     if (!data.funcao_id || data.funcao_id.trim() === "") {
       setActiveTab("profissional");
+      toast({ title: "Campo obrigatório", description: "Selecione uma função na aba Profissional.", variant: "destructive" });
       return;
     }
     
     onSubmit(data);
   };
 
+  const handleInvalidSubmit = (errors: FieldErrors<FuncionarioFormData>) => {
+    const errorFields = Object.keys(errors);
+    const pessoalFields = ['nome_completo', 'cpf', 'data_nascimento', 'genero', 'email', 'endereco_completo', 'escolaridade'];
+    const profissionalFields = ['funcao_id', 'departamento_id', 'centro_custo_id', 'empresa_id', 'matricula'];
+    const contratualFields = ['data_admissao', 'data_demissao', 'data_ferias', 'status'];
+
+    if (errorFields.some(f => pessoalFields.includes(f))) {
+      setActiveTab("pessoal");
+    } else if (errorFields.some(f => profissionalFields.includes(f))) {
+      setActiveTab("profissional");
+    } else if (errorFields.some(f => contratualFields.includes(f))) {
+      setActiveTab("contratual");
+    }
+
+    toast({ title: "Campos obrigatórios", description: "Preencha todos os campos obrigatórios antes de salvar.", variant: "destructive" });
+  };
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(handleFormSubmit, handleInvalidSubmit)} className="space-y-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="pessoal">Pessoal</TabsTrigger>

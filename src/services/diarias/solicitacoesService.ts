@@ -29,6 +29,10 @@ export async function getSolicitacoes(
         id,
         codigo_centro_custo,
         nome_centro_custo
+      ),
+      engenheiro_solicitante:bd_funcionarios!bd_diaria_solicitacoes_engenheiro_solicitante_id_fkey(
+        id,
+        nome_completo
       )
     `)
     .order('data_inicio', { ascending: false });

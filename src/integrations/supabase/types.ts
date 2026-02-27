@@ -3760,6 +3760,8 @@ export type Database = {
           cpf_funcionario: string | null
           created_at: string | null
           data: string | null
+          empresa_funcionario: string | null
+          empresa_id: string | null
           funcao_id: string | null
           funcionario_id: string | null
           hora_entrada: string | null
@@ -3812,6 +3814,13 @@ export type Database = {
             columns: ["solicitacao_id"]
             isOneToOne: false
             referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "bd_empresas"
             referencedColumns: ["id"]
           },
         ]

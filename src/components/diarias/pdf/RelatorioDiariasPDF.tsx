@@ -164,6 +164,11 @@ export const RelatorioDiariasPDF = ({
     ? `${centrosCustoUnicos.slice(0, 2).join(', ')} e mais ${centrosCustoUnicos.length - 2}` 
     : centrosCustoUnicos.join(', ') || 'Todos';
 
+  const empresasUnicas = [...new Set(relatorio.map(r => r.empresa_funcionario).filter(Boolean))];
+  const empresasLabel = empresasUnicas.length > 2
+    ? `${empresasUnicas.slice(0, 2).join(', ')} e mais ${empresasUnicas.length - 2}`
+    : empresasUnicas.join(', ') || 'Não informada';
+
   // Solicitantes e apontadores únicos
   const solicitantesUnicos = [...new Set(relatorio.map(r => r.solicitante_nome).filter(Boolean))];
   const apontadoresUnicos = [...new Set(relatorio.map(r => r.apontador_nome).filter(Boolean))];
@@ -190,7 +195,9 @@ export const RelatorioDiariasPDF = ({
           {logoUrl && <Image src={logoUrl} style={styles.logo} />}
           <View style={styles.headerTextContainer}>
             <Text style={styles.headerTitle}>RELATÓRIO DE DIÁRIAS EXECUTADAS</Text>
-            <Text style={styles.headerSubtitle}>{centrosCustoLabel} | {periodoLabel}</Text>
+            <Text style={styles.headerSubtitle}>Centro de Custo: {centrosCustoLabel}</Text>
+            <Text style={styles.headerSubtitle}>Empresa: {empresasLabel}</Text>
+            <Text style={[styles.headerSubtitle, { fontSize: 7 }]}>Período: {periodoLabel}</Text>
           </View>
         </View>
 

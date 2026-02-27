@@ -317,10 +317,10 @@ export default function DiariasApontamentoCampo() {
                       </div>
                       <Button
                         size="sm"
-                        variant={canApontar(apontamento.responsavel_campo_id) ? "default" : "outline"}
-                        onClick={() => handleOpenModal(apontamento, !canApontar(apontamento.responsavel_campo_id))}
+                        variant={canApontar(apontamento.responsavel_campo_id, apontamento.bd_diaria_solicitacoes?.criado_por) ? "default" : "outline"}
+                        onClick={() => handleOpenModal(apontamento, !canApontar(apontamento.responsavel_campo_id, apontamento.bd_diaria_solicitacoes?.criado_por))}
                       >
-                        {canApontar(apontamento.responsavel_campo_id) ? (
+                        {canApontar(apontamento.responsavel_campo_id, apontamento.bd_diaria_solicitacoes?.criado_por) ? (
                           <>
                             <ClipboardCheck className="h-4 w-4 mr-1" />
                             Apontamento de Diária

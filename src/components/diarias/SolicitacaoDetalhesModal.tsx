@@ -367,7 +367,7 @@ export function SolicitacaoDetalhesModal({
                     Engenheiro Solicitante
                   </p>
                   <p className="font-medium">
-                    {dadosComplementares?.engenheiroSolicitanteNome || "-"}
+                    {dadosComplementares?.engenheiroSolicitanteNome || solicitacao.engenheiro_solicitante?.nome_completo || "-"}
                   </p>
                 </div>
               </div>
