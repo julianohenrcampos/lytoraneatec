@@ -329,11 +329,20 @@ export const RelatorioDiariasPDF = ({
         </View>
 
         {/* Seção de Assinatura */}
-        <View style={styles.signatureSection}>
+        <View style={styles.signatureSection} wrap={false}>
           <Text style={styles.sectionTitle}>APROVAÇÃO</Text>
-          <View style={styles.signatureLine} />
-          <Text style={styles.signatureLabel}>Diretor</Text>
-          <Text style={styles.signatureDate}>Data: ____/____/________</Text>
+          <View style={{ flexDirection: 'row', gap: 40, marginTop: 8 }}>
+            <View style={{ flex: 1 }}>
+              <View style={styles.signatureLine} />
+              <Text style={styles.signatureLabel}>Gerente Regional</Text>
+              <Text style={styles.signatureDate}>Data: ____/____/________</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={styles.signatureLine} />
+              <Text style={styles.signatureLabel}>Diretor</Text>
+              <Text style={styles.signatureDate}>Data: ____/____/________</Text>
+            </View>
+          </View>
         </View>
 
         {/* Footer */}

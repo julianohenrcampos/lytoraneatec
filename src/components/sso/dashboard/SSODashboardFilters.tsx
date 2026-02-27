@@ -31,7 +31,7 @@ export const SSODashboardFilters = ({ filters, onFilterChange }: SSODashboardFil
   const { userRole, isSuperAdmin } = useAuthPermissions();
   
   // Só AdmSSO e SuperAdm podem filtrar por técnico (TecSSO só vê seus próprios checklists)
-  const canFilterByTecnico = isSuperAdmin || userRole === 'AdmSSO';
+  const canFilterByTecnico = isSuperAdmin || userRole === 'AdmSSO' || userRole === 'AdmOBRA';
 
   const { data: obras } = useQuery({
     queryKey: ['obras-ativas'],

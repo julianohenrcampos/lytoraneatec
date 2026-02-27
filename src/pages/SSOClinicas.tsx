@@ -24,9 +24,9 @@ const SSOClinicas: React.FC = () => {
   const { locais, isLoading, delete: deleteClinica, toggleAtivo, isDeleting } = useLocaisAtendimento();
   const { isSuperAdmin, userRole } = useAuthPermissions();
 
-  const canCreate = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'TecEnferSSO'].includes(userRole || '');
-  const canEdit = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'TecEnferSSO'].includes(userRole || '');
-  const canDelete = isSuperAdmin || ['SuperAdm', 'AdmSSO'].includes(userRole || '');
+  const canCreate = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO'].includes(userRole || '');
+  const canEdit = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO'].includes(userRole || '');
+  const canDelete = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA'].includes(userRole || '');
 
   const handleNew = () => {
     setEditingId(undefined);

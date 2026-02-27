@@ -80,7 +80,7 @@ export function useDiariasDataScope(): DiariasDataScope {
 
         // 2b. Verificar se é AdmSSO (visão ampla, sem aprovação)
         const funcoes = (profile?.funcoes as string[]) || [];
-        if (funcoes.includes('AdmSSO')) {
+        if (funcoes.includes('AdmSSO') || funcoes.includes('AdmOBRA')) {
           setFuncionarioId(profile?.funcionario_id || null);
           setUserScope('admsso');
           setIsLoading(false);

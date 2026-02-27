@@ -326,19 +326,19 @@ export const diariaStyles = StyleSheet.create({
   signatureLine: {
     borderTopWidth: 1,
     borderTopColor: '#374151',
-    width: 250,
-    marginTop: 50,
+    width: 200,
+    marginTop: 40,
     marginBottom: 4,
   },
   signatureLabel: {
     fontSize: 10,
     color: '#374151',
-    marginBottom: 8,
+    fontFamily: 'Helvetica-Bold',
   },
   signatureDate: {
     fontSize: 9,
     color: '#6b7280',
-    marginTop: 12,
+    marginTop: 8,
   },
 
   // Consolidated table for PDF

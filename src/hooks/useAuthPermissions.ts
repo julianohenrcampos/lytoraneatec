@@ -51,21 +51,23 @@ export const useAuthPermissions = (): UserPermissions => {
         const SUPER_ADMIN_EMAILS = ['julianohcampos@yahoo.com.br', 'ramonvalentevalente@gmail.com'];
 
         // 🔧 FALLBACK GARANTIDO PARA FUNÇÕES SSO
+        const ADM_SSO_PERMS = [
+          'acesso_sso_checklists', 'acesso_sso_desvios', 'acesso_sso_dashboard',
+          'acesso_sso_agendamento_exames', 'acesso_sso_ver_agir', 'dashboard_view', 'dashboard_rh_view',
+          'gestao_rh_empresas_view', 'gestao_rh_departamentos_view',
+          'gestao_rh_funcionarios_view', 'gestao_rh_funcoes_view',
+          'gestao_rh_centros_custo_view', 'gestao_rh_equipes_view',
+          'diarias_view', 'diarias_dashboard_view', 'diarias_solicitacoes_view',
+          'diarias_apontamento_view', 'diarias_relatorio_view',
+          'diarias_solicitar', 'diarias_solicitar_create',
+          'diarias_solicitar_edit_own', 'diarias_solicitar_cancel_own',
+          'diarias_solicitar_resend_own', 'diarias_export', 'diarias_exportar_excel'
+        ];
+
         const SSO_ROLE_PERMISSIONS: Record<string, string[]> = {
           'TecSSO': ['acesso_sso_checklists', 'acesso_sso_desvios', 'acesso_sso_ver_agir', 'dashboard_view'],
-          'AdmSSO': [
-            'acesso_sso_checklists', 'acesso_sso_desvios', 'acesso_sso_dashboard',
-            'acesso_sso_agendamento_exames', 'acesso_sso_ver_agir', 'dashboard_view', 'dashboard_rh_view',
-            'gestao_rh_empresas_view', 'gestao_rh_departamentos_view',
-            'gestao_rh_funcionarios_view', 'gestao_rh_funcoes_view',
-            'gestao_rh_centros_custo_view', 'gestao_rh_equipes_view',
-            // Permissões de Diárias (sem aprovação)
-            'diarias_view', 'diarias_dashboard_view', 'diarias_solicitacoes_view',
-            'diarias_apontamento_view', 'diarias_relatorio_view',
-            'diarias_solicitar', 'diarias_solicitar_create',
-            'diarias_solicitar_edit_own', 'diarias_solicitar_cancel_own',
-            'diarias_solicitar_resend_own', 'diarias_export', 'diarias_exportar_excel'
-          ],
+          'AdmSSO': ADM_SSO_PERMS,
+          'AdmOBRA': ADM_SSO_PERMS,
           'GerenteRegional': [
             'dashboard_view', 'dashboard_rh_view',
             'gestao_rh_funcionarios_view', 'gestao_rh_centros_custo_view',
@@ -220,8 +222,8 @@ export const useAuthPermissions = (): UserPermissions => {
         }
 
         // 🔧 FALLBACK SSO: Garantir permissões mínimas para roles SSO
-        if (profile?.funcoes?.includes('TecSSO') || profile?.funcoes?.includes('AdmSSO') || profile?.funcoes?.includes('GerenteRegional')) {
-          const ssoRole = profile.funcoes.includes('AdmSSO') ? 'AdmSSO' : profile.funcoes.includes('GerenteRegional') ? 'GerenteRegional' : 'TecSSO';
+        if (profile?.funcoes?.includes('TecSSO') || profile?.funcoes?.includes('AdmSSO') || profile?.funcoes?.includes('AdmOBRA') || profile?.funcoes?.includes('GerenteRegional')) {
+          const ssoRole = profile.funcoes.includes('AdmSSO') ? 'AdmSSO' : profile.funcoes.includes('AdmOBRA') ? 'AdmOBRA' : profile.funcoes.includes('GerenteRegional') ? 'GerenteRegional' : 'TecSSO';
           const minimumPermissions = SSO_ROLE_PERMISSIONS[ssoRole];
           
           console.log(`🔧 Aplicando fallback SSO para ${ssoRole}:`, minimumPermissions);

@@ -18,18 +18,21 @@ const SUPER_ADMIN_EMAILS = [
 ];
 
 // 🔧 FALLBACK GARANTIDO PARA FUNÇÕES SSO - Garante acesso mesmo em falhas de rede/cache
+const ADM_SSO_PERMISSIONS = [
+  'acesso_sso_checklists', 'acesso_sso_desvios', 'acesso_sso_dashboard',
+  'acesso_sso_agendamento_exames', 'dashboard_view', 'dashboard_rh_view',
+  'gestao_rh_empresas_view', 'gestao_rh_departamentos_view',
+  'gestao_rh_funcionarios_view', 'gestao_rh_funcoes_view',
+  'gestao_rh_centros_custo_view', 'gestao_rh_equipes_view',
+  'diarias_view', 'diarias_solicitacoes_view',
+  'diarias_apontamento_view', 'diarias_relatorio_view',
+  'diarias_dashboard_view'
+];
+
 const SSO_ROLE_PERMISSIONS: Record<string, string[]> = {
   'TecSSO': ['acesso_sso_checklists', 'acesso_sso_desvios', 'dashboard_view'],
-  'AdmSSO': [
-    'acesso_sso_checklists', 'acesso_sso_desvios', 'acesso_sso_dashboard',
-    'acesso_sso_agendamento_exames', 'dashboard_view', 'dashboard_rh_view',
-    'gestao_rh_empresas_view', 'gestao_rh_departamentos_view',
-    'gestao_rh_funcionarios_view', 'gestao_rh_funcoes_view',
-    'gestao_rh_centros_custo_view', 'gestao_rh_equipes_view',
-    'diarias_view', 'diarias_solicitacoes_view',
-    'diarias_apontamento_view', 'diarias_relatorio_view',
-    'diarias_dashboard_view'
-  ],
+  'AdmSSO': ADM_SSO_PERMISSIONS,
+  'AdmOBRA': ADM_SSO_PERMISSIONS,
   'GerenteRegional': [
     'dashboard_view', 'dashboard_rh_view',
     'gestao_rh_funcionarios_view', 'gestao_rh_centros_custo_view',
@@ -197,8 +200,8 @@ export const useDynamicPermissions = (): DynamicPermissions => {
         }
 
         // 🔧 FALLBACK SSO: Garantir permissões mínimas para roles SSO
-        if (profile.funcoes.includes('TecSSO') || profile.funcoes.includes('AdmSSO') || profile.funcoes.includes('GerenteRegional')) {
-          const ssoRole = profile.funcoes.includes('AdmSSO') ? 'AdmSSO' : profile.funcoes.includes('GerenteRegional') ? 'GerenteRegional' : 'TecSSO';
+        if (profile.funcoes.includes('TecSSO') || profile.funcoes.includes('AdmSSO') || profile.funcoes.includes('AdmOBRA') || profile.funcoes.includes('GerenteRegional')) {
+          const ssoRole = profile.funcoes.includes('AdmSSO') ? 'AdmSSO' : profile.funcoes.includes('AdmOBRA') ? 'AdmOBRA' : profile.funcoes.includes('GerenteRegional') ? 'GerenteRegional' : 'TecSSO';
           const minimumPermissions = SSO_ROLE_PERMISSIONS[ssoRole];
           
           console.log(`🔧 [DYNAMIC] Aplicando fallback SSO para ${ssoRole}:`, minimumPermissions);
@@ -315,6 +318,22 @@ export const useDynamicPermissions = (): DynamicPermissions => {
             };
             setPermissions(admSSOFallback);
             permissionsCache = admSSOFallback;
+            lastCacheTime = Date.now();
+            return;
+          }
+          
+          if (profileFallback?.funcoes?.includes('AdmOBRA')) {
+            console.log('✅ [DYNAMIC] Fallback AdmOBRA ativado - mantendo acesso');
+            const admOBRAFallback = {
+              userId: user.id,
+              isSuperAdmin: false,
+              userRole: 'AdmOBRA',
+              permissions: SSO_ROLE_PERMISSIONS['AdmOBRA'],
+              isLoading: false,
+              canAccessDashboard: true,
+            };
+            setPermissions(admOBRAFallback);
+            permissionsCache = admOBRAFallback;
             lastCacheTime = Date.now();
             return;
           }
