@@ -139,7 +139,7 @@ export function useDiariasDataScope(): DiariasDataScope {
 
   // Filtros de escopo baseado no perfil
   const scopeFilters = useMemo((): DiariasDataScopeFilters => {
-    if (userScope === 'superadmin' || userScope === 'admsso') return {};
+    if (userScope === 'superadmin') return {};
     if (userScope === 'engenheiro') return { criado_por: userId || undefined };
     if (userScope === 'gerente') return { centro_custo_ids: centrosCustoGerenciados };
     if (userScope === 'apontador') return { responsavel_campo_id: funcionarioId || undefined };
@@ -162,7 +162,7 @@ export function useDiariasDataScope(): DiariasDataScope {
   }, [userScope, funcionarioId, centrosCustoGerenciados]);
 
   const getRelatorioFilter = useCallback((): RelatorioFilters & DiariasDataScopeFilters => {
-    if (userScope === 'superadmin' || userScope === 'admsso') return {};
+    if (userScope === 'superadmin') return {};
     if (userScope === 'engenheiro') return { criado_por: userId || undefined };
     if (userScope === 'gerente') return { centro_custo_ids: centrosCustoGerenciados };
     return {};

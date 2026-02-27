@@ -1,147 +1,108 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Download, Smartphone, Monitor } from 'lucide-react';
+import { Download, X, Smartphone, Monitor } from 'lucide-react';
+import { Card } from '@/components/ui/card';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
-import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 
-interface PWAInstallButtonProps {
-  variant?: 'icon' | 'button';
-  className?: string;
-}
+const manualInstructions: Record<string, { title: string; steps: { icon: string; text: string }[] }> = {
+  ios: {
+    title: 'Instalar LYTEC',
+    steps: [
+      { icon: '⬆️', text: 'Toque em "Compartilhar" na barra do Safari' },
+      { icon: '➕', text: 'Selecione "Adicionar à Tela de Início"' },
+      { icon: '✅', text: 'Toque em "Adicionar" para confirmar' },
+    ],
+  },
+  android: {
+    title: 'Instalar LYTEC',
+    steps: [
+      { icon: '⋮', text: 'Toque no menu do navegador (três pontos)' },
+      { icon: '📥', text: 'Selecione "Instalar app" ou "Adicionar à tela inicial"' },
+      { icon: '✅', text: 'Confirme a instalação' },
+    ],
+  },
+  desktop: {
+    title: 'Instalar LYTEC',
+    steps: [
+      { icon: '⊕', text: 'Clique no ícone de instalação na barra de endereço' },
+      { icon: '⋮', text: 'Ou abra o menu do navegador e selecione "Instalar LYTEC"' },
+      { icon: '✅', text: 'Confirme clicando em "Instalar"' },
+    ],
+  },
+};
 
-export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ 
-  variant = 'icon',
-  className 
-}) => {
-  const { isInstallable, installApp, platform, getInstallInstructions } = usePWAInstall();
-  const { toast } = useToast();
+export const PWAInstallButton: React.FC<{ className?: string }> = ({ className }) => {
+  const { canInstall, install, platform } = usePWAInstall();
+  const [showManual, setShowManual] = useState(false);
   const isMobile = useIsMobile();
 
-  if (!isInstallable) {
-    return null;
-  }
+  if (!canInstall) return null;
 
-  const handleInstall = async () => {
-    console.log('🔄 Iniciando instalação do PWA...');
-    console.log('📱 Estado atual:', {
-      isInstallable,
-      platform,
-      pwaInstalled: localStorage.getItem('pwa-installed'),
-      pwaDismissed: localStorage.getItem('pwa-install-dismissed')
-    });
-    
-    const result = await installApp();
-    console.log('📲 Resultado da instalação:', result);
-    
-    if (result === 'ios-manual') {
-      const instructions = getInstallInstructions();
-      toast({
-        title: instructions.title,
-        description: (
-          <div className="space-y-2">
-            <p>Para instalar o LYTOTEC no seu iPhone/iPad:</p>
-            <ol className="list-decimal list-inside space-y-1 text-sm">
-              {instructions.steps.map((step, index) => (
-                <li key={index}>{step}</li>
-              ))}
-            </ol>
-          </div>
-        ),
-        duration: 10000,
-      });
-    } else if (result === 'desktop-manual') {
-      const instructions = getInstallInstructions();
-      toast({
-        title: instructions.title,
-        description: (
-          <div className="space-y-2">
-            <p className="font-medium">Para instalar o LYTOTEC como aplicativo:</p>
-            <ol className="list-decimal list-inside space-y-1 text-sm">
-              {instructions.steps.map((step, index) => (
-                <li key={index}>{step}</li>
-              ))}
-            </ol>
-            <p className="text-xs text-muted-foreground mt-2">
-              💡 Funciona no Chrome e Edge
-            </p>
-          </div>
-        ),
-        duration: 12000,
-      });
-    } else if (result === true) {
-      toast({
-        title: "App instalado com sucesso!",
-        description: isMobile 
-          ? "O LYTOTEC foi adicionado à sua tela inicial"
-          : "O LYTOTEC foi instalado no seu dispositivo",
-      });
-    } else if (result === 'already-installed') {
-      toast({
-        title: "App já instalado! ✅",
-        description: "O LYTOTEC já está instalado neste dispositivo. Procure-o nos seus aplicativos.",
-        duration: 5000
-      });
-    } else if (result === false) {
-      toast({
-        title: "Instalação cancelada",
-        description: "Você pode tentar instalar novamente a qualquer momento",
-        variant: "default"
-      });
+  const handleClick = async () => {
+    const result = await install();
+    if (result === 'manual') {
+      setShowManual(true);
     }
   };
 
-  const getTooltipText = () => {
-    if (platform === 'ios') {
-      return "Adicionar à tela inicial do iOS";
-    }
-    if (platform === 'android') {
-      return "Instalar app no Android";
-    }
-    return isMobile ? "Instalar app na tela inicial" : "Instalar LYTOTEC no dispositivo";
-  };
-
-  const getIcon = () => {
-    if (platform === 'ios' || platform === 'android') {
-      return <Smartphone className="h-4 w-4 sm:h-5 sm:w-5" />;
-    }
-    return <Download className="h-4 w-4 sm:h-5 sm:w-5" />;
-  };
-
-  if (variant === 'button') {
-    return (
-      <Button
-        onClick={handleInstall}
-        variant="outline"
-        className={`flex items-center gap-2 ${className}`}
-      >
-        {getIcon()}
-        <span>
-          {platform === 'ios' ? 'Adicionar à Tela' : 'Instalar App'}
-        </span>
-      </Button>
-    );
-  }
+  const info = manualInstructions[platform] || manualInstructions.desktop;
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={handleInstall}
-            className={className}
-          >
-            {getIcon()}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>{getTooltipText()}</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <>
+      {/* Desktop: inline navbar button */}
+      {!isMobile && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleClick}
+          className={`gap-1.5 ${className ?? ''}`}
+        >
+          <Download className="h-4 w-4" />
+          <span>Instalar LYTEC</span>
+        </Button>
+      )}
+
+      {/* Mobile: fixed pill bottom-right */}
+      {isMobile && (
+        <button
+          onClick={handleClick}
+          className="fixed bottom-5 right-4 z-50 flex items-center gap-1.5 rounded-full bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-lg active:scale-95 transition-transform"
+        >
+          <Download className="h-4 w-4" />
+          Instalar
+        </button>
+      )}
+
+      {/* Fallback manual modal */}
+      {showManual && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+          <Card className="max-w-sm w-full p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                {platform === 'desktop' ? <Monitor className="h-5 w-5" /> : <Smartphone className="h-5 w-5" />}
+                {info.title}
+              </h3>
+              <Button variant="ghost" size="sm" onClick={() => setShowManual(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              {info.steps.map((step, i) => (
+                <div key={i} className="flex items-start gap-3 p-3 bg-muted rounded-lg">
+                  <span className="text-xl flex-shrink-0">{step.icon}</span>
+                  <p className="text-sm">{step.text}</p>
+                </div>
+              ))}
+            </div>
+
+            <Button onClick={() => setShowManual(false)} className="w-full">
+              Entendi!
+            </Button>
+          </Card>
+        </div>
+      )}
+    </>
   );
 };

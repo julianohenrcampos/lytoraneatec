@@ -51,19 +51,6 @@
     <!-- Manifest - VitePWA gera automaticamente -->
     <link rel="manifest" href="/manifest.webmanifest" />
     
-    <!-- PWA Install Prompt - CRITICAL: Must be before any other scripts -->
-    <script>
-      // Captura global do evento beforeinstallprompt antes do React carregar
-      window.deferredInstallPrompt = null;
-      window.addEventListener('beforeinstallprompt', function(e) {
-        console.log('🎯 [Global] beforeinstallprompt capturado no index.html!');
-        e.preventDefault();
-        window.deferredInstallPrompt = e;
-        // Disparar evento customizado para notificar React quando carregar
-        window.dispatchEvent(new CustomEvent('pwa-install-available'));
-      });
-    </script>
-    
     <!-- Preload important resources -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

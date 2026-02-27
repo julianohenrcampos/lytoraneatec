@@ -123,19 +123,10 @@ export function useEnviarParaAutorizacao() {
 
   return useMutation({
     mutationFn: (id: string) => enviarParaAutorizacao(id),
-    onSuccess: (solicitacao) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
       queryClient.invalidateQueries({ queryKey: ['diarias-pendentes-count'] });
       toast.success('Solicitação enviada para autorização!');
-
-      // Notificar aprovador (silencioso)
-      try {
-        notificarAprovador({
-          id: solicitacao.id,
-          numero_solicitacao: solicitacao.numero_solicitacao,
-          centro_custo_id: solicitacao.centro_custo_id,
-        });
-      } catch (e) { /* silencioso */ }
     },
     onError: (error: Error) => {
       toast.error(`Erro ao enviar: ${error.message}`);

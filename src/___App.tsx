@@ -55,7 +55,7 @@ import SecureRouteGuard from "@/components/routing/SecureRouteGuard";
 
 // PWA Components
 import { PWAUpdateNotification } from "@/components/pwa/PWAUpdateNotification";
-import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -272,7 +272,7 @@ const App = () => {
             } />
               </Routes>
               <PWAUpdateNotification />
-              <PWAInstallBanner />
+              
             </BrowserRouter>
           </TooltipProvider>
         </ThemeProvider>

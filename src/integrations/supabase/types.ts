@@ -3897,6 +3897,7 @@ export type Database = {
         Args: { p_email: string; p_exclude_id?: string }
         Returns: boolean
       }
+      check_is_admsso: { Args: { user_id?: string }; Returns: boolean }
       check_is_super_admin: { Args: { user_id?: string }; Returns: boolean }
       check_vistorias_sso_pendentes: { Args: never; Returns: undefined }
       compute_funcao_sistema: { Args: { _profile_id: string }; Returns: string }
@@ -3987,6 +3988,7 @@ export type Database = {
         Returns: number
       }
       get_user_departamento_id: { Args: never; Returns: string }
+      get_user_funcionario_id: { Args: { user_id?: string }; Returns: string }
       has_permission: {
         Args: { p_permission_name: string; p_user_id?: string }
         Returns: boolean
