@@ -1,11 +1,15 @@
 /**
  * Utilitários para análise de período de diárias
- * Calcula dias úteis, finais de semana e feriados
+ * Calcula dias úteis, sábados, domingos e feriados
+ * 
+ * Regra de negócio:
+ * - Sábado: é FDS visualmente, mas paga Diária Normal (valor_diaria)
+ * - Domingo e Feriado: pagam Diária Exclusiva (valor_diaria_exclusiva)
  */
 
-import { addDays, differenceInDays, isWeekend, parseISO, format } from 'date-fns';
+import { addDays, differenceInDays, parseISO, format } from 'date-fns';
 
-export type TipoDia = 'util' | 'fds' | 'feriado';
+export type TipoDia = 'util' | 'sabado' | 'fds' | 'feriado';
 
 export interface DataClassificada {
   data: string; // YYYY-MM-DD
@@ -15,10 +19,13 @@ export interface DataClassificada {
 
 export interface PeriodoAnalise {
   totalDias: number;
-  diasUteis: number;
-  finaisDeSemana: number;
-  feriados: number;
-  diasParaCalculo: number; // Baseado no toggle considera_fds_feriado
+  diasUteis: number;       // Seg-Sex
+  sabados: number;         // Sábados (paga diária normal)
+  domingos: number;        // Domingos (paga diária exclusiva)
+  feriados: number;        // Feriados (paga diária exclusiva)
+  /** @deprecated Use sabados + domingos. Mantido para compatibilidade */
+  finaisDeSemana: number;  
+  diasParaCalculo: number;
   datasClassificadas: DataClassificada[];
 }
 
@@ -32,15 +39,19 @@ export interface FuncionarioParaCalculo {
 }
 
 export interface SimulacaoValores {
-  totalDiasUteis: number;
-  totalFdsFeriados: number;
+  totalDiasUteisESabados: number;   // Valor diária normal (úteis + sábados)
+  totalDomFeriados: number;          // Valor diária exclusiva (dom + feriados)
   totalRefeicoes: number;
   totalEstimado: number;
+  /** @deprecated Use totalDiasUteisESabados */
+  totalDiasUteis: number;
+  /** @deprecated Use totalDomFeriados */
+  totalFdsFeriados: number;
   detalhePorFuncionario: {
     funcionario_id: string;
     nome: string;
-    valorDiasUteis: number;
-    valorFdsFeriados: number;
+    valorDiasUteisESabados: number;
+    valorDomFeriados: number;
     valorRefeicoes: number;
     valorTotal: number;
   }[];
@@ -64,7 +75,7 @@ export function gerarDatasNoPeriodo(dataInicio: string, dataFim: string): string
 }
 
 /**
- * Classifica cada data do período como dia útil, final de semana ou feriado
+ * Classifica cada data do período como dia útil, sábado, domingo (fds) ou feriado
  */
 export function analisarPeriodo(
   dataInicio: string,
@@ -76,8 +87,10 @@ export function analisarPeriodo(
     return {
       totalDias: 0,
       diasUteis: 0,
-      finaisDeSemana: 0,
+      sabados: 0,
+      domingos: 0,
       feriados: 0,
+      finaisDeSemana: 0,
       diasParaCalculo: 0,
       datasClassificadas: []
     };
@@ -98,29 +111,42 @@ export function analisarPeriodo(
       };
     }
     
-    // Verifica se é final de semana
-    if (isWeekend(dataObj)) {
+    const diaSemana = dataObj.getDay();
+    
+    // Sábado: FDS visualmente, mas paga diária normal
+    if (diaSemana === 6) {
+      return { data: dataStr, tipo: 'sabado' as TipoDia };
+    }
+    
+    // Domingo: paga diária exclusiva
+    if (diaSemana === 0) {
       return { data: dataStr, tipo: 'fds' as TipoDia };
     }
     
-    // É dia útil
+    // É dia útil (seg-sex)
     return { data: dataStr, tipo: 'util' as TipoDia };
   });
 
   const diasUteis = datasClassificadas.filter(d => d.tipo === 'util').length;
-  const finaisDeSemana = datasClassificadas.filter(d => d.tipo === 'fds').length;
+  const sabados = datasClassificadas.filter(d => d.tipo === 'sabado').length;
+  const domingos = datasClassificadas.filter(d => d.tipo === 'fds').length;
   const feriadosCount = datasClassificadas.filter(d => d.tipo === 'feriado').length;
   
-  // Dias para cálculo: se toggle ativo, todos os dias; senão, apenas dias úteis
+  // finaisDeSemana para compatibilidade = sabados + domingos
+  const finaisDeSemana = sabados + domingos;
+  
+  // Dias para cálculo: se toggle ativo, todos os dias; senão, apenas dias úteis + sábados
   const diasParaCalculo = considerarFdsFeriado 
     ? datas.length 
-    : diasUteis;
+    : diasUteis + sabados;
 
   return {
     totalDias: datas.length,
     diasUteis,
-    finaisDeSemana,
+    sabados,
+    domingos,
     feriados: feriadosCount,
+    finaisDeSemana,
     diasParaCalculo,
     datasClassificadas
   };
@@ -128,6 +154,9 @@ export function analisarPeriodo(
 
 /**
  * Calcula a estimativa total de valores para o período
+ * 
+ * Sábados: valor_diaria (normal)
+ * Domingos + Feriados: valor_diaria_exclusiva
  */
 export function calcularEstimativaTotal(
   funcionarios: FuncionarioParaCalculo[],
@@ -136,39 +165,47 @@ export function calcularEstimativaTotal(
 ): SimulacaoValores {
   const detalhePorFuncionario = funcionarios.map(func => {
     const valorDiaria = func.valor_diaria || 0;
-    const valorDiariaExclusiva = func.valor_diaria_exclusiva || valorDiaria * 1.2; // Default: 20% extra
+    const valorDiariaExclusiva = func.valor_diaria_exclusiva || valorDiaria * 1.2;
     const valorRefeicao = func.valor_refeicao || 0;
     
-    // Dias úteis sempre contam
-    const valorDiasUteis = analise.diasUteis * valorDiaria;
+    // Dias úteis (seg-sex) sempre contam com diária normal
+    // Sábados sempre contam com diária normal
+    const diasNormais = analise.diasUteis + analise.sabados;
+    const valorDiasUteisESabados = diasNormais * valorDiaria;
     
-    // FDS/Feriados só contam se toggle ativo
-    const diasFdsFeriado = analise.finaisDeSemana + analise.feriados;
-    const valorFdsFeriados = considerarFdsFeriado 
-      ? diasFdsFeriado * valorDiariaExclusiva 
+    // Domingos + Feriados só contam se toggle ativo, com diária exclusiva
+    const diasExclusivos = analise.domingos + analise.feriados;
+    const valorDomFeriados = considerarFdsFeriado 
+      ? diasExclusivos * valorDiariaExclusiva 
       : 0;
     
     // Refeição conta para todos os dias que o funcionário trabalha
     const diasParaRefeicao = considerarFdsFeriado
-      ? analise.diasUteis + diasFdsFeriado
-      : analise.diasUteis;
+      ? diasNormais + diasExclusivos
+      : diasNormais;
     const valorRefeicoes = diasParaRefeicao * valorRefeicao;
     
     return {
       funcionario_id: func.funcionario_id,
       nome: func.nome_funcionario || '',
-      valorDiasUteis,
-      valorFdsFeriados,
+      valorDiasUteisESabados,
+      valorDomFeriados,
       valorRefeicoes,
-      valorTotal: valorDiasUteis + valorFdsFeriados + valorRefeicoes
+      valorTotal: valorDiasUteisESabados + valorDomFeriados + valorRefeicoes
     };
   });
 
+  const totalDiasUteisESabados = detalhePorFuncionario.reduce((sum, f) => sum + f.valorDiasUteisESabados, 0);
+  const totalDomFeriados = detalhePorFuncionario.reduce((sum, f) => sum + f.valorDomFeriados, 0);
+
   return {
-    totalDiasUteis: detalhePorFuncionario.reduce((sum, f) => sum + f.valorDiasUteis, 0),
-    totalFdsFeriados: detalhePorFuncionario.reduce((sum, f) => sum + f.valorFdsFeriados, 0),
+    totalDiasUteisESabados,
+    totalDomFeriados,
     totalRefeicoes: detalhePorFuncionario.reduce((sum, f) => sum + f.valorRefeicoes, 0),
     totalEstimado: detalhePorFuncionario.reduce((sum, f) => sum + f.valorTotal, 0),
+    // Deprecated aliases
+    totalDiasUteis: totalDiasUteisESabados,
+    totalFdsFeriados: totalDomFeriados,
     detalhePorFuncionario
   };
 }

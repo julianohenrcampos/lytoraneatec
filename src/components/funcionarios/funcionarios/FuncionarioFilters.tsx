@@ -78,16 +78,18 @@ const FuncionarioFilters: React.FC<FuncionarioFiltersProps> = ({
 
           <div className="space-y-2">
             <Label htmlFor="funcao_id">Função</Label>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="funcao_id"
-                placeholder="Buscar função"
-                className="pl-8"
-                value={filters.funcao_id || ""}
-                onChange={(e) => handleSearchInputChange("funcao_id", e.target.value)}
-              />
-            </div>
+            <Select
+              value={filters.funcao_id || "todas"}
+              onValueChange={(value) => onFilterChange("funcao_id", value === "todas" ? undefined : value)}
+            >
+              <SelectTrigger id="funcao_id">
+                <SelectValue placeholder="Selecione uma função" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas</SelectItem>
+                <SelectItem value="sem_funcao">Sem Função</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">

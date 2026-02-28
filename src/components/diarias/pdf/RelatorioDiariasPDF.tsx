@@ -62,8 +62,11 @@ function consolidarFuncionarios(
     // Classificar o dia
     const data = new Date(item.data + 'T12:00:00');
     const diaSemana = data.getDay();
-    const isFds = diaSemana === 0 || diaSemana === 6;
+    const isSabado = diaSemana === 6;
+    const isDomingo = diaSemana === 0;
     const isFeriado = feriadosSet.has(item.data);
+    // Sábado conta como dia útil para fins de valor (diária normal)
+    const isExclusivo = isFeriado || isDomingo;
     
     // Split valor por tipo_diaria
     const valor = item.valor_diaria_aplicada || 0;
@@ -81,16 +84,16 @@ function consolidarFuncionarios(
       existing.valor_diaria_integral += integralAdd;
       existing.valor_meia_diaria += meiaAdd;
       if (isFeriado) existing.dias_feriados += 1;
-      else if (isFds) existing.dias_fds += 1;
-      else existing.dias_uteis += 1;
+      else if (isDomingo) existing.dias_fds += 1;
+      else existing.dias_uteis += 1; // Seg-Sáb
     } else {
       funcionariosMap.set(item.funcionario_id, {
         funcionario_id: item.funcionario_id,
         nome_funcionario: item.nome_funcionario,
         nome_funcao: item.nome_funcao || '-',
         total_dias: 1,
-        dias_uteis: isFds || isFeriado ? 0 : 1,
-        dias_fds: isFds && !isFeriado ? 1 : 0,
+        dias_uteis: !isDomingo && !isFeriado ? 1 : 0, // Seg-Sáb
+        dias_fds: isDomingo && !isFeriado ? 1 : 0,
         dias_feriados: isFeriado ? 1 : 0,
         valor_total: valor,
         valor_refeicao: item.valor_refeicao_aplicado || 0,
@@ -124,12 +127,12 @@ function calcularTotaisDias(
       datasUnicas.add(item.data);
       const data = new Date(item.data + 'T12:00:00');
       const diaSemana = data.getDay();
-      const isFds = diaSemana === 0 || diaSemana === 6;
+      const isDomingo = diaSemana === 0;
       const isFeriado = feriadosSet.has(item.data);
       
       if (isFeriado) diasFeriados += 1;
-      else if (isFds) diasFds += 1;
-      else diasUteis += 1;
+      else if (isDomingo) diasFds += 1;
+      else diasUteis += 1; // Seg-Sáb contam como úteis
     }
   });
 

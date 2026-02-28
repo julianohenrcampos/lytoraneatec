@@ -7,15 +7,15 @@ import { EstimativaAviso } from './EstimativaAviso';
 
 interface SimulacaoValoresProps {
   simulacao: SimulacaoValoresType;
-  diasUteis: number;
-  diasFdsFeriados: number;
+  diasUteisESabados: number;
+  diasDomFeriados: number;
   diasParaRefeicao: number;
 }
 
 export function SimulacaoValores({ 
   simulacao, 
-  diasUteis, 
-  diasFdsFeriados,
+  diasUteisESabados, 
+  diasDomFeriados,
   diasParaRefeicao
 }: SimulacaoValoresProps) {
   return (
@@ -30,25 +30,27 @@ export function SimulacaoValores({
         <div className="grid grid-cols-3 gap-3 text-sm">
           <div className="space-y-1">
             <p className="text-muted-foreground">
-              Total dias úteis ({diasUteis}):
+              Úteis + Sáb ({diasUteisESabados}):
             </p>
             <p className="font-semibold">
-              {formatCurrency(simulacao.totalDiasUteis)}
+              {formatCurrency(simulacao.totalDiasUteisESabados)}
             </p>
+            <p className="text-xs text-muted-foreground">Diária Normal</p>
           </div>
           
           <div className="space-y-1">
             <p className="text-muted-foreground">
-              Total FDS/Feriados ({diasFdsFeriados}):
+              Dom/Feriados ({diasDomFeriados}):
             </p>
             <p className="font-semibold">
-              {formatCurrency(simulacao.totalFdsFeriados)}
+              {formatCurrency(simulacao.totalDomFeriados)}
             </p>
+            <p className="text-xs text-muted-foreground">Diária Exclusiva</p>
           </div>
 
           <div className="space-y-1">
             <p className="text-muted-foreground">
-              Total Refeições ({diasParaRefeicao}):
+              Refeições ({diasParaRefeicao}):
             </p>
             <p className="font-semibold">
               {formatCurrency(simulacao.totalRefeicoes)}

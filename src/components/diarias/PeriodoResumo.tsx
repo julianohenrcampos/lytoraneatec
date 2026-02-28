@@ -1,4 +1,4 @@
-import { Calendar, CalendarDays, PartyPopper, Briefcase, Calculator } from 'lucide-react';
+import { Calendar, CalendarDays, PartyPopper, Briefcase, Calculator, Sun } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { PeriodoAnalise } from '@/utils/diariasPeriodoUtils';
@@ -42,18 +42,24 @@ export function PeriodoResumo({
           </Badge>
         </div>
 
-        {/* Grid de contagem */}
-        <div className="grid grid-cols-3 gap-2">
+        {/* Grid de contagem - 4 colunas */}
+        <div className="grid grid-cols-4 gap-2">
           <div className="flex items-center gap-1.5 text-sm">
             <Briefcase className="h-3.5 w-3.5 text-green-600" />
-            <span className="text-muted-foreground">Dias úteis:</span>
+            <span className="text-muted-foreground">Seg-Sex:</span>
             <span className="font-medium">{analise.diasUteis}</span>
           </div>
           
           <div className="flex items-center gap-1.5 text-sm">
             <CalendarDays className="h-3.5 w-3.5 text-blue-600" />
-            <span className="text-muted-foreground">FDS:</span>
-            <span className="font-medium">{analise.finaisDeSemana}</span>
+            <span className="text-muted-foreground">Sábados:</span>
+            <span className="font-medium">{analise.sabados}</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 text-sm">
+            <Sun className="h-3.5 w-3.5 text-orange-600" />
+            <span className="text-muted-foreground">Domingos:</span>
+            <span className="font-medium">{analise.domingos}</span>
           </div>
           
           <div className="flex items-center gap-1.5 text-sm">
@@ -66,7 +72,7 @@ export function PeriodoResumo({
         {/* Toggle status */}
         <div className="flex items-center justify-between pt-2 border-t text-sm">
           <span className="text-muted-foreground">
-            Considerar FDS/Feriados:
+            Incluir Dom/Feriados no cálculo:
           </span>
           <Badge variant={consideraFdsFeriado ? 'default' : 'outline'}>
             {consideraFdsFeriado ? 'Sim' : 'Não'}

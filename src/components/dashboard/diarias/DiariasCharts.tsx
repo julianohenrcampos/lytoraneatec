@@ -130,15 +130,15 @@ export default function DiariasCharts({ filters }: DiariasChartsProps) {
       filtered.forEach(item => {
         const data = new Date(item.data + 'T12:00:00');
         const diaSemana = data.getDay();
-        const isFds = diaSemana === 0 || diaSemana === 6;
+        const isDomingo = diaSemana === 0;
         const isFeriado = feriadosSet.has(item.data);
 
         if (isFeriado) {
           diasFeriados++;
-        } else if (isFds) {
+        } else if (isDomingo) {
           diasFds++;
         } else {
-          diasUteis++;
+          diasUteis++; // Seg-Sáb contam como úteis
         }
       });
 

@@ -71,7 +71,7 @@ const FuncionarioTable: React.FC<FuncionarioTableProps> = ({
               <TableHead className="w-[60px]">Foto</TableHead>
               <TableHead>Nome</TableHead>
               <TableHead>CPF</TableHead>
-              <TableHead>Cargo</TableHead>
+              <TableHead>Função</TableHead>
               <TableHead>Departamento</TableHead>
               <TableHead>Data Admissão</TableHead>
               <TableHead className="text-right">Ações</TableHead>

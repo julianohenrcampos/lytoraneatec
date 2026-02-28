@@ -11,15 +11,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Combobox } from "@/components/ui/combobox";
 import { ProfileType } from "@/types/permissao";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,7 +35,6 @@ const AssignPermissionModal: React.FC<AssignPermissionModalProps> = ({
   isSubmitting,
 }) => {
   const [selectedFuncao, setSelectedFuncao] = React.useState<string>("");
-  const [showFuncionarioLink, setShowFuncionarioLink] = React.useState(false);
 
   // Buscar funções da tabela bd_funcoes_permissao
   const { data: funcoesDB } = useQuery({
@@ -65,7 +57,6 @@ const AssignPermissionModal: React.FC<AssignPermissionModalProps> = ({
 
   React.useEffect(() => {
     if (isOpen && profile) {
-      // Limpar seleção ao abrir o modal
       setSelectedFuncao("");
     }
   }, [isOpen, profile]);
@@ -80,17 +71,23 @@ const AssignPermissionModal: React.FC<AssignPermissionModalProps> = ({
 
   if (!profile) return null;
 
-  // Verificar se já tem permissões
   const currentFunctions = profile.funcoes || [];
-  const hasPermissions = currentFunctions.length > 0 && 
-    (currentFunctions.length > 1 || (currentFunctions.length === 1 && currentFunctions[0] !== 'user'));
-  
-  const isEditing = hasPermissions;
+  const currentRole = currentFunctions.find(f => f !== 'user' && f.trim() !== '') || null;
+  const isEditing = !!currentRole;
 
-  // Combinar funções do BD com funções padrão - calculado diretamente
+  // Combinar funções do BD com funções padrão
   const functionsFromDB = funcoesDB?.map(f => f.nome_funcao) || [];
-  const combined = [...new Set([...availableFunctions, ...functionsFromDB])];
-  const allAvailableFunctions = combined.sort();
+  const allAvailableFunctions = [...new Set([...availableFunctions, ...functionsFromDB])].sort();
+
+  // Montar opções para o Combobox
+  const comboboxOptions = allAvailableFunctions.map((funcao) => ({
+    value: funcao,
+    label: funcao,
+  }));
+
+  const selectedFuncaoDescricao = selectedFuncao 
+    ? funcoesDB?.find(f => f.nome_funcao === selectedFuncao)?.descricao 
+    : null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -102,8 +99,8 @@ const AssignPermissionModal: React.FC<AssignPermissionModalProps> = ({
           </DialogTitle>
           <DialogDescription>
             {isEditing
-              ? `Alterar as permissões para ${profile.nome_completo || profile.email}`
-              : `Atribuir permissões para ${profile.nome_completo || profile.email}`}
+              ? `Alterar a função de ${profile.nome_completo || profile.email}`
+              : `Atribuir função para ${profile.nome_completo || profile.email}`}
           </DialogDescription>
         </DialogHeader>
 
@@ -125,76 +122,48 @@ const AssignPermissionModal: React.FC<AssignPermissionModalProps> = ({
               <div>
                 <p className="font-medium">{profile.nome_completo || "Nome não informado"}</p>
                 <p className="text-sm text-muted-foreground">{profile.email}</p>
+                {currentRole && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Função atual: <span className="font-semibold">{currentRole}</span>
+                  </p>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Mostrar funções atuais se houver */}
-          {isEditing && (
-            <div className="space-y-2">
-              <Label>Funções Atuais</Label>
-              <div className="p-3 bg-muted rounded-lg">
-                <p className="text-sm">
-                  {currentFunctions.filter(f => f !== 'user').join(', ') || 'Nenhuma função especial'}
-                </p>
-              </div>
-            </div>
-          )}
-
           <div className="space-y-2">
-            <Label htmlFor="funcao">
-              {isEditing ? "Adicionar Nova Função *" : "Função *"}
-            </Label>
-            <Select value={selectedFuncao} onValueChange={setSelectedFuncao} required>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione uma função" />
-              </SelectTrigger>
-              <SelectContent>
-                {allAvailableFunctions.map((funcao) => {
-                  const isAlreadyAssigned = currentFunctions.includes(funcao);
-                  const funcaoFromDB = funcoesDB?.find(f => f.nome_funcao === funcao);
-                  
-                  return (
-                    <SelectItem 
-                      key={funcao} 
-                      value={funcao}
-                      disabled={isAlreadyAssigned}
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <div className="flex items-center gap-2">
-                          <span>{funcao}</span>
-                          {funcaoFromDB && (
-                            <Badge variant="outline" className="text-xs">
-                              Formal
-                            </Badge>
-                          )}
-                        </div>
-                        {isAlreadyAssigned && (
-                          <span className="text-xs text-muted-foreground ml-2">(já possui)</span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-            {selectedFuncao && funcoesDB?.find(f => f.nome_funcao === selectedFuncao)?.descricao && (
-              <p className="text-xs text-muted-foreground">
-                {funcoesDB.find(f => f.nome_funcao === selectedFuncao)?.descricao}
-              </p>
+            <Label>Função do Sistema *</Label>
+            <Combobox
+              options={comboboxOptions}
+              value={selectedFuncao}
+              onChange={setSelectedFuncao}
+              placeholder="Selecione uma função"
+              searchPlaceholder="Buscar função..."
+              emptyText="Nenhuma função encontrada"
+            />
+            {selectedFuncaoDescricao && (
+              <p className="text-xs text-muted-foreground">{selectedFuncaoDescricao}</p>
             )}
           </div>
 
-          {/* Alerta sobre vinculação de funcionário */}
+          {/* Alerta de substituição */}
+          {isEditing && selectedFuncao && selectedFuncao !== currentRole && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                A função <strong>{currentRole}</strong> será substituída por <strong>{selectedFuncao}</strong>.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Alerta sobre função administrativa */}
           {selectedFuncao && ['SuperAdm', 'Administrador', 'AdmRH', 'AdmLogistica', 'AdmEquipamentos'].includes(selectedFuncao) && (
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 ⚠️ <strong>Função administrativa selecionada</strong>
                 <br />
-                Por padrão, este usuário terá <strong>acesso global</strong> a todos os dados.
-                <br />
-                Para restringir ao departamento, vincule-o a um funcionário após a atribuição (botão "Vincular Funcionário" na lista de usuários).
+                Este usuário terá <strong>acesso global</strong> a todos os dados por padrão.
               </AlertDescription>
             </Alert>
           )}
@@ -205,8 +174,8 @@ const AssignPermissionModal: React.FC<AssignPermissionModalProps> = ({
             </Button>
             <Button type="submit" disabled={!selectedFuncao || isSubmitting}>
               {isSubmitting 
-                ? (isEditing ? "Adicionando..." : "Atribuindo...") 
-                : (isEditing ? "Adicionar" : "Atribuir")
+                ? (isEditing ? "Substituindo..." : "Atribuindo...") 
+                : (isEditing ? "Substituir" : "Atribuir")
               }
             </Button>
           </DialogFooter>

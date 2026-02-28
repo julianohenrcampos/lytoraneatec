@@ -418,16 +418,9 @@ export const usePermissao = () => {
       
       console.log('📝 Funcoes atuais:', profile?.funcoes);
       
-      // Adicionar nova função ao array funcoes (evitar duplicatas)
-      const funcoesAtuais = profile?.funcoes || [];
-      const novasFuncoes = [...funcoesAtuais];
-      
-      if (!novasFuncoes.includes(funcaoString)) {
-        novasFuncoes.push(funcaoString);
-        console.log('➕ Adicionando nova função:', funcaoString);
-      } else {
-        console.log('⚠️ Função já existe no array, não será duplicada');
-      }
+      // Substituir função: uma função por vez (nunca acumula)
+      const novasFuncoes = [funcaoString];
+      console.log('🔄 Substituindo função para:', funcaoString);
       
       // Atualizar apenas o campo funcoes[]
       const { error } = await supabase

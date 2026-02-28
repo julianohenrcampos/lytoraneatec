@@ -365,7 +365,7 @@ export function SolicitacaoFormModal({
     justificativa,
     considera_fds_feriado: consideraFdsFeriado,
     qtde_dias_uteis_estimado: analise.diasUteis,
-    qtde_fds_estimado: analise.finaisDeSemana,
+    qtde_fds_estimado: analise.sabados + analise.domingos,
     qtde_feriados_estimado: analise.feriados,
     valor_estimado_total: simulacao.totalEstimado,
     convocados_pre: convocadosPre.map(c => ({
@@ -665,9 +665,9 @@ export function SolicitacaoFormModal({
               {convocadosPre.length > 0 && (
                 <SimulacaoValores
                   simulacao={simulacao}
-                  diasUteis={analise.diasUteis}
-                  diasFdsFeriados={consideraFdsFeriado ? analise.finaisDeSemana + analise.feriados : 0}
-                  diasParaRefeicao={consideraFdsFeriado ? analise.diasUteis + analise.finaisDeSemana + analise.feriados : analise.diasUteis}
+                  diasUteisESabados={analise.diasUteis + analise.sabados}
+                  diasDomFeriados={consideraFdsFeriado ? analise.domingos + analise.feriados : 0}
+                  diasParaRefeicao={consideraFdsFeriado ? analise.diasUteis + analise.sabados + analise.domingos + analise.feriados : analise.diasUteis + analise.sabados}
                 />
               )}
 
@@ -710,14 +710,18 @@ export function SolicitacaoFormModal({
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-4 gap-4">
                     <div>
-                      <Label className="text-muted-foreground">Dias úteis</Label>
+                      <Label className="text-muted-foreground">Seg-Sex</Label>
                       <p className="font-medium">{analise.diasUteis}</p>
                     </div>
                     <div>
-                      <Label className="text-muted-foreground">FDS</Label>
-                      <p className="font-medium">{analise.finaisDeSemana}</p>
+                      <Label className="text-muted-foreground">Sábados</Label>
+                      <p className="font-medium">{analise.sabados}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Domingos</Label>
+                      <p className="font-medium">{analise.domingos}</p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground">Feriados</Label>
@@ -799,9 +803,9 @@ export function SolicitacaoFormModal({
               {/* Valor Total Estimado */}
               <SimulacaoValores
                 simulacao={simulacao}
-                diasUteis={analise.diasUteis}
-                diasFdsFeriados={consideraFdsFeriado ? analise.finaisDeSemana + analise.feriados : 0}
-                diasParaRefeicao={consideraFdsFeriado ? analise.diasUteis + analise.finaisDeSemana + analise.feriados : analise.diasUteis}
+                diasUteisESabados={analise.diasUteis + analise.sabados}
+                diasDomFeriados={consideraFdsFeriado ? analise.domingos + analise.feriados : 0}
+                diasParaRefeicao={consideraFdsFeriado ? analise.diasUteis + analise.sabados + analise.domingos + analise.feriados : analise.diasUteis + analise.sabados}
               />
               
               <EstimativaAviso />

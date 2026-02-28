@@ -106,7 +106,50 @@ async function generateNumeroSolicitacao(): Promise<string> {
   return data as string;
 }
 
+// Verificar duplicidade de funcionários em solicitações com período sobreposto
+async function verificarDuplicidadeSolicitacao(
+  dataInicio: string,
+  dataFim: string,
+  convocadosPre: any[],
+  solicitacaoAtualId?: string
+): Promise<void> {
+  const funcionarioIds = (convocadosPre || [])
+    .map((c: any) => c.funcionario_id)
+    .filter(Boolean);
+
+  if (funcionarioIds.length === 0) return;
+
+  const { data, error } = await supabase.rpc('verificar_duplicidade_solicitacao', {
+    p_data_inicio: dataInicio,
+    p_data_fim: dataFim,
+    p_funcionario_ids: funcionarioIds,
+    p_solicitacao_atual_id: solicitacaoAtualId || null,
+  });
+
+  if (error) {
+    console.error('Erro ao verificar duplicidade:', error);
+    return; // Não bloquear em caso de erro na verificação
+  }
+
+  const resultado = data as any;
+  if (resultado?.duplicada) {
+    const nomes = Array.isArray(resultado.funcionarios_conflito)
+      ? resultado.funcionarios_conflito.join(', ')
+      : '';
+    throw new Error(
+      `Funcionário(s) ${nomes} já está(ão) na solicitação Nº ${resultado.numero_solicitacao} no mesmo período. Não é possível duplicar.`
+    );
+  }
+}
+
 export async function createSolicitacao(formData: SolicitacaoFormData): Promise<DiariaSolicitacao> {
+  // Verificar duplicidade antes de criar
+  await verificarDuplicidadeSolicitacao(
+    formData.data_inicio,
+    formData.data_fim,
+    formData.convocados_pre || []
+  );
+
   // Gerar número de solicitação
   const numero_solicitacao = await generateNumeroSolicitacao();
   
@@ -212,6 +255,17 @@ export async function deleteSolicitacao(id: string): Promise<void> {
 // =====================================================
 
 export async function enviarParaAutorizacao(id: string): Promise<DiariaSolicitacao> {
+  // Buscar solicitação para validar duplicidade antes de enviar
+  const solicitacao = await getSolicitacaoById(id);
+  if (solicitacao) {
+    await verificarDuplicidadeSolicitacao(
+      solicitacao.data_inicio,
+      solicitacao.data_fim,
+      Array.isArray(solicitacao.convocados_pre) ? solicitacao.convocados_pre as any[] : [],
+      id
+    );
+  }
+
   const { data, error } = await supabase
     .from('bd_diaria_solicitacoes')
     .update({

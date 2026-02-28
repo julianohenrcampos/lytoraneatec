@@ -18,9 +18,13 @@ const applyFilters = (query: any, filters: FuncionarioFilter) => {
   }
 
   if (filters.funcao_id) {
-    query = query.not('funcao_id', 'is', null);
-    if (filters.funcao_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-      query = query.eq("funcao_id", filters.funcao_id);
+    if (filters.funcao_id === "sem_funcao") {
+      query = query.is("funcao_id", null);
+    } else {
+      query = query.not('funcao_id', 'is', null);
+      if (filters.funcao_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+        query = query.eq("funcao_id", filters.funcao_id);
+      }
     }
   }
 

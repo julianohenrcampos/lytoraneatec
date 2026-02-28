@@ -4086,6 +4086,15 @@ export type Database = {
         Args: { p_equipe_id: string; p_user_id: string }
         Returns: boolean
       }
+      verificar_duplicidade_solicitacao: {
+        Args: {
+          p_data_fim: string
+          p_data_inicio: string
+          p_funcionario_ids: string[]
+          p_solicitacao_atual_id?: string
+        }
+        Returns: Json
+      }
       verificar_etapa_disponivel: {
         Args: { p_checklist_id?: string; p_etapa: string; p_obra_id: string }
         Returns: boolean
