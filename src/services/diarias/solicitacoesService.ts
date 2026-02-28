@@ -96,35 +96,14 @@ export async function getSolicitacaoById(id: string): Promise<DiariaSolicitacao 
   return data as unknown as DiariaSolicitacao;
 }
 
-// Função para gerar número de solicitação
+// Função para gerar número de solicitação via RPC (bypass RLS)
 async function generateNumeroSolicitacao(): Promise<string> {
-  const year = new Date().getFullYear();
-  
-  // Buscar o maior numero_solicitacao do ano atual
-  const { data, error } = await supabase
-    .from('bd_diaria_solicitacoes')
-    .select('numero_solicitacao')
-    .like('numero_solicitacao', `${year}-%`)
-    .order('numero_solicitacao', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-    
+  const { data, error } = await supabase.rpc('generate_numero_solicitacao');
   if (error) {
-    console.error('Erro ao buscar último número:', error);
+    console.error('Erro ao gerar número de solicitação:', error);
     throw error;
   }
-  
-  if (!data) {
-    // Primeira solicitação do ano
-    return `${year}-001`;
-  }
-  
-  // Extrair parte sequencial e incrementar
-  const lastNumber = data.numero_solicitacao;
-  const sequentialPart = parseInt(lastNumber.split('-')[1], 10);
-  const newSequential = sequentialPart + 1;
-  
-  return `${year}-${newSequential.toString().padStart(3, '0')}`;
+  return data as string;
 }
 
 export async function createSolicitacao(formData: SolicitacaoFormData): Promise<DiariaSolicitacao> {

@@ -3968,6 +3968,7 @@ export type Database = {
         }
         Returns: string
       }
+      generate_numero_solicitacao: { Args: never; Returns: string }
       get_etapas_utilizadas: {
         Args: { p_checklist_id?: string; p_obra_id: string }
         Returns: string[]
