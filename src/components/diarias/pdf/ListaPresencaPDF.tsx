@@ -1,5 +1,5 @@
 import React from 'react';
-import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -20,10 +20,35 @@ export interface ListaPresencaPDFProps {
 
 const styles = StyleSheet.create({
   page: {
-    padding: 40,
+    paddingTop: 60,
+    paddingBottom: 40,
+    paddingHorizontal: 40,
     fontSize: 10,
     fontFamily: 'Helvetica',
   },
+  // Mini-header fixo (repete em todas as páginas)
+  miniHeader: {
+    position: 'absolute',
+    top: 15,
+    left: 40,
+    right: 40,
+    paddingBottom: 4,
+    marginBottom: 6,
+  },
+  miniHeaderLine1: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  miniHeaderText: {
+    fontSize: 9,
+    color: '#444',
+  },
+  miniHeaderLine2: {
+    fontSize: 9,
+    color: '#444',
+  },
+  // Cabeçalho completo (só 1ª página)
   header: {
     marginBottom: 20,
     textAlign: 'center',
@@ -50,11 +75,10 @@ const styles = StyleSheet.create({
   },
   tableRow: {
     flexDirection: 'row',
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderBottomWidth: 1,
+    borderWidth: 1,
     borderColor: '#94a3b8',
     minHeight: 28,
+    marginTop: -1,
   },
   tableRowAlt: {
     backgroundColor: '#f8fafc',
@@ -143,8 +167,18 @@ export const ListaPresencaPDFDocument: React.FC<ListaPresencaPDFProps> = ({
 
   return (
     <Document>
-      <Page size="A4" style={styles.page}>
-        {/* Cabeçalho */}
+      <Page size="A4" style={styles.page} wrap>
+        {/* Mini-header fixo - repete a partir da página 2 */}
+        <View style={styles.miniHeader} fixed>
+          <View style={styles.miniHeaderLine1}>
+            <Text style={styles.miniHeaderText} render={({ pageNumber }) => pageNumber === 1 ? '' : `Solicitação Nº ${numeroSolicitacao}`} />
+            <Text style={styles.miniHeaderText} render={({ pageNumber }) => pageNumber === 1 ? '' : `Data: ${dataFormatada}`} />
+          </View>
+          <Text style={styles.miniHeaderLine2} render={({ pageNumber }) => pageNumber === 1 ? '' : `Centro de Custo: ${centroCusto}`} />
+          <View render={({ pageNumber }) => pageNumber === 1 ? null : undefined} style={{ borderBottomWidth: 0.5, borderBottomColor: '#cbd5e1', marginTop: 2 }} fixed />
+        </View>
+
+        {/* Cabeçalho completo - apenas 1ª página */}
         <View style={styles.header}>
           <Text style={styles.title}>LISTA DE PRESENÇA</Text>
           <Text style={styles.subtitle}>Solicitação Nº {numeroSolicitacao}</Text>
@@ -154,8 +188,8 @@ export const ListaPresencaPDFDocument: React.FC<ListaPresencaPDFProps> = ({
 
         {/* Tabela */}
         <View style={styles.table}>
-          {/* Header */}
-          <View style={styles.tableHeader}>
+          {/* Header da tabela - indivisível */}
+          <View style={styles.tableHeader} wrap={false}>
             <View style={styles.cellNome}><Text style={styles.headerText}>Nome Completo</Text></View>
             <View style={styles.cellMatricula}><Text style={styles.headerText}>Matrícula</Text></View>
             <View style={styles.cellCpf}><Text style={styles.headerText}>CPF</Text></View>
@@ -164,9 +198,9 @@ export const ListaPresencaPDFDocument: React.FC<ListaPresencaPDFProps> = ({
             <View style={styles.cellAssinatura}><Text style={styles.headerText}>Assinatura</Text></View>
           </View>
 
-          {/* Rows */}
+          {/* Rows - cada linha indivisível */}
           {funcionarios.map((func, i) => (
-            <View key={i} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
+            <View key={i} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]} wrap={false}>
               <View style={styles.cellNome}><Text style={styles.cellText}>{func.nome_completo}</Text></View>
               <View style={styles.cellMatricula}><Text style={styles.cellText}>{func.matricula || '-'}</Text></View>
               <View style={styles.cellCpf}><Text style={styles.cellText}>{func.cpf || '-'}</Text></View>
@@ -177,8 +211,8 @@ export const ListaPresencaPDFDocument: React.FC<ListaPresencaPDFProps> = ({
           ))}
         </View>
 
-        {/* Rodapé */}
-        <View style={styles.footer}>
+        {/* Rodapé - indivisível */}
+        <View style={styles.footer} wrap={false}>
           <View style={styles.signatureLine}>
             <Text style={{ fontSize: 9 }}>Assinatura do Responsável</Text>
           </View>
