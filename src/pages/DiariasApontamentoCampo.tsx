@@ -258,7 +258,7 @@ export default function DiariasApontamentoCampo() {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base flex items-center gap-2">
                       <Building2 className="h-4 w-4 text-primary" />
-                      <span>{centroCusto?.codigo_centro_custo} - {centroCusto?.nome_centro_custo}</span>
+                      <span title={centroCusto?.nome_centro_custo}>{centroCusto?.codigo_centro_custo}</span>
                       {solicitacao?.numero_solicitacao && (
                         <Badge variant="secondary" className="font-mono text-xs ml-auto">
                           {solicitacao.numero_solicitacao}
@@ -269,7 +269,7 @@ export default function DiariasApontamentoCampo() {
 
                   <CardContent className="space-y-4">
                     {/* Linha de informações */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
                       <div className="flex items-center gap-2">
                         <User className="h-4 w-4 text-muted-foreground" />
                         <div>
@@ -324,7 +324,7 @@ export default function DiariasApontamentoCampo() {
                         {isSuperAdmin && (
                           <div className="flex items-center gap-2">
                             {(apontamento as any).edicao_liberada && (
-                              <Badge className="text-[10px] bg-yellow-500 text-white">Edição Liberada</Badge>
+                              <Badge className="text-[10px] bg-yellow-500 text-white">Liberado</Badge>
                             )}
                             <div className="flex items-center gap-1.5">
                               <Switch
@@ -344,7 +344,7 @@ export default function DiariasApontamentoCampo() {
                           {canApontar(apontamento.responsavel_campo_id, apontamento.bd_diaria_solicitacoes?.criado_por) ? (
                             <>
                               <ClipboardCheck className="h-4 w-4 mr-1" />
-                              Apontamento de Diária
+                              Apontamento
                             </>
                           ) : (
                             <>
