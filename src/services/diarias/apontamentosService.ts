@@ -197,6 +197,22 @@ export async function cancelarApontamento(id: string, observacoes?: string) {
   return data;
 }
 
+// Toggle edição liberada (SuperAdmin)
+export async function toggleEdicaoLiberada(id: string, liberada: boolean) {
+  const { data, error } = await supabase
+    .from('bd_diaria_apontamentos')
+    .update({
+      edicao_liberada: liberada,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', id)
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data;
+}
+
 // Atualizar observações
 export async function updateApontamentoObservacoes(id: string, observacoes: string) {
   const { data, error } = await supabase

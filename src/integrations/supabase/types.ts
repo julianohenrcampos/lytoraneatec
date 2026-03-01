@@ -199,6 +199,7 @@ export type Database = {
           horario_agendamento: string
           id: string
           local_atendimento_id: string
+          modificado_por: string | null
           motivo_mudanca_risco: string | null
           nome_colaborador: string
           observacoes: string | null
@@ -244,6 +245,7 @@ export type Database = {
           horario_agendamento: string
           id?: string
           local_atendimento_id: string
+          modificado_por?: string | null
           motivo_mudanca_risco?: string | null
           nome_colaborador: string
           observacoes?: string | null
@@ -289,6 +291,7 @@ export type Database = {
           horario_agendamento?: string
           id?: string
           local_atendimento_id?: string
+          modificado_por?: string | null
           motivo_mudanca_risco?: string | null
           nome_colaborador?: string
           observacoes?: string | null
@@ -378,6 +381,7 @@ export type Database = {
           hora_inicio: string | null
           id: string
           lista_entrega_id: string | null
+          modificado_por: string | null
           nome_colaborador: string
           presente: boolean | null
           registrado_por: string | null
@@ -392,6 +396,7 @@ export type Database = {
           hora_inicio?: string | null
           id?: string
           lista_entrega_id?: string | null
+          modificado_por?: string | null
           nome_colaborador: string
           presente?: boolean | null
           registrado_por?: string | null
@@ -406,6 +411,7 @@ export type Database = {
           hora_inicio?: string | null
           id?: string
           lista_entrega_id?: string | null
+          modificado_por?: string | null
           nome_colaborador?: string
           presente?: boolean | null
           registrado_por?: string | null
@@ -510,6 +516,42 @@ export type Database = {
         }
         Relationships: []
       }
+      bd_auditoria_log: {
+        Row: {
+          campos_alterados: string[] | null
+          created_at: string
+          dados_anteriores: Json | null
+          dados_novos: Json | null
+          id: string
+          operacao: string
+          registro_id: string | null
+          tabela: string
+          usuario_id: string | null
+        }
+        Insert: {
+          campos_alterados?: string[] | null
+          created_at?: string
+          dados_anteriores?: Json | null
+          dados_novos?: Json | null
+          id?: string
+          operacao: string
+          registro_id?: string | null
+          tabela: string
+          usuario_id?: string | null
+        }
+        Update: {
+          campos_alterados?: string[] | null
+          created_at?: string
+          dados_anteriores?: Json | null
+          dados_novos?: Json | null
+          id?: string
+          operacao?: string
+          registro_id?: string | null
+          tabela?: string
+          usuario_id?: string | null
+        }
+        Relationships: []
+      }
       bd_auditoria_sync_equipe_funcionario: {
         Row: {
           data_sync: string | null
@@ -580,6 +622,7 @@ export type Database = {
           data_avaliacao: string
           equipe_id: string
           id: string
+          modificado_por: string | null
           observacoes: string | null
           organizacao: number | null
           pontualidade: number | null
@@ -596,6 +639,7 @@ export type Database = {
           data_avaliacao?: string
           equipe_id: string
           id?: string
+          modificado_por?: string | null
           observacoes?: string | null
           organizacao?: number | null
           pontualidade?: number | null
@@ -612,6 +656,7 @@ export type Database = {
           data_avaliacao?: string
           equipe_id?: string
           id?: string
+          modificado_por?: string | null
           observacoes?: string | null
           organizacao?: number | null
           pontualidade?: number | null
@@ -650,6 +695,7 @@ export type Database = {
           imagem_url: string | null
           marca: string | null
           modelo: string | null
+          modificado_por: string | null
           motor: string | null
           numero_frota: string | null
           observacoes: string | null
@@ -673,6 +719,7 @@ export type Database = {
           imagem_url?: string | null
           marca?: string | null
           modelo?: string | null
+          modificado_por?: string | null
           motor?: string | null
           numero_frota?: string | null
           observacoes?: string | null
@@ -696,6 +743,7 @@ export type Database = {
           imagem_url?: string | null
           marca?: string | null
           modelo?: string | null
+          modificado_por?: string | null
           motor?: string | null
           numero_frota?: string | null
           observacoes?: string | null
@@ -794,6 +842,7 @@ export type Database = {
           codigo_centro_custo: string
           created_at: string | null
           id: string
+          modificado_por: string | null
           nome_centro_custo: string
           situacao: string | null
           telefone: string | null
@@ -805,6 +854,7 @@ export type Database = {
           codigo_centro_custo: string
           created_at?: string | null
           id?: string
+          modificado_por?: string | null
           nome_centro_custo: string
           situacao?: string | null
           telefone?: string | null
@@ -816,6 +866,7 @@ export type Database = {
           codigo_centro_custo?: string
           created_at?: string | null
           id?: string
+          modificado_por?: string | null
           nome_centro_custo?: string
           situacao?: string | null
           telefone?: string | null
@@ -841,6 +892,7 @@ export type Database = {
           fotos_avarias: string[] | null
           hora_solicitacao: string
           id: string
+          modificado_por: string | null
           numero_chamado: string
           prioridade: string | null
           solicitante_id: string | null
@@ -857,6 +909,7 @@ export type Database = {
           fotos_avarias?: string[] | null
           hora_solicitacao?: string
           id?: string
+          modificado_por?: string | null
           numero_chamado: string
           prioridade?: string | null
           solicitante_id?: string | null
@@ -873,6 +926,7 @@ export type Database = {
           fotos_avarias?: string[] | null
           hora_solicitacao?: string
           id?: string
+          modificado_por?: string | null
           numero_chamado?: string
           prioridade?: string | null
           solicitante_id?: string | null
@@ -923,6 +977,7 @@ export type Database = {
           created_at: string | null
           empresa_id: string
           id: string
+          modificado_por: string | null
           nome_departamento: string | null
           updated_at: string | null
         }
@@ -930,6 +985,7 @@ export type Database = {
           created_at?: string | null
           empresa_id: string
           id?: string
+          modificado_por?: string | null
           nome_departamento?: string | null
           updated_at?: string | null
         }
@@ -937,6 +993,7 @@ export type Database = {
           created_at?: string | null
           empresa_id?: string
           id?: string
+          modificado_por?: string | null
           nome_departamento?: string | null
           updated_at?: string | null
         }
@@ -956,7 +1013,9 @@ export type Database = {
           criado_por: string | null
           data_abertura: string | null
           data_finalizacao: string | null
+          edicao_liberada: boolean | null
           id: string
+          modificado_por: string | null
           observacoes: string | null
           responsavel_campo_id: string
           solicitacao_id: string
@@ -968,7 +1027,9 @@ export type Database = {
           criado_por?: string | null
           data_abertura?: string | null
           data_finalizacao?: string | null
+          edicao_liberada?: boolean | null
           id?: string
+          modificado_por?: string | null
           observacoes?: string | null
           responsavel_campo_id: string
           solicitacao_id: string
@@ -980,7 +1041,9 @@ export type Database = {
           criado_por?: string | null
           data_abertura?: string | null
           data_finalizacao?: string | null
+          edicao_liberada?: boolean | null
           id?: string
+          modificado_por?: string | null
           observacoes?: string | null
           responsavel_campo_id?: string
           solicitacao_id?: string
@@ -1044,6 +1107,7 @@ export type Database = {
           data: string
           enviado_em: string | null
           id: string
+          modificado_por: string | null
           observacao: string | null
           solicitacao_id: string
           status: string
@@ -1058,6 +1122,7 @@ export type Database = {
           data: string
           enviado_em?: string | null
           id?: string
+          modificado_por?: string | null
           observacao?: string | null
           solicitacao_id: string
           status?: string
@@ -1072,6 +1137,7 @@ export type Database = {
           data?: string
           enviado_em?: string | null
           id?: string
+          modificado_por?: string | null
           observacao?: string | null
           solicitacao_id?: string
           status?: string
@@ -1194,6 +1260,7 @@ export type Database = {
           id: string
           intervalo_fim: string | null
           intervalo_inicio: string | null
+          modificado_por: string | null
           observacoes: string | null
           presente: boolean | null
           recebe_refeicao: boolean | null
@@ -1215,6 +1282,7 @@ export type Database = {
           id?: string
           intervalo_fim?: string | null
           intervalo_inicio?: string | null
+          modificado_por?: string | null
           observacoes?: string | null
           presente?: boolean | null
           recebe_refeicao?: boolean | null
@@ -1236,6 +1304,7 @@ export type Database = {
           id?: string
           intervalo_fim?: string | null
           intervalo_inicio?: string | null
+          modificado_por?: string | null
           observacoes?: string | null
           presente?: boolean | null
           recebe_refeicao?: boolean | null
@@ -1283,6 +1352,7 @@ export type Database = {
           engenheiro_solicitante_id: string | null
           id: string
           justificativa: string
+          modificado_por: string | null
           numero_solicitacao: string
           observacao_gerente: string | null
           qtde_dias_uteis_estimado: number | null
@@ -1306,6 +1376,7 @@ export type Database = {
           engenheiro_solicitante_id?: string | null
           id?: string
           justificativa: string
+          modificado_por?: string | null
           numero_solicitacao: string
           observacao_gerente?: string | null
           qtde_dias_uteis_estimado?: number | null
@@ -1329,6 +1400,7 @@ export type Database = {
           engenheiro_solicitante_id?: string | null
           id?: string
           justificativa?: string
+          modificado_por?: string | null
           numero_solicitacao?: string
           observacao_gerente?: string | null
           qtde_dias_uteis_estimado?: number | null
@@ -1382,6 +1454,7 @@ export type Database = {
           cnpj: string
           created_at: string | null
           id: string
+          modificado_por: string | null
           nome_empresa: string
           situacao: string | null
           telefone: string | null
@@ -1391,6 +1464,7 @@ export type Database = {
           cnpj: string
           created_at?: string | null
           id?: string
+          modificado_por?: string | null
           nome_empresa: string
           situacao?: string | null
           telefone?: string | null
@@ -1400,6 +1474,7 @@ export type Database = {
           cnpj?: string
           created_at?: string | null
           id?: string
+          modificado_por?: string | null
           nome_empresa?: string
           situacao?: string | null
           telefone?: string | null
@@ -1414,6 +1489,7 @@ export type Database = {
           encarregado_id: string | null
           equipe: string[] | null
           id: string
+          modificado_por: string | null
           nome_equipe: string
           updated_at: string | null
         }
@@ -1423,6 +1499,7 @@ export type Database = {
           encarregado_id?: string | null
           equipe?: string[] | null
           id?: string
+          modificado_por?: string | null
           nome_equipe: string
           updated_at?: string | null
         }
@@ -1432,6 +1509,7 @@ export type Database = {
           encarregado_id?: string | null
           equipe?: string[] | null
           id?: string
+          modificado_por?: string | null
           nome_equipe?: string
           updated_at?: string | null
         }
@@ -1471,6 +1549,7 @@ export type Database = {
           created_at: string | null
           data: string
           id: string
+          modificado_por: string | null
           municipio: string | null
           nome: string
           tipo: string | null
@@ -1481,6 +1560,7 @@ export type Database = {
           created_at?: string | null
           data: string
           id?: string
+          modificado_por?: string | null
           municipio?: string | null
           nome: string
           tipo?: string | null
@@ -1491,6 +1571,7 @@ export type Database = {
           created_at?: string | null
           data?: string
           id?: string
+          modificado_por?: string | null
           municipio?: string | null
           nome?: string
           tipo?: string | null
@@ -1528,6 +1609,7 @@ export type Database = {
           imagem: string | null
           insalubridade: number | null
           matricula: string | null
+          modificado_por: string | null
           nome_completo: string
           observacoes: string | null
           periculosidade: number | null
@@ -1564,6 +1646,7 @@ export type Database = {
           imagem?: string | null
           insalubridade?: number | null
           matricula?: string | null
+          modificado_por?: string | null
           nome_completo: string
           observacoes?: string | null
           periculosidade?: number | null
@@ -1600,6 +1683,7 @@ export type Database = {
           imagem?: string | null
           insalubridade?: number | null
           matricula?: string | null
+          modificado_por?: string | null
           nome_completo?: string
           observacoes?: string | null
           periculosidade?: number | null
@@ -1665,6 +1749,7 @@ export type Database = {
           created_at: string | null
           descricao: string | null
           id: string
+          modificado_por: string | null
           nome_funcao: string
           situacao: string | null
           updated_at: string | null
@@ -1676,6 +1761,7 @@ export type Database = {
           created_at?: string | null
           descricao?: string | null
           id?: string
+          modificado_por?: string | null
           nome_funcao: string
           situacao?: string | null
           updated_at?: string | null
@@ -1687,6 +1773,7 @@ export type Database = {
           created_at?: string | null
           descricao?: string | null
           id?: string
+          modificado_por?: string | null
           nome_funcao?: string
           situacao?: string | null
           updated_at?: string | null
@@ -1701,6 +1788,7 @@ export type Database = {
           created_at: string | null
           descricao: string | null
           id: string
+          modificado_por: string | null
           nome_funcao: string
           permissoes: string[] | null
           updated_at: string | null
@@ -1709,6 +1797,7 @@ export type Database = {
           created_at?: string | null
           descricao?: string | null
           id?: string
+          modificado_por?: string | null
           nome_funcao: string
           permissoes?: string[] | null
           updated_at?: string | null
@@ -1717,6 +1806,7 @@ export type Database = {
           created_at?: string | null
           descricao?: string | null
           id?: string
+          modificado_por?: string | null
           nome_funcao?: string
           permissoes?: string[] | null
           updated_at?: string | null
@@ -1732,6 +1822,7 @@ export type Database = {
           equipe_id: string
           id: string
           logradouro: string
+          modificado_por: string | null
           programacao_entrega_id: string | null
           programacao_id: string | null
           quantidade_massa: number
@@ -1749,6 +1840,7 @@ export type Database = {
           equipe_id: string
           id?: string
           logradouro: string
+          modificado_por?: string | null
           programacao_entrega_id?: string | null
           programacao_id?: string | null
           quantidade_massa: number
@@ -1766,6 +1858,7 @@ export type Database = {
           equipe_id?: string
           id?: string
           logradouro?: string
+          modificado_por?: string | null
           programacao_entrega_id?: string | null
           programacao_id?: string | null
           quantidade_massa?: number
@@ -1936,6 +2029,7 @@ export type Database = {
           horimetro_odometro_inicial: string | null
           id: string
           mecanico_id: string | null
+          modificado_por: string | null
           numero_os: string
           obra_patio: string | null
           setor_executante: string | null
@@ -1965,6 +2059,7 @@ export type Database = {
           horimetro_odometro_inicial?: string | null
           id?: string
           mecanico_id?: string | null
+          modificado_por?: string | null
           numero_os: string
           obra_patio?: string | null
           setor_executante?: string | null
@@ -1994,6 +2089,7 @@ export type Database = {
           horimetro_odometro_inicial?: string | null
           id?: string
           mecanico_id?: string | null
+          modificado_por?: string | null
           numero_os?: string
           obra_patio?: string | null
           setor_executante?: string | null
@@ -2159,6 +2255,7 @@ export type Database = {
           created_at: string | null
           descricao: string | null
           id: string
+          modificado_por: string | null
           nome_permissao: string
           rota: string | null
           updated_at: string | null
@@ -2167,6 +2264,7 @@ export type Database = {
           created_at?: string | null
           descricao?: string | null
           id?: string
+          modificado_por?: string | null
           nome_permissao: string
           rota?: string | null
           updated_at?: string | null
@@ -2175,6 +2273,7 @@ export type Database = {
           created_at?: string | null
           descricao?: string | null
           id?: string
+          modificado_por?: string | null
           nome_permissao?: string
           rota?: string | null
           updated_at?: string | null
@@ -2534,6 +2633,7 @@ export type Database = {
           data_entrega: string | null
           data_programacao: string
           id: string
+          modificado_por: string | null
           observacoes: string | null
           requisicao_id: string | null
           status: string | null
@@ -2545,6 +2645,7 @@ export type Database = {
           data_entrega?: string | null
           data_programacao?: string
           id?: string
+          modificado_por?: string | null
           observacoes?: string | null
           requisicao_id?: string | null
           status?: string | null
@@ -2556,6 +2657,7 @@ export type Database = {
           data_entrega?: string | null
           data_programacao?: string
           id?: string
+          modificado_por?: string | null
           observacoes?: string | null
           requisicao_id?: string | null
           status?: string | null
@@ -2615,6 +2717,7 @@ export type Database = {
           lista_entrega_id: string
           logradouro_id: string | null
           logradouro_nome: string
+          modificado_por: string | null
           numero_passadas: number | null
           observacoes_aplicacao: string | null
           registro_aplicacao_id: string
@@ -2646,6 +2749,7 @@ export type Database = {
           lista_entrega_id: string
           logradouro_id?: string | null
           logradouro_nome: string
+          modificado_por?: string | null
           numero_passadas?: number | null
           observacoes_aplicacao?: string | null
           registro_aplicacao_id: string
@@ -2677,6 +2781,7 @@ export type Database = {
           lista_entrega_id?: string
           logradouro_id?: string | null
           logradouro_nome?: string
+          modificado_por?: string | null
           numero_passadas?: number | null
           observacoes_aplicacao?: string | null
           registro_aplicacao_id?: string
@@ -2736,6 +2841,7 @@ export type Database = {
           lista_entrega_id: string | null
           logradouro_aplicado: string | null
           logradouro_id: string | null
+          modificado_por: string | null
           observacoes_gerais: string | null
           percentual_aplicado: number | null
           registro_carga_id: string | null
@@ -2770,6 +2876,7 @@ export type Database = {
           lista_entrega_id?: string | null
           logradouro_aplicado?: string | null
           logradouro_id?: string | null
+          modificado_por?: string | null
           observacoes_gerais?: string | null
           percentual_aplicado?: number | null
           registro_carga_id?: string | null
@@ -2804,6 +2911,7 @@ export type Database = {
           lista_entrega_id?: string | null
           logradouro_aplicado?: string | null
           logradouro_id?: string | null
+          modificado_por?: string | null
           observacoes_gerais?: string | null
           percentual_aplicado?: number | null
           registro_carga_id?: string | null
@@ -2850,6 +2958,7 @@ export type Database = {
           horimetro_final: number | null
           horimetro_inicial: number | null
           id: string
+          modificado_por: string | null
           operador_id: string | null
           situacao: string | null
           updated_at: string | null
@@ -2866,6 +2975,7 @@ export type Database = {
           horimetro_final?: number | null
           horimetro_inicial?: number | null
           id?: string
+          modificado_por?: string | null
           operador_id?: string | null
           situacao?: string | null
           updated_at?: string | null
@@ -2882,6 +2992,7 @@ export type Database = {
           horimetro_final?: number | null
           horimetro_inicial?: number | null
           id?: string
+          modificado_por?: string | null
           operador_id?: string | null
           situacao?: string | null
           updated_at?: string | null
@@ -2941,6 +3052,7 @@ export type Database = {
           inspecao_aprovada: boolean | null
           limpeza_veiculo: string | null
           luzes_funcionamento: string | null
+          modificado_por: string | null
           nivel_agua: string | null
           nivel_combustivel: string | null
           nivel_oleo: string | null
@@ -2964,6 +3076,7 @@ export type Database = {
           inspecao_aprovada?: boolean | null
           limpeza_veiculo?: string | null
           luzes_funcionamento?: string | null
+          modificado_por?: string | null
           nivel_agua?: string | null
           nivel_combustivel?: string | null
           nivel_oleo?: string | null
@@ -2987,6 +3100,7 @@ export type Database = {
           inspecao_aprovada?: boolean | null
           limpeza_veiculo?: string | null
           luzes_funcionamento?: string | null
+          modificado_por?: string | null
           nivel_agua?: string | null
           nivel_combustivel?: string | null
           nivel_oleo?: string | null
@@ -3005,6 +3119,7 @@ export type Database = {
           imagem_ticket_retorno: string | null
           imagem_ticket_saida: string
           lista_entrega_id: string
+          modificado_por: string | null
           programacao_id: string
           status_registro: string | null
           temperatura_saida: number | null
@@ -3021,6 +3136,7 @@ export type Database = {
           imagem_ticket_retorno?: string | null
           imagem_ticket_saida: string
           lista_entrega_id: string
+          modificado_por?: string | null
           programacao_id: string
           status_registro?: string | null
           temperatura_saida?: number | null
@@ -3037,6 +3153,7 @@ export type Database = {
           imagem_ticket_retorno?: string | null
           imagem_ticket_saida?: string
           lista_entrega_id?: string
+          modificado_por?: string | null
           programacao_id?: string
           status_registro?: string | null
           temperatura_saida?: number | null
@@ -3103,6 +3220,7 @@ export type Database = {
           engenheiro_obra: string
           gerente_regional: string
           id: string
+          modificado_por: string | null
           numero_relatorio: string | null
           obra_id: string
           prazo_correcao: string | null
@@ -3125,6 +3243,7 @@ export type Database = {
           engenheiro_obra: string
           gerente_regional: string
           id?: string
+          modificado_por?: string | null
           numero_relatorio?: string | null
           obra_id: string
           prazo_correcao?: string | null
@@ -3147,6 +3266,7 @@ export type Database = {
           engenheiro_obra?: string
           gerente_regional?: string
           id?: string
+          modificado_por?: string | null
           numero_relatorio?: string | null
           obra_id?: string
           prazo_correcao?: string | null
@@ -3197,6 +3317,7 @@ export type Database = {
           engenheiro_id: string | null
           gerencia: string | null
           id: string
+          modificado_por: string | null
           numero: string
           updated_at: string | null
         }
@@ -3208,6 +3329,7 @@ export type Database = {
           engenheiro_id?: string | null
           gerencia?: string | null
           id?: string
+          modificado_por?: string | null
           numero: string
           updated_at?: string | null
         }
@@ -3219,6 +3341,7 @@ export type Database = {
           engenheiro_id?: string | null
           gerencia?: string | null
           id?: string
+          modificado_por?: string | null
           numero?: string
           updated_at?: string | null
         }
@@ -3263,6 +3386,7 @@ export type Database = {
           id: string
           largura: number
           logradouro: string
+          modificado_por: string | null
           pintura_ligacao: string
           requisicao_id: string | null
           traco: string
@@ -3278,6 +3402,7 @@ export type Database = {
           id?: string
           largura: number
           logradouro: string
+          modificado_por?: string | null
           pintura_ligacao: string
           requisicao_id?: string | null
           traco: string
@@ -3293,6 +3418,7 @@ export type Database = {
           id?: string
           largura?: number
           logradouro?: string
+          modificado_por?: string | null
           pintura_ligacao?: string
           requisicao_id?: string | null
           traco?: string
@@ -3376,6 +3502,7 @@ export type Database = {
           etapa_vistoria: string
           gerente_regional: string
           id: string
+          modificado_por: string | null
           nota_objetivo: number
           nota_real: number | null
           obra_id: string
@@ -3397,6 +3524,7 @@ export type Database = {
           etapa_vistoria?: string
           gerente_regional: string
           id?: string
+          modificado_por?: string | null
           nota_objetivo?: number
           nota_real?: number | null
           obra_id: string
@@ -3418,6 +3546,7 @@ export type Database = {
           etapa_vistoria?: string
           gerente_regional?: string
           id?: string
+          modificado_por?: string | null
           nota_objetivo?: number
           nota_real?: number | null
           obra_id?: string
@@ -3495,6 +3624,7 @@ export type Database = {
           hora_registro: string
           id: string
           local: string
+          modificado_por: string | null
           obra: string
           observacao_gestao: string | null
           resultado_alcancado_solucao: string
@@ -3519,6 +3649,7 @@ export type Database = {
           hora_registro: string
           id?: string
           local: string
+          modificado_por?: string | null
           obra: string
           observacao_gestao?: string | null
           resultado_alcancado_solucao: string
@@ -3543,6 +3674,7 @@ export type Database = {
           hora_registro?: string
           id?: string
           local?: string
+          modificado_por?: string | null
           obra?: string
           observacao_gestao?: string | null
           resultado_alcancado_solucao?: string
@@ -3611,6 +3743,7 @@ export type Database = {
           created_at: string | null
           endereco: string | null
           id: string
+          modificado_por: string | null
           nome_usina: string
           producao_total: number | null
           telefone: string | null
@@ -3620,6 +3753,7 @@ export type Database = {
           created_at?: string | null
           endereco?: string | null
           id?: string
+          modificado_por?: string | null
           nome_usina: string
           producao_total?: number | null
           telefone?: string | null
@@ -3629,6 +3763,7 @@ export type Database = {
           created_at?: string | null
           endereco?: string | null
           id?: string
+          modificado_por?: string | null
           nome_usina?: string
           producao_total?: number | null
           telefone?: string | null
@@ -3647,6 +3782,7 @@ export type Database = {
           funcoes: string[] | null
           id: string
           imagem_url: string | null
+          modificado_por: string | null
           nome_completo: string | null
           updated_at: string | null
         }
@@ -3660,6 +3796,7 @@ export type Database = {
           funcoes?: string[] | null
           id: string
           imagem_url?: string | null
+          modificado_por?: string | null
           nome_completo?: string | null
           updated_at?: string | null
         }
@@ -3673,6 +3810,7 @@ export type Database = {
           funcoes?: string[] | null
           id?: string
           imagem_url?: string | null
+          modificado_por?: string | null
           nome_completo?: string | null
           updated_at?: string | null
         }

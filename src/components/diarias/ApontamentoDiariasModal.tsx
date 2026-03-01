@@ -4,7 +4,7 @@
 // =====================================================
 
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { format, isWeekend } from "date-fns";
+import { format, isWeekend, eachDayOfInterval, isAfter, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { parseBrazilianDate, formatBrazilianDateForDisplay, getCurrentBrazilianDate } from "@/utils/timezoneUtils";
 import {
@@ -77,6 +77,7 @@ interface ApontamentoDiariasModalProps {
   apontamento: DiariaApontamento | null;
   onSaveSuccess?: () => void;
   readOnly?: boolean;
+  edicaoLiberada?: boolean;
 }
 
 interface ColaboradorPresenca extends PresencaFormData {
@@ -149,7 +150,8 @@ export default function ApontamentoDiariasModal({
   onClose,
   apontamento,
   onSaveSuccess,
-  readOnly = false
+  readOnly = false,
+  edicaoLiberada = false
 }: ApontamentoDiariasModalProps) {
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [colaboradores, setColaboradores] = useState<ColaboradorPresenca[]>([]);
@@ -232,25 +234,42 @@ export default function ApontamentoDiariasModal({
     enabled: showAddFuncionario
   });
 
-  // Verificar se hoje está no período
-  const dataHoje = useMemo(() => {
-    const hoje = getCurrentBrazilianDate();
-    if (!solicitacao?.data_inicio || !solicitacao?.data_fim) return null;
+  // Gerar lista de datas do período: passadas e hoje habilitadas, futuras bloqueadas
+  const datasDisponiveis = useMemo(() => {
+    if (!solicitacao?.data_inicio || !solicitacao?.data_fim) return [];
 
-    if (hoje >= solicitacao.data_inicio && hoje <= solicitacao.data_fim) {
-      const feriado = feriados.find((f) => f.data === hoje);
-      const hojeDate = parseBrazilianDate(hoje);
-      const ehFDS = isWeekend(hojeDate);
+    const hoje = getCurrentBrazilianDate();
+    const inicio = parseBrazilianDate(solicitacao.data_inicio);
+    const fim = parseBrazilianDate(solicitacao.data_fim);
+    const hojeDate = parseBrazilianDate(hoje);
+
+    const dias = eachDayOfInterval({ start: inicio, end: fim });
+
+    return dias.map(dia => {
+      const dateStr = format(dia, 'yyyy-MM-dd');
+      const feriado = feriados.find(f => f.data === dateStr);
+      const ehFDS = isWeekend(dia);
+      const isFuturo = isAfter(startOfDay(dia), startOfDay(hojeDate));
+      const isHoje = dateStr === hoje;
+
       return {
-        value: hoje,
-        label: format(hojeDate, "EEEE, dd/MM/yyyy", { locale: ptBR }),
+        value: dateStr,
+        label: format(dia, "EEE dd/MM", { locale: ptBR }),
+        labelFull: format(dia, "EEEE, dd/MM/yyyy", { locale: ptBR }),
         isFeriado: !!feriado,
         nomeFeriado: feriado?.nome,
-        isWeekend: ehFDS
+        isWeekend: ehFDS,
+        isFuturo,
+        isHoje,
+        disabled: isFuturo
       };
-    }
-    return null;
+    });
   }, [solicitacao?.data_inicio, solicitacao?.data_fim, feriados]);
+
+  // Data selecionada info
+  const dataSelecionadaInfo = useMemo(() => {
+    return datasDisponiveis.find(d => d.value === selectedDate) || null;
+  }, [datasDisponiveis, selectedDate]);
 
   // Parsear convocados_pre
   const convocadosPre = useMemo((): FuncionarioPreConvocado[] => {
@@ -413,8 +432,18 @@ export default function ApontamentoDiariasModal({
 
   // Resetar quando abrir/fechar
   useEffect(() => {
-    if (isOpen && dataHoje) {
-      setSelectedDate(dataHoje.value);
+    if (isOpen && datasDisponiveis.length > 0) {
+      const hoje = getCurrentBrazilianDate();
+      const hojeDisponivel = datasDisponiveis.find(d => d.value === hoje && !d.disabled);
+      if (hojeDisponivel) {
+        setSelectedDate(hojeDisponivel.value);
+      } else {
+        // Selecionar a última data passada disponível
+        const passadas = datasDisponiveis.filter(d => !d.disabled);
+        if (passadas.length > 0) {
+          setSelectedDate(passadas[passadas.length - 1].value);
+        }
+      }
     } else if (!isOpen) {
       setSelectedDate("");
       setColaboradores([]);
@@ -426,7 +455,7 @@ export default function ApontamentoDiariasModal({
       setSaidasSalvas(new Set());
       setIsSavingIndividual(null);
     }
-  }, [isOpen, dataHoje]);
+  }, [isOpen, datasDisponiveis]);
 
   // Recalcular jornada ao mudar horários
   const recalcularJornada = useCallback((col: ColaboradorPresenca): ColaboradorPresenca => {
@@ -707,8 +736,8 @@ export default function ApontamentoDiariasModal({
   ) => {
     if (readOnly) return;
     if (fase === 'inicio' && field === 'hora_saida') return;
-    if (fase === 'finalizacao' && field === 'hora_entrada') return;
-    if (fase === 'concluido') return;
+    // hora_entrada editável na finalização (período de treinamento)
+    if (fase === 'concluido' && !edicaoLiberada) return;
 
     setColaboradores((prev) =>
       prev.map((col) => {
@@ -721,7 +750,7 @@ export default function ApontamentoDiariasModal({
   };
 
   const handleRefeicaoChange = (index: number, recebe: boolean) => {
-    if (fase === 'concluido' || readOnly) return;
+    if ((fase === 'concluido' && !edicaoLiberada) || readOnly) return;
     setColaboradores((prev) =>
       prev.map((col) =>
         col.index === index ? { ...col, recebe_refeicao: recebe } : col
@@ -816,43 +845,43 @@ export default function ApontamentoDiariasModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[700px] w-full max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-primary" />
-            Apontamento de Diária
+      <DialogContent className="sm:max-w-[700px] w-[95vw] max-h-[95vh] overflow-y-auto p-3 sm:p-6">
+        <DialogHeader className="space-y-1">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+            <span className="truncate">Apontamento de Diária</span>
             {solicitacao?.numero_solicitacao && (
-              <Badge variant="outline" className="font-mono text-xs">
+              <Badge variant="outline" className="font-mono text-[10px] sm:text-xs shrink-0">
                 Nº {solicitacao.numero_solicitacao}
               </Badge>
             )}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             {readOnly 
-              ? "Visualização somente leitura — você não tem permissão para editar este apontamento."
-              : "Registre a presença e horários dos funcionários para esta data"}
+              ? "Visualização somente leitura."
+              : "Registre presença e horários dos funcionários"}
           </DialogDescription>
         </DialogHeader>
 
         {/* Informações da Solicitação */}
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="flex flex-col sm:flex-row sm:justify-between gap-2 text-sm">
             <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               <div>
-                <p className="text-xs text-muted-foreground">Período</p>
-                <p className="font-medium">
-                  {formatBrazilianDateForDisplay(solicitacao.data_inicio)} →{" "}
-                  {formatBrazilianDateForDisplay(solicitacao.data_fim)}
+                <p className="text-[10px] sm:text-xs text-muted-foreground">Período</p>
+                <p className="font-medium text-xs sm:text-sm">
+                  {formatBrazilianDateForDisplay(solicitacao.data_inicio)} → {formatBrazilianDateForDisplay(solicitacao.data_fim)}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               <div>
-                <p className="text-xs text-muted-foreground">Centro de Custo</p>
-                <p className="font-medium">
-                  {centroCusto?.codigo_centro_custo} - {centroCusto?.nome_centro_custo}
+                <p className="text-[10px] sm:text-xs text-muted-foreground">Centro de Custo</p>
+                <p className="font-medium text-xs sm:text-sm">
+                  <span>{centroCusto?.codigo_centro_custo}</span>
+                  <span className="hidden sm:inline"> - {centroCusto?.nome_centro_custo}</span>
                 </p>
               </div>
             </div>
@@ -860,40 +889,72 @@ export default function ApontamentoDiariasModal({
 
           <Separator />
 
-          {/* Data do Apontamento - Apenas Hoje */}
+          {/* Data do Apontamento - Seletor de datas do período */}
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-primary" />
               Data do Apontamento
             </Label>
 
-            {dataHoje ? (
+            {datasDisponiveis.filter(d => !d.disabled).length > 0 ? (
               <>
-                <div className="flex items-center gap-2 p-3 bg-muted rounded-md border">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium capitalize">{dataHoje.label}</span>
-                  {dataHoje.isWeekend && (
-                    <Badge variant="secondary" className="text-xs">FDS</Badge>
-                  )}
-                  {dataHoje.isFeriado && (
-                    <Badge variant="outline" className="text-xs text-orange-600">
-                      {dataHoje.nomeFeriado}
-                    </Badge>
-                  )}
-                  <Badge
-                    variant={fase === 'concluido' ? 'success' : fase === 'finalizacao' ? 'warning' : 'secondary'}
-                    className="ml-auto text-xs"
-                  >
-                    {faseLabel[fase].text}
-                  </Badge>
+                {/* Seletor de datas como badges clicáveis */}
+                <div className="flex gap-1.5 p-2 sm:p-3 bg-muted rounded-md border overflow-x-auto scrollbar-thin">
+                  {datasDisponiveis.map(d => {
+                    const isSelected = d.value === selectedDate;
+                    return (
+                      <button
+                        key={d.value}
+                        onClick={() => { if (!d.disabled) { setSelectedDate(d.value); setHasSaved(false); setSaidasSalvas(new Set()); } }}
+                        disabled={d.disabled}
+                        className={cn(
+                          "px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-md text-[10px] sm:text-xs font-medium transition-all border whitespace-nowrap shrink-0",
+                          d.disabled
+                            ? "opacity-40 cursor-not-allowed bg-muted text-muted-foreground border-transparent"
+                            : isSelected
+                              ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                              : "bg-background hover:bg-accent text-foreground border-border cursor-pointer",
+                          d.isHoje && !isSelected && !d.disabled && "ring-1 ring-primary/50"
+                        )}
+                      >
+                        <span className="capitalize">{d.label}</span>
+                        {d.isWeekend && <span className="ml-0.5 opacity-70">●</span>}
+                        {d.isFeriado && <span className="ml-0.5 text-amber-500">★</span>}
+                      </button>
+                    );
+                  })}
                 </div>
 
-                {(dataHoje.isWeekend || dataHoje.isFeriado) && (
+                {/* Info da data selecionada */}
+                {dataSelecionadaInfo && (
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs sm:text-sm">
+                    <span className="capitalize font-medium">{dataSelecionadaInfo.labelFull}</span>
+                    {dataSelecionadaInfo.isWeekend && (
+                      <Badge variant="secondary" className="text-[10px] sm:text-xs">FDS</Badge>
+                    )}
+                    {dataSelecionadaInfo.isFeriado && (
+                      <Badge variant="outline" className="text-[10px] sm:text-xs text-amber-600">
+                        {dataSelecionadaInfo.nomeFeriado}
+                      </Badge>
+                    )}
+                    {dataSelecionadaInfo.isHoje && (
+                      <Badge variant="info" className="text-[10px] sm:text-xs">Hoje</Badge>
+                    )}
+                    <Badge
+                      variant={fase === 'concluido' ? 'success' : fase === 'finalizacao' ? 'warning' : 'secondary'}
+                      className="ml-auto text-[10px] sm:text-xs"
+                    >
+                      {faseLabel[fase].text}
+                    </Badge>
+                  </div>
+                )}
+
+                {dataSelecionadaInfo && (dataSelecionadaInfo.isWeekend || dataSelecionadaInfo.isFeriado) && (
                   <Alert className="mt-2">
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
-                      {dataHoje.isFeriado
-                        ? `Feriado: ${dataHoje.nomeFeriado}`
+                      {dataSelecionadaInfo.isFeriado
+                        ? `Feriado: ${dataSelecionadaInfo.nomeFeriado}`
                         : "Final de semana"}
                     </AlertDescription>
                   </Alert>
@@ -933,40 +994,38 @@ export default function ApontamentoDiariasModal({
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  A data de hoje não está dentro do período desta solicitação.
-                  O apontamento só pode ser feito na data atual.
+                  Nenhuma data disponível para apontamento. O período desta solicitação ainda não começou.
                 </AlertDescription>
               </Alert>
             )}
           </div>
 
+          {/* Banner edição liberada */}
+          {edicaoLiberada && fase === 'concluido' && (
+            <Alert className="border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              <AlertDescription className="text-yellow-700 dark:text-yellow-400 text-xs">
+                Edição liberada pelo administrador — os campos estão desbloqueados para correção.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Separator />
 
           {/* Lista de Funcionários */}
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-medium">Funcionários ({colaboradores.length})</h3>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <h3 className="text-xs sm:text-sm font-medium">Funcionários ({colaboradores.length})</h3>
                 
-                {/* MELHORIA 1: Botões Selecionar/Desmarcar Todos (inicio) + Saída Todos (finalizacao) */}
                 {fase === 'inicio' && !readOnly && colaboradores.length > 0 && (
                   <Button
                     variant="outline"
                     size="xs"
                     onClick={() => handleSelecionarTodos(!todosPresentes)}
-                    className="text-xs gap-1"
+                    className="text-[10px] sm:text-xs gap-1 h-6 sm:h-7 px-2"
                   >
-                    {todosPresentes ? (
-                      <>
-                        <Square className="h-3 w-3" />
-                        Desmarcar Todos
-                      </>
-                    ) : (
-                      <>
-                        <CheckSquare className="h-3 w-3" />
-                        Selecionar Todos
-                      </>
-                    )}
+                    {todosPresentes ? <><Square className="h-3 w-3" /><span className="hidden sm:inline">Desmarcar</span> Todos</> : <><CheckSquare className="h-3 w-3" /><span className="hidden sm:inline">Selecionar</span> Todos</>}
                   </Button>
                 )}
                 {fase === 'finalizacao' && !readOnly && colaboradores.filter(c => c.presente).length > 0 && (
@@ -974,37 +1033,26 @@ export default function ApontamentoDiariasModal({
                     variant="outline"
                     size="xs"
                     onClick={() => handleSelecionarTodos(!todosComSaida)}
-                    className="text-xs gap-1"
+                    className="text-[10px] sm:text-xs gap-1 h-6 sm:h-7 px-2"
                   >
-                    {todosComSaida ? (
-                      <>
-                        <Square className="h-3 w-3" />
-                        Limpar Saída Todos
-                      </>
-                    ) : (
-                      <>
-                        <CheckSquare className="h-3 w-3" />
-                        Saída Todos (agora)
-                      </>
-                    )}
+                    {todosComSaida ? <><Square className="h-3 w-3" />Limpar</> : <><CheckSquare className="h-3 w-3" />Saída Todos</>}
                   </Button>
                 )}
 
-                {/* MELHORIA 2: Botão Adicionar Funcionário */}
                 {(fase === 'inicio' || fase === 'finalizacao') && !readOnly && (
                   <Popover open={showAddFuncionario} onOpenChange={setShowAddFuncionario}>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" size="xs" className="text-xs gap-1">
+                      <Button variant="outline" size="xs" className="text-[10px] sm:text-xs gap-1 h-6 sm:h-7 px-2">
                         <Plus className="h-3 w-3" />
-                        Adicionar
+                        <span className="hidden sm:inline">Adicionar</span>
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-[350px] p-3" align="start">
+                    <PopoverContent className="w-[300px] sm:w-[350px] p-3" align="start">
                       <div className="space-y-3">
                         <div className="flex items-center gap-2">
                           <Search className="h-4 w-4 text-muted-foreground" />
                           <Input
-                            placeholder="Buscar funcionário por nome ou CPF..."
+                            placeholder="Buscar por nome ou CPF..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="h-8 text-sm"
@@ -1027,8 +1075,8 @@ export default function ApontamentoDiariasModal({
                                     className="w-full text-left p-2 rounded hover:bg-muted text-sm flex items-center justify-between"
                                   >
                                     <div>
-                                      <p className="font-medium">{func.nome_completo}</p>
-                                      <p className="text-xs text-muted-foreground">{func.funcao_nome || func.nome_funcao || 'Sem função'}</p>
+                                      <p className="font-medium text-xs sm:text-sm">{func.nome_completo}</p>
+                                      <p className="text-[10px] sm:text-xs text-muted-foreground">{func.funcao_nome || func.nome_funcao || 'Sem função'}</p>
                                     </div>
                                     <Plus className="h-4 w-4 text-muted-foreground" />
                                   </button>
@@ -1042,7 +1090,7 @@ export default function ApontamentoDiariasModal({
                   </Popover>
                 )}
               </div>
-              <div className="text-sm text-muted-foreground flex items-center gap-3">
+              <div className="text-[10px] sm:text-sm text-muted-foreground flex items-center gap-2 sm:gap-3">
                 <span>Presentes: <span className="font-medium text-primary">{totalPresentes}</span></span>
                 <span>Faltas: <span className="font-medium text-destructive">{colaboradores.length - totalPresentes}</span></span>
               </div>
@@ -1054,24 +1102,24 @@ export default function ApontamentoDiariasModal({
                 <span className="ml-2 text-muted-foreground">Carregando...</span>
               </div>
             ) : colaboradores.length > 0 ? (
-              <ScrollArea className="h-[350px] border rounded-md p-4">
-                <div className="space-y-4">
+              <ScrollArea className="h-[300px] sm:h-[350px] border rounded-md p-2 sm:p-4">
+                <div className="space-y-3 sm:space-y-4">
                   {colaboradores.map((colaborador) => {
                     const { horas, tipo } = calcularJornada(colaborador.hora_entrada, colaborador.hora_saida);
                     const valorRefeicao = funcoesMap[colaborador.funcao_id] || 0;
 
-                    const presencaDisabled = fase !== 'inicio' || readOnly;
-                    const entradaDisabled = fase !== 'inicio' || !colaborador.presente || readOnly;
+                    const presencaDisabled = (fase !== 'inicio' && !(fase === 'concluido' && edicaoLiberada)) || readOnly;
+                    const entradaDisabled = (fase !== 'inicio' && fase !== 'finalizacao' && !(fase === 'concluido' && edicaoLiberada)) || !colaborador.presente || readOnly;
                     const jaSalvouSaida = saidasSalvas.has(colaborador.funcionario_id);
-                    const saidaDisabled = fase !== 'finalizacao' || !colaborador.presente || readOnly || jaSalvouSaida;
-                    const refeicaoDisabled = fase === 'concluido' || !colaborador.presente || readOnly || jaSalvouSaida;
+                    const saidaDisabled = (fase !== 'finalizacao' && !(fase === 'concluido' && edicaoLiberada)) || !colaborador.presente || readOnly || jaSalvouSaida;
+                    const refeicaoDisabled = (fase === 'concluido' && !edicaoLiberada) || !colaborador.presente || readOnly || jaSalvouSaida;
                     const isEditingThis = editingExitId === colaborador.funcionario_id;
 
                     return (
                       <div
                         key={colaborador.funcionario_id}
                         className={cn(
-                          "p-4 rounded-md shadow-sm border",
+                          "p-2.5 sm:p-4 rounded-md shadow-sm border",
                           fase === 'concluido'
                             ? colaborador.presente
                               ? "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800"
@@ -1083,168 +1131,137 @@ export default function ApontamentoDiariasModal({
                                 : "bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800"
                         )}
                       >
-                        {/* Linha 1: Nome + Função + Badge */}
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <User className="h-5 w-5 text-primary" />
-                            <div>
-                              <span className="font-bold">{colaborador.nome_funcionario}</span>
-                              <p className="text-xs text-muted-foreground">{colaborador.nome_funcao}</p>
+                        {/* Linha 1: Checkbox + Nome + Badges */}
+                        <div className="flex items-start gap-2 mb-2">
+                          <Checkbox
+                            id={`presente-${colaborador.funcionario_id}`}
+                            checked={colaborador.presente}
+                            onCheckedChange={(checked) =>
+                              handlePresencaChange(colaborador.index, !!checked)
+                            }
+                            disabled={presencaDisabled}
+                            className="w-4 h-4 sm:w-5 sm:h-5 mt-0.5"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="font-bold text-xs sm:text-sm truncate">{colaborador.nome_funcionario}</span>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {fase === 'concluido' && colaborador.presente ? (
+                                  <>
+                                    {getBadgeJornada(tipo, horas)}
+                                    <Badge variant="success" className="text-[10px] sm:text-xs hidden sm:flex items-center gap-1">
+                                      <Lock className="h-2.5 w-2.5" /> Finalizado
+                                    </Badge>
+                                    <Lock className="h-3 w-3 text-green-600 sm:hidden" />
+                                    {!readOnly && colaborador.presencaId && (
+                                      <Button variant="ghost" size="xs" onClick={() => handleStartEditExit(colaborador)} className="h-5 w-5 sm:h-6 sm:w-6 p-0">
+                                        <Pencil className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                  </>
+                                ) : colaborador.presente ? (
+                                  colaborador.hora_saida ? getBadgeJornada(tipo, horas) : <Badge variant="warning" className="text-[10px] sm:text-xs">Em andamento</Badge>
+                                ) : (
+                                  <>
+                                    <Badge variant="destructive" className="text-[10px] sm:text-xs">Falta</Badge>
+                                    {fase === 'inicio' && !readOnly && (
+                                      <Button variant="ghost" size="xs" onClick={() => handleRemoverFuncionario(colaborador.funcionario_id, colaborador.nome_funcionario)} className="h-5 w-5 p-0 text-destructive hover:text-destructive">
+                                        <X className="h-3.5 w-3.5" />
+                                      </Button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {fase === 'concluido' && colaborador.presente ? (
-                              <>
-                                {getBadgeJornada(tipo, horas)}
-                                <Badge variant="success" className="text-xs flex items-center gap-1">
-                                  <Lock className="h-3 w-3" /> Finalizado
-                                </Badge>
-                                {/* MELHORIA 3: Botão editar saída pós-conclusão */}
-                                {!readOnly && colaborador.presencaId && (
-                                  <Button
-                                    variant="ghost"
-                                    size="xs"
-                                    onClick={() => handleStartEditExit(colaborador)}
-                                    className="h-6 w-6 p-0"
-                                    title="Editar hora de saída"
-                                  >
-                                    <Pencil className="h-3 w-3" />
-                                  </Button>
-                                )}
-                              </>
-                            ) : colaborador.presente ? (
-                              colaborador.hora_saida
-                                ? getBadgeJornada(tipo, horas)
-                                : <Badge variant="warning" className="text-xs">Em andamento</Badge>
-                            ) : (
-                              <>
-                                <Badge variant="destructive" className="text-xs">Falta</Badge>
-                                {fase === 'inicio' && !readOnly && (
-                                  <Button
-                                    variant="ghost"
-                                    size="xs"
-                                    onClick={() => handleRemoverFuncionario(colaborador.funcionario_id, colaborador.nome_funcionario)}
-                                    className="h-6 w-6 p-0 text-destructive hover:text-destructive"
-                                    title="Liberar funcionário da lista"
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </Button>
-                                )}
-                              </>
-                            )}
+                            <p className="text-[10px] sm:text-xs text-muted-foreground">{colaborador.nome_funcao}</p>
                           </div>
                         </div>
 
-                        {/* Linha 2: Checkbox Presente + Entrada + Saída */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div className="flex items-center space-x-3">
-                            <Checkbox
-                              id={`presente-${colaborador.funcionario_id}`}
-                              checked={colaborador.presente}
-                              onCheckedChange={(checked) =>
-                                handlePresencaChange(colaborador.index, !!checked)
-                              }
-                              disabled={presencaDisabled}
-                              className="w-5 h-5"
-                            />
-                            <label
-                              htmlFor={`presente-${colaborador.funcionario_id}`}
-                              className={cn("text-sm font-medium", presencaDisabled ? "opacity-60" : "cursor-pointer")}
-                            >
-                              Presente
-                            </label>
-                            {presencaDisabled && colaborador.presente && (
-                              <Lock className="h-3 w-3 text-muted-foreground" />
+                        {/* Linha 2: Entrada + Saída lado a lado */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0 hidden sm:block" />
+                            <div className="flex-1 relative">
+                              <label className="text-[10px] text-muted-foreground block mb-0.5 sm:hidden">Entrada</label>
+                              <Input
+                                type="time"
+                                value={colaborador.hora_entrada || ""}
+                                onChange={(e) => handleHorarioChange(colaborador.index, "hora_entrada", e.target.value)}
+                                disabled={entradaDisabled}
+                                className={cn("h-7 sm:h-9 text-xs sm:text-sm", entradaDisabled ? "opacity-50" : "")}
+                                placeholder="Entrada"
+                              />
+                            </div>
+                            {fase === 'concluido' && colaborador.hora_entrada && (
+                              <Lock className="h-3 w-3 text-muted-foreground shrink-0 hidden sm:block" />
                             )}
                           </div>
 
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                            <Input
-                              type="time"
-                              value={colaborador.hora_entrada || ""}
-                              onChange={(e) =>
-                                handleHorarioChange(colaborador.index, "hora_entrada", e.target.value)
-                              }
-                              disabled={entradaDisabled}
-                              className={cn(entradaDisabled ? "opacity-50" : "")}
-                              placeholder="Entrada"
-                            />
-                            {fase !== 'inicio' && colaborador.hora_entrada && (
-                              <Lock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                            <Input
-                              type="time"
-                              value={colaborador.hora_saida || ""}
-                              onChange={(e) =>
-                                handleHorarioChange(colaborador.index, "hora_saida", e.target.value)
-                              }
-                              disabled={saidaDisabled}
-                              className={cn(saidaDisabled && fase !== 'finalizacao' ? "opacity-50" : "")}
-                              placeholder="Saída"
-                            />
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0 hidden sm:block" />
+                            <div className="flex-1">
+                              <label className="text-[10px] text-muted-foreground block mb-0.5 sm:hidden">Saída</label>
+                              <Input
+                                type="time"
+                                value={colaborador.hora_saida || ""}
+                                onChange={(e) => handleHorarioChange(colaborador.index, "hora_saida", e.target.value)}
+                                disabled={saidaDisabled}
+                                className={cn("h-7 sm:h-9 text-xs sm:text-sm", saidaDisabled && fase !== 'finalizacao' ? "opacity-50" : "")}
+                                placeholder="Saída"
+                              />
+                            </div>
                             {fase === 'concluido' && colaborador.hora_saida && (
-                              <Lock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                              <Lock className="h-3 w-3 text-muted-foreground shrink-0 hidden sm:block" />
                             )}
                             {jaSalvouSaida && fase === 'finalizacao' && (
-                              <Lock className="h-3 w-3 text-green-600 flex-shrink-0" title="Saída já salva" />
-                            )}
-                            {/* Botão Salvar Saída Individual */}
-                            {fase === 'finalizacao' && colaborador.presente && colaborador.hora_saida && !jaSalvouSaida && !readOnly && (
-                              <Button
-                                variant="outline"
-                                size="xs"
-                                onClick={() => handleSalvarSaidaIndividual(colaborador)}
-                                disabled={isSavingIndividual === colaborador.funcionario_id}
-                                className="text-xs gap-1 border-green-300 text-green-700 hover:bg-green-50"
-                              >
-                                {isSavingIndividual === colaborador.funcionario_id ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  <Save className="h-3 w-3" />
-                                )}
-                                Salvar
-                              </Button>
+                              <Lock className="h-3 w-3 text-green-600 shrink-0" title="Saída já salva" />
                             )}
                           </div>
                         </div>
 
-                        {/* Linha 3: Toggle Refeição */}
-                        {(
-                          <div className="flex items-center justify-between mt-3 pt-3 border-t border-dashed">
-                            <div className="flex items-center gap-2">
-                              <UtensilsCrossed className="h-4 w-4 text-muted-foreground" />
-                              <Label
-                                htmlFor={`refeicao-${colaborador.funcionario_id}`}
-                                className="text-sm cursor-pointer"
-                              >
-                                Refeição
-                              </Label>
-                              {colaborador.presente && colaborador.recebe_refeicao && valorRefeicao > 0 && (
-                                <span className="text-xs text-muted-foreground">
-                                  (R$ {valorRefeicao.toFixed(2)})
-                                </span>
+                        {/* Botão Salvar Saída Individual */}
+                        {fase === 'finalizacao' && colaborador.presente && colaborador.hora_saida && !jaSalvouSaida && !readOnly && (
+                          <div className="mt-1.5">
+                            <Button
+                              variant="outline"
+                              size="xs"
+                              onClick={() => handleSalvarSaidaIndividual(colaborador)}
+                              disabled={isSavingIndividual === colaborador.funcionario_id}
+                              className="text-[10px] sm:text-xs gap-1 border-green-300 text-green-700 hover:bg-green-50 h-6 w-full sm:w-auto"
+                            >
+                              {isSavingIndividual === colaborador.funcionario_id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Save className="h-3 w-3" />
                               )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Switch
-                                id={`refeicao-${colaborador.funcionario_id}`}
-                                checked={!!colaborador.recebe_refeicao}
-                                onCheckedChange={(checked) =>
-                                  handleRefeicaoChange(colaborador.index, checked)
-                                }
-                                disabled={refeicaoDisabled}
-                              />
-                              {fase === 'concluido' && (
-                                <Lock className="h-3 w-3 text-muted-foreground" />
-                              )}
-                            </div>
+                              Salvar Saída
+                            </Button>
                           </div>
                         )}
+
+                        {/* Toggle Refeição compacto */}
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-dashed">
+                          <div className="flex items-center gap-1.5">
+                            <UtensilsCrossed className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+                            <Label htmlFor={`refeicao-${colaborador.funcionario_id}`} className="text-xs sm:text-sm cursor-pointer">
+                              Refeição
+                            </Label>
+                            {colaborador.presente && colaborador.recebe_refeicao && valorRefeicao > 0 && (
+                              <span className="text-[10px] sm:text-xs text-muted-foreground">
+                                (R$ {valorRefeicao.toFixed(2)})
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Switch
+                              id={`refeicao-${colaborador.funcionario_id}`}
+                              checked={!!colaborador.recebe_refeicao}
+                              onCheckedChange={(checked) => handleRefeicaoChange(colaborador.index, checked)}
+                              disabled={refeicaoDisabled}
+                            />
+                            {fase === 'concluido' && <Lock className="h-3 w-3 text-muted-foreground" />}
+                          </div>
+                        </div>
 
                         {/* MELHORIA 3: Formulário inline de edição de hora de saída */}
                         {isEditingThis && (
@@ -1309,9 +1326,9 @@ export default function ApontamentoDiariasModal({
           </div>
         </div>
 
-        <DialogFooter className="sm:justify-between flex-col sm:flex-row gap-3 mt-6 pt-4 border-t">
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
+        <DialogFooter className="sm:justify-between flex-col-reverse sm:flex-row gap-2 sm:gap-3 mt-4 sm:mt-6 pt-3 sm:pt-4 border-t">
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSaving} className="flex-1 sm:flex-none text-xs sm:text-sm h-8 sm:h-10">
               {fase === 'concluido' || readOnly ? 'Fechar' : 'Cancelar'}
             </Button>
             <Button
@@ -1319,61 +1336,49 @@ export default function ApontamentoDiariasModal({
               variant="outline"
               onClick={handleImprimirLista}
               disabled={isPrinting || !selectedDate || convocadosPre.length === 0}
+              className="flex-1 sm:flex-none text-xs sm:text-sm h-8 sm:h-10"
             >
-              {isPrinting ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Printer className="h-4 w-4 mr-2" />
-              )}
-              Imprimir Lista
+              {isPrinting ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Printer className="h-3.5 w-3.5 mr-1.5" />}
+              <span className="hidden sm:inline">Imprimir Lista</span>
+              <span className="sm:hidden">Imprimir</span>
             </Button>
           </div>
 
           {fase === 'inicio' && !readOnly && (
             <Button
               onClick={handleSalvarInicio}
-              disabled={isSaving || hasSaved || !dataHoje || colaboradores.length === 0}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              disabled={isSaving || hasSaved || !selectedDate || colaboradores.length === 0}
+              className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-10"
             >
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Salvando...
-                </>
-              ) : (
-                <>
-                  <Clock className="h-4 w-4 mr-2" />
-                  Salvar Início
-                </>
-              )}
+              {isSaving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Salvando...</> : <><Clock className="h-3.5 w-3.5 mr-1.5" />Salvar Início</>}
             </Button>
           )}
 
           {fase === 'finalizacao' && !readOnly && (
             <Button
               onClick={handleSalvarFinalizacao}
-              disabled={isSaving || !dataHoje || colaboradores.length === 0 || !colaboradores.filter(c => c.presente).every(c => c.hora_saida)}
-              className="bg-orange-600 hover:bg-orange-700 text-white"
+              disabled={isSaving || !selectedDate || colaboradores.length === 0 || !colaboradores.filter(c => c.presente).every(c => c.hora_saida)}
+              className="bg-orange-600 hover:bg-orange-700 text-white w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-10"
             >
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Finalizando...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Salvar Finalização
-                </>
-              )}
+              {isSaving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Finalizando...</> : <><CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />Salvar Finalização</>}
             </Button>
           )}
 
-          {fase === 'concluido' && (
-            <Badge variant="success" className="text-sm px-4 py-2 flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4" />
-              Apontamento Concluído
+          {fase === 'concluido' && !edicaoLiberada && (
+            <Badge variant="success" className="text-xs sm:text-sm px-3 py-1.5 sm:px-4 sm:py-2 flex items-center gap-1.5 justify-center w-full sm:w-auto">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Concluído
             </Badge>
+          )}
+
+          {fase === 'concluido' && edicaoLiberada && !readOnly && (
+            <Button
+              onClick={handleSalvarFinalizacao}
+              disabled={isSaving || !selectedDate || colaboradores.length === 0}
+              className="bg-yellow-600 hover:bg-yellow-700 text-white w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-10"
+            >
+              {isSaving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Salvando...</> : <><Save className="h-3.5 w-3.5 mr-1.5" />Salvar Correção</>}
+            </Button>
           )}
         </DialogFooter>
       </DialogContent>

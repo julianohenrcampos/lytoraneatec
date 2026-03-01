@@ -1,0 +1,1 @@
+ALTER TABLE bd_diaria_apontamentos ADD COLUMN edicao_liberada boolean DEFAULT false;

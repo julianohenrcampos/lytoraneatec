@@ -12,7 +12,8 @@ import {
   iniciarApontamento,
   finalizarApontamento,
   cancelarApontamento,
-  updateApontamentoObservacoes
+  updateApontamentoObservacoes,
+  toggleEdicaoLiberada
 } from '@/services/diarias/apontamentosService';
 
 // Interface de escopo para filtros obrigatórios
@@ -118,6 +119,23 @@ export function useUpdateApontamentoObservacoes() {
     },
     onError: (error: any) => {
       toast.error(error.message || 'Erro ao salvar observações');
+    }
+  });
+}
+
+// Mutation: Toggle edição liberada (SuperAdmin)
+export function useToggleEdicaoLiberada() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, liberada }: { id: string; liberada: boolean }) =>
+      toggleEdicaoLiberada(id, liberada),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['diaria-apontamentos'] });
+      toast.success(variables.liberada ? 'Edição liberada!' : 'Edição bloqueada!');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Erro ao alterar edição');
     }
   });
 }

@@ -30,7 +30,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
-import { useApontamentosCampo } from "@/hooks/diarias/useApontamentosCampo";
+import { useApontamentosCampo, useToggleEdicaoLiberada } from "@/hooks/diarias/useApontamentosCampo";
 import { useDiariasDataScope } from "@/hooks/diarias";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,6 +39,7 @@ import ApontamentoDiariasModal from "@/components/diarias/ApontamentoDiariasModa
 import { toast } from "sonner";
 import { usePagination } from "@/hooks/usePagination";
 import TablePagination from "@/components/ui/table-pagination";
+import { Switch } from "@/components/ui/switch";
 
 
 export default function DiariasApontamentoCampo() {
@@ -65,6 +66,9 @@ export default function DiariasApontamentoCampo() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedApontamento, setSelectedApontamento] = useState<DiariaApontamento | null>(null);
   const [modalReadOnly, setModalReadOnly] = useState(false);
+
+  // Mutation toggle edição
+  const toggleEdicao = useToggleEdicaoLiberada();
 
   // Query apontamentos - COM ESCOPO OBRIGATÓRIO
   const apontamentoScopeFilters = getApontamentosFilter();
@@ -315,23 +319,41 @@ export default function DiariasApontamentoCampo() {
                           );
                         })}
                       </div>
-                      <Button
-                        size="sm"
-                        variant={canApontar(apontamento.responsavel_campo_id, apontamento.bd_diaria_solicitacoes?.criado_por) ? "default" : "outline"}
-                        onClick={() => handleOpenModal(apontamento, !canApontar(apontamento.responsavel_campo_id, apontamento.bd_diaria_solicitacoes?.criado_por))}
-                      >
-                        {canApontar(apontamento.responsavel_campo_id, apontamento.bd_diaria_solicitacoes?.criado_por) ? (
-                          <>
-                            <ClipboardCheck className="h-4 w-4 mr-1" />
-                            Apontamento de Diária
-                          </>
-                        ) : (
-                          <>
-                            <Eye className="h-4 w-4 mr-1" />
-                            Visualizar
-                          </>
+                      <div className="flex items-center gap-3">
+                        {/* Toggle SuperAdmin para liberar edição */}
+                        {isSuperAdmin && (
+                          <div className="flex items-center gap-2">
+                            {(apontamento as any).edicao_liberada && (
+                              <Badge className="text-[10px] bg-yellow-500 text-white">Edição Liberada</Badge>
+                            )}
+                            <div className="flex items-center gap-1.5">
+                              <Switch
+                                checked={(apontamento as any).edicao_liberada || false}
+                                onCheckedChange={(checked) => toggleEdicao.mutate({ id: apontamento.id, liberada: checked })}
+                                disabled={toggleEdicao.isPending}
+                              />
+                              <span className="text-xs text-muted-foreground whitespace-nowrap">Liberar</span>
+                            </div>
+                          </div>
                         )}
-                      </Button>
+                        <Button
+                          size="sm"
+                          variant={canApontar(apontamento.responsavel_campo_id, apontamento.bd_diaria_solicitacoes?.criado_por) ? "default" : "outline"}
+                          onClick={() => handleOpenModal(apontamento, !canApontar(apontamento.responsavel_campo_id, apontamento.bd_diaria_solicitacoes?.criado_por))}
+                        >
+                          {canApontar(apontamento.responsavel_campo_id, apontamento.bd_diaria_solicitacoes?.criado_por) ? (
+                            <>
+                              <ClipboardCheck className="h-4 w-4 mr-1" />
+                              Apontamento de Diária
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="h-4 w-4 mr-1" />
+                              Visualizar
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -352,6 +374,7 @@ export default function DiariasApontamentoCampo() {
           apontamento={selectedApontamento}
           onSaveSuccess={handleSaveSuccess}
           readOnly={modalReadOnly}
+          edicaoLiberada={(selectedApontamento as any)?.edicao_liberada || false}
         />
       </div>
     </MainLayout>
