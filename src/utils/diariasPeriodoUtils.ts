@@ -230,8 +230,9 @@ export function calcularEstimativaTotal(
 export function validarPeriodo(
   dataInicio: string,
   dataFim: string,
-  maxDias: number = 30
-): { valido: boolean; erro?: string } {
+  maxDias: number = 30,
+  isSuperAdmin: boolean = false
+): { valido: boolean; erro?: string; isRetroativo?: boolean } {
   if (!dataInicio || !dataFim) {
     return { valido: false, erro: 'Selecione as datas de início e fim' };
   }
@@ -241,7 +242,9 @@ export function validarPeriodo(
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
 
-  if (inicio < hoje) {
+  const isRetroativo = inicio < hoje;
+
+  if (isRetroativo && !isSuperAdmin) {
     return { valido: false, erro: 'Data de início não pode ser anterior a hoje' };
   }
 
@@ -254,7 +257,7 @@ export function validarPeriodo(
     return { valido: false, erro: `Período máximo é de ${maxDias} dias` };
   }
 
-  return { valido: true };
+  return { valido: true, isRetroativo };
 }
 
 /**

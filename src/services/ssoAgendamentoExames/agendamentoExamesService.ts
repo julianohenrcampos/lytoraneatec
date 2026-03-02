@@ -142,9 +142,20 @@ export const agendamentoExamesService = {
   },
 
   async updateStatus(id: string, status: string): Promise<void> {
+    const statusAptoList = ['Apto', 'Apto com Restrição'];
+    const updateData: Record<string, any> = { status };
+    
+    if (statusAptoList.includes(status)) {
+      // Auto-set data_resultado_exame to today when status changes to Apto
+      updateData.data_resultado_exame = new Date().toISOString().split('T')[0];
+    } else {
+      // Clear data_resultado_exame if status reverts
+      updateData.data_resultado_exame = null;
+    }
+
     const { error } = await (supabase
       .from('bd_agendamentos_exames' as any) as any)
-      .update({ status })
+      .update(updateData)
       .eq('id', id);
 
     if (error) throw error;

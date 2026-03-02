@@ -162,7 +162,12 @@ export const RelatorioDiariasPDF = ({
 
   // Extrair informações do primeiro registro para cabeçalho
   const primeiroRegistro = relatorio[0];
-  const centrosCustoUnicos = [...new Set(relatorio.map(r => `${r.codigo_centro_custo} - ${r.nome_centro_custo}`))];
+  const centrosCustoUnicos = [...new Set(relatorio.map(r => {
+    const codigo = r.codigo_centro_custo || '';
+    const nome = r.nome_centro_custo || '';
+    // Evitar duplicação: se nome já começa com o código, usar só o nome
+    return nome.startsWith(codigo) ? nome : `${codigo} - ${nome}`;
+  }))];
   const centrosCustoLabel = centrosCustoUnicos.length > 2 
     ? `${centrosCustoUnicos.slice(0, 2).join(', ')} e mais ${centrosCustoUnicos.length - 2}` 
     : centrosCustoUnicos.join(', ') || 'Todos';
@@ -240,6 +245,12 @@ export const RelatorioDiariasPDF = ({
                 </Text>
               </View>
             )}
+            <View style={styles.infoItem}>
+              <Text style={styles.infoLabel}>Tipo Vínculo</Text>
+              <Text style={styles.infoValueBold}>
+                {filtros.tipo_vinculo === 'diarista' ? 'Diarista' : filtros.tipo_vinculo === 'contratado' ? 'Contratado' : 'Todos'}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -263,14 +274,34 @@ export const RelatorioDiariasPDF = ({
           </View>
         </View>
 
+        {/* Totals Section */}
+        <View style={[styles.totalsSection, { marginTop: 12, marginBottom: 12 }]}>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Subtotal Diárias</Text>
+            <Text style={styles.totalValue}>{formatCurrency(funcionariosConsolidados.reduce((acc, f) => acc + f.valor_diaria_integral, 0))}</Text>
+          </View>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Subtotal ½ Diárias</Text>
+            <Text style={styles.totalValue}>{formatCurrency(funcionariosConsolidados.reduce((acc, f) => acc + f.valor_meia_diaria, 0))}</Text>
+          </View>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Subtotal Refeições</Text>
+            <Text style={styles.totalValue}>{formatCurrency(valorRefeicoes)}</Text>
+          </View>
+          <View style={styles.totalRowMain}>
+            <Text style={styles.totalLabelMain}>TOTAL A PAGAR</Text>
+            <Text style={styles.totalValueMain}>{formatCurrency(valorTotal)}</Text>
+          </View>
+        </View>
+
         {/* Tabela Consolidada de Funcionários */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
             FUNCIONÁRIOS CONSOLIDADOS ({funcionariosConsolidados.length})
           </Text>
           <View style={styles.table}>
-            {/* Header */}
-            <View style={styles.tableHeader}>
+            {/* Header - fixed para repetir em quebra de página */}
+            <View style={styles.tableHeader} fixed>
               <Text style={[styles.tableHeaderCell, { flex: 3 }]}>Funcionário</Text>
               <Text style={[styles.tableHeaderCell, { flex: 2 }]}>Função</Text>
               <Text style={[styles.tableHeaderCell, { flex: 0.8, textAlign: 'center' }]}>Dias</Text>
@@ -308,26 +339,6 @@ export const RelatorioDiariasPDF = ({
                 </Text>
               </View>
             ))}
-          </View>
-        </View>
-
-        {/* Totals Section */}
-        <View style={styles.totalsSection}>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Subtotal Diárias</Text>
-            <Text style={styles.totalValue}>{formatCurrency(funcionariosConsolidados.reduce((acc, f) => acc + f.valor_diaria_integral, 0))}</Text>
-          </View>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Subtotal ½ Diárias</Text>
-            <Text style={styles.totalValue}>{formatCurrency(funcionariosConsolidados.reduce((acc, f) => acc + f.valor_meia_diaria, 0))}</Text>
-          </View>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Subtotal Refeições</Text>
-            <Text style={styles.totalValue}>{formatCurrency(valorRefeicoes)}</Text>
-          </View>
-          <View style={styles.totalRowMain}>
-            <Text style={styles.totalLabelMain}>TOTAL A PAGAR</Text>
-            <Text style={styles.totalValueMain}>{formatCurrency(valorTotal)}</Text>
           </View>
         </View>
 

@@ -20,7 +20,7 @@ export interface Funcionario {
   data_admissao?: string;
   data_ferias?: string;
   data_demissao?: string;
-  status?: 'Ativo' | 'Ativo/Diária' | 'Aviso Prévio' | 'Inativo' | 'INSS';
+  status?: 'Ativo' | 'Ativo sem Registro' | 'Aviso Prévio' | 'Inativo' | 'INSS';
   salario_base?: number;
   insalubridade?: number;
   periculosidade?: number;
@@ -80,7 +80,7 @@ export interface FuncionarioFormData {
   data_admissao?: string | null;
   data_ferias?: string | null;
   data_demissao?: string | null;
-  status?: "Ativo" | "Ativo/Diária" | "Inativo" | "Aviso Prévio" | "INSS";
+  status?: "Ativo" | "Ativo sem Registro" | "Inativo" | "Aviso Prévio" | "INSS";
   salario_base?: number;
   insalubridade?: number;
   periculosidade?: number;
@@ -104,5 +104,5 @@ export interface FuncionarioFilter {
   centro_custo_id?: string;
   departamento_id?: string;
   funcao_id?: string;
-  status?: "Ativo" | "Ativo/Diária" | "Inativo" | "Aviso Prévio" | "INSS";
+  status?: "Ativo" | "Ativo sem Registro" | "Inativo" | "Aviso Prévio" | "INSS";
 }

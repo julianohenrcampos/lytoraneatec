@@ -234,6 +234,7 @@ export interface RelatorioFilters {
   empresa_id?: string;
   status_convocacao?: StatusConvocacao;
   presenca_status?: StatusPresenca;
+  tipo_vinculo?: 'diarista' | 'contratado';
 }
 
 // =====================================================
@@ -260,6 +261,7 @@ export interface RelatorioFolhaItem {
   agencia_funcionario: string | null;
   conta_funcionario: string | null;
   pix_funcionario: string | null;
+  matricula_funcionario: string | null;
   funcao_id: string | null;
   nome_funcao: string | null;
   valor_diaria_aplicada: number;
@@ -273,6 +275,8 @@ export interface RelatorioFolhaItem {
   recebe_refeicao: boolean | null;
   valor_refeicao_aplicado: number | null;
   tipo_diaria: string | null;
+  usar_diaria_exclusiva: boolean | null;
+  status_funcionario: string | null;
   status_solicitacao: StatusSolicitacao;
   solicitante_id: string | null;
   solicitante_nome: string | null;

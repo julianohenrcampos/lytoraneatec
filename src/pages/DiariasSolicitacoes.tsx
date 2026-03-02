@@ -54,6 +54,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -416,22 +417,20 @@ export default function DiariasSolicitacoes() {
               </div>
               <div>
                 <Label>Centro de Custo</Label>
-                <Select
+                <Combobox
+                  options={[
+                    { value: '__all__', label: 'Todos' },
+                    ...centrosCusto.map((cc: any) => ({
+                      value: cc.id,
+                      label: `${cc.codigo_centro_custo} - ${cc.nome_centro_custo}`
+                    }))
+                  ]}
                   value={filters.centro_custo_id ?? '__all__'}
-                  onValueChange={(v) => setFilters({ ...filters, centro_custo_id: v === '__all__' ? undefined : v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Todos</SelectItem>
-                    {centrosCusto.map((cc: any) => (
-                      <SelectItem key={cc.id} value={cc.id}>
-                        {cc.codigo_centro_custo} - {cc.nome_centro_custo}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onChange={(v) => setFilters({ ...filters, centro_custo_id: v === '__all__' ? undefined : v })}
+                  placeholder="Todos"
+                  searchPlaceholder="Buscar centro de custo..."
+                  emptyText="Nenhum centro de custo encontrado"
+                />
               </div>
               <div>
                 <Label>Status</Label>
@@ -485,7 +484,7 @@ export default function DiariasSolicitacoes() {
                         <div className="flex items-center gap-2 text-sm">
                           <Building2 className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                           <span className="truncate">
-                            {sol.bd_centros_custo?.codigo_centro_custo} - {sol.bd_centros_custo?.nome_centro_custo}
+                            {sol.bd_centros_custo?.nome_centro_custo?.startsWith(sol.bd_centros_custo?.codigo_centro_custo) ? sol.bd_centros_custo?.nome_centro_custo : `${sol.bd_centros_custo?.codigo_centro_custo} - ${sol.bd_centros_custo?.nome_centro_custo}`}
                           </span>
                         </div>
 
@@ -624,7 +623,7 @@ export default function DiariasSolicitacoes() {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Building2 className="h-4 w-4 text-muted-foreground" />
-                            {sol.bd_centros_custo?.codigo_centro_custo} - {sol.bd_centros_custo?.nome_centro_custo}
+                            {sol.bd_centros_custo?.nome_centro_custo?.startsWith(sol.bd_centros_custo?.codigo_centro_custo) ? sol.bd_centros_custo?.nome_centro_custo : `${sol.bd_centros_custo?.codigo_centro_custo} - ${sol.bd_centros_custo?.nome_centro_custo}`}
                           </div>
                         </TableCell>
                         <TableCell>

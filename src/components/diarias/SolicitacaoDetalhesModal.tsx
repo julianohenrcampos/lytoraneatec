@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 import { toast } from "sonner";
+import { analisarPeriodo } from "@/utils/diariasPeriodoUtils";
+import { useFeriadosPeriodo } from "@/hooks/diarias/useFeriados";
 import {
   Calendar,
   Building2,
@@ -76,6 +78,18 @@ export function SolicitacaoDetalhesModal({
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [removingFuncId, setRemovingFuncId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  
+  // Re-analisar período para obter separação sábado/domingo
+  const { data: feriados = [] } = useFeriadosPeriodo(
+    solicitacao?.data_inicio || '', 
+    solicitacao?.data_fim || ''
+  );
+  
+  const analise = useMemo(() => {
+    if (!solicitacao) return null;
+    const feriadosFormatados = feriados.map(f => ({ data: f.data, nome: f.nome }));
+    return analisarPeriodo(solicitacao.data_inicio, solicitacao.data_fim, feriadosFormatados, solicitacao.considera_fds_feriado);
+  }, [solicitacao?.data_inicio, solicitacao?.data_fim, feriados, solicitacao?.considera_fds_feriado]);
   // Buscar dados complementares + nomes de funcionários/funções quando não existirem no JSON
   const { data: dadosComplementares } = useQuery({
     queryKey: ['solicitacao-detalhes', solicitacao?.id],
@@ -208,25 +222,43 @@ export function SolicitacaoDetalhesModal({
   const diasUteis = solicitacao.qtde_dias_uteis_estimado || 0;
   const diasFds = solicitacao.qtde_fds_estimado || 0;
   const diasFeriados = solicitacao.qtde_feriados_estimado || 0;
-  const diasEspeciais = diasFds + diasFeriados;
+  // Usar análise real do período para separar sábados de domingos
+  const diasUteisReal = analise?.diasUteis || diasUteis;
+  const sabadosReal = analise?.sabados || 0;
+  const domingosReal = analise?.domingos || 0;
+  const feriadosReal = analise?.feriados || diasFeriados;
+  
+  const diasNormais = diasUteisReal + sabadosReal; // pagam diária normal
+  const diasExclusivos = domingosReal + feriadosReal; // pagam diária exclusiva
   const consideraFdsEFeriado = solicitacao.considera_fds_feriado;
-  const mostrarColunaDiariaEspecial = consideraFdsEFeriado && diasEspeciais > 0;
+  const mostrarColunaDiariaEspecial = consideraFdsEFeriado && diasExclusivos > 0;
 
-  let totalDiasUteis = 0;
-  let totalDiasEspeciais = 0;
+  let totalDiariasNormais = 0;
+  let totalDiariasExclusivas = 0;
+  let totalRefeicoes = 0;
 
   convocadosPre.forEach(conv => {
-    totalDiasUteis += (conv.valor_diaria || 0) * diasUteis;
-    if (consideraFdsEFeriado) {
-      totalDiasEspeciais += (conv.valor_diaria_exclusiva || conv.valor_diaria || 0) * diasEspeciais;
+    const valorDiaria = conv.valor_diaria || 0;
+    const valorExclusiva = conv.valor_diaria_exclusiva || valorDiaria * 1.2;
+    const valorRefeicao = conv.valor_refeicao || 0;
+    const forcarExclusiva = conv.usar_diaria_exclusiva === true;
+    
+    if (forcarExclusiva) {
+      // Todos os dias com valor exclusiva
+      const totalDias = consideraFdsEFeriado ? diasNormais + diasExclusivos : diasNormais;
+      totalDiariasExclusivas += totalDias * valorExclusiva;
+      totalRefeicoes += totalDias * valorRefeicao;
+    } else {
+      totalDiariasNormais += diasNormais * valorDiaria;
+      if (consideraFdsEFeriado) {
+        totalDiariasExclusivas += diasExclusivos * valorExclusiva;
+      }
+      const diasParaRefeicao = consideraFdsEFeriado ? diasNormais + diasExclusivos : diasNormais;
+      totalRefeicoes += diasParaRefeicao * valorRefeicao;
     }
   });
 
-  const totalGeral = totalDiasUteis + totalDiasEspeciais;
-
-
-
-
+  const totalGeral = totalDiariasNormais + totalDiariasExclusivas + totalRefeicoes;
   const handleDownloadPDF = async () => {
     if (!solicitacao) return;
     
@@ -325,27 +357,34 @@ export function SolicitacaoDetalhesModal({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4 p-3 bg-muted/50 rounded-lg">
+              <div className="grid grid-cols-4 gap-4 p-3 bg-muted/50 rounded-lg">
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-1 text-muted-foreground">
                     <CalendarDays className="h-3 w-3" />
-                    <span className="text-xs">Dias Úteis</span>
+                    <span className="text-xs">Seg-Sex</span>
                   </div>
-                  <p className="text-lg font-bold">{diasUteis}</p>
+                  <p className="text-lg font-bold">{diasUteisReal}</p>
                 </div>
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-1 text-muted-foreground">
                     <CalendarCheck className="h-3 w-3" />
-                    <span className="text-xs">FDS</span>
+                    <span className="text-xs">Sábados</span>
                   </div>
-                  <p className="text-lg font-bold">{diasFds}</p>
+                  <p className="text-lg font-bold">{sabadosReal}</p>
+                </div>
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-1 text-muted-foreground">
+                    <CalendarCheck className="h-3 w-3" />
+                    <span className="text-xs">Domingos</span>
+                  </div>
+                  <p className="text-lg font-bold">{domingosReal}</p>
                 </div>
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-1 text-muted-foreground">
                     <CalendarX className="h-3 w-3" />
                     <span className="text-xs">Feriados</span>
                   </div>
-                  <p className="text-lg font-bold">{diasFeriados}</p>
+                  <p className="text-lg font-bold">{feriadosReal}</p>
                 </div>
               </div>
 
@@ -535,13 +574,19 @@ export function SolicitacaoDetalhesModal({
                 Valor Total Estimado
               </div>
               <div className="flex justify-between items-center text-sm">
-                <span>Dias úteis ({diasUteis} dias × {convocadosPre.length} func.)</span>
-                <span className="font-medium">{formatCurrency(totalDiasUteis)}</span>
+                <span>Úteis + Sáb ({diasNormais} dias × {convocadosPre.length} func.)</span>
+                <span className="font-medium">{formatCurrency(totalDiariasNormais)}</span>
               </div>
               {mostrarColunaDiariaEspecial && (
                 <div className="flex justify-between items-center text-sm">
-                  <span>FDS/Feriados ({diasEspeciais} dias × {convocadosPre.length} func.)</span>
-                  <span className="font-medium">{formatCurrency(totalDiasEspeciais)}</span>
+                  <span>Dom/Feriados ({diasExclusivos} dias × {convocadosPre.length} func.)</span>
+                  <span className="font-medium">{formatCurrency(totalDiariasExclusivas)}</span>
+                </div>
+              )}
+              {totalRefeicoes > 0 && (
+                <div className="flex justify-between items-center text-sm">
+                  <span>Refeições</span>
+                  <span className="font-medium">{formatCurrency(totalRefeicoes)}</span>
                 </div>
               )}
               <Separator />

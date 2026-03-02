@@ -150,10 +150,12 @@ export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promis
   // =====================================================
   const dadosDetalhados = relatorio.map(item => ({
     'Data': format(new Date(item.data + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }),
-    'Centro de Custo': `${item.codigo_centro_custo} - ${item.nome_centro_custo}`,
+    'Centro de Custo': item.nome_centro_custo?.startsWith(item.codigo_centro_custo) ? item.nome_centro_custo : `${item.codigo_centro_custo} - ${item.nome_centro_custo}`,
     'Solicitante': item.solicitante_nome || '-',
     'Apontador': item.apontador_nome || '-',
     'Funcionário': item.nome_funcionario,
+    'Matrícula': item.matricula_funcionario || '-',
+    'Status Contratual': item.status_funcionario || '-',
     'Empresa': item.empresa_funcionario || '-',
     'Função': item.nome_funcao || '-',
     'Tipo Diária': item.tipo_diaria === 'uma_e_meia' ? '1½ Diária' : item.tipo_diaria === 'completa' ? '1 Diária' : item.tipo_diaria === 'meia' ? '½ Diária' : '-',
@@ -180,6 +182,8 @@ export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promis
     { wch: 25 },  // Solicitante
     { wch: 25 },  // Apontador
     { wch: 30 },  // Funcionário
+    { wch: 15 },  // Matrícula
+    { wch: 18 },  // Status Contratual
     { wch: 25 },  // Empresa
     { wch: 20 },  // Função
     { wch: 12 },  // Tipo Diária
@@ -206,6 +210,8 @@ export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promis
   // Agrupar por funcionário
   const porFuncionario = new Map<string, {
     nome_funcionario: string;
+    matricula: string;
+    status_contratual: string;
     empresa: string;
     funcao: string;
     cpf: string;
@@ -227,6 +233,8 @@ export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promis
     } else {
       porFuncionario.set(key, {
         nome_funcionario: item.nome_funcionario,
+        matricula: item.matricula_funcionario || '-',
+        status_contratual: item.status_funcionario || '-',
         empresa: item.empresa_funcionario || '-',
         funcao: item.nome_funcao || '-',
         cpf: item.cpf_funcionario || '-',
@@ -244,6 +252,8 @@ export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promis
     .sort((a, b) => a.nome_funcionario.localeCompare(b.nome_funcionario))
     .map(f => ({
     'Funcionário': f.nome_funcionario,
+    'Matrícula': f.matricula || '-',
+    'Status Contratual': f.status_contratual || '-',
     'Empresa': f.empresa || '-',
     'Função': f.funcao,
       'CPF': f.cpf,
@@ -259,6 +269,8 @@ export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promis
 
   wsResumoFunc['!cols'] = [
     { wch: 30 },  // Funcionário
+    { wch: 15 },  // Matrícula
+    { wch: 18 },  // Status Contratual
     { wch: 25 },  // Empresa
     { wch: 20 },  // Função
     { wch: 15 },  // CPF

@@ -182,6 +182,7 @@ export type Database = {
           data_inicio_prevista: string | null
           data_nascimento: string | null
           data_registro_carteira: string | null
+          data_resultado_exame: string | null
           doc_certidao_filhos: boolean | null
           doc_certificado_reservista: boolean | null
           doc_cnh: boolean | null
@@ -228,6 +229,7 @@ export type Database = {
           data_inicio_prevista?: string | null
           data_nascimento?: string | null
           data_registro_carteira?: string | null
+          data_resultado_exame?: string | null
           doc_certidao_filhos?: boolean | null
           doc_certificado_reservista?: boolean | null
           doc_cnh?: boolean | null
@@ -274,6 +276,7 @@ export type Database = {
           data_inicio_prevista?: string | null
           data_nascimento?: string | null
           data_registro_carteira?: string | null
+          data_resultado_exame?: string | null
           doc_certidao_filhos?: boolean | null
           doc_certificado_reservista?: boolean | null
           doc_cnh?: boolean | null
@@ -1267,6 +1270,7 @@ export type Database = {
           solicitacao_id: string
           tipo_diaria: string | null
           updated_at: string | null
+          usar_diaria_exclusiva: boolean | null
           valor_diaria_aplicada: number
           valor_refeicao_aplicado: number | null
         }
@@ -1289,6 +1293,7 @@ export type Database = {
           solicitacao_id: string
           tipo_diaria?: string | null
           updated_at?: string | null
+          usar_diaria_exclusiva?: boolean | null
           valor_diaria_aplicada?: number
           valor_refeicao_aplicado?: number | null
         }
@@ -1311,6 +1316,7 @@ export type Database = {
           solicitacao_id?: string
           tipo_diaria?: string | null
           updated_at?: string | null
+          usar_diaria_exclusiva?: boolean | null
           valor_diaria_aplicada?: number
           valor_refeicao_aplicado?: number | null
         }
@@ -3906,6 +3912,7 @@ export type Database = {
           hora_saida: string | null
           intervalo_fim: string | null
           intervalo_inicio: string | null
+          matricula_funcionario: string | null
           nome_centro_custo: string | null
           nome_funcao: string | null
           nome_funcionario: string | null
@@ -3920,8 +3927,10 @@ export type Database = {
           solicitacao_id: string | null
           solicitante_id: string | null
           solicitante_nome: string | null
+          status_funcionario: string | null
           status_solicitacao: string | null
           tipo_diaria: string | null
+          usar_diaria_exclusiva: boolean | null
           valor_diaria_aplicada: number | null
           valor_refeicao_aplicado: number | null
         }

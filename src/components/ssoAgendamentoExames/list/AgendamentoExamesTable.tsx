@@ -257,8 +257,8 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
               <TableCell className="text-center">
                 {showHiringFields(agendamento.tipo_exame) ? (
                   <PrazoContratacaoProgress
-                    dataInicio={agendamento.data_inicio_prevista}
-                    dataLimite={agendamento.data_registro_carteira}
+                    dataResultado={agendamento.data_resultado_exame}
+                    statusExame={agendamento.status}
                     statusCarteira={agendamento.status_carteira || 'Pendente'}
                   />
                 ) : (

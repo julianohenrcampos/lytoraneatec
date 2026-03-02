@@ -1,18 +1,17 @@
 import React from 'react';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { calcularProgressoPrazo, isPrazoVencido } from '@/types/ssoAgendamentoExames';
-import { differenceInDays } from 'date-fns';
+import { calcularPrazoContratacao, PRAZO_CONTRATACAO_DIAS } from '@/types/ssoAgendamentoExames';
 
 interface PrazoContratacaoProgressProps {
-  dataInicio: string | null;
-  dataLimite: string | null;
+  dataResultado: string | null;
+  statusExame: string;
   statusCarteira: string;
 }
 
 export const PrazoContratacaoProgress: React.FC<PrazoContratacaoProgressProps> = ({
-  dataInicio,
-  dataLimite,
+  dataResultado,
+  statusExame,
   statusCarteira
 }) => {
   // Se carteira já registrada ou revisada, mostrar badge de sucesso
@@ -24,40 +23,28 @@ export const PrazoContratacaoProgress: React.FC<PrazoContratacaoProgressProps> =
     );
   }
 
-  // Se não tem datas, não mostrar nada
-  if (!dataInicio || !dataLimite) {
+  // Se status não é Apto, não mostrar contador
+  const statusAptoList = ['Apto', 'Apto com Restrição'];
+  if (!statusAptoList.includes(statusExame) || !dataResultado) {
     return <span className="text-muted-foreground text-xs">-</span>;
   }
 
-  const progresso = calcularProgressoPrazo(dataInicio, dataLimite);
-  const vencido = isPrazoVencido(dataLimite, statusCarteira);
-  
-  // Calcular dias restantes
-  const hoje = new Date();
-  const limite = new Date(dataLimite);
-  const diasRestantes = differenceInDays(limite, hoje);
-
-  // Determinar cor com base no progresso
-  const getProgressColor = () => {
-    if (vencido) return 'bg-destructive';
-    if (progresso >= 80) return 'bg-orange-500';
-    if (progresso >= 50) return 'bg-yellow-500';
-    return 'bg-primary';
-  };
+  const { diasRestantes, progresso } = calcularPrazoContratacao(dataResultado);
+  const vencido = diasRestantes <= 0;
 
   return (
     <div className="w-24 space-y-1">
       <Progress 
         value={vencido ? 100 : progresso} 
-        className={`h-2 ${vencido ? '[&>div]:bg-destructive' : progresso >= 80 ? '[&>div]:bg-warning' : progresso >= 50 ? '[&>div]:bg-warning' : ''}`}
+        className={`h-2 ${vencido ? '[&>div]:bg-destructive' : diasRestantes <= 5 ? '[&>div]:bg-warning' : ''}`}
       />
       <p className="text-[10px] text-muted-foreground text-center">
         {vencido ? (
-          <span className="text-destructive font-medium">Vencido</span>
-        ) : diasRestantes === 0 ? (
-          <span className="text-warning font-medium">Hoje</span>
+          <span className="text-destructive font-medium">Atrasada</span>
         ) : diasRestantes === 1 ? (
-          <span className="text-warning">1 dia</span>
+          <span className="text-warning font-medium">1 dia</span>
+        ) : diasRestantes <= 5 ? (
+          <span className="text-warning">{diasRestantes} dias</span>
         ) : (
           <span>{diasRestantes} dias</span>
         )}

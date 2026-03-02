@@ -172,7 +172,7 @@ export default function ContratualTab({ form, onClose, setActiveTab }: Contratua
                 </FormControl>
               <SelectContent>
                   <SelectItem value="Ativo">Ativo</SelectItem>
-                  <SelectItem value="Ativo/Diária">Ativo/Diária</SelectItem>
+                  <SelectItem value="Ativo sem Registro">Ativo sem Registro</SelectItem>
                   <SelectItem value="Inativo">Inativo</SelectItem>
                   <SelectItem value="Aviso Prévio">Aviso Prévio</SelectItem>
                   <SelectItem value="INSS">INSS</SelectItem>

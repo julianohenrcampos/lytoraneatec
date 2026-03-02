@@ -72,11 +72,21 @@ export default function DiariasRelatorio() {
   // Queries - COM ESCOPO OBRIGATÓRIO
   const { data: relatorioRaw = [], isLoading } = useRelatorioFolha(filters, scopeFilters);
 
-  // Filtragem client-side por empresa
+  // Filtragem client-side por empresa e tipo de vínculo
   const relatorio = useMemo(() => {
-    if (!filters.empresa_id) return relatorioRaw;
-    return relatorioRaw.filter((r: any) => r.empresa_id === filters.empresa_id);
-  }, [relatorioRaw, filters.empresa_id]);
+    let filtered = relatorioRaw;
+    if (filters.empresa_id) {
+      filtered = filtered.filter((r: any) => r.empresa_id === filters.empresa_id);
+    }
+    if (filters.tipo_vinculo === 'diarista') {
+      filtered = filtered.filter((r: any) => 
+        r.status_funcionario === 'Ativo sem Registro' || r.usar_diaria_exclusiva === true
+      );
+    } else if (filters.tipo_vinculo === 'contratado') {
+      filtered = filtered.filter((r: any) => r.status_funcionario === 'Ativo');
+    }
+    return filtered;
+  }, [relatorioRaw, filters.empresa_id, filters.tipo_vinculo]);
 
   // Centro de custos
   const { data: centrosCusto = [] } = useQuery({
@@ -380,7 +390,7 @@ export default function DiariasRelatorio() {
                   { value: '__all__', label: 'Todos' },
                   ...centrosCusto.map((cc: any) => ({
                     value: cc.id,
-                    label: `${cc.codigo_centro_custo} - ${cc.nome_centro_custo}`
+                    label: cc.codigo_centro_custo
                   }))]
                   }
                   value={filters.centro_custo_id ?? '__all__'}
@@ -423,6 +433,21 @@ export default function DiariasRelatorio() {
                   searchPlaceholder="Buscar empresa..."
                   emptyText="Nenhuma empresa encontrada" />
 
+              </div>
+              <div>
+                <Label>Tipo Vínculo</Label>
+                <Select
+                  value={filters.tipo_vinculo || 'todos'}
+                  onValueChange={(v) => setFilters({ ...filters, tipo_vinculo: v === 'todos' ? undefined : v as 'diarista' | 'contratado' })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="diarista">Diarista</SelectItem>
+                    <SelectItem value="contratado">Contratado</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </CardContent>

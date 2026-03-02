@@ -6,6 +6,8 @@ import { Plus, Trash2, Loader2, Users, FileText, Check, ChevronRight, ChevronLef
 import { SmartFuncionarioSearch } from "./SmartFuncionarioSearch";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
+import { parseISO } from "date-fns";
 
 import {
   Dialog,
@@ -76,6 +78,7 @@ export function SolicitacaoFormModal({
 }: SolicitacaoFormModalProps) {
   const [step, setStep] = useState<Step>('dados');
   const { user } = useAuth();
+  const { isSuperAdmin } = useDynamicPermissions();
   
   // Form data - Período
   const [dataInicio, setDataInicio] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -102,8 +105,11 @@ export function SolicitacaoFormModal({
   
   // Validar período
   const periodoValidacao = useMemo(() => {
-    return validarPeriodo(dataInicio, dataFim, 30);
-  }, [dataInicio, dataFim]);
+    return validarPeriodo(dataInicio, dataFim, 30, isSuperAdmin);
+  }, [dataInicio, dataFim, isSuperAdmin]);
+
+  const isRetroativo = periodoValidacao.isRetroativo === true;
+  const minJustificativa = isRetroativo ? 20 : 10;
   
   // Centro de custos query com fallback
   const { data: centrosCusto = [] } = useQuery({
@@ -364,7 +370,7 @@ export function SolicitacaoFormModal({
 
   // Validation
   const canProceedToDados = dataInicio && dataFim && centroCustoId && periodoValidacao.valido;
-  const canProceedToFuncionarios = convocadosPre.length > 0 && justificativa.trim().length >= 10;
+  const canProceedToFuncionarios = convocadosPre.length > 0 && justificativa.trim().length >= minJustificativa;
   const canSave = canProceedToDados && canProceedToFuncionarios;
 
   // Build form data
@@ -473,8 +479,17 @@ export function SolicitacaoFormModal({
                     />
                   </div>
                 </div>
-                {!periodoValidacao.valido && periodoValidacao.erro && (
+               {!periodoValidacao.valido && periodoValidacao.erro && (
                   <p className="text-sm text-destructive">{periodoValidacao.erro}</p>
+                )}
+                {isRetroativo && isSuperAdmin && (
+                  <Alert className="border-amber-300 bg-amber-50">
+                    <Info className="h-4 w-4 text-amber-600" />
+                    <AlertDescription className="text-amber-800 text-xs">
+                      <strong>Solicitação Retroativa (SuperAdm):</strong> Você está criando uma solicitação com data anterior a hoje. 
+                      A justificativa deve conter no mínimo 20 caracteres explicando o motivo da criação retroativa.
+                    </AlertDescription>
+                  </Alert>
                 )}
               </div>
               
@@ -690,16 +705,22 @@ export function SolicitacaoFormModal({
               )}
 
               <div className="pt-4 border-t">
-                <Label>Justificativa * (mínimo 10 caracteres)</Label>
+                <Label>
+                  {isRetroativo 
+                    ? 'Justificativa para criação retroativa * (mínimo 20 caracteres)' 
+                    : 'Justificativa * (mínimo 10 caracteres)'}
+                </Label>
                 <Textarea
                   value={justificativa}
                   onChange={(e) => setJustificativa(e.target.value)}
-                  placeholder="Descreva o motivo da solicitação de diária..."
+                  placeholder={isRetroativo 
+                    ? "Explique o motivo da criação retroativa desta solicitação..." 
+                    : "Descreva o motivo da solicitação de diária..."}
                   rows={3}
                   className="mt-1.5"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  {justificativa.length}/10 caracteres mínimos
+                  {justificativa.length}/{minJustificativa} caracteres mínimos
                 </p>
               </div>
             </div>

@@ -104,7 +104,7 @@ const FuncionarioFilters: React.FC<FuncionarioFiltersProps> = ({
               <SelectContent>
                 <SelectItem value="todos">Todos</SelectItem>
                 <SelectItem value="Ativo">Ativo</SelectItem>
-                <SelectItem value="Ativo/Diária">Ativo/Diária</SelectItem>
+                <SelectItem value="Ativo sem Registro">Ativo sem Registro</SelectItem>
                 <SelectItem value="Aviso Prévio">Aviso Prévio</SelectItem>
                 <SelectItem value="Inativo">Inativo</SelectItem>
                 <SelectItem value="INSS">INSS</SelectItem>

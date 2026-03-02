@@ -25,7 +25,7 @@ const funcionarioSchema = z.object({
   data_admissao: z.string().nullable().optional(),
   salario_base: z.number().min(0, { message: "Salário deve ser positivo" }).optional(),
   data_ferias: z.string().nullable().optional(),
-  status: z.enum(["Ativo", "Ativo/Diária", "Inativo", "Aviso Prévio", "INSS"]).optional(),
+  status: z.enum(["Ativo", "Ativo sem Registro", "Inativo", "Aviso Prévio", "INSS"]).optional(),
   data_demissao: z.string().nullable().optional(),
   insalubridade: z.number().min(0, { message: "Valor deve ser positivo" }).optional(),
   periculosidade: z.number().min(0, { message: "Valor deve ser positivo" }).optional(),

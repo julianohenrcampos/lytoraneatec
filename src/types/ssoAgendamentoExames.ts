@@ -76,6 +76,9 @@ export interface AgendamentoExame {
   // Mudança de Risco
   motivo_mudanca_risco: MotivoMudancaRisco | null;
   
+  // Data do resultado do exame (quando status mudou para Apto)
+  data_resultado_exame: string | null;
+  
   // Benefícios VT/VR
   vt_solicitado_em: string | null;
   vt_entregue_em: string | null;
@@ -280,26 +283,25 @@ export const calcularDataRegistroCarteira = (dataInicio: string): string => {
   return data.toISOString().split('T')[0];
 };
 
-// Helper para calcular progresso do prazo de contratação
-export const calcularProgressoPrazo = (dataInicio: string | null, dataLimite: string | null): number => {
-  if (!dataInicio || !dataLimite) return 0;
+// Prazo de contratação: 18 dias regressivos a partir de data_resultado_exame
+export const PRAZO_CONTRATACAO_DIAS = 18;
+
+export const calcularPrazoContratacao = (dataResultado: string | null): { diasRestantes: number; diasPassados: number; progresso: number } => {
+  if (!dataResultado) return { diasRestantes: PRAZO_CONTRATACAO_DIAS, diasPassados: 0, progresso: 0 };
   
-  const inicio = new Date(dataInicio);
-  const limite = new Date(dataLimite);
+  const inicio = new Date(dataResultado + 'T12:00:00');
   const hoje = new Date();
+  const diasPassados = Math.max(0, Math.ceil((hoje.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24)));
+  const diasRestantes = PRAZO_CONTRATACAO_DIAS - diasPassados;
+  const progresso = Math.min(100, Math.max(0, (diasPassados / PRAZO_CONTRATACAO_DIAS) * 100));
   
-  const totalDias = Math.ceil((limite.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
-  const diasPassados = Math.ceil((hoje.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
-  
-  return Math.min(100, Math.max(0, (diasPassados / totalDias) * 100));
+  return { diasRestantes, diasPassados, progresso };
 };
 
-// Helper para verificar se prazo está vencido
-export const isPrazoVencido = (dataLimite: string | null, statusCarteira: string): boolean => {
-  if (!dataLimite || statusCarteira === 'Registrado' || statusCarteira === 'Revisado') return false;
-  const hoje = new Date();
-  const limite = new Date(dataLimite + 'T23:59:59');
-  return hoje > limite;
+export const isPrazoVencido = (dataResultado: string | null, statusCarteira: string): boolean => {
+  if (!dataResultado || statusCarteira === 'Registrado' || statusCarteira === 'Revisado') return false;
+  const { diasRestantes } = calcularPrazoContratacao(dataResultado);
+  return diasRestantes <= 0;
 };
 
 // Helper para mapear dados do funcionário para Etapa1FormData

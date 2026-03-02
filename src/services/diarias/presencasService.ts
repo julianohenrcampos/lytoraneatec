@@ -23,6 +23,7 @@ export interface PresencaDiaria {
   valor_refeicao_aplicado: number | null;
   confirmado_por: string | null;
   confirmado_em: string | null;
+  usar_diaria_exclusiva: boolean;
   created_at: string;
   updated_at: string;
   // Relations
@@ -51,6 +52,7 @@ export interface PresencaFormData {
   tipo_diaria?: TipoDiaria;
   recebe_refeicao?: boolean;
   valor_refeicao_aplicado?: number;
+  usar_diaria_exclusiva?: boolean;
 }
 
 // Buscar presenças por solicitação e data
@@ -111,6 +113,7 @@ export async function salvarPresencas(
     tipo_diaria: p.tipo_diaria || 'completa',
     recebe_refeicao: p.recebe_refeicao ?? true,
     valor_refeicao_aplicado: p.valor_refeicao_aplicado ?? 0,
+    usar_diaria_exclusiva: p.usar_diaria_exclusiva ?? false,
     confirmado_por: userId,
     confirmado_em: new Date().toISOString(),
     updated_at: new Date().toISOString()
@@ -139,6 +142,7 @@ export interface InicioFormData {
   presente: boolean;
   hora_entrada?: string;
   valor_diaria_original: number;
+  usar_diaria_exclusiva?: boolean;
 }
 
 export interface FinalizacaoFormData {
@@ -171,6 +175,7 @@ export async function salvarInicio(
     tipo_diaria: null,
     recebe_refeicao: null,
     valor_refeicao_aplicado: null,
+    usar_diaria_exclusiva: r.usar_diaria_exclusiva ?? false,
     confirmado_por: userId,
     confirmado_em: new Date().toISOString(),
   }));

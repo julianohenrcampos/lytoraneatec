@@ -1,0 +1,1 @@
+ALTER TABLE bd_diaria_presencas ADD COLUMN IF NOT EXISTS usar_diaria_exclusiva boolean DEFAULT false;
