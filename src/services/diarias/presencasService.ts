@@ -321,6 +321,71 @@ export async function getDatasApontadas(
 }
 
 // =====================================================
+// CORREÇÃO PÓS-CONCLUSÃO (edicaoLiberada)
+// =====================================================
+
+export interface CorrecaoFormData {
+  funcionario_id: string;
+  presente: boolean;
+  hora_entrada: string;
+  hora_saida: string;
+  tipo_diaria: TipoDiaria;
+  valor_diaria_aplicada: number;
+  recebe_refeicao: boolean;
+  valor_refeicao_aplicado: number;
+}
+
+export async function salvarCorrecao(
+  solicitacaoId: string,
+  data: string,
+  registros: CorrecaoFormData[],
+  observacao: string
+): Promise<void> {
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData?.user?.id;
+
+  const justificativa = `[CORREÇÃO - EDIÇÃO LIBERADA] ${observacao} | Por: ${userId} em ${new Date().toISOString()}`;
+
+  const promises = registros.map(async (r) => {
+    const { error } = await supabase
+      .from('bd_diaria_presencas')
+      .update({
+        presente: r.presente,
+        hora_entrada: r.hora_entrada || null,
+        hora_saida: r.hora_saida || null,
+        tipo_diaria: r.tipo_diaria,
+        valor_diaria_aplicada: r.valor_diaria_aplicada,
+        recebe_refeicao: r.recebe_refeicao,
+        valor_refeicao_aplicado: r.valor_refeicao_aplicado,
+        observacoes: justificativa,
+        confirmado_por: userId,
+        confirmado_em: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('solicitacao_id', solicitacaoId)
+      .eq('funcionario_id', r.funcionario_id)
+      .eq('data', data);
+
+    if (error) {
+      console.error(`Erro ao corrigir presença de ${r.funcionario_id}:`, error);
+      throw new Error(error.message);
+    }
+  });
+
+  await Promise.all(promises);
+
+  // Registrar auditoria
+  await supabase
+    .from('bd_diaria_aprovacoes')
+    .insert({
+      entidade: 'relatorio',
+      entidade_id: solicitacaoId,
+      acao: 'correcao_edicao_liberada',
+      comentario: justificativa
+    });
+}
+
+// =====================================================
 // EDITAR HORA DE SAÍDA PÓS-CONCLUSÃO
 // =====================================================
 

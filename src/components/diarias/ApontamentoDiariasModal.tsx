@@ -54,11 +54,13 @@ import {
   salvarInicio,
   salvarFinalizacao,
   salvarSaidaIndividual,
+  salvarCorrecao,
   editarHoraSaida,
   type PresencaFormData,
   type TipoDiaria,
   type InicioFormData,
-  type FinalizacaoFormData
+  type FinalizacaoFormData,
+  type CorrecaoFormData
 } from "@/services/diarias/presencasService";
 import {
   adicionarFuncionarioConvocado,
@@ -78,6 +80,7 @@ interface ApontamentoDiariasModalProps {
   onSaveSuccess?: () => void;
   readOnly?: boolean;
   edicaoLiberada?: boolean;
+  initialDate?: string;
 }
 
 interface ColaboradorPresenca extends PresencaFormData {
@@ -151,7 +154,8 @@ export default function ApontamentoDiariasModal({
   apontamento,
   onSaveSuccess,
   readOnly = false,
-  edicaoLiberada = false
+  edicaoLiberada = false,
+  initialDate
 }: ApontamentoDiariasModalProps) {
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [colaboradores, setColaboradores] = useState<ColaboradorPresenca[]>([]);
@@ -170,6 +174,9 @@ export default function ApontamentoDiariasModal({
   const [editingExitId, setEditingExitId] = useState<string | null>(null);
   const [editExitTime, setEditExitTime] = useState("");
   const [editJustificativa, setEditJustificativa] = useState("");
+  
+  // Estado para observação obrigatória na correção (edicaoLiberada)
+  const [observacaoCorrecao, setObservacaoCorrecao] = useState("");
   
    // Estado para saídas salvas individualmente
   const [saidasSalvas, setSaidasSalvas] = useState<Set<string>>(new Set());
@@ -433,15 +440,19 @@ export default function ApontamentoDiariasModal({
   // Resetar quando abrir/fechar
   useEffect(() => {
     if (isOpen && datasDisponiveis.length > 0) {
-      const hoje = getCurrentBrazilianDate();
-      const hojeDisponivel = datasDisponiveis.find(d => d.value === hoje && !d.disabled);
-      if (hojeDisponivel) {
-        setSelectedDate(hojeDisponivel.value);
+      // Priorizar initialDate quando fornecida (ex: clique em badge com Liberado)
+      if (initialDate && datasDisponiveis.some(d => d.value === initialDate)) {
+        setSelectedDate(initialDate);
       } else {
-        // Selecionar a última data passada disponível
-        const passadas = datasDisponiveis.filter(d => !d.disabled);
-        if (passadas.length > 0) {
-          setSelectedDate(passadas[passadas.length - 1].value);
+        const hoje = getCurrentBrazilianDate();
+        const hojeDisponivel = datasDisponiveis.find(d => d.value === hoje && !d.disabled);
+        if (hojeDisponivel) {
+          setSelectedDate(hojeDisponivel.value);
+        } else {
+          const passadas = datasDisponiveis.filter(d => !d.disabled);
+          if (passadas.length > 0) {
+            setSelectedDate(passadas[passadas.length - 1].value);
+          }
         }
       }
     } else if (!isOpen) {
@@ -454,8 +465,9 @@ export default function ApontamentoDiariasModal({
       setShowAddFuncionario(false);
       setSaidasSalvas(new Set());
       setIsSavingIndividual(null);
+      setObservacaoCorrecao("");
     }
-  }, [isOpen, datasDisponiveis]);
+  }, [isOpen, datasDisponiveis, initialDate]);
 
   // Recalcular jornada ao mudar horários
   const recalcularJornada = useCallback((col: ColaboradorPresenca): ColaboradorPresenca => {
@@ -469,7 +481,8 @@ export default function ApontamentoDiariasModal({
 
   // Handlers
   const handlePresencaChange = (index: number, presente: boolean) => {
-    if ((fase !== 'inicio' && fase !== 'finalizacao') || readOnly) return;
+    if (readOnly) return;
+    if (fase !== 'inicio' && fase !== 'finalizacao' && !(fase === 'concluido' && edicaoLiberada)) return;
     setColaboradores((prev) =>
       prev.map((col) => {
         if (col.index !== index) return col;
@@ -490,7 +503,7 @@ export default function ApontamentoDiariasModal({
     if (readOnly) return;
     const horaAtual = format(new Date(), 'HH:mm');
 
-    if (fase === 'inicio') {
+    if (fase === 'inicio' || (fase === 'concluido' && edicaoLiberada)) {
       setColaboradores((prev) =>
         prev.map((col) => {
           const updated = {
@@ -832,8 +845,39 @@ export default function ApontamentoDiariasModal({
       setIsSaving(false);
     }
   };
+  // Salvar Correção (edicaoLiberada)
+  const handleSalvarCorrecao = async () => {
+    if (!solicitacao?.id || !selectedDate || !observacaoCorrecao.trim()) return;
 
-  // Estatísticas
+    setIsSaving(true);
+    try {
+      const registros: CorrecaoFormData[] = colaboradores.map(col => {
+        const { tipo } = calcularJornada(col.hora_entrada, col.hora_saida);
+        const valorFinal = col.presente ? calcularValorDiaria(col.valor_diaria_original, tipo) : 0;
+        return {
+          funcionario_id: col.funcionario_id,
+          presente: col.presente,
+          hora_entrada: col.hora_entrada || '',
+          hora_saida: col.hora_saida || '',
+          tipo_diaria: col.presente ? tipo : 'nenhuma',
+          valor_diaria_aplicada: valorFinal,
+          recebe_refeicao: col.recebe_refeicao ?? true,
+          valor_refeicao_aplicado: col.recebe_refeicao ? (funcoesMap[col.funcao_id] || 0) : 0
+        };
+      });
+
+      await salvarCorrecao(solicitacao.id, selectedDate, registros, observacaoCorrecao);
+      toast.success('Correção salva com sucesso!');
+      setObservacaoCorrecao("");
+      onSaveSuccess?.();
+    } catch (error: any) {
+      console.error("Erro ao salvar correção:", error);
+      toast.error('Erro ao salvar correção.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const totalPresentes = colaboradores.filter((c) => c.presente).length;
   if (!apontamento || !solicitacao) return null;
 
@@ -1000,14 +1044,22 @@ export default function ApontamentoDiariasModal({
             )}
           </div>
 
-          {/* Banner edição liberada */}
+          {/* Banner edição liberada + observação obrigatória */}
           {edicaoLiberada && fase === 'concluido' && (
-            <Alert className="border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20">
-              <AlertTriangle className="h-4 w-4 text-yellow-600" />
-              <AlertDescription className="text-yellow-700 dark:text-yellow-400 text-xs">
-                Edição liberada pelo administrador — os campos estão desbloqueados para correção.
-              </AlertDescription>
-            </Alert>
+            <div className="space-y-2">
+              <Alert className="border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20">
+                <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                <AlertDescription className="text-yellow-700 dark:text-yellow-400 text-xs">
+                  Edição liberada pelo administrador — os campos estão desbloqueados para correção.
+                </AlertDescription>
+              </Alert>
+              <Textarea
+                placeholder="Descreva o motivo da correção... (obrigatório)"
+                value={observacaoCorrecao}
+                onChange={(e) => setObservacaoCorrecao(e.target.value)}
+                className="text-xs min-h-[60px]"
+              />
+            </div>
           )}
 
           <Separator />
@@ -1373,8 +1425,8 @@ export default function ApontamentoDiariasModal({
 
           {fase === 'concluido' && edicaoLiberada && !readOnly && (
             <Button
-              onClick={handleSalvarFinalizacao}
-              disabled={isSaving || !selectedDate || colaboradores.length === 0}
+              onClick={handleSalvarCorrecao}
+              disabled={isSaving || !selectedDate || colaboradores.length === 0 || !observacaoCorrecao.trim()}
               className="bg-yellow-600 hover:bg-yellow-700 text-white w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-10"
             >
               {isSaving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Salvando...</> : <><Save className="h-3.5 w-3.5 mr-1.5" />Salvar Correção</>}

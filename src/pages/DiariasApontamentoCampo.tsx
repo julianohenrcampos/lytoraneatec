@@ -66,6 +66,7 @@ export default function DiariasApontamentoCampo() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedApontamento, setSelectedApontamento] = useState<DiariaApontamento | null>(null);
   const [modalReadOnly, setModalReadOnly] = useState(false);
+  const [modalInitialDate, setModalInitialDate] = useState<string | undefined>(undefined);
 
   // Mutation toggle edição
   const toggleEdicao = useToggleEdicaoLiberada();
@@ -103,9 +104,10 @@ export default function DiariasApontamentoCampo() {
   });
 
   // Handlers
-  const handleOpenModal = (apontamento: any, readOnly: boolean = false) => {
+  const handleOpenModal = (apontamento: any, readOnly: boolean = false, initialDate?: string) => {
     setSelectedApontamento(apontamento as DiariaApontamento);
     setModalReadOnly(readOnly);
+    setModalInitialDate(initialDate);
     setIsModalOpen(true);
   };
 
@@ -303,16 +305,24 @@ export default function DiariasApontamentoCampo() {
                           const isHoje = dataStr === hojeStr;
                           const dia = format(parseBrazilianDate(dataStr), 'dd');
 
+                          const isLiberado = (apontamento as any).edicao_liberada;
+
                           return (
                             <Badge
                               key={dataStr}
                               variant={isApontado ? "success" : "outline"}
                               className={cn(
-                                "text-xs w-8 h-8 flex items-center justify-center rounded-md cursor-default",
+                                "text-xs w-8 h-8 flex items-center justify-center rounded-md",
                                 !isApontado && isHoje && "border-primary text-primary border-2",
-                                !isApontado && !isHoje && "bg-muted text-muted-foreground"
+                                !isApontado && !isHoje && "bg-muted text-muted-foreground",
+                                isLiberado && isApontado ? "cursor-pointer ring-1 ring-yellow-400 hover:ring-2 hover:ring-yellow-500 transition-all" : "cursor-default"
                               )}
-                              title={`${formatBrazilianDateForDisplay(dataStr)}${isApontado ? ' - Apontado' : isHoje ? ' - Hoje' : ''}`}
+                              title={`${formatBrazilianDateForDisplay(dataStr)}${isApontado ? ' - Apontado' : isHoje ? ' - Hoje' : ''}${isLiberado && isApontado ? ' - Clique para editar' : ''}`}
+                              onClick={() => {
+                                if (isLiberado && isApontado) {
+                                  handleOpenModal(apontamento, false, dataStr);
+                                }
+                              }}
                             >
                               {dia}
                             </Badge>
@@ -375,6 +385,7 @@ export default function DiariasApontamentoCampo() {
           onSaveSuccess={handleSaveSuccess}
           readOnly={modalReadOnly}
           edicaoLiberada={(selectedApontamento as any)?.edicao_liberada || false}
+          initialDate={modalInitialDate}
         />
       </div>
     </MainLayout>
