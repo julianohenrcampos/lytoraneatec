@@ -145,6 +145,7 @@ export interface FuncionarioPreConvocado {
   valor_refeicao?: number;
   nome_funcionario?: string;
   nome_funcao?: string;
+  usar_diaria_exclusiva?: boolean; // Forçar diária exclusiva independente do dia
 }
 
 export interface SolicitacaoFormData {

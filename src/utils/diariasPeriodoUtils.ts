@@ -168,21 +168,35 @@ export function calcularEstimativaTotal(
     const valorDiariaExclusiva = func.valor_diaria_exclusiva || valorDiaria * 1.2;
     const valorRefeicao = func.valor_refeicao || 0;
     
-    // Dias úteis (seg-sex) sempre contam com diária normal
-    // Sábados sempre contam com diária normal
+    // Se usar_diaria_exclusiva === true, TODOS os dias usam diária exclusiva
+    const forcarExclusiva = (func as any).usar_diaria_exclusiva === true;
+    
     const diasNormais = analise.diasUteis + analise.sabados;
-    const valorDiasUteisESabados = diasNormais * valorDiaria;
-    
-    // Domingos + Feriados só contam se toggle ativo, com diária exclusiva
     const diasExclusivos = analise.domingos + analise.feriados;
-    const valorDomFeriados = considerarFdsFeriado 
-      ? diasExclusivos * valorDiariaExclusiva 
-      : 0;
     
-    // Refeição conta para todos os dias que o funcionário trabalha
-    const diasParaRefeicao = considerarFdsFeriado
-      ? diasNormais + diasExclusivos
-      : diasNormais;
+    let valorDiasUteisESabados: number;
+    let valorDomFeriados: number;
+    let diasParaRefeicao: number;
+    
+    if (forcarExclusiva) {
+      // Todos os dias com valor exclusiva
+      const totalDias = considerarFdsFeriado 
+        ? diasNormais + diasExclusivos 
+        : diasNormais;
+      valorDiasUteisESabados = 0;
+      valorDomFeriados = totalDias * valorDiariaExclusiva;
+      diasParaRefeicao = totalDias;
+    } else {
+      // Comportamento padrão
+      valorDiasUteisESabados = diasNormais * valorDiaria;
+      valorDomFeriados = considerarFdsFeriado 
+        ? diasExclusivos * valorDiariaExclusiva 
+        : 0;
+      diasParaRefeicao = considerarFdsFeriado
+        ? diasNormais + diasExclusivos
+        : diasNormais;
+    }
+    
     const valorRefeicoes = diasParaRefeicao * valorRefeicao;
     
     return {

@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -347,6 +348,15 @@ export function SolicitacaoFormModal({
     setConvocadosPre(convocadosPre.filter(c => c.funcionario_id !== funcionarioId));
   };
 
+  // Toggle tipo de diária por funcionário
+  const handleTipoDiariaChange = (funcionarioId: string, usarExclusiva: boolean) => {
+    setConvocadosPre(prev => prev.map(c => 
+      c.funcionario_id === funcionarioId 
+        ? { ...c, usar_diaria_exclusiva: usarExclusiva }
+        : c
+    ));
+  };
+
   // Calculate simulação de valores
   const simulacao = useMemo(() => {
     return calcularEstimativaTotal(convocadosPre, analise, consideraFdsFeriado);
@@ -375,7 +385,8 @@ export function SolicitacaoFormModal({
       valor_diaria_exclusiva: c.valor_diaria_exclusiva,
       valor_refeicao: c.valor_refeicao,
       nome_funcionario: c.nome_funcionario,
-      nome_funcao: c.nome_funcao
+      nome_funcao: c.nome_funcao,
+      usar_diaria_exclusiva: c.usar_diaria_exclusiva || false
     })),
     responsavel_campo_id: responsavelCampoId || undefined,
     engenheiro_solicitante_id: engenheiroSolicitanteId || undefined
@@ -628,22 +639,29 @@ export function SolicitacaoFormModal({
                         <TableHead className="text-right">Diária</TableHead>
                         <TableHead className="text-right">FDS/Fer</TableHead>
                         <TableHead className="text-right">Refeição</TableHead>
+                        <TableHead className="text-center">D/Férias</TableHead>
                         <TableHead className="w-[50px]"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {convocadosPre.map((conv) => (
                         <TableRow key={conv.funcionario_id}>
-                          <TableCell>{conv.nome_funcionario}</TableCell>
-                          <TableCell>{conv.nome_funcao}</TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-xs">{conv.nome_funcionario}</TableCell>
+                          <TableCell className="text-xs">{conv.nome_funcao}</TableCell>
+                          <TableCell className="text-right text-xs">
                             {formatCurrency(conv.valor_diaria)}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right text-xs">
                             {formatCurrency(conv.valor_diaria_exclusiva || conv.valor_diaria * 1.2)}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right text-xs">
                             {formatCurrency(conv.valor_refeicao || 0)}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Checkbox
+                              checked={conv.usar_diaria_exclusiva || false}
+                              onCheckedChange={(checked) => handleTipoDiariaChange(conv.funcionario_id, !!checked)}
+                            />
                           </TableCell>
                           <TableCell>
                             <Button
@@ -779,6 +797,7 @@ export function SolicitacaoFormModal({
                         <TableHead className="text-right">Diária</TableHead>
                         <TableHead className="text-right">FDS/Fer</TableHead>
                         <TableHead className="text-right">Refeição</TableHead>
+                        <TableHead className="text-center">D/Férias</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -792,6 +811,11 @@ export function SolicitacaoFormModal({
                           </TableCell>
                           <TableCell className="text-right">
                             {formatCurrency(conv.valor_refeicao || 0)}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {conv.usar_diaria_exclusiva && (
+                              <Badge variant="default" className="text-xs">D/Férias</Badge>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

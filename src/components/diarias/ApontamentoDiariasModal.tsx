@@ -86,6 +86,9 @@ interface ApontamentoDiariasModalProps {
 interface ColaboradorPresenca extends PresencaFormData {
   index: number;
   presencaId?: string; // ID da presença no banco para edição pós-conclusão
+  usarDiariaExclusiva: boolean; // Toggle manual: usar valor FDS/Feriado
+  valor_diaria_normal: number; // Valor diária normal (seg-sáb)
+  valor_diaria_exclusiva_valor: number; // Valor diária exclusiva (dom/feriado)
 }
 
 type FaseApontamento = 'inicio' | 'finalizacao' | 'concluido';
@@ -353,11 +356,19 @@ export default function ApontamentoDiariasModal({
             const dateSel = parseBrazilianDate(selectedDate);
             const isDomingo = dateSel.getDay() === 0;
             const isFeriado = feriados.some(f => f.data === selectedDate);
-            const usarExclusiva = isDomingo || isFeriado;
+            // Respeitar flag usar_diaria_exclusiva do convocado_pre
+            const usarExclusiva = conv.usar_diaria_exclusiva === true || isDomingo || isFeriado;
 
-            const valorOriginal = usarExclusiva
-              ? (conv.valor_diaria_exclusiva || conv.valor_diaria)
-              : conv.valor_diaria;
+            const vNormal = conv.valor_diaria;
+            const vExclusiva = conv.valor_diaria_exclusiva || conv.valor_diaria;
+            // Se existente, detectar se o valor salvo corresponde à exclusiva
+            const existenteUsaExclusiva = existente
+              ? (existente.valor_diaria_aplicada !== undefined && vExclusiva !== vNormal
+                  ? Math.abs((existente.valor_diaria_aplicada || 0) - vExclusiva) < Math.abs((existente.valor_diaria_aplicada || 0) - vNormal)
+                  : usarExclusiva)
+              : usarExclusiva;
+            const valorOriginal = existenteUsaExclusiva ? vExclusiva : vNormal;
+
             return {
               index,
               funcionario_id: conv.funcionario_id,
@@ -372,7 +383,10 @@ export default function ApontamentoDiariasModal({
               tipo_diaria: (existente?.tipo_diaria as TipoDiaria) || 'completa',
               recebe_refeicao: existente?.recebe_refeicao ?? true,
               valor_refeicao_aplicado: existente?.valor_refeicao_aplicado ?? 0,
-              presencaId: existente?.id
+              presencaId: existente?.id,
+              usarDiariaExclusiva: existenteUsaExclusiva,
+              valor_diaria_normal: vNormal,
+              valor_diaria_exclusiva_valor: vExclusiva
             };
           });
           setColaboradores(mapped);
@@ -383,11 +397,12 @@ export default function ApontamentoDiariasModal({
             const dateSel2 = parseBrazilianDate(selectedDate);
             const isDomingo2 = dateSel2.getDay() === 0;
             const isFeriado2 = feriados.some(f => f.data === selectedDate);
-            const usarExclusiva2 = isDomingo2 || isFeriado2;
+            // Respeitar flag usar_diaria_exclusiva do convocado_pre
+            const usarExclusiva2 = conv.usar_diaria_exclusiva === true || isDomingo2 || isFeriado2;
 
-            const valorOriginal = usarExclusiva2
-              ? (conv.valor_diaria_exclusiva || conv.valor_diaria)
-              : conv.valor_diaria;
+            const vNormal = conv.valor_diaria;
+            const vExclusiva = conv.valor_diaria_exclusiva || conv.valor_diaria;
+            const valorOriginal = usarExclusiva2 ? vExclusiva : vNormal;
             return {
               index,
               funcionario_id: conv.funcionario_id,
@@ -401,7 +416,10 @@ export default function ApontamentoDiariasModal({
               hora_saida: "",
               tipo_diaria: 'completa',
               recebe_refeicao: true,
-              valor_refeicao_aplicado: 0
+              valor_refeicao_aplicado: 0,
+              usarDiariaExclusiva: usarExclusiva2,
+              valor_diaria_normal: vNormal,
+              valor_diaria_exclusiva_valor: vExclusiva
             };
           });
           setColaboradores(mapped);
@@ -409,22 +427,26 @@ export default function ApontamentoDiariasModal({
         }
       } catch (error) {
         console.error("Erro ao carregar presenças:", error);
-        const mapped: ColaboradorPresenca[] = convocadosPre.map((conv, index) => {
-          const valorOriginal = conv.valor_diaria_exclusiva || conv.valor_diaria;
+      const mapped: ColaboradorPresenca[] = convocadosPre.map((conv, index) => {
+          const vNormal = conv.valor_diaria;
+          const vExclusiva = conv.valor_diaria_exclusiva || conv.valor_diaria;
           return {
             index,
             funcionario_id: conv.funcionario_id,
             nome_funcionario: conv.nome_funcionario || "",
             funcao_id: conv.funcao_id,
             nome_funcao: conv.nome_funcao,
-            valor_diaria_original: valorOriginal,
-            valor_diaria: valorOriginal,
+            valor_diaria_original: vExclusiva,
+            valor_diaria: vExclusiva,
             presente: false,
             hora_entrada: "",
             hora_saida: "",
             tipo_diaria: 'completa',
             recebe_refeicao: true,
-            valor_refeicao_aplicado: 0
+            valor_refeicao_aplicado: 0,
+            usarDiariaExclusiva: true,
+            valor_diaria_normal: vNormal,
+            valor_diaria_exclusiva_valor: vExclusiva
           };
         });
         setColaboradores(mapped);
@@ -652,7 +674,10 @@ export default function ApontamentoDiariasModal({
         hora_saida: "",
         tipo_diaria: 'completa',
         recebe_refeicao: true,
-        valor_refeicao_aplicado: 0
+        valor_refeicao_aplicado: 0,
+        usarDiariaExclusiva: usarExclusiva,
+        valor_diaria_normal: valorDiaria,
+        valor_diaria_exclusiva_valor: valorDiariaExclusiva
       };
 
       setColaboradores(prev => [...prev, novoColab]);
@@ -768,6 +793,20 @@ export default function ApontamentoDiariasModal({
       prev.map((col) =>
         col.index === index ? { ...col, recebe_refeicao: recebe } : col
       )
+    );
+  };
+
+  // Toggle tipo de diária (Normal vs FDS/Feriado) por funcionário
+  const handleTipoDiariaChange = (index: number, usarExclusiva: boolean) => {
+    if (readOnly) return;
+    if (fase === 'concluido' && !edicaoLiberada) return;
+    setColaboradores((prev) =>
+      prev.map((col) => {
+        if (col.index !== index) return col;
+        const novoValorOriginal = usarExclusiva ? col.valor_diaria_exclusiva_valor : col.valor_diaria_normal;
+        const updated = { ...col, usarDiariaExclusiva: usarExclusiva, valor_diaria_original: novoValorOriginal };
+        return recalcularJornada(updated);
+      })
     );
   };
 
@@ -1315,7 +1354,32 @@ export default function ApontamentoDiariasModal({
                           </div>
                         </div>
 
-                        {/* MELHORIA 3: Formulário inline de edição de hora de saída */}
+                        {/* Toggle Tipo Diária: Normal vs FDS/Feriado */}
+                        {colaborador.valor_diaria_normal !== colaborador.valor_diaria_exclusiva_valor && (
+                          <div className="flex items-center justify-between mt-1 pt-1 border-t border-dashed">
+                            <div className="flex items-center gap-1.5">
+                              <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+                              <Label htmlFor={`tipo-diaria-${colaborador.funcionario_id}`} className="text-xs sm:text-sm cursor-pointer">
+                                Diária Especial
+                              </Label>
+                              <Badge variant={colaborador.usarDiariaExclusiva ? "warning" : "secondary"} className="text-[10px]">
+                                {colaborador.usarDiariaExclusiva
+                                  ? `R$ ${colaborador.valor_diaria_exclusiva_valor.toFixed(2)}`
+                                  : `R$ ${colaborador.valor_diaria_normal.toFixed(2)}`}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Switch
+                                id={`tipo-diaria-${colaborador.funcionario_id}`}
+                                checked={colaborador.usarDiariaExclusiva}
+                                onCheckedChange={(checked) => handleTipoDiariaChange(colaborador.index, checked)}
+                                disabled={(fase === 'concluido' && !edicaoLiberada) || !colaborador.presente || readOnly || jaSalvouSaida}
+                              />
+                              {fase === 'concluido' && !edicaoLiberada && <Lock className="h-3 w-3 text-muted-foreground" />}
+                            </div>
+                          </div>
+                        )}
+
                         {isEditingThis && (
                           <div className="mt-3 pt-3 border-t border-dashed space-y-2 bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded">
                             <p className="text-xs font-medium flex items-center gap-1 text-yellow-700">

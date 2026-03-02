@@ -204,8 +204,8 @@ export const ListaPresencaPDFDocument: React.FC<ListaPresencaPDFProps> = ({
               <View style={styles.cellNome}><Text style={styles.cellText}>{func.nome_completo}</Text></View>
               <View style={styles.cellMatricula}><Text style={styles.cellText}>{func.matricula || '-'}</Text></View>
               <View style={styles.cellCpf}><Text style={styles.cellText}>{func.cpf || '-'}</Text></View>
-              <View style={styles.cellHoraEntrada}><Text style={styles.cellText}>{func.hora_entrada || '-'}</Text></View>
-              <View style={styles.cellHoraSaida}><Text style={styles.cellText}>{func.hora_saida || '-'}</Text></View>
+              <View style={styles.cellHoraEntrada}><Text style={styles.cellText}>{func.hora_entrada || ':'}</Text></View>
+              <View style={styles.cellHoraSaida}><Text style={styles.cellText}>{func.hora_saida || ':'}</Text></View>
               <View style={styles.cellAssinatura}><Text style={styles.cellText}></Text></View>
             </View>
           ))}
