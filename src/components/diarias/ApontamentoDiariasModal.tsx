@@ -52,6 +52,8 @@ import type { DiariaApontamento, FuncionarioPreConvocado } from "@/types/diarias
 import {
   getPresencasPorSolicitacao,
   salvarInicio,
+  salvarInicioParcial,
+  atualizarFaltaParaPresente,
   salvarFinalizacao,
   salvarSaidaIndividual,
   salvarCorrecao,
@@ -81,6 +83,7 @@ interface ApontamentoDiariasModalProps {
   readOnly?: boolean;
   edicaoLiberada?: boolean;
   initialDate?: string;
+  isSuperAdmin?: boolean;
 }
 
 interface ColaboradorPresenca extends PresencaFormData {
@@ -158,7 +161,8 @@ export default function ApontamentoDiariasModal({
   onSaveSuccess,
   readOnly = false,
   edicaoLiberada = false,
-  initialDate
+  initialDate,
+  isSuperAdmin = false
 }: ApontamentoDiariasModalProps) {
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [colaboradores, setColaboradores] = useState<ColaboradorPresenca[]>([]);
@@ -181,10 +185,16 @@ export default function ApontamentoDiariasModal({
   // Estado para observação obrigatória na correção (edicaoLiberada)
   const [observacaoCorrecao, setObservacaoCorrecao] = useState("");
   
-   // Estado para saídas salvas individualmente
+  // Estado para saídas salvas individualmente
   const [saidasSalvas, setSaidasSalvas] = useState<Set<string>>(new Set());
   const [isSavingIndividual, setIsSavingIndividual] = useState<string | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  
+  // Rastrear funcionários avulsos (adicionados via "+ Adicionar")
+  const [funcionariosAvulsos, setFuncionariosAvulsos] = useState<Set<string>>(new Set());
+  
+  // Rastrear funcionários que eram "falta" e foram convertidos para "presente" (atrasados com presencaId)
+  const [faltaConvertida, setFaltaConvertida] = useState<Set<string>>(new Set());
 
   const queryClient = useQueryClient();
 
@@ -488,6 +498,8 @@ export default function ApontamentoDiariasModal({
       setSaidasSalvas(new Set());
       setIsSavingIndividual(null);
       setObservacaoCorrecao("");
+      setFuncionariosAvulsos(new Set());
+      setFaltaConvertida(new Set());
     }
   }, [isOpen, datasDisponiveis, initialDate]);
 
@@ -504,20 +516,54 @@ export default function ApontamentoDiariasModal({
   // Handlers
   const handlePresencaChange = (index: number, presente: boolean) => {
     if (readOnly) return;
-    if (fase !== 'inicio' && fase !== 'finalizacao' && !(fase === 'concluido' && edicaoLiberada)) return;
+    // Permitir marcar presença na finalização para atrasados (sem presencaId OU com presencaId mas era falta)
+    if (fase !== 'inicio' && !(fase === 'concluido' && edicaoLiberada)) {
+      const col = colaboradores.find(c => c.index === index);
+      if (fase === 'finalizacao' && col) {
+        // Permitir se não tem presencaId (avulso atrasado)
+        // OU se tem presencaId mas está como falta (presente=false) e quer marcar como presente
+        if (!col.presencaId && !presente) {
+          // Desmarcando um avulso sem registro - OK
+        } else if (col.presencaId && col.presente) {
+          // Já está presente e tem registro - bloquear desmarcação na finalização
+          return;
+        }
+        // Caso contrário, permitir (atrasado com ou sem presencaId)
+      } else if (fase !== 'finalizacao') {
+        return;
+      }
+    }
     setColaboradores((prev) =>
       prev.map((col) => {
         if (col.index !== index) return col;
+        const horaAtual = format(new Date(), 'HH:mm');
         const updated = {
           ...col,
           presente,
-          hora_entrada: presente && !col.hora_entrada ? format(new Date(), 'HH:mm') : col.hora_entrada,
+          hora_entrada: presente && !col.hora_entrada ? horaAtual : col.hora_entrada,
           hora_saida: col.hora_saida,
           recebe_refeicao: presente ? col.recebe_refeicao : false
         };
         return recalcularJornada(updated);
       })
     );
+    // Rastrear conversão falta→presente para funcionários com presencaId
+    if (presente) {
+      const col = colaboradores.find(c => c.index === index);
+      if (col && col.presencaId && !col.presente) {
+        setFaltaConvertida(prev => new Set(prev).add(col.funcionario_id));
+      }
+    } else {
+      // Se desmarcou, remover do set
+      const col = colaboradores.find(c => c.index === index);
+      if (col) {
+        setFaltaConvertida(prev => {
+          const next = new Set(prev);
+          next.delete(col.funcionario_id);
+          return next;
+        });
+      }
+    }
   };
 
   // MELHORIA 1: Selecionar/Desmarcar todos (inicio) + Saída Todos (finalizacao)
@@ -681,7 +727,7 @@ export default function ApontamentoDiariasModal({
       };
 
       setColaboradores(prev => [...prev, novoColab]);
-      
+      setFuncionariosAvulsos(prev => new Set(prev).add(funcionario.id));
       // Invalidar queries para atualizar a solicitação
       queryClient.invalidateQueries({ queryKey: ['solicitacao-detalhes'] });
       queryClient.invalidateQueries({ queryKey: ['diarias-solicitacoes'] });
@@ -835,6 +881,67 @@ export default function ApontamentoDiariasModal({
     } catch (error: any) {
       console.error("Erro ao salvar início:", error);
       toast.error('Erro ao salvar início do apontamento.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Salvar Início de Atrasados (durante fase de finalização)
+  const handleSalvarInicioAtrasados = async () => {
+    if (!solicitacao?.id || !selectedDate) return;
+
+    // Atrasados sem presencaId (avulsos novos)
+    const atrasadosSemId = colaboradores.filter(c => c.presente && !c.presencaId);
+    // Atrasados com presencaId (eram falta, agora presente)
+    const atrasadosConvertidos = colaboradores.filter(c => c.presente && c.presencaId && faltaConvertida.has(c.funcionario_id));
+    
+    if (atrasadosSemId.length === 0 && atrasadosConvertidos.length === 0) return;
+
+    setIsSaving(true);
+    try {
+      // INSERT para avulsos sem registro
+      if (atrasadosSemId.length > 0) {
+        const registros: InicioFormData[] = atrasadosSemId.map(col => ({
+          funcionario_id: col.funcionario_id,
+          funcao_id: col.funcao_id,
+          presente: col.presente,
+          hora_entrada: col.hora_entrada || undefined,
+          valor_diaria_original: col.valor_diaria_original,
+          usar_diaria_exclusiva: col.usarDiariaExclusiva
+        }));
+        await salvarInicioParcial(solicitacao.id, selectedDate, registros);
+      }
+
+      // UPDATE para quem era falta e agora é presente
+      if (atrasadosConvertidos.length > 0) {
+        const registrosUpdate = atrasadosConvertidos.map(col => ({
+          id: col.presencaId!,
+          hora_entrada: col.hora_entrada || format(new Date(), 'HH:mm'),
+          valor_diaria_original: col.valor_diaria_original,
+          usar_diaria_exclusiva: col.usarDiariaExclusiva
+        }));
+        await atualizarFaltaParaPresente(registrosUpdate);
+      }
+      
+      // Recarregar presenças para obter os IDs dos registros criados
+      const existentes = await getPresencasPorSolicitacao(solicitacao.id, selectedDate);
+      setColaboradores(prev => prev.map(col => {
+        const existente = existentes.find(e => e.funcionario_id === col.funcionario_id);
+        if (existente) {
+          return { ...col, presencaId: existente.id, presente: existente.presente || col.presente };
+        }
+        return col;
+      }));
+
+      // Limpar o set de conversões
+      setFaltaConvertida(new Set());
+
+      const totalAtrasados = atrasadosSemId.length + atrasadosConvertidos.length;
+      toast.success(`Entrada de ${totalAtrasados} atrasado(s) registrada!`);
+      onSaveSuccess?.();
+    } catch (error: any) {
+      console.error("Erro ao salvar início dos atrasados:", error);
+      toast.error(error.message || 'Erro ao salvar entrada dos atrasados.');
     } finally {
       setIsSaving(false);
     }
@@ -1200,8 +1307,9 @@ export default function ApontamentoDiariasModal({
                     const { horas, tipo } = calcularJornada(colaborador.hora_entrada, colaborador.hora_saida);
                     const valorRefeicao = funcoesMap[colaborador.funcao_id] || 0;
 
-                    const presencaDisabled = (fase !== 'inicio' && !(fase === 'concluido' && edicaoLiberada)) || readOnly;
-                    const entradaDisabled = (fase !== 'inicio' && fase !== 'finalizacao' && !(fase === 'concluido' && edicaoLiberada)) || !colaborador.presente || readOnly;
+                    const presencaDisabled = readOnly || (fase === 'concluido' && !edicaoLiberada) || (fase === 'finalizacao' && !!colaborador.presencaId && colaborador.presente && !faltaConvertida.has(colaborador.funcionario_id)) || (fase !== 'inicio' && fase !== 'finalizacao' && !(fase === 'concluido' && edicaoLiberada));
+                    const isAtrasado = fase === 'finalizacao' && colaborador.presente && (!colaborador.presencaId || faltaConvertida.has(colaborador.funcionario_id));
+                    const entradaDisabled = (fase !== 'inicio' && fase !== 'finalizacao' && !(fase === 'concluido' && edicaoLiberada)) || !colaborador.presente || readOnly || (isAtrasado && !isSuperAdmin);
                     const jaSalvouSaida = saidasSalvas.has(colaborador.funcionario_id);
                     const saidaDisabled = (fase !== 'finalizacao' && !(fase === 'concluido' && edicaoLiberada)) || !colaborador.presente || readOnly || jaSalvouSaida;
                     const refeicaoDisabled = (fase === 'concluido' && !edicaoLiberada) || !colaborador.presente || readOnly || jaSalvouSaida;
@@ -1355,8 +1463,8 @@ export default function ApontamentoDiariasModal({
                           </div>
                         </div>
 
-                        {/* Toggle Tipo Diária: Normal vs FDS/Feriado */}
-                        {colaborador.valor_diaria_normal !== colaborador.valor_diaria_exclusiva_valor && (
+                        {/* Toggle Tipo Diária: Normal vs FDS/Feriado — só para avulsos */}
+                        {colaborador.valor_diaria_normal !== colaborador.valor_diaria_exclusiva_valor && funcionariosAvulsos.has(colaborador.funcionario_id) && (
                           <div className="flex items-center justify-between mt-1 pt-1 border-t border-dashed">
                             <div className="flex items-center gap-1.5">
                               <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
@@ -1472,13 +1580,28 @@ export default function ApontamentoDiariasModal({
           )}
 
           {fase === 'finalizacao' && !readOnly && (
-            <Button
-              onClick={handleSalvarFinalizacao}
-              disabled={isSaving || !selectedDate || colaboradores.length === 0 || !colaboradores.filter(c => c.presente).every(c => c.hora_saida)}
-              className="bg-orange-600 hover:bg-orange-700 text-white w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-10"
-            >
-              {isSaving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Finalizando...</> : <><CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />Salvar Finalização</>}
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              {/* Botão para salvar início de atrasados */}
+              {(colaboradores.some(c => c.presente && !c.presencaId) || faltaConvertida.size > 0) && (
+                <Button
+                  onClick={handleSalvarInicioAtrasados}
+                  disabled={isSaving || !selectedDate}
+                  className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-10"
+                >
+                  {isSaving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Salvando...</> : <><Clock className="h-3.5 w-3.5 mr-1.5" />Salvar Início (Atrasados)</>}
+                </Button>
+              )}
+              {/* Botão de finalização normal */}
+              {!colaboradores.some(c => c.presente && !c.presencaId) && faltaConvertida.size === 0 && (
+                <Button
+                  onClick={handleSalvarFinalizacao}
+                  disabled={isSaving || !selectedDate || colaboradores.length === 0 || !colaboradores.filter(c => c.presente && !!c.presencaId).every(c => c.hora_saida)}
+                  className="bg-orange-600 hover:bg-orange-700 text-white w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-10"
+                >
+                  {isSaving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Finalizando...</> : <><CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />Salvar Finalização</>}
+                </Button>
+              )}
+            </div>
           )}
 
           {fase === 'concluido' && !edicaoLiberada && (

@@ -474,9 +474,14 @@ export default function DiariasSolicitacoes() {
                       <CardContent className="p-4 space-y-3">
                         {/* Header: Nº + Status */}
                         <div className="flex items-center justify-between">
-                          <span className="font-mono font-semibold text-primary text-sm">
-                            {sol.numero_solicitacao}
-                          </span>
+                          <div>
+                            <span className="font-mono font-semibold text-primary text-base">
+                              {sol.numero_solicitacao}
+                            </span>
+                            <p className="text-xs text-black mt-0.5">
+                              {formatBrazilianDateForDisplay(sol.created_at?.split('T')[0])}
+                            </p>
+                          </div>
                           <StatusBadge status={sol.status} />
                         </div>
 
@@ -608,22 +613,34 @@ export default function DiariasSolicitacoes() {
                         key={sol.id}
                         className={sol.status === 'reprovada' ? 'bg-red-50 hover:bg-red-100' : ''}
                       >
-                        <TableCell className="font-mono font-medium text-primary">
-                          {sol.numero_solicitacao}
+                        <TableCell>
+                          <div>
+                            <span className="font-mono font-bold text-primary text-base whitespace-nowrap">
+                              {sol.numero_solicitacao}
+                            </span>
+                            <p className="text-xs text-black mt-0.5">
+                              {formatBrazilianDateForDisplay(sol.created_at?.split('T')[0])}
+                            </p>
+                          </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
-                            <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                            {formatBrazilianDateForDisplay(sol.data_inicio)}
-                            {sol.data_fim !== sol.data_inicio && (
-                              <> → {formatBrazilianDateForDisplay(sol.data_fim)}</>
-                            )}
+                          <div className="flex items-start gap-2">
+                            <CalendarIcon className="h-4 w-4 text-muted-foreground mt-0.5" />
+                            <div className="text-sm">
+                              <span>{formatBrazilianDateForDisplay(sol.data_inicio)}</span>
+                              {sol.data_fim !== sol.data_inicio && (
+                                <>
+                                  <span className="block text-muted-foreground">↓</span>
+                                  <span>{formatBrazilianDateForDisplay(sol.data_fim)}</span>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Building2 className="h-4 w-4 text-muted-foreground" />
-                            {sol.bd_centros_custo?.nome_centro_custo?.startsWith(sol.bd_centros_custo?.codigo_centro_custo) ? sol.bd_centros_custo?.nome_centro_custo : `${sol.bd_centros_custo?.codigo_centro_custo} - ${sol.bd_centros_custo?.nome_centro_custo}`}
+                            {sol.bd_centros_custo?.codigo_centro_custo || '-'}
                           </div>
                         </TableCell>
                         <TableCell>

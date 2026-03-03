@@ -386,6 +386,7 @@ export default function DiariasApontamentoCampo() {
           readOnly={modalReadOnly}
           edicaoLiberada={(selectedApontamento as any)?.edicao_liberada || false}
           initialDate={modalInitialDate}
+          isSuperAdmin={isSuperAdmin}
         />
       </div>
     </MainLayout>

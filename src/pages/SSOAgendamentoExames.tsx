@@ -59,7 +59,7 @@ const SSOAgendamentoExames: React.FC = () => {
   const canCreate = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO', 'JovemAdm', 'EnferAdm', 'TecSSO', 'AdmTec'].includes(userRole || '');
   const canEdit = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO'].includes(userRole || '');
   const canDelete = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA'].includes(userRole || '');
-  const canChangeStatus = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO'].includes(userRole || '');
+  const canChangeStatus = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO', 'ConsultaExames'].includes(userRole || '');
 
   // Clear selection when filters change
   useEffect(() => {

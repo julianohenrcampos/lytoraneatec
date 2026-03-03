@@ -574,26 +574,29 @@ export function SolicitacaoDetalhesModal({
                 Valor Total Estimado
               </div>
               <div className="flex justify-between items-center text-sm">
-                <span>Úteis + Sáb ({diasNormais} dias × {convocadosPre.length} func.)</span>
+                <span>Diárias Úteis + Sáb ({diasNormais} {diasNormais === 1 ? 'dia' : 'dias'}, {convocadosPre.length} func.)</span>
                 <span className="font-medium">{formatCurrency(totalDiariasNormais)}</span>
               </div>
               {mostrarColunaDiariaEspecial && (
                 <div className="flex justify-between items-center text-sm">
-                  <span>Dom/Feriados ({diasExclusivos} dias × {convocadosPre.length} func.)</span>
+                  <span>Diárias Dom/Feriados ({diasExclusivos} {diasExclusivos === 1 ? 'dia' : 'dias'}, {convocadosPre.length} func.)</span>
                   <span className="font-medium">{formatCurrency(totalDiariasExclusivas)}</span>
                 </div>
               )}
-              {totalRefeicoes > 0 && (
-                <div className="flex justify-between items-center text-sm">
-                  <span>Refeições</span>
-                  <span className="font-medium">{formatCurrency(totalRefeicoes)}</span>
-                </div>
-              )}
+              {totalRefeicoes > 0 && (() => {
+                const diasParaRefeicao = consideraFdsEFeriado ? diasNormais + diasExclusivos : diasNormais;
+                return (
+                  <div className="flex justify-between items-center text-sm">
+                    <span>Refeições ({diasParaRefeicao} {diasParaRefeicao === 1 ? 'dia' : 'dias'}, {convocadosPre.length} func.)</span>
+                    <span className="font-medium">{formatCurrency(totalRefeicoes)}</span>
+                  </div>
+                );
+              })()}
               <Separator />
               <div className="flex justify-between items-center">
                 <span className="font-semibold">TOTAL ESTIMADO</span>
                 <span className="text-xl font-bold text-primary">
-                  {formatCurrency(solicitacao.valor_estimado_total || totalGeral)}
+                  {formatCurrency(totalGeral)}
                 </span>
               </div>
               <EstimativaAviso variant="compact" />
