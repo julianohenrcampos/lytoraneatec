@@ -50,6 +50,10 @@ interface AgendamentoExamesTableProps {
   canEdit: boolean;
   canDelete: boolean;
   canChangeStatus: boolean;
+  canChangeStatusExame?: boolean;
+  canChangeIntegracao?: boolean;
+  canChangeBeneficios?: boolean;
+  canChangeCarteira?: boolean;
   selectedIds: string[];
   onSelectionChange: (ids: string[]) => void;
 }
@@ -67,6 +71,10 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
   canEdit,
   canDelete,
   canChangeStatus,
+  canChangeStatusExame,
+  canChangeIntegracao,
+  canChangeBeneficios,
+  canChangeCarteira,
   selectedIds,
   onSelectionChange
 }) => {
@@ -185,33 +193,38 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
                 </Badge>
               </TableCell>
               <TableCell>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="p-0 h-auto">
-                      <Badge variant={getStatusColor(agendamento.status)}>
-                        {agendamento.status}
-                        <ChevronDown className="h-3 w-3 ml-1" />
-                      </Badge>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    {STATUS_AGENDAMENTO.map((status) => (
-                      <DropdownMenuItem
-                        key={status}
-                        onClick={() => onStatusChange(agendamento.id, status)}
-                        disabled={!canChangeStatus}
-                      >
-                        <Badge variant={getStatusColor(status)} className="mr-2">
-                          {status}
+                {canChangeStatusExame ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="p-0 h-auto">
+                        <Badge variant={getStatusColor(agendamento.status)}>
+                          {agendamento.status}
+                          <ChevronDown className="h-3 w-3 ml-1" />
                         </Badge>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      {STATUS_AGENDAMENTO.map((status) => (
+                        <DropdownMenuItem
+                          key={status}
+                          onClick={() => onStatusChange(agendamento.id, status)}
+                        >
+                          <Badge variant={getStatusColor(status)} className="mr-2">
+                            {status}
+                          </Badge>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <Badge variant={getStatusColor(agendamento.status)}>
+                    {agendamento.status}
+                  </Badge>
+                )}
               </TableCell>
               <TableCell>
                 {showHiringFields(agendamento.tipo_exame) ? (
-                  canChangeStatus && onIntegracoChange ? (
+                  canChangeIntegracao && onIntegracoChange ? (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="sm" className="p-0 h-auto">
@@ -248,7 +261,7 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
                   <BeneficiosVtVrCell
                     agendamento={agendamento}
                     onBeneficioUpdate={onBeneficioUpdate}
-                    canEdit={canChangeStatus}
+                    canEdit={!!canChangeBeneficios}
                   />
                 ) : (
                   <span className="text-muted-foreground">-</span>
@@ -267,7 +280,7 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
               </TableCell>
               <TableCell>
                 {showHiringFields(agendamento.tipo_exame) ? (
-                  canChangeStatus && onCarteiraChange ? (
+                  canChangeCarteira && onCarteiraChange ? (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="sm" className="p-0 h-auto">

@@ -3,7 +3,7 @@
 // Fluxo em dois tempos: Início → Finalização (imutável)
 // =====================================================
 
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { format, isWeekend, eachDayOfInterval, isAfter, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { parseBrazilianDate, formatBrazilianDateForDisplay, getCurrentBrazilianDate } from "@/utils/timezoneUtils";
@@ -195,6 +195,9 @@ export default function ApontamentoDiariasModal({
   
   // Rastrear funcionários que eram "falta" e foram convertidos para "presente" (atrasados com presencaId)
   const [faltaConvertida, setFaltaConvertida] = useState<Set<string>>(new Set());
+
+  // Ref para evitar auto-finalização duplicada por data
+  const autoFinalizadoRef = useRef<Set<string>>(new Set());
 
   const queryClient = useQueryClient();
 
@@ -500,6 +503,7 @@ export default function ApontamentoDiariasModal({
       setObservacaoCorrecao("");
       setFuncionariosAvulsos(new Set());
       setFaltaConvertida(new Set());
+      autoFinalizadoRef.current.clear();
     }
   }, [isOpen, datasDisponiveis, initialDate]);
 
@@ -512,6 +516,67 @@ export default function ApontamentoDiariasModal({
     const novoValor = calcularValorDiaria(col.valor_diaria_original, tipo);
     return { ...col, tipo_diaria: tipo, valor_diaria: novoValor };
   }, []);
+
+  // Auto-finalização para sábados, domingos e feriados
+  const autoFinalizarFdsEFeriado = useCallback(async (pendentes: ColaboradorPresenca[]) => {
+    if (!solicitacao?.id || !selectedDate) return;
+
+    // Atualizar state visual com hora_saida 16:00
+    setColaboradores(prev => prev.map(col => {
+      if (!pendentes.find(p => p.funcionario_id === col.funcionario_id)) return col;
+      const updated = { ...col, hora_saida: '16:00' };
+      return recalcularJornada(updated);
+    }));
+
+    setIsSaving(true);
+    try {
+      const registros: FinalizacaoFormData[] = pendentes.map(col => {
+        const { tipo } = calcularJornada(col.hora_entrada, '16:00');
+        const valorFinal = calcularValorDiaria(col.valor_diaria_original, tipo);
+        return {
+          funcionario_id: col.funcionario_id,
+          hora_saida: '16:00',
+          tipo_diaria: tipo,
+          valor_diaria_aplicada: valorFinal,
+          recebe_refeicao: col.recebe_refeicao ?? true,
+          valor_refeicao_aplicado: col.recebe_refeicao ? (funcoesMap[col.funcao_id] || 0) : 0
+        };
+      });
+
+      await salvarFinalizacao(solicitacao.id, selectedDate, registros);
+      setHasSaved(true);
+      setFase('concluido');
+      toast.success(`Saída automática (16:00) aplicada para ${pendentes.length} funcionário(s).`);
+      onSaveSuccess?.();
+    } catch (error) {
+      console.error('Erro na auto-finalização:', error);
+      toast.error('Erro na auto-finalização. Tente novamente.');
+      autoFinalizadoRef.current.delete(selectedDate);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [solicitacao?.id, selectedDate, recalcularJornada, funcoesMap, onSaveSuccess]);
+
+  // useEffect para disparar auto-finalização em FDS/feriado
+  useEffect(() => {
+    if (fase !== 'finalizacao' || readOnly || !selectedDate || isLoadingExisting) return;
+    if (autoFinalizadoRef.current.has(selectedDate)) return;
+
+    const dateSel = parseBrazilianDate(selectedDate);
+    const isSab = dateSel.getDay() === 6;
+    const isDom = dateSel.getDay() === 0;
+    const isFer = feriados.some(f => f.data === selectedDate);
+
+    if (!isSab && !isDom && !isFer) return;
+
+    const pendentes = colaboradores.filter(
+      c => c.presente && c.hora_entrada && !c.hora_saida && c.presencaId
+    );
+    if (pendentes.length === 0) return;
+
+    autoFinalizadoRef.current.add(selectedDate);
+    autoFinalizarFdsEFeriado(pendentes);
+  }, [fase, selectedDate, colaboradores, feriados, readOnly, isLoadingExisting, autoFinalizarFdsEFeriado]);
 
   // Handlers
   const handlePresencaChange = (index: number, presente: boolean) => {
@@ -872,6 +937,15 @@ export default function ApontamentoDiariasModal({
       }));
 
       await salvarInicio(solicitacao.id, selectedDate, registros);
+      
+      // Persistir motivo da edição quando edicaoLiberada
+      if (edicaoLiberada && isSuperAdmin && observacaoCorrecao.trim() && apontamento?.id) {
+        await supabase
+          .from('bd_diaria_apontamentos')
+          .update({ observacoes: observacaoCorrecao.trim() })
+          .eq('id', apontamento.id);
+      }
+      
       setHasSaved(true);
       setFase('finalizacao');
       setHasExistingData(true);
@@ -1192,7 +1266,7 @@ export default function ApontamentoDiariasModal({
           </div>
 
           {/* Banner edição liberada + observação obrigatória */}
-          {edicaoLiberada && fase === 'concluido' && (
+          {edicaoLiberada && isSuperAdmin && (
             <div className="space-y-2">
               <Alert className="border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20">
                 <AlertTriangle className="h-4 w-4 text-yellow-600" />
@@ -1200,12 +1274,18 @@ export default function ApontamentoDiariasModal({
                   Edição liberada pelo administrador — os campos estão desbloqueados para correção.
                 </AlertDescription>
               </Alert>
-              <Textarea
-                placeholder="Descreva o motivo da correção... (obrigatório)"
-                value={observacaoCorrecao}
-                onChange={(e) => setObservacaoCorrecao(e.target.value)}
-                className="text-xs min-h-[60px]"
-              />
+              <div>
+                <Label className="text-xs font-medium text-destructive">Motivo da edição *</Label>
+                <Textarea
+                  placeholder="Descreva o motivo da correção... (obrigatório)"
+                  value={observacaoCorrecao}
+                  onChange={(e) => setObservacaoCorrecao(e.target.value)}
+                  className="text-xs min-h-[60px] mt-1"
+                />
+                {!observacaoCorrecao.trim() && (
+                  <p className="text-[10px] text-destructive mt-1">Campo obrigatório para salvar alterações.</p>
+                )}
+              </div>
             </div>
           )}
 
@@ -1572,7 +1652,7 @@ export default function ApontamentoDiariasModal({
           {fase === 'inicio' && !readOnly && (
             <Button
               onClick={handleSalvarInicio}
-              disabled={isSaving || hasSaved || !selectedDate || colaboradores.length === 0}
+              disabled={isSaving || hasSaved || !selectedDate || colaboradores.length === 0 || (edicaoLiberada && isSuperAdmin && !observacaoCorrecao.trim())}
               className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-10"
             >
               {isSaving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Salvando...</> : <><Clock className="h-3.5 w-3.5 mr-1.5" />Salvar Início</>}
@@ -1585,7 +1665,7 @@ export default function ApontamentoDiariasModal({
               {(colaboradores.some(c => c.presente && !c.presencaId) || faltaConvertida.size > 0) && (
                 <Button
                   onClick={handleSalvarInicioAtrasados}
-                  disabled={isSaving || !selectedDate}
+                  disabled={isSaving || !selectedDate || (edicaoLiberada && isSuperAdmin && !observacaoCorrecao.trim())}
                   className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-10"
                 >
                   {isSaving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Salvando...</> : <><Clock className="h-3.5 w-3.5 mr-1.5" />Salvar Início (Atrasados)</>}
@@ -1595,7 +1675,7 @@ export default function ApontamentoDiariasModal({
               {!colaboradores.some(c => c.presente && !c.presencaId) && faltaConvertida.size === 0 && (
                 <Button
                   onClick={handleSalvarFinalizacao}
-                  disabled={isSaving || !selectedDate || colaboradores.length === 0 || !colaboradores.filter(c => c.presente && !!c.presencaId).every(c => c.hora_saida)}
+                  disabled={isSaving || !selectedDate || colaboradores.length === 0 || !colaboradores.filter(c => c.presente && !!c.presencaId).every(c => c.hora_saida) || (edicaoLiberada && isSuperAdmin && !observacaoCorrecao.trim())}
                   className="bg-orange-600 hover:bg-orange-700 text-white w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-10"
                 >
                   {isSaving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Finalizando...</> : <><CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />Salvar Finalização</>}

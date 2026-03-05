@@ -56,10 +56,16 @@ const SSOAgendamentoExames: React.FC = () => {
   } = useAgendamentoExames(undefined, filters);
   const { isSuperAdmin, userRole } = useAuthPermissions();
 
-  const canCreate = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO', 'JovemAdm', 'EnferAdm', 'TecSSO', 'AdmTec'].includes(userRole || '');
-  const canEdit = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO'].includes(userRole || '');
+  const canCreate = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO', 'JovemAdm', 'EnferAdm', 'TecSSO', 'AdmTec', 'AdmtreinoSSO'].includes(userRole || '');
+  const canEdit = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO', 'AdmtreinoSSO'].includes(userRole || '');
   const canDelete = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA'].includes(userRole || '');
-  const canChangeStatus = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO', 'ConsultaExames'].includes(userRole || '');
+  const canChangeStatus = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO', 'ConsultaExames', 'AdmtreinoSSO'].includes(userRole || '');
+  
+  // Permissões granulares por coluna
+  const canChangeStatusExame = isSuperAdmin || ['SuperAdm', 'TecEnferSSO'].includes(userRole || '');
+  const canChangeIntegracao = isSuperAdmin || ['SuperAdm', 'AdmtreinoSSO'].includes(userRole || '');
+  const canChangeBeneficios = isSuperAdmin || ['SuperAdm', 'AdmtreinoSSO', 'AdmSSO', 'AdmOBRA'].includes(userRole || '');
+  const canChangeCarteira = isSuperAdmin || ['SuperAdm', 'ConsultaExames'].includes(userRole || '');
 
   // Clear selection when filters change
   useEffect(() => {
@@ -271,6 +277,10 @@ const SSOAgendamentoExames: React.FC = () => {
             canEdit={canEdit}
             canDelete={canDelete}
             canChangeStatus={canChangeStatus}
+            canChangeStatusExame={canChangeStatusExame}
+            canChangeIntegracao={canChangeIntegracao}
+            canChangeBeneficios={canChangeBeneficios}
+            canChangeCarteira={canChangeCarteira}
             selectedIds={selectedIds}
             onSelectionChange={setSelectedIds}
           />

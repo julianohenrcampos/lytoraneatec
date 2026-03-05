@@ -78,30 +78,74 @@ export default function DiariasApontamentoCampo() {
     apontamentoScopeFilters
   );
   
-  // Pagination
-  const pagination = usePagination(apontamentos, { pageSize: 6 });
-
-  // Query para buscar datas apontadas por solicitação
+  // Query para buscar datas apontadas por solicitação com status de horários
+  interface PresencaStatus { data: string; temEntrada: boolean; temSaida: boolean }
   const { data: datasApontadasMap = {} } = useQuery({
     queryKey: ['datas-apontadas-por-solicitacao'],
     queryFn: async () => {
       const { data } = await supabase
         .from('bd_diaria_presencas')
-        .select('solicitacao_id, data');
+        .select('solicitacao_id, data, hora_entrada, hora_saida');
       
-      const mapa: Record<string, string[]> = {};
+      const mapa: Record<string, PresencaStatus[]> = {};
       (data || []).forEach((p) => {
         if (!mapa[p.solicitacao_id]) {
           mapa[p.solicitacao_id] = [];
         }
-        if (!mapa[p.solicitacao_id].includes(p.data)) {
-          mapa[p.solicitacao_id].push(p.data);
+        const existing = mapa[p.solicitacao_id].find(x => x.data === p.data);
+        if (existing) {
+          if (p.hora_entrada) existing.temEntrada = true;
+          if (p.hora_saida) existing.temSaida = true;
+        } else {
+          mapa[p.solicitacao_id].push({
+            data: p.data,
+            temEntrada: !!p.hora_entrada,
+            temSaida: !!p.hora_saida
+          });
         }
       });
       return mapa;
     },
     enabled: apontamentos.length > 0
   });
+
+  // Ordenar: apontamentos totalmente finalizados vão para o final
+  const sortedApontamentos = useMemo(() => {
+    if (!apontamentos.length) return apontamentos;
+    return [...apontamentos].sort((a: any, b: any) => {
+      const solA = a.bd_diaria_solicitacoes;
+      const solB = b.bd_diaria_solicitacoes;
+      const datasA = datasApontadasMap[solA?.id] || [];
+      const datasB = datasApontadasMap[solB?.id] || [];
+      
+      const countDatasA = (() => {
+        try {
+          return eachDayOfInterval({
+            start: parseBrazilianDate(solA?.data_inicio),
+            end: parseBrazilianDate(solA?.data_fim)
+          }).length;
+        } catch { return 0; }
+      })();
+      const countDatasB = (() => {
+        try {
+          return eachDayOfInterval({
+            start: parseBrazilianDate(solB?.data_inicio),
+            end: parseBrazilianDate(solB?.data_fim)
+          }).length;
+        } catch { return 0; }
+      })();
+
+      const allFinA = countDatasA > 0 && datasA.length >= countDatasA && datasA.every((d: any) => d.temEntrada && d.temSaida);
+      const allFinB = countDatasB > 0 && datasB.length >= countDatasB && datasB.every((d: any) => d.temEntrada && d.temSaida);
+
+      if (allFinA && !allFinB) return 1;
+      if (!allFinA && allFinB) return -1;
+      return 0;
+    });
+  }, [apontamentos, datasApontadasMap]);
+
+  // Pagination
+  const pagination = usePagination(sortedApontamentos, { pageSize: 6 });
 
   // Handlers
   const handleOpenModal = (apontamento: any, readOnly: boolean = false, initialDate?: string) => {
@@ -251,9 +295,9 @@ export default function DiariasApontamentoCampo() {
                 }
               })();
 
-              // Datas já apontadas para esta solicitação
+              // Datas já apontadas para esta solicitação (com status)
               const datasApontadas = datasApontadasMap[solicitacao?.id] || [];
-
+              const getDataStatus = (dataStr: string) => datasApontadas.find((d: PresencaStatus) => d.data === dataStr);
               return (
                 <Card key={apontamento.id} className="hover:shadow-md transition-shadow">
                   {/* Header: Centro de Custo + Nº Solicitação */}
@@ -301,25 +345,59 @@ export default function DiariasApontamentoCampo() {
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pt-3 border-t gap-4">
                       <div className="flex flex-wrap gap-1 flex-1">
                         {todasDatas.map((dataStr) => {
-                          const isApontado = datasApontadas.includes(dataStr);
+                          const status = getDataStatus(dataStr);
                           const isHoje = dataStr === hojeStr;
+                          const isPast = dataStr < hojeStr;
                           const dia = format(parseBrazilianDate(dataStr), 'dd');
-
                           const isLiberado = (apontamento as any).edicao_liberada;
+
+                          // Determinar variante e classes
+                          let variant: "success" | "warning" | "destructive" | "outline" = "outline";
+                          let extraClasses = "";
+
+                          if (status) {
+                            if (status.temEntrada && status.temSaida) {
+                              // Finalizado
+                              variant = "success";
+                              if (isLiberado) {
+                                extraClasses = "border-2 border-gray-400 cursor-pointer hover:opacity-80 transition-all";
+                              }
+                            } else if (status.temEntrada && !status.temSaida) {
+                              // Iniciado (só entrada)
+                              variant = "warning";
+                            }
+                          } else {
+                            // Sem registro
+                            if (isPast) {
+                              variant = "destructive";
+                            } else if (isHoje) {
+                              extraClasses = "border-primary text-primary border-2 bg-transparent";
+                            } else {
+                              extraClasses = "bg-muted text-muted-foreground";
+                            }
+                          }
+
+                          const isClickable = isLiberado && isSuperAdmin && (isPast || isHoje);
+
+                          const titleParts = [formatBrazilianDateForDisplay(dataStr)];
+                          if (status?.temEntrada && status?.temSaida) titleParts.push('Finalizado');
+                          else if (status?.temEntrada) titleParts.push('Iniciado');
+                          else if (isPast) titleParts.push('Não apontado');
+                          else if (isHoje) titleParts.push('Hoje');
+                          if (isClickable) titleParts.push('Clique para editar');
 
                           return (
                             <Badge
                               key={dataStr}
-                              variant={isApontado ? "success" : "outline"}
+                              variant={variant}
                               className={cn(
                                 "text-xs w-8 h-8 flex items-center justify-center rounded-md",
-                                !isApontado && isHoje && "border-primary text-primary border-2",
-                                !isApontado && !isHoje && "bg-muted text-muted-foreground",
-                                isLiberado && isApontado ? "cursor-pointer ring-1 ring-yellow-400 hover:ring-2 hover:ring-yellow-500 transition-all" : "cursor-default"
+                                !isClickable && "cursor-default",
+                                extraClasses
                               )}
-                              title={`${formatBrazilianDateForDisplay(dataStr)}${isApontado ? ' - Apontado' : isHoje ? ' - Hoje' : ''}${isLiberado && isApontado ? ' - Clique para editar' : ''}`}
+                              title={titleParts.join(' - ')}
                               onClick={() => {
-                                if (isLiberado && isApontado) {
+                                if (isClickable) {
                                   handleOpenModal(apontamento, false, dataStr);
                                 }
                               }}
