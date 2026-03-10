@@ -16,6 +16,7 @@ import {
   ChevronsLeft,
   ChevronsRight } from
 "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { generateRelatorioDiariasPDF } from "@/services/pdfService";
 
 import MainLayout from "@/components/layout/MainLayout";
@@ -183,6 +184,7 @@ export default function DiariasRelatorio() {
   // Export mutation
   const exportMutation = useExportarExcel();
   const [isPDFLoading, setIsPDFLoading] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'excel' | 'pdf' | 'ambos'>('excel');
 
   // Permissions
   const canExport = isSuperAdmin || hasPermission('diarias_exportar_excel');
@@ -207,7 +209,7 @@ export default function DiariasRelatorio() {
     };
   }, [relatorio]);
 
-  const handleExport = () => {
+  const handleExportExcel = () => {
     exportMutation.mutate(filters);
   };
 
@@ -224,7 +226,6 @@ export default function DiariasRelatorio() {
       format(new Date(), 'yyyyMMdd');
       const fileName = `Relatorio_Diarias_${dateStr}`;
 
-      // Usar resumo calculado localmente
       const resumoParaPDF = {
         total: relatorio.length,
         presentes: resumo.total_diarias,
@@ -242,6 +243,22 @@ export default function DiariasRelatorio() {
       toast.error('Erro ao gerar PDF.');
     } finally {
       setIsPDFLoading(false);
+    }
+  };
+
+  const handleExport = async () => {
+    if (relatorio.length === 0) {
+      toast.error('Não há dados para exportar.');
+      return;
+    }
+    if (exportFormat === 'excel') {
+      handleExportExcel();
+    } else if (exportFormat === 'pdf') {
+      await handleExportPDF();
+    } else {
+      // Ambos em paralelo
+      handleExportExcel();
+      await handleExportPDF();
     }
   };
 
@@ -287,26 +304,32 @@ export default function DiariasRelatorio() {
             </div>
           </div>
           {canExport &&
-          <div className="flex gap-2">
+          <div className="flex items-center gap-4">
+              <RadioGroup
+                value={exportFormat}
+                onValueChange={(v) => setExportFormat(v as 'excel' | 'pdf' | 'ambos')}
+                className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  <RadioGroupItem value="excel" id="export-excel" />
+                  <Label htmlFor="export-excel" className="text-sm cursor-pointer">Excel</Label>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <RadioGroupItem value="pdf" id="export-pdf" />
+                  <Label htmlFor="export-pdf" className="text-sm cursor-pointer">PDF</Label>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <RadioGroupItem value="ambos" id="export-ambos" />
+                  <Label htmlFor="export-ambos" className="text-sm cursor-pointer">Ambos</Label>
+                </div>
+              </RadioGroup>
               <Button
-              variant="outline"
-              onClick={handleExportPDF}
-              disabled={isPDFLoading || relatorio.length === 0}>
-
-                {isPDFLoading ?
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" /> :
-
-              <FileText className="h-4 w-4 mr-2" />
-              }
-                Exportar PDF
-              </Button>
-              <Button onClick={handleExport} disabled={exportMutation.isPending}>
-                {exportMutation.isPending ?
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" /> :
-
-              <Download className="h-4 w-4 mr-2" />
-              }
-                Exportar Excel
+                onClick={handleExport}
+                disabled={exportMutation.isPending || isPDFLoading || relatorio.length === 0}>
+                {(exportMutation.isPending || isPDFLoading) ?
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> :
+                  <Download className="h-4 w-4 mr-2" />
+                }
+                Exportar
               </Button>
             </div>
           }

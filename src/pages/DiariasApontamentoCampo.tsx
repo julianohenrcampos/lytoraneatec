@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { format, eachDayOfInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -11,7 +11,9 @@ import {
   Loader2,
   Filter,
   Users,
-  Eye
+  Eye,
+  Search,
+  X
 } from "lucide-react";
 
 import MainLayout from "@/components/layout/MainLayout";
@@ -40,6 +42,8 @@ import { toast } from "sonner";
 import { usePagination } from "@/hooks/usePagination";
 import TablePagination from "@/components/ui/table-pagination";
 import { Switch } from "@/components/ui/switch";
+import { Combobox } from "@/components/ui/combobox";
+import { fetchCentrosCustoFiltered } from "@/services/centrosCustoFilteredService";
 
 
 export default function DiariasApontamentoCampo() {
@@ -61,6 +65,16 @@ export default function DiariasApontamentoCampo() {
   // Filters
   const [statusFilter, setStatusFilter] = useState<StatusApontamento | '__all__'>('__all__');
   const [dataFilter, setDataFilter] = useState('');
+  const [solicitacaoFilter, setSolicitacaoFilter] = useState('');
+  const [centroCustoFilter, setCentroCustoFilter] = useState('');
+
+  // Centros de custo para o combobox
+  const [centrosCustoOptions, setCentrosCustoOptions] = useState<{ value: string; label: string }[]>([]);
+  useEffect(() => {
+    fetchCentrosCustoFiltered(null, isSuperAdmin).then((data) => {
+      setCentrosCustoOptions(data.map((cc) => ({ value: cc.id, label: cc.nome_centro_custo })));
+    });
+  }, [isSuperAdmin]);
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -128,10 +142,25 @@ export default function DiariasApontamentoCampo() {
     staleTime: 30000
   });
 
-  // Ordenar: apontamentos totalmente finalizados vão para o final
+  // Ordenar e filtrar client-side
   const sortedApontamentos = useMemo(() => {
     if (!apontamentos.length) return apontamentos;
-    return [...apontamentos].sort((a: any, b: any) => {
+    
+    // Filtrar por Nº Solicitação e Centro de Custo
+    let filtered = [...apontamentos];
+    if (solicitacaoFilter) {
+      filtered = filtered.filter((a: any) => {
+        const num = a.bd_diaria_solicitacoes?.numero_solicitacao || '';
+        return num.toLowerCase().includes(solicitacaoFilter.toLowerCase());
+      });
+    }
+    if (centroCustoFilter) {
+      filtered = filtered.filter((a: any) => {
+        return a.bd_diaria_solicitacoes?.centro_custo_id === centroCustoFilter;
+      });
+    }
+    
+    return filtered.sort((a: any, b: any) => {
       const solA = a.bd_diaria_solicitacoes;
       const solB = b.bd_diaria_solicitacoes;
       const datasA = datasApontadasMap[solA?.id] || [];
@@ -161,7 +190,7 @@ export default function DiariasApontamentoCampo() {
       if (!allFinA && allFinB) return -1;
       return 0;
     });
-  }, [apontamentos, datasApontadasMap]);
+  }, [apontamentos, datasApontadasMap, solicitacaoFilter, centroCustoFilter]);
 
   // Pagination
   const pagination = usePagination(sortedApontamentos, { pageSize: 6 });
@@ -237,7 +266,30 @@ export default function DiariasApontamentoCampo() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <Label>Nº Solicitação</Label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar nº solicitação..."
+                    value={solicitacaoFilter}
+                    onChange={(e) => setSolicitacaoFilter(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label>Centro de Custo</Label>
+                <Combobox
+                  options={centrosCustoOptions}
+                  value={centroCustoFilter}
+                  onChange={setCentroCustoFilter}
+                  placeholder="Todos"
+                  searchPlaceholder="Buscar centro de custo..."
+                  emptyText="Nenhum centro encontrado"
+                />
+              </div>
               <div>
                 <Label>Data</Label>
                 <Input
@@ -264,17 +316,22 @@ export default function DiariasApontamentoCampo() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex items-end">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setStatusFilter('__all__');
-                    setDataFilter('');
-                  }}
-                >
-                  Limpar Filtros
-                </Button>
-              </div>
+            </div>
+            <div className="flex justify-end mt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setStatusFilter('__all__');
+                  setDataFilter('');
+                  setSolicitacaoFilter('');
+                  setCentroCustoFilter('');
+                }}
+                className="flex items-center gap-1.5"
+              >
+                <X className="h-3.5 w-3.5" />
+                Limpar Filtros
+              </Button>
             </div>
           </CardContent>
         </Card>

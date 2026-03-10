@@ -139,152 +139,111 @@ export async function getPresencaResumo(filters?: RelatorioFilters): Promise<Pre
 // =====================================================
 
 export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promise<Blob> {
-  // Buscar dados
   const relatorio = await getRelatorioFolha(filters);
 
-  // Criar workbook
   const wb = XLSX.utils.book_new();
 
   // =====================================================
-  // ABA 1: DETALHADO (com dados bancários)
+  // ABA ÚNICA: FOLHA DE PAGAMENTO (14 colunas A-N)
   // =====================================================
-  const dadosDetalhados = relatorio.map(item => ({
-    'Data': format(new Date(item.data + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }),
-    'Centro de Custo': item.nome_centro_custo?.startsWith(item.codigo_centro_custo) ? item.nome_centro_custo : `${item.codigo_centro_custo} - ${item.nome_centro_custo}`,
-    'Solicitante': item.solicitante_nome || '-',
-    'Apontador': item.apontador_nome || '-',
-    'Funcionário': item.nome_funcionario,
-    'Matrícula': item.matricula_funcionario || '-',
-    'Status Contratual': item.status_funcionario || '-',
-    'Empresa': item.empresa_funcionario || '-',
-    'Função': item.nome_funcao || '-',
-    'Tipo Diária': item.tipo_diaria === 'uma_e_meia' ? '1½ Diária' : item.tipo_diaria === 'completa' ? '1 Diária' : item.tipo_diaria === 'meia' ? '½ Diária' : '-',
-    'V. Diária': item.tipo_diaria === 'completa' ? (item.valor_diaria_aplicada || 0) : item.tipo_diaria === 'uma_e_meia' ? (item.valor_diaria_aplicada || 0) * (2/3) : 0,
-    'V. ½ Diária': item.tipo_diaria === 'meia' ? (item.valor_diaria_aplicada || 0) : item.tipo_diaria === 'uma_e_meia' ? (item.valor_diaria_aplicada || 0) * (1/3) : 0,
-    'V. Refeição': item.valor_refeicao_aplicado || 0,
-    'Total': (item.valor_diaria_aplicada || 0) + (item.valor_refeicao_aplicado || 0),
-    'Entrada': item.hora_entrada || '-',
-    'Saída': item.hora_saida || '-',
-    // DADOS BANCÁRIOS NOVOS
-    'CPF': item.cpf_funcionario || '-',
-    'Banco': item.banco_funcionario || '-',
-    'Agência': item.agencia_funcionario || '-',
-    'Conta': item.conta_funcionario || '-',
-    'Chave Pix': item.pix_funcionario || '-',
-    'Observações': item.observacoes || '-'
-  }));
+  const headers = [
+    'Data', 'Matrícula', 'Funcionário', 'Função', 'Centro de Custo',
+    'CPF', 'Banco', 'Agência', 'Conta', 'Chave Pix',
+    'V. Diária', 'V. ½ Diária', 'V. Refeição', 'Total'
+  ];
 
-  const wsDetalhado = XLSX.utils.json_to_sheet(dadosDetalhados);
+  // Build data rows
+  const dataRows = relatorio.map((item, idx) => {
+    const rowNum = idx + 2; // Excel row (1-indexed, header is row 1)
+    const vDiaria = item.tipo_diaria === 'completa' ? (item.valor_diaria_aplicada || 0) :
+                    item.tipo_diaria === 'uma_e_meia' ? (item.valor_diaria_aplicada || 0) * (2/3) : 0;
+    const vMeiaDiaria = item.tipo_diaria === 'meia' ? (item.valor_diaria_aplicada || 0) :
+                        item.tipo_diaria === 'uma_e_meia' ? (item.valor_diaria_aplicada || 0) * (1/3) : 0;
+    const vRefeicao = item.valor_refeicao_aplicado || 0;
 
-  wsDetalhado['!cols'] = [
+    return [
+      format(new Date(item.data + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }),
+      item.matricula_funcionario || '-',
+      item.nome_funcionario,
+      item.nome_funcao || '-',
+      item.nome_centro_custo?.startsWith(item.codigo_centro_custo)
+        ? item.nome_centro_custo
+        : `${item.codigo_centro_custo} - ${item.nome_centro_custo}`,
+      item.cpf_funcionario || '-',
+      item.banco_funcionario || '-',
+      item.agencia_funcionario || '-',
+      item.conta_funcionario || '-',
+      item.pix_funcionario || '-',
+      vDiaria,
+      vMeiaDiaria,
+      vRefeicao,
+      null // placeholder for formula
+    ];
+  });
+
+  // Create worksheet with header + data
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
+
+  const dataCount = dataRows.length;
+  const lastDataRow = dataCount + 1; // last data row number in Excel
+
+  // Add Excel formulas for Total column (N) in each data row
+  for (let i = 0; i < dataCount; i++) {
+    const excelRow = i + 2;
+    const cellRef = XLSX.utils.encode_cell({ r: excelRow - 1, c: 13 }); // col N = index 13
+    ws[cellRef] = { t: 'n', f: `K${excelRow}+L${excelRow}+M${excelRow}` };
+  }
+
+  // Add TOTAL row
+  const totalRowIdx = lastDataRow + 1;
+  const totalRow = ['', '', '', '', '', '', '', '', '', 'TOTAL', null, null, null, null];
+  XLSX.utils.sheet_add_aoa(ws, [totalRow], { origin: `A${totalRowIdx}` });
+
+  // Add SUM formulas for K, L, M, N in total row
+  const sumCols = [10, 11, 12, 13]; // K=10, L=11, M=12, N=13
+  const colLetters = ['K', 'L', 'M', 'N'];
+  sumCols.forEach((colIdx, i) => {
+    const cellRef = XLSX.utils.encode_cell({ r: totalRowIdx - 1, c: colIdx });
+    ws[cellRef] = { t: 'n', f: `SUM(${colLetters[i]}2:${colLetters[i]}${lastDataRow})` };
+  });
+
+  // Update sheet range
+  ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: totalRowIdx - 1, c: 13 } });
+
+  // Currency format for columns K, L, M, N (all data rows + total row)
+  const currencyFormat = 'R$ #,##0.00';
+  for (let row = 1; row <= totalRowIdx - 1; row++) {
+    for (const colIdx of sumCols) {
+      const cellRef = XLSX.utils.encode_cell({ r: row, c: colIdx });
+      if (ws[cellRef]) {
+        ws[cellRef].z = currencyFormat;
+      }
+    }
+  }
+
+  // Column widths
+  ws['!cols'] = [
     { wch: 12 },  // Data
-    { wch: 35 },  // Centro de Custo
-    { wch: 25 },  // Solicitante
-    { wch: 25 },  // Apontador
+    { wch: 12 },  // Matrícula
     { wch: 30 },  // Funcionário
-    { wch: 15 },  // Matrícula
-    { wch: 18 },  // Status Contratual
-    { wch: 25 },  // Empresa
     { wch: 20 },  // Função
-    { wch: 12 },  // Tipo Diária
+    { wch: 30 },  // Centro de Custo
+    { wch: 15 },  // CPF
+    { wch: 20 },  // Banco
+    { wch: 12 },  // Agência
+    { wch: 15 },  // Conta
+    { wch: 25 },  // Chave Pix
     { wch: 14 },  // V. Diária
     { wch: 14 },  // V. ½ Diária
     { wch: 14 },  // V. Refeição
     { wch: 14 },  // Total
-    { wch: 10 },  // Entrada
-    { wch: 10 },  // Saída
-    { wch: 15 },  // CPF
-    { wch: 20 },  // Banco
-    { wch: 12 },  // Agência
-    { wch: 15 },  // Conta
-    { wch: 30 },  // Chave Pix
-    { wch: 50 },  // Observações
   ];
 
-  XLSX.utils.book_append_sheet(wb, wsDetalhado, 'Detalhado');
+  // Freeze header row
+  ws['!freeze'] = { xSplit: 0, ySplit: 1, topLeftCell: 'A2', activePane: 'bottomLeft', state: 'frozen' };
 
-  // =====================================================
-  // ABA 2: RESUMO POR FUNCIONÁRIO (TOTALIZAÇÃO)
-  // =====================================================
-  
-  // Agrupar por funcionário
-  const porFuncionario = new Map<string, {
-    nome_funcionario: string;
-    matricula: string;
-    status_contratual: string;
-    empresa: string;
-    funcao: string;
-    cpf: string;
-    banco: string;
-    agencia: string;
-    conta: string;
-    pix: string;
-    qtd_dias: number;
-    valor_total: number;
-  }>();
+  XLSX.utils.book_append_sheet(wb, ws, 'Folha de Pagamento');
 
-  relatorio.forEach(item => {
-    const key = item.funcionario_id;
-    const existing = porFuncionario.get(key);
-
-    if (existing) {
-      existing.qtd_dias += 1;
-      existing.valor_total += item.valor_diaria_aplicada || 0;
-    } else {
-      porFuncionario.set(key, {
-        nome_funcionario: item.nome_funcionario,
-        matricula: item.matricula_funcionario || '-',
-        status_contratual: item.status_funcionario || '-',
-        empresa: item.empresa_funcionario || '-',
-        funcao: item.nome_funcao || '-',
-        cpf: item.cpf_funcionario || '-',
-        banco: item.banco_funcionario || '-',
-        agencia: item.agencia_funcionario || '-',
-        conta: item.conta_funcionario || '-',
-        pix: item.pix_funcionario || '-',
-        qtd_dias: 1,
-        valor_total: item.valor_diaria_aplicada || 0
-      });
-    }
-  });
-
-  const resumoFuncionarios = Array.from(porFuncionario.values())
-    .sort((a, b) => a.nome_funcionario.localeCompare(b.nome_funcionario))
-    .map(f => ({
-    'Funcionário': f.nome_funcionario,
-    'Matrícula': f.matricula || '-',
-    'Status Contratual': f.status_contratual || '-',
-    'Empresa': f.empresa || '-',
-    'Função': f.funcao,
-      'CPF': f.cpf,
-      'Banco': f.banco,
-      'Agência': f.agencia,
-      'Conta': f.conta,
-      'Chave Pix': f.pix,
-      'Qtd. Dias Trabalhados': f.qtd_dias,
-      'Valor Total (R$)': f.valor_total
-    }));
-
-  const wsResumoFunc = XLSX.utils.json_to_sheet(resumoFuncionarios);
-
-  wsResumoFunc['!cols'] = [
-    { wch: 30 },  // Funcionário
-    { wch: 15 },  // Matrícula
-    { wch: 18 },  // Status Contratual
-    { wch: 25 },  // Empresa
-    { wch: 20 },  // Função
-    { wch: 15 },  // CPF
-    { wch: 20 },  // Banco
-    { wch: 12 },  // Agência
-    { wch: 15 },  // Conta
-    { wch: 30 },  // Pix
-    { wch: 20 },  // Qtd Dias
-    { wch: 18 },  // Valor Total
-  ];
-
-  XLSX.utils.book_append_sheet(wb, wsResumoFunc, 'Resumo por Funcionário');
-
-  // Gerar arquivo
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   return new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }

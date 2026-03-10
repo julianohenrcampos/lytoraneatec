@@ -1495,7 +1495,7 @@ export default function ApontamentoDiariasModal({
                               <Lock className="h-3 w-3 text-muted-foreground shrink-0 hidden sm:block" />
                             )}
                             {jaSalvouSaida && fase === 'finalizacao' && (
-                              <Lock className="h-3 w-3 text-green-600 shrink-0" title="Saída já salva" />
+                              <span title="Saída já salva"><Lock className="h-3 w-3 text-green-600 shrink-0" /></span>
                             )}
                           </div>
                         </div>
