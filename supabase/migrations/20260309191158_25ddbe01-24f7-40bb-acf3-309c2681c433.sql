@@ -1,0 +1,1 @@
+ALTER TABLE bd_diaria_presencas ADD COLUMN turno text NOT NULL DEFAULT 'diurno';

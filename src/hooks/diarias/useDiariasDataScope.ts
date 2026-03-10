@@ -3,7 +3,7 @@
 // Centraliza lógica de permissões e filtros por perfil
 // =====================================================
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
 import type { DiariaSolicitacao, SolicitacaoFilters, RelatorioFilters } from '@/types/diarias';
@@ -52,21 +52,24 @@ export function useDiariasDataScope(): DiariasDataScope {
   const [centrosCustoGerenciados, setCentrosCustoGerenciados] = useState<string[]>([]);
   const [userScope, setUserScope] = useState<DiariasUserScope>('nenhum');
   const [isLoading, setIsLoading] = useState(true);
+  const lastDeterminedUserId = useRef<string | null>(null);
 
   // Buscar dados do usuário e determinar escopo
   useEffect(() => {
-    const determineScope = async () => {
-      if (isLoadingPermissions || !userId) {
-        setIsLoading(isLoadingPermissions);
-        return;
-      }
+    // Verificar dentro do effect (não nas deps) para evitar oscilação
+    if (isLoadingPermissions || !userId) return;
 
+    // Se já determinamos o escopo para este mesmo userId, não refazer
+    if (lastDeterminedUserId.current === userId && userScope !== 'nenhum') return;
+
+    const determineScope = async () => {
       setIsLoading(true);
 
       try {
         // 1. SuperAdmin = acesso total
         if (isSuperAdmin) {
           setUserScope('superadmin');
+          lastDeterminedUserId.current = userId;
           setIsLoading(false);
           return;
         }
@@ -83,6 +86,7 @@ export function useDiariasDataScope(): DiariasDataScope {
         if (funcoes.includes('AdmSSO') || funcoes.includes('AdmOBRA')) {
           setFuncionarioId(profile?.funcionario_id || null);
           setUserScope('admsso');
+          lastDeterminedUserId.current = userId;
           setIsLoading(false);
           return;
         }
@@ -93,6 +97,7 @@ export function useDiariasDataScope(): DiariasDataScope {
         if (!funcId) {
           // Sem vínculo com funcionário - apenas engenheiro (criador)
           setUserScope('engenheiro');
+          lastDeterminedUserId.current = userId;
           setIsLoading(false);
           return;
         }
@@ -106,6 +111,7 @@ export function useDiariasDataScope(): DiariasDataScope {
         if (ccsGerenciados && ccsGerenciados.length > 0) {
           setCentrosCustoGerenciados(ccsGerenciados.map(cc => cc.id));
           setUserScope('gerente');
+          lastDeterminedUserId.current = userId;
           setIsLoading(false);
           return;
         }
@@ -119,23 +125,26 @@ export function useDiariasDataScope(): DiariasDataScope {
 
         if (apontamentos && apontamentos.length > 0) {
           setUserScope('apontador');
+          lastDeterminedUserId.current = userId;
           setIsLoading(false);
           return;
         }
 
         // 5. Default = Engenheiro (quem cria solicitações)
         setUserScope('engenheiro');
+        lastDeterminedUserId.current = userId;
         setIsLoading(false);
 
       } catch (error) {
         console.error('Erro ao determinar escopo de diárias:', error);
         setUserScope('engenheiro'); // Fallback seguro
+        lastDeterminedUserId.current = userId;
         setIsLoading(false);
       }
     };
 
     determineScope();
-  }, [userId, isSuperAdmin, isLoadingPermissions]);
+  }, [userId, isSuperAdmin]); // REMOVIDO isLoadingPermissions das deps
 
   // Filtros de escopo baseado no perfil
   const scopeFilters = useMemo((): DiariasDataScopeFilters => {

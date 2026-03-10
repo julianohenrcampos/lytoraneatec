@@ -33,6 +33,16 @@ const SSO_ROLE_PERMISSIONS: Record<string, string[]> = {
   'TecSSO': ['acesso_sso_checklists', 'acesso_sso_desvios', 'dashboard_view'],
   'AdmSSO': ADM_SSO_PERMISSIONS,
   'AdmOBRA': ADM_SSO_PERMISSIONS,
+  'AdmtreinoSSO': [
+    'acesso_sso_checklists', 'acesso_sso_desvios', 'acesso_sso_dashboard',
+    'acesso_sso_agendamento_exames', 'acesso_sso_ver_agir', 'dashboard_view',
+    'dashboard_rh_view',
+    'gestao_rh_empresas_view', 'gestao_rh_departamentos_view',
+    'gestao_rh_funcionarios_view', 'gestao_rh_funcoes_view',
+    'gestao_rh_centros_custo_view', 'gestao_rh_equipes_view',
+    'diarias_view', 'diarias_dashboard_view', 'diarias_solicitacoes_view',
+    'diarias_apontamento_view', 'diarias_relatorio_view'
+  ],
   'GerenteRegional': [
     'dashboard_view', 'dashboard_rh_view',
     'gestao_rh_funcionarios_view', 'gestao_rh_centros_custo_view',
@@ -200,8 +210,8 @@ export const useDynamicPermissions = (): DynamicPermissions => {
         }
 
         // 🔧 FALLBACK SSO: Garantir permissões mínimas para roles SSO
-        if (profile.funcoes.includes('TecSSO') || profile.funcoes.includes('AdmSSO') || profile.funcoes.includes('AdmOBRA') || profile.funcoes.includes('GerenteRegional')) {
-          const ssoRole = profile.funcoes.includes('AdmSSO') ? 'AdmSSO' : profile.funcoes.includes('AdmOBRA') ? 'AdmOBRA' : profile.funcoes.includes('GerenteRegional') ? 'GerenteRegional' : 'TecSSO';
+        if (profile.funcoes.includes('TecSSO') || profile.funcoes.includes('AdmSSO') || profile.funcoes.includes('AdmOBRA') || profile.funcoes.includes('GerenteRegional') || profile.funcoes.includes('AdmtreinoSSO')) {
+          const ssoRole = profile.funcoes.includes('AdmSSO') ? 'AdmSSO' : profile.funcoes.includes('AdmOBRA') ? 'AdmOBRA' : profile.funcoes.includes('AdmtreinoSSO') ? 'AdmtreinoSSO' : profile.funcoes.includes('GerenteRegional') ? 'GerenteRegional' : 'TecSSO';
           const minimumPermissions = SSO_ROLE_PERMISSIONS[ssoRole];
           
           console.log(`🔧 [DYNAMIC] Aplicando fallback SSO para ${ssoRole}:`, minimumPermissions);

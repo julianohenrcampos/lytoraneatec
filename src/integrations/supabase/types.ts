@@ -1269,6 +1269,7 @@ export type Database = {
           recebe_refeicao: boolean | null
           solicitacao_id: string
           tipo_diaria: string | null
+          turno: string
           updated_at: string | null
           usar_diaria_exclusiva: boolean | null
           valor_diaria_aplicada: number
@@ -1292,6 +1293,7 @@ export type Database = {
           recebe_refeicao?: boolean | null
           solicitacao_id: string
           tipo_diaria?: string | null
+          turno?: string
           updated_at?: string | null
           usar_diaria_exclusiva?: boolean | null
           valor_diaria_aplicada?: number
@@ -1315,6 +1317,7 @@ export type Database = {
           recebe_refeicao?: boolean | null
           solicitacao_id?: string
           tipo_diaria?: string | null
+          turno?: string
           updated_at?: string | null
           usar_diaria_exclusiva?: boolean | null
           valor_diaria_aplicada?: number

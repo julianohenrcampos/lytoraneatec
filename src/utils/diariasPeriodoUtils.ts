@@ -257,6 +257,22 @@ export function validarPeriodo(
     return { valido: false, erro: `Período máximo é de ${maxDias} dias` };
   }
 
+  // Verificar mistura de dias úteis com FDS
+  const datas = gerarDatasNoPeriodo(dataInicio, dataFim);
+  let temDiaUtil = false;
+  let temFds = false;
+  for (const d of datas) {
+    const dia = parseISO(d).getDay();
+    if (dia === 0 || dia === 6) temFds = true;
+    else temDiaUtil = true;
+  }
+  if (temDiaUtil && temFds) {
+    return { 
+      valido: false, 
+      erro: 'O período não pode misturar dias de semana com finais de semana. Crie solicitações separadas.' 
+    };
+  }
+
   return { valido: true, isRetroativo };
 }
 

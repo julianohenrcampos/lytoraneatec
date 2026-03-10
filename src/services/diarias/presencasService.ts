@@ -5,6 +5,7 @@
 import { supabase } from '@/integrations/supabase/client';
 
 export type TipoDiaria = 'completa' | 'meia' | 'uma_e_meia' | 'nenhuma';
+export type TurnoDiaria = 'diurno' | 'noturno';
 
 export interface PresencaDiaria {
   id: string;
@@ -24,6 +25,7 @@ export interface PresencaDiaria {
   confirmado_por: string | null;
   confirmado_em: string | null;
   usar_diaria_exclusiva: boolean;
+  turno: TurnoDiaria;
   created_at: string;
   updated_at: string;
   // Relations
@@ -53,6 +55,7 @@ export interface PresencaFormData {
   recebe_refeicao?: boolean;
   valor_refeicao_aplicado?: number;
   usar_diaria_exclusiva?: boolean;
+  turno?: TurnoDiaria;
 }
 
 // Buscar presenças por solicitação e data
@@ -114,6 +117,7 @@ export async function salvarPresencas(
     recebe_refeicao: p.recebe_refeicao ?? true,
     valor_refeicao_aplicado: p.valor_refeicao_aplicado ?? 0,
     usar_diaria_exclusiva: p.usar_diaria_exclusiva ?? false,
+    turno: p.turno || 'diurno',
     confirmado_por: userId,
     confirmado_em: new Date().toISOString(),
     updated_at: new Date().toISOString()
@@ -143,6 +147,7 @@ export interface InicioFormData {
   hora_entrada?: string;
   valor_diaria_original: number;
   usar_diaria_exclusiva?: boolean;
+  turno?: TurnoDiaria;
 }
 
 export interface FinalizacaoFormData {
@@ -176,6 +181,7 @@ export async function salvarInicio(
     recebe_refeicao: null,
     valor_refeicao_aplicado: null,
     usar_diaria_exclusiva: r.usar_diaria_exclusiva ?? false,
+    turno: r.turno || 'diurno',
     confirmado_por: userId,
     confirmado_em: new Date().toISOString(),
   }));
@@ -212,6 +218,7 @@ export async function salvarInicioParcial(
     recebe_refeicao: null,
     valor_refeicao_aplicado: null,
     usar_diaria_exclusiva: r.usar_diaria_exclusiva ?? false,
+    turno: r.turno || 'diurno',
     confirmado_por: userId,
     confirmado_em: new Date().toISOString(),
   }));
@@ -295,7 +302,7 @@ export async function salvarSaidaIndividual(
 
 // Atualizar registros de "falta" para "presente" (atrasados que já tinham presencaId)
 export async function atualizarFaltaParaPresente(
-  registros: { id: string; hora_entrada: string; valor_diaria_original: number; usar_diaria_exclusiva: boolean }[]
+  registros: { id: string; hora_entrada: string; valor_diaria_original: number; usar_diaria_exclusiva: boolean; turno?: TurnoDiaria }[]
 ): Promise<void> {
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData?.user?.id;
@@ -308,6 +315,7 @@ export async function atualizarFaltaParaPresente(
         hora_entrada: r.hora_entrada,
         valor_diaria_aplicada: r.valor_diaria_original,
         usar_diaria_exclusiva: r.usar_diaria_exclusiva,
+        turno: r.turno || 'diurno',
         confirmado_por: userId,
         confirmado_em: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -321,6 +329,57 @@ export async function atualizarFaltaParaPresente(
   });
 
   await Promise.all(promises);
+}
+
+// Inserir presenças completas (retroativos na correção pós-conclusão)
+export async function inserirPresencasCompletas(
+  solicitacaoId: string,
+  data: string,
+  registros: CorrecaoFormData[],
+  observacao: string
+): Promise<void> {
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData?.user?.id;
+
+  const justificativa = `[CORREÇÃO - ADIÇÃO RETROATIVA] ${observacao} | Por: ${userId} em ${new Date().toISOString()}`;
+
+  const rows = registros.map((r) => ({
+    solicitacao_id: solicitacaoId,
+    funcionario_id: r.funcionario_id,
+    data,
+    presente: r.presente,
+    hora_entrada: r.hora_entrada || null,
+    hora_saida: r.hora_saida || null,
+    valor_diaria_aplicada: r.valor_diaria_aplicada,
+    funcao_id: null as string | null,
+    tipo_diaria: r.tipo_diaria,
+    recebe_refeicao: r.recebe_refeicao,
+    valor_refeicao_aplicado: r.valor_refeicao_aplicado,
+    usar_diaria_exclusiva: false,
+    turno: r.turno || 'diurno',
+    observacoes: justificativa,
+    confirmado_por: userId,
+    confirmado_em: new Date().toISOString(),
+  }));
+
+  const { error } = await supabase
+    .from('bd_diaria_presencas')
+    .insert(rows);
+
+  if (error) {
+    console.error('Erro ao inserir presenças completas (retroativos):', error);
+    throw new Error(error.message);
+  }
+
+  // Registrar auditoria
+  await supabase
+    .from('bd_diaria_aprovacoes')
+    .insert({
+      entidade: 'relatorio',
+      entidade_id: solicitacaoId,
+      acao: 'adicao_retroativa',
+      comentario: justificativa
+    });
 }
 
 // Buscar resumo de presenças de uma solicitação
@@ -404,6 +463,7 @@ export interface CorrecaoFormData {
   valor_diaria_aplicada: number;
   recebe_refeicao: boolean;
   valor_refeicao_aplicado: number;
+  turno?: TurnoDiaria;
 }
 
 export async function salvarCorrecao(
@@ -428,6 +488,7 @@ export async function salvarCorrecao(
         valor_diaria_aplicada: r.valor_diaria_aplicada,
         recebe_refeicao: r.recebe_refeicao,
         valor_refeicao_aplicado: r.valor_refeicao_aplicado,
+        turno: r.turno || 'diurno',
         observacoes: justificativa,
         confirmado_por: userId,
         confirmado_em: new Date().toISOString(),

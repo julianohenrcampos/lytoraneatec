@@ -25,9 +25,9 @@ export default function SSOVerAgir() {
   const { registros, isLoading, deleteRegistro, setStatus, isDeleting, isChangingStatus } = useVerAgir(undefined, filters);
   const { isSuperAdmin, userRole, userId } = useAuthPermissions();
 
-  const canEditAll = isSuperAdmin || userRole === 'AdmSSO' || userRole === 'AdmOBRA';
-  const canDeleteAll = isSuperAdmin || userRole === 'AdmSSO' || userRole === 'AdmOBRA';
-  const canConcluir = isSuperAdmin || userRole === 'AdmSSO' || userRole === 'AdmOBRA';
+  const canEditAll = isSuperAdmin || ['AdmSSO', 'AdmOBRA', 'AdmtreinoSSO'].includes(userRole || '');
+  const canDeleteAll = isSuperAdmin || ['AdmSSO', 'AdmOBRA', 'AdmtreinoSSO'].includes(userRole || '');
+  const canConcluir = isSuperAdmin || ['AdmSSO', 'AdmOBRA', 'AdmtreinoSSO'].includes(userRole || '');
 
   const handleFilterChange = (newFilters: VerAgirFilters) => {
     setFilters(newFilters);

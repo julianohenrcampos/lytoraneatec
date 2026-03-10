@@ -22,8 +22,8 @@ export default function SSODesviosList() {
   const { desvios, isLoading, deleteDesvio, isDeleting } = useSSODesvio(undefined, filters);
   const { isSuperAdmin, userRole, userId } = useAuthPermissions();
 
-  const canEditAll = isSuperAdmin || userRole === 'AdmSSO' || userRole === 'AdmOBRA';
-  const canDeleteAll = isSuperAdmin || userRole === 'AdmSSO' || userRole === 'AdmOBRA';
+  const canEditAll = isSuperAdmin || ['AdmSSO', 'AdmOBRA', 'AdmtreinoSSO'].includes(userRole || '');
+  const canDeleteAll = isSuperAdmin || ['AdmSSO', 'AdmOBRA', 'AdmtreinoSSO'].includes(userRole || '');
 
   const handleFilterChange = (newFilters: SSODesvioFilters) => {
     setFilters(newFilters);

@@ -276,6 +276,7 @@ export interface RelatorioFolhaItem {
   valor_refeicao_aplicado: number | null;
   tipo_diaria: string | null;
   usar_diaria_exclusiva: boolean | null;
+  turno: string | null;
   status_funcionario: string | null;
   status_solicitacao: StatusSolicitacao;
   solicitante_id: string | null;

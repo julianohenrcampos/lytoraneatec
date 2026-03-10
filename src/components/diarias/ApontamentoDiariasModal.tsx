@@ -44,7 +44,8 @@ import {
   AlertTriangle,
   Pencil,
   Save,
-  X
+  X,
+  Moon
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
@@ -53,6 +54,7 @@ import {
   getPresencasPorSolicitacao,
   salvarInicio,
   salvarInicioParcial,
+  inserirPresencasCompletas,
   atualizarFaltaParaPresente,
   salvarFinalizacao,
   salvarSaidaIndividual,
@@ -60,6 +62,7 @@ import {
   editarHoraSaida,
   type PresencaFormData,
   type TipoDiaria,
+  type TurnoDiaria,
   type InicioFormData,
   type FinalizacaoFormData,
   type CorrecaoFormData
@@ -92,6 +95,7 @@ interface ColaboradorPresenca extends PresencaFormData {
   usarDiariaExclusiva: boolean; // Toggle manual: usar valor FDS/Feriado
   valor_diaria_normal: number; // Valor diária normal (seg-sáb)
   valor_diaria_exclusiva_valor: number; // Valor diária exclusiva (dom/feriado)
+  turno: TurnoDiaria; // Turno: diurno ou noturno
 }
 
 type FaseApontamento = 'inicio' | 'finalizacao' | 'concluido';
@@ -195,8 +199,7 @@ export default function ApontamentoDiariasModal({
   
   // Rastrear funcionários que eram "falta" e foram convertidos para "presente" (atrasados com presencaId)
   const [faltaConvertida, setFaltaConvertida] = useState<Set<string>>(new Set());
-
-  // Ref para evitar auto-finalização duplicada por data
+  // Ref para controle de auto-finalização (evita duplicação)
   const autoFinalizadoRef = useRef<Set<string>>(new Set());
 
   const queryClient = useQueryClient();
@@ -399,7 +402,8 @@ export default function ApontamentoDiariasModal({
               presencaId: existente?.id,
               usarDiariaExclusiva: existenteUsaExclusiva,
               valor_diaria_normal: vNormal,
-              valor_diaria_exclusiva_valor: vExclusiva
+              valor_diaria_exclusiva_valor: vExclusiva,
+              turno: (existente?.turno as TurnoDiaria) || 'diurno'
             };
           });
           setColaboradores(mapped);
@@ -432,11 +436,20 @@ export default function ApontamentoDiariasModal({
               valor_refeicao_aplicado: 0,
               usarDiariaExclusiva: usarExclusiva2,
               valor_diaria_normal: vNormal,
-              valor_diaria_exclusiva_valor: vExclusiva
+              valor_diaria_exclusiva_valor: vExclusiva,
+              turno: 'diurno' as TurnoDiaria
             };
           });
           setColaboradores(mapped);
-          setFase('inicio');
+          
+          // Se a data é passada e não há registros, marcar como concluído (falta) e bloquear
+          const hojeStr = getCurrentBrazilianDate();
+          const isDataPassada = selectedDate < hojeStr;
+          if (isDataPassada && !(edicaoLiberada && isSuperAdmin)) {
+            setFase('concluido');
+          } else {
+            setFase('inicio');
+          }
         }
       } catch (error) {
         console.error("Erro ao carregar presenças:", error);
@@ -459,7 +472,8 @@ export default function ApontamentoDiariasModal({
             valor_refeicao_aplicado: 0,
             usarDiariaExclusiva: true,
             valor_diaria_normal: vNormal,
-            valor_diaria_exclusiva_valor: vExclusiva
+            valor_diaria_exclusiva_valor: vExclusiva,
+            turno: 'diurno' as TurnoDiaria
           };
         });
         setColaboradores(mapped);
@@ -517,66 +531,7 @@ export default function ApontamentoDiariasModal({
     return { ...col, tipo_diaria: tipo, valor_diaria: novoValor };
   }, []);
 
-  // Auto-finalização para sábados, domingos e feriados
-  const autoFinalizarFdsEFeriado = useCallback(async (pendentes: ColaboradorPresenca[]) => {
-    if (!solicitacao?.id || !selectedDate) return;
-
-    // Atualizar state visual com hora_saida 16:00
-    setColaboradores(prev => prev.map(col => {
-      if (!pendentes.find(p => p.funcionario_id === col.funcionario_id)) return col;
-      const updated = { ...col, hora_saida: '16:00' };
-      return recalcularJornada(updated);
-    }));
-
-    setIsSaving(true);
-    try {
-      const registros: FinalizacaoFormData[] = pendentes.map(col => {
-        const { tipo } = calcularJornada(col.hora_entrada, '16:00');
-        const valorFinal = calcularValorDiaria(col.valor_diaria_original, tipo);
-        return {
-          funcionario_id: col.funcionario_id,
-          hora_saida: '16:00',
-          tipo_diaria: tipo,
-          valor_diaria_aplicada: valorFinal,
-          recebe_refeicao: col.recebe_refeicao ?? true,
-          valor_refeicao_aplicado: col.recebe_refeicao ? (funcoesMap[col.funcao_id] || 0) : 0
-        };
-      });
-
-      await salvarFinalizacao(solicitacao.id, selectedDate, registros);
-      setHasSaved(true);
-      setFase('concluido');
-      toast.success(`Saída automática (16:00) aplicada para ${pendentes.length} funcionário(s).`);
-      onSaveSuccess?.();
-    } catch (error) {
-      console.error('Erro na auto-finalização:', error);
-      toast.error('Erro na auto-finalização. Tente novamente.');
-      autoFinalizadoRef.current.delete(selectedDate);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [solicitacao?.id, selectedDate, recalcularJornada, funcoesMap, onSaveSuccess]);
-
-  // useEffect para disparar auto-finalização em FDS/feriado
-  useEffect(() => {
-    if (fase !== 'finalizacao' || readOnly || !selectedDate || isLoadingExisting) return;
-    if (autoFinalizadoRef.current.has(selectedDate)) return;
-
-    const dateSel = parseBrazilianDate(selectedDate);
-    const isSab = dateSel.getDay() === 6;
-    const isDom = dateSel.getDay() === 0;
-    const isFer = feriados.some(f => f.data === selectedDate);
-
-    if (!isSab && !isDom && !isFer) return;
-
-    const pendentes = colaboradores.filter(
-      c => c.presente && c.hora_entrada && !c.hora_saida && c.presencaId
-    );
-    if (pendentes.length === 0) return;
-
-    autoFinalizadoRef.current.add(selectedDate);
-    autoFinalizarFdsEFeriado(pendentes);
-  }, [fase, selectedDate, colaboradores, feriados, readOnly, isLoadingExisting, autoFinalizarFdsEFeriado]);
+  // Auto-finalização removida do frontend — agora roda via Edge Function no backend às 16:00 BRT
 
   // Handlers
   const handlePresencaChange = (index: number, presente: boolean) => {
@@ -788,7 +743,8 @@ export default function ApontamentoDiariasModal({
         valor_refeicao_aplicado: 0,
         usarDiariaExclusiva: usarExclusiva,
         valor_diaria_normal: valorDiaria,
-        valor_diaria_exclusiva_valor: valorDiariaExclusiva
+        valor_diaria_exclusiva_valor: valorDiariaExclusiva,
+        turno: 'diurno' as TurnoDiaria
       };
 
       setColaboradores(prev => [...prev, novoColab]);
@@ -921,6 +877,17 @@ export default function ApontamentoDiariasModal({
     );
   };
 
+  // Toggle turno (Diurno/Noturno) por funcionário
+  const handleTurnoChange = (index: number, turno: TurnoDiaria) => {
+    if (readOnly) return;
+    if (fase === 'concluido' && !edicaoLiberada) return;
+    setColaboradores((prev) =>
+      prev.map((col) =>
+        col.index === index ? { ...col, turno } : col
+      )
+    );
+  };
+
   // Salvar Início
   const handleSalvarInicio = async () => {
     if (!solicitacao?.id || !selectedDate) return;
@@ -933,7 +900,8 @@ export default function ApontamentoDiariasModal({
         presente: col.presente,
         hora_entrada: col.presente ? col.hora_entrada : undefined,
         valor_diaria_original: col.valor_diaria_original,
-        usar_diaria_exclusiva: col.usarDiariaExclusiva
+        usar_diaria_exclusiva: col.usarDiariaExclusiva,
+        turno: col.turno
       }));
 
       await salvarInicio(solicitacao.id, selectedDate, registros);
@@ -981,7 +949,8 @@ export default function ApontamentoDiariasModal({
           presente: col.presente,
           hora_entrada: col.hora_entrada || undefined,
           valor_diaria_original: col.valor_diaria_original,
-          usar_diaria_exclusiva: col.usarDiariaExclusiva
+          usar_diaria_exclusiva: col.usarDiariaExclusiva,
+          turno: col.turno
         }));
         await salvarInicioParcial(solicitacao.id, selectedDate, registros);
       }
@@ -992,7 +961,8 @@ export default function ApontamentoDiariasModal({
           id: col.presencaId!,
           hora_entrada: col.hora_entrada || format(new Date(), 'HH:mm'),
           valor_diaria_original: col.valor_diaria_original,
-          usar_diaria_exclusiva: col.usarDiariaExclusiva
+          usar_diaria_exclusiva: col.usarDiariaExclusiva,
+          turno: col.turno
         }));
         await atualizarFaltaParaPresente(registrosUpdate);
       }
@@ -1072,22 +1042,50 @@ export default function ApontamentoDiariasModal({
 
     setIsSaving(true);
     try {
-      const registros: CorrecaoFormData[] = colaboradores.map(col => {
-        const { tipo } = calcularJornada(col.hora_entrada, col.hora_saida);
-        const valorFinal = col.presente ? calcularValorDiaria(col.valor_diaria_original, tipo) : 0;
-        return {
-          funcionario_id: col.funcionario_id,
-          presente: col.presente,
-          hora_entrada: col.hora_entrada || '',
-          hora_saida: col.hora_saida || '',
-          tipo_diaria: col.presente ? tipo : 'nenhuma',
-          valor_diaria_aplicada: valorFinal,
-          recebe_refeicao: col.recebe_refeicao ?? true,
-          valor_refeicao_aplicado: col.recebe_refeicao ? (funcoesMap[col.funcao_id] || 0) : 0
-        };
-      });
+      // Separar: com presencaId → UPDATE, sem presencaId → INSERT
+      const comPresenca = colaboradores.filter(c => c.presencaId);
+      const semPresenca = colaboradores.filter(c => c.presente && !c.presencaId);
 
-      await salvarCorrecao(solicitacao.id, selectedDate, registros, observacaoCorrecao);
+      // UPDATE existentes via salvarCorrecao
+      if (comPresenca.length > 0) {
+        const registrosUpdate: CorrecaoFormData[] = comPresenca.map(col => {
+          const { tipo } = calcularJornada(col.hora_entrada, col.hora_saida);
+          const valorFinal = col.presente ? calcularValorDiaria(col.valor_diaria_original, tipo) : 0;
+          return {
+            funcionario_id: col.funcionario_id,
+            presente: col.presente,
+            hora_entrada: col.hora_entrada || '',
+            hora_saida: col.hora_saida || '',
+            tipo_diaria: col.presente ? tipo : 'nenhuma',
+            valor_diaria_aplicada: valorFinal,
+            recebe_refeicao: col.recebe_refeicao ?? true,
+            valor_refeicao_aplicado: col.recebe_refeicao ? (funcoesMap[col.funcao_id] || 0) : 0,
+            turno: col.turno
+          };
+        });
+        await salvarCorrecao(solicitacao.id, selectedDate, registrosUpdate, observacaoCorrecao);
+      }
+
+      // INSERT novos (sem presencaId) via inserirPresencasCompletas (com hora_saida para aparecer no relatório)
+      if (semPresenca.length > 0) {
+        const registrosInsert: CorrecaoFormData[] = semPresenca.map(col => {
+          const { tipo } = calcularJornada(col.hora_entrada, col.hora_saida);
+          const valorFinal = col.presente ? calcularValorDiaria(col.valor_diaria_original, tipo) : 0;
+          return {
+            funcionario_id: col.funcionario_id,
+            presente: col.presente,
+            hora_entrada: col.hora_entrada || '',
+            hora_saida: col.hora_saida || '',
+            tipo_diaria: col.presente ? tipo : 'nenhuma',
+            valor_diaria_aplicada: valorFinal,
+            recebe_refeicao: col.recebe_refeicao ?? true,
+            valor_refeicao_aplicado: col.recebe_refeicao ? (funcoesMap[col.funcao_id] || 0) : 0,
+            turno: col.turno
+          };
+        });
+        await inserirPresencasCompletas(solicitacao.id, selectedDate, registrosInsert, observacaoCorrecao);
+      }
+
       toast.success('Correção salva com sucesso!');
       setObservacaoCorrecao("");
       onSaveSuccess?.();
@@ -1145,8 +1143,8 @@ export default function ApontamentoDiariasModal({
               <div>
                 <p className="text-[10px] sm:text-xs text-muted-foreground">Centro de Custo</p>
                 <p className="font-medium text-xs sm:text-sm">
-                  <span>{centroCusto?.codigo_centro_custo}</span>
-                  <span className="hidden sm:inline"> - {centroCusto?.nome_centro_custo}</span>
+                  <span>{centroCusto?.codigo_centro_custo || 'N/A'}</span>
+                  <span className="hidden sm:inline"> - {centroCusto?.nome_centro_custo || 'N/A'}</span>
                 </p>
               </div>
             </div>
@@ -1155,7 +1153,7 @@ export default function ApontamentoDiariasModal({
           <Separator />
 
           {/* Data do Apontamento - Seletor de datas do período */}
-          <div className="space-y-2">
+          <div className="shrink-0 space-y-2">
             <Label className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-primary" />
               Data do Apontamento
@@ -1164,7 +1162,7 @@ export default function ApontamentoDiariasModal({
             {datasDisponiveis.filter(d => !d.disabled).length > 0 ? (
               <>
                 {/* Seletor de datas como badges clicáveis */}
-                <div className="flex gap-1.5 p-2 sm:p-3 bg-muted rounded-md border overflow-x-auto scrollbar-thin">
+                <div className="grid grid-cols-5 gap-1.5 p-2 sm:p-3 bg-muted rounded-md border max-h-[120px] overflow-y-auto">
                   {datasDisponiveis.map(d => {
                     const isSelected = d.value === selectedDate;
                     return (
@@ -1173,7 +1171,7 @@ export default function ApontamentoDiariasModal({
                         onClick={() => { if (!d.disabled) { setSelectedDate(d.value); setHasSaved(false); setSaidasSalvas(new Set()); } }}
                         disabled={d.disabled}
                         className={cn(
-                          "px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-md text-[10px] sm:text-xs font-medium transition-all border whitespace-nowrap shrink-0",
+                          "px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-md text-[10px] sm:text-xs font-medium transition-a shrink-0",
                           d.disabled
                             ? "opacity-40 cursor-not-allowed bg-muted text-muted-foreground border-transparent"
                             : isSelected
@@ -1318,7 +1316,7 @@ export default function ApontamentoDiariasModal({
                   </Button>
                 )}
 
-                {(fase === 'inicio' || fase === 'finalizacao') && !readOnly && (
+                {((fase === 'inicio' || fase === 'finalizacao') && !readOnly || (fase === 'concluido' && isSuperAdmin)) && (
                   <Popover open={showAddFuncionario} onOpenChange={setShowAddFuncionario}>
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="xs" className="text-[10px] sm:text-xs gap-1 h-6 sm:h-7 px-2">
@@ -1381,7 +1379,7 @@ export default function ApontamentoDiariasModal({
                 <span className="ml-2 text-muted-foreground">Carregando...</span>
               </div>
             ) : colaboradores.length > 0 ? (
-              <ScrollArea className="h-[300px] sm:h-[350px] border rounded-md p-2 sm:p-4">
+              <div className="border rounded-md p-2 sm:p-4">
                 <div className="space-y-3 sm:space-y-4">
                   {colaboradores.map((colaborador) => {
                     const { horas, tipo } = calcularJornada(colaborador.hora_entrada, colaborador.hora_saida);
@@ -1425,6 +1423,9 @@ export default function ApontamentoDiariasModal({
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-1">
                               <span className="font-bold text-xs sm:text-sm truncate">{colaborador.nome_funcionario}</span>
+                              {colaborador.turno === 'noturno' && (
+                                <Badge variant="warning" className="text-[10px] shrink-0"><Moon className="h-2.5 w-2.5 mr-0.5" />Not.</Badge>
+                              )}
                               <div className="flex items-center gap-1 shrink-0">
                                 {fase === 'concluido' && colaborador.presente ? (
                                   <>
@@ -1543,7 +1544,28 @@ export default function ApontamentoDiariasModal({
                           </div>
                         </div>
 
-                        {/* Toggle Tipo Diária: Normal vs FDS/Feriado — só para avulsos */}
+                        {/* Toggle Turno: Diurno/Noturno */}
+                        <div className="flex items-center justify-between mt-1 pt-1 border-t border-dashed">
+                          <div className="flex items-center gap-1.5">
+                            <Moon className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+                            <Label htmlFor={`turno-${colaborador.funcionario_id}`} className="text-xs sm:text-sm cursor-pointer">
+                              Noturno
+                            </Label>
+                            {colaborador.turno === 'noturno' && (
+                              <Badge variant="warning" className="text-[10px]">19h-07h</Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Switch
+                              id={`turno-${colaborador.funcionario_id}`}
+                              checked={colaborador.turno === 'noturno'}
+                              onCheckedChange={(checked) => handleTurnoChange(colaborador.index, checked ? 'noturno' : 'diurno')}
+                              disabled={(fase === 'concluido' && !edicaoLiberada) || !colaborador.presente || readOnly || jaSalvouSaida}
+                            />
+                            {fase === 'concluido' && !edicaoLiberada && <Lock className="h-3 w-3 text-muted-foreground" />}
+                          </div>
+                        </div>
+
                         {colaborador.valor_diaria_normal !== colaborador.valor_diaria_exclusiva_valor && funcionariosAvulsos.has(colaborador.funcionario_id) && (
                           <div className="flex items-center justify-between mt-1 pt-1 border-t border-dashed">
                             <div className="flex items-center gap-1.5">
@@ -1620,7 +1642,7 @@ export default function ApontamentoDiariasModal({
                     );
                   })}
                 </div>
-              </ScrollArea>
+              </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 {selectedDate

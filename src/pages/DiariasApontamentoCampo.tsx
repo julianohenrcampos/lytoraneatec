@@ -72,20 +72,34 @@ export default function DiariasApontamentoCampo() {
   const toggleEdicao = useToggleEdicaoLiberada();
 
   // Query apontamentos - COM ESCOPO OBRIGATÓRIO
-  const apontamentoScopeFilters = getApontamentosFilter();
+  const apontamentoScopeFilters = useMemo(() => getApontamentosFilter(), [getApontamentosFilter]);
+  const statusFilterMemo = useMemo(
+    () => (statusFilter !== '__all__' ? { status: statusFilter } : undefined),
+    [statusFilter]
+  );
   const { data: apontamentos = [], isLoading, refetch } = useApontamentosCampo(
-    statusFilter !== '__all__' ? { status: statusFilter } : undefined,
+    statusFilterMemo,
     apontamentoScopeFilters
   );
   
+  // Extrair IDs estáveis das solicitações para usar na query de presenças
+  const solicitacaoIds = useMemo(
+    () => apontamentos.map((a: any) => a.bd_diaria_solicitacoes?.id).filter(Boolean).sort() as string[],
+    [apontamentos]
+  );
+  const solicitacaoIdsKey = solicitacaoIds.join(',');
+
   // Query para buscar datas apontadas por solicitação com status de horários
-  interface PresencaStatus { data: string; temEntrada: boolean; temSaida: boolean }
+  interface PresencaStatus { data: string; temEntrada: boolean; temSaida: boolean; temRegistro: boolean; todosFalta: boolean }
   const { data: datasApontadasMap = {} } = useQuery({
-    queryKey: ['datas-apontadas-por-solicitacao'],
+    queryKey: ['datas-apontadas-por-solicitacao', solicitacaoIdsKey],
     queryFn: async () => {
+      if (solicitacaoIds.length === 0) return {};
+      
       const { data } = await supabase
         .from('bd_diaria_presencas')
-        .select('solicitacao_id, data, hora_entrada, hora_saida');
+        .select('solicitacao_id, data, hora_entrada, hora_saida, presente')
+        .in('solicitacao_id', solicitacaoIds);
       
       const mapa: Record<string, PresencaStatus[]> = {};
       (data || []).forEach((p) => {
@@ -96,17 +110,22 @@ export default function DiariasApontamentoCampo() {
         if (existing) {
           if (p.hora_entrada) existing.temEntrada = true;
           if (p.hora_saida) existing.temSaida = true;
+          existing.temRegistro = true;
+          if (p.presente) existing.todosFalta = false;
         } else {
           mapa[p.solicitacao_id].push({
             data: p.data,
             temEntrada: !!p.hora_entrada,
-            temSaida: !!p.hora_saida
+            temSaida: !!p.hora_saida,
+            temRegistro: true,
+            todosFalta: !p.presente
           });
         }
       });
       return mapa;
     },
-    enabled: apontamentos.length > 0
+    enabled: solicitacaoIds.length > 0,
+    staleTime: 30000
   });
 
   // Ordenar: apontamentos totalmente finalizados vão para o final
@@ -135,8 +154,8 @@ export default function DiariasApontamentoCampo() {
         } catch { return 0; }
       })();
 
-      const allFinA = countDatasA > 0 && datasA.length >= countDatasA && datasA.every((d: any) => d.temEntrada && d.temSaida);
-      const allFinB = countDatasB > 0 && datasB.length >= countDatasB && datasB.every((d: any) => d.temEntrada && d.temSaida);
+      const allFinA = countDatasA > 0 && datasA.length >= countDatasA && datasA.every((d: any) => (d.temEntrada && d.temSaida) || (d.temRegistro && d.todosFalta));
+      const allFinB = countDatasB > 0 && datasB.length >= countDatasB && datasB.every((d: any) => (d.temEntrada && d.temSaida) || (d.temRegistro && d.todosFalta));
 
       if (allFinA && !allFinB) return 1;
       if (!allFinA && allFinB) return -1;
@@ -356,8 +375,8 @@ export default function DiariasApontamentoCampo() {
                           let extraClasses = "";
 
                           if (status) {
-                            if (status.temEntrada && status.temSaida) {
-                              // Finalizado
+                            if ((status.temEntrada && status.temSaida) || (status.temRegistro && status.todosFalta)) {
+                              // Finalizado (todos com entrada+saída OU todos são falta)
                               variant = "success";
                               if (isLiberado) {
                                 extraClasses = "border-2 border-gray-400 cursor-pointer hover:opacity-80 transition-all";

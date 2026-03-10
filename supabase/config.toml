@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.create-gestor]
 verify_jwt = false
+
+[functions.auto-finalizar-diarias]
+verify_jwt = false
