@@ -22,10 +22,10 @@ export const diariaStyles = StyleSheet.create({
   // Header com Logo
   headerContainer: {
     flexDirection: 'row',
-    marginBottom: 20,
+    marginBottom: 14,
     paddingBottom: 12,
     borderBottomWidth: 2,
-    borderBottomColor: '#1e3a5f',
+    borderBottomColor: '#DD2C00',
   },
   logo: {
     width: 80,
@@ -55,7 +55,7 @@ export const diariaStyles = StyleSheet.create({
 
   // Section
   section: {
-    marginBottom: 16,
+    marginBottom: 10,
   },
   sectionTitle: {
     fontSize: 11,
@@ -64,18 +64,18 @@ export const diariaStyles = StyleSheet.create({
     marginBottom: 8,
     paddingBottom: 4,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: '#DD2C00',
   },
 
   // Info Grid
   infoGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 12,
   },
   infoItem: {
-    width: '48%',
-    marginBottom: 6,
+    width: '31%',
+    marginBottom: 4,
   },
   infoItemFull: {
     width: '100%',
@@ -100,12 +100,12 @@ export const diariaStyles = StyleSheet.create({
   statsPanel: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 16,
-    gap: 10,
+    marginBottom: 8,
+    gap: 16,
   },
   statBox: {
     flex: 1,
-    padding: 12,
+    padding: 10,
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
@@ -115,7 +115,7 @@ export const diariaStyles = StyleSheet.create({
   },
   statBoxHighlight: {
     flex: 1,
-    padding: 12,
+    padding: 10,
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',

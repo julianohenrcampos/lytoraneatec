@@ -30,7 +30,7 @@ const ADM_SSO_PERMISSIONS = [
 ];
 
 const SSO_ROLE_PERMISSIONS: Record<string, string[]> = {
-  'TecSSO': ['acesso_sso_checklists', 'acesso_sso_desvios', 'dashboard_view'],
+  'TecSSO': ['acesso_sso_checklists', 'acesso_sso_desvios', 'acesso_sso_ver_agir', 'dashboard_view'],
   'AdmSSO': ADM_SSO_PERMISSIONS,
   'AdmOBRA': ADM_SSO_PERMISSIONS,
   'AdmtreinoSSO': [
@@ -306,7 +306,7 @@ export const useDynamicPermissions = (): DynamicPermissions => {
               userId: user.id,
               isSuperAdmin: false,
               userRole: 'TecSSO',
-              permissions: ['acesso_sso_checklists', 'acesso_sso_desvios', 'dashboard_view'],
+              permissions: ['acesso_sso_checklists', 'acesso_sso_desvios', 'acesso_sso_ver_agir', 'dashboard_view'],
               isLoading: false,
               canAccessDashboard: true,
             };

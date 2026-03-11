@@ -234,7 +234,7 @@ export interface RelatorioFilters {
   empresa_id?: string;
   status_convocacao?: StatusConvocacao;
   presenca_status?: StatusPresenca;
-  tipo_vinculo?: 'diarista' | 'contratado';
+  tipo_vinculo?: 'diarista' | 'remessa';
 }
 
 // =====================================================

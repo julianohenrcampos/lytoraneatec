@@ -4,6 +4,7 @@ import { pdf } from '@react-pdf/renderer';
 import { SSOReportDocument } from '@/components/sso/pdf/SSOReportDocument';
 import { DesvioReportDocument } from '@/components/ssoDesvios/pdf/DesvioReportDocument';
 import { SolicitacaoPDFDocument } from '@/components/diarias/pdf/SolicitacaoPDFDocument';
+import { CompiladoDiariasPDF } from '@/components/diarias/pdf/CompiladoDiariasPDF';
 import { ListaPresencaPDFDocument } from '@/components/diarias/pdf/ListaPresencaPDF';
 import type { ListaPresencaItem } from '@/components/diarias/pdf/ListaPresencaPDF';
 import { RelatorioDiariasPDF } from '@/components/diarias/pdf/RelatorioDiariasPDF';
@@ -279,11 +280,15 @@ export const generateRelatorioDiariasPDF = async (
   resumo: PresencaResumo,
   filtros: RelatorioFilters,
   feriados: string[],
-  fileName: string
+  fileName: string,
+  extras?: {
+    engenheiroSolicitante?: string;
+    gerenteRegional?: string;
+  }
 ): Promise<void> => {
   try {
     // Carregar logo como base64
-    const logoUrl = await loadImageAsBase64('/logo-lyto.svg');
+    const logoUrl = await loadImageAsBase64('/lyto-uploads/dcf6c980-f927-4180-b109-b425da1323ba.png');
     
     // Criar o documento React-PDF
     const doc = createElement(RelatorioDiariasPDF, {
@@ -291,7 +296,9 @@ export const generateRelatorioDiariasPDF = async (
       resumo,
       filtros,
       feriados,
-      logoUrl: logoUrl || undefined
+      logoUrl: logoUrl || undefined,
+      engenheiroSolicitante: extras?.engenheiroSolicitante,
+      gerenteRegional: extras?.gerenteRegional
     });
     
     // Gerar o blob do PDF
@@ -343,6 +350,55 @@ export const generateListaPresencaPDF = async (
     URL.revokeObjectURL(url);
   } catch (error) {
     console.error('Erro ao gerar PDF de lista de presença:', error);
+    throw error;
+  }
+};
+
+// =====================================================
+// DIÁRIAS PDF - Compilado por Gerência
+// =====================================================
+
+interface CompiladoGerencia {
+  gerenteNome: string;
+  centrosCusto: {
+    centroCusto: string;
+    quantidade: number;
+    valor: number;
+  }[];
+  totalQuantidade: number;
+  totalValor: number;
+}
+
+export const generateCompiladoDiariasPDF = async (
+  dados: CompiladoGerencia[],
+  mesAno: string,
+  totalGeralQuantidade: number,
+  totalGeralValor: number,
+  fileName: string
+): Promise<void> => {
+  try {
+    const logoUrl = await loadImageAsBase64('/logo-lyto.svg');
+
+    const doc = createElement(CompiladoDiariasPDF, {
+      dados,
+      mesAno,
+      logoUrl: logoUrl || undefined,
+      totalGeralQuantidade,
+      totalGeralValor,
+    });
+
+    const blob = await pdf(doc as any).toBlob();
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${fileName}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Erro ao gerar PDF compilado:', error);
     throw error;
   }
 };

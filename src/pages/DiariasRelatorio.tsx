@@ -17,7 +17,7 @@ import {
   ChevronsRight } from
 "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { generateRelatorioDiariasPDF } from "@/services/pdfService";
+import { generateRelatorioDiariasPDF, generateCompiladoDiariasPDF } from "@/services/pdfService";
 
 import MainLayout from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Combobox } from "@/components/ui/combobox";
+import { MultiCombobox } from "@/components/ui/multi-combobox";
+import { buildCompiladoData } from "@/components/diarias/pdf/CompiladoDiariasPDF";
 
 import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
 import {
@@ -73,7 +75,38 @@ export default function DiariasRelatorio() {
   // Queries - COM ESCOPO OBRIGATÓRIO
   const { data: relatorioRaw = [], isLoading } = useRelatorioFolha(filters, scopeFilters);
 
-  // Filtragem client-side por empresa e tipo de vínculo
+  // Centro de custos (com aprovador)
+  const { data: centrosCusto = [] } = useQuery({
+    queryKey: ['centros-custo-com-aprovador'],
+    queryFn: async () => {
+      const { data } = await supabase.
+      from('bd_centros_custo').
+      select('id, codigo_centro_custo, nome_centro_custo, aprovador_diarias_id').
+      order('nome_centro_custo');
+      return data || [];
+    }
+  });
+
+  // Gerentes regionais (funcionários que são aprovadores de algum CC)
+  const { data: gerentesRegionais = [] } = useQuery({
+    queryKey: ['gerentes-regionais', centrosCusto],
+    queryFn: async () => {
+      const aprovadorIds = [...new Set(centrosCusto.map((cc: any) => cc.aprovador_diarias_id).filter(Boolean))];
+      if (aprovadorIds.length === 0) return [];
+      const { data } = await supabase
+        .from('bd_funcionarios')
+        .select('id, nome_completo')
+        .in('id', aprovadorIds)
+        .order('nome_completo');
+      return data || [];
+    },
+    enabled: centrosCusto.length > 0
+  });
+
+  // Filtro de gerente regional (estado)
+  const [gerenteRegionalFilter, setGerenteRegionalFilter] = useState<string[]>([]);
+
+  // Filtragem client-side por empresa, tipo de vínculo e gerente regional
   const relatorio = useMemo(() => {
     let filtered = relatorioRaw;
     if (filters.empresa_id) {
@@ -83,23 +116,18 @@ export default function DiariasRelatorio() {
       filtered = filtered.filter((r: any) => 
         r.status_funcionario === 'Ativo sem Registro' || r.usar_diaria_exclusiva === true
       );
-    } else if (filters.tipo_vinculo === 'contratado') {
+    } else if (filters.tipo_vinculo === 'remessa') {
       filtered = filtered.filter((r: any) => r.status_funcionario === 'Ativo');
     }
-    return filtered;
-  }, [relatorioRaw, filters.empresa_id, filters.tipo_vinculo]);
-
-  // Centro de custos
-  const { data: centrosCusto = [] } = useQuery({
-    queryKey: ['centros-custo'],
-    queryFn: async () => {
-      const { data } = await supabase.
-      from('bd_centros_custo').
-      select('id, codigo_centro_custo, nome_centro_custo').
-      order('nome_centro_custo');
-      return data || [];
+    // Filtrar por gerente regional (via centro de custo) - multi-select
+    if (gerenteRegionalFilter.length > 0) {
+      const ccIdsDoGerente = centrosCusto
+        .filter((cc: any) => gerenteRegionalFilter.includes(cc.aprovador_diarias_id))
+        .map((cc: any) => cc.id);
+      filtered = filtered.filter((r: any) => ccIdsDoGerente.includes(r.centro_custo_id));
     }
-  });
+    return filtered;
+  }, [relatorioRaw, filters.empresa_id, filters.tipo_vinculo, gerenteRegionalFilter, centrosCusto]);
 
   // Empresas
   const { data: empresas = [] } = useQuery({
@@ -184,7 +212,7 @@ export default function DiariasRelatorio() {
   // Export mutation
   const exportMutation = useExportarExcel();
   const [isPDFLoading, setIsPDFLoading] = useState(false);
-  const [exportFormat, setExportFormat] = useState<'excel' | 'pdf' | 'ambos'>('excel');
+  const [exportFormat, setExportFormat] = useState<'excel' | 'pdf' | 'compilado' | 'ambos'>('excel');
 
   // Permissions
   const canExport = isSuperAdmin || hasPermission('diarias_exportar_excel');
@@ -236,11 +264,116 @@ export default function DiariasRelatorio() {
         valor_total_previsto: resumo.valor_total
       };
 
-      await generateRelatorioDiariasPDF(relatorio, resumoParaPDF, filters, feriados, fileName);
+      // Buscar nomes do Engenheiro Solicitante e Gerente Regional
+      let engenheiroSolicitante: string | undefined;
+      let gerenteRegionalNome: string | undefined;
+
+      const solicitacaoIds = [...new Set(relatorio.map(r => r.solicitacao_id))];
+      if (solicitacaoIds.length > 0) {
+        // Buscar engenheiro solicitante
+        const { data: solicitacoes } = await supabase
+          .from('bd_diaria_solicitacoes')
+          .select('engenheiro_solicitante_id, centro_custo_id')
+          .in('id', solicitacaoIds);
+
+        if (solicitacoes) {
+          const engenheiroIds = [...new Set(solicitacoes.map(s => s.engenheiro_solicitante_id).filter(Boolean))];
+          if (engenheiroIds.length > 0) {
+            const { data: engenheiros } = await supabase
+              .from('bd_funcionarios')
+              .select('nome_completo')
+              .in('id', engenheiroIds);
+            if (engenheiros?.length) {
+              engenheiroSolicitante = engenheiros.map(e => e.nome_completo).join(', ');
+            }
+          }
+
+          // Buscar gerente regional via centro de custo
+          const ccIds = [...new Set(solicitacoes.map(s => s.centro_custo_id).filter(Boolean))];
+          if (ccIds.length > 0) {
+            const { data: ccs } = await supabase
+              .from('bd_centros_custo')
+              .select('aprovador_diarias_id')
+              .in('id', ccIds);
+            const aprovadorIds = [...new Set(ccs?.map(cc => cc.aprovador_diarias_id).filter(Boolean) || [])];
+            if (aprovadorIds.length > 0) {
+              const { data: gerentes } = await supabase
+                .from('bd_funcionarios')
+                .select('nome_completo')
+                .in('id', aprovadorIds);
+              if (gerentes?.length) {
+                gerenteRegionalNome = gerentes.map(g => g.nome_completo).join(', ');
+              }
+            }
+          }
+        }
+      }
+
+      await generateRelatorioDiariasPDF(relatorio, resumoParaPDF, filters, feriados, fileName, {
+        engenheiroSolicitante,
+        gerenteRegional: gerenteRegionalNome
+      });
       toast.success('PDF gerado com sucesso!');
     } catch (error) {
       console.error('Erro ao gerar PDF:', error);
       toast.error('Erro ao gerar PDF.');
+    } finally {
+      setIsPDFLoading(false);
+    }
+  };
+
+  const handleExportCompilado = async () => {
+    if (relatorio.length === 0) {
+      toast.error('Não há dados para exportar.');
+      return;
+    }
+    setIsPDFLoading(true);
+    try {
+      const gerentesMap: Record<string, string> = {};
+      gerentesRegionais.forEach((g: any) => { gerentesMap[g.id] = g.nome_completo; });
+
+      const { dados, totalGeralQuantidade, totalGeralValor } = buildCompiladoData(
+        relatorio,
+        centrosCusto as any,
+        gerentesMap
+      );
+
+      // Determine período label
+      let mesAno: string;
+      if (filters.data_inicio && filters.data_fim) {
+        const dtInicio = new Date(filters.data_inicio + 'T12:00:00');
+        const dtFim = new Date(filters.data_fim + 'T12:00:00');
+        const mesInicio = dtInicio.getMonth();
+        const mesFim = dtFim.getMonth();
+        const anoInicio = dtInicio.getFullYear();
+        const anoFim = dtFim.getFullYear();
+        
+        const mesesPT = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
+        
+        if (mesInicio === mesFim && anoInicio === anoFim) {
+          mesAno = `${mesesPT[mesInicio]} ${anoInicio}`;
+        } else if (anoInicio === anoFim) {
+          const diffMeses = mesFim - mesInicio;
+          if (diffMeses === 1) {
+            mesAno = `${mesesPT[mesInicio]} E ${mesesPT[mesFim]} ${anoInicio}`;
+          } else {
+            mesAno = `${mesesPT[mesInicio]} A ${mesesPT[mesFim]} ${anoInicio}`;
+          }
+        } else {
+          mesAno = `${mesesPT[mesInicio]}/${anoInicio} A ${mesesPT[mesFim]}/${anoFim}`;
+        }
+      } else if (filters.data_inicio) {
+        mesAno = format(new Date(filters.data_inicio + 'T12:00:00'), 'MMMM/yyyy', { locale: ptBR }).toUpperCase();
+      } else {
+        mesAno = format(new Date(), 'MMMM/yyyy', { locale: ptBR }).toUpperCase();
+      }
+
+      const fileName = `Compilado_Diarias_${mesAno.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      await generateCompiladoDiariasPDF(dados, mesAno, totalGeralQuantidade, totalGeralValor, fileName);
+      toast.success('PDF Compilado gerado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao gerar PDF compilado:', error);
+      toast.error('Erro ao gerar PDF compilado.');
     } finally {
       setIsPDFLoading(false);
     }
@@ -255,6 +388,8 @@ export default function DiariasRelatorio() {
       handleExportExcel();
     } else if (exportFormat === 'pdf') {
       await handleExportPDF();
+    } else if (exportFormat === 'compilado') {
+      await handleExportCompilado();
     } else {
       // Ambos em paralelo
       handleExportExcel();
@@ -307,7 +442,7 @@ export default function DiariasRelatorio() {
           <div className="flex items-center gap-4">
               <RadioGroup
                 value={exportFormat}
-                onValueChange={(v) => setExportFormat(v as 'excel' | 'pdf' | 'ambos')}
+                onValueChange={(v) => setExportFormat(v as 'excel' | 'pdf' | 'compilado' | 'ambos')}
                 className="flex items-center gap-4">
                 <div className="flex items-center gap-1.5">
                   <RadioGroupItem value="excel" id="export-excel" />
@@ -316,6 +451,10 @@ export default function DiariasRelatorio() {
                 <div className="flex items-center gap-1.5">
                   <RadioGroupItem value="pdf" id="export-pdf" />
                   <Label htmlFor="export-pdf" className="text-sm cursor-pointer">PDF</Label>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <RadioGroupItem value="compilado" id="export-compilado" />
+                  <Label htmlFor="export-compilado" className="text-sm cursor-pointer">Compilado</Label>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <RadioGroupItem value="ambos" id="export-ambos" />
@@ -458,17 +597,31 @@ export default function DiariasRelatorio() {
 
               </div>
               <div>
+                <Label>Gerente Regional</Label>
+                <MultiCombobox
+                  options={gerentesRegionais.map((g: any) => ({
+                    value: g.id,
+                    label: g.nome_completo
+                  }))}
+                  value={gerenteRegionalFilter}
+                  onChange={setGerenteRegionalFilter}
+                  placeholder="Todos"
+                  searchPlaceholder="Buscar gerente..."
+                  emptyText="Nenhum gerente encontrado"
+                />
+              </div>
+              <div>
                 <Label>Tipo Vínculo</Label>
                 <Select
                   value={filters.tipo_vinculo || 'todos'}
-                  onValueChange={(v) => setFilters({ ...filters, tipo_vinculo: v === 'todos' ? undefined : v as 'diarista' | 'contratado' })}>
+                  onValueChange={(v) => setFilters({ ...filters, tipo_vinculo: v === 'todos' ? undefined : v as 'diarista' | 'remessa' })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos</SelectItem>
                     <SelectItem value="diarista">Diarista</SelectItem>
-                    <SelectItem value="contratado">Contratado</SelectItem>
+                    <SelectItem value="remessa">Remessa</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

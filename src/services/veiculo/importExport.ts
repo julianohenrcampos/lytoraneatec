@@ -23,7 +23,7 @@ export const exportVeiculos = async (veiculos: Veiculo[]) => {
     'Observações': veiculo.observacoes || 'N/A',
   }));
 
-  return downloadExcel(data, 'Veículos');
+  return downloadExcel(data, 'Veiculos_Equipamentos.xlsx');
 };
 
 export const importVeiculos = async (veiculos: VeiculoFormData[] | File): Promise<ImportResult> => {

@@ -156,9 +156,9 @@ export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promis
   const dataRows = relatorio.map((item, idx) => {
     const rowNum = idx + 2; // Excel row (1-indexed, header is row 1)
     const vDiaria = item.tipo_diaria === 'completa' ? (item.valor_diaria_aplicada || 0) :
-                    item.tipo_diaria === 'uma_e_meia' ? (item.valor_diaria_aplicada || 0) * (2/3) : 0;
+                    item.tipo_diaria === 'uma_e_meia' ? Math.ceil((item.valor_diaria_aplicada || 0) * (2/3)) : 0;
     const vMeiaDiaria = item.tipo_diaria === 'meia' ? (item.valor_diaria_aplicada || 0) :
-                        item.tipo_diaria === 'uma_e_meia' ? (item.valor_diaria_aplicada || 0) * (1/3) : 0;
+                        item.tipo_diaria === 'uma_e_meia' ? Math.ceil((item.valor_diaria_aplicada || 0) * (1/3)) : 0;
     const vRefeicao = item.valor_refeicao_aplicado || 0;
 
     return [
@@ -241,6 +241,27 @@ export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promis
 
   // Freeze header row
   ws['!freeze'] = { xSplit: 0, ySplit: 1, topLeftCell: 'A2', activePane: 'bottomLeft', state: 'frozen' };
+
+  // Sheet protection with password "lytec"
+  (ws as any)['!protect'] = {
+    password: 'lytec',
+    sheet: true,
+    objects: true,
+    scenarios: true,
+    selectLockedCells: false,    // false = ALLOWED
+    selectUnlockedCells: false,  // false = ALLOWED
+    formatCells: true,
+    formatColumns: true,
+    formatRows: true,
+    insertColumns: true,
+    insertRows: true,
+    insertHyperlinks: true,
+    deleteColumns: true,
+    deleteRows: true,
+    sort: true,
+    autoFilter: true,
+    pivotTables: true
+  };
 
   XLSX.utils.book_append_sheet(wb, ws, 'Folha de Pagamento');
 
