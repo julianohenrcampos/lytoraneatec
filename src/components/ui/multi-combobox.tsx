@@ -42,14 +42,33 @@ export function MultiCombobox({
   className,
 }: MultiComboboxProps) {
   const [open, setOpen] = React.useState(false);
+  const [inputValue, setInputValue] = React.useState("");
+  const interactionGuardRef = React.useRef<{ value: string; time: number } | null>(null);
 
-  const toggleValue = (val: string) => {
+  const filteredOptions = React.useMemo(() => {
+    if (!inputValue) return options;
+    return options.filter((option) =>
+      option.label.toLowerCase().includes(inputValue.toLowerCase())
+    );
+  }, [options, inputValue]);
+
+  const toggleValue = React.useCallback((val: string) => {
     if (value.includes(val)) {
       onChange(value.filter((v) => v !== val));
-    } else {
-      onChange([...value, val]);
+      return;
     }
-  };
+    onChange([...value, val]);
+  }, [onChange, value]);
+
+  const safeToggleValue = React.useCallback((val: string) => {
+    const now = Date.now();
+    const lastInteraction = interactionGuardRef.current;
+    if (lastInteraction && lastInteraction.value === val && now - lastInteraction.time < 150) {
+      return;
+    }
+    interactionGuardRef.current = { value: val, time: now };
+    toggleValue(val);
+  }, [toggleValue]);
 
   const selectedLabels = value
     .map((v) => options.find((o) => o.value === v)?.label)
@@ -90,26 +109,46 @@ export function MultiCombobox({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-full p-0" align="start">
-        <Command>
-          <CommandInput placeholder={searchPlaceholder} />
-          <CommandList>
+      <PopoverContent
+        className="w-full p-0 z-[10000] bg-white shadow-xl border pointer-events-auto"
+        align="start"
+        side="bottom"
+        avoidCollisions={false}
+        sideOffset={4}
+      >
+        <Command shouldFilter={false} className="pointer-events-auto">
+          <CommandInput
+            placeholder={searchPlaceholder}
+            value={inputValue}
+            onValueChange={setInputValue}
+          />
+          <CommandList
+            className="max-h-[300px] overflow-y-auto pointer-events-auto"
+            style={{ pointerEvents: 'auto' }}
+          >
             <CommandEmpty>{emptyText}</CommandEmpty>
             <CommandGroup>
-              {options.map((option) => (
+              {filteredOptions.map((option) => (
                 <CommandItem
                   key={option.value}
-                  value={option.label}
-                  onSelect={() => toggleValue(option.value)}
-                  onPointerDown={(e) => e.preventDefault()}
+                  value={option.value}
+                  onSelect={() => safeToggleValue(option.value)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    safeToggleValue(option.value);
+                  }}
+                  onMouseDown={(e) => e.preventDefault()}
+                  className="cursor-pointer pointer-events-auto"
+                  style={{ pointerEvents: 'auto' }}
                 >
                   <Check
                     className={cn(
-                      "mr-2 h-4 w-4",
+                      "mr-2 h-4 w-4 shrink-0 pointer-events-none",
                       value.includes(option.value) ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  {option.label}
+                  <span className="flex-1 pointer-events-none">{option.label}</span>
                 </CommandItem>
               ))}
             </CommandGroup>

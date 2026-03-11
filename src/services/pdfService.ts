@@ -377,7 +377,7 @@ export const generateCompiladoDiariasPDF = async (
   fileName: string
 ): Promise<void> => {
   try {
-    const logoUrl = await loadImageAsBase64('/logo-lyto.svg');
+    const logoUrl = await loadImageAsBase64('/lyto-uploads/dcf6c980-f927-4180-b109-b425da1323ba.png');
 
     const doc = createElement(CompiladoDiariasPDF, {
       dados,

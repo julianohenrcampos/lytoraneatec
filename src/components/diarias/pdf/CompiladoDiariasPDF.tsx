@@ -29,6 +29,9 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
+const BORDER_COLOR = '#2C4466';
+const BORDER_WIDTH = 1.5;
+
 const styles = StyleSheet.create({
   page: {
     paddingTop: 40,
@@ -43,7 +46,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     paddingBottom: 12,
     borderBottomWidth: 2,
-    borderBottomColor: '#1e3a5f',
+    borderBottomColor: BORDER_COLOR,
     alignItems: 'center',
   },
   logo: {
@@ -54,39 +57,37 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 14,
     fontFamily: 'Helvetica-Bold',
-    color: '#1e3a5f',
+    color: BORDER_COLOR,
     textAlign: 'center' as any,
     flex: 1,
     marginLeft: 15,
     textTransform: 'uppercase' as any,
   },
-  // Block container for each gerência
   block: {
     flexDirection: 'row' as any,
-    marginBottom: 12,
+    marginBottom: 20,
     gap: 0,
   },
-  // Left box: MÊS + GERÊNCIA
   leftBox: {
     width: '50%',
-    borderWidth: 1,
-    borderColor: '#4b5563',
+    borderWidth: BORDER_WIDTH,
+    borderColor: BORDER_COLOR,
   },
   leftBoxHeader: {
     flexDirection: 'row' as any,
-    backgroundColor: '#d1d5db',
-    borderBottomWidth: 1,
-    borderBottomColor: '#4b5563',
+    backgroundColor: BORDER_COLOR,
+    borderBottomWidth: BORDER_WIDTH,
+    borderBottomColor: BORDER_COLOR,
   },
   leftBoxHeaderCellMes: {
     width: '40%',
     padding: 6,
     fontFamily: 'Helvetica-Bold',
     fontSize: 8,
-    color: '#1f2937',
+    color: '#ffffff',
     textTransform: 'uppercase' as any,
-    borderRightWidth: 1,
-    borderRightColor: '#4b5563',
+    borderRightWidth: BORDER_WIDTH,
+    borderRightColor: BORDER_COLOR,
     textAlign: 'center' as any,
   },
   leftBoxHeaderCellGerencia: {
@@ -94,7 +95,7 @@ const styles = StyleSheet.create({
     padding: 6,
     fontFamily: 'Helvetica-Bold',
     fontSize: 8,
-    color: '#1f2937',
+    color: '#ffffff',
     textTransform: 'uppercase' as any,
     textAlign: 'center' as any,
   },
@@ -108,8 +109,8 @@ const styles = StyleSheet.create({
     padding: 6,
     fontSize: 8,
     color: '#1f2937',
-    borderRightWidth: 1,
-    borderRightColor: '#4b5563',
+    borderRightWidth: BORDER_WIDTH,
+    borderRightColor: BORDER_COLOR,
     textAlign: 'center' as any,
     fontFamily: 'Helvetica-Bold',
   },
@@ -121,39 +122,38 @@ const styles = StyleSheet.create({
     textAlign: 'center' as any,
     fontFamily: 'Helvetica-Bold',
   },
-  // Right box: DIÁRIAS (QUANTIDADE + VALOR)
   rightBox: {
     width: '50%',
-    borderWidth: 1,
-    borderColor: '#4b5563',
-    borderLeftWidth: 0,
+    borderWidth: BORDER_WIDTH,
+    borderColor: BORDER_COLOR,
+    borderLeftWidth: BORDER_WIDTH,
   },
   rightBoxHeader: {
-    backgroundColor: '#d1d5db',
-    borderBottomWidth: 1,
-    borderBottomColor: '#4b5563',
+    backgroundColor: BORDER_COLOR,
+    borderBottomWidth: BORDER_WIDTH,
+    borderBottomColor: BORDER_COLOR,
     padding: 6,
     textAlign: 'center' as any,
   },
   rightBoxHeaderText: {
     fontFamily: 'Helvetica-Bold',
     fontSize: 8,
-    color: '#1f2937',
+    color: '#ffffff',
     textTransform: 'uppercase' as any,
     textAlign: 'center' as any,
   },
   rightBoxSubHeader: {
     flexDirection: 'row' as any,
-    borderBottomWidth: 1,
-    borderBottomColor: '#4b5563',
-    backgroundColor: '#e5e7eb',
+    borderBottomWidth: BORDER_WIDTH,
+    borderBottomColor: BORDER_COLOR,
+    backgroundColor: BORDER_COLOR,
   },
   rightBoxSubHeaderCell: {
     width: '50%',
     padding: 4,
     fontFamily: 'Helvetica-Bold',
     fontSize: 7,
-    color: '#374151',
+    color: '#ffffff',
     textTransform: 'uppercase' as any,
     textAlign: 'center' as any,
   },
@@ -169,8 +169,8 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica-Bold',
     color: '#1f2937',
     textAlign: 'center' as any,
-    borderRightWidth: 1,
-    borderRightColor: '#4b5563',
+    borderRightWidth: BORDER_WIDTH,
+    borderRightColor: BORDER_COLOR,
   },
   rightBoxDataCellValor: {
     width: '50%',
@@ -180,45 +180,43 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     textAlign: 'center' as any,
   },
-  // Centro de custo detail rows
   ccRow: {
     flexDirection: 'row' as any,
-    borderTopWidth: 1,
-    borderTopColor: '#d1d5db',
+    borderTopWidth: BORDER_WIDTH,
+    borderTopColor: BORDER_COLOR,
   },
   ccLabel: {
     width: '60%',
     padding: 4,
     fontSize: 7,
-    color: '#4b5563',
+    color: BORDER_COLOR,
     paddingLeft: 8,
   },
   ccQtd: {
     width: '20%',
     padding: 4,
     fontSize: 7,
-    color: '#4b5563',
+    color: BORDER_COLOR,
     textAlign: 'center' as any,
   },
   ccValor: {
     width: '20%',
     padding: 4,
     fontSize: 7,
-    color: '#4b5563',
+    color: BORDER_COLOR,
     textAlign: 'right' as any,
     paddingRight: 8,
   },
-  // Total Geral
   totalGeralBlock: {
     flexDirection: 'row' as any,
     marginTop: 20,
   },
   totalGeralLeft: {
     width: '50%',
-    borderWidth: 2,
-    borderColor: '#1e3a5f',
-    backgroundColor: '#1e3a5f',
-    padding: 10,
+    borderWidth: BORDER_WIDTH,
+    borderColor: BORDER_COLOR,
+    backgroundColor: BORDER_COLOR,
+    padding: 6,
     justifyContent: 'center' as any,
     alignItems: 'center' as any,
   },
@@ -230,15 +228,15 @@ const styles = StyleSheet.create({
   },
   totalGeralRight: {
     width: '50%',
-    borderWidth: 2,
-    borderColor: '#1e3a5f',
-    borderLeftWidth: 0,
+    borderWidth: BORDER_WIDTH,
+    borderColor: BORDER_COLOR,
+    borderLeftWidth: BORDER_WIDTH,
   },
   totalGeralRightHeader: {
     flexDirection: 'row' as any,
-    backgroundColor: '#1e3a5f',
-    borderBottomWidth: 1,
-    borderBottomColor: '#1e3a5f',
+    backgroundColor: BORDER_COLOR,
+    borderBottomWidth: BORDER_WIDTH,
+    borderBottomColor: BORDER_COLOR,
   },
   totalGeralRightHeaderCell: {
     width: '50%',
@@ -253,30 +251,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as any,
     minHeight: 32,
     alignItems: 'center' as any,
-    backgroundColor: '#f0f4f8',
+    backgroundColor: '#ffffff',
   },
   totalGeralRightDataCellQtd: {
     width: '50%',
     padding: 8,
     fontSize: 12,
     fontFamily: 'Helvetica-Bold',
-    color: '#1e3a5f',
+    color: BORDER_COLOR,
     textAlign: 'center' as any,
-    borderRightWidth: 1,
-    borderRightColor: '#1e3a5f',
+    borderRightWidth: BORDER_WIDTH,
+    borderRightColor: BORDER_COLOR,
   },
   totalGeralRightDataCellValor: {
     width: '50%',
     padding: 8,
     fontSize: 12,
     fontFamily: 'Helvetica-Bold',
-    color: '#1e3a5f',
+    color: BORDER_COLOR,
     textAlign: 'center' as any,
   },
-  // Separator between left sub-header cells
   subHeaderSeparator: {
-    borderRightWidth: 1,
-    borderRightColor: '#4b5563',
+    borderRightWidth: BORDER_WIDTH,
+    borderRightColor: BORDER_COLOR,
   },
 });
 
@@ -309,21 +306,15 @@ export const CompiladoDiariasPDF = ({
                 <Text style={styles.leftBoxDataCellMes}>{mesAno}</Text>
                 <Text style={styles.leftBoxDataCellGerencia}>{gerencia.gerenteNome}</Text>
               </View>
-              {/* Centro de custo details */}
-              {gerencia.centrosCusto.length > 1 && gerencia.centrosCusto.map((cc, ccIdx) => (
-                <View key={ccIdx} style={styles.ccRow}>
-                  <Text style={styles.ccLabel}>{cc.centroCusto}</Text>
-                  <Text style={styles.ccQtd}>{cc.quantidade}</Text>
-                  <Text style={styles.ccValor}>{formatCurrency(cc.valor)}</Text>
-                </View>
-              ))}
-              {gerencia.centrosCusto.length === 1 && (
-                <View style={styles.ccRow}>
-                  <Text style={[styles.ccLabel, { width: '100%', textAlign: 'center' as any }]}>
-                    {gerencia.centrosCusto[0].centroCusto}
-                  </Text>
-                </View>
-              )}
+              {/* Centro de custo codes concatenated */}
+              <View style={styles.ccRow}>
+                <Text style={[styles.ccLabel, { width: '100%', textAlign: 'center' as any, flexWrap: 'wrap' as any }]}>
+                  {(() => {
+                    const uniqueCodes = [...new Set(gerencia.centrosCusto.map(cc => cc.centroCusto).filter(Boolean))].sort();
+                    return uniqueCodes.join(' | ');
+                  })()}
+                </Text>
+              </View>
             </View>
 
             {/* Right box: DIÁRIAS */}
@@ -380,7 +371,7 @@ export function buildCompiladoData(
     const cc = centrosCusto.find((c) => c.id === item.centro_custo_id);
     const gerenteId = cc?.aprovador_diarias_id || 'sem_gerente';
     const gerenteNome = gerenteId !== 'sem_gerente' ? (gerentesMap[gerenteId] || 'Não definido') : 'Sem Gerente';
-    const ccLabel = `${item.codigo_centro_custo || ''} - ${item.nome_centro_custo || ''}`;
+    const ccLabel = item.codigo_centro_custo || '';
 
     if (!gerenteMap.has(gerenteId)) {
       gerenteMap.set(gerenteId, new Map());
