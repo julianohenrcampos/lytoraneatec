@@ -56,7 +56,7 @@ const fetchFuncionariosFallback = async (filters: FuncionarioFilter): Promise<Fu
   // 1. Load base funcionarios without embeds
   let query = supabase
     .from("bd_funcionarios")
-    .select("id, nome_completo, cpf, data_nascimento, email, endereco_completo, escolaridade, genero, funcao_id, departamento_id, centro_custo_id, empresa_id, equipe_id, data_admissao, data_ferias, data_demissao, status, salario_base, insalubridade, periculosidade, gratificacao, adicional_noturno, custo_passagem, refeicao, diarias, observacoes, banco, agencia, conta_corrente, chave_pix, imagem, created_at, updated_at");
+    .select("id, nome_completo, cpf, data_nascimento, email, endereco_completo, escolaridade, genero, funcao_id, departamento_id, centro_custo_id, empresa_id, equipe_id, data_admissao, data_ferias, data_demissao, status, salario_base, insalubridade, periculosidade, gratificacao, adicional_noturno, custo_passagem, refeicao, diarias, observacoes, banco, agencia, conta_corrente, chave_pix, imagem, matricula, created_at, updated_at");
   
   query = applyFilters(query, filters);
   
@@ -130,7 +130,7 @@ export const fetchFuncionarios = async (filters: FuncionarioFilter = {}): Promis
         data_admissao, data_ferias, data_demissao, status,
         salario_base, insalubridade, periculosidade, gratificacao, adicional_noturno,
         custo_passagem, refeicao, diarias, observacoes,
-        banco, agencia, conta_corrente, chave_pix, imagem, created_at, updated_at,
+        banco, agencia, conta_corrente, chave_pix, imagem, matricula, created_at, updated_at,
         bd_funcoes!bd_funcionarios_funcao_id_fkey ( id, nome_funcao ),
         bd_departamentos!bd_funcionarios_departamento_id_fkey ( id, nome_departamento ),
         bd_centros_custo!bd_funcionarios_centro_custo_id_fkey ( id, codigo_centro_custo, nome_centro_custo ),

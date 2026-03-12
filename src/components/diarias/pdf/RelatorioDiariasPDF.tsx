@@ -218,7 +218,7 @@ export const RelatorioDiariasPDF = ({
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Tipo Vínculo</Text>
               <Text style={styles.infoValueBold}>
-                {filtros.tipo_vinculo === 'diarista' ? 'Diarista' : filtros.tipo_vinculo === 'remessa' ? 'Remessa' : 'Todos'}
+                {filtros.tipo_vinculo === 'diarista' ? 'Sem Remessa' : filtros.tipo_vinculo === 'remessa' ? 'Remessa' : 'Todos'}
               </Text>
             </View>
             {engenheiroSolicitante && (

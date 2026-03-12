@@ -31,7 +31,6 @@ export default function DashboardDiarias() {
     });
   };
 
-  // Loading
   if (isLoadingPermissions || isLoadingScope) {
     return (
       <MainLayout>
@@ -43,7 +42,6 @@ export default function DashboardDiarias() {
     );
   }
 
-  // Sem permissão
   if (!hasAccess) {
     return (
       <MainLayout>

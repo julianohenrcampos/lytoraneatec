@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { format } from "date-fns";
+import { useState, useMemo, useCallback } from "react";
+import { format, eachDayOfInterval, isWeekend } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import {
@@ -14,10 +14,12 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
-  ChevronsRight } from
+  ChevronsRight,
+  Printer } from
 "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { generateRelatorioDiariasPDF, generateCompiladoDiariasPDF } from "@/services/pdfService";
+import { generateRelatorioDiariasPDF, generateCompiladoDiariasPDF, generateFolhaPontoPDF } from "@/services/pdfService";
+import type { FolhaPontoFuncionario } from "@/components/diarias/pdf/FolhaPontoPDF";
 
 import MainLayout from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -113,11 +115,11 @@ export default function DiariasRelatorio() {
       filtered = filtered.filter((r: any) => r.empresa_id === filters.empresa_id);
     }
     if (filters.tipo_vinculo === 'diarista') {
-      filtered = filtered.filter((r: any) => 
-        r.status_funcionario === 'Ativo sem Registro' || r.usar_diaria_exclusiva === true
-      );
+      // "Sem Remessa" = funcionários SEM matrícula
+      filtered = filtered.filter((r: any) => !r.matricula_funcionario);
     } else if (filters.tipo_vinculo === 'remessa') {
-      filtered = filtered.filter((r: any) => r.status_funcionario === 'Ativo');
+      // "Remessa" = funcionários COM matrícula
+      filtered = filtered.filter((r: any) => !!r.matricula_funcionario);
     }
     // Filtrar por gerente regional (via centro de custo) - multi-select
     if (gerenteRegionalFilter.length > 0) {
@@ -212,7 +214,107 @@ export default function DiariasRelatorio() {
   // Export mutation
   const exportMutation = useExportarExcel();
   const [isPDFLoading, setIsPDFLoading] = useState(false);
+  const [isGeneratingFolhaPonto, setIsGeneratingFolhaPonto] = useState(false);
   const [exportFormat, setExportFormat] = useState<'excel' | 'pdf' | 'compilado' | 'ambos'>('excel');
+
+  // Folha de Ponto
+  const canPrintFolhaPonto = !!filters.data_inicio && !!filters.data_fim && !!filters.centro_custo_id;
+
+  const handlePrintFolhaPonto = useCallback(async () => {
+    if (!filters.data_inicio || !filters.data_fim || !filters.centro_custo_id) return;
+    if (relatorio.length === 0) {
+      toast.error('Não há dados para gerar a folha de ponto.');
+      return;
+    }
+
+    setIsGeneratingFolhaPonto(true);
+    try {
+      const dtInicio = new Date(filters.data_inicio + 'T12:00:00');
+      const dtFim = new Date(filters.data_fim + 'T12:00:00');
+      const allDays = eachDayOfInterval({ start: dtInicio, end: dtFim });
+
+      // Agrupar por funcionário
+      const funcMap = new Map<string, {
+        nome_completo: string;
+        matricula: string | null;
+        cpf: string;
+        diasMap: Map<string, { hora_entrada: string; hora_saida: string }>;
+      }>();
+
+      for (const r of relatorio) {
+        if (!funcMap.has(r.funcionario_id)) {
+          funcMap.set(r.funcionario_id, {
+            nome_completo: r.nome_funcionario,
+            matricula: r.matricula_funcionario || null,
+            cpf: r.cpf_funcionario || '',
+            diasMap: new Map(),
+          });
+        }
+        const entry = funcMap.get(r.funcionario_id)!;
+        if (String(r.presenca_status) === 'true' && r.hora_entrada && r.hora_saida) {
+          entry.diasMap.set(r.data, {
+            hora_entrada: r.hora_entrada,
+            hora_saida: r.hora_saida,
+          });
+        }
+      }
+
+      const funcionarios: FolhaPontoFuncionario[] = Array.from(funcMap.values()).map((f) => {
+        const dias = allDays
+          .filter((day) => {
+            const dateStr = format(day, 'yyyy-MM-dd');
+            if (isWeekend(day)) {
+              return f.diasMap.has(dateStr);
+            }
+            return true;
+          })
+          .map((day) => {
+            const dateStr = format(day, 'yyyy-MM-dd');
+            const registro = f.diasMap.get(dateStr);
+            return {
+              data: dateStr,
+              hora_entrada: registro?.hora_entrada || '',
+              hora_saida: registro?.hora_saida || '',
+            };
+          });
+
+        return {
+          nome_completo: f.nome_completo,
+          matricula: f.matricula,
+          cpf: f.cpf,
+          dias,
+        };
+      });
+
+      funcionarios.sort((a, b) => a.nome_completo.localeCompare(b.nome_completo));
+
+      const cc = centrosCusto.find((c: any) => c.id === filters.centro_custo_id);
+      const codigoCC = cc ? (cc as any).codigo_centro_custo : '';
+
+      // Buscar número da solicitação
+      const solIds = [...new Set(relatorio.map((r) => r.solicitacao_id))];
+      let numSolicitacao = '';
+      if (solIds.length > 0) {
+        const { data: sols } = await supabase
+          .from('bd_diaria_solicitacoes')
+          .select('numero_solicitacao')
+          .in('id', solIds)
+          .limit(1);
+        if (sols?.length) numSolicitacao = sols[0].numero_solicitacao;
+      }
+
+      const dateStr = format(dtInicio, 'yyyyMMdd');
+      const fileName = `Folha_Ponto_${codigoCC}_${dateStr}`;
+      await generateFolhaPontoPDF(numSolicitacao, codigoCC, funcionarios, fileName);
+
+      toast.success('Folha de ponto gerada com sucesso!');
+    } catch (error) {
+      console.error('Erro ao gerar folha de ponto:', error);
+      toast.error('Erro ao gerar folha de ponto.');
+    } finally {
+      setIsGeneratingFolhaPonto(false);
+    }
+  }, [filters, relatorio, centrosCusto]);
 
   // Permissions
   const canExport = isSuperAdmin || hasPermission('diarias_exportar_excel');
@@ -470,6 +572,16 @@ export default function DiariasRelatorio() {
                 }
                 Exportar
               </Button>
+              <Button
+                variant="outline"
+                onClick={handlePrintFolhaPonto}
+                disabled={!canPrintFolhaPonto || isGeneratingFolhaPonto || relatorio.length === 0}>
+                {isGeneratingFolhaPonto ?
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> :
+                  <Printer className="h-4 w-4 mr-2" />
+                }
+                Folha de Ponto
+              </Button>
             </div>
           }
         </div>
@@ -620,7 +732,7 @@ export default function DiariasRelatorio() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos</SelectItem>
-                    <SelectItem value="diarista">Diarista</SelectItem>
+                    <SelectItem value="diarista">Sem Remessa</SelectItem>
                     <SelectItem value="remessa">Remessa</SelectItem>
                   </SelectContent>
                 </Select>

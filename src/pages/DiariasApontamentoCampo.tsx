@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { format, eachDayOfInterval } from "date-fns";
+import { format, eachDayOfInterval, isWeekend, getDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { parseBrazilianDate, formatBrazilianDateForDisplay, getCurrentBrazilianDate } from "@/utils/timezoneUtils";
 import {
@@ -13,7 +13,8 @@ import {
   Users,
   Eye,
   Search,
-  X
+  X,
+  Printer,
 } from "lucide-react";
 
 import MainLayout from "@/components/layout/MainLayout";
@@ -44,6 +45,8 @@ import TablePagination from "@/components/ui/table-pagination";
 import { Switch } from "@/components/ui/switch";
 import { Combobox } from "@/components/ui/combobox";
 import { fetchCentrosCustoFiltered } from "@/services/centrosCustoFilteredService";
+import { generateFolhaPontoPDF } from "@/services/pdfService";
+import type { FolhaPontoFuncionario } from "@/components/diarias/pdf/FolhaPontoPDF";
 
 
 export default function DiariasApontamentoCampo() {
@@ -81,6 +84,7 @@ export default function DiariasApontamentoCampo() {
   const [selectedApontamento, setSelectedApontamento] = useState<DiariaApontamento | null>(null);
   const [modalReadOnly, setModalReadOnly] = useState(false);
   const [modalInitialDate, setModalInitialDate] = useState<string | undefined>(undefined);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   // Mutation toggle edição
   const toggleEdicao = useToggleEdicaoLiberada();
@@ -103,44 +107,47 @@ export default function DiariasApontamentoCampo() {
   );
   const solicitacaoIdsKey = solicitacaoIds.join(',');
 
-  // Query para buscar datas apontadas por solicitação com status de horários
-  interface PresencaStatus { data: string; temEntrada: boolean; temSaida: boolean; temRegistro: boolean; todosFalta: boolean }
-  const { data: datasApontadasMap = {} } = useQuery({
-    queryKey: ['datas-apontadas-por-solicitacao', solicitacaoIdsKey],
+  // Query leve para buscar status por solicitação/data da tabela bd_diaria_status
+  interface DiariaStatusItem {
+    solicitacao_id: string;
+    data: string;
+    status: string;
+    editado_em: string | null;
+  }
+  const { data: statusDataRaw = [] } = useQuery({
+    queryKey: ['diaria-status', solicitacaoIdsKey],
     queryFn: async () => {
-      if (solicitacaoIds.length === 0) return {};
-      
+      if (solicitacaoIds.length === 0) return [];
       const { data } = await supabase
-        .from('bd_diaria_presencas')
-        .select('solicitacao_id, data, hora_entrada, hora_saida, presente')
+        .from('bd_diaria_status' as any)
+        .select('solicitacao_id, data, status, editado_em')
         .in('solicitacao_id', solicitacaoIds);
-      
-      const mapa: Record<string, PresencaStatus[]> = {};
-      (data || []).forEach((p) => {
-        if (!mapa[p.solicitacao_id]) {
-          mapa[p.solicitacao_id] = [];
-        }
-        const existing = mapa[p.solicitacao_id].find(x => x.data === p.data);
-        if (existing) {
-          if (p.hora_entrada) existing.temEntrada = true;
-          if (p.hora_saida) existing.temSaida = true;
-          existing.temRegistro = true;
-          if (p.presente) existing.todosFalta = false;
-        } else {
-          mapa[p.solicitacao_id].push({
-            data: p.data,
-            temEntrada: !!p.hora_entrada,
-            temSaida: !!p.hora_saida,
-            temRegistro: true,
-            todosFalta: !p.presente
-          });
-        }
-      });
-      return mapa;
+      return (data || []) as unknown as DiariaStatusItem[];
     },
     enabled: solicitacaoIds.length > 0,
     staleTime: 30000
   });
+
+  // Converter para mapa compatível com o formato anterior
+  interface PresencaStatus {
+    data: string;
+    status: string;
+    editado_em: string | null;
+  }
+  const datasApontadasMap: Record<string, PresencaStatus[]> = useMemo(() => {
+    const mapa: Record<string, PresencaStatus[]> = {};
+    statusDataRaw.forEach((item: DiariaStatusItem) => {
+      if (!mapa[item.solicitacao_id]) {
+        mapa[item.solicitacao_id] = [];
+      }
+      mapa[item.solicitacao_id].push({
+        data: item.data,
+        status: item.status,
+        editado_em: item.editado_em,
+      });
+    });
+    return mapa;
+  }, [statusDataRaw]);
 
   // Ordenar e filtrar client-side
   const sortedApontamentos = useMemo(() => {
@@ -183,8 +190,9 @@ export default function DiariasApontamentoCampo() {
         } catch { return 0; }
       })();
 
-      const allFinA = countDatasA > 0 && datasA.length >= countDatasA && datasA.every((d: any) => (d.temEntrada && d.temSaida) || (d.temRegistro && d.todosFalta));
-      const allFinB = countDatasB > 0 && datasB.length >= countDatasB && datasB.every((d: any) => (d.temEntrada && d.temSaida) || (d.temRegistro && d.todosFalta));
+      const isFinalized = (d: PresencaStatus) => d.status === 'finalizado';
+      const allFinA = countDatasA > 0 && datasA.length >= countDatasA && datasA.every(isFinalized);
+      const allFinB = countDatasB > 0 && datasB.length >= countDatasB && datasB.every(isFinalized);
 
       if (allFinA && !allFinB) return 1;
       if (!allFinA && allFinB) return -1;
@@ -207,8 +215,155 @@ export default function DiariasApontamentoCampo() {
     toast.success("Apontamento salvo com sucesso!");
     refetch();
     queryClient.invalidateQueries({ queryKey: ['diaria-presencas'] });
-    queryClient.invalidateQueries({ queryKey: ['datas-apontadas-por-solicitacao'] });
+    queryClient.invalidateQueries({ queryKey: ['diaria-status'] });
   };
+
+  // Folha de Ponto PDF - habilitado quando CC filtrado e há apontamentos com período válido
+  const canPrintFolhaPonto = useMemo(() => {
+    if (!centroCustoFilter) return false;
+    return sortedApontamentos.some((a: any) => {
+      const sol = a.bd_diaria_solicitacoes;
+      return sol?.data_inicio && sol?.data_fim;
+    });
+  }, [centroCustoFilter, sortedApontamentos]);
+
+  const handlePrintFolhaPonto = useCallback(async () => {
+    if (!centroCustoFilter || isGeneratingPDF) return;
+    setIsGeneratingPDF(true);
+
+    try {
+      // Get filtered apontamentos for selected CC
+      const apontamentosCC = sortedApontamentos.filter((a: any) =>
+        a.bd_diaria_solicitacoes?.centro_custo_id === centroCustoFilter
+      );
+
+      if (apontamentosCC.length === 0) {
+        toast.error("Nenhum apontamento encontrado para o centro de custo selecionado.");
+        return;
+      }
+
+      // Collect all solicitacao IDs and date ranges
+      const solicitacaoData: { id: string; numero: string; dataInicio: string; dataFim: string; convocados: FuncionarioPreConvocado[] }[] = [];
+      for (const apt of apontamentosCC) {
+        const sol = (apt as any).bd_diaria_solicitacoes;
+        if (!sol?.data_inicio || !sol?.data_fim) continue;
+        solicitacaoData.push({
+          id: sol.id,
+          numero: sol.numero_solicitacao || '',
+          dataInicio: sol.data_inicio,
+          dataFim: sol.data_fim,
+          convocados: parseConvocados(sol.convocados_pre),
+        });
+      }
+
+      if (solicitacaoData.length === 0) {
+        toast.error("Nenhuma solicitação válida encontrada.");
+        return;
+      }
+
+      // Use first solicitação for header info (most common case)
+      const firstSol = solicitacaoData[0];
+
+      // Generate date range (weekdays always, weekends only if worked)
+      const allDates = eachDayOfInterval({
+        start: parseBrazilianDate(firstSol.dataInicio),
+        end: parseBrazilianDate(firstSol.dataFim),
+      });
+
+      // Fetch presences for all solicitações
+      const solIds = solicitacaoData.map(s => s.id);
+      const { data: presencas } = await supabase
+        .from('bd_diaria_presencas')
+        .select('funcionario_id, data, hora_entrada, hora_saida, presente')
+        .in('solicitacao_id', solIds);
+
+      // Build presence map: funcId+data => {hora_entrada, hora_saida}
+      const presencaMap = new Map<string, { hora_entrada: string; hora_saida: string }>();
+      (presencas || []).forEach((p: any) => {
+        if (p.presente) {
+          presencaMap.set(`${p.funcionario_id}_${p.data}`, {
+            hora_entrada: p.hora_entrada || '',
+            hora_saida: p.hora_saida || '',
+          });
+        }
+      });
+
+      // Collect unique employees from all solicitações
+      const funcIds = new Set<string>();
+      solicitacaoData.forEach(s => s.convocados.forEach(c => funcIds.add(c.funcionario_id)));
+
+      if (funcIds.size === 0) {
+        toast.error("Nenhum funcionário convocado encontrado.");
+        return;
+      }
+
+      // Fetch employee details
+      const { data: funcionariosDB } = await supabase
+        .from('bd_funcionarios')
+        .select('id, nome_completo, matricula, cpf')
+        .in('id', Array.from(funcIds));
+
+      const funcMap = new Map((funcionariosDB || []).map((f: any) => [f.id, f]));
+
+      // Build FolhaPontoFuncionario array
+      const funcionariosPDF: FolhaPontoFuncionario[] = [];
+      for (const funcId of funcIds) {
+        const funcDB = funcMap.get(funcId) as any;
+        if (!funcDB) continue;
+
+        // Build days list: weekdays always, weekends only if has presence
+        const dias: { data: string; hora_entrada: string; hora_saida: string }[] = [];
+        for (const date of allDates) {
+          const dateStr = format(date, 'yyyy-MM-dd');
+          const presKey = `${funcId}_${dateStr}`;
+          const pres = presencaMap.get(presKey);
+
+          if (isWeekend(date)) {
+            // Include weekend day only if has presence record
+            if (pres) {
+              dias.push({ data: dateStr, hora_entrada: pres.hora_entrada, hora_saida: pres.hora_saida });
+            }
+          } else {
+            // Weekday: always include
+            dias.push({
+              data: dateStr,
+              hora_entrada: pres?.hora_entrada || '',
+              hora_saida: pres?.hora_saida || '',
+            });
+          }
+        }
+
+        funcionariosPDF.push({
+          nome_completo: funcDB.nome_completo,
+          matricula: funcDB.matricula || null,
+          cpf: funcDB.cpf || '',
+          dias,
+        });
+      }
+
+      // Sort by name
+      funcionariosPDF.sort((a, b) => a.nome_completo.localeCompare(b.nome_completo));
+
+      // Get CC code
+      const ccLabel = centrosCustoOptions.find(o => o.value === centroCustoFilter)?.label || '';
+      // Try to get just the code from label or from solicitação
+      const ccCode = (apontamentosCC[0] as any)?.bd_diaria_solicitacoes?.bd_centros_custo?.codigo_centro_custo || ccLabel;
+
+      await generateFolhaPontoPDF(
+        firstSol.numero,
+        ccCode,
+        funcionariosPDF,
+        `Folha_Ponto_${ccCode}_${firstSol.dataInicio}_${firstSol.dataFim}`
+      );
+
+      toast.success("Folha de ponto gerada com sucesso!");
+    } catch (error) {
+      console.error('Erro ao gerar folha de ponto:', error);
+      toast.error("Erro ao gerar folha de ponto.");
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  }, [centroCustoFilter, sortedApontamentos, centrosCustoOptions, isGeneratingPDF]);
 
   if (isLoadingPermissions || isLoadingScope) {
     return (
@@ -317,7 +472,21 @@ export default function DiariasApontamentoCampo() {
                 </Select>
               </div>
             </div>
-            <div className="flex justify-end mt-4">
+            <div className="flex justify-end mt-4 gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePrintFolhaPonto}
+                disabled={!canPrintFolhaPonto || isGeneratingPDF}
+                className="flex items-center gap-1.5"
+              >
+                {isGeneratingPDF ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Printer className="h-3.5 w-3.5" />
+                )}
+                Imprimir Folha de Ponto
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -432,15 +601,16 @@ export default function DiariasApontamentoCampo() {
                           let extraClasses = "";
 
                           if (status) {
-                            if ((status.temEntrada && status.temSaida) || (status.temRegistro && status.todosFalta)) {
-                              // Finalizado (todos com entrada+saída OU todos são falta)
+                            if (status.status === 'finalizado') {
                               variant = "success";
-                              if (isLiberado) {
+                              if (status.editado_em) {
                                 extraClasses = "border-2 border-gray-400 cursor-pointer hover:opacity-80 transition-all";
                               }
-                            } else if (status.temEntrada && !status.temSaida) {
-                              // Iniciado (só entrada)
+                            } else if (status.status === 'iniciado') {
                               variant = "warning";
+                            } else {
+                              // nao_apontado
+                              variant = "destructive";
                             }
                           } else {
                             // Sem registro
@@ -456,8 +626,9 @@ export default function DiariasApontamentoCampo() {
                           const isClickable = isLiberado && isSuperAdmin && (isPast || isHoje);
 
                           const titleParts = [formatBrazilianDateForDisplay(dataStr)];
-                          if (status?.temEntrada && status?.temSaida) titleParts.push('Finalizado');
-                          else if (status?.temEntrada) titleParts.push('Iniciado');
+                          if (status?.status === 'finalizado') titleParts.push('Finalizado');
+                          else if (status?.status === 'iniciado') titleParts.push('Iniciado');
+                          else if (status) titleParts.push('Não apontado');
                           else if (isPast) titleParts.push('Não apontado');
                           else if (isHoje) titleParts.push('Hoje');
                           if (isClickable) titleParts.push('Clique para editar');

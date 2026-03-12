@@ -21,6 +21,35 @@ interface KpiData {
   taxaPresenca: number;
 }
 
+// Helper to get filtered solicitacao IDs based on filters (with period overlap logic)
+async function getFilteredSolicitacaoIds(filters: DiariasFilters, dataInicioStr?: string, dataFimStr?: string) {
+  let query = supabase
+    .from('bd_diaria_solicitacoes')
+    .select('id, status, valor_estimado_total, centro_custo_id');
+
+  // Period overlap: solicitação [data_inicio, data_fim] overlaps filter [X, Y] when data_inicio <= Y AND data_fim >= X
+  if (dataFimStr) query = query.lte('data_inicio', dataFimStr);
+  if (dataInicioStr) query = query.gte('data_fim', dataInicioStr);
+  if (filters.centroCustoId) query = query.eq('centro_custo_id', filters.centroCustoId);
+  if (filters.solicitacaoId) query = query.eq('id', filters.solicitacaoId);
+  if (filters.engenheiroSolicitanteId) query = query.eq('engenheiro_solicitante_id', filters.engenheiroSolicitanteId);
+
+  // Gerente Regional filter
+  if (filters.gerenteRegionalId) {
+    const { data: ccIds } = await supabase
+      .from('bd_centros_custo')
+      .select('id')
+      .eq('aprovador_diarias_id', filters.gerenteRegionalId);
+    const ids = (ccIds || []).map(c => c.id);
+    if (ids.length === 0) return { solicitacoes: [], solicitacaoIds: [] };
+    query = query.in('centro_custo_id', ids);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return { solicitacoes: data || [], solicitacaoIds: (data || []).map(s => s.id) };
+}
+
 export default function DiariasKpiCards({ filters }: DiariasKpiCardsProps) {
   const { data: kpis, isLoading } = useQuery({
     queryKey: ['diarias-kpis', filters],
@@ -28,60 +57,50 @@ export default function DiariasKpiCards({ filters }: DiariasKpiCardsProps) {
       const dataInicioStr = filters.dataInicio ? format(filters.dataInicio, 'yyyy-MM-dd') : undefined;
       const dataFimStr = filters.dataFim ? format(filters.dataFim, 'yyyy-MM-dd') : undefined;
 
-      // Query solicitações
-      let solicitacoesQuery = supabase
-        .from('bd_diaria_solicitacoes')
-        .select('id, status, valor_estimado_total, centro_custo_id');
+      const { solicitacoes, solicitacaoIds } = await getFilteredSolicitacaoIds(filters, dataInicioStr, dataFimStr);
 
-      if (dataInicioStr) {
-        solicitacoesQuery = solicitacoesQuery.gte('data_inicio', dataInicioStr);
-      }
-      if (dataFimStr) {
-        solicitacoesQuery = solicitacoesQuery.lte('data_fim', dataFimStr);
-      }
-      if (filters.centroCustoId) {
-        solicitacoesQuery = solicitacoesQuery.eq('centro_custo_id', filters.centroCustoId);
-      }
-      if (filters.status) {
-        solicitacoesQuery = solicitacoesQuery.eq('status', filters.status);
-      }
+      const hasSolFilter = !!(filters.solicitacaoId || filters.engenheiroSolicitanteId || filters.gerenteRegionalId);
 
-      const { data: solicitacoes, error: solError } = await solicitacoesQuery;
-      if (solError) throw solError;
-
-      // Query presenças para valor executado
-      const { data: presencas, error: presError } = await supabase
+      // Build server-side filtered query for presencas
+      let presQuery = supabase
         .from('vw_relatorio_diarias_folha')
-        .select('valor_diaria_aplicada, presenca_status, data, centro_custo_id');
-      
+        .select('valor_diaria_aplicada, presenca_status, data, centro_custo_id, funcionario_id, solicitacao_id');
+
+      // Apply server-side filters to avoid 1000-row truncation
+      if (dataInicioStr) presQuery = presQuery.gte('data', dataInicioStr);
+      if (dataFimStr) presQuery = presQuery.lte('data', dataFimStr);
+      if (filters.centroCustoId) presQuery = presQuery.eq('centro_custo_id', filters.centroCustoId);
+      if (filters.funcionarioId) presQuery = presQuery.eq('funcionario_id', filters.funcionarioId);
+      if (filters.solicitacaoId) presQuery = presQuery.eq('solicitacao_id', filters.solicitacaoId);
+      if (hasSolFilter && solicitacaoIds.length > 0 && !filters.solicitacaoId) {
+        presQuery = presQuery.in('solicitacao_id', solicitacaoIds);
+      }
+
+      // If filter is active but returned 0 solicitações, return zeros
+      if (hasSolFilter && solicitacaoIds.length === 0) {
+        return {
+          totalSolicitacoes: 0, solicitacoesAutorizadas: 0, valorExecutado: 0,
+          valorEstimado: 0, totalApontamentos: 0, centrosCustoAtivos: 0, taxaPresenca: 0
+        };
+      }
+
+      const { data: presencas, error: presError } = await presQuery;
       if (presError) throw presError;
 
-      // Filtrar presenças pelo período
-      let presencasFiltradas = presencas || [];
-      if (dataInicioStr) {
-        presencasFiltradas = presencasFiltradas.filter(p => p.data >= dataInicioStr);
-      }
-      if (dataFimStr) {
-        presencasFiltradas = presencasFiltradas.filter(p => p.data <= dataFimStr);
-      }
-      if (filters.centroCustoId) {
-        presencasFiltradas = presencasFiltradas.filter(p => p.centro_custo_id === filters.centroCustoId);
-      }
-
-      // Calcular métricas
+      const presencasFiltradas = presencas || [];
       const presentes = presencasFiltradas.filter(p => String(p.presenca_status) === 'true');
       const valorExecutado = presentes.reduce((sum, p) => sum + (p.valor_diaria_aplicada || 0), 0);
-      const valorEstimado = (solicitacoes || []).reduce((sum, s) => sum + (s.valor_estimado_total || 0), 0);
+      const valorEstimado = solicitacoes.reduce((sum, s) => sum + (s.valor_estimado_total || 0), 0);
       
-      const centrosCustoUnicos = new Set((solicitacoes || []).map(s => s.centro_custo_id));
+      const centrosCustoUnicos = new Set(solicitacoes.map(s => s.centro_custo_id));
       
       const taxaPresenca = presencasFiltradas.length > 0 
         ? (presentes.length / presencasFiltradas.length) * 100 
         : 0;
 
       return {
-        totalSolicitacoes: (solicitacoes || []).length,
-        solicitacoesAutorizadas: (solicitacoes || []).filter(s => s.status === 'autorizada').length,
+        totalSolicitacoes: solicitacoes.length,
+        solicitacoesAutorizadas: solicitacoes.filter(s => s.status === 'autorizada').length,
         valorExecutado,
         valorEstimado,
         totalApontamentos: presentes.length,

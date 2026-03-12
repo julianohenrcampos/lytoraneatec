@@ -1,0 +1,1 @@
+UPDATE bd_diaria_status SET editado_em = NULL WHERE editado_em IS NOT NULL;

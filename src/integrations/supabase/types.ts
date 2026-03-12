@@ -960,13 +960,6 @@ export type Database = {
             referencedColumns: ["centro_custo_id"]
           },
           {
-            foreignKeyName: "bd_chamados_os_centro_custo_id_fkey"
-            columns: ["centro_custo_id"]
-            isOneToOne: false
-            referencedRelation: "vw_resumo_diarias"
-            referencedColumns: ["centro_custo_id"]
-          },
-          {
             foreignKeyName: "bd_chamados_os_solicitante_id_fkey"
             columns: ["solicitante_id"]
             isOneToOne: false
@@ -1099,156 +1092,6 @@ export type Database = {
           id?: string
         }
         Relationships: []
-      }
-      bd_diaria_convocacoes: {
-        Row: {
-          aprovado_em: string | null
-          aprovado_por: string | null
-          centro_custo_id: string
-          created_at: string | null
-          criado_por: string | null
-          data: string
-          enviado_em: string | null
-          id: string
-          modificado_por: string | null
-          observacao: string | null
-          solicitacao_id: string
-          status: string
-          updated_at: string | null
-        }
-        Insert: {
-          aprovado_em?: string | null
-          aprovado_por?: string | null
-          centro_custo_id: string
-          created_at?: string | null
-          criado_por?: string | null
-          data: string
-          enviado_em?: string | null
-          id?: string
-          modificado_por?: string | null
-          observacao?: string | null
-          solicitacao_id: string
-          status?: string
-          updated_at?: string | null
-        }
-        Update: {
-          aprovado_em?: string | null
-          aprovado_por?: string | null
-          centro_custo_id?: string
-          created_at?: string | null
-          criado_por?: string | null
-          data?: string
-          enviado_em?: string | null
-          id?: string
-          modificado_por?: string | null
-          observacao?: string | null
-          solicitacao_id?: string
-          status?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bd_diaria_convocacoes_centro_custo_id_fkey"
-            columns: ["centro_custo_id"]
-            isOneToOne: false
-            referencedRelation: "bd_centros_custo"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bd_diaria_convocacoes_centro_custo_id_fkey"
-            columns: ["centro_custo_id"]
-            isOneToOne: false
-            referencedRelation: "vw_relatorio_diarias_folha"
-            referencedColumns: ["centro_custo_id"]
-          },
-          {
-            foreignKeyName: "bd_diaria_convocacoes_centro_custo_id_fkey"
-            columns: ["centro_custo_id"]
-            isOneToOne: false
-            referencedRelation: "vw_resumo_diarias"
-            referencedColumns: ["centro_custo_id"]
-          },
-          {
-            foreignKeyName: "bd_diaria_convocacoes_solicitacao_id_fkey"
-            columns: ["solicitacao_id"]
-            isOneToOne: false
-            referencedRelation: "bd_diaria_solicitacoes"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bd_diaria_convocados: {
-        Row: {
-          confirmado_em: string | null
-          confirmado_por: string | null
-          convocacao_id: string
-          created_at: string | null
-          funcao_id: string
-          funcionario_id: string
-          hora_entrada: string | null
-          hora_saida: string | null
-          id: string
-          intervalo_fim: string | null
-          intervalo_inicio: string | null
-          presenca_status: string
-          updated_at: string | null
-          valor_diaria_aplicada: number
-        }
-        Insert: {
-          confirmado_em?: string | null
-          confirmado_por?: string | null
-          convocacao_id: string
-          created_at?: string | null
-          funcao_id: string
-          funcionario_id: string
-          hora_entrada?: string | null
-          hora_saida?: string | null
-          id?: string
-          intervalo_fim?: string | null
-          intervalo_inicio?: string | null
-          presenca_status?: string
-          updated_at?: string | null
-          valor_diaria_aplicada: number
-        }
-        Update: {
-          confirmado_em?: string | null
-          confirmado_por?: string | null
-          convocacao_id?: string
-          created_at?: string | null
-          funcao_id?: string
-          funcionario_id?: string
-          hora_entrada?: string | null
-          hora_saida?: string | null
-          id?: string
-          intervalo_fim?: string | null
-          intervalo_inicio?: string | null
-          presenca_status?: string
-          updated_at?: string | null
-          valor_diaria_aplicada?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bd_diaria_convocados_convocacao_id_fkey"
-            columns: ["convocacao_id"]
-            isOneToOne: false
-            referencedRelation: "bd_diaria_convocacoes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bd_diaria_convocados_funcao_id_fkey"
-            columns: ["funcao_id"]
-            isOneToOne: false
-            referencedRelation: "bd_funcoes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bd_diaria_convocados_funcionario_id_fkey"
-            columns: ["funcionario_id"]
-            isOneToOne: false
-            referencedRelation: "bd_funcionarios"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       bd_diaria_presencas: {
         Row: {
@@ -1436,13 +1279,6 @@ export type Database = {
             referencedColumns: ["centro_custo_id"]
           },
           {
-            foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
-            columns: ["centro_custo_id"]
-            isOneToOne: false
-            referencedRelation: "vw_resumo_diarias"
-            referencedColumns: ["centro_custo_id"]
-          },
-          {
             foreignKeyName: "bd_diaria_solicitacoes_engenheiro_solicitante_id_fkey"
             columns: ["engenheiro_solicitante_id"]
             isOneToOne: false
@@ -1454,6 +1290,47 @@ export type Database = {
             columns: ["responsavel_campo_id"]
             isOneToOne: false
             referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_diaria_status: {
+        Row: {
+          criado_em: string | null
+          criado_por: string | null
+          data: string
+          editado_em: string | null
+          editado_por: string | null
+          id: string
+          solicitacao_id: string
+          status: string
+        }
+        Insert: {
+          criado_em?: string | null
+          criado_por?: string | null
+          data: string
+          editado_em?: string | null
+          editado_por?: string | null
+          id?: string
+          solicitacao_id: string
+          status?: string
+        }
+        Update: {
+          criado_em?: string | null
+          criado_por?: string | null
+          data?: string
+          editado_em?: string | null
+          editado_por?: string | null
+          id?: string
+          solicitacao_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_diaria_status_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_solicitacoes"
             referencedColumns: ["id"]
           },
         ]
@@ -1714,13 +1591,6 @@ export type Database = {
             columns: ["centro_custo_id"]
             isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
-            referencedColumns: ["centro_custo_id"]
-          },
-          {
-            foreignKeyName: "bd_funcionarios_centro_custo_id_fkey"
-            columns: ["centro_custo_id"]
-            isOneToOne: false
-            referencedRelation: "vw_resumo_diarias"
             referencedColumns: ["centro_custo_id"]
           },
           {
@@ -2688,13 +2558,6 @@ export type Database = {
             referencedColumns: ["centro_custo_id"]
           },
           {
-            foreignKeyName: "bd_programacao_entrega_centro_custo_id_fkey"
-            columns: ["centro_custo_id"]
-            isOneToOne: false
-            referencedRelation: "vw_resumo_diarias"
-            referencedColumns: ["centro_custo_id"]
-          },
-          {
             foreignKeyName: "bd_programacao_entrega_requisicao_id_fkey"
             columns: ["requisicao_id"]
             isOneToOne: false
@@ -3029,13 +2892,6 @@ export type Database = {
             referencedColumns: ["centro_custo_id"]
           },
           {
-            foreignKeyName: "bd_registro_apontamento_cam_equipa_centro_custo_id_fkey"
-            columns: ["centro_custo_id"]
-            isOneToOne: false
-            referencedRelation: "vw_resumo_diarias"
-            referencedColumns: ["centro_custo_id"]
-          },
-          {
             foreignKeyName: "bd_registro_apontamento_cam_equipa_operador_id_fkey"
             columns: ["operador_id"]
             isOneToOne: false
@@ -3308,13 +3164,6 @@ export type Database = {
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
-          {
-            foreignKeyName: "bd_registro_desvios_sso_obra_id_fkey"
-            columns: ["obra_id"]
-            isOneToOne: false
-            referencedRelation: "vw_resumo_diarias"
-            referencedColumns: ["centro_custo_id"]
-          },
         ]
       }
       bd_requisicoes: {
@@ -3367,13 +3216,6 @@ export type Database = {
             columns: ["centro_custo_id"]
             isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
-            referencedColumns: ["centro_custo_id"]
-          },
-          {
-            foreignKeyName: "bd_requisicoes_centro_custo_id_fkey"
-            columns: ["centro_custo_id"]
-            isOneToOne: false
-            referencedRelation: "vw_resumo_diarias"
             referencedColumns: ["centro_custo_id"]
           },
           {
@@ -3583,13 +3425,6 @@ export type Database = {
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
-          {
-            foreignKeyName: "bd_sso_checklists_obra_id_fkey"
-            columns: ["obra_id"]
-            isOneToOne: false
-            referencedRelation: "vw_resumo_diarias"
-            referencedColumns: ["centro_custo_id"]
-          },
         ]
       }
       bd_sso_itens_modelo: {
@@ -3708,13 +3543,6 @@ export type Database = {
             columns: ["centro_custo_id"]
             isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
-            referencedColumns: ["centro_custo_id"]
-          },
-          {
-            foreignKeyName: "bd_sso_ver_agir_centro_custo_id_fkey"
-            columns: ["centro_custo_id"]
-            isOneToOne: false
-            referencedRelation: "vw_resumo_diarias"
             referencedColumns: ["centro_custo_id"]
           },
           {
@@ -3975,22 +3803,6 @@ export type Database = {
           },
         ]
       }
-      vw_resumo_diarias: {
-        Row: {
-          centro_custo_id: string | null
-          codigo_centro_custo: string | null
-          data: string | null
-          nome_centro_custo: string | null
-          total_ausentes: number | null
-          total_convocados: number | null
-          total_pendentes: number | null
-          total_presentes: number | null
-          total_substituidos: number | null
-          total_valor_presentes: number | null
-          total_valor_previsto: number | null
-        }
-        Relationships: []
-      }
     }
     Functions: {
       api_listar_apontamentos: {
@@ -4131,7 +3943,9 @@ export type Database = {
           funcao_id: string
           funcao_nome: string
           id: string
+          matricula: string
           nome_completo: string
+          status_funcionario: string
           valor_diaria: number
           valor_diaria_exclusiva: number
           valor_refeicao: number

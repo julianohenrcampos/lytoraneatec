@@ -459,11 +459,10 @@ async function registrarAprovacao(
 }
 
 export async function checkSolicitacaoCanBeDeleted(id: string) {
-  const [apontamentos, presencas, aprovacoes, convocacoes] = await Promise.all([
+  const [apontamentos, presencas, aprovacoes] = await Promise.all([
     supabase.from('bd_diaria_apontamentos').select('id', { count: 'exact', head: true }).eq('solicitacao_id', id),
     supabase.from('bd_diaria_presencas').select('id', { count: 'exact', head: true }).eq('solicitacao_id', id),
     supabase.from('bd_diaria_aprovacoes').select('id', { count: 'exact', head: true }).eq('entidade_id', id),
-    supabase.from('bd_diaria_convocacoes').select('id', { count: 'exact', head: true }).eq('solicitacao_id', id),
   ]);
   return {
     canDelete: true,
@@ -471,7 +470,6 @@ export async function checkSolicitacaoCanBeDeleted(id: string) {
       totalApontamentos: apontamentos.count || 0,
       totalPresencas: presencas.count || 0,
       totalAprovacoes: aprovacoes.count || 0,
-      totalConvocacoes: convocacoes.count || 0,
     }
   };
 }

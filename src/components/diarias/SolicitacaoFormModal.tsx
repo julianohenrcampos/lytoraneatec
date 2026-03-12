@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { format } from "date-fns";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 import { Combobox } from "@/components/ui/combobox";
-import { Plus, Trash2, Loader2, Users, FileText, Check, ChevronRight, ChevronLeft, Info, Lock, User, Send, ClipboardCheck } from "lucide-react";
+import { Plus, Trash2, Loader2, Users, FileText, Check, ChevronRight, ChevronLeft, Info, Lock, User, Send, ClipboardCheck, AlertTriangle } from "lucide-react";
 import { SmartFuncionarioSearch } from "./SmartFuncionarioSearch";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -149,6 +149,8 @@ export function SolicitacaoFormModal({
         cpf: f.cpf,
         funcao_id: f.funcao_id,
         centro_custo_id: f.centro_custo_id || null,
+        matricula: f.matricula || null,
+        status_funcionario: f.status_funcionario || null,
         bd_funcoes: f.funcao_nome ? {
           id: f.funcao_id,
           nome_funcao: f.funcao_nome,
@@ -197,6 +199,67 @@ export function SolicitacaoFormModal({
     },
     enabled: !!user?.id
   });
+
+  // Query alocações ativas para detectar conflitos
+  const { data: alocacoesAtivas = [] } = useQuery({
+    queryKey: ['alocacoes-ativas', dataInicio, dataFim],
+    queryFn: async () => {
+      if (!dataInicio || !dataFim) return [];
+      const { data, error } = await supabase
+        .from('bd_funcionarios_alocacoes' as any)
+        .select('funcionario_id, solicitacao_id, centro_custo_id, data_inicio, data_fim')
+        .eq('status', 'ativo')
+        .lte('data_inicio', dataFim)
+        .gte('data_fim', dataInicio);
+      
+      if (error) {
+        console.error('Erro ao buscar alocações:', error);
+        return [];
+      }
+
+      // Enrich with solicitacao number and centro custo code
+      const enriched = [];
+      for (const aloc of (data || [])) {
+        const { data: sol } = await supabase
+          .from('bd_diaria_solicitacoes')
+          .select('numero_solicitacao')
+          .eq('id', (aloc as any).solicitacao_id)
+          .single();
+        const { data: cc } = await supabase
+          .from('bd_centros_custo')
+          .select('codigo_centro_custo')
+          .eq('id', (aloc as any).centro_custo_id)
+          .single();
+        enriched.push({
+          ...(aloc as any),
+          numero_solicitacao: sol?.numero_solicitacao || '',
+          codigo_centro_custo: cc?.codigo_centro_custo || ''
+        });
+      }
+      return enriched;
+    },
+    enabled: !!dataInicio && !!dataFim
+  });
+
+  // Map de alocações por funcionario_id para rápido acesso
+  const alocacoesPorFuncionario = useMemo(() => {
+    const map = new Map<string, { numero_solicitacao: string; codigo_centro_custo: string; solicitacao_id: string }>();
+    for (const aloc of alocacoesAtivas) {
+      // Excluir alocações da própria solicitação em edição
+      if (editingSolicitacao && aloc.solicitacao_id === editingSolicitacao.id) continue;
+      map.set(aloc.funcionario_id, {
+        numero_solicitacao: aloc.numero_solicitacao,
+        codigo_centro_custo: aloc.codigo_centro_custo,
+        solicitacao_id: aloc.solicitacao_id
+      });
+    }
+    return map;
+  }, [alocacoesAtivas, editingSolicitacao]);
+
+  // Determinar se o período é somente dias úteis
+  const isSomenteDiasUteis = useMemo(() => {
+    return analise.sabados === 0 && analise.domingos === 0 && analise.feriados === 0;
+  }, [analise]);
 
   // Reset form when opening/closing
   useEffect(() => {
@@ -635,6 +698,7 @@ export function SolicitacaoFormModal({
                 convocadosPre={convocadosPre}
                 onSelectFuncionario={handleAddFuncionarioById}
                 onSelectCentroCusto={handleAddByCentroCusto}
+                alocacoesPorFuncionario={alocacoesPorFuncionario}
               />
 
               {/* Meio: lista com scroll isolado */}
@@ -659,9 +723,36 @@ export function SolicitacaoFormModal({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {convocadosPre.map((conv) => (
-                        <TableRow key={conv.funcionario_id}>
-                          <TableCell className="text-xs">{conv.nome_funcionario}</TableCell>
+                      {convocadosPre.map((conv) => {
+                        const funcData = funcionarios.find((f: any) => f.id === conv.funcionario_id);
+                        const temMatricula = !!funcData?.matricula;
+                        const alocacao = alocacoesPorFuncionario.get(conv.funcionario_id);
+                        const precisaFerias = isSomenteDiasUteis && temMatricula && !conv.usar_diaria_exclusiva;
+                        
+                        return (
+                        <TableRow key={conv.funcionario_id} className={precisaFerias ? 'bg-destructive/5' : ''}>
+                          <TableCell className="text-xs">
+                            <div className="flex flex-col gap-0.5">
+                              <span>{conv.nome_funcionario}</span>
+                              <div className="flex gap-1 flex-wrap">
+                                {temMatricula && (
+                                  <Badge variant="outline" className="text-[10px] px-1 py-0 border-amber-400 text-amber-700">
+                                    Remessa
+                                  </Badge>
+                                )}
+                                {alocacao && (
+                                  <Badge variant="destructive" className="text-[10px] px-1 py-0">
+                                    Convocado: {alocacao.codigo_centro_custo} — {alocacao.numero_solicitacao}
+                                  </Badge>
+                                )}
+                                {precisaFerias && (
+                                  <span className="text-[10px] text-destructive flex items-center gap-0.5">
+                                    <AlertTriangle className="h-3 w-3" /> Marque D/Férias
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </TableCell>
                           <TableCell className="text-xs">{conv.nome_funcao}</TableCell>
                           <TableCell className="text-right text-xs">
                             {formatCurrency(conv.valor_diaria)}
@@ -688,7 +779,8 @@ export function SolicitacaoFormModal({
                             </Button>
                           </TableCell>
                         </TableRow>
-                      ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </ScrollArea>
@@ -885,7 +977,40 @@ export function SolicitacaoFormModal({
           
           {step === 'funcionarios' && (
             <Button 
-              onClick={() => setStep('revisao')}
+              onClick={() => {
+                // Validação e auto-limpeza de matrícula em dias úteis
+                if (isSomenteDiasUteis) {
+                  const funcsComMatricula = convocadosPre.filter(c => {
+                    const func = funcionarios.find((f: any) => f.id === c.funcionario_id);
+                    return func?.matricula;
+                  });
+                  
+                  if (funcsComMatricula.length > 0) {
+                    const semFerias = funcsComMatricula.filter(c => !c.usar_diaria_exclusiva);
+                    
+                    // Auto-remover funcionários com matrícula sem D/Férias
+                    if (semFerias.length > 0) {
+                      const idsParaRemover = new Set(semFerias.map(c => c.funcionario_id));
+                      const listaLimpa = convocadosPre.filter(c => !idsParaRemover.has(c.funcionario_id));
+                      setConvocadosPre(listaLimpa);
+                      toast.info(`${semFerias.length} funcionário(s) com matrícula foram removidos por não estarem marcados como D/Férias.`);
+                      
+                      // Se não sobrou ninguém, não avançar
+                      if (listaLimpa.length === 0) {
+                        return;
+                      }
+                    }
+                    
+                    // Verificar justificativa para os que ficaram (com D/Férias)
+                    const comFerias = funcsComMatricula.filter(c => c.usar_diaria_exclusiva);
+                    if (comFerias.length > 0 && justificativa.trim().length < minJustificativa) {
+                      toast.error('É necessário informar a justificativa para convocação de funcionário em férias.');
+                      return;
+                    }
+                  }
+                }
+                setStep('revisao');
+              }}
               disabled={!canProceedToFuncionarios}
             >
               Próximo

@@ -86,9 +86,23 @@ export async function getRelatorioFolha(
 // =====================================================
 
 export async function getResumoDiarias(filters?: RelatorioFilters): Promise<ResumoDiarias[]> {
+  // Query diretamente de bd_diaria_presencas (view vw_resumo_diarias foi removida)
   let query = supabase
-    .from('vw_resumo_diarias')
-    .select('*')
+    .from('bd_diaria_presencas')
+    .select(`
+      solicitacao_id,
+      data,
+      presente,
+      valor_diaria_aplicada,
+      bd_diaria_solicitacoes!inner (
+        centro_custo_id,
+        bd_centros_custo (
+          id,
+          codigo_centro_custo,
+          nome_centro_custo
+        )
+      )
+    `)
     .order('data', { ascending: false });
 
   if (filters?.data_inicio) {
@@ -98,7 +112,7 @@ export async function getResumoDiarias(filters?: RelatorioFilters): Promise<Resu
     query = query.lte('data', filters.data_fim);
   }
   if (filters?.centro_custo_id) {
-    query = query.eq('centro_custo_id', filters.centro_custo_id);
+    query = query.eq('bd_diaria_solicitacoes.centro_custo_id', filters.centro_custo_id);
   }
 
   const { data, error } = await query;
@@ -108,7 +122,44 @@ export async function getResumoDiarias(filters?: RelatorioFilters): Promise<Resu
     throw new Error(error.message);
   }
 
-  return (data || []) as ResumoDiarias[];
+  // Agrupar por data + centro_custo_id
+  const agrupado: Record<string, ResumoDiarias> = {};
+  (data || []).forEach((p: any) => {
+    const cc = p.bd_diaria_solicitacoes?.bd_centros_custo;
+    const ccId = cc?.id || p.bd_diaria_solicitacoes?.centro_custo_id || '';
+    const key = `${p.data}_${ccId}`;
+
+    if (!agrupado[key]) {
+      agrupado[key] = {
+        data: p.data,
+        centro_custo_id: ccId,
+        codigo_centro_custo: cc?.codigo_centro_custo || '',
+        nome_centro_custo: cc?.nome_centro_custo || '',
+        total_presentes: 0,
+        total_ausentes: 0,
+        total_pendentes: 0,
+        total_substituidos: 0,
+        total_convocados: 0,
+        total_valor_presentes: 0,
+        total_valor_previsto: 0,
+      };
+    }
+
+    const item = agrupado[key];
+    item.total_convocados++;
+    item.total_valor_previsto += p.valor_diaria_aplicada || 0;
+
+    if (p.presente === true) {
+      item.total_presentes++;
+      item.total_valor_presentes += p.valor_diaria_aplicada || 0;
+    } else if (p.presente === false) {
+      item.total_ausentes++;
+    } else {
+      item.total_pendentes++;
+    }
+  });
+
+  return Object.values(agrupado);
 }
 
 // =====================================================

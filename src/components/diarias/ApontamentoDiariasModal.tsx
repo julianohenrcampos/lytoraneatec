@@ -181,6 +181,11 @@ export default function ApontamentoDiariasModal({
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddingFuncionario, setIsAddingFuncionario] = useState(false);
   
+  // Estado para confirmação de adição com justificativa + férias
+  const [addSelectedFunc, setAddSelectedFunc] = useState<any>(null);
+  const [addJustificativa, setAddJustificativa] = useState("");
+  const [addFerias, setAddFerias] = useState(false);
+  
   // Estado para edição de hora de saída pós-conclusão
   const [editingExitId, setEditingExitId] = useState<string | null>(null);
   const [editExitTime, setEditExitTime] = useState("");
@@ -1317,50 +1322,159 @@ export default function ApontamentoDiariasModal({
                 )}
 
                 {((fase === 'inicio' || fase === 'finalizacao') && !readOnly || (fase === 'concluido' && isSuperAdmin)) && (
-                  <Popover open={showAddFuncionario} onOpenChange={setShowAddFuncionario}>
+                  <Popover open={showAddFuncionario} onOpenChange={(open) => { setShowAddFuncionario(open); if (!open) { setAddSelectedFunc(null); setAddJustificativa(""); setAddFerias(false); } }}>
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="xs" className="text-[10px] sm:text-xs gap-1 h-6 sm:h-7 px-2">
                         <Plus className="h-3 w-3" />
                         <span className="hidden sm:inline">Adicionar</span>
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-[300px] sm:w-[350px] p-3" align="start">
+                    <PopoverContent className="w-[300px] sm:w-[380px] p-3" align="start">
                       <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <Search className="h-4 w-4 text-muted-foreground" />
-                          <Input
-                            placeholder="Buscar por nome ou CPF..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="h-8 text-sm"
-                            autoFocus
-                          />
-                        </div>
-                        {searchTerm.trim() && (
-                          <ScrollArea className="max-h-[200px]">
-                            {funcionariosFiltrados.length === 0 ? (
-                              <p className="text-xs text-muted-foreground text-center py-2">
-                                Nenhum funcionário encontrado
-                              </p>
-                            ) : (
-                              <div className="space-y-1">
-                                {funcionariosFiltrados.map((func: any) => (
-                                  <button
-                                    key={func.id}
-                                    onClick={() => handleAdicionarFuncionario(func)}
-                                    disabled={isAddingFuncionario}
-                                    className="w-full text-left p-2 rounded hover:bg-muted text-sm flex items-center justify-between"
-                                  >
-                                    <div>
-                                      <p className="font-medium text-xs sm:text-sm">{func.nome_completo}</p>
-                                      <p className="text-[10px] sm:text-xs text-muted-foreground">{func.funcao_nome || func.nome_funcao || 'Sem função'}</p>
-                                    </div>
-                                    <Plus className="h-4 w-4 text-muted-foreground" />
-                                  </button>
-                                ))}
-                              </div>
+                        {/* Se tem funcionário selecionado, mostrar painel de confirmação */}
+                        {addSelectedFunc ? (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-sm font-medium">Adicionar Funcionário</h4>
+                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setAddSelectedFunc(null); setAddJustificativa(""); setAddFerias(false); }}>
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                            <div className="p-2 bg-muted rounded-md">
+                              <p className="text-sm font-medium">{addSelectedFunc.nome_completo}</p>
+                              <p className="text-xs text-muted-foreground">{addSelectedFunc.funcao_nome || 'Sem função'}</p>
+                              {addSelectedFunc.matricula && (
+                                <Badge variant="outline" className="mt-1 text-[10px] px-1 py-0 border-amber-400 text-amber-700">Remessa</Badge>
+                              )}
+                            </div>
+
+                            {/* Toggle Férias para funcionários com matrícula em dia útil */}
+                            {(() => {
+                              const dateSel = parseBrazilianDate(selectedDate);
+                              const dayOfWeek = dateSel.getDay();
+                              const isDiaUtil = dayOfWeek >= 1 && dayOfWeek <= 5;
+                              const isFeriadoHoje = feriados.some(f => f.data === selectedDate);
+                              const temMatricula = !!addSelectedFunc.matricula;
+                              const mostrarToggle = temMatricula && isDiaUtil && !isFeriadoHoje;
+                              
+                              return mostrarToggle ? (
+                                <div className="flex items-center justify-between p-2 border rounded-md">
+                                  <Label htmlFor="add-ferias" className="text-sm">Funcionário em Férias</Label>
+                                  <Switch
+                                    id="add-ferias"
+                                    checked={addFerias}
+                                    onCheckedChange={setAddFerias}
+                                  />
+                                </div>
+                              ) : null;
+                            })()}
+
+                            {/* Alocação em outra solicitação */}
+                            {addSelectedFunc._alocacao && (
+                              <Alert variant="destructive" className="py-2">
+                                <AlertTriangle className="h-3 w-3" />
+                                <AlertDescription className="text-xs">
+                                  Convocado no CC: {addSelectedFunc._alocacao.codigo_centro_custo} — Solicitação: {addSelectedFunc._alocacao.numero_solicitacao}
+                                </AlertDescription>
+                              </Alert>
                             )}
-                          </ScrollArea>
+
+                            {/* Justificativa obrigatória */}
+                            <div>
+                              <Label className="text-sm">Justificativa *</Label>
+                              <Textarea
+                                value={addJustificativa}
+                                onChange={(e) => setAddJustificativa(e.target.value)}
+                                placeholder="Informe o motivo da inclusão deste funcionário..."
+                                rows={2}
+                                className="mt-1 text-sm"
+                              />
+                            </div>
+
+                            <Button
+                              className="w-full"
+                              size="sm"
+                              disabled={isAddingFuncionario || addJustificativa.trim().length < 5 || (() => {
+                                const dateSel = parseBrazilianDate(selectedDate);
+                                const dayOfWeek = dateSel.getDay();
+                                const isDiaUtil = dayOfWeek >= 1 && dayOfWeek <= 5;
+                                const isFeriadoHoje = feriados.some(f => f.data === selectedDate);
+                                return !!addSelectedFunc.matricula && isDiaUtil && !isFeriadoHoje && !addFerias;
+                              })()}
+                              onClick={() => {
+                                handleAdicionarFuncionario(addSelectedFunc);
+                                setAddSelectedFunc(null);
+                                setAddJustificativa("");
+                                setAddFerias(false);
+                              }}
+                            >
+                              {isAddingFuncionario && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                              Confirmar Adição
+                            </Button>
+
+                            {(() => {
+                              const dateSel = parseBrazilianDate(selectedDate);
+                              const dayOfWeek = dateSel.getDay();
+                              const isDiaUtil = dayOfWeek >= 1 && dayOfWeek <= 5;
+                              const isFeriadoHoje = feriados.some(f => f.data === selectedDate);
+                              if (addSelectedFunc.matricula && isDiaUtil && !isFeriadoHoje && !addFerias) {
+                                return (
+                                  <p className="text-xs text-destructive">
+                                    Funcionários com matrícula só podem ser convocados em dias úteis quando estiverem de férias.
+                                  </p>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <Search className="h-4 w-4 text-muted-foreground" />
+                              <Input
+                                placeholder="Buscar por nome ou CPF..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="h-8 text-sm"
+                                autoFocus
+                              />
+                            </div>
+                            {searchTerm.trim() && (
+                              <ScrollArea className="max-h-[200px]">
+                                {funcionariosFiltrados.length === 0 ? (
+                                  <p className="text-xs text-muted-foreground text-center py-2">
+                                    Nenhum funcionário encontrado
+                                  </p>
+                                ) : (
+                                  <div className="space-y-1">
+                                    {funcionariosFiltrados.map((func: any) => (
+                                      <button
+                                        key={func.id}
+                                        onClick={() => {
+                                          setAddSelectedFunc(func);
+                                          setAddFerias(false);
+                                          setAddJustificativa("");
+                                        }}
+                                        disabled={isAddingFuncionario}
+                                        className="w-full text-left p-2 rounded hover:bg-muted text-sm flex items-center justify-between"
+                                      >
+                                        <div>
+                                          <div className="flex items-center gap-1">
+                                            <p className="font-medium text-xs sm:text-sm">{func.nome_completo}</p>
+                                            {func.matricula && (
+                                              <Badge variant="outline" className="text-[10px] px-1 py-0 border-amber-400 text-amber-700">Remessa</Badge>
+                                            )}
+                                          </div>
+                                          <p className="text-[10px] sm:text-xs text-muted-foreground">{func.funcao_nome || func.nome_funcao || 'Sem função'}</p>
+                                        </div>
+                                        <Plus className="h-4 w-4 text-muted-foreground" />
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </ScrollArea>
+                            )}
+                          </>
                         )}
                       </div>
                     </PopoverContent>

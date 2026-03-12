@@ -35,7 +35,6 @@ const DeleteSolicitacaoDialog: React.FC<DeleteSolicitacaoDialogProps> = ({
       totalApontamentos: number;
       totalPresencas: number;
       totalAprovacoes: number;
-      totalConvocacoes: number;
     };
   } | null>(null);
   const [isValidating, setIsValidating] = useState(false);
@@ -54,7 +53,7 @@ const DeleteSolicitacaoDialog: React.FC<DeleteSolicitacaoDialogProps> = ({
         console.error("Erro ao validar exclusão:", error);
         setValidationInfo({
           canDelete: true,
-          details: { totalApontamentos: 0, totalPresencas: 0, totalAprovacoes: 0, totalConvocacoes: 0 },
+          details: { totalApontamentos: 0, totalPresencas: 0, totalAprovacoes: 0 },
         });
       } finally {
         setIsValidating(false);
@@ -66,14 +65,13 @@ const DeleteSolicitacaoDialog: React.FC<DeleteSolicitacaoDialogProps> = ({
   if (!solicitacaoId) return null;
 
   const { details } = validationInfo || {
-    details: { totalApontamentos: 0, totalPresencas: 0, totalAprovacoes: 0, totalConvocacoes: 0 },
+    details: { totalApontamentos: 0, totalPresencas: 0, totalAprovacoes: 0 },
   };
 
   const hasDependencies =
     details.totalApontamentos > 0 ||
     details.totalPresencas > 0 ||
-    details.totalAprovacoes > 0 ||
-    details.totalConvocacoes > 0;
+    details.totalAprovacoes > 0;
 
   return (
     <AlertDialog open={isOpen} onOpenChange={onClose}>
@@ -107,12 +105,6 @@ const DeleteSolicitacaoDialog: React.FC<DeleteSolicitacaoDialogProps> = ({
                         <li className="flex items-center gap-2">
                           <Badge variant="secondary">{details.totalPresencas}</Badge>
                           registro(s) de presença
-                        </li>
-                      )}
-                      {details.totalConvocacoes > 0 && (
-                        <li className="flex items-center gap-2">
-                          <Badge variant="secondary">{details.totalConvocacoes}</Badge>
-                          convocação(ões)
                         </li>
                       )}
                       {details.totalAprovacoes > 0 && (

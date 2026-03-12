@@ -8,6 +8,8 @@ import { CompiladoDiariasPDF } from '@/components/diarias/pdf/CompiladoDiariasPD
 import { ListaPresencaPDFDocument } from '@/components/diarias/pdf/ListaPresencaPDF';
 import type { ListaPresencaItem } from '@/components/diarias/pdf/ListaPresencaPDF';
 import { RelatorioDiariasPDF } from '@/components/diarias/pdf/RelatorioDiariasPDF';
+import { FolhaPontoPDFDocument } from '@/components/diarias/pdf/FolhaPontoPDF';
+import type { FolhaPontoFuncionario } from '@/components/diarias/pdf/FolhaPontoPDF';
 import { SSOChecklist, SSOChecklistItem } from '@/types/sso';
 import { SSODesvio, SSODesvioFoto } from '@/types/ssoDesvios';
 import { DiariaSolicitacao, FuncionarioPreConvocado, RelatorioFolhaItem, PresencaResumo, RelatorioFilters } from '@/types/diarias';
@@ -399,6 +401,42 @@ export const generateCompiladoDiariasPDF = async (
     URL.revokeObjectURL(url);
   } catch (error) {
     console.error('Erro ao gerar PDF compilado:', error);
+    throw error;
+  }
+};
+
+// =====================================================
+// DIÁRIAS PDF - Folha de Ponto Individual
+// =====================================================
+
+export const generateFolhaPontoPDF = async (
+  numeroSolicitacao: string,
+  codigoCentroCusto: string,
+  funcionarios: FolhaPontoFuncionario[],
+  fileName: string
+): Promise<void> => {
+  try {
+    const logoUrl = await loadImageAsBase64('/lyto-uploads/dcf6c980-f927-4180-b109-b425da1323ba.png');
+
+    const doc = createElement(FolhaPontoPDFDocument, {
+      numeroSolicitacao,
+      codigoCentroCusto,
+      funcionarios,
+      logoUrl: logoUrl || undefined,
+    });
+
+    const blob = await pdf(doc as any).toBlob();
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${fileName}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Erro ao gerar PDF de folha de ponto:', error);
     throw error;
   }
 };

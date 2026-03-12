@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, Search, Users, User } from "lucide-react"
+import { Check, Search, Users, User, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,6 +16,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { Badge } from "@/components/ui/badge"
 import type { FuncionarioPreConvocado } from "@/types/diarias"
 
 interface FuncionarioItem {
@@ -23,6 +24,8 @@ interface FuncionarioItem {
   nome_completo: string;
   funcao_id: string;
   centro_custo_id?: string | null;
+  matricula?: string | null;
+  status_funcionario?: string | null;
   bd_funcoes?: {
     id: string;
     nome_funcao: string;
@@ -45,6 +48,7 @@ interface SmartFuncionarioSearchProps {
   onSelectFuncionario: (id: string) => void;
   onSelectCentroCusto: (id: string) => void;
   disabled?: boolean;
+  alocacoesPorFuncionario?: Map<string, { numero_solicitacao: string; codigo_centro_custo: string }>;
 }
 
 export function SmartFuncionarioSearch({
@@ -54,6 +58,7 @@ export function SmartFuncionarioSearch({
   onSelectFuncionario,
   onSelectCentroCusto,
   disabled = false,
+  alocacoesPorFuncionario = new Map(),
 }: SmartFuncionarioSearchProps) {
   const [open, setOpen] = React.useState(false)
   const [inputValue, setInputValue] = React.useState("")
@@ -167,6 +172,8 @@ export function SmartFuncionarioSearch({
                   <CommandGroup heading="Funcionários">
                     {filteredFuncionarios.map((f) => {
                       const isAdded = addedIds.has(f.id);
+                      const temMatricula = !!f.matricula;
+                      const alocacao = alocacoesPorFuncionario.get(f.id);
                       return (
                         <CommandItem
                           key={`func-${f.id}`}
@@ -174,21 +181,36 @@ export function SmartFuncionarioSearch({
                           onSelect={() => !isAdded && handleSelectFuncionario(f.id)}
                           className={cn(
                             "cursor-pointer py-2.5 px-3",
-                            isAdded && "opacity-50 cursor-not-allowed"
+                            isAdded && "opacity-50 cursor-not-allowed",
+                            alocacao && !isAdded && "border-l-2 border-l-destructive"
                           )}
                           style={{ pointerEvents: 'auto' }}
                           disabled={isAdded}
                         >
                           {isAdded ? (
                             <Check className="mr-2 h-4 w-4 shrink-0 text-primary" />
+                          ) : alocacao ? (
+                            <AlertTriangle className="mr-2 h-4 w-4 shrink-0 text-destructive" />
                           ) : (
                             <User className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
                           )}
                           <div className="flex-1 min-w-0">
-                            <span className={cn("block", isAdded && "line-through")}>{f.nome_completo}</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className={cn("block", isAdded && "line-through")}>{f.nome_completo}</span>
+                              {temMatricula && (
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 border-amber-400 text-amber-700 shrink-0">
+                                  Remessa
+                                </Badge>
+                              )}
+                            </div>
                             {f.bd_funcoes?.nome_funcao && (
                               <p className="text-xs text-muted-foreground mt-0.5">
                                 {f.bd_funcoes.nome_funcao}
+                              </p>
+                            )}
+                            {alocacao && !isAdded && (
+                              <p className="text-xs text-destructive mt-0.5">
+                                Convocado no CC: {alocacao.codigo_centro_custo} — Solicitação: {alocacao.numero_solicitacao}
                               </p>
                             )}
                           </div>
