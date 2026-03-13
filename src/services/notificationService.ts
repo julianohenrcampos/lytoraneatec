@@ -95,10 +95,9 @@ export const notificationService = {
 
     if (error) {
       console.error('Erro ao verificar checklist:', error);
-      return true; // Em caso de erro, mantém a notificação
+      return true;
     }
 
-    // Se o checklist não existe mais, deleta a notificação do usuário
     if (!checklist) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
@@ -112,5 +111,30 @@ export const notificationService = {
     }
 
     return true;
+  },
+
+  // Deletar notificações por metadata (genérico)
+  async deleteNotificationsByMetadata(key: string, value: string): Promise<void> {
+    // 1. Buscar IDs das notificações com metadata correspondente
+    const { data: notificacoes, error: fetchError } = await supabase
+      .from('bd_notificacoes')
+      .select('id')
+      .filter(`metadata->${key}`, 'eq', value);
+
+    if (fetchError || !notificacoes?.length) return;
+
+    const notifIds = notificacoes.map(n => n.id);
+
+    // 2. Deletar vínculos com usuários
+    await supabase
+      .from('bd_notificacoes_usuarios')
+      .delete()
+      .in('notificacao_id', notifIds);
+
+    // 3. Deletar notificações
+    await supabase
+      .from('bd_notificacoes')
+      .delete()
+      .in('id', notifIds);
   }
 };

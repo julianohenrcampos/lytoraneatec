@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { notificationService } from "@/services/notificationService";
 import type { 
   DiariaSolicitacao, 
   SolicitacaoFormData, 
@@ -232,6 +233,9 @@ export async function updateSolicitacao(id: string, formData: Partial<Solicitaca
 }
 
 export async function deleteSolicitacao(id: string): Promise<void> {
+  // Deletar notificações vinculadas à solicitação
+  await notificationService.deleteNotificationsByMetadata('solicitacao_id', id);
+
   // Deletar aprovações relacionadas (sem FK cascade)
   await supabase
     .from('bd_diaria_aprovacoes')

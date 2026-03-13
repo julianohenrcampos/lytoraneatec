@@ -64,7 +64,8 @@ export default function DiariasKpiCards({ filters }: DiariasKpiCardsProps) {
       // Build server-side filtered query for presencas
       let presQuery = supabase
         .from('vw_relatorio_diarias_folha')
-        .select('valor_diaria_aplicada, presenca_status, data, centro_custo_id, funcionario_id, solicitacao_id');
+        .select('valor_diaria_aplicada, valor_refeicao_aplicado, presenca_status, data, centro_custo_id, funcionario_id, solicitacao_id, hora_saida')
+        .not('hora_saida', 'is', null);
 
       // Apply server-side filters to avoid 1000-row truncation
       if (dataInicioStr) presQuery = presQuery.gte('data', dataInicioStr);
@@ -89,7 +90,7 @@ export default function DiariasKpiCards({ filters }: DiariasKpiCardsProps) {
 
       const presencasFiltradas = presencas || [];
       const presentes = presencasFiltradas.filter(p => String(p.presenca_status) === 'true');
-      const valorExecutado = presentes.reduce((sum, p) => sum + (p.valor_diaria_aplicada || 0), 0);
+      const valorExecutado = presentes.reduce((sum, p) => sum + (p.valor_diaria_aplicada || 0) + (p.valor_refeicao_aplicado || 0), 0);
       const valorEstimado = solicitacoes.reduce((sum, s) => sum + (s.valor_estimado_total || 0), 0);
       
       const centrosCustoUnicos = new Set(solicitacoes.map(s => s.centro_custo_id));

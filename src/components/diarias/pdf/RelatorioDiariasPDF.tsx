@@ -151,14 +151,8 @@ export const RelatorioDiariasPDF = ({
   const totalDiarias = funcionariosConsolidados.reduce((acc, f) => acc + f.total_dias, 0);
 
   const primeiroRegistro = relatorio[0];
-  const centrosCustoUnicos = [...new Set(relatorio.map(r => {
-    const codigo = r.codigo_centro_custo || '';
-    const nome = r.nome_centro_custo || '';
-    return nome.startsWith(codigo) ? nome : `${codigo} - ${nome}`;
-  }))];
-  const centrosCustoLabel = centrosCustoUnicos.length > 2
-    ? `${centrosCustoUnicos.slice(0, 2).join(', ')} e mais ${centrosCustoUnicos.length - 2}`
-    : centrosCustoUnicos.join(', ') || 'Todos';
+  const centrosCustoUnicos = [...new Set(relatorio.map(r => r.codigo_centro_custo).filter(Boolean))];
+  const centrosCustoLabel = centrosCustoUnicos.join(' | ') || 'Todos';
 
   const empresasUnicas = [...new Set(relatorio.map(r => r.empresa_funcionario).filter(Boolean))];
   const empresasLabel = empresasUnicas.length > 2
@@ -166,6 +160,7 @@ export const RelatorioDiariasPDF = ({
     : empresasUnicas.join(', ') || 'Não informada';
 
   const numerosUnicos = [...new Set(relatorio.map(r => r.numero_solicitacao).filter(Boolean))];
+  const numerosLabel = numerosUnicos.map(n => n.split('-').pop()).join(' | ');
 
   const dataInicio = filtros.data_inicio || primeiroRegistro?.solicitacao_data_inicio;
   const dataFim = filtros.data_fim || primeiroRegistro?.solicitacao_data_fim;
@@ -210,9 +205,7 @@ export const RelatorioDiariasPDF = ({
             {numerosUnicos.length > 0 && (
               <View style={styles.infoItem}>
                 <Text style={styles.infoLabel}>Nº Solicitação</Text>
-                <Text style={styles.infoValueBold}>
-                  {numerosUnicos.length === 1 ? numerosUnicos[0] : `${numerosUnicos.length} solicitações`}
-                </Text>
+                <Text style={styles.infoValueBold}>{numerosLabel}</Text>
               </View>
             )}
             <View style={styles.infoItem}>

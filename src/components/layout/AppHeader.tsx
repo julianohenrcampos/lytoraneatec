@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Maximize,
   ChevronDown,
   User,
   Settings,
   LogOut,
-  Menu,
   Users,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,12 +19,19 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import UserProfileModal from "@/components/user/UserProfileModal";
 import UserImageUploadModal from "@/components/user/UserImageUploadModal";
 import { PWAInstallButton } from "@/components/pwa/PWAInstallButton";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { useOnlineUsers } from "@/hooks/useOnlineUsers";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface AppHeaderProps {
   user: any;
@@ -41,9 +47,9 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navigate = useNavigate();
-  const location = useLocation();
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const { count: onlineCount, users: onlineUsers } = useOnlineUsers();
 
   const displayUser = user || {
     nome_completo: "Usuário",
@@ -134,9 +140,39 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         <div className="flex items-center gap-2">
           <NotificationBell />
           
-          <Button variant="ghost" size="icon">
-            <Users className="h-4 w-4 sm:h-5 sm:w-5" />
-          </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="relative">
+                <Users className="h-4 w-4 sm:h-5 sm:w-5" />
+                {onlineCount > 0 && (
+                  <Badge 
+                    className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 text-[10px] bg-emerald-500 hover:bg-emerald-500 text-white border-0"
+                  >
+                    {onlineCount}
+                  </Badge>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-64 p-0">
+              <div className="p-3 border-b">
+                <p className="text-sm font-medium">Usuários Online</p>
+                <p className="text-xs text-muted-foreground">{onlineCount} ativo(s) agora</p>
+              </div>
+              <ScrollArea className="max-h-48">
+                <div className="p-2 space-y-1">
+                  {onlineUsers.map((u) => (
+                    <div key={u.user_id} className="flex items-center gap-2 px-2 py-1.5 rounded-md">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                      <span className="text-sm truncate">{u.nome || u.email}</span>
+                    </div>
+                  ))}
+                  {onlineUsers.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-2">Nenhum usuário online</p>
+                  )}
+                </div>
+              </ScrollArea>
+            </PopoverContent>
+          </Popover>
           
           <PWAInstallButton />
           <UserDropdown />

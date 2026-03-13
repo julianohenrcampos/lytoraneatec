@@ -70,6 +70,7 @@ export default function DiariasApontamentoCampo() {
   const [dataFilter, setDataFilter] = useState('');
   const [solicitacaoFilter, setSolicitacaoFilter] = useState('');
   const [centroCustoFilter, setCentroCustoFilter] = useState('');
+  const [gerenteFilter, setGerenteFilter] = useState('');
 
   // Centros de custo para o combobox
   const [centrosCustoOptions, setCentrosCustoOptions] = useState<{ value: string; label: string }[]>([]);
@@ -78,6 +79,50 @@ export default function DiariasApontamentoCampo() {
       setCentrosCustoOptions(data.map((cc) => ({ value: cc.id, label: cc.nome_centro_custo })));
     });
   }, [isSuperAdmin]);
+
+  // Gerentes regionais para filtro (apenas SuperAdm)
+  const { data: gerentesOptions = [] } = useQuery({
+    queryKey: ['gerentes-regionais-filter'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('bd_centros_custo')
+        .select('aprovador_diarias_id, bd_funcionarios!bd_centros_custo_aprovador_diarias_id_fkey(id, nome_completo)')
+        .eq('situacao', 'Ativo')
+        .not('aprovador_diarias_id', 'is', null);
+      if (!data) return [];
+      const map = new Map<string, string>();
+      data.forEach((cc: any) => {
+        const f = cc.bd_funcionarios;
+        if (f?.id && f?.nome_completo) map.set(f.id, f.nome_completo);
+      });
+      return Array.from(map.entries())
+        .map(([id, nome]) => ({ value: id, label: nome }))
+        .sort((a, b) => a.label.localeCompare(b.label));
+    },
+    enabled: isSuperAdmin,
+    staleTime: 60000,
+  });
+
+  // Mapa de CC por gerente (para filtragem client-side)
+  const { data: ccByGerenteMap = new Map<string, string[]>() } = useQuery({
+    queryKey: ['cc-by-gerente-map'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('bd_centros_custo')
+        .select('id, aprovador_diarias_id')
+        .eq('situacao', 'Ativo')
+        .not('aprovador_diarias_id', 'is', null);
+      const map = new Map<string, string[]>();
+      (data || []).forEach((cc: any) => {
+        const arr = map.get(cc.aprovador_diarias_id) || [];
+        arr.push(cc.id);
+        map.set(cc.aprovador_diarias_id, arr);
+      });
+      return map;
+    },
+    enabled: isSuperAdmin,
+    staleTime: 60000,
+  });
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -166,6 +211,12 @@ export default function DiariasApontamentoCampo() {
         return a.bd_diaria_solicitacoes?.centro_custo_id === centroCustoFilter;
       });
     }
+    if (gerenteFilter && ccByGerenteMap instanceof Map) {
+      const ccIds = ccByGerenteMap.get(gerenteFilter) || [];
+      filtered = filtered.filter((a: any) => {
+        return ccIds.includes(a.bd_diaria_solicitacoes?.centro_custo_id);
+      });
+    }
     
     return filtered.sort((a: any, b: any) => {
       const solA = a.bd_diaria_solicitacoes;
@@ -198,7 +249,7 @@ export default function DiariasApontamentoCampo() {
       if (!allFinA && allFinB) return -1;
       return 0;
     });
-  }, [apontamentos, datasApontadasMap, solicitacaoFilter, centroCustoFilter]);
+  }, [apontamentos, datasApontadasMap, solicitacaoFilter, centroCustoFilter, gerenteFilter, ccByGerenteMap]);
 
   // Pagination
   const pagination = usePagination(sortedApontamentos, { pageSize: 6 });
@@ -421,7 +472,7 @@ export default function DiariasApontamentoCampo() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            <div className={cn("grid gap-4 grid-cols-1 sm:grid-cols-2", isSuperAdmin ? "lg:grid-cols-5" : "lg:grid-cols-4")}>
               <div>
                 <Label>Nº Solicitação</Label>
                 <div className="relative">
@@ -445,6 +496,19 @@ export default function DiariasApontamentoCampo() {
                   emptyText="Nenhum centro encontrado"
                 />
               </div>
+              {isSuperAdmin && (
+                <div>
+                  <Label>Gerente Regional</Label>
+                  <Combobox
+                    options={gerentesOptions}
+                    value={gerenteFilter}
+                    onChange={setGerenteFilter}
+                    placeholder="Todos"
+                    searchPlaceholder="Buscar gerente..."
+                    emptyText="Nenhum gerente encontrado"
+                  />
+                </div>
+              )}
               <div>
                 <Label>Data</Label>
                 <Input
@@ -495,6 +559,7 @@ export default function DiariasApontamentoCampo() {
                   setDataFilter('');
                   setSolicitacaoFilter('');
                   setCentroCustoFilter('');
+                  setGerenteFilter('');
                 }}
                 className="flex items-center gap-1.5"
               >

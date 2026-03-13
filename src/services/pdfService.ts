@@ -8,6 +8,7 @@ import { CompiladoDiariasPDF } from '@/components/diarias/pdf/CompiladoDiariasPD
 import { ListaPresencaPDFDocument } from '@/components/diarias/pdf/ListaPresencaPDF';
 import type { ListaPresencaItem } from '@/components/diarias/pdf/ListaPresencaPDF';
 import { RelatorioDiariasPDF } from '@/components/diarias/pdf/RelatorioDiariasPDF';
+import { RelatorioDiariasPDFDetalhado } from '@/components/diarias/pdf/RelatorioDiariasPDFDetalhado';
 import { FolhaPontoPDFDocument } from '@/components/diarias/pdf/FolhaPontoPDF';
 import type { FolhaPontoFuncionario } from '@/components/diarias/pdf/FolhaPontoPDF';
 import { SSOChecklist, SSOChecklistItem } from '@/types/sso';
@@ -317,6 +318,50 @@ export const generateRelatorioDiariasPDF = async (
     URL.revokeObjectURL(url);
   } catch (error) {
     console.error('Erro ao gerar PDF de relatório de diárias:', error);
+    throw error;
+  }
+};
+
+// =====================================================
+// DIÁRIAS PDF - Relatório Detalhado por Empresa
+// =====================================================
+
+export const generateRelatorioDiariasPDFDetalhado = async (
+  relatorio: RelatorioFolhaItem[],
+  resumo: PresencaResumo,
+  filtros: RelatorioFilters,
+  feriados: string[],
+  fileName: string,
+  extras?: {
+    engenheiroSolicitante?: string;
+    gerenteRegional?: string;
+  }
+): Promise<void> => {
+  try {
+    const logoUrl = await loadImageAsBase64('/lyto-uploads/dcf6c980-f927-4180-b109-b425da1323ba.png');
+    
+    const doc = createElement(RelatorioDiariasPDFDetalhado, {
+      relatorio,
+      resumo,
+      filtros,
+      feriados,
+      logoUrl: logoUrl || undefined,
+      engenheiroSolicitante: extras?.engenheiroSolicitante,
+      gerenteRegional: extras?.gerenteRegional
+    });
+    
+    const blob = await pdf(doc as any).toBlob();
+    
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${fileName}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Erro ao gerar PDF detalhado por empresa:', error);
     throw error;
   }
 };

@@ -18,7 +18,7 @@ import {
   Printer } from
 "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { generateRelatorioDiariasPDF, generateCompiladoDiariasPDF, generateFolhaPontoPDF } from "@/services/pdfService";
+import { generateRelatorioDiariasPDF, generateRelatorioDiariasPDFDetalhado, generateCompiladoDiariasPDF, generateFolhaPontoPDF } from "@/services/pdfService";
 import type { FolhaPontoFuncionario } from "@/components/diarias/pdf/FolhaPontoPDF";
 
 import MainLayout from "@/components/layout/MainLayout";
@@ -215,7 +215,7 @@ export default function DiariasRelatorio() {
   const exportMutation = useExportarExcel();
   const [isPDFLoading, setIsPDFLoading] = useState(false);
   const [isGeneratingFolhaPonto, setIsGeneratingFolhaPonto] = useState(false);
-  const [exportFormat, setExportFormat] = useState<'excel' | 'pdf' | 'compilado' | 'ambos'>('excel');
+  const [exportFormat, setExportFormat] = useState<'excel' | 'pdf' | 'pdf_detalhado' | 'compilado' | 'ambos'>('excel');
 
   // Folha de Ponto
   const canPrintFolhaPonto = !!filters.data_inicio && !!filters.data_fim && !!filters.centro_custo_id;
@@ -386,7 +386,7 @@ export default function DiariasRelatorio() {
               .select('nome_completo')
               .in('id', engenheiroIds);
             if (engenheiros?.length) {
-              engenheiroSolicitante = engenheiros.map(e => e.nome_completo).join(', ');
+              engenheiroSolicitante = [...new Set(engenheiros.map(e => (e.nome_completo || '').split(' ')[0]))].join(' | ');
             }
           }
 
@@ -481,6 +481,85 @@ export default function DiariasRelatorio() {
     }
   };
 
+  const handleExportPDFDetalhado = async () => {
+    if (relatorio.length === 0) {
+      toast.error('Não há dados para exportar.');
+      return;
+    }
+
+    setIsPDFLoading(true);
+    try {
+      const dateStr = filters.data_inicio ?
+        format(new Date(filters.data_inicio + 'T12:00:00'), 'yyyyMMdd') :
+        format(new Date(), 'yyyyMMdd');
+      const fileName = `Relatorio_Diarias_Detalhado_${dateStr}`;
+
+      const resumoParaPDF = {
+        total: relatorio.length,
+        presentes: resumo.total_diarias,
+        ausentes: 0,
+        pendentes: 0,
+        substituidos: 0,
+        valor_total_presentes: resumo.valor_total,
+        valor_total_previsto: resumo.valor_total
+      };
+
+      // Buscar nomes do Engenheiro Solicitante e Gerente Regional
+      let engenheiroSolicitante: string | undefined;
+      let gerenteRegionalNome: string | undefined;
+
+      const solicitacaoIds = [...new Set(relatorio.map(r => r.solicitacao_id))];
+      if (solicitacaoIds.length > 0) {
+        const { data: solicitacoes } = await supabase
+          .from('bd_diaria_solicitacoes')
+          .select('engenheiro_solicitante_id, centro_custo_id')
+          .in('id', solicitacaoIds);
+
+        if (solicitacoes) {
+          const engenheiroIds = [...new Set(solicitacoes.map(s => s.engenheiro_solicitante_id).filter(Boolean))];
+          if (engenheiroIds.length > 0) {
+            const { data: engenheiros } = await supabase
+              .from('bd_funcionarios')
+              .select('nome_completo')
+              .in('id', engenheiroIds);
+            if (engenheiros?.length) {
+              engenheiroSolicitante = [...new Set(engenheiros.map(e => (e.nome_completo || '').split(' ')[0]))].join(' | ');
+            }
+          }
+
+          const ccIds = [...new Set(solicitacoes.map(s => s.centro_custo_id).filter(Boolean))];
+          if (ccIds.length > 0) {
+            const { data: ccs } = await supabase
+              .from('bd_centros_custo')
+              .select('aprovador_diarias_id')
+              .in('id', ccIds);
+            const aprovadorIds = [...new Set(ccs?.map(cc => cc.aprovador_diarias_id).filter(Boolean) || [])];
+            if (aprovadorIds.length > 0) {
+              const { data: gerentes } = await supabase
+                .from('bd_funcionarios')
+                .select('nome_completo')
+                .in('id', aprovadorIds);
+              if (gerentes?.length) {
+                gerenteRegionalNome = gerentes.map(g => g.nome_completo).join(', ');
+              }
+            }
+          }
+        }
+      }
+
+      await generateRelatorioDiariasPDFDetalhado(relatorio, resumoParaPDF, filters, feriados, fileName, {
+        engenheiroSolicitante,
+        gerenteRegional: gerenteRegionalNome
+      });
+      toast.success('PDF Detalhado gerado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao gerar PDF detalhado:', error);
+      toast.error('Erro ao gerar PDF detalhado.');
+    } finally {
+      setIsPDFLoading(false);
+    }
+  };
+
   const handleExport = async () => {
     if (relatorio.length === 0) {
       toast.error('Não há dados para exportar.');
@@ -490,6 +569,8 @@ export default function DiariasRelatorio() {
       handleExportExcel();
     } else if (exportFormat === 'pdf') {
       await handleExportPDF();
+    } else if (exportFormat === 'pdf_detalhado') {
+      await handleExportPDFDetalhado();
     } else if (exportFormat === 'compilado') {
       await handleExportCompilado();
     } else {
@@ -544,7 +625,7 @@ export default function DiariasRelatorio() {
           <div className="flex items-center gap-4">
               <RadioGroup
                 value={exportFormat}
-                onValueChange={(v) => setExportFormat(v as 'excel' | 'pdf' | 'compilado' | 'ambos')}
+                onValueChange={(v) => setExportFormat(v as 'excel' | 'pdf' | 'pdf_detalhado' | 'compilado' | 'ambos')}
                 className="flex items-center gap-4">
                 <div className="flex items-center gap-1.5">
                   <RadioGroupItem value="excel" id="export-excel" />
@@ -553,6 +634,10 @@ export default function DiariasRelatorio() {
                 <div className="flex items-center gap-1.5">
                   <RadioGroupItem value="pdf" id="export-pdf" />
                   <Label htmlFor="export-pdf" className="text-sm cursor-pointer">PDF</Label>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <RadioGroupItem value="pdf_detalhado" id="export-pdf-detalhado" />
+                  <Label htmlFor="export-pdf-detalhado" className="text-sm cursor-pointer">PDF Detalhado</Label>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <RadioGroupItem value="compilado" id="export-compilado" />
