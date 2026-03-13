@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDate } from "@/lib/utils";
 import { usePagination } from "@/hooks/usePagination";
 import TablePagination from "@/components/ui/table-pagination";
+import { formatCPF } from "@/utils/textTransform";
 
 interface FuncionarioTableProps {
   funcionarios: Funcionario[];
@@ -92,7 +93,7 @@ const FuncionarioTable: React.FC<FuncionarioTableProps> = ({
                   </Avatar>
                 </TableCell>
                 <TableCell>{funcionario.nome_completo}</TableCell>
-                <TableCell>{funcionario.cpf}</TableCell>
+                <TableCell>{formatCPF(funcionario.cpf || "")}</TableCell>
                 <TableCell>{funcionario.bd_funcoes?.nome_funcao || '-'}</TableCell>
                 <TableCell>{funcionario.bd_departamentos?.nome_departamento || '-'}</TableCell>
                 <TableCell>{formatDate(funcionario.data_admissao)}</TableCell>

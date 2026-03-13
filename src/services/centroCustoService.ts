@@ -92,9 +92,11 @@ export const createCentroCusto = async (data: CentroCustoFormData): Promise<Cent
     situacao: data.situacao
   };
   
-  // Only include aprovador_diarias_id if it's set and not the placeholder
   if (data.aprovador_diarias_id && data.aprovador_diarias_id !== '__none__') {
     insertData.aprovador_diarias_id = data.aprovador_diarias_id;
+  }
+  if (data.diretoria_id && data.diretoria_id !== '__none__') {
+    insertData.diretoria_id = data.diretoria_id;
   }
 
   const { data: newData, error } = await supabase
@@ -121,11 +123,15 @@ export const updateCentroCusto = async (id: string, data: CentroCustoFormData): 
     situacao: data.situacao
   };
   
-  // Handle aprovador_diarias_id - can be null to remove
   if (data.aprovador_diarias_id && data.aprovador_diarias_id !== '__none__') {
     updateData.aprovador_diarias_id = data.aprovador_diarias_id;
   } else {
     updateData.aprovador_diarias_id = null;
+  }
+  if (data.diretoria_id && data.diretoria_id !== '__none__') {
+    updateData.diretoria_id = data.diretoria_id;
+  } else {
+    updateData.diretoria_id = null;
   }
 
   const { data: updatedData, error } = await supabase

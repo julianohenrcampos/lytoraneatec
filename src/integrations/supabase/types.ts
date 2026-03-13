@@ -844,8 +844,10 @@ export type Database = {
           cnpj_vinculado: string | null
           codigo_centro_custo: string
           created_at: string | null
+          diretoria_id: string | null
           id: string
           modificado_por: string | null
+          nome_alterdata: string | null
           nome_centro_custo: string
           situacao: string | null
           telefone: string | null
@@ -856,8 +858,10 @@ export type Database = {
           cnpj_vinculado?: string | null
           codigo_centro_custo: string
           created_at?: string | null
+          diretoria_id?: string | null
           id?: string
           modificado_por?: string | null
+          nome_alterdata?: string | null
           nome_centro_custo: string
           situacao?: string | null
           telefone?: string | null
@@ -868,8 +872,10 @@ export type Database = {
           cnpj_vinculado?: string | null
           codigo_centro_custo?: string
           created_at?: string | null
+          diretoria_id?: string | null
           id?: string
           modificado_por?: string | null
+          nome_alterdata?: string | null
           nome_centro_custo?: string
           situacao?: string | null
           telefone?: string | null
@@ -881,6 +887,13 @@ export type Database = {
             columns: ["aprovador_diarias_id"]
             isOneToOne: false
             referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_diretoria_id_fkey"
+            columns: ["diretoria_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diretorias"
             referencedColumns: ["id"]
           },
         ]
@@ -1335,6 +1348,47 @@ export type Database = {
           },
         ]
       }
+      bd_diretorias: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          diretor_id: string | null
+          id: string
+          modificado_por: string | null
+          nome: string
+          tipo: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          diretor_id?: string | null
+          id?: string
+          modificado_por?: string | null
+          nome: string
+          tipo?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          diretor_id?: string | null
+          id?: string
+          modificado_por?: string | null
+          nome?: string
+          tipo?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_diretorias_diretor_id_fkey"
+            columns: ["diretor_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_empresas: {
         Row: {
           cnpj: string
@@ -1691,6 +1745,92 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      bd_importacao_alterdata: {
+        Row: {
+          centro_custo_id: string | null
+          codigo_centro: string | null
+          cpf: string | null
+          created_at: string | null
+          created_by: string | null
+          data_admissao: string | null
+          departamento: string | null
+          empresa_id: string | null
+          empresa_nome: string | null
+          erro: string | null
+          funcao_id: string | null
+          funcao_nome: string | null
+          id: string
+          matricula: string | null
+          nome_funcionario: string | null
+          status_processamento: string
+        }
+        Insert: {
+          centro_custo_id?: string | null
+          codigo_centro?: string | null
+          cpf?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          data_admissao?: string | null
+          departamento?: string | null
+          empresa_id?: string | null
+          empresa_nome?: string | null
+          erro?: string | null
+          funcao_id?: string | null
+          funcao_nome?: string | null
+          id?: string
+          matricula?: string | null
+          nome_funcionario?: string | null
+          status_processamento?: string
+        }
+        Update: {
+          centro_custo_id?: string | null
+          codigo_centro?: string | null
+          cpf?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          data_admissao?: string | null
+          departamento?: string | null
+          empresa_id?: string | null
+          empresa_nome?: string | null
+          erro?: string | null
+          funcao_id?: string | null
+          funcao_nome?: string | null
+          id?: string
+          matricula?: string | null
+          nome_funcionario?: string | null
+          status_processamento?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_importacao_alterdata_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_importacao_alterdata_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_importacao_alterdata_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "bd_empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_importacao_alterdata_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcoes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       bd_lista_programacao_entrega: {
         Row: {

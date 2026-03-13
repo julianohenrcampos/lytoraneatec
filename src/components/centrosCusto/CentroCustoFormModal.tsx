@@ -29,7 +29,8 @@ const formSchema = z.object({
   cnpj_vinculado: z.string().optional(),
   telefone: z.string().optional(),
   situacao: z.enum(["Ativo", "Inativo"]),
-  aprovador_diarias_id: z.string().optional()
+  aprovador_diarias_id: z.string().optional(),
+  diretoria_id: z.string().min(1, { message: "Diretoria é obrigatória" }),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -57,6 +58,19 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
     },
     enabled: isOpen
   });
+
+  const { data: diretorias = [] } = useQuery({
+    queryKey: ['diretorias-ativas'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("bd_diretorias")
+        .select("id, nome")
+        .eq("ativo", true)
+        .order("nome");
+      return data || [];
+    },
+    enabled: isOpen
+  });
   
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -66,7 +80,8 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
       cnpj_vinculado: "",
       telefone: "",
       situacao: "Ativo",
-      aprovador_diarias_id: ""
+      aprovador_diarias_id: "",
+      diretoria_id: ""
     }
   });
 
@@ -78,7 +93,8 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
         cnpj_vinculado: centroCusto.cnpj_vinculado || "",
         telefone: centroCusto.telefone || "",
         situacao: centroCusto.situacao,
-        aprovador_diarias_id: centroCusto.aprovador_diarias_id || ""
+        aprovador_diarias_id: centroCusto.aprovador_diarias_id || "",
+        diretoria_id: centroCusto.diretoria_id || ""
       });
     } else {
       form.reset({
@@ -87,7 +103,8 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
         cnpj_vinculado: "",
         telefone: "",
         situacao: "Ativo",
-        aprovador_diarias_id: ""
+        aprovador_diarias_id: "",
+        diretoria_id: ""
       });
     }
   }, [centroCusto, form, isOpen]);
@@ -117,7 +134,8 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
         cnpj_vinculado: values.cnpj_vinculado || undefined,
         telefone: values.telefone || undefined,
         situacao: values.situacao,
-        aprovador_diarias_id: values.aprovador_diarias_id || undefined
+        aprovador_diarias_id: values.aprovador_diarias_id || undefined,
+        diretoria_id: values.diretoria_id || undefined
       };
 
       if (centroCusto) {
@@ -274,6 +292,35 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
                   <p className="text-xs text-muted-foreground mt-1">
                     Apenas funcionários cadastrados como "Gerente Regional" podem ser aprovadores de diárias.
                   </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Campo Diretoria Responsável */}
+            <FormField
+              control={form.control}
+              name="diretoria_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Diretoria Responsável *</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value || ""}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione uma diretoria..." />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {diretorias.map((dir: any) => (
+                        <SelectItem key={dir.id} value={dir.id}>
+                          {dir.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

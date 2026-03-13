@@ -15,6 +15,11 @@ export interface CentroCusto {
     nome_completo: string;
     email?: string;
   };
+  diretoria_id: string | null;
+  diretoria?: {
+    id: string;
+    nome: string;
+  };
 }
 
 export interface CentroCustoFormData {
@@ -24,6 +29,7 @@ export interface CentroCustoFormData {
   telefone?: string;
   situacao: 'Ativo' | 'Inativo';
   aprovador_diarias_id?: string;
+  diretoria_id?: string;
 }
 
 export interface CentroCustoFilter {

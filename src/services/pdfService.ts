@@ -242,7 +242,13 @@ export const generateSolicitacaoPDF = async (
     funcionariosMap?: Record<string, string>;
     funcoesMap?: Record<string, string>;
   },
-  fileName: string
+  fileName: string,
+  analise?: {
+    diasUteis: number;
+    sabados: number;
+    domingos: number;
+    feriados: number;
+  }
 ): Promise<void> => {
   try {
     // Carregar logo como base64
@@ -253,7 +259,8 @@ export const generateSolicitacaoPDF = async (
       solicitacao,
       convocados,
       dadosComplementares,
-      logoUrl: logoUrl || undefined
+      logoUrl: logoUrl || undefined,
+      analise
     });
     
     // Gerar o blob do PDF

@@ -277,6 +277,16 @@ const checkEmailDuplicate = async (email: string, excludeId?: string): Promise<b
 const sanitizeFormData = (data: FuncionarioFormData) => {
   const sanitizedData = { ...data };
   
+  // Force nome_completo to uppercase
+  if (sanitizedData.nome_completo) {
+    sanitizedData.nome_completo = sanitizedData.nome_completo.toUpperCase().trim();
+  }
+  
+  // Strip CPF mask (keep digits only)
+  if (sanitizedData.cpf) {
+    sanitizedData.cpf = sanitizedData.cpf.replace(/\D/g, '');
+  }
+  
   // Normalize email
   if (sanitizedData.email) {
     sanitizedData.email = normalizeEmail(sanitizedData.email);

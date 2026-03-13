@@ -6,7 +6,7 @@ import { BulkActionBar } from '@/components/ssoAgendamentoExames/list/BulkAction
 import { AgendamentoExamesDialog, AgendamentoExamesViewDialog } from '@/components/ssoAgendamentoExames/dialog';
 import { NovoAgendamentoDropdown } from '@/components/ssoAgendamentoExames/NovoAgendamentoDropdown';
 import { FuncionarioSelectorDialog } from '@/components/ssoAgendamentoExames/FuncionarioSelectorDialog';
-import { ImportStatusCarteiraModal } from '@/components/ssoAgendamentoExames/import';
+import { ImportStatusCarteiraModal, ImportAlterdataModal } from '@/components/ssoAgendamentoExames/import';
 import { useAgendamentoExames } from '@/hooks/ssoAgendamentoExames';
 import { AgendamentoExameFilters, TipoExame, FuncionarioSelecionado } from '@/types/ssoAgendamentoExames';
 import { useAuthPermissions } from '@/hooks/useAuthPermissions';
@@ -41,6 +41,7 @@ const SSOAgendamentoExames: React.FC = () => {
   const [funcionarioSelecionado, setFuncionarioSelecionado] = useState<FuncionarioSelecionado | null>(null);
   const [modoFuncionario, setModoFuncionario] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importAlterdataOpen, setImportAlterdataOpen] = useState(false);
 
   const { 
     agendamentos, 
@@ -230,6 +231,10 @@ const SSOAgendamentoExames: React.FC = () => {
               <FileSpreadsheet className="h-4 w-4 mr-2" />
               Importar Excel
             </Button>
+            <Button variant="outline" onClick={() => setImportAlterdataOpen(true)}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Importar Alterdata
+            </Button>
             {canCreate && (
               <NovoAgendamentoDropdown
                 onNovoAgendamento={handleNovoAgendamento}
@@ -320,6 +325,12 @@ const SSOAgendamentoExames: React.FC = () => {
           onOpenChange={setImportModalOpen}
           agendamentos={agendamentos}
           updateStatusCarteira={updateStatusCarteira}
+        />
+
+        {/* Import Alterdata Modal */}
+        <ImportAlterdataModal
+          open={importAlterdataOpen}
+          onOpenChange={setImportAlterdataOpen}
         />
 
         {/* Delete Confirmation */}

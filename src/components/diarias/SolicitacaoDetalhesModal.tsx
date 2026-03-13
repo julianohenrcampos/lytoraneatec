@@ -269,7 +269,13 @@ export function SolicitacaoDetalhesModal({
         solicitacao,
         convocadosPre,
         dadosComplementares || {},
-        fileName
+        fileName,
+        analise ? {
+          diasUteis: analise.diasUteis,
+          sabados: analise.sabados,
+          domingos: analise.domingos,
+          feriados: analise.feriados,
+        } : undefined
       );
       toast.success('PDF gerado com sucesso!');
     } catch (error) {

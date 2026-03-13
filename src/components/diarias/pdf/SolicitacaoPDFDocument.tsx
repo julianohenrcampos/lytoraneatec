@@ -4,6 +4,13 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { DiariaSolicitacao, FuncionarioPreConvocado } from '@/types/diarias';
 
+interface AnalisePerido {
+  diasUteis: number;
+  sabados: number;
+  domingos: number;
+  feriados: number;
+}
+
 interface SolicitacaoPDFDocumentProps {
   solicitacao: DiariaSolicitacao;
   convocados: FuncionarioPreConvocado[];
@@ -15,6 +22,7 @@ interface SolicitacaoPDFDocumentProps {
     funcoesMap?: Record<string, string>;
   };
   logoUrl?: string;
+  analise?: AnalisePerido;
 }
 
 function formatCurrency(value: number): string {
@@ -47,26 +55,47 @@ export const SolicitacaoPDFDocument = ({
   solicitacao,
   convocados,
   dadosComplementares,
-  logoUrl
+  logoUrl,
+  analise
 }: SolicitacaoPDFDocumentProps) => {
-  const diasUteis = solicitacao.qtde_dias_uteis_estimado || 0;
-  const diasFds = solicitacao.qtde_fds_estimado || 0;
-  const diasFeriados = solicitacao.qtde_feriados_estimado || 0;
-  const diasEspeciais = diasFds + diasFeriados;
   const consideraFdsEFeriado = solicitacao.considera_fds_feriado;
 
+  // Usar análise real do período (sábados = diária normal, domingos/feriados = exclusiva)
+  const diasUteisReal = analise?.diasUteis || solicitacao.qtde_dias_uteis_estimado || 0;
+  const sabadosReal = analise?.sabados || 0;
+  const domingosReal = analise?.domingos || 0;
+  const feriadosReal = analise?.feriados || solicitacao.qtde_feriados_estimado || 0;
+
+  const diasNormais = diasUteisReal + sabadosReal; // pagam diária normal
+  const diasExclusivos = domingosReal + feriadosReal; // pagam diária exclusiva
+  const mostrarDiariasExclusivas = consideraFdsEFeriado && diasExclusivos > 0;
+
   // Calcular totais
-  let totalDiasUteis = 0;
-  let totalDiasEspeciais = 0;
+  let totalDiariasNormais = 0;
+  let totalDiariasExclusivas = 0;
+  let totalRefeicoes = 0;
 
   convocados.forEach(conv => {
-    totalDiasUteis += (conv.valor_diaria || 0) * diasUteis;
-    if (consideraFdsEFeriado) {
-      totalDiasEspeciais += (conv.valor_diaria_exclusiva || conv.valor_diaria || 0) * diasEspeciais;
+    const valorDiaria = conv.valor_diaria || 0;
+    const valorExclusiva = conv.valor_diaria_exclusiva || valorDiaria * 1.2;
+    const valorRefeicao = conv.valor_refeicao || 0;
+    const forcarExclusiva = conv.usar_diaria_exclusiva === true;
+
+    if (forcarExclusiva) {
+      const totalDias = consideraFdsEFeriado ? diasNormais + diasExclusivos : diasNormais;
+      totalDiariasExclusivas += totalDias * valorExclusiva;
+      totalRefeicoes += totalDias * valorRefeicao;
+    } else {
+      totalDiariasNormais += diasNormais * valorDiaria;
+      if (consideraFdsEFeriado) {
+        totalDiariasExclusivas += diasExclusivos * valorExclusiva;
+      }
+      const diasParaRefeicao = consideraFdsEFeriado ? diasNormais + diasExclusivos : diasNormais;
+      totalRefeicoes += diasParaRefeicao * valorRefeicao;
     }
   });
 
-  const totalGeral = solicitacao.valor_estimado_total || (totalDiasUteis + totalDiasEspeciais);
+  const totalGeral = totalDiariasNormais + totalDiariasExclusivas + totalRefeicoes;
   const centroCusto = `${solicitacao.bd_centros_custo?.codigo_centro_custo || ''} - ${solicitacao.bd_centros_custo?.nome_centro_custo || ''}`;
 
   return (
@@ -123,15 +152,19 @@ export const SolicitacaoPDFDocument = ({
         {/* Contagem de Dias */}
         <View style={styles.statsPanel}>
           <View style={styles.statBox}>
-            <Text style={styles.statValue}>{diasUteis}</Text>
-            <Text style={styles.statLabel}>Dias Úteis</Text>
+            <Text style={styles.statValue}>{diasUteisReal}</Text>
+            <Text style={styles.statLabel}>Seg-Sex</Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={styles.statValue}>{diasFds}</Text>
-            <Text style={styles.statLabel}>Finais de Semana</Text>
+            <Text style={styles.statValue}>{sabadosReal}</Text>
+            <Text style={styles.statLabel}>Sábados</Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={styles.statValue}>{diasFeriados}</Text>
+            <Text style={styles.statValue}>{domingosReal}</Text>
+            <Text style={styles.statLabel}>Domingos</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={styles.statValue}>{feriadosReal}</Text>
             <Text style={styles.statLabel}>Feriados</Text>
           </View>
         </View>
@@ -154,7 +187,10 @@ export const SolicitacaoPDFDocument = ({
                 <Text style={[styles.tableHeaderCell, { flex: 3 }]}>Funcionário</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 2 }]}>Função</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}>Diária Útil</Text>
-                <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}>Diária FDS/Fer</Text>
+                {mostrarDiariasExclusivas && (
+                  <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}>Diária FDS/Fer</Text>
+                )}
+                <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}>Refeição</Text>
               </View>
               {/* Rows */}
               {convocados.map((conv, idx) => (
@@ -172,8 +208,13 @@ export const SolicitacaoPDFDocument = ({
                   <Text style={[styles.tableCell, { flex: 1, textAlign: 'right' }]}>
                     {formatCurrency(conv.valor_diaria || 0)}
                   </Text>
+                  {mostrarDiariasExclusivas && (
+                    <Text style={[styles.tableCell, { flex: 1, textAlign: 'right' }]}>
+                      {formatCurrency(conv.valor_diaria_exclusiva || conv.valor_diaria || 0)}
+                    </Text>
+                  )}
                   <Text style={[styles.tableCell, { flex: 1, textAlign: 'right' }]}>
-                    {formatCurrency(conv.valor_diaria_exclusiva || conv.valor_diaria || 0)}
+                    {formatCurrency(conv.valor_refeicao || 0)}
                   </Text>
                 </View>
               ))}
@@ -183,18 +224,28 @@ export const SolicitacaoPDFDocument = ({
 
         {/* Valor Total Estimado */}
         <View style={styles.totalsSection}>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>
-              Dias úteis ({diasUteis} dias × {convocados.length} func.)
-            </Text>
-            <Text style={styles.totalValue}>{formatCurrency(totalDiasUteis)}</Text>
-          </View>
-          {consideraFdsEFeriado && diasEspeciais > 0 && (
+          {diasNormais > 0 && (
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>
-                FDS/Feriados ({diasEspeciais} dias × {convocados.length} func.)
+                Diárias Úteis + Sáb ({diasNormais} {diasNormais === 1 ? 'dia' : 'dias'} × {convocados.length} func.)
               </Text>
-              <Text style={styles.totalValue}>{formatCurrency(totalDiasEspeciais)}</Text>
+              <Text style={styles.totalValue}>{formatCurrency(totalDiariasNormais)}</Text>
+            </View>
+          )}
+          {mostrarDiariasExclusivas && (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>
+                Diárias Dom/Feriados ({diasExclusivos} {diasExclusivos === 1 ? 'dia' : 'dias'} × {convocados.length} func.)
+              </Text>
+              <Text style={styles.totalValue}>{formatCurrency(totalDiariasExclusivas)}</Text>
+            </View>
+          )}
+          {totalRefeicoes > 0 && (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>
+                Refeições ({consideraFdsEFeriado ? diasNormais + diasExclusivos : diasNormais} {(consideraFdsEFeriado ? diasNormais + diasExclusivos : diasNormais) === 1 ? 'dia' : 'dias'} × {convocados.length} func.)
+              </Text>
+              <Text style={styles.totalValue}>{formatCurrency(totalRefeicoes)}</Text>
             </View>
           )}
           <View style={styles.totalRowMain}>

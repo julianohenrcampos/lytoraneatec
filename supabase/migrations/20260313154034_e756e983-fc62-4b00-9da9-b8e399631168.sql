@@ -1,0 +1,1 @@
+ALTER TABLE bd_centros_custo ADD COLUMN IF NOT EXISTS nome_alterdata TEXT;

@@ -66,6 +66,12 @@ export const menuStructure = [
         requiredPermission: "gestao_rh_centros_custo_view"
       },
       {
+        name: "Diretorias",
+        href: "/gestao-rh/diretorias",
+        icon: Building2,
+        requiredPermission: "gestao_rh_diretorias_view"
+      },
+      {
         name: "Funções",
         href: "/gestao-rh/funcoes",
         icon: UserCheck,

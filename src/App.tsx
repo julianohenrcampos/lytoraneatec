@@ -27,6 +27,7 @@ import GestaoCentrosCusto from "@/pages/GestaoCentrosCusto";
 import GestaoFuncoes from "@/pages/GestaoFuncoes";
 import GestaoFuncionarios from "@/pages/GestaoFuncionarios";
 import GestaoEquipes from "@/pages/GestaoEquipes";
+import GestaoDiretorias from "@/pages/GestaoDiretorias";
 
 // Gestão Máquinas - using correct file names
 import DashboardMaquinas from "@/pages/DashboardMaquinas";
@@ -160,6 +161,15 @@ const App = () => {
                 <SimplePermissionGuard>
                   <SecureRouteGuard requiredPermission="gestao_rh_centros_custo_view">
                     <GestaoCentrosCusto />
+                  </SecureRouteGuard>
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/gestao-rh/diretorias" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <SecureRouteGuard requiredPermission="gestao_rh_diretorias_view">
+                    <GestaoDiretorias />
                   </SecureRouteGuard>
                 </SimplePermissionGuard>
               </SimpleAuthGuard>

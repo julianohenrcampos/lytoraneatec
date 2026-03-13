@@ -33,6 +33,7 @@ import {
   parseBrazilianDate,
 } from "@/utils/timezoneUtils";
 import { FuncionarioFormData, Funcionario } from "@/types/funcionario";
+import { formatCPF } from "@/utils/textTransform";
 
 interface PessoalTabProps {
   form: UseFormReturn<FuncionarioFormData>;
@@ -83,7 +84,12 @@ export default function PessoalTab({
             <FormItem>
               <FormLabel>Nome Completo *</FormLabel>
               <FormControl>
-                <Input placeholder="Digite o nome completo" {...field} />
+                <Input
+                  placeholder="Digite o nome completo"
+                  {...field}
+                  className="uppercase"
+                  onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -98,7 +104,13 @@ export default function PessoalTab({
             <FormItem>
               <FormLabel>CPF</FormLabel>
               <FormControl>
-                <Input placeholder="000.000.000-00" {...field} />
+                <Input
+                  placeholder="000.000.000-00"
+                  {...field}
+                  value={formatCPF(field.value || "")}
+                  onChange={(e) => field.onChange(formatCPF(e.target.value))}
+                  maxLength={14}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
