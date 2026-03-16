@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { ssoDashboardService } from '@/services/sso/ssoDashboardService';
+import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
 
 export interface DashboardFilters {
   obra_id?: string;
@@ -9,6 +10,8 @@ export interface DashboardFilters {
 }
 
 export const useSSODashboard = (filters?: DashboardFilters) => {
+  const { isSuperAdmin } = useDynamicPermissions();
+
   const dashboardQuery = useQuery({
     queryKey: ['sso-dashboard', filters],
     queryFn: () => ssoDashboardService.getDashboardData(filters),
@@ -16,8 +19,8 @@ export const useSSODashboard = (filters?: DashboardFilters) => {
   });
 
   const obrasStatusQuery = useQuery({
-    queryKey: ['sso-obras-status'],
-    queryFn: () => ssoDashboardService.getObrasStatus(),
+    queryKey: ['sso-obras-status', isSuperAdmin],
+    queryFn: () => ssoDashboardService.getObrasStatus(isSuperAdmin),
     refetchOnWindowFocus: false
   });
 

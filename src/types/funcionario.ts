@@ -99,10 +99,14 @@ export interface FuncionarioFormData {
 // Filter options for funcionarios
 export interface FuncionarioFilter {
   nome_completo?: string;
+  cpf?: string;
+  matricula?: string;
   data_admissao_inicio?: string;
   data_admissao_fim?: string;
   centro_custo_id?: string;
   departamento_id?: string;
   funcao_id?: string;
+  empresa_id?: string;
+  equipe_id?: string;
   status?: "Ativo" | "Ativo sem Registro" | "Inativo" | "Aviso Prévio" | "INSS";
 }

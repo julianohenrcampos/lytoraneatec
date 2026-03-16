@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { debugLog } from "@/lib/debug";
+import { excludeRestrictedCC } from "@/utils/centroCustoRestrictions";
 
 /**
  * Fetch centros de custo filtered by user role and permissions
@@ -22,6 +23,7 @@ export const fetchCentrosCustoFiltered = async (
         .select('id, nome_centro_custo')
         .eq('situacao', 'Ativo')
         .order('nome_centro_custo');
+      // SuperAdmin sees all including DIR001
 
       if (error) {
         console.error("❌ Error loading centros de custo for SuperAdmin:", error);
@@ -36,11 +38,13 @@ export const fetchCentrosCustoFiltered = async (
     if (!userId) {
       console.log("⚠️ No userId provided, loading all active centros de custo");
       // If no userId provided, return all active centros de custo
-      const { data, error } = await supabase
+      let query = supabase
         .from('bd_centros_custo')
         .select('id, nome_centro_custo')
         .eq('situacao', 'Ativo')
         .order('nome_centro_custo');
+      query = excludeRestrictedCC(query, false);
+      const { data, error } = await query;
 
       if (error) {
         console.error("❌ Error loading centros de custo:", error);
@@ -64,11 +68,13 @@ export const fetchCentrosCustoFiltered = async (
     if (userError) {
       console.error("❌ Error loading user's data:", userError);
       // Fallback to all centros de custo if user query fails
-      const { data: fallbackData, error: fallbackError } = await supabase
+      let fallbackQuery = supabase
         .from('bd_centros_custo')
         .select('id, nome_centro_custo')
         .eq('situacao', 'Ativo')
         .order('nome_centro_custo');
+      fallbackQuery = excludeRestrictedCC(fallbackQuery, false);
+      const { data: fallbackData, error: fallbackError } = await fallbackQuery;
       
       return fallbackData || [];
     }
@@ -88,11 +94,13 @@ export const fetchCentrosCustoFiltered = async (
       if (centroCustoError || !centroCustoData) {
         console.log("⚠️ Centro de custo not found or inactive, falling back to all");
         // Fallback to all active centros de custo
-        const { data: fallbackData, error: fallbackError } = await supabase
+        let fallbackQuery2 = supabase
           .from('bd_centros_custo')
           .select('id, nome_centro_custo')
           .eq('situacao', 'Ativo')
           .order('nome_centro_custo');
+        fallbackQuery2 = excludeRestrictedCC(fallbackQuery2, false);
+        const { data: fallbackData, error: fallbackError } = await fallbackQuery2;
         
         return fallbackData || [];
       }
@@ -103,11 +111,13 @@ export const fetchCentrosCustoFiltered = async (
 
     // If no direct assignment, fallback to all active centros de custo
     console.log("⚠️ No direct centro de custo found, falling back to all active centros");
-    const { data: fallbackData, error: fallbackError } = await supabase
+    let fallbackQuery3 = supabase
       .from('bd_centros_custo')
       .select('id, nome_centro_custo')
       .eq('situacao', 'Ativo')
       .order('nome_centro_custo');
+    fallbackQuery3 = excludeRestrictedCC(fallbackQuery3, false);
+    const { data: fallbackData, error: fallbackError } = await fallbackQuery3;
     
     return fallbackData || [];
   } catch (error) {
@@ -116,11 +126,13 @@ export const fetchCentrosCustoFiltered = async (
     
     // Final fallback - return all active centros de custo
     try {
-      const { data: fallbackData } = await supabase
+      let fallbackQuery4 = supabase
         .from('bd_centros_custo')
         .select('id, nome_centro_custo')
         .eq('situacao', 'Ativo')
         .order('nome_centro_custo');
+      fallbackQuery4 = excludeRestrictedCC(fallbackQuery4, false);
+      const { data: fallbackData } = await fallbackQuery4;
       
       console.log("📋 Using fallback - loaded all active centros de custo");
       return fallbackData || [];

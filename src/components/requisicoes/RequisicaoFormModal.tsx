@@ -20,6 +20,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
+import { RESTRICTED_CC_CODE } from "@/utils/centroCustoRestrictions";
 
 interface RequisicaoFormModalProps {
   open?: boolean;
@@ -39,6 +41,7 @@ const RequisicaoFormModal: React.FC<RequisicaoFormModalProps> = ({
   requisicao
 }) => {
   const modalIsOpen = open ?? isOpen ?? false;
+  const { isSuperAdmin } = useDynamicPermissions();
   const handleClose = () => {
     onOpenChange?.(false);
     onClose?.();
@@ -67,12 +70,11 @@ const RequisicaoFormModal: React.FC<RequisicaoFormModalProps> = ({
   const {
     data: centrosCusto = []
   } = useQuery({
-    queryKey: ['centrosCusto'],
+    queryKey: ['centrosCusto', isSuperAdmin],
     queryFn: async () => {
-      const {
-        data,
-        error
-      } = await supabase.from('bd_centros_custo').select('id, nome_centro_custo, codigo_centro_custo').order('nome_centro_custo');
+      let query = supabase.from('bd_centros_custo').select('id, nome_centro_custo, codigo_centro_custo');
+      if (!isSuperAdmin) query = query.neq('codigo_centro_custo', RESTRICTED_CC_CODE);
+      const { data, error } = await query.order('nome_centro_custo');
       if (error) throw error;
       return data;
     }

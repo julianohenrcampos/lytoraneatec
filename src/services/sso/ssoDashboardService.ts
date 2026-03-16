@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { SSODashboardData } from '@/types/sso';
+import { RESTRICTED_CC_CODE } from '@/utils/centroCustoRestrictions';
 
 export const ssoDashboardService = {
   /**
@@ -163,12 +164,14 @@ export const ssoDashboardService = {
   /**
    * Buscar status das obras (avaliadas vs pendentes)
    */
-  async getObrasStatus() {
+  async getObrasStatus(isSuperAdmin: boolean = false) {
     // Total de obras ativas
-    const { count: totalObras } = await supabase
+    let countQuery = supabase
       .from('bd_centros_custo')
       .select('*', { count: 'exact', head: true })
       .eq('situacao', 'Ativo');
+    if (!isSuperAdmin) countQuery = countQuery.neq('codigo_centro_custo', RESTRICTED_CC_CODE);
+    const { count: totalObras } = await countQuery;
 
     // Obras com checklist
     const { data: obrasAvaliadas } = await supabase
@@ -179,12 +182,13 @@ export const ssoDashboardService = {
     const totalAvaliadas = obrasAvaliadasIds.size;
 
     // Obras pendentes
-    const { data: obrasPendentes } = await supabase
+    let pendentesQuery = supabase
       .from('bd_centros_custo')
       .select('id, nome_centro_custo, codigo_centro_custo')
       .eq('situacao', 'Ativo')
       .not('id', 'in', `(${Array.from(obrasAvaliadasIds).join(',')})`);
-
+    if (!isSuperAdmin) pendentesQuery = pendentesQuery.neq('codigo_centro_custo', RESTRICTED_CC_CODE);
+    const { data: obrasPendentes } = await pendentesQuery;
     return {
       total: totalObras || 0,
       avaliadas: totalAvaliadas,

@@ -27,6 +27,7 @@ import { toast } from 'sonner';
 import { Loader2, Camera, Image as ImageIcon, X } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuthPermissions } from '@/hooks/useAuthPermissions';
+import { RESTRICTED_CC_CODE } from '@/utils/centroCustoRestrictions';
 
 interface SSODesvioDialogProps {
   open: boolean;
@@ -71,13 +72,14 @@ export const SSODesvioDialog: React.FC<SSODesvioDialogProps> = ({
 
   // Buscar obras
   const { data: obras = [] } = useQuery({
-    queryKey: ['obras-ativas'],
+    queryKey: ['obras-ativas', isSuperAdmin],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('bd_centros_custo')
         .select('id, nome_centro_custo, codigo_centro_custo')
-        .eq('situacao', 'Ativo')
-        .order('nome_centro_custo');
+        .eq('situacao', 'Ativo');
+      if (!isSuperAdmin) query = query.neq('codigo_centro_custo', RESTRICTED_CC_CODE);
+      const { data, error } = await query.order('nome_centro_custo');
       if (error) throw error;
       return data || [];
     }

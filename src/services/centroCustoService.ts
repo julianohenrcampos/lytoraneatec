@@ -1,12 +1,16 @@
 import { supabase } from "@/integrations/supabase/client";
 import { CentroCusto, CentroCustoFormData, CentroCustoFilter } from "@/types/centroCusto";
+import { excludeRestrictedCC } from "@/utils/centroCustoRestrictions";
 import * as XLSX from "xlsx";
 
 // Fetch centros de custo with filters
-export const fetchCentrosCusto = async (filters: CentroCustoFilter = {}): Promise<CentroCusto[]> => {
+export const fetchCentrosCusto = async (filters: CentroCustoFilter = {}, isSuperAdmin: boolean = false): Promise<CentroCusto[]> => {
   let query = supabase
     .from("bd_centros_custo")
     .select("*");
+  
+  // Ocultar DIR001 para não-SuperAdmin
+  query = excludeRestrictedCC(query, isSuperAdmin);
   
   // Apply filters if provided
   if (filters.codigo_centro_custo) {

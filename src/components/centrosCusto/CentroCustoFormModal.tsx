@@ -30,7 +30,7 @@ const formSchema = z.object({
   telefone: z.string().optional(),
   situacao: z.enum(["Ativo", "Inativo"]),
   aprovador_diarias_id: z.string().optional(),
-  diretoria_id: z.string().min(1, { message: "Diretoria é obrigatória" }),
+  diretoria_id: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -303,7 +303,7 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
               name="diretoria_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Diretoria Responsável *</FormLabel>
+                  <FormLabel>Diretoria Responsável</FormLabel>
                   <Select
                     onValueChange={field.onChange}
                     value={field.value || ""}

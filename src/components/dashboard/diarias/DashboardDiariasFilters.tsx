@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Combobox } from "@/components/ui/combobox";
+import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
 
 export type PeriodFilter = "today" | "week" | "month" | "quarter" | "year" | "custom";
 
@@ -37,15 +38,17 @@ export default function DashboardDiariasFilters({
   onFilterChange, 
   onClearFilters 
 }: DashboardDiariasFiltersProps) {
+  const { isSuperAdmin } = useDynamicPermissions();
   // Centros de custo
   const { data: centrosCusto = [] } = useQuery({
-    queryKey: ['centros-custo-diarias-dashboard'],
+    queryKey: ['centros-custo-diarias-dashboard', isSuperAdmin],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('bd_centros_custo')
         .select('id, codigo_centro_custo, nome_centro_custo')
-        .eq('situacao', 'Ativo')
-        .order('codigo_centro_custo');
+        .eq('situacao', 'Ativo');
+      if (!isSuperAdmin) query = query.neq('codigo_centro_custo', 'DIR001');
+      const { data, error } = await query.order('codigo_centro_custo');
       if (error) throw error;
       return data || [];
     },

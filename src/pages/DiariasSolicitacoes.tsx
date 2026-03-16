@@ -153,12 +153,13 @@ export default function DiariasSolicitacoes() {
   
   // Centro de custos
   const { data: centrosCusto = [] } = useQuery({
-    queryKey: ['centros-custo'],
+    queryKey: ['centros-custo', isSuperAdmin],
     queryFn: async () => {
-      const { data } = await supabase
+      let query = supabase
         .from('bd_centros_custo')
-        .select('id, codigo_centro_custo, nome_centro_custo')
-        .order('nome_centro_custo');
+        .select('id, codigo_centro_custo, nome_centro_custo');
+      if (!isSuperAdmin) query = query.neq('codigo_centro_custo', 'DIR001');
+      const { data } = await query.order('nome_centro_custo');
       return data || [];
     }
   });

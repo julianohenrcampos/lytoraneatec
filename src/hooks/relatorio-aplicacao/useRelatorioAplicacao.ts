@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
+import { RESTRICTED_CC_CODE } from '@/utils/centroCustoRestrictions';
 
 interface CentroCusto {
   id: string;
@@ -70,19 +72,21 @@ export const useRelatorioAplicacao = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const { isSuperAdmin } = useDynamicPermissions();
 
   // Carregar centros de custo na inicialização
   useEffect(() => {
     carregarCentrosCusto();
-  }, []);
+  }, [isSuperAdmin]);
 
   const carregarCentrosCusto = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('bd_centros_custo')
         .select('id, nome_centro_custo, codigo_centro_custo')
-        .eq('situacao', 'Ativo')
-        .order('codigo_centro_custo');
+        .eq('situacao', 'Ativo');
+      if (!isSuperAdmin) query = query.neq('codigo_centro_custo', RESTRICTED_CC_CODE);
+      const { data, error } = await query.order('codigo_centro_custo');
 
       if (error) throw error;
 

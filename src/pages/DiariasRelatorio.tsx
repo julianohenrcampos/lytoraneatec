@@ -79,12 +79,13 @@ export default function DiariasRelatorio() {
 
   // Centro de custos (com aprovador)
   const { data: centrosCusto = [] } = useQuery({
-    queryKey: ['centros-custo-com-aprovador'],
+    queryKey: ['centros-custo-com-aprovador', isSuperAdmin],
     queryFn: async () => {
-      const { data } = await supabase.
+      let query = supabase.
       from('bd_centros_custo').
-      select('id, codigo_centro_custo, nome_centro_custo, aprovador_diarias_id').
-      order('nome_centro_custo');
+      select('id, codigo_centro_custo, nome_centro_custo, aprovador_diarias_id');
+      if (!isSuperAdmin) query = query.neq('codigo_centro_custo', 'DIR001');
+      const { data } = await query.order('nome_centro_custo');
       return data || [];
     }
   });
@@ -437,7 +438,8 @@ export default function DiariasRelatorio() {
       const { dados, totalGeralQuantidade, totalGeralValor } = buildCompiladoData(
         relatorio,
         centrosCusto as any,
-        gerentesMap
+        gerentesMap,
+        feriados
       );
 
       // Determine período label
@@ -469,9 +471,16 @@ export default function DiariasRelatorio() {
       } else {
         mesAno = format(new Date(), 'MMMM/yyyy', { locale: ptBR }).toUpperCase();
       }
+      // Build periodo string
+      let periodo: string | undefined;
+      if (filters.data_inicio && filters.data_fim) {
+        const fmtInicio = format(new Date(filters.data_inicio + 'T12:00:00'), 'dd/MM/yyyy');
+        const fmtFim = format(new Date(filters.data_fim + 'T12:00:00'), 'dd/MM/yyyy');
+        periodo = `${fmtInicio} à ${fmtFim}`;
+      }
 
       const fileName = `Compilado_Diarias_${mesAno.replace(/[^a-zA-Z0-9]/g, '_')}`;
-      await generateCompiladoDiariasPDF(dados, mesAno, totalGeralQuantidade, totalGeralValor, fileName);
+      await generateCompiladoDiariasPDF(dados, mesAno, totalGeralQuantidade, totalGeralValor, fileName, periodo);
       toast.success('PDF Compilado gerado com sucesso!');
     } catch (error) {
       console.error('Erro ao gerar PDF compilado:', error);

@@ -418,6 +418,10 @@ interface CompiladoGerencia {
     centroCusto: string;
     quantidade: number;
     valor: number;
+    quantidadeDS: number;
+    valorDS: number;
+    quantidadeFS: number;
+    valorFS: number;
   }[];
   totalQuantidade: number;
   totalValor: number;
@@ -428,7 +432,8 @@ export const generateCompiladoDiariasPDF = async (
   mesAno: string,
   totalGeralQuantidade: number,
   totalGeralValor: number,
-  fileName: string
+  fileName: string,
+  periodo?: string
 ): Promise<void> => {
   try {
     const logoUrl = await loadImageAsBase64('/lyto-uploads/dcf6c980-f927-4180-b109-b425da1323ba.png');
@@ -439,6 +444,7 @@ export const generateCompiladoDiariasPDF = async (
       logoUrl: logoUrl || undefined,
       totalGeralQuantidade,
       totalGeralValor,
+      periodo,
     });
 
     const blob = await pdf(doc as any).toBlob();

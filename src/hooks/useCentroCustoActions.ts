@@ -8,6 +8,7 @@ import {
   exportToExcel as exportService
 } from "@/services/centroCustoService";
 import { useToast } from "./use-toast";
+import { useDynamicPermissions } from "./useDynamicPermissions";
 
 export function useCentroCustoActions() {
   const [filters, setFilters] = useState<CentroCustoFilter>({});
@@ -20,6 +21,7 @@ export function useCentroCustoActions() {
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { isSuperAdmin } = useDynamicPermissions();
 
   // Query para buscar centros de custo
   const { 
@@ -28,8 +30,8 @@ export function useCentroCustoActions() {
     isError, 
     refetch 
   } = useQuery({
-    queryKey: ['centrosCusto', filters],
-    queryFn: () => fetchCentrosCusto(filters)
+    queryKey: ['centrosCusto', filters, isSuperAdmin],
+    queryFn: () => fetchCentrosCusto(filters, isSuperAdmin)
   });
 
   // Mutation para excluir centro de custo

@@ -9,6 +9,14 @@ const applyFilters = (query: any, filters: FuncionarioFilter) => {
     query = query.ilike("nome_completo", `%${filters.nome_completo}%`);
   }
 
+  if (filters.cpf) {
+    query = query.ilike("cpf", `%${filters.cpf.replace(/\D/g, '')}%`);
+  }
+
+  if (filters.matricula) {
+    query = query.ilike("matricula", `%${filters.matricula}%`);
+  }
+
   if (filters.data_admissao_inicio) {
     query = query.gte("data_admissao", filters.data_admissao_inicio);
   }
@@ -21,24 +29,39 @@ const applyFilters = (query: any, filters: FuncionarioFilter) => {
     if (filters.funcao_id === "sem_funcao") {
       query = query.is("funcao_id", null);
     } else {
-      query = query.not('funcao_id', 'is', null);
-      if (filters.funcao_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-        query = query.eq("funcao_id", filters.funcao_id);
-      }
+      query = query.eq("funcao_id", filters.funcao_id);
     }
   }
 
   if (filters.departamento_id) {
-    query = query.not('departamento_id', 'is', null);
-    if (filters.departamento_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+    if (filters.departamento_id === "sem_valor") {
+      query = query.is("departamento_id", null);
+    } else {
       query = query.eq("departamento_id", filters.departamento_id);
     }
   }
 
   if (filters.centro_custo_id) {
-    query = query.not('centro_custo_id', 'is', null);
-    if (filters.centro_custo_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+    if (filters.centro_custo_id === "sem_valor") {
+      query = query.is("centro_custo_id", null);
+    } else {
       query = query.eq("centro_custo_id", filters.centro_custo_id);
+    }
+  }
+
+  if (filters.empresa_id) {
+    if (filters.empresa_id === "sem_valor") {
+      query = query.is("empresa_id", null);
+    } else {
+      query = query.eq("empresa_id", filters.empresa_id);
+    }
+  }
+
+  if (filters.equipe_id) {
+    if (filters.equipe_id === "sem_valor") {
+      query = query.is("equipe_id", null);
+    } else {
+      query = query.eq("equipe_id", filters.equipe_id);
     }
   }
 

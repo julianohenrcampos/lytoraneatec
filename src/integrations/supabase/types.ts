@@ -1761,6 +1761,7 @@ export type Database = {
           funcao_id: string | null
           funcao_nome: string | null
           id: string
+          lote_importacao: string | null
           matricula: string | null
           nome_funcionario: string | null
           status_processamento: string
@@ -1779,6 +1780,7 @@ export type Database = {
           funcao_id?: string | null
           funcao_nome?: string | null
           id?: string
+          lote_importacao?: string | null
           matricula?: string | null
           nome_funcionario?: string | null
           status_processamento?: string
@@ -1797,6 +1799,7 @@ export type Database = {
           funcao_id?: string | null
           funcao_nome?: string | null
           id?: string
+          lote_importacao?: string | null
           matricula?: string | null
           nome_funcionario?: string | null
           status_processamento?: string

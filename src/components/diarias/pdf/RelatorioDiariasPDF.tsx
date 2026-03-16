@@ -10,6 +10,7 @@ interface FuncionarioConsolidado {
   funcionario_id: string;
   nome_funcionario: string;
   nome_funcao: string;
+  codigo_centro_custo: string;
   matricula: string;
   cpf: string;
   banco: string;
@@ -92,6 +93,7 @@ function consolidarFuncionarios(
         funcionario_id: item.funcionario_id,
         nome_funcionario: item.nome_funcionario,
         nome_funcao: item.nome_funcao || '-',
+        codigo_centro_custo: item.codigo_centro_custo || '-',
         matricula: item.matricula_funcionario || '-',
         cpf: item.cpf_funcionario ? formatCPF(item.cpf_funcionario) : '-',
         banco: item.banco_funcionario || '-',
@@ -295,9 +297,10 @@ export const RelatorioDiariasPDF = ({
           </Text>
           <View style={styles.table}>
             <View style={styles.tableHeader} fixed>
-              <Text style={[styles.tableHeaderCell, { flex: 2.2 }]}>Funcionário</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Função</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>Matrícula</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 2.0 }]}>Funcionário</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 0.7, textAlign: 'center' }]}>C.Custo</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1.8 }]}>Função</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 0.7, textAlign: 'right' }]}>Matrícula</Text>
               <Text style={[styles.tableHeaderCell, { flex: 1.1 }]}>CPF</Text>
               <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>Banco</Text>
               <Text style={[styles.tableHeaderCell, { flex: 0.7 }]}>Agência</Text>
@@ -315,9 +318,10 @@ export const RelatorioDiariasPDF = ({
                 style={idx % 2 === 0 ? styles.tableRow : styles.tableRowAlternate}
                 wrap={false}
               >
-                <Text style={[styles.tableCellBold, { flex: 2.2, fontSize: 6.5 }]}>{func.nome_funcionario}</Text>
-                <Text style={[styles.tableCell, { flex: 1.5, fontSize: 6.5 }]}>{func.nome_funcao}</Text>
-                <Text style={[styles.tableCell, { flex: 0.8, fontSize: 6.5 }]}>{func.matricula}</Text>
+                <Text style={[styles.tableCellBold, { flex: 2.0, fontSize: 6, textAlign: 'center', lineHeight: 1.2 }]}>{func.nome_funcionario}</Text>
+                <Text style={[styles.tableCell, { flex: 0.7, fontSize: 6.5, textAlign: 'center' }]}>{func.codigo_centro_custo}</Text>
+                <Text style={[styles.tableCell, { flex: 1.8, fontSize: 6, textAlign: 'center', lineHeight: 1.2 }]}>{func.nome_funcao}</Text>
+                <Text style={[styles.tableCell, { flex: 0.7, fontSize: 6.5, textAlign: 'right' }]}>{func.matricula}</Text>
                 <Text style={[styles.tableCell, { flex: 1.1, fontSize: 6.5 }]}>{func.cpf}</Text>
                 <Text style={[styles.tableCell, { flex: 0.8, fontSize: 6.5 }]}>{func.banco}</Text>
                 <Text style={[styles.tableCell, { flex: 0.7, fontSize: 6.5 }]}>{func.agencia}</Text>

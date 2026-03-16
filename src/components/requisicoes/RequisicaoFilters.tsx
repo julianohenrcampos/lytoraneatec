@@ -15,6 +15,8 @@ import type { RequisicaoFilters as RequisicaoFiltersType } from "@/types/requisi
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
+import { RESTRICTED_CC_CODE } from "@/utils/centroCustoRestrictions";
 
 interface RequisicaoFiltersProps {
   filters: RequisicaoFiltersType;
@@ -28,17 +30,17 @@ const RequisicaoFilters: React.FC<RequisicaoFiltersProps> = ({
   onResetFilters
 }) => {
   const isMobile = useIsMobile();
+  const { isSuperAdmin } = useDynamicPermissions();
   
   // Fetch centros de custo for dropdown
   const {
     data: centrosCusto = []
   } = useQuery({
-    queryKey: ['centros-custo'],
+    queryKey: ['centros-custo', isSuperAdmin],
     queryFn: async () => {
-      const {
-        data,
-        error
-      } = await supabase.from('bd_centros_custo').select('id, nome_centro_custo').order('nome_centro_custo');
+      let query = supabase.from('bd_centros_custo').select('id, nome_centro_custo');
+      if (!isSuperAdmin) query = query.neq('codigo_centro_custo', RESTRICTED_CC_CODE);
+      const { data, error } = await query.order('nome_centro_custo');
       if (error) throw error;
       return data;
     }

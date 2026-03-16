@@ -7,6 +7,7 @@ import { Filter, RotateCcw } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { CBUQFilters, PeriodFilter } from "@/pages/DashboardRequisicoes";
+import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
 import { subDays, subMonths, subQuarters, subYears } from "date-fns";
 import { 
   normalizeDateToBrazilianNoon, 
@@ -20,18 +21,19 @@ interface DashboardCBUQFiltersProps {
 }
 
 export default function DashboardCBUQFilters({ filters, onFiltersChange }: DashboardCBUQFiltersProps) {
+  const { isSuperAdmin } = useDynamicPermissions();
   console.log("🎛️ DashboardCBUQFilters - Current filters:", filters);
 
   // Fetch centers de custo
   const { data: centrosCusto } = useQuery({
-    queryKey: ['centros-custo-filter'],
+    queryKey: ['centros-custo-filter', isSuperAdmin],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('bd_centros_custo')
         .select('id, nome_centro_custo')
-        .eq('situacao', 'Ativo')
-        .order('nome_centro_custo');
-      
+        .eq('situacao', 'Ativo');
+      if (!isSuperAdmin) query = query.neq('codigo_centro_custo', 'DIR001');
+      const { data, error } = await query.order('nome_centro_custo');
       if (error) throw error;
       return data;
     }

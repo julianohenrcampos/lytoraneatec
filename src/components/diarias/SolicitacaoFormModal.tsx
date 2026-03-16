@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
 import { parseISO } from "date-fns";
+import { RESTRICTED_CC_CODE } from "@/utils/centroCustoRestrictions";
 
 import {
   Dialog,
@@ -113,21 +114,23 @@ export function SolicitacaoFormModal({
   
   // Centro de custos query com fallback
   const { data: centrosCusto = [] } = useQuery({
-    queryKey: ['centros-custo-com-aprovador'],
+    queryKey: ['centros-custo-com-aprovador', isSuperAdmin],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('bd_centros_custo')
         .select('id, codigo_centro_custo, nome_centro_custo, aprovador_diarias_id')
-        .eq('situacao', 'Ativo')
-        .order('nome_centro_custo');
+        .eq('situacao', 'Ativo');
+      if (!isSuperAdmin) query = query.neq('codigo_centro_custo', RESTRICTED_CC_CODE);
+      const { data, error } = await query.order('nome_centro_custo');
       
       // Fallback se campo não existir (código de erro 42703)
       if (error && error.code === '42703') {
-        const { data: fallbackData } = await supabase
+        let fallbackQuery = supabase
           .from('bd_centros_custo')
           .select('id, codigo_centro_custo, nome_centro_custo')
-          .eq('situacao', 'Ativo')
-          .order('nome_centro_custo');
+          .eq('situacao', 'Ativo');
+        if (!isSuperAdmin) fallbackQuery = fallbackQuery.neq('codigo_centro_custo', RESTRICTED_CC_CODE);
+        const { data: fallbackData } = await fallbackQuery.order('nome_centro_custo');
         return (fallbackData || []).map(cc => ({
           ...cc,
           aprovador_diarias_id: null

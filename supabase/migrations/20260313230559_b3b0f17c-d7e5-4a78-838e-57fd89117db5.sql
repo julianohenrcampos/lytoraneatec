@@ -1,0 +1,1 @@
+ALTER TABLE public.bd_importacao_alterdata ADD COLUMN IF NOT EXISTS lote_importacao UUID;

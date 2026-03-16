@@ -11,11 +11,13 @@ import ChamadosDetailsModal from "@/components/chamados-os/ChamadosDetailsModal"
 import DeleteChamadosDialog from "@/components/chamados-os/DeleteChamadosDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
 
 const ChamadosOS: React.FC = () => {
   const [veiculosDropdown, setVeiculosDropdown] = useState<{ id: string; label: string }[]>([]);
   const [centrosCustoDropdown, setCentrosCustoDropdown] = useState<{ id: string; label: string, codigo_centro_custo?: string }[]>([]);
   const { toast } = useToast();
+  const { isSuperAdmin } = useDynamicPermissions();
   
   const {
     chamados,
@@ -74,9 +76,11 @@ const ChamadosOS: React.FC = () => {
           );
         }
         
-        const { data: centrosCusto, error: centrosCustoError } = await supabase
+        let ccQuery = supabase
           .from('bd_centros_custo')
           .select('id, codigo_centro_custo, nome_centro_custo');
+        if (!isSuperAdmin) ccQuery = ccQuery.neq('codigo_centro_custo', 'DIR001');
+        const { data: centrosCusto, error: centrosCustoError } = await ccQuery;
         
         if (centrosCustoError) {
           console.error('Error loading centros de custo:', centrosCustoError);

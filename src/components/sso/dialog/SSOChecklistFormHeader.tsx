@@ -7,6 +7,8 @@ import { Combobox, ComboboxOption } from '@/components/ui/combobox';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { EtapaVistoria } from '@/types/sso';
+import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
+import { RESTRICTED_CC_CODE } from '@/utils/centroCustoRestrictions';
 
 interface SSOChecklistFormHeaderProps {
   formData: {
@@ -26,6 +28,7 @@ interface SSOChecklistFormHeaderProps {
 export const SSOChecklistFormHeader = ({ formData, onChange, checklistId }: SSOChecklistFormHeaderProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [etapasUtilizadas, setEtapasUtilizadas] = useState<string[]>([]);
+  const { isSuperAdmin } = useDynamicPermissions();
 
   const ETAPAS: EtapaVistoria[] = ['1ª Etapa', '2ª Etapa', '3ª Etapa', '4ª Etapa'];
 
@@ -49,14 +52,14 @@ export const SSOChecklistFormHeader = ({ formData, onChange, checklistId }: SSOC
 
   // Buscar obras
   const { data: obras } = useQuery({
-    queryKey: ['centros-custo'],
+    queryKey: ['centros-custo', isSuperAdmin],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('bd_centros_custo')
         .select('id, nome_centro_custo, codigo_centro_custo')
-        .eq('situacao', 'Ativo')
-        .order('nome_centro_custo');
-      
+        .eq('situacao', 'Ativo');
+      if (!isSuperAdmin) query = query.neq('codigo_centro_custo', RESTRICTED_CC_CODE);
+      const { data, error } = await query.order('nome_centro_custo');
       if (error) throw error;
       return data;
     }

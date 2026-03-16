@@ -9,6 +9,8 @@ import { SSODesvioFilters, STATUS_ACAO, CLASSIFICACAO_DESVIO, TIPOS_DESVIO } fro
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Filter, X } from 'lucide-react';
+import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
+import { RESTRICTED_CC_CODE } from '@/utils/centroCustoRestrictions';
 
 interface SSODesvioFiltersProps {
   onFilterChange: (filters: SSODesvioFilters) => void;
@@ -25,16 +27,18 @@ export const SSODesvioFiltersComponent: React.FC<SSODesvioFiltersProps> = ({
   const [tecnicoSeguranca, setTecnicoSeguranca] = useState('');
   const [classificacao, setClassificacao] = useState('');
   const [statusAcao, setStatusAcao] = useState('');
+  const { isSuperAdmin } = useDynamicPermissions();
 
   // Buscar obras
   const { data: obras = [] } = useQuery({
-    queryKey: ['obras-ativas'],
+    queryKey: ['obras-ativas', isSuperAdmin],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('bd_centros_custo')
         .select('id, nome_centro_custo, codigo_centro_custo')
-        .eq('situacao', 'Ativo')
-        .order('nome_centro_custo');
+        .eq('situacao', 'Ativo');
+      if (!isSuperAdmin) query = query.neq('codigo_centro_custo', RESTRICTED_CC_CODE);
+      const { data, error } = await query.order('nome_centro_custo');
       if (error) throw error;
       return data || [];
     }

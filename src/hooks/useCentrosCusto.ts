@@ -1,7 +1,10 @@
 
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from './use-toast';
+import { useDynamicPermissions } from './useDynamicPermissions';
+import { excludeRestrictedCC } from '@/utils/centroCustoRestrictions';
 
 interface CentroCusto {
   id: string;
@@ -14,18 +17,23 @@ export const useCentrosCusto = () => {
   const { toast } = useToast();
   const [centrosCusto, setCentrosCusto] = useState<CentroCusto[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const { isSuperAdmin } = useDynamicPermissions();
 
   useEffect(() => {
     fetchCentrosCusto();
-  }, []);
+  }, [isSuperAdmin]);
 
   const fetchCentrosCusto = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('bd_centros_custo')
         .select('id, nome_centro_custo, codigo_centro_custo, situacao')
         .order('codigo_centro_custo', { ascending: true });
+      
+      query = excludeRestrictedCC(query, isSuperAdmin);
+      
+      const { data, error } = await query;
 
       if (error) {
         throw error;
