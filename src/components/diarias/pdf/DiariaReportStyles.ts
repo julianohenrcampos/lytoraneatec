@@ -144,37 +144,40 @@ export const diariaStyles = StyleSheet.create({
     backgroundColor: '#1e3a5f',
     borderRadius: 4,
     paddingVertical: 8,
-    paddingHorizontal: 6,
+    paddingHorizontal: 4,
   },
   tableHeaderCell: {
     fontSize: 8,
     fontFamily: 'Helvetica-Bold',
     color: '#ffffff',
     textAlign: 'left',
+    paddingRight: 4,
   },
   tableRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
     paddingVertical: 8,
-    paddingHorizontal: 6,
+    paddingHorizontal: 4,
   },
   tableRowAlternate: {
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
     paddingVertical: 8,
-    paddingHorizontal: 6,
+    paddingHorizontal: 4,
     backgroundColor: '#f9fafb',
   },
   tableCell: {
     fontSize: 9,
     color: '#374151',
+    paddingRight: 4,
   },
   tableCellBold: {
     fontSize: 9,
     color: '#374151',
     fontFamily: 'Helvetica-Bold',
+    paddingRight: 4,
   },
 
   // Totals Section

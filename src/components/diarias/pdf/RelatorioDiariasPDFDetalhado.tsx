@@ -56,10 +56,31 @@ function formatDate(dateString: string): string {
   }
 }
 
+function formatNameTwoLines(name: string): string {
+  const words = name.trim().split(/\s+/);
+  if (words.length <= 2) return name;
+  const mid = Math.ceil(words.length / 2);
+  return words.slice(0, mid).join(' ') + '\n' + words.slice(mid).join(' ');
+}
+
 function formatCPF(cpf: string): string {
   const digits = cpf.replace(/\D/g, '');
   if (digits.length !== 11) return cpf;
   return `${digits.slice(0,3)}.${digits.slice(3,6)}.${digits.slice(6,9)}-${digits.slice(9)}`;
+}
+
+function formatFuncaoTwoLines(funcao: string): string {
+  const words = funcao.trim().split(/\s+/);
+  if (words.length <= 1) return funcao;
+  const mid = Math.ceil(words.length / 2);
+  return words.slice(0, mid).join(' ') + '\n' + words.slice(mid).join(' ');
+}
+
+function formatPixTwoLines(pix: string): string {
+  if (!pix || pix === '-') return pix;
+  const atIndex = pix.indexOf('@');
+  if (atIndex > 0) return pix.slice(0, atIndex) + '\n@' + pix.slice(atIndex + 1);
+  return pix;
 }
 
 function consolidarFuncionarios(
@@ -333,20 +354,20 @@ function EmpresaSection({
           </Text>
           <View style={styles.table}>
             <View style={styles.tableHeader} fixed>
-              <Text style={[styles.tableHeaderCell, { flex: 2.0 }]}>Funcionário</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 0.7, textAlign: 'center' }]}>C.Custo</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1.8 }]}>Função</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 0.7, textAlign: 'right' }]}>Matrícula</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1.1 }]}>CPF</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>Banco</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 0.7 }]}>Agência</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 0.9 }]}>Conta</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>Chave Pix</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 0.5, textAlign: 'center' }]}>Dias</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 0.9, textAlign: 'right' }]}>V. Diária</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 0.9, textAlign: 'right' }]}>V. ½ Diária</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 0.9, textAlign: 'right' }]}>V. Refeição</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 0.9, textAlign: 'right' }]}>Total</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1.8, textAlign: 'left' }]}>Funcionário</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 0.4, textAlign: 'left' }]}>C.Custo</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1.0, textAlign: 'left' }]}>Função</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 0.8, textAlign: 'left' }]}>Matrícula</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1.2, textAlign: 'left' }]}>CPF</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 0.7, textAlign: 'left' }]}>Banco</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 0.6, textAlign: 'right' }]}>Agência</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 0.7, textAlign: 'left' }]}>Conta</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1.2, textAlign: 'left' }]}>Chave Pix</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 0.4, textAlign: 'center' }]}>Dias</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 0.8, textAlign: 'right' }]}>V. Diária</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 0.8, textAlign: 'right' }]}>V. ½ Diária</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 0.8, textAlign: 'right' }]}>V. Refeição</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 0.8, textAlign: 'right' }]}>Total</Text>
             </View>
             {funcionariosConsolidados.map((func, idx) => (
               <View
@@ -354,20 +375,20 @@ function EmpresaSection({
                 style={idx % 2 === 0 ? styles.tableRow : styles.tableRowAlternate}
                 wrap={false}
               >
-                <Text style={[styles.tableCellBold, { flex: 2.0, fontSize: 6, textAlign: 'center', lineHeight: 1.2 }]}>{func.nome_funcionario}</Text>
-                <Text style={[styles.tableCell, { flex: 0.7, fontSize: 6.5, textAlign: 'center' }]}>{func.codigo_centro_custo}</Text>
-                <Text style={[styles.tableCell, { flex: 1.8, fontSize: 6, textAlign: 'center', lineHeight: 1.2 }]}>{func.nome_funcao}</Text>
-                <Text style={[styles.tableCell, { flex: 0.7, fontSize: 6.5, textAlign: 'right' }]}>{func.matricula}</Text>
-                <Text style={[styles.tableCell, { flex: 1.1, fontSize: 6.5 }]}>{func.cpf}</Text>
-                <Text style={[styles.tableCell, { flex: 0.8, fontSize: 6.5 }]}>{func.banco}</Text>
-                <Text style={[styles.tableCell, { flex: 0.7, fontSize: 6.5 }]}>{func.agencia}</Text>
-                <Text style={[styles.tableCell, { flex: 0.9, fontSize: 6.5 }]}>{func.conta}</Text>
-                <Text style={[styles.tableCell, { flex: 1.2, fontSize: 6.5 }]}>{func.chave_pix}</Text>
-                <Text style={[styles.tableCellBold, { flex: 0.5, textAlign: 'center', fontSize: 6.5 }]}>{func.total_dias}</Text>
-                <Text style={[styles.tableCell, { flex: 0.9, textAlign: 'right', fontSize: 6.5 }]}>{formatCurrency(func.valor_diaria_integral)}</Text>
-                <Text style={[styles.tableCell, { flex: 0.9, textAlign: 'right', fontSize: 6.5 }]}>{formatCurrency(func.valor_meia_diaria)}</Text>
-                <Text style={[styles.tableCell, { flex: 0.9, textAlign: 'right', fontSize: 6.5 }]}>{formatCurrency(func.valor_refeicao)}</Text>
-                <Text style={[styles.tableCellBold, { flex: 0.9, textAlign: 'right', fontSize: 6.5 }]}>{formatCurrency(func.valor_diaria_integral + func.valor_meia_diaria + func.valor_refeicao)}</Text>
+                <Text style={[styles.tableCellBold, { flex: 1.8, fontSize: 6, textAlign: 'left', lineHeight: 1.2 }]}>{formatNameTwoLines(func.nome_funcionario)}</Text>
+                <Text style={[styles.tableCell, { flex: 0.4, fontSize: 6.5, textAlign: 'left' }]}>{func.codigo_centro_custo}</Text>
+                <Text style={[styles.tableCell, { flex: 1.0, fontSize: 6, textAlign: 'left', lineHeight: 1.2 }]}>{formatFuncaoTwoLines(func.nome_funcao)}</Text>
+                <Text style={[styles.tableCell, { flex: 0.8, fontSize: 6.5, textAlign: 'left' }]}>{func.matricula}</Text>
+                <Text style={[styles.tableCell, { flex: 1.2, fontSize: 6.5, textAlign: 'left' }]}>{func.cpf}</Text>
+                <Text style={[styles.tableCell, { flex: 0.7, fontSize: 5.5, textAlign: 'left' }]}>{func.banco}</Text>
+                <Text style={[styles.tableCell, { flex: 0.6, fontSize: 6.5, textAlign: 'right', paddingRight: 4 }]}>{func.agencia}</Text>
+                <Text style={[styles.tableCell, { flex: 0.7, fontSize: 6.5, textAlign: 'left', paddingLeft: 4 }]}>{func.conta}</Text>
+                <Text style={[styles.tableCell, { flex: 1.2, fontSize: 6.5, textAlign: 'left', lineHeight: 1.2 }]}>{formatPixTwoLines(func.chave_pix)}</Text>
+                <Text style={[styles.tableCellBold, { flex: 0.4, textAlign: 'center', fontSize: 6.5 }]}>{func.total_dias}</Text>
+                <Text style={[styles.tableCell, { flex: 0.8, textAlign: 'right', fontSize: 6.5 }]}>{formatCurrency(func.valor_diaria_integral)}</Text>
+                <Text style={[styles.tableCell, { flex: 0.8, textAlign: 'right', fontSize: 6.5 }]}>{formatCurrency(func.valor_meia_diaria)}</Text>
+                <Text style={[styles.tableCell, { flex: 0.8, textAlign: 'right', fontSize: 6.5 }]}>{formatCurrency(func.valor_refeicao)}</Text>
+                <Text style={[styles.tableCellBold, { flex: 0.8, textAlign: 'right', fontSize: 6.5 }]}>{formatCurrency(func.valor_diaria_integral + func.valor_meia_diaria + func.valor_refeicao)}</Text>
               </View>
             ))}
           </View>
