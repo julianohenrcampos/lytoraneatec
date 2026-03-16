@@ -39,8 +39,8 @@ const DeleteVeiculoDialog: React.FC<DeleteVeiculoDialogProps> = ({
           <AlertDialogDescription>
             Tem certeza que deseja excluir o {veiculo.tipo_veiculo.toLowerCase()}{' '}
             <span className="font-semibold">
-              {veiculo.placa ? `${veiculo.marca} ${veiculo.modelo} - Placa ${veiculo.placa}` : 
-                `${veiculo.marca} ${veiculo.modelo}` }
+              {veiculo.placa ? `${veiculo.fabricante} ${veiculo.modelo} - Placa ${veiculo.placa}` : 
+                `${veiculo.fabricante} ${veiculo.modelo}` }
             </span>
             ?
             <br />

@@ -38,7 +38,7 @@ const VeiculoDetailsModal: React.FC<VeiculoDetailsModalProps> = ({ isOpen, onClo
             
             <div className="text-center mt-2">
               <p className="text-lg font-bold">{veiculo.placa || "Sem placa"}</p>
-              <p className="text-sm text-gray-500">{veiculo.marca} {veiculo.modelo}</p>
+              <p className="text-sm text-gray-500">{veiculo.fabricante} {veiculo.modelo}</p>
             </div>
           </div>
           

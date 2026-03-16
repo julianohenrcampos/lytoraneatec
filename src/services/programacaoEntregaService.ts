@@ -94,7 +94,7 @@ export const fetchProgramacaoById = async (id: string): Promise<ProgramacaoEntre
     .from('bd_lista_programacao_entrega')
     .select(`
       *,
-      caminhao:bd_caminhoes_equipamentos!caminhao_id(id, placa, modelo, marca, frota, numero_frota),
+      caminhao:bd_caminhoes_equipamentos!caminhao_id(id, placa, modelo, fabricante, frota, numero_frota),
       equipe:bd_equipes!equipe_id(id, nome_equipe),
        apontador:bd_funcionarios!bd_lista_programacao_entrega_apontador_id_fkey(id, nome_completo),
       usina:bd_usinas!usina_id(id, nome_usina)
@@ -370,7 +370,7 @@ export const exportProgramacoes = async (filters: ProgramacaoEntregaFilters = {}
       .from('bd_lista_programacao_entrega')
       .select(`
         *,
-        caminhao:bd_caminhoes_equipamentos!caminhao_id(id, placa, modelo, marca, frota, numero_frota),
+        caminhao:bd_caminhoes_equipamentos!caminhao_id(id, placa, modelo, fabricante, frota, numero_frota),
         equipe:bd_equipes!equipe_id(id, nome_equipe),
         apontador:bd_funcionarios!bd_lista_programacao_entrega_apontador_id_fkey(id, nome_completo),
         usina:bd_usinas!usina_id(id, nome_usina)
@@ -448,7 +448,7 @@ export const fetchOperatingVehicles = async () => {
     console.log("Iniciando a busca de veículos operando");
     const { data, error } = await supabase
       .from('bd_caminhoes_equipamentos')
-      .select('id, placa, modelo, frota, marca, tipo_veiculo, capacidade, situacao')
+      .select('id, placa, modelo, frota, fabricante, tipo_veiculo, capacidade, situacao')
       .in('situacao', ['Operando', 'Disponível']); // Include both for editing purposes
       
     if (error) {

@@ -163,7 +163,7 @@ const DetailedOsModal: React.FC<DetailedOsModalProps> = ({
                         {os.caminhao_equipamento.placa} - {os.caminhao_equipamento.tipo_veiculo}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {os.caminhao_equipamento.marca} {os.caminhao_equipamento.modelo}
+                        {os.caminhao_equipamento.fabricante} {os.caminhao_equipamento.modelo}
                       </div>
                     </div>
                   </div>}

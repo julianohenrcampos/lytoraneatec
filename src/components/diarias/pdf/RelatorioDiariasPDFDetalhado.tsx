@@ -205,9 +205,10 @@ function EmpresaSection({
   const funcionariosConsolidados = consolidarFuncionarios(group.registros, feriadosSet);
   const totaisDias = calcularTotaisDias(group.registros, feriadosSet);
 
-  const valorDiarias = funcionariosConsolidados.reduce((acc, f) => acc + f.valor_total, 0);
+  const subtotalIntegral = funcionariosConsolidados.reduce((acc, f) => acc + f.valor_diaria_integral, 0);
+  const subtotalMeia = funcionariosConsolidados.reduce((acc, f) => acc + f.valor_meia_diaria, 0);
   const valorRefeicoes = funcionariosConsolidados.reduce((acc, f) => acc + f.valor_refeicao, 0);
-  const valorTotal = valorDiarias + valorRefeicoes;
+  const valorTotal = subtotalIntegral + subtotalMeia + valorRefeicoes;
   const totalDiarias = funcionariosConsolidados.reduce((acc, f) => acc + f.total_dias, 0);
 
   const centrosCustoUnicos = [...new Set(group.registros.map(r => r.codigo_centro_custo).filter(Boolean))];
@@ -310,11 +311,11 @@ function EmpresaSection({
         <View style={[styles.totalsSection, { marginTop: 8, marginBottom: 8 }]}>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Subtotal Diárias</Text>
-            <Text style={styles.totalValue}>{formatCurrency(funcionariosConsolidados.reduce((acc, f) => acc + f.valor_diaria_integral, 0))}</Text>
+            <Text style={styles.totalValue}>{formatCurrency(subtotalIntegral)}</Text>
           </View>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Subtotal ½ Diárias</Text>
-            <Text style={styles.totalValue}>{formatCurrency(funcionariosConsolidados.reduce((acc, f) => acc + f.valor_meia_diaria, 0))}</Text>
+            <Text style={styles.totalValue}>{formatCurrency(subtotalMeia)}</Text>
           </View>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Subtotal Refeições</Text>

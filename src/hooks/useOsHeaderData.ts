@@ -132,7 +132,7 @@ export const useOsHeaderData = (currentOs: OrdemServico | null, chamadoId?: stri
         if (equipamentoId) {
           const { data: veic, error: veicErr } = await supabase
             .from("bd_caminhoes_equipamentos")
-            .select("placa, modelo, marca, tipo_veiculo, numero_frota")
+            .select("placa, modelo, fabricante, tipo_veiculo, numero_frota")
             .eq("id", equipamentoId)
             .maybeSingle();
           if (veicErr) throw veicErr;
@@ -141,7 +141,7 @@ export const useOsHeaderData = (currentOs: OrdemServico | null, chamadoId?: stri
             header.equipamentoTipo = veic.modelo || veic.tipo_veiculo;
             header.equipamentoPlaca = veic.placa;
             header.equipamentoFrota = veic.numero_frota;
-            header.equipamentoMarcaModelo = [veic.marca, veic.modelo].filter(Boolean).join(" ") || null;
+            header.equipamentoMarcaModelo = [veic.fabricante, veic.modelo].filter(Boolean).join(" ") || null;
           }
         }
 

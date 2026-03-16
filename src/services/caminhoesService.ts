@@ -9,9 +9,11 @@ export interface Caminhao {
   tipo_veiculo?: string;
   frota?: string;
   numero_frota?: string;
-  marca?: string;
+  fabricante?: string;
   empresa_id?: string;
   nome_empresa?: string;
+  /** @deprecated Use fabricante instead */
+  marca?: string;
 }
 
 export const fetchCaminhoes = async (): Promise<Caminhao[]> => {
@@ -27,7 +29,7 @@ export const fetchCaminhoes = async (): Promise<Caminhao[]> => {
         situacao,
         frota,
         numero_frota,
-        marca,
+        fabricante,
         empresa_id,
         empresa:bd_empresas(id, nome_empresa)
       `)
@@ -63,7 +65,8 @@ export const fetchCaminhoes = async (): Promise<Caminhao[]> => {
         tipo_veiculo: item.tipo_veiculo,
         frota: item.frota,
         numero_frota: item.numero_frota,
-        marca: item.marca,
+        fabricante: item.fabricante,
+        marca: item.fabricante, // backward compat
         empresa_id: item.empresa_id,
         nome_empresa: nomeEmpresa
       } as Caminhao;

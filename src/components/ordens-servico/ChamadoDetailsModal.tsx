@@ -102,7 +102,7 @@ const ChamadoDetailsModal: React.FC<ChamadoDetailsModalProps> = ({
                 <div className="bg-muted/50 p-3 rounded-md">
                   <p className="font-medium">{chamado.caminhao_equipamento.placa || chamado.caminhao_equipamento.modelo}</p>
                   <p className="text-sm text-muted-foreground">
-                    {chamado.caminhao_equipamento.tipo_veiculo} {chamado.caminhao_equipamento.marca} {chamado.caminhao_equipamento.modelo}
+                    {chamado.caminhao_equipamento.tipo_veiculo} {chamado.caminhao_equipamento.fabricante} {chamado.caminhao_equipamento.modelo}
                   </p>
                 </div>
               ) : (

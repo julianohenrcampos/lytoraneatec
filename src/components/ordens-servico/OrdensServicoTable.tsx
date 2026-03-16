@@ -162,7 +162,7 @@ const OrdensServicoTable: React.FC<OrdensServicoTableProps> = ({
                   <>
                     <div className="font-medium">{os.caminhao_equipamento.placa || os.caminhao_equipamento.modelo}</div>
                     <div className="text-xs text-muted-foreground">
-                      {os.caminhao_equipamento.tipo_veiculo} {os.caminhao_equipamento.marca}
+                      {os.caminhao_equipamento.tipo_veiculo} {os.caminhao_equipamento.fabricante}
                     </div>
                   </>
                 ) : "-"}

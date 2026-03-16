@@ -16,7 +16,7 @@ export const getTrucksForSelection = async (): Promise<TruckForSelection[]> => {
   try {
     const { data, error } = await supabase
       .from("bd_caminhoes_equipamentos")
-      .select("id, placa, modelo, marca, frota, numero_frota")
+      .select("id, placa, modelo, fabricante, frota, numero_frota")
       .eq("tipo_veiculo", "Caminhão")
       .in("situacao", ["Disponível", "Operando"])
       .order("placa", { ascending: true });
@@ -36,8 +36,8 @@ export const getTrucksForSelection = async (): Promise<TruckForSelection[]> => {
         nome_caminhao = truck.placa;
       } else if (truck.frota && truck.numero_frota) {
         nome_caminhao = `${truck.frota} ${truck.numero_frota}`;
-      } else if (truck.modelo && truck.marca) {
-        nome_caminhao = `${truck.marca} ${truck.modelo}`;
+      } else if (truck.modelo && truck.fabricante) {
+        nome_caminhao = `${truck.fabricante} ${truck.modelo}`;
       } else if (truck.modelo) {
         nome_caminhao = truck.modelo;
       }

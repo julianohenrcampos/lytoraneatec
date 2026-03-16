@@ -48,7 +48,7 @@ const ChamadosOS: React.FC = () => {
       try {
         const { data: veiculos, error: veiculosError } = await supabase
           .from('bd_caminhoes_equipamentos')
-          .select('id, frota, numero_frota, placa, tipo_veiculo, marca, modelo');
+          .select('id, frota, numero_frota, placa, tipo_veiculo, fabricante, modelo');
         
         if (veiculosError) {
           console.error('Error loading veículos:', veiculosError);
@@ -70,7 +70,7 @@ const ChamadosOS: React.FC = () => {
               
               return {
                 id: veiculo.id,
-                label: identificador || `${veiculo.marca || ''} ${veiculo.modelo || ''}`.trim() || 'Sem identificação'
+                label: identificador || `${veiculo.fabricante || ''} ${veiculo.modelo || ''}`.trim() || 'Sem identificação'
               };
             })
           );

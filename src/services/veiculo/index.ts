@@ -2,7 +2,7 @@
 import { fetchVeiculos, getVeiculos, getVeiculoById } from './queries';
 import { createVeiculo, updateVeiculo, deleteVeiculo } from './mutations';
 import { importVeiculos, exportVeiculos } from './importExport';
-import { getMarcasDropdown, getDepartamentosDropdown, getEmpresasDropdown } from './dropdowns';
+import { getMarcasDropdown, getFabricantesDropdown, getDepartamentosDropdown, getEmpresasDropdown, getCategoriasDropdown, getSubcategoriasDropdown } from './dropdowns';
 import { VeiculoFilter } from './types';
 
 export {
@@ -15,8 +15,11 @@ export {
   importVeiculos,
   exportVeiculos,
   getMarcasDropdown,
+  getFabricantesDropdown,
   getDepartamentosDropdown,
   getEmpresasDropdown,
+  getCategoriasDropdown,
+  getSubcategoriasDropdown,
 };
 
 // Re-export the VeiculoFilter type using export type

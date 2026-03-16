@@ -9,7 +9,7 @@ export const exportVeiculos = async (veiculos: Veiculo[]) => {
     'Tipo de Veículo': veiculo.tipo_veiculo || 'N/A',
     'Frota': veiculo.frota || 'N/A',
     'Número Frota': veiculo.numero_frota || 'N/A',
-    'Marca': veiculo.marca || 'N/A',
+    'Fabricante': veiculo.fabricante || 'N/A',
     'Modelo': veiculo.modelo || 'N/A',
     'Cor': veiculo.cor || 'N/A',
     'Departamento': veiculo.nome_departamento || 'N/A',
@@ -21,6 +21,10 @@ export const exportVeiculos = async (veiculos: Veiculo[]) => {
     'Capacidade': veiculo.capacidade || 'N/A',
     'Aluguel': veiculo.aluguel || 'N/A',
     'Observações': veiculo.observacoes || 'N/A',
+    'Número de Série': veiculo.numero_serie || 'N/A',
+    'Chassi': veiculo.chassi || 'N/A',
+    'Categoria': veiculo.nome_categoria || 'N/A',
+    'Subcategoria': veiculo.nome_subcategoria || 'N/A',
   }));
 
   return downloadExcel(data, 'Veiculos_Equipamentos.xlsx');
@@ -41,7 +45,7 @@ export const importVeiculos = async (veiculos: VeiculoFormData[] | File): Promis
           departamento_id: null,
           placa: row.Placa || row.placa,
           tipo_veiculo: row["Tipo de Veículo"] || row["Tipo de Veiculo"] || row.tipo_veiculo,
-          marca: row.Marca || row.marca,
+          fabricante: row.Marca || row.marca || row.Fabricante || row.fabricante,
           modelo: row.Modelo || row.modelo,
           cor: row.Cor || row.cor,
           motor: row.Motor || row.motor,
@@ -53,7 +57,15 @@ export const importVeiculos = async (veiculos: VeiculoFormData[] | File): Promis
           aluguel: row.Aluguel || row.aluguel,
           observacoes: row.Observações || row.Observacoes || row.observacoes,
           empresa_id: null,
-          imagem_url: null
+          imagem_url: null,
+          categoria_ativo_id: null,
+          subcategoria_ativo_id: null,
+          numero_serie: null,
+          chassi: null,
+          informacoes_complementares: null,
+          status_cadastro: 'ativo',
+          status_disponibilidade: 'disponivel',
+          proprietario_tipo: 'proprio'
         }));
 
         console.log("Mapped vehicles:", mappedVeiculos);

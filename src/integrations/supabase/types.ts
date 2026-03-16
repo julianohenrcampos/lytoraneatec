@@ -689,22 +689,30 @@ export type Database = {
           aluguel: string | null
           ano_fabricacao: string | null
           capacidade: string | null
+          categoria_ativo_id: string | null
+          chassi: string | null
           cor: string | null
           created_at: string | null
           departamento_id: string | null
           empresa_id: string | null
+          fabricante: string | null
           frota: string | null
           id: string
           imagem_url: string | null
-          marca: string | null
+          informacoes_complementares: string | null
           modelo: string | null
           modificado_por: string | null
           motor: string | null
           numero_frota: string | null
+          numero_serie: string | null
           observacoes: string | null
           placa: string | null
+          proprietario_tipo: string | null
           situacao: string | null
+          status_cadastro: string | null
+          status_disponibilidade: string | null
           status_ipva: string | null
+          subcategoria_ativo_id: string | null
           tipo_combustivel: string | null
           tipo_veiculo: string | null
           updated_at: string | null
@@ -713,22 +721,30 @@ export type Database = {
           aluguel?: string | null
           ano_fabricacao?: string | null
           capacidade?: string | null
+          categoria_ativo_id?: string | null
+          chassi?: string | null
           cor?: string | null
           created_at?: string | null
           departamento_id?: string | null
           empresa_id?: string | null
+          fabricante?: string | null
           frota?: string | null
           id?: string
           imagem_url?: string | null
-          marca?: string | null
+          informacoes_complementares?: string | null
           modelo?: string | null
           modificado_por?: string | null
           motor?: string | null
           numero_frota?: string | null
+          numero_serie?: string | null
           observacoes?: string | null
           placa?: string | null
+          proprietario_tipo?: string | null
           situacao?: string | null
+          status_cadastro?: string | null
+          status_disponibilidade?: string | null
           status_ipva?: string | null
+          subcategoria_ativo_id?: string | null
           tipo_combustivel?: string | null
           tipo_veiculo?: string | null
           updated_at?: string | null
@@ -737,27 +753,42 @@ export type Database = {
           aluguel?: string | null
           ano_fabricacao?: string | null
           capacidade?: string | null
+          categoria_ativo_id?: string | null
+          chassi?: string | null
           cor?: string | null
           created_at?: string | null
           departamento_id?: string | null
           empresa_id?: string | null
+          fabricante?: string | null
           frota?: string | null
           id?: string
           imagem_url?: string | null
-          marca?: string | null
+          informacoes_complementares?: string | null
           modelo?: string | null
           modificado_por?: string | null
           motor?: string | null
           numero_frota?: string | null
+          numero_serie?: string | null
           observacoes?: string | null
           placa?: string | null
+          proprietario_tipo?: string | null
           situacao?: string | null
+          status_cadastro?: string | null
+          status_disponibilidade?: string | null
           status_ipva?: string | null
+          subcategoria_ativo_id?: string | null
           tipo_combustivel?: string | null
           tipo_veiculo?: string | null
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "bd_caminhoes_equipamentos_categoria_ativo_id_fkey"
+            columns: ["categoria_ativo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_categorias_ativos"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bd_caminhoes_equipamentos_departamento_id_fkey"
             columns: ["departamento_id"]
@@ -770,6 +801,13 @@ export type Database = {
             columns: ["empresa_id"]
             isOneToOne: false
             referencedRelation: "bd_empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_caminhoes_equipamentos_subcategoria_ativo_id_fkey"
+            columns: ["subcategoria_ativo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_subcategorias_ativos"
             referencedColumns: ["id"]
           },
         ]
@@ -837,6 +875,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      bd_categorias_ativos: {
+        Row: {
+          ativo: boolean | null
+          criado_em: string | null
+          descricao: string | null
+          id: string
+          nome_categoria: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          criado_em?: string | null
+          descricao?: string | null
+          id?: string
+          nome_categoria: string
+        }
+        Update: {
+          ativo?: boolean | null
+          criado_em?: string | null
+          descricao?: string | null
+          id?: string
+          nome_categoria?: string
+        }
+        Relationships: []
       }
       bd_centros_custo: {
         Row: {
@@ -3714,6 +3776,41 @@ export type Database = {
             columns: ["visto_gestao_por"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_subcategorias_ativos: {
+        Row: {
+          ativo: boolean | null
+          categoria_id: string
+          criado_em: string | null
+          descricao: string | null
+          id: string
+          nome_subcategoria: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          categoria_id: string
+          criado_em?: string | null
+          descricao?: string | null
+          id?: string
+          nome_subcategoria: string
+        }
+        Update: {
+          ativo?: boolean | null
+          categoria_id?: string
+          criado_em?: string | null
+          descricao?: string | null
+          id?: string
+          nome_subcategoria?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_subcategorias_ativos_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "bd_categorias_ativos"
             referencedColumns: ["id"]
           },
         ]

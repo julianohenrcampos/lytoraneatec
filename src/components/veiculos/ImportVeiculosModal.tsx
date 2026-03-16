@@ -146,7 +146,7 @@ const ImportVeiculosModal: React.FC<ImportVeiculosModalProps> = ({
           departamento_id: item.departamento_id || null,
           placa: item.placa || item.Placa || null,
           tipo_veiculo: item.tipo_veiculo || item["Tipo de Veículo"] || item["Tipo de Veiculo"] || null,
-          marca: item.marca || item.Marca || null,
+          fabricante: item.marca || item.Marca || item.fabricante || item.Fabricante || null,
           modelo: item.modelo || item.Modelo || null,
           cor: item.cor || item.Cor || null,
           motor: item.motor || item.Motor || null,
@@ -159,6 +159,14 @@ const ImportVeiculosModal: React.FC<ImportVeiculosModalProps> = ({
           observacoes: item.observacoes || item.Observações || item.Observacoes || null,
           empresa_id: item.empresa_id || null,
           imagem_url: null,
+          categoria_ativo_id: null,
+          subcategoria_ativo_id: null,
+          numero_serie: null,
+          chassi: null,
+          informacoes_complementares: null,
+          status_cadastro: 'ativo',
+          status_disponibilidade: 'disponivel',
+          proprietario_tipo: 'proprio',
         }));
 
         console.log("Importing CSV data with entries:", formattedData.length);

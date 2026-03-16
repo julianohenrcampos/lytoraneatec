@@ -95,7 +95,7 @@ const SimpleOsDetailsModal: React.FC<SimpleOsDetailsModalProps> = ({
             <div>
               <label className="text-sm font-medium text-gray-700">Caminhão/Equipamento</label>
               <p className="text-gray-900">
-                {os.caminhao_equipamento.placa} - {os.caminhao_equipamento.marca} {os.caminhao_equipamento.modelo}
+                {os.caminhao_equipamento.placa} - {os.caminhao_equipamento.fabricante} {os.caminhao_equipamento.modelo}
               </p>
             </div>
           )}

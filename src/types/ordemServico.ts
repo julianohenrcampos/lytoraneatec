@@ -42,7 +42,7 @@ export interface OrdemServico {
   caminhao_equipamento?: {
     placa: string;
     tipo_veiculo: string;
-    marca: string;
+    fabricante: string;
     modelo: string;
   };
   centro_custo?: {

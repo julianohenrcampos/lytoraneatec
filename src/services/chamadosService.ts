@@ -41,7 +41,7 @@ export const fetchChamados = async (
     .select(`
       *,
       centro_custo:centro_custo_id(codigo_centro_custo, nome_centro_custo),
-      caminhao_equipamento:caminhao_equipamento_id(placa, tipo_veiculo, marca, modelo)
+      caminhao_equipamento:caminhao_equipamento_id(placa, tipo_veiculo, fabricante, modelo)
     `)
     .order('created_at', { ascending: false });
 
@@ -189,7 +189,7 @@ export const updateChamado = async (
       .select(`
         *,
         centro_custo:centro_custo_id(codigo_centro_custo, nome_centro_custo),
-        caminhao_equipamento:caminhao_equipamento_id(placa, tipo_veiculo, marca, modelo)
+        caminhao_equipamento:caminhao_equipamento_id(placa, tipo_veiculo, fabricante, modelo)
       `)
       .single();
       
@@ -232,7 +232,7 @@ export const getChamadoById = async (id: string): Promise<ChamadoOS> => {
     .select(`
       *,
       centro_custo:centro_custo_id(codigo_centro_custo, nome_centro_custo),
-      caminhao_equipamento:caminhao_equipamento_id(placa, tipo_veiculo, marca, modelo)
+      caminhao_equipamento:caminhao_equipamento_id(placa, tipo_veiculo, fabricante, modelo)
     `)
     .eq('id', id)
     .single();

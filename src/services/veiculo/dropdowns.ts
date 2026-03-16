@@ -1,22 +1,24 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
-export const getMarcasDropdown = async () => {
+export const getFabricantesDropdown = async () => {
   const { data, error } = await supabase
     .from("bd_caminhoes_equipamentos")
-    .select("marca")
-    .order("marca");
+    .select("fabricante")
+    .order("fabricante");
 
   if (error) {
-    console.error("Error fetching marcas dropdown:", error);
+    console.error("Error fetching fabricantes dropdown:", error);
     throw error;
   }
 
-  const marcas = data.map(item => item.marca).filter(Boolean);
-  const uniqueMarcas = [...new Set(marcas)];
+  const fabricantes = data.map(item => item.fabricante).filter(Boolean);
+  const uniqueFabricantes = [...new Set(fabricantes)];
 
-  return uniqueMarcas as string[];
+  return uniqueFabricantes as string[];
 };
+
+// Keep backward compat alias
+export const getMarcasDropdown = getFabricantesDropdown;
 
 export const getDepartamentosDropdown = async () => {
   const { data, error } = await supabase
@@ -45,4 +47,40 @@ export const getEmpresasDropdown = async () => {
   }
 
   return data as { id: string; nome_empresa: string }[];
+};
+
+export const getCategoriasDropdown = async () => {
+  const { data, error } = await supabase
+    .from("bd_categorias_ativos")
+    .select("id, nome_categoria")
+    .eq("ativo", true)
+    .order("nome_categoria");
+
+  if (error) {
+    console.error("Error fetching categorias dropdown:", error);
+    throw error;
+  }
+
+  return data as { id: string; nome_categoria: string }[];
+};
+
+export const getSubcategoriasDropdown = async (categoriaId?: string) => {
+  let query = supabase
+    .from("bd_subcategorias_ativos")
+    .select("id, nome_subcategoria, categoria_id")
+    .eq("ativo", true)
+    .order("nome_subcategoria");
+
+  if (categoriaId) {
+    query = query.eq("categoria_id", categoriaId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("Error fetching subcategorias dropdown:", error);
+    throw error;
+  }
+
+  return data as { id: string; nome_subcategoria: string; categoria_id: string }[];
 };

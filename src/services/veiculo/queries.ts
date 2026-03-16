@@ -9,15 +9,17 @@ export const getVeiculos = async (filters: VeiculoFilter = {}) => {
     .select(`
       *,
       departamento:departamento_id(id, nome_departamento),
-      empresa:bd_empresas(id, nome_empresa)
+      empresa:bd_empresas(id, nome_empresa),
+      categoria:bd_categorias_ativos(id, nome_categoria),
+      subcategoria:bd_subcategorias_ativos(id, nome_subcategoria)
     `);
 
   if (filters.placa) {
     query = query.ilike("placa", `%${filters.placa}%`);
   }
 
-  if (filters.marca) {
-    query = query.ilike("marca", `%${filters.marca}%`);
+  if (filters.fabricante) {
+    query = query.ilike("fabricante", `%${filters.fabricante}%`);
   }
 
   if (filters.modelo) {
@@ -44,6 +46,10 @@ export const getVeiculos = async (filters: VeiculoFilter = {}) => {
     query = query.or(`frota.ilike.%${filters.frota}%,numero_frota.ilike.%${filters.frota}%`);
   }
 
+  if (filters.categoria_ativo_id && filters.categoria_ativo_id !== "_all") {
+    query = query.eq("categoria_ativo_id", filters.categoria_ativo_id);
+  }
+
   const { data, error } = await query.order("created_at", { ascending: false });
 
   if (error) {
@@ -54,7 +60,9 @@ export const getVeiculos = async (filters: VeiculoFilter = {}) => {
   return data.map(item => ({
     ...item,
     nome_departamento: item.departamento?.nome_departamento,
-    nome_empresa: item.empresa?.nome_empresa
+    nome_empresa: item.empresa?.nome_empresa,
+    nome_categoria: item.categoria?.nome_categoria,
+    nome_subcategoria: item.subcategoria?.nome_subcategoria
   })) as Veiculo[];
 };
 
@@ -66,7 +74,9 @@ export const getVeiculoById = async (id: string) => {
     .select(`
       *,
       departamento:departamento_id(id, nome_departamento),
-      empresa:bd_empresas(id, nome_empresa)
+      empresa:bd_empresas(id, nome_empresa),
+      categoria:bd_categorias_ativos(id, nome_categoria),
+      subcategoria:bd_subcategorias_ativos(id, nome_subcategoria)
     `)
     .eq("id", id)
     .single();
@@ -79,6 +89,8 @@ export const getVeiculoById = async (id: string) => {
   return {
     ...data,
     nome_departamento: data.departamento?.nome_departamento,
-    nome_empresa: data.empresa?.nome_empresa
+    nome_empresa: data.empresa?.nome_empresa,
+    nome_categoria: data.categoria?.nome_categoria,
+    nome_subcategoria: data.subcategoria?.nome_subcategoria
   } as Veiculo;
 };
