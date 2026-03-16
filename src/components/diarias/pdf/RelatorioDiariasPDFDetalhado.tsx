@@ -98,7 +98,7 @@ function consolidarFuncionarios(
     const isDomingo = diaSemana === 0;
     const isFeriado = feriadosSet.has(item.data);
 
-    const valor = item.valor_diaria_aplicada || 0;
+    const valor = Math.ceil(item.valor_diaria_aplicada || 0);
     const tipo = item.tipo_diaria;
     let integralAdd = 0;
     let meiaAdd = 0;
@@ -109,7 +109,7 @@ function consolidarFuncionarios(
     if (existing) {
       existing.total_dias += 1;
       existing.valor_total += valor;
-      existing.valor_refeicao += item.valor_refeicao_aplicado || 0;
+      existing.valor_refeicao += Math.ceil(item.valor_refeicao_aplicado || 0);
       existing.valor_diaria_integral += integralAdd;
       existing.valor_meia_diaria += meiaAdd;
       if (isFeriado) existing.dias_feriados += 1;
@@ -132,7 +132,7 @@ function consolidarFuncionarios(
         dias_fds: isDomingo && !isFeriado ? 1 : 0,
         dias_feriados: isFeriado ? 1 : 0,
         valor_total: valor,
-        valor_refeicao: item.valor_refeicao_aplicado || 0,
+        valor_refeicao: Math.ceil(item.valor_refeicao_aplicado || 0),
         valor_diaria_integral: integralAdd,
         valor_meia_diaria: meiaAdd,
       });

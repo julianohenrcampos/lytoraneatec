@@ -695,6 +695,7 @@ export type Database = {
           created_at: string | null
           departamento_id: string | null
           empresa_id: string | null
+          empresa_locadora_id: string | null
           fabricante: string | null
           frota: string | null
           id: string
@@ -713,6 +714,7 @@ export type Database = {
           status_disponibilidade: string | null
           status_ipva: string | null
           subcategoria_ativo_id: string | null
+          tipo_ativo: string | null
           tipo_combustivel: string | null
           tipo_veiculo: string | null
           updated_at: string | null
@@ -727,6 +729,7 @@ export type Database = {
           created_at?: string | null
           departamento_id?: string | null
           empresa_id?: string | null
+          empresa_locadora_id?: string | null
           fabricante?: string | null
           frota?: string | null
           id?: string
@@ -745,6 +748,7 @@ export type Database = {
           status_disponibilidade?: string | null
           status_ipva?: string | null
           subcategoria_ativo_id?: string | null
+          tipo_ativo?: string | null
           tipo_combustivel?: string | null
           tipo_veiculo?: string | null
           updated_at?: string | null
@@ -759,6 +763,7 @@ export type Database = {
           created_at?: string | null
           departamento_id?: string | null
           empresa_id?: string | null
+          empresa_locadora_id?: string | null
           fabricante?: string | null
           frota?: string | null
           id?: string
@@ -777,6 +782,7 @@ export type Database = {
           status_disponibilidade?: string | null
           status_ipva?: string | null
           subcategoria_ativo_id?: string | null
+          tipo_ativo?: string | null
           tipo_combustivel?: string | null
           tipo_veiculo?: string | null
           updated_at?: string | null
@@ -801,6 +807,13 @@ export type Database = {
             columns: ["empresa_id"]
             isOneToOne: false
             referencedRelation: "bd_empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_caminhoes_equipamentos_empresa_locadora_id_fkey"
+            columns: ["empresa_locadora_id"]
+            isOneToOne: false
+            referencedRelation: "bd_empresas_locadoras"
             referencedColumns: ["id"]
           },
           {
@@ -1481,6 +1494,39 @@ export type Database = {
           situacao?: string | null
           telefone?: string | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      bd_empresas_locadoras: {
+        Row: {
+          cartao_cnpj_url: string | null
+          contrato_social_url: string | null
+          criado_em: string | null
+          documento_mei_url: string | null
+          id: string
+          nome_empresa: string
+          proposta_url: string | null
+          rg_cpf_socio_url: string | null
+        }
+        Insert: {
+          cartao_cnpj_url?: string | null
+          contrato_social_url?: string | null
+          criado_em?: string | null
+          documento_mei_url?: string | null
+          id?: string
+          nome_empresa: string
+          proposta_url?: string | null
+          rg_cpf_socio_url?: string | null
+        }
+        Update: {
+          cartao_cnpj_url?: string | null
+          contrato_social_url?: string | null
+          criado_em?: string | null
+          documento_mei_url?: string | null
+          id?: string
+          nome_empresa?: string
+          proposta_url?: string | null
+          rg_cpf_socio_url?: string | null
         }
         Relationships: []
       }

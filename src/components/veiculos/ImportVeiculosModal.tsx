@@ -167,6 +167,8 @@ const ImportVeiculosModal: React.FC<ImportVeiculosModalProps> = ({
           status_cadastro: 'ativo',
           status_disponibilidade: 'disponivel',
           proprietario_tipo: 'proprio',
+          tipo_ativo: 'proprio',
+          empresa_locadora_id: null,
         }));
 
         console.log("Importing CSV data with entries:", formattedData.length);

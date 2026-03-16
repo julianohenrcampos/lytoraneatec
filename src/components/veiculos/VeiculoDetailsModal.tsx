@@ -12,16 +12,23 @@ interface VeiculoDetailsModalProps {
   veiculo: Veiculo | null;
 }
 
+const DetailItem = ({ label, value }: { label: string; value: string | null | undefined }) => (
+  <div>
+    <p className="text-sm font-medium text-muted-foreground">{label}</p>
+    <p className="text-sm">{value || "Não informado"}</p>
+  </div>
+);
+
 const VeiculoDetailsModal: React.FC<VeiculoDetailsModalProps> = ({ isOpen, onClose, veiculo }) => {
-  if (!veiculo) {
-    return null;
-  }
+  if (!veiculo) return null;
+
+  const identificador = [veiculo.frota, veiculo.numero_frota].filter(Boolean).join('') || 'N/A';
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>Detalhes do {veiculo.tipo_veiculo}</DialogTitle>
+          <DialogTitle>Detalhes do Ativo — {identificador}</DialogTitle>
         </DialogHeader>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -30,74 +37,49 @@ const VeiculoDetailsModal: React.FC<VeiculoDetailsModalProps> = ({ isOpen, onClo
               {veiculo.imagem_url ? (
                 <AvatarImage src={veiculo.imagem_url} alt={veiculo.placa || "Veículo"} />
               ) : (
-                <AvatarFallback className="bg-primary-50">
+                <AvatarFallback className="bg-primary/10">
                   <Truck className="h-16 w-16 text-primary" />
                 </AvatarFallback>
               )}
             </Avatar>
             
             <div className="text-center mt-2">
-              <p className="text-lg font-bold">{veiculo.placa || "Sem placa"}</p>
-              <p className="text-sm text-gray-500">{veiculo.fabricante} {veiculo.modelo}</p>
+              <p className="text-lg font-bold">{veiculo.placa || veiculo.numero_serie || "Sem identificador"}</p>
+              <p className="text-sm text-muted-foreground">{veiculo.fabricante} {veiculo.modelo}</p>
             </div>
           </div>
           
           <div className="md:col-span-2 space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Tipo</p>
-                <p className="text-sm">{veiculo.tipo_veiculo}</p>
-              </div>
-              
-              <div>
-                <p className="text-sm font-medium text-gray-500">Cor</p>
-                <p className="text-sm">{veiculo.cor || "Não informado"}</p>
-              </div>
-              
-              <div>
-                <p className="text-sm font-medium text-gray-500">Motor</p>
-                <p className="text-sm">{veiculo.motor || "Não informado"}</p>
-              </div>
-              
-              <div>
-                <p className="text-sm font-medium text-gray-500">Ano de Fabricação</p>
-                <p className="text-sm">{veiculo.ano_fabricacao || "Não informado"}</p>
-              </div>
-              
-              <div>
-                <p className="text-sm font-medium text-gray-500">Combustível</p>
-                <p className="text-sm">{veiculo.tipo_combustivel || "Não informado"}</p>
-              </div>
-              
-              <div>
-                <p className="text-sm font-medium text-gray-500">Status IPVA</p>
-                <p className="text-sm">{veiculo.status_ipva || "Não informado"}</p>
-              </div>
-              
-              <div>
-                <p className="text-sm font-medium text-gray-500">Situação</p>
-                <p className="text-sm">{veiculo.situacao || "Não informado"}</p>
-              </div>
-              
-              <div>
-                <p className="text-sm font-medium text-gray-500">Capacidade</p>
-                <p className="text-sm">{veiculo.capacidade || "Não informado"}</p>
-              </div>
-              
-              <div>
-                <p className="text-sm font-medium text-gray-500">Aluguel</p>
-                <p className="text-sm">{veiculo.aluguel || "Não informado"}</p>
-              </div>
-              
-              <div>
-                <p className="text-sm font-medium text-gray-500">Departamento</p>
-                <p className="text-sm">{veiculo.nome_departamento || "Não informado"}</p>
-              </div>
+              <DetailItem label="Categoria" value={veiculo.nome_categoria} />
+              <DetailItem label="Subcategoria" value={veiculo.nome_subcategoria} />
+              <DetailItem label="Fabricante" value={veiculo.fabricante} />
+              <DetailItem label="Modelo" value={veiculo.modelo} />
+              <DetailItem label="Placa" value={veiculo.placa} />
+              <DetailItem label="Nº de Série" value={veiculo.numero_serie} />
+              <DetailItem label="Chassi" value={veiculo.chassi} />
+              <DetailItem label="Cor" value={veiculo.cor} />
+              <DetailItem label="Motor" value={veiculo.motor} />
+              <DetailItem label="Ano de Fabricação" value={veiculo.ano_fabricacao} />
+              <DetailItem label="Combustível" value={veiculo.tipo_combustivel} />
+              <DetailItem label="Status IPVA" value={veiculo.status_ipva} />
+              <DetailItem label="Situação" value={veiculo.situacao} />
+              <DetailItem label="Capacidade" value={veiculo.capacidade} />
+              <DetailItem label="Aluguel" value={veiculo.aluguel} />
+              <DetailItem label="Departamento" value={veiculo.nome_departamento} />
+              <DetailItem label="Proprietário" value={veiculo.nome_empresa} />
             </div>
             
+            {veiculo.informacoes_complementares && (
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Informações Complementares</p>
+                <p className="text-sm">{veiculo.informacoes_complementares}</p>
+              </div>
+            )}
+
             {veiculo.observacoes && (
               <div>
-                <p className="text-sm font-medium text-gray-500">Observações</p>
+                <p className="text-sm font-medium text-muted-foreground">Observações</p>
                 <p className="text-sm">{veiculo.observacoes}</p>
               </div>
             )}

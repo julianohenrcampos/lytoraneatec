@@ -285,3 +285,11 @@ export function formatCurrency(value: number): string {
     currency: 'BRL'
   }).format(value);
 }
+
+/**
+ * Arredonda valor financeiro para cima (Math.ceil).
+ * Regra de negócio: qualquer fração de centavo é arredondada para cima.
+ */
+export function roundUp(value: number): number {
+  return Math.ceil(value);
+}

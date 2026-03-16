@@ -16,6 +16,7 @@ interface VeiculoFormModalProps {
   onSave: (id: string | undefined, data: VeiculoFormData) => Promise<void>;
   departamentos: { id: string, nome_departamento: string }[] | undefined;
   empresas: { id: string, nome_empresa: string }[] | undefined;
+  categorias?: { id: string, nome_categoria: string }[] | undefined;
 }
 
 const formSchema = z.object({
@@ -24,7 +25,9 @@ const formSchema = z.object({
   departamento_id: z.string().optional().nullable(),
   empresa_id: z.string().optional().nullable(),
   placa: z.string().optional().nullable(),
-  tipo_veiculo: z.string().min(1, { message: "Tipo de veículo é obrigatório" }),
+  tipo_veiculo: z.string().optional().nullable(),
+  categoria_ativo_id: z.string().optional().nullable(),
+  subcategoria_ativo_id: z.string().optional().nullable(),
   fabricante: z.string().optional().nullable(),
   modelo: z.string().optional().nullable(),
   cor: z.string().optional().nullable(),
@@ -36,7 +39,18 @@ const formSchema = z.object({
   capacidade: z.string().optional().nullable(),
   aluguel: z.string().optional().nullable(),
   observacoes: z.string().optional().nullable(),
-  imagem_url: z.string().optional().nullable()
+  imagem_url: z.string().optional().nullable(),
+  numero_serie: z.string().optional().nullable(),
+  chassi: z.string().optional().nullable(),
+  informacoes_complementares: z.string().optional().nullable(),
+}).refine((data) => {
+  const hasPlaca = data.placa && data.placa.trim().length > 0;
+  const hasSerie = data.numero_serie && data.numero_serie.trim().length > 0;
+  const hasChassi = data.chassi && data.chassi.trim().length > 0;
+  return hasPlaca || hasSerie || hasChassi;
+}, {
+  message: "Preencha pelo menos um identificador: Placa, Número de Série ou Chassi",
+  path: ["placa"],
 });
 
 const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({ 
@@ -46,7 +60,8 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
   veiculo, 
   onSave,
   departamentos = [],
-  empresas = []
+  empresas = [],
+  categorias = []
 }) => {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -60,7 +75,9 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
       departamento_id: "_none",
       empresa_id: "",
       placa: "",
-      tipo_veiculo: "Caminhão",
+      tipo_veiculo: "",
+      categoria_ativo_id: "_none",
+      subcategoria_ativo_id: "_none",
       fabricante: "",
       modelo: "",
       cor: "",
@@ -72,7 +89,10 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
       capacidade: "",
       aluguel: "",
       observacoes: "",
-      imagem_url: null
+      imagem_url: null,
+      numero_serie: "",
+      chassi: "",
+      informacoes_complementares: "",
     }
   });
 
@@ -84,7 +104,9 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
         departamento_id: veiculo.departamento_id || "_none",
         empresa_id: veiculo.empresa_id || "",
         placa: veiculo.placa || "",
-        tipo_veiculo: veiculo.tipo_veiculo || "Caminhão",
+        tipo_veiculo: veiculo.tipo_veiculo || "",
+        categoria_ativo_id: veiculo.categoria_ativo_id || "_none",
+        subcategoria_ativo_id: veiculo.subcategoria_ativo_id || "_none",
         fabricante: veiculo.fabricante || "",
         modelo: veiculo.modelo || "",
         cor: veiculo.cor || "",
@@ -96,7 +118,10 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
         capacidade: veiculo.capacidade || "",
         aluguel: veiculo.aluguel || "",
         observacoes: veiculo.observacoes || "",
-        imagem_url: veiculo.imagem_url || null
+        imagem_url: veiculo.imagem_url || null,
+        numero_serie: veiculo.numero_serie || "",
+        chassi: veiculo.chassi || "",
+        informacoes_complementares: veiculo.informacoes_complementares || "",
       });
     } else {
       form.reset({
@@ -105,7 +130,9 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
         departamento_id: "_none",
         empresa_id: "",
         placa: "",
-        tipo_veiculo: "Caminhão",
+        tipo_veiculo: "",
+        categoria_ativo_id: "_none",
+        subcategoria_ativo_id: "_none",
         fabricante: "",
         modelo: "",
         cor: "",
@@ -117,7 +144,10 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
         capacidade: "",
         aluguel: "",
         observacoes: "",
-        imagem_url: null
+        imagem_url: null,
+        numero_serie: "",
+        chassi: "",
+        informacoes_complementares: "",
       });
       setSelectedImage(null);
     }
@@ -132,15 +162,6 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
     try {
       setIsSubmitting(true);
       console.log("Form submission started, values:", values);
-      
-      if (values.tipo_veiculo === "Caminhão" && !values.placa) {
-        form.setError("placa", { 
-          type: "manual", 
-          message: "Placa é obrigatória para caminhões" 
-        });
-        setIsSubmitting(false);
-        return;
-      }
 
       let imageUrl = values.imagem_url;
       if (selectedImage) {
@@ -159,6 +180,8 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
       }
       
       const departamentoId = values.departamento_id === "_none" ? null : values.departamento_id;
+      const categoriaId = values.categoria_ativo_id === "_none" ? null : values.categoria_ativo_id;
+      const subcategoriaId = values.subcategoria_ativo_id === "_none" ? null : values.subcategoria_ativo_id;
       
       const formData: VeiculoFormData = {
         frota: values.frota,
@@ -166,7 +189,9 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
         departamento_id: departamentoId,
         empresa_id: values.empresa_id || null,
         placa: values.placa,
-        tipo_veiculo: values.tipo_veiculo,
+        tipo_veiculo: values.tipo_veiculo || null,
+        categoria_ativo_id: categoriaId,
+        subcategoria_ativo_id: subcategoriaId,
         fabricante: values.fabricante,
         modelo: values.modelo,
         cor: values.cor,
@@ -179,14 +204,14 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
         aluguel: values.aluguel,
         observacoes: values.observacoes,
         imagem_url: imageUrl,
-        categoria_ativo_id: null,
-        subcategoria_ativo_id: null,
-        numero_serie: null,
-        chassi: null,
-        informacoes_complementares: null,
+        numero_serie: values.numero_serie || null,
+        chassi: values.chassi || null,
+        informacoes_complementares: values.informacoes_complementares || null,
         status_cadastro: 'ativo',
         status_disponibilidade: 'disponivel',
         proprietario_tipo: 'proprio',
+        tipo_ativo: (values as any).tipo_ativo || 'proprio',
+        empresa_locadora_id: (values as any).empresa_locadora_id || null,
       };
 
       console.log("Saving vehicle with data:", formData);
@@ -227,6 +252,7 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
           <DialogTitle>{veiculo ? "Editar Veículo" : "Cadastrar Novo Veículo/Equipamento"}</DialogTitle>
           <DialogDescription>
             Preencha os dados do veículo ou equipamento. Campos marcados com * são obrigatórios.
+            É necessário informar pelo menos um identificador: Placa, Nº de Série ou Chassi.
           </DialogDescription>
         </DialogHeader>
         
@@ -239,6 +265,7 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
           onImageChange={handleSelectedImage}
           departamentos={departamentos || []}
           empresas={empresas || []}
+          categorias={categorias || []}
         />
       </DialogContent>
     </Dialog>

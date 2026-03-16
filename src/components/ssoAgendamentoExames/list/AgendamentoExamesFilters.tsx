@@ -31,17 +31,26 @@ export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> =
   const [tipoExame, setTipoExame] = useState('');
   const [localAtendimentoId, setLocalAtendimentoId] = useState('');
   const [empresa, setEmpresa] = useState('');
+  const [contrato, setContrato] = useState('');
   const [nomeColaborador, setNomeColaborador] = useState('');
   const [cpf, setCpf] = useState('');
   const [statusIntegracao, setStatusIntegracao] = useState('');
   const [statusCarteira, setStatusCarteira] = useState('');
 
-  const { locais, empresas, funcoes } = useAgendamentoExames();
+  const { locais, empresas, funcoes, centrosCusto } = useAgendamentoExames();
 
   const empresasOptions = useMemo(() => [
     { value: '', label: 'Todas as empresas' },
     ...empresas.map(e => ({ value: e.nome_empresa, label: e.nome_empresa }))
   ], [empresas]);
+
+  const centrosCustoOptions = useMemo(() => [
+    { value: '', label: 'Todos os centros de custo' },
+    ...centrosCusto.map(cc => ({
+      value: cc.nome_centro_custo,
+      label: `${cc.codigo_centro_custo} - ${cc.nome_centro_custo}`
+    }))
+  ], [centrosCusto]);
 
   const funcoesOptions = useMemo(() => [
     { value: '', label: 'Todas as funções' },
@@ -58,6 +67,7 @@ export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> =
     if (tipoExame && tipoExame !== 'all') filters.tipo_exame = tipoExame;
     if (localAtendimentoId && localAtendimentoId !== 'all') filters.local_atendimento_id = localAtendimentoId;
     if (empresa) filters.empresa = empresa;
+    if (contrato) filters.contrato = contrato;
     if (nomeColaborador) filters.nome_colaborador = nomeColaborador;
     if (cpf) filters.cpf = cpf;
     if (statusIntegracao && statusIntegracao !== 'all') filters.status_integracao = statusIntegracao;
@@ -74,6 +84,7 @@ export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> =
     setTipoExame('');
     setLocalAtendimentoId('');
     setEmpresa('');
+    setContrato('');
     setNomeColaborador('');
     setCpf('');
     setStatusIntegracao('');
@@ -161,6 +172,19 @@ export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> =
           placeholder="Todas as empresas"
           searchPlaceholder="Buscar empresa..."
           emptyText="Nenhuma empresa encontrada"
+        />
+      </div>
+
+      {/* Centro de Custo */}
+      <div className="space-y-2">
+        <Label>Centro de Custo</Label>
+        <Combobox
+          options={centrosCustoOptions}
+          value={contrato}
+          onChange={setContrato}
+          placeholder="Todos os centros de custo"
+          searchPlaceholder="Buscar centro de custo..."
+          emptyText="Nenhum centro de custo encontrado"
         />
       </div>
 

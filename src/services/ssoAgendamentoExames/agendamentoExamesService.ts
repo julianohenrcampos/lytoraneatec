@@ -70,6 +70,9 @@ export const agendamentoExamesService = {
     if (filters.status_carteira && filters.status_carteira !== 'all') {
       query = query.eq('status_carteira', filters.status_carteira);
     }
+    if (filters.contrato) {
+      query = query.ilike('contrato', `%${filters.contrato}%`);
+    }
 
     const { data, error } = await query;
     if (error) throw error;

@@ -42,6 +42,8 @@ export const useVeiculoActions = (initialSituacaoFilter?: string | null) => {
     isLoadingDepartamentos,
     marcasDropdown,
     isLoadingMarcas,
+    categoriasDropdown,
+    isLoadingCategorias,
   } = useVeiculoQueries(filters);
 
   const { data: empresasDropdown = [], isLoading: isLoadingEmpresas } = useQuery({
@@ -123,10 +125,12 @@ export const useVeiculoActions = (initialSituacaoFilter?: string | null) => {
     departamentosDropdown,
     marcasDropdown,
     empresasDropdown,
+    categoriasDropdown,
     isLoading,
     isLoadingDepartamentos,
     isLoadingMarcas,
     isLoadingEmpresas,
+    isLoadingCategorias,
     isError,
 
     setIsFormModalOpen,

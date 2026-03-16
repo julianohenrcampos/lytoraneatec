@@ -1,18 +1,22 @@
 
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileUp, Plus } from "lucide-react";
+import { FileDown, FileUp, FolderPlus, Plus } from "lucide-react";
 
 interface VeiculoHeaderActionsProps {
   onNewClick: () => void;
   onExport: () => void;
   onImport: () => void;
+  onManageCategorias: () => void;
+  onManageSubcategorias: () => void;
 }
 
 const VeiculoHeaderActions: React.FC<VeiculoHeaderActionsProps> = ({
   onNewClick,
   onExport,
-  onImport
+  onImport,
+  onManageCategorias,
+  onManageSubcategorias,
 }) => {
   return (
     <div className="flex flex-wrap gap-2">
@@ -20,19 +24,19 @@ const VeiculoHeaderActions: React.FC<VeiculoHeaderActionsProps> = ({
         <Plus className="mr-2 h-4 w-4" />
         Novo C/E
       </Button>
-      <Button 
-        variant="outline" 
-        onClick={onExport} 
-        className="whitespace-nowrap"
-      >
+      <Button variant="outline" onClick={onManageCategorias} className="whitespace-nowrap">
+        <FolderPlus className="mr-2 h-4 w-4" />
+        Categoria
+      </Button>
+      <Button variant="outline" onClick={onManageSubcategorias} className="whitespace-nowrap">
+        <FolderPlus className="mr-2 h-4 w-4" />
+        Subcategoria
+      </Button>
+      <Button variant="outline" onClick={onExport} className="whitespace-nowrap">
         <FileDown className="mr-2 h-4 w-4" />
         Exportar
       </Button>
-      <Button 
-        variant="outline" 
-        onClick={onImport}
-        className="whitespace-nowrap"
-      >
+      <Button variant="outline" onClick={onImport} className="whitespace-nowrap">
         <FileUp className="mr-2 h-4 w-4" />
         Importar
       </Button>

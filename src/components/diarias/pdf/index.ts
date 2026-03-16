@@ -7,3 +7,7 @@ export { CompiladoDiariasPDF, buildCompiladoData } from './CompiladoDiariasPDF';
 export { FolhaPontoPDFDocument } from './FolhaPontoPDF';
 export type { FolhaPontoFuncionario, FolhaPontoPDFProps } from './FolhaPontoPDF';
 export { RelatorioDiariasPDFDetalhado } from './RelatorioDiariasPDFDetalhado';
+export { RelatorioDiariasPDFConsolidado } from './RelatorioDiariasPDFConsolidado';
+export type { RelatorioDiariasPDFConsolidadoProps } from './RelatorioDiariasPDFConsolidado';
+export { RelatorioDiariasPDFPorPeriodo } from './RelatorioDiariasPDFPorPeriodo';
+export type { RelatorioDiariasPDFPorPeriodoProps } from './RelatorioDiariasPDFPorPeriodo';

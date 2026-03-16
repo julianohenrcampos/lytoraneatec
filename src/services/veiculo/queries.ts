@@ -11,7 +11,8 @@ export const getVeiculos = async (filters: VeiculoFilter = {}) => {
       departamento:departamento_id(id, nome_departamento),
       empresa:bd_empresas(id, nome_empresa),
       categoria:bd_categorias_ativos(id, nome_categoria),
-      subcategoria:bd_subcategorias_ativos(id, nome_subcategoria)
+      subcategoria:bd_subcategorias_ativos(id, nome_subcategoria),
+      empresa_locadora:bd_empresas_locadoras(id, nome_empresa)
     `);
 
   if (filters.placa) {
@@ -62,7 +63,8 @@ export const getVeiculos = async (filters: VeiculoFilter = {}) => {
     nome_departamento: item.departamento?.nome_departamento,
     nome_empresa: item.empresa?.nome_empresa,
     nome_categoria: item.categoria?.nome_categoria,
-    nome_subcategoria: item.subcategoria?.nome_subcategoria
+    nome_subcategoria: item.subcategoria?.nome_subcategoria,
+    nome_empresa_locadora: item.empresa_locadora?.nome_empresa
   })) as Veiculo[];
 };
 
@@ -76,7 +78,8 @@ export const getVeiculoById = async (id: string) => {
       departamento:departamento_id(id, nome_departamento),
       empresa:bd_empresas(id, nome_empresa),
       categoria:bd_categorias_ativos(id, nome_categoria),
-      subcategoria:bd_subcategorias_ativos(id, nome_subcategoria)
+      subcategoria:bd_subcategorias_ativos(id, nome_subcategoria),
+      empresa_locadora:bd_empresas_locadoras(id, nome_empresa)
     `)
     .eq("id", id)
     .single();
@@ -91,6 +94,7 @@ export const getVeiculoById = async (id: string) => {
     nome_departamento: data.departamento?.nome_departamento,
     nome_empresa: data.empresa?.nome_empresa,
     nome_categoria: data.categoria?.nome_categoria,
-    nome_subcategoria: data.subcategoria?.nome_subcategoria
+    nome_subcategoria: data.subcategoria?.nome_subcategoria,
+    nome_empresa_locadora: data.empresa_locadora?.nome_empresa
   } as Veiculo;
 };

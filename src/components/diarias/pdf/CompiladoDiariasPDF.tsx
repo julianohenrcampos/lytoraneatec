@@ -359,7 +359,7 @@ export function buildCompiladoData(
     const cc = centrosCusto.find((c) => c.id === item.centro_custo_id);
     const gerenteId = cc?.aprovador_diarias_id || 'sem_gerente';
     const ccLabel = item.codigo_centro_custo || '';
-    const valorItem = (item.valor_diaria_aplicada || 0) + (item.valor_refeicao_aplicado || 0);
+    const valorItem = Math.ceil(item.valor_diaria_aplicada || 0) + Math.ceil(item.valor_refeicao_aplicado || 0);
 
     const dataStr = item.data?.substring(0, 10) || '';
     const dataObj = new Date(dataStr + 'T12:00:00');

@@ -18,6 +18,7 @@ interface VeiculoFormTabsProps {
   onImageChange: (file: File) => void;
   departamentos: { id: string, nome_departamento: string }[];
   empresas: { id: string, nome_empresa: string }[];
+  categorias: { id: string, nome_categoria: string }[];
 }
 
 const VeiculoFormTabs: React.FC<VeiculoFormTabsProps> = ({
@@ -29,6 +30,7 @@ const VeiculoFormTabs: React.FC<VeiculoFormTabsProps> = ({
   onImageChange,
   departamentos,
   empresas,
+  categorias,
 }) => {
   const [activeTab, setActiveTab] = useState("details");
 
@@ -50,11 +52,11 @@ const VeiculoFormTabs: React.FC<VeiculoFormTabsProps> = ({
               form={form} 
               departamentos={departamentos}
               empresas={empresas}
+              categorias={categorias}
               currentImage={currentImage}
               onImageChange={onImageChange}
             />
             
-            {/* Botão Seguir na aba de Dados Básicos */}
             <div className="flex justify-end pt-4 sticky bottom-0 bg-background border-t mt-4 pt-4">
               <Button type="button" onClick={handleNextTab} className="gap-2">
                 Seguir
@@ -66,7 +68,6 @@ const VeiculoFormTabs: React.FC<VeiculoFormTabsProps> = ({
           <TabsContent value="specifications" className="space-y-4 pt-4 flex-1 overflow-y-auto">
             <VeiculoSpecificationsTab form={form} />
             
-            {/* Botões de cancelar e salvar na aba de Especificações */}
             <DialogFooter className="pt-4 sticky bottom-0 bg-background border-t mt-4">
               <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
                 Cancelar

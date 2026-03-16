@@ -1,14 +1,15 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { 
   fetchVeiculos,
   getDepartamentosDropdown,
-  getMarcasDropdown,
+  getFabricantesDropdown,
+  getEmpresasDropdown,
+  getCategoriasDropdown,
+  getSubcategoriasDropdown,
   VeiculoFilter
 } from "@/services/veiculo";
 
 export const useVeiculoQueries = (filters: VeiculoFilter = {}) => {
-  // Queries with better error handling
   const { 
     data: veiculos, 
     isLoading, 
@@ -28,14 +29,27 @@ export const useVeiculoQueries = (filters: VeiculoFilter = {}) => {
     staleTime: 60000,
   });
 
-  const { data: marcasDropdown, isLoading: isLoadingMarcas } = useQuery({
-    queryKey: ['marcasDropdown'],
-    queryFn: () => getMarcasDropdown(),
+  const { data: fabricantesDropdown, isLoading: isLoadingFabricantes } = useQuery({
+    queryKey: ['fabricantesDropdown'],
+    queryFn: () => getFabricantesDropdown(),
     retry: 1,
     staleTime: 60000,
   });
 
-  // Provide default values for better safety
+  const { data: empresasDropdown, isLoading: isLoadingEmpresas } = useQuery({
+    queryKey: ['empresasDropdown'],
+    queryFn: () => getEmpresasDropdown(),
+    retry: 1,
+    staleTime: 60000,
+  });
+
+  const { data: categoriasDropdown, isLoading: isLoadingCategorias } = useQuery({
+    queryKey: ['categoriasDropdown'],
+    queryFn: () => getCategoriasDropdown(),
+    retry: 1,
+    staleTime: 60000,
+  });
+
   return {
     veiculos: veiculos || [],
     isLoading,
@@ -43,7 +57,29 @@ export const useVeiculoQueries = (filters: VeiculoFilter = {}) => {
     refetch,
     departamentosDropdown: departamentosDropdown || [],
     isLoadingDepartamentos,
-    marcasDropdown: marcasDropdown || [],
-    isLoadingMarcas,
+    fabricantesDropdown: fabricantesDropdown || [],
+    isLoadingFabricantes,
+    empresasDropdown: empresasDropdown || [],
+    isLoadingEmpresas,
+    categoriasDropdown: categoriasDropdown || [],
+    isLoadingCategorias,
+    // Keep backward compat
+    marcasDropdown: fabricantesDropdown || [],
+    isLoadingMarcas: isLoadingFabricantes,
+  };
+};
+
+export const useSubcategoriasQuery = (categoriaId?: string | null) => {
+  const { data: subcategoriasDropdown, isLoading: isLoadingSubcategorias } = useQuery({
+    queryKey: ['subcategoriasDropdown', categoriaId],
+    queryFn: () => getSubcategoriasDropdown(categoriaId || undefined),
+    enabled: !!categoriaId && categoriaId !== '_none',
+    retry: 1,
+    staleTime: 60000,
+  });
+
+  return {
+    subcategoriasDropdown: subcategoriasDropdown || [],
+    isLoadingSubcategorias,
   };
 };

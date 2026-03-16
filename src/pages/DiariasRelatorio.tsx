@@ -19,7 +19,7 @@ import {
   Printer } from
 "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { generateRelatorioDiariasPDF, generateRelatorioDiariasPDFDetalhado, generateCompiladoDiariasPDF, generateFolhaPontoPDF } from "@/services/pdfService";
+import { generateRelatorioDiariasPDF, generateRelatorioDiariasPDFDetalhado, generateCompiladoDiariasPDF, generateFolhaPontoPDF, generateRelatorioDiariasPDFConsolidado, generateRelatorioDiariasPDFPorPeriodo } from "@/services/pdfService";
 import type { FolhaPontoFuncionario } from "@/components/diarias/pdf/FolhaPontoPDF";
 
 import MainLayout from "@/components/layout/MainLayout";
@@ -337,7 +337,7 @@ export default function DiariasRelatorio() {
     );
     return {
       total_diarias: diariasCompletas.length,
-      valor_total: diariasCompletas.reduce((acc, r) => acc + (r.valor_diaria_aplicada || 0) + (r.valor_refeicao_aplicado || 0), 0)
+      valor_total: diariasCompletas.reduce((acc, r) => acc + Math.ceil(r.valor_diaria_aplicada || 0) + Math.ceil(r.valor_refeicao_aplicado || 0), 0)
     };
   }, [relatorio]);
 
@@ -570,6 +570,146 @@ export default function DiariasRelatorio() {
     }
   };
 
+  const handleExportPDFConsolidado = async () => {
+    if (relatorio.length === 0) {
+      toast.error('Não há dados para exportar.');
+      return;
+    }
+
+    setIsPDFLoading(true);
+    try {
+      const dateStr = filters.data_inicio
+        ? format(new Date(filters.data_inicio + 'T12:00:00'), 'yyyyMMdd')
+        : format(new Date(), 'yyyyMMdd');
+      const fileName = `Relatorio_Diarias_Consolidado_${dateStr}`;
+
+      // Build centrosCustoInfo with diretoria_id
+      const ccIds = [...new Set(relatorio.map(r => r.centro_custo_id).filter(Boolean))];
+      let centrosCustoInfo: { id: string; codigo_centro_custo: string; nome_centro_custo: string; aprovador_diarias_id: string | null; diretoria_id: string | null }[] = [];
+
+      if (ccIds.length > 0) {
+        const { data: ccsData } = await supabase
+          .from('bd_centros_custo')
+          .select('id, codigo_centro_custo, nome_centro_custo, aprovador_diarias_id, diretoria_id')
+          .in('id', ccIds);
+        centrosCustoInfo = (ccsData || []).map((cc: any) => ({
+          id: cc.id,
+          codigo_centro_custo: cc.codigo_centro_custo,
+          nome_centro_custo: cc.nome_centro_custo,
+          aprovador_diarias_id: cc.aprovador_diarias_id,
+          diretoria_id: cc.diretoria_id,
+        }));
+      }
+
+      // Build gerentesMap
+      const aprovadorIds = [...new Set(centrosCustoInfo.map(cc => cc.aprovador_diarias_id).filter(Boolean))] as string[];
+      const gerentesMap: Record<string, string> = {};
+      if (aprovadorIds.length > 0) {
+        const { data: gerentes } = await supabase
+          .from('bd_funcionarios')
+          .select('id, nome_completo')
+          .in('id', aprovadorIds);
+        gerentes?.forEach((g: any) => { gerentesMap[g.id] = g.nome_completo; });
+      }
+
+      // Build diretoresMap (diretoria_id → director name)
+      const diretoriaIds = [...new Set(centrosCustoInfo.map(cc => cc.diretoria_id).filter(Boolean))] as string[];
+      const diretoresMap: Record<string, string> = {};
+      if (diretoriaIds.length > 0) {
+        const { data: diretorias } = await supabase
+          .from('bd_diretorias')
+          .select('id, diretor_id, bd_funcionarios!bd_diretorias_diretor_id_fkey(nome_completo)')
+          .in('id', diretoriaIds);
+        diretorias?.forEach((d: any) => {
+          const nome = d.bd_funcionarios?.nome_completo;
+          if (nome) diretoresMap[d.id] = nome;
+        });
+      }
+
+      await generateRelatorioDiariasPDFConsolidado(relatorio, filters, feriados, fileName, {
+        centrosCustoInfo,
+        gerentesMap,
+        diretoresMap,
+      });
+      toast.success('PDF Consolidado gerado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao gerar PDF consolidado:', error);
+      toast.error('Erro ao gerar PDF consolidado.');
+    } finally {
+      setIsPDFLoading(false);
+    }
+  };
+
+  const handleExportPDFPorPeriodo = async () => {
+    if (relatorio.length === 0) {
+      toast.error('Não há dados para exportar.');
+      return;
+    }
+
+    setIsPDFLoading(true);
+    try {
+      const dateStr = filters.data_inicio
+        ? format(new Date(filters.data_inicio + 'T12:00:00'), 'yyyyMMdd')
+        : format(new Date(), 'yyyyMMdd');
+      const fileName = `Relatorio_Diarias_Periodo_${dateStr}`;
+
+      // Build centrosCustoInfo
+      const ccIds = [...new Set(relatorio.map(r => r.centro_custo_id).filter(Boolean))];
+      let centrosCustoInfo: { id: string; codigo_centro_custo: string; nome_centro_custo: string; aprovador_diarias_id: string | null; diretoria_id: string | null }[] = [];
+
+      if (ccIds.length > 0) {
+        const { data: ccsData } = await supabase
+          .from('bd_centros_custo')
+          .select('id, codigo_centro_custo, nome_centro_custo, aprovador_diarias_id, diretoria_id')
+          .in('id', ccIds);
+        centrosCustoInfo = (ccsData || []).map((cc: any) => ({
+          id: cc.id,
+          codigo_centro_custo: cc.codigo_centro_custo,
+          nome_centro_custo: cc.nome_centro_custo,
+          aprovador_diarias_id: cc.aprovador_diarias_id,
+          diretoria_id: cc.diretoria_id,
+        }));
+      }
+
+      // Build gerentesMap
+      const aprovadorIds = [...new Set(centrosCustoInfo.map(cc => cc.aprovador_diarias_id).filter(Boolean))] as string[];
+      const gerentesMap: Record<string, string> = {};
+      if (aprovadorIds.length > 0) {
+        const { data: gerentes } = await supabase
+          .from('bd_funcionarios')
+          .select('id, nome_completo')
+          .in('id', aprovadorIds);
+        gerentes?.forEach((g: any) => { gerentesMap[g.id] = g.nome_completo; });
+      }
+
+      // Build diretoresMap
+      const diretoriaIds = [...new Set(centrosCustoInfo.map(cc => cc.diretoria_id).filter(Boolean))] as string[];
+      const diretoresMap: Record<string, string> = {};
+      if (diretoriaIds.length > 0) {
+        const { data: diretorias } = await supabase
+          .from('bd_diretorias')
+          .select('id, diretor_id, bd_funcionarios!bd_diretorias_diretor_id_fkey(nome_completo)')
+          .in('id', diretoriaIds);
+        diretorias?.forEach((d: any) => {
+          const nome = d.bd_funcionarios?.nome_completo;
+          if (nome) diretoresMap[d.id] = nome;
+        });
+      }
+
+      await generateRelatorioDiariasPDFPorPeriodo(relatorio, filters, feriados, fileName, {
+        centrosCustoInfo,
+        gerentesMap,
+        diretoresMap,
+      });
+      toast.success('PDF Detalhado por Período gerado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao gerar PDF por período:', error);
+      toast.error('Erro ao gerar PDF por período.');
+    } finally {
+      setIsPDFLoading(false);
+    }
+  };
+
 
   // Loading de permissões e escopo
   if (isLoadingPermissions || isLoadingScope) {
@@ -634,6 +774,12 @@ export default function DiariasRelatorio() {
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleExportPDFDetalhado} className="cursor-pointer">
                     📑 PDF Detalhado
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportPDFConsolidado} className="cursor-pointer">
+                    📊 PDF Consolidado
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportPDFPorPeriodo} className="cursor-pointer">
+                    📋 PDF Detalhado por Período
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleExportCompilado} className="cursor-pointer">
                     📦 Compilado
@@ -890,23 +1036,23 @@ export default function DiariasRelatorio() {
                         </TableCell>
                         <TableCell className="text-right">
                           {formatCurrency(
-                        item.tipo_diaria === 'completa' ? item.valor_diaria_aplicada || 0 :
-                        item.tipo_diaria === 'uma_e_meia' ? (item.valor_diaria_aplicada || 0) * (2 / 3) :
+                        item.tipo_diaria === 'completa' ? Math.ceil(item.valor_diaria_aplicada || 0) :
+                        item.tipo_diaria === 'uma_e_meia' ? Math.ceil((item.valor_diaria_aplicada || 0) * (2 / 3)) :
                         0
                       )}
                         </TableCell>
                         <TableCell className="text-right">
                           {formatCurrency(
-                        item.tipo_diaria === 'meia' ? item.valor_diaria_aplicada || 0 :
-                        item.tipo_diaria === 'uma_e_meia' ? (item.valor_diaria_aplicada || 0) * (1 / 3) :
+                        item.tipo_diaria === 'meia' ? Math.ceil(item.valor_diaria_aplicada || 0) :
+                        item.tipo_diaria === 'uma_e_meia' ? Math.ceil((item.valor_diaria_aplicada || 0) * (1 / 3)) :
                         0
                       )}
                         </TableCell>
                         <TableCell className="text-right">
-                          {formatCurrency(item.valor_refeicao_aplicado || 0)}
+                          {formatCurrency(Math.ceil(item.valor_refeicao_aplicado || 0))}
                         </TableCell>
                         <TableCell className="text-right font-medium">
-                          {formatCurrency((item.valor_diaria_aplicada || 0) + (item.valor_refeicao_aplicado || 0))}
+                          {formatCurrency(Math.ceil(item.valor_diaria_aplicada || 0) + Math.ceil(item.valor_refeicao_aplicado || 0))}
                         </TableCell>
                       </TableRow>
                   )}
@@ -979,9 +1125,6 @@ export default function DiariasRelatorio() {
                 </Button>
               </div>
 
-              <div className="text-lg font-bold">
-                Total: {formatCurrency(resumo.valor_total)}
-              </div>
             </div>
           }
         </Card>

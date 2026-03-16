@@ -9,6 +9,8 @@ import VeiculoDetailsModal from "./VeiculoDetailsModal";
 import ImportVeiculosModal from "./ImportVeiculosModal";
 import DeleteVeiculoDialog from "./DeleteVeiculoDialog";
 import VeiculoHeaderActions from "./VeiculoHeaderActions";
+import GerenciarCategoriasModal from "./GerenciarCategoriasModal";
+import GerenciarSubcategoriasModal from "./GerenciarSubcategoriasModal";
 import { VeiculoFormData } from "@/types/veiculo";
 
 interface VeiculoPageProps {
@@ -17,6 +19,8 @@ interface VeiculoPageProps {
 
 const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
   const [isSuccessMessageVisible, setIsSuccessMessageVisible] = useState(false);
+  const [isCategoriaModalOpen, setIsCategoriaModalOpen] = useState(false);
+  const [isSubcategoriaModalOpen, setIsSubcategoriaModalOpen] = useState(false);
   
   const {
     veiculos,
@@ -31,6 +35,7 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
     deletingVeiculo,
     departamentosDropdown,
     empresasDropdown,
+    categoriasDropdown,
     openFormModal,
     openDetailsModal,
     confirmDelete,
@@ -80,6 +85,8 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
           onExport={exportToExcel}
           onImport={() => setIsImportModalOpen(true)}
           onNewClick={() => openFormModal()}
+          onManageCategorias={() => setIsCategoriaModalOpen(true)}
+          onManageSubcategorias={() => setIsSubcategoriaModalOpen(true)}
         />
       </div>
       
@@ -95,6 +102,7 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
         onResetFilters={resetFilters}
         isLoading={isLoading}
         totalVeiculos={veiculos?.length || 0}
+        categorias={categoriasDropdown}
       />
       
       <VeiculoTable 
@@ -114,6 +122,7 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
         onSave={handleSaveVeiculo}
         departamentos={departamentosDropdown || []}
         empresas={empresasDropdown || []}
+        categorias={categoriasDropdown || []}
       />
       
       <VeiculoDetailsModal 
@@ -135,6 +144,17 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
         onClose={() => setIsImportModalOpen(false)}
         onImport={handleImportWrapper}
         onSuccess={handleImportSuccess}
+      />
+
+      <GerenciarCategoriasModal
+        isOpen={isCategoriaModalOpen}
+        onClose={() => setIsCategoriaModalOpen(false)}
+      />
+
+      <GerenciarSubcategoriasModal
+        isOpen={isSubcategoriaModalOpen}
+        onClose={() => setIsSubcategoriaModalOpen(false)}
+        categorias={categoriasDropdown}
       />
     </div>
   );

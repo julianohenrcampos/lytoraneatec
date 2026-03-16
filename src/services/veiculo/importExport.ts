@@ -13,6 +13,7 @@ export const exportVeiculos = async (veiculos: Veiculo[]) => {
     'Modelo': veiculo.modelo || 'N/A',
     'Cor': veiculo.cor || 'N/A',
     'Departamento': veiculo.nome_departamento || 'N/A',
+    'Empresa': veiculo.nome_empresa || 'N/A',
     'Motor': veiculo.motor || 'N/A',
     'Ano de Fabricação': veiculo.ano_fabricacao || 'N/A',
     'Tipo de Combustível': veiculo.tipo_combustivel || 'N/A',
@@ -25,6 +26,12 @@ export const exportVeiculos = async (veiculos: Veiculo[]) => {
     'Chassi': veiculo.chassi || 'N/A',
     'Categoria': veiculo.nome_categoria || 'N/A',
     'Subcategoria': veiculo.nome_subcategoria || 'N/A',
+    'Informações Complementares': veiculo.informacoes_complementares || 'N/A',
+    'Status Cadastro': veiculo.status_cadastro || 'N/A',
+    'Status Disponibilidade': veiculo.status_disponibilidade || 'N/A',
+    'Proprietário Tipo': veiculo.proprietario_tipo || 'N/A',
+    'Tipo Ativo': veiculo.tipo_ativo || 'N/A',
+    'Empresa Locadora': veiculo.nome_empresa_locadora || 'N/A',
   }));
 
   return downloadExcel(data, 'Veiculos_Equipamentos.xlsx');
@@ -60,12 +67,14 @@ export const importVeiculos = async (veiculos: VeiculoFormData[] | File): Promis
           imagem_url: null,
           categoria_ativo_id: null,
           subcategoria_ativo_id: null,
-          numero_serie: null,
-          chassi: null,
-          informacoes_complementares: null,
-          status_cadastro: 'ativo',
-          status_disponibilidade: 'disponivel',
-          proprietario_tipo: 'proprio'
+          numero_serie: row["Número de Série"] || row["Numero de Serie"] || row.numero_serie || null,
+          chassi: row.Chassi || row.chassi || null,
+          informacoes_complementares: row["Informações Complementares"] || row["Informacoes Complementares"] || row.informacoes_complementares || null,
+          status_cadastro: row["Status Cadastro"] || row.status_cadastro || 'ativo',
+          status_disponibilidade: row["Status Disponibilidade"] || row.status_disponibilidade || 'disponivel',
+          proprietario_tipo: row["Proprietário Tipo"] || row["Proprietario Tipo"] || row.proprietario_tipo || 'proprio',
+          tipo_ativo: row["Tipo Ativo"] || row.tipo_ativo || 'proprio',
+          empresa_locadora_id: null,
         }));
 
         console.log("Mapped vehicles:", mappedVeiculos);
@@ -113,6 +122,54 @@ export const importVeiculos = async (veiculos: VeiculoFormData[] | File): Promis
               }
             } catch (err) {
               console.error("Error finding company by name:", err);
+            }
+          }
+
+          // Resolve Categoria by name
+          if (rowData && (rowData.Categoria || rowData.categoria)) {
+            const catName = rowData.Categoria || rowData.categoria;
+            try {
+              const { data: catData } = await supabase
+                .from("bd_categorias_ativos")
+                .select("id")
+                .ilike("nome_categoria", catName)
+                .maybeSingle();
+              if (catData) {
+                veiculo.categoria_ativo_id = catData.id;
+
+                // Resolve Subcategoria by name + categoria_id
+                if (rowData.Subcategoria || rowData.subcategoria) {
+                  const subName = rowData.Subcategoria || rowData.subcategoria;
+                  const { data: subData } = await supabase
+                    .from("bd_subcategorias_ativos")
+                    .select("id")
+                    .ilike("nome_subcategoria", subName)
+                    .eq("categoria_id", catData.id)
+                    .maybeSingle();
+                  if (subData) {
+                    veiculo.subcategoria_ativo_id = subData.id;
+                  }
+                }
+              }
+            } catch (err) {
+              console.error("Error finding categoria by name:", err);
+            }
+          }
+
+          // Resolve Empresa Locadora by name
+          if (rowData && (rowData["Empresa Locadora"] || rowData.empresa_locadora)) {
+            const locName = rowData["Empresa Locadora"] || rowData.empresa_locadora;
+            try {
+              const { data: locData } = await supabase
+                .from("bd_empresas_locadoras")
+                .select("id")
+                .ilike("nome_empresa", locName)
+                .maybeSingle();
+              if (locData) {
+                veiculo.empresa_locadora_id = locData.id;
+              }
+            } catch (err) {
+              console.error("Error finding empresa locadora by name:", err);
             }
           }
         }

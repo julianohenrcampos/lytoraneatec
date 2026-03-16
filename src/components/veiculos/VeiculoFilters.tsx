@@ -20,6 +20,7 @@ interface VeiculoFiltersProps {
   onResetFilters: () => void;
   isLoading?: boolean;
   totalVeiculos?: number;
+  categorias?: { id: string; nome_categoria: string }[];
 }
 
 const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
@@ -28,6 +29,7 @@ const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
   onResetFilters,
   isLoading = false,
   totalVeiculos = 0,
+  categorias = [],
 }) => {
   const [placas, setPlacas] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -59,8 +61,8 @@ const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
   return (
     <Card>
       <CardContent className="pt-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Campo Placa com dropdown personalizado */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Campo Placa */}
           <div className="space-y-2 relative">
             <Label className="text-sm font-medium">Placa</Label>
             <div className="relative">
@@ -78,11 +80,11 @@ const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
                 onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
               />
               {showDropdown && placasFiltradas.length > 0 && (
-                <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md mt-1 max-h-48 overflow-y-auto shadow">
+                <ul className="absolute z-10 w-full bg-background border border-border rounded-md mt-1 max-h-48 overflow-y-auto shadow">
                   {placasFiltradas.map((placa, index) => (
                     <li
                       key={index}
-                      className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
+                      className="px-3 py-2 hover:bg-muted cursor-pointer"
                       onMouseDown={() => {
                         setPlacaInput(placa);
                         onFilterChange("placa", placa);
@@ -111,6 +113,29 @@ const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
             </div>
           </div>
 
+          {/* Campo Categoria */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Categoria</Label>
+            <Select
+              value={filters.categoria_ativo_id || ""}
+              onValueChange={(value) =>
+                onFilterChange("categoria_ativo_id", value === "_all" ? "" : value)
+              }
+            >
+              <SelectTrigger className="pl-2">
+                <SelectValue placeholder="Todas as categorias" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">Todas as categorias</SelectItem>
+                {categorias.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id}>
+                    {cat.nome_categoria}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Campo Situação */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Situação</Label>
@@ -133,7 +158,6 @@ const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
           </div>
         </div>
 
-        {/* Botão de limpar filtros */}
         <div className="flex justify-end mt-6">
           <Button variant="outline" onClick={onResetFilters}>
             <FilterX className="h-4 w-4 mr-2" />

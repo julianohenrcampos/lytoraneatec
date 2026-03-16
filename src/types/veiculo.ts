@@ -31,12 +31,15 @@ export interface Veiculo {
   status_cadastro: string | null;
   status_disponibilidade: string | null;
   proprietario_tipo: string | null;
+  tipo_ativo: string | null;
+  empresa_locadora_id: string | null;
   
   // Join fields
   nome_departamento?: string;
   nome_empresa?: string;
   nome_categoria?: string;
   nome_subcategoria?: string;
+  nome_empresa_locadora?: string;
 }
 
 export type VeiculoFormData = Omit<Veiculo, 'id' | 'created_at' | 'updated_at' | 'nome_departamento' | 'nome_empresa' | 'nome_categoria' | 'nome_subcategoria'>;

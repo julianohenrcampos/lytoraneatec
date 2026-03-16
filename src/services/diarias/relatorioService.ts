@@ -180,8 +180,8 @@ export async function getPresencaResumo(filters?: RelatorioFilters): Promise<Pre
     ausentes: ausentes.length,
     pendentes: pendentes.length,
     substituidos: substituidos.length,
-    valor_total_presentes: presentes.reduce((acc, r) => acc + r.valor_diaria_aplicada, 0),
-    valor_total_previsto: relatorio.reduce((acc, r) => acc + r.valor_diaria_aplicada, 0)
+    valor_total_presentes: presentes.reduce((acc, r) => acc + Math.ceil(r.valor_diaria_aplicada || 0), 0),
+    valor_total_previsto: relatorio.reduce((acc, r) => acc + Math.ceil(r.valor_diaria_aplicada || 0), 0)
   };
 }
 
@@ -206,11 +206,11 @@ export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promis
   // Build data rows
   const dataRows = relatorio.map((item, idx) => {
     const rowNum = idx + 2; // Excel row (1-indexed, header is row 1)
-    const vDiaria = item.tipo_diaria === 'completa' ? (item.valor_diaria_aplicada || 0) :
+    const vDiaria = item.tipo_diaria === 'completa' ? Math.ceil(item.valor_diaria_aplicada || 0) :
                     item.tipo_diaria === 'uma_e_meia' ? Math.ceil((item.valor_diaria_aplicada || 0) * (2/3)) : 0;
-    const vMeiaDiaria = item.tipo_diaria === 'meia' ? (item.valor_diaria_aplicada || 0) :
+    const vMeiaDiaria = item.tipo_diaria === 'meia' ? Math.ceil(item.valor_diaria_aplicada || 0) :
                         item.tipo_diaria === 'uma_e_meia' ? Math.ceil((item.valor_diaria_aplicada || 0) * (1/3)) : 0;
-    const vRefeicao = item.valor_refeicao_aplicado || 0;
+    const vRefeicao = Math.ceil(item.valor_refeicao_aplicado || 0);
 
     return [
       format(new Date(item.data + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }),
