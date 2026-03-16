@@ -11,13 +11,14 @@ import {
   Loader2,
   Calendar as CalendarIcon,
   CheckCircle,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
   Printer } from
 "lucide-react";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { generateRelatorioDiariasPDF, generateRelatorioDiariasPDFDetalhado, generateCompiladoDiariasPDF, generateFolhaPontoPDF } from "@/services/pdfService";
 import type { FolhaPontoFuncionario } from "@/components/diarias/pdf/FolhaPontoPDF";
 
@@ -216,7 +217,7 @@ export default function DiariasRelatorio() {
   const exportMutation = useExportarExcel();
   const [isPDFLoading, setIsPDFLoading] = useState(false);
   const [isGeneratingFolhaPonto, setIsGeneratingFolhaPonto] = useState(false);
-  const [exportFormat, setExportFormat] = useState<'excel' | 'pdf' | 'pdf_detalhado' | 'compilado' | 'ambos'>('excel');
+  
 
   // Folha de Ponto
   const canPrintFolhaPonto = !!filters.data_inicio && !!filters.data_fim && !!filters.centro_custo_id;
@@ -569,25 +570,6 @@ export default function DiariasRelatorio() {
     }
   };
 
-  const handleExport = async () => {
-    if (relatorio.length === 0) {
-      toast.error('Não há dados para exportar.');
-      return;
-    }
-    if (exportFormat === 'excel') {
-      handleExportExcel();
-    } else if (exportFormat === 'pdf') {
-      await handleExportPDF();
-    } else if (exportFormat === 'pdf_detalhado') {
-      await handleExportPDFDetalhado();
-    } else if (exportFormat === 'compilado') {
-      await handleExportCompilado();
-    } else {
-      // Ambos em paralelo
-      handleExportExcel();
-      await handleExportPDF();
-    }
-  };
 
   // Loading de permissões e escopo
   if (isLoadingPermissions || isLoadingScope) {
@@ -632,40 +614,35 @@ export default function DiariasRelatorio() {
           </div>
           {canExport &&
           <div className="flex items-center gap-4">
-              <RadioGroup
-                value={exportFormat}
-                onValueChange={(v) => setExportFormat(v as 'excel' | 'pdf' | 'pdf_detalhado' | 'compilado' | 'ambos')}
-                className="flex items-center gap-4">
-                <div className="flex items-center gap-1.5">
-                  <RadioGroupItem value="excel" id="export-excel" />
-                  <Label htmlFor="export-excel" className="text-sm cursor-pointer">Excel</Label>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <RadioGroupItem value="pdf" id="export-pdf" />
-                  <Label htmlFor="export-pdf" className="text-sm cursor-pointer">PDF</Label>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <RadioGroupItem value="pdf_detalhado" id="export-pdf-detalhado" />
-                  <Label htmlFor="export-pdf-detalhado" className="text-sm cursor-pointer">PDF Detalhado</Label>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <RadioGroupItem value="compilado" id="export-compilado" />
-                  <Label htmlFor="export-compilado" className="text-sm cursor-pointer">Compilado</Label>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <RadioGroupItem value="ambos" id="export-ambos" />
-                  <Label htmlFor="export-ambos" className="text-sm cursor-pointer">Ambos</Label>
-                </div>
-              </RadioGroup>
-              <Button
-                onClick={handleExport}
-                disabled={exportMutation.isPending || isPDFLoading || relatorio.length === 0}>
-                {(exportMutation.isPending || isPDFLoading) ?
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> :
-                  <Download className="h-4 w-4 mr-2" />
-                }
-                Exportar
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button disabled={exportMutation.isPending || isPDFLoading || relatorio.length === 0}>
+                    {(exportMutation.isPending || isPDFLoading) ?
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" /> :
+                      <Download className="h-4 w-4 mr-2" />
+                    }
+                    Exportar
+                    <ChevronDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleExportExcel} className="cursor-pointer">
+                    📊 Excel
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportPDF} className="cursor-pointer">
+                    📄 PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportPDFDetalhado} className="cursor-pointer">
+                    📑 PDF Detalhado
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportCompilado} className="cursor-pointer">
+                    📦 Compilado
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { handleExportExcel(); handleExportPDF(); }} className="cursor-pointer">
+                    🗂 Ambos
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 variant="outline"
                 onClick={handlePrintFolhaPonto}
