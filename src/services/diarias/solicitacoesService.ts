@@ -620,7 +620,7 @@ export async function verificarFuncionarioEmOutraSolicitacao(
   dataInicio: string,
   dataFim: string,
   solicitacaoAtualId: string
-): Promise<{ emOutra: boolean; numeroSolicitacao?: string }> {
+): Promise<{ emOutra: boolean; numeroSolicitacao?: string; solicitacaoId?: string }> {
   const { data: solicitacoes, error } = await supabase
     .from('bd_diaria_solicitacoes')
     .select('id, numero_solicitacao, convocados_pre')
@@ -637,7 +637,7 @@ export async function verificarFuncionarioEmOutraSolicitacao(
   for (const sol of solicitacoes || []) {
     const convocados = Array.isArray(sol.convocados_pre) ? sol.convocados_pre as any[] : [];
     if (convocados.some((c: any) => c.funcionario_id === funcionarioId)) {
-      return { emOutra: true, numeroSolicitacao: sol.numero_solicitacao };
+      return { emOutra: true, numeroSolicitacao: sol.numero_solicitacao, solicitacaoId: sol.id };
     }
   }
 

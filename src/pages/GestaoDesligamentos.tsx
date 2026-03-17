@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import MainLayout from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -49,6 +50,7 @@ const GestaoDesligamentos = () => {
   };
 
   return (
+    <MainLayout>
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -121,6 +123,7 @@ const GestaoDesligamentos = () => {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </MainLayout>
   );
 };
 

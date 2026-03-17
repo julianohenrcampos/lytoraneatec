@@ -99,5 +99,57 @@ export function useFuncionarioExcel(funcionarios: Funcionario[] | undefined) {
     }
   }, [funcionarios, toast]);
 
-  return { exportToExcel };
+  const exportSemDadosBancarios = useCallback(() => {
+    if (!funcionarios || funcionarios.length === 0) {
+      toast({
+        title: "Nenhum dado para exportar",
+        description: "Não há funcionários para exportar.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const semBancarios = funcionarios
+      .filter(f => !f.banco && !f.agencia && !f.conta_corrente && !f.chave_pix)
+      .sort((a, b) => {
+        const ccA = a.bd_centros_custo?.nome_centro_custo || '';
+        const ccB = b.bd_centros_custo?.nome_centro_custo || '';
+        return ccA.localeCompare(ccB, 'pt-BR');
+      });
+
+    if (semBancarios.length === 0) {
+      toast({
+        title: "Nenhum resultado",
+        description: "Todos os funcionários possuem dados bancários.",
+      });
+      return;
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet(semBancarios.map(f => ({
+      'Nome Completo': f.nome_completo || '',
+      'Centro de Custo': f.bd_centros_custo
+        ? `${f.bd_centros_custo.codigo_centro_custo} - ${f.bd_centros_custo.nome_centro_custo}`
+        : '',
+      'CPF': f.cpf || '',
+      'Departamento': f.bd_departamentos?.nome_departamento || '',
+    })));
+
+    worksheet['!cols'] = [
+      { wch: 35 },
+      { wch: 35 },
+      { wch: 15 },
+      { wch: 25 },
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Sem Dados Bancários");
+    XLSX.writeFile(workbook, "funcionarios_sem_dados_bancarios.xlsx");
+
+    toast({
+      title: "Exportação concluída",
+      description: `${semBancarios.length} funcionário(s) sem dados bancários exportados.`
+    });
+  }, [funcionarios, toast]);
+
+  return { exportToExcel, exportSemDadosBancarios };
 }

@@ -293,3 +293,77 @@ export function formatCurrency(value: number): string {
 export function roundUp(value: number): number {
   return Math.ceil(value);
 }
+
+/**
+ * Calcula labels de ranges de datas para D.S (seg-sáb, exceto feriado) e F.S (dom + feriado)
+ * Ex: { dsLabel: "09 à 13/03", fsLabel: "14 à 15/03" }
+ */
+export function calcularRangesDSFS(
+  dataInicio: string,
+  dataFim: string,
+  feriados: string[] = []
+): { dsLabel: string; fsLabel: string } {
+  if (!dataInicio || !dataFim) return { dsLabel: '-', fsLabel: '-' };
+
+  const datas = gerarDatasNoPeriodo(dataInicio, dataFim);
+  const feriadosSet = new Set(feriados.map(f => f.substring(0, 10)));
+
+  const dsDates: string[] = [];
+  const fsDates: string[] = [];
+
+  datas.forEach(d => {
+    const obj = parseISO(d);
+    const day = obj.getDay();
+    if (feriadosSet.has(d) || day === 0) {
+      fsDates.push(d);
+    } else {
+      dsDates.push(d);
+    }
+  });
+
+  return {
+    dsLabel: formatDateRanges(dsDates),
+    fsLabel: formatDateRanges(fsDates),
+  };
+}
+
+function formatDateRanges(dates: string[]): string {
+  if (dates.length === 0) return '-';
+
+  // Sort dates
+  const sorted = [...dates].sort();
+
+  // Group contiguous dates into ranges
+  const ranges: { start: string; end: string }[] = [];
+  let rangeStart = sorted[0];
+  let prev = sorted[0];
+
+  for (let i = 1; i < sorted.length; i++) {
+    const prevDate = parseISO(prev);
+    const currDate = parseISO(sorted[i]);
+    const diff = differenceInDays(currDate, prevDate);
+
+    if (diff === 1) {
+      prev = sorted[i];
+    } else {
+      ranges.push({ start: rangeStart, end: prev });
+      rangeStart = sorted[i];
+      prev = sorted[i];
+    }
+  }
+  ranges.push({ start: rangeStart, end: prev });
+
+  // Format each range
+  return ranges.map(r => {
+    const startDate = parseISO(r.start);
+    const endDate = parseISO(r.end);
+    const startDay = format(startDate, 'dd');
+    const endDay = format(endDate, 'dd');
+    const endMonth = format(endDate, 'MM');
+
+    if (r.start === r.end) {
+      return `${startDay}/${endMonth}`;
+    }
+    return `${startDay} à ${endDay}/${endMonth}`;
+  }).join(', ');
+}

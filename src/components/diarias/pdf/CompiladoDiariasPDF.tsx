@@ -1,5 +1,6 @@
 import { Document, Page, View, Text, Image, Font, StyleSheet } from '@react-pdf/renderer';
 import type { RelatorioFolhaItem } from '@/types/diarias';
+import { calcularRangesDSFS } from '@/utils/diariasPeriodoUtils';
 
 Font.registerHyphenationCallback(word => [word]);
 
@@ -11,6 +12,8 @@ interface CentroCustoDetalhe {
   valorDS: number;
   quantidadeFS: number;
   valorFS: number;
+  dsLabel?: string;
+  fsLabel?: string;
 }
 
 interface CompiladoGerencia {
@@ -27,6 +30,9 @@ interface CompiladoDiariasPDFProps {
   totalGeralQuantidade: number;
   totalGeralValor: number;
   periodo?: string;
+  feriados?: string[];
+  dataInicio?: string;
+  dataFim?: string;
 }
 
 function formatCurrency(value: number): string {
@@ -166,9 +172,15 @@ function CentroCustoCard({ cc, width, compact }: { cc: CentroCustoDetalhe; width
       <View style={{ flexDirection: 'row' as any, backgroundColor: BC, borderBottomWidth: BW, borderBottomColor: BC }}>
         <View style={{ flex: 1, padding: compact ? 2 : 3, borderRightWidth: 0.5, borderRightColor: '#ffffff' }}>
           <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: headerFontSize, color: '#ffffff', textAlign: 'center' as any }}>D.S</Text>
+          {cc.dsLabel && cc.dsLabel !== '-' && (
+            <Text style={{ fontSize: compact ? 4.5 : 5.5, color: '#e2e8f0', textAlign: 'center' as any, marginTop: 1 }}>{cc.dsLabel}</Text>
+          )}
         </View>
         <View style={{ flex: 1, padding: compact ? 2 : 3 }}>
           <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: headerFontSize, color: '#ffffff', textAlign: 'center' as any }}>F.S</Text>
+          {cc.fsLabel && cc.fsLabel !== '-' && (
+            <Text style={{ fontSize: compact ? 4.5 : 5.5, color: '#e2e8f0', textAlign: 'center' as any, marginTop: 1 }}>{cc.fsLabel}</Text>
+          )}
         </View>
       </View>
       <View style={{ flexDirection: 'row' as any, borderBottomWidth: BW, borderBottomColor: BC }}>
@@ -218,9 +230,20 @@ const CARDS_PER_ROW = 4;
 // Gerencia Block Component (chunked rows layout)
 // =====================================================
 
-function GerenciaBlock({ gerencia, mesAno, periodo }: { gerencia: CompiladoGerencia; mesAno: string; periodo?: string }) {
+function GerenciaBlock({ gerencia, mesAno, periodo, feriados, dataInicio, dataFim }: { gerencia: CompiladoGerencia; mesAno: string; periodo?: string; feriados?: string[]; dataInicio?: string; dataFim?: string }) {
   const mesResumo = mesAno.split(/\s+(?:E|A)\s+/).map(m => m.substring(0, 3)).join('/');
-  const rows = chunkArray(gerencia.centrosCusto, CARDS_PER_ROW);
+  
+  // Compute DS/FS labels from the period
+  const dsfsLabels = dataInicio && dataFim ? calcularRangesDSFS(dataInicio, dataFim, feriados) : { dsLabel: '-', fsLabel: '-' };
+  
+  // Inject labels into each CC card
+  const centrosComLabels = gerencia.centrosCusto.map(cc => ({
+    ...cc,
+    dsLabel: cc.dsLabel || dsfsLabels.dsLabel,
+    fsLabel: cc.fsLabel || dsfsLabels.fsLabel,
+  }));
+  
+  const rows = chunkArray(centrosComLabels, CARDS_PER_ROW);
 
   return (
     <View wrap={false} minPresenceAhead={40} style={{ marginBottom: 20, borderWidth: BW_OUTER, borderColor: BC }}>
@@ -299,6 +322,9 @@ export const CompiladoDiariasPDF = ({
   totalGeralQuantidade,
   totalGeralValor,
   periodo,
+  feriados,
+  dataInicio,
+  dataFim,
 }: CompiladoDiariasPDFProps) => {
   return (
     <Document>
@@ -311,7 +337,7 @@ export const CompiladoDiariasPDF = ({
 
         {/* Blocks per gerência */}
         {dados.map((gerencia, gIdx) => (
-          <GerenciaBlock key={gIdx} gerencia={gerencia} mesAno={mesAno} periodo={periodo} />
+          <GerenciaBlock key={gIdx} gerencia={gerencia} mesAno={mesAno} periodo={periodo} feriados={feriados} dataInicio={dataInicio} dataFim={dataFim} />
         ))}
 
         {/* Total Geral */}

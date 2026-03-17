@@ -1,6 +1,5 @@
 
 import {
-  Home,
   Fuel,
   FileText,
   Truck,
@@ -13,7 +12,6 @@ import {
   Settings,
   BarChart3,
   Package,
-  Map,
   ShieldCheck,
   Gavel,
   Calendar,
@@ -22,7 +20,7 @@ import {
 
 export const menuStructure = [
   {
-    title: "Dashboard",
+    title: "Gestão de RH",
     items: [
       {
         name: "Dashboard RH",
@@ -31,27 +29,16 @@ export const menuStructure = [
         requiredPermission: "dashboard_rh_view"
       },
       {
-        name: "Dashboard Máquinas",
-        href: "/dashboard-maquinas",
-        icon: Truck,
-        requiredPermission: "dashboard_maquinas_view"
-      },
-      {
-        name: "Dashboard CBUQ",
-        href: "/dashboard-cbuq",
-        icon: BarChart3,
-        requiredPermission: "dashboard_cbuq_view"
-      }
-    ]
-  },
-  {
-    title: "Gestão de RH",
-    items: [
-      {
         name: "Empresas",
         href: "/gestao-rh/empresas",
         icon: Building2,
         requiredPermission: "gestao_rh_empresas_view"
+      },
+      {
+        name: "Diretorias",
+        href: "/gestao-rh/diretorias",
+        icon: Building2,
+        requiredPermission: "gestao_rh_diretorias_view"
       },
       {
         name: "Departamentos",
@@ -64,12 +51,6 @@ export const menuStructure = [
         href: "/gestao-rh/centros-custo",
         icon: Package,
         requiredPermission: "gestao_rh_centros_custo_view"
-      },
-      {
-        name: "Diretorias",
-        href: "/gestao-rh/diretorias",
-        icon: Building2,
-        requiredPermission: "gestao_rh_diretorias_view"
       },
       {
         name: "Funções",
@@ -94,12 +75,30 @@ export const menuStructure = [
         href: "/gestao-rh/desligamentos",
         icon: Users,
         requiredPermission: "gestao_rh_funcionarios_view"
+      },
+      {
+        name: "Agendamento de Exames",
+        href: "/sso/agendamento-exames",
+        icon: Calendar,
+        requiredPermission: "acesso_sso_agendamento_exames"
+      },
+      {
+        name: "Clínicas",
+        href: "/sso/clinicas",
+        icon: Building2,
+        requiredPermission: "acesso_sso_agendamento_exames"
       }
     ]
   },
   {
     title: "Gestão de Máquinas",
     items: [
+      {
+        name: "Dashboard Máquinas",
+        href: "/dashboard-maquinas",
+        icon: BarChart3,
+        requiredPermission: "dashboard_maquinas_view"
+      },
       {
         name: "Caminhões e Equipamentos",
         href: "/gestao-maquinas/caminhoes",
@@ -113,25 +112,46 @@ export const menuStructure = [
         requiredPermission: "gestao_maquinas_usinas_view"
       },
       {
+        name: "Chamados e OS",
+        href: "/requisicoes/chamados-os",
+        icon: Wrench,
+        requiredPermission: "requisicoes_chamados_os_view"
+      },
+      {
+        name: "Gestão de OS",
+        href: "/requisicoes/gestao-os",
+        icon: ClipboardList,
+        requiredPermission: "requisicoes_gestao_os_view"
+      },
+      {
+        name: "Apontamento de Caminhões",
+        href: "/requisicoes/apontamento-caminhoes",
+        icon: Truck,
+        requiredPermission: "requisicoes_apontamento_caminhoes_view"
+      },
+      {
         name: "Relatório de Medição",
         href: "/gestao-maquinas/relatorio-medicao",
         icon: BarChart3,
         requiredPermission: "gestao_maquinas_relatorio_medicao_view"
-        
-      }
-      ,
+      },
       {
         name: "Relatório de Abastecimento",
         href: "/gestao-maquinas/abastecimento",
         icon: Fuel,
         requiredPermission: "gestao_maquinas_relatorio_medicao_view"
-        
       }
     ]
   },
   {
-    title: "Requisições",
+    title: "Requisições e Logística",
     items: [
+      {
+        name: "Dashboard Logística",
+        href: "/dashboard-cbuq",
+        icon: BarChart3,
+        requiredPermission: "dashboard_cbuq_view"
+      },
       {
         name: "Cadastro de Requisições",
         href: "/requisicoes/cadastro",
@@ -145,40 +165,22 @@ export const menuStructure = [
         requiredPermission: "requisicoes_programacao_entrega_view"
       },
       {
-        name: "Registro de Aplicação",
-        href: "/registro-aplicacao",
-        icon: FileText,
-        requiredPermission: "requisicoes_registro_aplicacao_view"
-      },
-      {
         name: "Registro de Cargas",
         href: "/requisicoes/registro-cargas",
         icon: Package,
         requiredPermission: "requisicoes_registro_cargas_view"
       },
       {
+        name: "Registro de Aplicação",
+        href: "/registro-aplicacao",
+        icon: FileText,
+        requiredPermission: "requisicoes_registro_aplicacao_view"
+      },
+      {
         name: "Apontamento de Equipe",
         href: "/requisicoes/apontamento-equipe",
         icon: Users,
         requiredPermission: "requisicoes_apontamento_equipe_view"
-      },
-      {
-        name: "Apontamento de Caminhões",
-        href: "/requisicoes/apontamento-caminhoes",
-        icon: Truck,
-        requiredPermission: "requisicoes_apontamento_caminhoes_view"
-      },
-      {
-        name: "Chamados e OS",
-        href: "/requisicoes/chamados-os",
-        icon: Wrench,
-        requiredPermission: "requisicoes_chamados_os_view"
-      },
-      {
-        name: "Gestão de OS",
-        href: "/requisicoes/gestao-os",
-        icon: ClipboardList,
-        requiredPermission: "requisicoes_gestao_os_view"
       },
       {
         name: "Relatório de Aplicação Diária",
@@ -244,6 +246,12 @@ export const menuStructure = [
     title: "SSO - Segurança",
     items: [
       {
+        name: "Dashboard SSO",
+        href: "/sso/checklists/dashboard",
+        icon: BarChart3,
+        requiredPermission: "acesso_sso_dashboard"
+      },
+      {
         name: "CHECK LIST - MTE_TAC",
         href: "/sso/checklists",
         icon: ShieldCheck,
@@ -260,24 +268,6 @@ export const menuStructure = [
         href: "/sso/ver-e-agir",
         icon: ClipboardCheck,
         requiredPermission: "acesso_sso_ver_agir"
-      },
-      {
-        name: "Agendamento de Exames",
-        href: "/sso/agendamento-exames",
-        icon: Calendar,
-        requiredPermission: "acesso_sso_agendamento_exames"
-      },
-      {
-        name: "Clínicas",
-        href: "/sso/clinicas",
-        icon: Building2,
-        requiredPermission: "acesso_sso_agendamento_exames"
-      },
-      {
-        name: "Dashboard SSO",
-        href: "/sso/checklists/dashboard",
-        icon: BarChart3,
-        requiredPermission: "acesso_sso_dashboard"
       }
     ]
   },

@@ -47,7 +47,7 @@ export function useFuncionarioActions() {
     () => state.setIsDeleting(false)
   );
 
-  const { exportToExcel } = useFuncionarioExcel(funcionarios);
+  const { exportToExcel, exportSemDadosBancarios } = useFuncionarioExcel(funcionarios);
   
   const { handleImport } = useFuncionarioImport(() => {
     state.setIsImportModalOpen(false);
@@ -167,6 +167,7 @@ export function useFuncionarioActions() {
     handleSaveFuncionario,
     refetch,
     exportToExcel,
+    exportSemDadosBancarios,
     handleImport,
     
     // Cache management

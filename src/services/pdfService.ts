@@ -437,7 +437,8 @@ export const generateCompiladoDiariasPDF = async (
   totalGeralQuantidade: number,
   totalGeralValor: number,
   fileName: string,
-  periodo?: string
+  periodo?: string,
+  options?: { feriados?: string[]; dataInicio?: string; dataFim?: string }
 ): Promise<void> => {
   try {
     const logoUrl = await loadImageAsBase64('/lyto-uploads/dcf6c980-f927-4180-b109-b425da1323ba.png');
@@ -449,6 +450,9 @@ export const generateCompiladoDiariasPDF = async (
       totalGeralQuantidade,
       totalGeralValor,
       periodo,
+      feriados: options?.feriados,
+      dataInicio: options?.dataInicio,
+      dataFim: options?.dataFim,
     });
 
     const blob = await pdf(doc as any).toBlob();

@@ -16,6 +16,7 @@ import {
   mapFuncionarioToEtapa1
 } from '@/types/ssoAgendamentoExames';
 import { useAgendamentoExames } from '@/hooks/ssoAgendamentoExames';
+import { useDesligamentos } from '@/hooks/useDesligamentos';
 import { agendamentoExamesStorageService } from '@/services/ssoAgendamentoExames/agendamentoExamesStorageService';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -23,6 +24,7 @@ import { Loader2, Paperclip, Trash2, Download, ArrowLeft, ArrowRight, User } fro
 import { StepIndicator } from './StepIndicator';
 import { Etapa1CadastroForm } from './Etapa1CadastroForm';
 import { Etapa2AgendamentoForm } from './Etapa2AgendamentoForm';
+import { DemissionalFields, DemissionalFormData, initialDemissionalData } from './DemissionalFields';
 import { Badge } from '@/components/ui/badge';
 
 interface AgendamentoExamesDialogProps {
@@ -89,7 +91,10 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
   const [tecnicoSeguranca, setTecnicoSeguranca] = useState('');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
+  const [demissionalData, setDemissionalData] = useState<DemissionalFormData>(initialDemissionalData);
   
+  const { createDesligamento } = useDesligamentos();
+
   const { 
     agendamento, locais, funcoes, empresas, centrosCusto, isLoading, create, update, isCreating, isUpdating,
     anexos, uploadAnexo, deleteAnexo, isUploadingAnexo, isDeletingAnexo
@@ -246,8 +251,12 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
     if (etapa2Data.tipo_exame === 'Mudança de Risco') {
       return baseValid && !!etapa2Data.motivo_mudanca_risco;
     }
+    // Demissional requer motivo do desligamento
+    if (etapa2Data.tipo_exame === 'Demissional') {
+      return baseValid && !!demissionalData.motivo;
+    }
     return baseValid;
-  }, [etapa2Data]);
+  }, [etapa2Data, demissionalData]);
 
   // Handlers
   const handleEtapa1Change = (field: keyof Etapa1FormData, value: any) => {
@@ -257,11 +266,15 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
   const handleEtapa2Change = (field: keyof Etapa2FormData, value: any) => {
     setEtapa2Data(prev => ({ ...prev, [field]: value }));
     
-    // Calcular data de início automaticamente quando data de agendamento mudar
-    if (field === 'data_agendamento' && value) {
+    // Calcular data de início automaticamente quando data de agendamento mudar (exceto Demissional)
+    if (field === 'data_agendamento' && value && etapa2Data.tipo_exame !== 'Demissional') {
       const dataInicio = calcularDataInicioPrevista(value);
       setEtapa1Data(prev => ({ ...prev, data_inicio_prevista: dataInicio }));
     }
+  };
+
+  const handleDemissionalChange = (field: keyof DemissionalFormData, value: any) => {
+    setDemissionalData(prev => ({ ...prev, [field]: value }));
   };
 
   const handleFilesSelected = (files: FileList | null) => {
@@ -317,6 +330,18 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
       } else {
         const newAgendamento = await create(formData);
         savedAgendamentoId = newAgendamento?.id;
+      }
+      
+      // Se for Demissional e novo agendamento, criar desligamento simultaneamente
+      if (etapa2Data.tipo_exame === 'Demissional' && !agendamentoId && funcionarioData?.id) {
+        await createDesligamento.mutateAsync({
+          funcionario_id: funcionarioData.id,
+          tipo_desligamento: demissionalData.tipo_desligamento,
+          dias_aviso: demissionalData.dias_aviso,
+          motivo: demissionalData.motivo,
+          recontratavel: demissionalData.recontratavel,
+          observacoes: demissionalData.observacoes_desligamento,
+        });
       }
       
       // Upload de arquivos pendentes
@@ -406,6 +431,14 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
                   locais={locais}
                   canChangeStatus={canChangeStatus}
                 />
+                
+                {/* Campos de Desligamento (apenas para Demissional) */}
+                {etapa2Data.tipo_exame === 'Demissional' && (
+                  <DemissionalFields
+                    formData={demissionalData}
+                    onChange={handleDemissionalChange}
+                  />
+                )}
                 
                 {/* Seção de Responsável */}
                 <div className="space-y-2">

@@ -48,6 +48,7 @@ import {
   Moon
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { cn } from "@/lib/utils";
 import type { DiariaApontamento, FuncionarioPreConvocado } from "@/types/diarias";
 import {
@@ -206,6 +207,20 @@ export default function ApontamentoDiariasModal({
   const [faltaConvertida, setFaltaConvertida] = useState<Set<string>>(new Set());
   // Ref para controle de auto-finalização (evita duplicação)
   const autoFinalizadoRef = useRef<Set<string>>(new Set());
+  
+  // Estado para conflito de transferência entre solicitações
+  const [transferConflict, setTransferConflict] = useState<{
+    funcionario: any;
+    outraSolicitacaoId: string;
+    numeroSolicitacao: string;
+  } | null>(null);
+  const [isTransferring, setIsTransferring] = useState(false);
+  
+  // Estado para confirmação de liberação de funcionário
+  const [releaseConfirm, setReleaseConfirm] = useState<{
+    funcionarioId: string;
+    nomeFuncionario: string;
+  } | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -311,8 +326,13 @@ export default function ApontamentoDiariasModal({
     return [];
   }, [solicitacao?.convocados_pre]);
 
-  // Buscar matricula e cpf dos funcionários para o PDF
-  const funcionarioIds = useMemo(() => convocadosPre.map(c => c.funcionario_id), [convocadosPre]);
+  // Buscar matricula e cpf dos funcionários para o PDF (convocados + avulsos)
+  const funcionarioIds = useMemo(() => {
+    const convIds = convocadosPre.map(c => c.funcionario_id);
+    const avulsoIds = Array.from(funcionariosAvulsos);
+    const allIds = new Set([...convIds, ...avulsoIds]);
+    return Array.from(allIds);
+  }, [convocadosPre, funcionariosAvulsos]);
   const { data: funcionariosData = [] } = useQuery({
     queryKey: ['funcionarios-matricula-cpf', funcionarioIds],
     queryFn: async () => {
@@ -332,11 +352,10 @@ export default function ApontamentoDiariasModal({
     if (!solicitacao || !centroCusto || !selectedDate) return;
     setIsPrinting(true);
     try {
-      const itens: ListaPresencaItem[] = convocadosPre.map(conv => {
-        const func = funcionariosData.find(f => f.id === conv.funcionario_id);
-        const colab = colaboradores.find(c => c.funcionario_id === conv.funcionario_id);
+      const itens: ListaPresencaItem[] = colaboradores.map(colab => {
+        const func = funcionariosData.find(f => f.id === colab.funcionario_id);
         return {
-          nome_completo: func?.nome_completo || conv.nome_funcionario || '',
+          nome_completo: func?.nome_completo || colab.nome_funcionario || '',
           matricula: func?.matricula || null,
           cpf: func?.cpf || '',
           hora_entrada: colab?.hora_entrada || '',
@@ -377,12 +396,10 @@ export default function ApontamentoDiariasModal({
             const dateSel = parseBrazilianDate(selectedDate);
             const isDomingo = dateSel.getDay() === 0;
             const isFeriado = feriados.some(f => f.data === selectedDate);
-            // Respeitar flag usar_diaria_exclusiva do convocado_pre
             const usarExclusiva = conv.usar_diaria_exclusiva === true || isDomingo || isFeriado;
 
             const vNormal = conv.valor_diaria;
             const vExclusiva = conv.valor_diaria_exclusiva || conv.valor_diaria;
-            // Se existente, detectar se o valor salvo corresponde à exclusiva
             const existenteUsaExclusiva = existente
               ? (existente.valor_diaria_aplicada !== undefined && vExclusiva !== vNormal
                   ? Math.abs((existente.valor_diaria_aplicada || 0) - vExclusiva) < Math.abs((existente.valor_diaria_aplicada || 0) - vNormal)
@@ -411,6 +428,60 @@ export default function ApontamentoDiariasModal({
               turno: (existente?.turno as TurnoDiaria) || 'diurno'
             };
           });
+
+          // Detectar funcionários avulsos: presenças existentes cujo funcionario_id NÃO está em convocadosPre
+          const convocadoIds = new Set(convocadosPre.map(c => c.funcionario_id));
+          const presencasAvulsas = existentes.filter(e => !convocadoIds.has(e.funcionario_id));
+
+          if (presencasAvulsas.length > 0) {
+            // Buscar dados dos funcionários avulsos
+            const avulsoIds = presencasAvulsas.map(p => p.funcionario_id);
+            const { data: avulsosFuncs } = await supabase
+              .from('bd_funcionarios')
+              .select('id, nome_completo, funcao_id, bd_funcoes(id, nome_funcao, valor_diaria, valor_diaria_exclusiva)')
+              .in('id', avulsoIds);
+
+            const newAvulsoSet = new Set(funcionariosAvulsos);
+            const dateSel = parseBrazilianDate(selectedDate);
+            const isDomingo = dateSel.getDay() === 0;
+            const isFeriadoFlag = feriados.some(f => f.data === selectedDate);
+
+            presencasAvulsas.forEach((existente, i) => {
+              const funcData = avulsosFuncs?.find(f => f.id === existente.funcionario_id);
+              const funcaoData = funcData?.bd_funcoes as any;
+              const vNormal = funcaoData?.valor_diaria || 0;
+              const vExclusiva = funcaoData?.valor_diaria_exclusiva || vNormal;
+              const usarExclusiva = isDomingo || isFeriadoFlag;
+              const existenteUsaExclusiva = existente.valor_diaria_aplicada !== undefined && vExclusiva !== vNormal
+                ? Math.abs((existente.valor_diaria_aplicada || 0) - vExclusiva) < Math.abs((existente.valor_diaria_aplicada || 0) - vNormal)
+                : usarExclusiva;
+              const valorOriginal = existenteUsaExclusiva ? vExclusiva : vNormal;
+
+              mapped.push({
+                index: mapped.length,
+                funcionario_id: existente.funcionario_id,
+                nome_funcionario: funcData?.nome_completo || '',
+                funcao_id: funcaoData?.id || existente.funcao_id || null,
+                nome_funcao: funcaoData?.nome_funcao || '',
+                valor_diaria_original: valorOriginal,
+                valor_diaria: existente.valor_diaria_aplicada || valorOriginal,
+                presente: existente.presente || false,
+                hora_entrada: existente.hora_entrada || "",
+                hora_saida: existente.hora_saida || "",
+                tipo_diaria: (existente.tipo_diaria as TipoDiaria) || 'completa',
+                recebe_refeicao: existente.recebe_refeicao ?? true,
+                valor_refeicao_aplicado: existente.valor_refeicao_aplicado ?? 0,
+                presencaId: existente.id,
+                usarDiariaExclusiva: existenteUsaExclusiva,
+                valor_diaria_normal: vNormal,
+                valor_diaria_exclusiva_valor: vExclusiva,
+                turno: (existente.turno as TurnoDiaria) || 'diurno'
+              });
+              newAvulsoSet.add(existente.funcionario_id);
+            });
+            setFuncionariosAvulsos(newAvulsoSet);
+          }
+
           setColaboradores(mapped);
           setFase(determinarFase(mapped, true));
         } else {
@@ -691,18 +762,20 @@ export default function ApontamentoDiariasModal({
     setIsAddingFuncionario(true);
     try {
       // Verificar se está em outra solicitação
-      const { emOutra, numeroSolicitacao } = await verificarFuncionarioEmOutraSolicitacao(
+      const { emOutra, numeroSolicitacao, solicitacaoId: outraId } = await verificarFuncionarioEmOutraSolicitacao(
         funcionario.id,
         solicitacao.data_inicio,
         solicitacao.data_fim,
         solicitacao.id
       );
 
-      if (emOutra) {
-        toast.warning(
-          `${funcionario.nome_completo} está na solicitação Nº ${numeroSolicitacao}. O solicitante precisa liberá-lo primeiro.`,
-          { duration: 5000 }
-        );
+      if (emOutra && outraId) {
+        // Mostrar diálogo de transferência ao invés de bloquear
+        setTransferConflict({
+          funcionario,
+          outraSolicitacaoId: outraId,
+          numeroSolicitacao: numeroSolicitacao || ''
+        });
         setIsAddingFuncionario(false);
         return;
       }
@@ -781,6 +854,78 @@ export default function ApontamentoDiariasModal({
     } catch (error: any) {
       console.error('Erro ao liberar funcionário:', error);
       toast.error(error.message || 'Erro ao liberar funcionário.');
+    }
+  };
+
+  // Handler para confirmar transferência de funcionário entre solicitações
+  const handleConfirmTransfer = async () => {
+    if (!transferConflict || !solicitacao?.id) return;
+    setIsTransferring(true);
+    try {
+      const { funcionario, outraSolicitacaoId } = transferConflict;
+      
+      // 1. Remover da solicitação de origem
+      await removerFuncionarioConvocado(outraSolicitacaoId, funcionario.id);
+      
+      // 2. Adicionar na solicitação atual (reutilizar a lógica existente)
+      const nomeFuncao = funcionario.funcao_nome || 'Sem função';
+      const valorDiaria = funcionario.valor_diaria || 0;
+      const funcao = funcoesCompletas.find(f => f.id === funcionario.funcao_id);
+      const valorDiariaExclusiva = funcao?.valor_diaria_exclusiva || valorDiaria;
+
+      const novoConvocado = {
+        funcionario_id: funcionario.id,
+        funcao_id: funcionario.funcao_id || '',
+        valor_diaria: valorDiaria,
+        valor_diaria_exclusiva: valorDiariaExclusiva,
+        valor_refeicao: funcao?.valor_refeicao || funcionario.valor_refeicao || 0,
+        nome_funcionario: funcionario.nome_completo,
+        nome_funcao: nomeFuncao
+      };
+
+      await adicionarFuncionarioConvocado(solicitacao.id, novoConvocado);
+
+      // Adicionar ao state local
+      const dateSel = parseBrazilianDate(selectedDate);
+      const isDomingo = dateSel.getDay() === 0;
+      const isFeriado = feriados.some(f => f.data === selectedDate);
+      const usarExclusiva = isDomingo || isFeriado;
+      const valorOriginal = usarExclusiva ? valorDiariaExclusiva : valorDiaria;
+
+      const novoColab: ColaboradorPresenca = {
+        index: colaboradores.length,
+        funcionario_id: funcionario.id,
+        nome_funcionario: funcionario.nome_completo,
+        funcao_id: funcionario.funcao_id || '',
+        nome_funcao: nomeFuncao,
+        valor_diaria_original: valorOriginal,
+        valor_diaria: valorOriginal,
+        presente: false,
+        hora_entrada: "",
+        hora_saida: "",
+        tipo_diaria: 'completa',
+        recebe_refeicao: true,
+        valor_refeicao_aplicado: 0,
+        usarDiariaExclusiva: usarExclusiva,
+        valor_diaria_normal: valorDiaria,
+        valor_diaria_exclusiva_valor: valorDiariaExclusiva,
+        turno: 'diurno' as TurnoDiaria
+      };
+
+      setColaboradores(prev => [...prev, novoColab]);
+      setFuncionariosAvulsos(prev => new Set(prev).add(funcionario.id));
+      queryClient.invalidateQueries({ queryKey: ['solicitacao-detalhes'] });
+      queryClient.invalidateQueries({ queryKey: ['diarias-solicitacoes'] });
+
+      toast.success(`${funcionario.nome_completo} transferido com sucesso para esta solicitação.`);
+      setSearchTerm("");
+      setShowAddFuncionario(false);
+    } catch (error: any) {
+      console.error('Erro ao transferir funcionário:', error);
+      toast.error(error.message || 'Erro ao transferir funcionário.');
+    } finally {
+      setIsTransferring(false);
+      setTransferConflict(null);
     }
   };
 
@@ -1112,6 +1257,7 @@ export default function ApontamentoDiariasModal({
   };
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[700px] w-[95vw] max-h-[95vh] overflow-y-auto p-3 sm:p-6">
         <DialogHeader className="space-y-1">
@@ -1559,8 +1705,8 @@ export default function ApontamentoDiariasModal({
                                 ) : (
                                   <>
                                     <Badge variant="destructive" className="text-[10px] sm:text-xs">Falta</Badge>
-                                    {fase === 'inicio' && !readOnly && (
-                                      <Button variant="ghost" size="xs" onClick={() => handleRemoverFuncionario(colaborador.funcionario_id, colaborador.nome_funcionario)} className="h-5 w-5 p-0 text-destructive hover:text-destructive">
+                                    {!readOnly && !colaborador.presencaId && (
+                                      <Button variant="ghost" size="xs" onClick={() => setReleaseConfirm({ funcionarioId: colaborador.funcionario_id, nomeFuncionario: colaborador.nome_funcionario })} className="h-5 w-5 p-0 text-destructive hover:text-destructive" title="Liberar funcionário">
                                         <X className="h-3.5 w-3.5" />
                                       </Button>
                                     )}
@@ -1839,5 +1985,40 @@ export default function ApontamentoDiariasModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+      <ConfirmDialog
+        isOpen={!!transferConflict}
+        onClose={() => setTransferConflict(null)}
+        onConfirm={handleConfirmTransfer}
+        title="Transferir funcionário"
+        description={transferConflict 
+          ? `${transferConflict.funcionario.nome_completo} está na solicitação Nº ${transferConflict.numeroSolicitacao}. Deseja liberá-lo automaticamente da outra solicitação e adicioná-lo aqui?`
+          : ''
+        }
+        confirmText="Transferir"
+        cancelText="Cancelar"
+        variant="warning"
+        isLoading={isTransferring}
+      />
+
+      <ConfirmDialog
+        isOpen={!!releaseConfirm}
+        onClose={() => setReleaseConfirm(null)}
+        onConfirm={async () => {
+          if (releaseConfirm) {
+            await handleRemoverFuncionario(releaseConfirm.funcionarioId, releaseConfirm.nomeFuncionario);
+            setReleaseConfirm(null);
+          }
+        }}
+        title="Liberar funcionário"
+        description={releaseConfirm
+          ? `Deseja remover ${releaseConfirm.nomeFuncionario} da lista de convocados desta solicitação? Ele ficará disponível para ser alocado em outra.`
+          : ''
+        }
+        confirmText="Liberar"
+        cancelText="Cancelar"
+        variant="warning"
+      />
+    </>
   );
 }

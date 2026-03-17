@@ -481,7 +481,7 @@ export default function DiariasRelatorio() {
       }
 
       const fileName = `Compilado_Diarias_${mesAno.replace(/[^a-zA-Z0-9]/g, '_')}`;
-      await generateCompiladoDiariasPDF(dados, mesAno, totalGeralQuantidade, totalGeralValor, fileName, periodo);
+      await generateCompiladoDiariasPDF(dados, mesAno, totalGeralQuantidade, totalGeralValor, fileName, periodo, { feriados, dataInicio: filters.data_inicio, dataFim: filters.data_fim });
       toast.success('PDF Compilado gerado com sucesso!');
     } catch (error) {
       console.error('Erro ao gerar PDF compilado:', error);

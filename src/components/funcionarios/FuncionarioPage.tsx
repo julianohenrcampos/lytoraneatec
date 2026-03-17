@@ -1,7 +1,13 @@
 
 import React, { useState } from "react";
-import { Users, Download, Upload, UserCheck } from "lucide-react";
+import { Users, Download, Upload, UserCheck, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useFuncionarioActions } from "@/hooks/useFuncionarioActions";
 import FuncionarioTable from "./FuncionarioTable";
 import FuncionarioFilters from "./FuncionarioFilters";
@@ -47,6 +53,7 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
     handleSaveFuncionario,
     refetch,
     exportToExcel,
+    exportSemDadosBancarios,
     handleImport
   } = useFuncionarioActions();
 
@@ -68,16 +75,28 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
             <UserCheck className="h-4 w-4" />
             Confirmar Email
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={exportToExcel}
-            disabled={isLoading || !funcionarios?.length}
-            className="flex items-center gap-2"
-          >
-            <Download className="h-4 w-4" />
-            Exportar
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isLoading || !funcionarios?.length}
+                className="flex items-center gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Exportar
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={exportToExcel}>
+                Exportar Completo
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportSemDadosBancarios}>
+                Sem Dados Bancários
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant="outline"
             size="sm"

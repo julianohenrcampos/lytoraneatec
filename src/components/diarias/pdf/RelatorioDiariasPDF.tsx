@@ -2,6 +2,7 @@ import { Document, Page, View, Text, Image, Font } from '@react-pdf/renderer';
 import { diariaStyles as styles } from './DiariaReportStyles';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { calcularRangesDSFS } from '@/utils/diariasPeriodoUtils';
 import type { RelatorioFolhaItem, PresencaResumo, RelatorioFilters } from '@/types/diarias';
 
 Font.registerHyphenationCallback(word => [word]);
@@ -254,14 +255,23 @@ export const RelatorioDiariasPDF = ({
         </View>
 
         <View style={styles.statsPanel}>
-          <View style={styles.statBox}>
-            <Text style={styles.statValue}>{totaisDias.diasUteis}</Text>
-            <Text style={styles.statLabel}>Dias Úteis</Text>
-          </View>
-          <View style={styles.statBox}>
-            <Text style={styles.statValue}>{totaisDias.diasFds}</Text>
-            <Text style={styles.statLabel}>Finais de Semana</Text>
-          </View>
+          {(() => {
+            const dsfs = calcularRangesDSFS(dataInicio || '', dataFim || '', feriados);
+            return (
+              <>
+                <View style={styles.statBox}>
+                  <Text style={styles.statValue}>{totaisDias.diasUteis}</Text>
+                  <Text style={styles.statLabel}>Dias Úteis</Text>
+                  {dsfs.dsLabel !== '-' && <Text style={{ fontSize: 6, color: '#6b7280', marginTop: 2, textAlign: 'center' as any }}>{dsfs.dsLabel}</Text>}
+                </View>
+                <View style={styles.statBox}>
+                  <Text style={styles.statValue}>{totaisDias.diasFds}</Text>
+                  <Text style={styles.statLabel}>Finais de Semana</Text>
+                  {dsfs.fsLabel !== '-' && <Text style={{ fontSize: 6, color: '#6b7280', marginTop: 2, textAlign: 'center' as any }}>{dsfs.fsLabel}</Text>}
+                </View>
+              </>
+            );
+          })()}
           <View style={styles.statBox}>
             <Text style={styles.statValue}>{totaisDias.diasFeriados}</Text>
             <Text style={styles.statLabel}>Feriados</Text>
