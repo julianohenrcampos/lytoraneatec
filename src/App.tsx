@@ -28,6 +28,7 @@ import GestaoFuncoes from "@/pages/GestaoFuncoes";
 import GestaoFuncionarios from "@/pages/GestaoFuncionarios";
 import GestaoEquipes from "@/pages/GestaoEquipes";
 import GestaoDiretorias from "@/pages/GestaoDiretorias";
+import GestaoDesligamentos from "@/pages/GestaoDesligamentos";
 
 // Gestão Máquinas - using correct file names
 import DashboardMaquinas from "@/pages/DashboardMaquinas";
@@ -199,8 +200,14 @@ const App = () => {
                 </SimplePermissionGuard>
               </SimpleAuthGuard>
             } />
+            <Route path="/gestao-rh/desligamentos" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <GestaoDesligamentos />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
             
-            {/* Gestão Máquinas */}
             <Route path="/gestao-maquinas/caminhoes" element={
               <SimpleAuthGuard>
                 <SimplePermissionGuard>

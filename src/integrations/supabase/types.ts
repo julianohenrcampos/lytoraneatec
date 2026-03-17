@@ -1091,6 +1091,71 @@ export type Database = {
           },
         ]
       }
+      bd_desligamentos: {
+        Row: {
+          created_at: string
+          criado_por: string
+          data_efetiva_desligamento: string | null
+          data_fim_aviso: string | null
+          data_inicio_aviso: string | null
+          data_solicitacao: string
+          dias_aviso: number | null
+          funcionario_id: string
+          id: string
+          modificado_por: string | null
+          motivo: string | null
+          observacoes: string | null
+          recontratavel: boolean
+          status: string
+          tipo_desligamento: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          criado_por: string
+          data_efetiva_desligamento?: string | null
+          data_fim_aviso?: string | null
+          data_inicio_aviso?: string | null
+          data_solicitacao?: string
+          dias_aviso?: number | null
+          funcionario_id: string
+          id?: string
+          modificado_por?: string | null
+          motivo?: string | null
+          observacoes?: string | null
+          recontratavel?: boolean
+          status?: string
+          tipo_desligamento: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          criado_por?: string
+          data_efetiva_desligamento?: string | null
+          data_fim_aviso?: string | null
+          data_inicio_aviso?: string | null
+          data_solicitacao?: string
+          dias_aviso?: number | null
+          funcionario_id?: string
+          id?: string
+          modificado_por?: string | null
+          motivo?: string | null
+          observacoes?: string | null
+          recontratavel?: boolean
+          status?: string
+          tipo_desligamento?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_desligamentos_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_diaria_apontamentos: {
         Row: {
           created_at: string | null
@@ -1641,6 +1706,7 @@ export type Database = {
           custo_passagem: number | null
           data_admissao: string | null
           data_demissao: string | null
+          data_desligamento: string | null
           data_ferias: string | null
           data_nascimento: string | null
           departamento_id: string | null
@@ -1678,6 +1744,7 @@ export type Database = {
           custo_passagem?: number | null
           data_admissao?: string | null
           data_demissao?: string | null
+          data_desligamento?: string | null
           data_ferias?: string | null
           data_nascimento?: string | null
           departamento_id?: string | null
@@ -1715,6 +1782,7 @@ export type Database = {
           custo_passagem?: number | null
           data_admissao?: string | null
           data_demissao?: string | null
+          data_desligamento?: string | null
           data_ferias?: string | null
           data_nascimento?: string | null
           departamento_id?: string | null

@@ -2,8 +2,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useState, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { FuncionarioSelecionado } from '@/types/ssoAgendamentoExames';
-import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
-import { excludeRestrictedCCFuncionarios } from '@/utils/centroCustoRestrictions';
 
 interface FuncionarioRaw {
   id: string;
@@ -20,12 +18,11 @@ interface FuncionarioRaw {
 
 export const useFuncionarioSearch = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const { isSuperAdmin } = useDynamicPermissions();
 
-  const { data: funcionariosRaw, isLoading } = useQuery({
-    queryKey: ['funcionarios-ativos', isSuperAdmin],
+  const { data: funcionariosRaw, isLoading, error, refetch } = useQuery({
+    queryKey: ['funcionarios-ativos-search'],
     queryFn: async () => {
-      let query = supabase
+      const { data, error } = await supabase
         .from('bd_funcionarios')
         .select(`
           id, 
@@ -39,12 +36,8 @@ export const useFuncionarioSearch = () => {
           bd_empresas(nome_empresa),
           bd_centros_custo!bd_funcionarios_centro_custo_id_fkey(nome_centro_custo)
         `)
-        .eq('status', 'Ativo');
-      
-      // Excluir funcionários do CC DIR001 para não-SuperAdmin
-      query = await excludeRestrictedCCFuncionarios(query, isSuperAdmin);
-      
-      const { data, error } = await query.order('nome_completo');
+        .eq('status', 'Ativo')
+        .order('nome_completo');
       if (error) throw error;
       return data as FuncionarioRaw[];
     }
@@ -60,7 +53,7 @@ export const useFuncionarioSearch = () => {
       email: func.email,
       cpf: func.cpf,
       data_nascimento: func.data_nascimento,
-      telefone_celular: null, // Não existe no cadastro de funcionários
+      telefone_celular: null,
       funcao: func.bd_funcoes?.nome_funcao || '',
       empresa: func.bd_empresas?.nome_empresa || '',
       centro_custo: func.bd_centros_custo?.nome_centro_custo || null,
@@ -83,6 +76,8 @@ export const useFuncionarioSearch = () => {
     funcionarios: filteredFuncionarios, 
     allFuncionarios: funcionarios,
     isLoading, 
+    error,
+    refetch,
     searchTerm, 
     setSearchTerm 
   };

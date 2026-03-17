@@ -88,6 +88,12 @@ export const menuStructure = [
         href: "/gestao-rh/equipes",
         icon: Users,
         requiredPermission: "gestao_rh_equipes_view"
+      },
+      {
+        name: "Desligamentos",
+        href: "/gestao-rh/desligamentos",
+        icon: Users,
+        requiredPermission: "gestao_rh_funcionarios_view"
       }
     ]
   },

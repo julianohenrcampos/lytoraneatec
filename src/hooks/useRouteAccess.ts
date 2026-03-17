@@ -16,6 +16,7 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   '/gestao-rh/funcoes': ['gestao_rh_funcoes_view'],
   '/gestao-rh/funcionarios': ['gestao_rh_funcionarios_view'],
   '/gestao-rh/equipes': ['gestao_rh_equipes_view'],
+  '/gestao-rh/desligamentos': ['gestao_rh_funcionarios_view'],
 
   // Gestão de Máquinas/Equipamentos
   '/gestao-maquinas/caminhoes': ['gestao_maquinas_caminhoes_view'],
