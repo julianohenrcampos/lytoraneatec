@@ -6,6 +6,8 @@ import { Eye, Edit, Trash2, CheckCircle, Image, ImageOff } from 'lucide-react';
 import { VerAgir, getStatusColor, getStatusLabel } from '@/types/ssoVerAgir';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { VerAgirMobileCards } from './VerAgirMobileCards';
 
 interface VerAgirTableProps {
   registros: VerAgir[];
@@ -30,6 +32,8 @@ export const VerAgirTable: React.FC<VerAgirTableProps> = ({
   canConcluir,
   currentUserId
 }) => {
+  const isMobile = useIsMobile();
+
   const canEditRecord = (registro: VerAgir) => {
     if (canEditAll) return true;
     return registro.criado_por === currentUserId && ['RASCUNHO', 'ENVIADO'].includes(registro.status);
@@ -44,6 +48,22 @@ export const VerAgirTable: React.FC<VerAgirTableProps> = ({
     if (!canConcluir) return false;
     return registro.status !== 'CONCLUIDO';
   };
+
+  if (isMobile) {
+    return (
+      <VerAgirMobileCards
+        registros={registros}
+        onView={onView}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        onConcluir={onConcluir}
+        canEditAll={canEditAll}
+        canDeleteAll={canDeleteAll}
+        canConcluir={canConcluir}
+        currentUserId={currentUserId}
+      />
+    );
+  }
 
   if (registros.length === 0) {
     return (

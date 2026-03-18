@@ -229,8 +229,10 @@ export interface RelatorioFilters {
   data_inicio?: string;
   data_fim?: string;
   centro_custo_id?: string;
+  centro_custo_ids?: string[];
   funcionario_id?: string;
   solicitacao_id?: string;
+  solicitacao_ids?: string[];
   empresa_id?: string;
   status_convocacao?: StatusConvocacao;
   presenca_status?: StatusPresenca;

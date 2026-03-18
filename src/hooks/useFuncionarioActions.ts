@@ -6,12 +6,21 @@ import { useFuncionarioQueries } from "./funcionarios/useFuncionarioQueries";
 import { useFuncionarioExcel } from "./funcionarios/useFuncionarioExcel";
 import { useFuncionarioImport } from "./funcionarios/useFuncionarioImport";
 import { useQueryClient } from "@tanstack/react-query";
+import { CenterAlertType } from "@/components/ui/CenterAlert";
 
 export function useFuncionarioActions() {
-  // Use all the smaller hooks
   const state = useFuncionarioState();
   const [deleteErrorMessage, setDeleteErrorMessage] = useState<string | undefined>();
+  const [centerAlert, setCenterAlert] = useState<{ isOpen: boolean; message: string; type: CenterAlertType }>({ isOpen: false, message: "", type: "success" });
   const queryClient = useQueryClient();
+
+  const showCenterAlert = useCallback((message: string, type: CenterAlertType) => {
+    setCenterAlert({ isOpen: true, message, type });
+  }, []);
+
+  const closeCenterAlert = useCallback(() => {
+    setCenterAlert(prev => ({ ...prev, isOpen: false }));
+  }, []);
   
   const { 
     funcionarios, 
@@ -25,12 +34,10 @@ export function useFuncionarioActions() {
   } = useFuncionarioQueries(
     state.filters,
     () => {
-      // Invalidate financial cache after creating employee
       queryClient.invalidateQueries({ queryKey: ["rh-financeiro"] });
       state.setIsFormModalOpen(false);
     },
     () => {
-      // Invalidate financial cache after updating employee
       queryClient.invalidateQueries({ queryKey: ["rh-financeiro"] });
       state.setIsFormModalOpen(false);
     },
@@ -44,7 +51,8 @@ export function useFuncionarioActions() {
     () => {
       state.setIsSubmitting(false);
     },
-    () => state.setIsDeleting(false)
+    () => state.setIsDeleting(false),
+    showCenterAlert
   );
 
   const { exportToExcel, exportSemDadosBancarios } = useFuncionarioExcel(funcionarios);
@@ -148,6 +156,8 @@ export function useFuncionarioActions() {
     isImporting: state.isImporting,
     isSubmitting: state.isSubmitting,
     deleteErrorMessage,
+    centerAlert,
+    closeCenterAlert,
     funcionarios,
     isLoading,
     isError,

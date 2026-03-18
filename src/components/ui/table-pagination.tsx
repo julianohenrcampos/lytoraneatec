@@ -62,19 +62,19 @@ export default function TablePagination<T>({ pagination, className }: TablePagin
   }
 
   return (
-    <div className={`flex items-center justify-between px-2 ${className}`}>
-      <div className="flex-1 text-sm text-muted-foreground">
+    <div className={`flex flex-col sm:flex-row items-center sm:justify-between gap-2 px-2 overflow-hidden max-w-full ${className}`}>
+      <div className="text-sm text-muted-foreground text-center sm:text-left">
         Mostrando {startIndex + 1} a {endIndex} de {totalItems} registros
       </div>
       
-      <div className="flex items-center space-x-6 lg:space-x-8">
-        <div className="flex items-center space-x-2">
-          <span className="text-sm font-medium">Itens por página</span>
+      <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 lg:gap-6 max-w-full">
+        <div className="flex items-center gap-2">
+          <span className="text-xs sm:text-sm font-medium hidden sm:inline">Itens por página</span>
           <Select
             value={pageSize.toString()}
             onValueChange={(value) => setPageSize(Number(value))}
           >
-            <SelectTrigger className="h-8 w-[70px]">
+            <SelectTrigger className="h-8 w-[60px] sm:w-[70px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent side="top">
@@ -87,14 +87,12 @@ export default function TablePagination<T>({ pagination, className }: TablePagin
           </Select>
         </div>
         
-        <div className="flex items-center space-x-2">
-          <span className="text-sm font-medium">
-            Página {currentPage + 1} de {totalPages}
-          </span>
-        </div>
+        <span className="text-xs sm:text-sm font-medium">
+          Pág. {currentPage + 1}/{totalPages}
+        </span>
 
-        <Pagination>
-          <PaginationContent>
+        <Pagination className="w-auto mx-0">
+          <PaginationContent className="gap-0.5">
             <PaginationItem>
               <Button
                 variant="outline"
@@ -108,13 +106,15 @@ export default function TablePagination<T>({ pagination, className }: TablePagin
             </PaginationItem>
             
             <PaginationItem>
-              <PaginationPrevious
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
                 onClick={previousPage}
-                className={`h-8 ${!canPreviousPage ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
+                disabled={!canPreviousPage}
               >
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Anterior
-              </PaginationPrevious>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
             </PaginationItem>
             
             {getPageNumbers().map((pageNum) => (
@@ -122,7 +122,7 @@ export default function TablePagination<T>({ pagination, className }: TablePagin
                 <PaginationLink
                   onClick={() => setPage(pageNum)}
                   isActive={pageNum === currentPage}
-                  className="h-8 cursor-pointer"
+                  className="h-8 w-8 cursor-pointer text-xs"
                 >
                   {pageNum + 1}
                 </PaginationLink>
@@ -130,13 +130,15 @@ export default function TablePagination<T>({ pagination, className }: TablePagin
             ))}
             
             <PaginationItem>
-              <PaginationNext
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
                 onClick={nextPage}
-                className={`h-8 ${!canNextPage ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
+                disabled={!canNextPage}
               >
-                Próximo
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </PaginationNext>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </PaginationItem>
             
             <PaginationItem>

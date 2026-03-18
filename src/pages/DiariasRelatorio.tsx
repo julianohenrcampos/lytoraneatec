@@ -109,6 +109,9 @@ export default function DiariasRelatorio() {
 
   // Filtro de gerente regional (estado)
   const [gerenteRegionalFilter, setGerenteRegionalFilter] = useState<string[]>([]);
+  // Filtros multi-select client-side
+  const [solicitacaoFilter, setSolicitacaoFilter] = useState<string[]>([]);
+  const [centroCustoFilter, setCentroCustoFilter] = useState<string[]>([]);
 
   // Filtragem client-side por empresa, tipo de vínculo e gerente regional
   const relatorio = useMemo(() => {
@@ -117,11 +120,17 @@ export default function DiariasRelatorio() {
       filtered = filtered.filter((r: any) => r.empresa_id === filters.empresa_id);
     }
     if (filters.tipo_vinculo === 'diarista') {
-      // "Sem Remessa" = funcionários SEM matrícula
       filtered = filtered.filter((r: any) => !r.matricula_funcionario);
     } else if (filters.tipo_vinculo === 'remessa') {
-      // "Remessa" = funcionários COM matrícula
       filtered = filtered.filter((r: any) => !!r.matricula_funcionario);
+    }
+    // Filtrar por solicitação (multi-select)
+    if (solicitacaoFilter.length > 0) {
+      filtered = filtered.filter((r: any) => solicitacaoFilter.includes(r.solicitacao_id));
+    }
+    // Filtrar por centro de custo (multi-select)
+    if (centroCustoFilter.length > 0) {
+      filtered = filtered.filter((r: any) => centroCustoFilter.includes(r.centro_custo_id));
     }
     // Filtrar por gerente regional (via centro de custo) - multi-select
     if (gerenteRegionalFilter.length > 0) {
@@ -131,7 +140,7 @@ export default function DiariasRelatorio() {
       filtered = filtered.filter((r: any) => ccIdsDoGerente.includes(r.centro_custo_id));
     }
     return filtered;
-  }, [relatorioRaw, filters.empresa_id, filters.tipo_vinculo, gerenteRegionalFilter, centrosCusto]);
+  }, [relatorioRaw, filters.empresa_id, filters.tipo_vinculo, solicitacaoFilter, centroCustoFilter, gerenteRegionalFilter, centrosCusto]);
 
   // Empresas
   const { data: empresas = [] } = useQuery({
@@ -220,10 +229,10 @@ export default function DiariasRelatorio() {
   
 
   // Folha de Ponto
-  const canPrintFolhaPonto = !!filters.data_inicio && !!filters.data_fim && !!filters.centro_custo_id;
+  const canPrintFolhaPonto = !!filters.data_inicio && !!filters.data_fim && (centroCustoFilter.length > 0 || !!filters.centro_custo_id);
 
   const handlePrintFolhaPonto = useCallback(async () => {
-    if (!filters.data_inicio || !filters.data_fim || !filters.centro_custo_id) return;
+    if (!filters.data_inicio || !filters.data_fim || (centroCustoFilter.length === 0 && !filters.centro_custo_id)) return;
     if (relatorio.length === 0) {
       toast.error('Não há dados para gerar a folha de ponto.');
       return;
@@ -237,18 +246,28 @@ export default function DiariasRelatorio() {
 
       // Agrupar por funcionário
       const funcMap = new Map<string, {
+        funcionario_id: string;
         nome_completo: string;
         matricula: string | null;
         cpf: string;
+        nome_funcao: string;
+        banco: string | null;
+        agencia: string | null;
+        conta_corrente: string | null;
         diasMap: Map<string, { hora_entrada: string; hora_saida: string }>;
       }>();
 
       for (const r of relatorio) {
         if (!funcMap.has(r.funcionario_id)) {
           funcMap.set(r.funcionario_id, {
+            funcionario_id: r.funcionario_id,
             nome_completo: r.nome_funcionario,
             matricula: r.matricula_funcionario || null,
             cpf: r.cpf_funcionario || '',
+            nome_funcao: r.nome_funcao || '-',
+            banco: r.banco_funcionario || null,
+            agencia: r.agencia_funcionario || null,
+            conta_corrente: r.conta_funcionario || null,
             diasMap: new Map(),
           });
         }
@@ -261,7 +280,21 @@ export default function DiariasRelatorio() {
         }
       }
 
+      // Buscar data_admissao e matricula de bd_funcionarios
+      const funcIds = Array.from(funcMap.keys());
+      const { data: funcDBData } = await supabase
+        .from('bd_funcionarios')
+        .select('id, matricula, data_admissao')
+        .in('id', funcIds);
+      const funcDBMap = new Map((funcDBData || []).map((f: any) => [f.id, f]));
+
+      const cc = centrosCusto.find((c: any) => c.id === filters.centro_custo_id);
+      const codigoCC = cc ? (cc as any).codigo_centro_custo : '';
+      const nomeCC = cc ? (cc as any).nome_centro_custo : '';
+      const departamento = codigoCC ? `${codigoCC} - ${nomeCC}` : '';
+
       const funcionarios: FolhaPontoFuncionario[] = Array.from(funcMap.values()).map((f) => {
+        const funcDB = funcDBMap.get(f.funcionario_id);
         const dias = allDays
           .filter((day) => {
             const dateStr = format(day, 'yyyy-MM-dd');
@@ -276,38 +309,36 @@ export default function DiariasRelatorio() {
             return {
               data: dateStr,
               hora_entrada: registro?.hora_entrada || '',
+              intervalo_saida: '',
+              intervalo_entrada: '',
               hora_saida: registro?.hora_saida || '',
+              centro_custo: registro ? codigoCC : '',
             };
           });
 
         return {
           nome_completo: f.nome_completo,
-          matricula: f.matricula,
+          matricula: funcDB?.matricula || f.matricula,
           cpf: f.cpf,
+          data_admissao: funcDB?.data_admissao || null,
+          funcao: f.nome_funcao,
+          departamento,
+          banco: f.banco,
+          agencia: f.agencia,
+          conta_corrente: f.conta_corrente,
           dias,
         };
       });
 
       funcionarios.sort((a, b) => a.nome_completo.localeCompare(b.nome_completo));
 
-      const cc = centrosCusto.find((c: any) => c.id === filters.centro_custo_id);
-      const codigoCC = cc ? (cc as any).codigo_centro_custo : '';
-
-      // Buscar número da solicitação
-      const solIds = [...new Set(relatorio.map((r) => r.solicitacao_id))];
-      let numSolicitacao = '';
-      if (solIds.length > 0) {
-        const { data: sols } = await supabase
-          .from('bd_diaria_solicitacoes')
-          .select('numero_solicitacao')
-          .in('id', solIds)
-          .limit(1);
-        if (sols?.length) numSolicitacao = sols[0].numero_solicitacao;
+      if (funcionarios.length === 0) {
+        toast.error("Nenhum funcionário encontrado para gerar a folha de ponto.");
+        return;
       }
 
-      const dateStr = format(dtInicio, 'yyyyMMdd');
-      const fileName = `Folha_Ponto_${codigoCC}_${dateStr}`;
-      await generateFolhaPontoPDF(numSolicitacao, codigoCC, funcionarios, fileName);
+      const fileName = `Folha_Ponto_${codigoCC}_${format(dtInicio, 'yyyyMMdd')}`;
+      await generateFolhaPontoPDF(filters.data_inicio!, filters.data_fim!, funcionarios, fileName);
 
       toast.success('Folha de ponto gerada com sucesso!');
     } catch (error) {
@@ -316,7 +347,7 @@ export default function DiariasRelatorio() {
     } finally {
       setIsGeneratingFolhaPonto(false);
     }
-  }, [filters, relatorio, centrosCusto]);
+  }, [filters, relatorio, centrosCusto, centroCustoFilter]);
 
   // Permissions
   const canExport = isSuperAdmin || hasPermission('diarias_exportar_excel');
@@ -749,7 +780,7 @@ export default function DiariasRelatorio() {
             </p>
             <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm text-muted-foreground">
               <span><strong>Empresa:</strong> {filters.empresa_id ? empresas.find((e: any) => e.id === filters.empresa_id)?.nome_empresa || '—' : 'Todas'}</span>
-              <span><strong>Centro de Custo:</strong> {filters.centro_custo_id ? centrosCusto.find((c: any) => c.id === filters.centro_custo_id)?.nome_centro_custo || '—' : 'Todos'}</span>
+              <span><strong>Centro de Custo:</strong> {centroCustoFilter.length > 0 ? centrosCusto.filter((c: any) => centroCustoFilter.includes(c.id)).map((c: any) => c.codigo_centro_custo).join(', ') : 'Todos'}</span>
             </div>
           </div>
           {canExport &&
@@ -859,37 +890,29 @@ export default function DiariasRelatorio() {
               </div>
               <div>
                 <Label>Nº Solicitação</Label>
-                <Combobox
-                  options={[
-                  { value: '__all__', label: 'Todas' },
-                  ...solicitacoesAutorizadas.map((s: any) => ({
+                <MultiCombobox
+                  options={solicitacoesAutorizadas.map((s: any) => ({
                     value: s.id,
                     label: s.numero_solicitacao
-                  }))]
-                  }
-                  value={filters.solicitacao_id ?? '__all__'}
-                  onChange={(v) => setFilters({ ...filters, solicitacao_id: v === '__all__' ? undefined : v })}
+                  }))}
+                  value={solicitacaoFilter}
+                  onChange={setSolicitacaoFilter}
                   placeholder="Todas"
                   searchPlaceholder="Buscar por número..."
                   emptyText="Nenhuma solicitação encontrada" />
-
               </div>
               <div>
                 <Label>Centro de Custo</Label>
-                <Combobox
-                  options={[
-                  { value: '__all__', label: 'Todos' },
-                  ...centrosCusto.map((cc: any) => ({
+                <MultiCombobox
+                  options={centrosCusto.map((cc: any) => ({
                     value: cc.id,
                     label: cc.codigo_centro_custo
-                  }))]
-                  }
-                  value={filters.centro_custo_id ?? '__all__'}
-                  onChange={(v) => setFilters({ ...filters, centro_custo_id: v === '__all__' ? undefined : v })}
+                  }))}
+                  value={centroCustoFilter}
+                  onChange={setCentroCustoFilter}
                   placeholder="Todos"
                   searchPlaceholder="Buscar centro de custo..."
                   emptyText="Nenhum centro de custo encontrado" />
-
               </div>
               <div>
                 <Label>Funcionário</Label>

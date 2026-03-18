@@ -341,53 +341,101 @@ export default function DiariasApontamentoCampo() {
 
       // Collect unique employees from all solicitações
       const funcIds = new Set<string>();
-      solicitacaoData.forEach(s => s.convocados.forEach(c => funcIds.add(c.funcionario_id)));
+      const convocadosMetaMap = new Map<string, { nome_funcionario: string; nome_funcao: string }>();
+      solicitacaoData.forEach(s => s.convocados.forEach(c => {
+        funcIds.add(c.funcionario_id);
+        if (c.nome_funcionario || c.nome_funcao) {
+          convocadosMetaMap.set(c.funcionario_id, {
+            nome_funcionario: c.nome_funcionario || '',
+            nome_funcao: c.nome_funcao || '',
+          });
+        }
+      }));
+
+      // Fallback: if no IDs from convocados_pre, use presencas
+      if (funcIds.size === 0 && presencas?.length) {
+        presencas.forEach((p: any) => {
+          if (p.funcionario_id) funcIds.add(p.funcionario_id);
+        });
+      }
 
       if (funcIds.size === 0) {
-        toast.error("Nenhum funcionário convocado encontrado.");
+        toast.error("Nenhum registro de funcionário encontrado no período/solicitação.");
         return;
       }
 
-      // Fetch employee details
-      const { data: funcionariosDB } = await supabase
+      // Fetch employee details - handle RLS partial results gracefully
+      const { data: funcionariosDB, error: funcError } = await supabase
         .from('bd_funcionarios')
-        .select('id, nome_completo, matricula, cpf')
+        .select('id, nome_completo, matricula, cpf, data_admissao, funcao_id, centro_custo_id, banco, agencia, conta_corrente, bd_funcoes(nome_funcao), bd_centros_custo(codigo_centro_custo, nome_centro_custo)')
         .in('id', Array.from(funcIds));
 
-      const funcMap = new Map((funcionariosDB || []).map((f: any) => [f.id, f]));
+      if (funcError) {
+        console.warn('Erro ao buscar bd_funcionarios (RLS?):', funcError.message);
+      }
 
-      // Build FolhaPontoFuncionario array
+      const funcMap = new Map((funcionariosDB || []).map((f: any) => [f.id, f]));
+      console.log(`[FolhaPonto] funcIds: ${funcIds.size}, retornados bd_funcionarios: ${funcMap.size}, convocadosMeta: ${convocadosMetaMap.size}`);
+
+      // Get CC info for local_trabalho
+      const ccCode = (apontamentosCC[0] as any)?.bd_diaria_solicitacoes?.bd_centros_custo?.codigo_centro_custo || '';
+      const ccNome = (apontamentosCC[0] as any)?.bd_diaria_solicitacoes?.bd_centros_custo?.nome_centro_custo || '';
+      const localTrabalho = ccCode ? `${ccCode} - ${ccNome}` : '';
+
+      // Build FolhaPontoFuncionario array - use fallback for missing DB records
       const funcionariosPDF: FolhaPontoFuncionario[] = [];
       for (const funcId of funcIds) {
         const funcDB = funcMap.get(funcId) as any;
-        if (!funcDB) continue;
+        const meta = convocadosMetaMap.get(funcId);
+
+        // Skip only if we have absolutely no info about this employee
+        const nome = funcDB?.nome_completo || meta?.nome_funcionario || null;
+        if (!nome) continue;
 
         // Build days list: weekdays always, weekends only if has presence
-        const dias: { data: string; hora_entrada: string; hora_saida: string }[] = [];
+        const dias: FolhaPontoFuncionario['dias'] = [];
         for (const date of allDates) {
           const dateStr = format(date, 'yyyy-MM-dd');
           const presKey = `${funcId}_${dateStr}`;
           const pres = presencaMap.get(presKey);
 
           if (isWeekend(date)) {
-            // Include weekend day only if has presence record
             if (pres) {
-              dias.push({ data: dateStr, hora_entrada: pres.hora_entrada, hora_saida: pres.hora_saida });
+              dias.push({
+                data: dateStr,
+                hora_entrada: pres.hora_entrada,
+                intervalo_saida: '',
+                intervalo_entrada: '',
+                hora_saida: pres.hora_saida,
+                centro_custo: ccCode,
+              });
             }
           } else {
-            // Weekday: always include
             dias.push({
               data: dateStr,
               hora_entrada: pres?.hora_entrada || '',
+              intervalo_saida: '',
+              intervalo_entrada: '',
               hora_saida: pres?.hora_saida || '',
+              centro_custo: pres ? ccCode : '',
             });
           }
         }
 
+        const departamento = funcDB?.bd_centros_custo
+          ? `${funcDB.bd_centros_custo.codigo_centro_custo} - ${funcDB.bd_centros_custo.nome_centro_custo}`
+          : '';
+
         funcionariosPDF.push({
-          nome_completo: funcDB.nome_completo,
-          matricula: funcDB.matricula || null,
-          cpf: funcDB.cpf || '',
+          nome_completo: nome,
+          matricula: funcDB?.matricula || null,
+          cpf: funcDB?.cpf || '',
+          data_admissao: funcDB?.data_admissao || null,
+          funcao: funcDB?.bd_funcoes?.nome_funcao || meta?.nome_funcao || '-',
+          departamento,
+          banco: funcDB?.banco || null,
+          agencia: funcDB?.agencia || null,
+          conta_corrente: funcDB?.conta_corrente || null,
           dias,
         });
       }
@@ -395,14 +443,19 @@ export default function DiariasApontamentoCampo() {
       // Sort by name
       funcionariosPDF.sort((a, b) => a.nome_completo.localeCompare(b.nome_completo));
 
-      // Get CC code
-      const ccLabel = centrosCustoOptions.find(o => o.value === centroCustoFilter)?.label || '';
-      // Try to get just the code from label or from solicitação
-      const ccCode = (apontamentosCC[0] as any)?.bd_diaria_solicitacoes?.bd_centros_custo?.codigo_centro_custo || ccLabel;
+      if (funcionariosPDF.length === 0) {
+        toast.error("Nenhum funcionário encontrado para gerar a folha de ponto.");
+        return;
+      }
+
+      // Warn if partial data
+      if (funcMap.size < funcIds.size) {
+        toast.info(`Folha gerada com dados parciais (${funcMap.size}/${funcIds.size} cadastros acessíveis).`);
+      }
 
       await generateFolhaPontoPDF(
-        firstSol.numero,
-        ccCode,
+        firstSol.dataInicio,
+        firstSol.dataFim,
         funcionariosPDF,
         `Folha_Ponto_${ccCode}_${firstSol.dataInicio}_${firstSol.dataFim}`
       );
@@ -439,9 +492,12 @@ export default function DiariasApontamentoCampo() {
     );
   }
 
-  // Parse convocados helper
+  // Parse convocados helper - handles null, array, and stringified JSON
   const parseConvocados = (convocadosPre: any): FuncionarioPreConvocado[] => {
     if (!convocadosPre) return [];
+    if (typeof convocadosPre === 'string') {
+      try { return JSON.parse(convocadosPre); } catch { return []; }
+    }
     if (Array.isArray(convocadosPre)) return convocadosPre;
     return [];
   };

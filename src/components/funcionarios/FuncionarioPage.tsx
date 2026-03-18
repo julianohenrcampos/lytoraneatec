@@ -16,6 +16,7 @@ import FuncionarioDetailsModal from "./FuncionarioDetailsModal";
 import FuncionarioImportModal from "./FuncionarioImportModal";
 import DeleteFuncionarioDialog from "./DeleteFuncionarioDialog";
 import EmailConfirmationModal from "./EmailConfirmationModal";
+import CenterAlert from "@/components/ui/CenterAlert";
 
 interface FuncionarioPageProps {
   openImageModal?: (funcionario: any) => void;
@@ -36,6 +37,8 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
     isImporting,
     isSubmitting,
     deleteErrorMessage,
+    centerAlert,
+    closeCenterAlert,
     funcionarios,
     isLoading,
     isError,
@@ -165,6 +168,13 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
       <EmailConfirmationModal
         isOpen={isEmailConfirmationOpen}
         onClose={() => setIsEmailConfirmationOpen(false)}
+      />
+
+      <CenterAlert
+        isOpen={centerAlert.isOpen}
+        message={centerAlert.message}
+        type={centerAlert.type}
+        onClose={closeCenterAlert}
       />
     </div>
   );

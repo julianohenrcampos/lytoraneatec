@@ -17,7 +17,8 @@ export function useFuncionarioQueries(
   onSuccessUpdate?: () => void,
   onSuccessDelete?: () => void,
   onSettledSubmit?: () => void,
-  onSettledDelete?: () => void
+  onSettledDelete?: () => void,
+  onCenterAlert?: (message: string, type: "success" | "error" | "warning") => void
 ) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -49,18 +50,22 @@ export function useFuncionarioQueries(
     mutationFn: (data: FuncionarioFormData) => createFuncionario(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['funcionarios'] });
-      toast({
-        title: "Funcionário criado",
-        description: "O funcionário foi criado com sucesso."
-      });
       if (onSuccessCreate) onSuccessCreate();
+      if (onCenterAlert) {
+        onCenterAlert("Salvo com sucesso", "success");
+      }
     },
     onError: (error: Error) => {
-      toast({
-        title: "Erro ao criar",
-        description: error.message,
-        variant: "destructive"
-      });
+      const msg = error.message?.toLowerCase() || "";
+      if (msg.includes("cpf") || msg.includes("duplicate") || msg.includes("já existe") || msg.includes("unique")) {
+        if (onCenterAlert) {
+          onCenterAlert("Funcionário já existente", "error");
+        }
+      } else {
+        if (onCenterAlert) {
+          onCenterAlert(error.message || "Erro ao criar funcionário", "error");
+        }
+      }
     },
     onSettled: () => {
       if (onSettledSubmit) onSettledSubmit();
@@ -73,18 +78,15 @@ export function useFuncionarioQueries(
       updateFuncionario(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['funcionarios'] });
-      toast({
-        title: "Funcionário atualizado",
-        description: "O funcionário foi atualizado com sucesso."
-      });
       if (onSuccessUpdate) onSuccessUpdate();
+      if (onCenterAlert) {
+        onCenterAlert("Salvo com sucesso", "success");
+      }
     },
     onError: (error: Error) => {
-      toast({
-        title: "Erro ao atualizar",
-        description: error.message,
-        variant: "destructive"
-      });
+      if (onCenterAlert) {
+        onCenterAlert(error.message || "Erro ao atualizar funcionário", "error");
+      }
     },
     onSettled: () => {
       if (onSettledSubmit) onSettledSubmit();

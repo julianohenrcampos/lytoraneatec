@@ -10,6 +10,7 @@ import FuncionarioDetailsModal from "./FuncionarioDetailsModal";
 import FuncionarioImportModal from "./FuncionarioImportModal";
 import DeleteFuncionarioDialog from "./DeleteFuncionarioDialog";
 import EmailConfirmationModal from "./EmailConfirmationModal";
+import CenterAlert from "@/components/ui/CenterAlert";
 
 interface FuncionarioPageProps {
   openImageModal?: (funcionario: any) => void;

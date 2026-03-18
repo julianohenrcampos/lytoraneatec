@@ -48,7 +48,6 @@ export async function getRelatorioFolha(
     query = query.lte('data', filters.data_fim);
   }
   if (filters?.centro_custo_id) {
-    // Filtrar pelo nome do centro de custo já que a view não tem o ID diretamente
     const { data: cc } = await supabase
       .from('bd_centros_custo')
       .select('nome_centro_custo')
@@ -57,6 +56,16 @@ export async function getRelatorioFolha(
     
     if (cc) {
       query = query.eq('nome_centro_custo', cc.nome_centro_custo);
+    }
+  }
+  // Multi-select centro de custo (client-side preferred, but support server-side too)
+  if (filters?.centro_custo_ids?.length) {
+    const { data: ccs } = await supabase
+      .from('bd_centros_custo')
+      .select('nome_centro_custo')
+      .in('id', filters.centro_custo_ids);
+    if (ccs?.length) {
+      query = query.in('nome_centro_custo', ccs.map(c => c.nome_centro_custo));
     }
   }
   if (filters?.funcionario_id) {

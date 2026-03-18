@@ -476,8 +476,8 @@ export const generateCompiladoDiariasPDF = async (
 // =====================================================
 
 export const generateFolhaPontoPDF = async (
-  numeroSolicitacao: string,
-  codigoCentroCusto: string,
+  periodoInicio: string,
+  periodoFim: string,
   funcionarios: FolhaPontoFuncionario[],
   fileName: string
 ): Promise<void> => {
@@ -485,8 +485,8 @@ export const generateFolhaPontoPDF = async (
     const logoUrl = await loadImageAsBase64('/lyto-uploads/dcf6c980-f927-4180-b109-b425da1323ba.png');
 
     const doc = createElement(FolhaPontoPDFDocument, {
-      numeroSolicitacao,
-      codigoCentroCusto,
+      periodoInicio,
+      periodoFim,
       funcionarios,
       logoUrl: logoUrl || undefined,
     });

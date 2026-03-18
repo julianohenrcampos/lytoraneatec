@@ -1,22 +1,37 @@
 import React from 'react';
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
-import { format } from 'date-fns';
+import { format, isWeekend as isWeekendFn } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 // =====================================================
 // TYPES
 // =====================================================
 
+export interface FolhaPontoDia {
+  data: string;
+  hora_entrada: string;
+  intervalo_saida: string;
+  intervalo_entrada: string;
+  hora_saida: string;
+  centro_custo: string;
+}
+
 export interface FolhaPontoFuncionario {
   nome_completo: string;
   matricula: string | null;
   cpf: string;
-  dias: { data: string; hora_entrada: string; hora_saida: string }[];
+  data_admissao: string | null;
+  funcao: string;
+  departamento: string;
+  banco: string | null;
+  agencia: string | null;
+  conta_corrente: string | null;
+  dias: FolhaPontoDia[];
 }
 
 export interface FolhaPontoPDFProps {
-  numeroSolicitacao: string;
-  codigoCentroCusto: string;
+  periodoInicio: string;
+  periodoFim: string;
   funcionarios: FolhaPontoFuncionario[];
   logoUrl?: string;
 }
@@ -25,36 +40,31 @@ export interface FolhaPontoPDFProps {
 // STYLES
 // =====================================================
 
-const HALF_HEIGHT = 380; // ~half of A4 portrait usable area (842pt - margins)
+const BORDER = '#333333';
+const HEADER_BG = '#e2e8f0';
 
 const s = StyleSheet.create({
   page: {
     paddingTop: 20,
     paddingBottom: 20,
-    paddingHorizontal: 30,
-    fontSize: 9,
+    paddingHorizontal: 25,
+    fontSize: 8,
     fontFamily: 'Helvetica',
   },
-  // Each employee sheet occupies half the page
-  sheet: {
-    height: HALF_HEIGHT,
-    paddingBottom: 10,
-    justifyContent: 'flex-start',
+  headerContainer: {
+    borderWidth: 1,
+    borderColor: BORDER,
   },
-  separator: {
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#cbd5e1',
-    marginBottom: 8,
-  },
-  // Header
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
+    padding: 8,
+    borderBottomWidth: 1,
+    borderColor: BORDER,
   },
   logo: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     marginRight: 10,
   },
   headerCenter: {
@@ -62,189 +72,362 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: 'Helvetica-Bold',
-    marginBottom: 3,
+    letterSpacing: 1,
   },
-  infoText: {
-    fontSize: 8,
-    color: '#555',
-    marginBottom: 1,
-  },
-  funcionarioName: {
+  periodo: {
     fontSize: 9,
-    fontFamily: 'Helvetica-Bold',
     marginTop: 2,
+  },
+  infoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    borderBottomWidth: 1,
+    borderColor: BORDER,
+  },
+  infoCell: {
+    width: '50%',
+    flexDirection: 'row',
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    borderRightWidth: 1,
+    borderColor: BORDER,
+  },
+  infoLabel: {
+    fontFamily: 'Helvetica-Bold',
+    fontSize: 7.5,
+    marginRight: 4,
+  },
+  infoValue: {
+    fontSize: 7.5,
   },
   // Table
   table: {
-    width: '100%',
     marginTop: 6,
+    borderWidth: 1,
+    borderColor: BORDER,
   },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: '#e2e8f0',
-    borderWidth: 1,
-    borderColor: '#94a3b8',
+    backgroundColor: HEADER_BG,
+    borderBottomWidth: 1,
+    borderColor: BORDER,
   },
   tableRow: {
     flexDirection: 'row',
-    borderWidth: 1,
-    borderColor: '#94a3b8',
-    minHeight: 18,
-    marginTop: -1,
+    borderBottomWidth: 0.5,
+    borderColor: BORDER,
+    minHeight: 16,
   },
-  tableRowAlt: {
-    backgroundColor: '#f8fafc',
+  tableRowWeekend: {
+    backgroundColor: '#f1f5f9',
   },
-  cellData: {
-    width: '28%',
-    padding: 3,
-    borderRightWidth: 1,
-    borderColor: '#94a3b8',
-  },
-  cellMatricula: {
-    width: '18%',
-    padding: 3,
-    textAlign: 'center',
-    borderRightWidth: 1,
-    borderColor: '#94a3b8',
-  },
-  cellCpf: {
-    width: '22%',
-    padding: 3,
-    textAlign: 'center',
-    borderRightWidth: 1,
-    borderColor: '#94a3b8',
-  },
-  cellHoraEntrada: {
-    width: '16%',
-    padding: 3,
-    textAlign: 'center',
-    borderRightWidth: 1,
-    borderColor: '#94a3b8',
-  },
-  cellHoraSaida: {
-    width: '16%',
-    padding: 3,
-    textAlign: 'center',
-  },
+  // Column widths — Dia 10%, Entrada 11%, Int.S 11%, Int.E 11%, Saída 11%, C.C 12%, Assinatura 34%
+  colDia: { width: '10%', padding: 2, paddingLeft: 4, borderRightWidth: 0.5, borderColor: BORDER },
+  colEntrada: { width: '11%', padding: 2, textAlign: 'center', borderRightWidth: 0.5, borderColor: BORDER },
+  colIntS: { width: '11%', padding: 2, textAlign: 'center', borderRightWidth: 0.5, borderColor: BORDER },
+  colIntE: { width: '11%', padding: 2, textAlign: 'center', borderRightWidth: 0.5, borderColor: BORDER },
+  colSaida: { width: '11%', padding: 2, textAlign: 'center', borderRightWidth: 0.5, borderColor: BORDER },
+  colCC: { width: '12%', padding: 2, textAlign: 'center', borderRightWidth: 0.5, borderColor: BORDER },
+  colAssinatura: { width: '34%', padding: 2, paddingLeft: 4 },
   headerText: {
     fontFamily: 'Helvetica-Bold',
-    fontSize: 8,
+    fontSize: 7,
+    textAlign: 'center',
   },
   cellText: {
-    fontSize: 8,
+    fontSize: 7,
   },
-  // Signature
+  cellTextCenter: {
+    fontSize: 7,
+    textAlign: 'center',
+  },
+  // Footer sections
+  summaryRow: {
+    flexDirection: 'row',
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  summaryCell: {
+    width: '33.33%',
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    borderRightWidth: 0.5,
+    borderColor: BORDER,
+  },
+  observacoesBox: {
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: BORDER,
+    padding: 6,
+    minHeight: 30,
+  },
+  legalText: {
+    marginTop: 6,
+    fontSize: 6.5,
+    color: '#444',
+    textAlign: 'justify',
+    lineHeight: 1.4,
+  },
   signatureArea: {
-    marginTop: 'auto',
-    paddingTop: 8,
+    marginTop: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+  },
+  signatureBlock: {
+    alignItems: 'center',
+    width: '40%',
   },
   signatureLine: {
     borderTopWidth: 1,
     borderColor: '#333',
-    width: '55%',
-    paddingTop: 3,
-    textAlign: 'center',
-    alignSelf: 'center',
-  },
-  signatureName: {
-    fontSize: 8,
-    textAlign: 'center',
+    width: '100%',
+    marginBottom: 3,
   },
   signatureLabel: {
     fontSize: 7,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 1,
+    fontFamily: 'Helvetica-Bold',
   },
-  // Footer
-  footer: {
+  localDataRow: {
+    marginTop: 10,
+    fontSize: 7.5,
+    textAlign: 'center',
+  },
+  bankRow: {
+    marginTop: 8,
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    fontSize: 7,
-    color: '#888',
-    marginTop: 4,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: '#f8fafc',
+  },
+  bankCell: {
+    flex: 1,
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    borderRightWidth: 0.5,
+    borderColor: BORDER,
+    flexDirection: 'row',
   },
 });
 
 // =====================================================
-// INDIVIDUAL SHEET COMPONENT
+// HELPERS
 // =====================================================
 
-const FolhaIndividual: React.FC<{
-  func: FolhaPontoFuncionario;
-  numeroSolicitacao: string;
-  codigoCentroCusto: string;
-  logoUrl?: string;
-  geradoEm: string;
-}> = ({ func, numeroSolicitacao, codigoCentroCusto, logoUrl, geradoEm }) => {
-  const formatData = (dataStr: string) => {
-    try {
-      const [y, m, d] = dataStr.split('-').map(Number);
-      return format(new Date(y, m - 1, d), "dd/MM/yyyy (EEE)", { locale: ptBR });
-    } catch {
-      return dataStr;
-    }
-  };
+const formatDateBR = (dateStr: string) => {
+  try {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return format(new Date(y, m - 1, d), 'dd/MM', { locale: ptBR });
+  } catch {
+    return dateStr;
+  }
+};
 
-  const formatTime = (time: string) => {
-    if (!time) return ':';
-    // time from DB is "HH:mm:ss" or "HH:mm"
-    return time.substring(0, 5);
-  };
+const formatDateShort = (dateStr: string) => {
+  try {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return format(new Date(y, m - 1, d), 'dd/MM/yyyy', { locale: ptBR });
+  } catch {
+    return dateStr;
+  }
+};
+
+const formatTime = (time: string) => {
+  if (!time) return '';
+  return time.substring(0, 5);
+};
+
+const isWeekendDate = (dateStr: string) => {
+  try {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return isWeekendFn(new Date(y, m - 1, d));
+  } catch {
+    return false;
+  }
+};
+
+const formatAdmissao = (dateStr: string | null) => {
+  if (!dateStr) return '-';
+  return formatDateShort(dateStr);
+};
+
+const formatCPFDisplay = (cpf: string) => {
+  if (!cpf) return '-';
+  const digits = cpf.replace(/\D/g, '');
+  if (digits.length !== 11) return cpf;
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+};
+
+// =====================================================
+// INDIVIDUAL PAGE COMPONENT
+// =====================================================
+
+const FolhaPontoPage: React.FC<{
+  func: FolhaPontoFuncionario;
+  periodoInicio: string;
+  periodoFim: string;
+  logoUrl?: string;
+}> = ({ func, periodoInicio, periodoFim, logoUrl }) => {
+  const totalFaltas = func.dias.filter(d => !isWeekendDate(d.data) && !d.hora_entrada).length;
 
   return (
-    <View style={s.sheet}>
-      {/* Header */}
-      <View style={s.headerRow}>
-        {logoUrl && <Image style={s.logo} src={logoUrl} />}
-        <View style={s.headerCenter}>
-          <Text style={s.title}>LISTA DE PRESENÇA</Text>
-          <Text style={s.infoText}>Solicitação Nº {numeroSolicitacao}</Text>
-          <Text style={s.infoText}>Centro de Custo: {codigoCentroCusto}</Text>
-          <Text style={s.funcionarioName}>{func.nome_completo}</Text>
+    <Page size="A4" style={s.page}>
+      {/* HEADER */}
+      <View style={s.headerContainer}>
+        <View style={s.headerRow}>
+          {logoUrl && <Image style={s.logo} src={logoUrl} />}
+          <View style={s.headerCenter}>
+            <Text style={s.title}>FOLHA DE PONTO</Text>
+            <Text style={s.periodo}>
+              Período: {formatDateShort(periodoInicio)} a {formatDateShort(periodoFim)}
+            </Text>
+          </View>
+          {logoUrl && <View style={{ width: 36 }} />}
         </View>
-        {/* Spacer for symmetry */}
-        {logoUrl && <View style={{ width: 40 }} />}
+
+        {/* INFO GRID */}
+        <View style={s.infoGrid}>
+          <View style={s.infoCell}>
+            <Text style={s.infoLabel}>Funcionário:</Text>
+            <Text style={s.infoValue}>{func.nome_completo}</Text>
+          </View>
+          <View style={[s.infoCell, { borderRightWidth: 0 }]}>
+            <Text style={s.infoLabel}>Função:</Text>
+            <Text style={s.infoValue}>{func.funcao || '-'}</Text>
+          </View>
+        </View>
+        <View style={s.infoGrid}>
+          <View style={s.infoCell}>
+            <Text style={s.infoLabel}>Matrícula:</Text>
+            <Text style={s.infoValue}>{func.matricula || '-'}</Text>
+          </View>
+          <View style={[s.infoCell, { borderRightWidth: 0 }]}>
+            <Text style={s.infoLabel}>Admissão:</Text>
+            <Text style={s.infoValue}>{formatAdmissao(func.data_admissao)}</Text>
+          </View>
+        </View>
+        <View style={s.infoGrid}>
+          <View style={s.infoCell}>
+            <Text style={s.infoLabel}>Departamento:</Text>
+            <Text style={s.infoValue}>{func.departamento || '-'}</Text>
+          </View>
+          <View style={[s.infoCell, { borderRightWidth: 0 }]}>
+            <Text style={s.infoLabel}>Jornada:</Text>
+            <Text style={s.infoValue}></Text>
+          </View>
+        </View>
+        <View style={{ flexDirection: 'row', paddingVertical: 3, paddingHorizontal: 6 }}>
+          <Text style={s.infoLabel}>Descanso Semanal:</Text>
+          <Text style={s.infoValue}>SAB / DOM</Text>
+        </View>
       </View>
 
-      {/* Table */}
+      {/* TABLE */}
       <View style={s.table}>
         <View style={s.tableHeader}>
-          <View style={s.cellData}><Text style={s.headerText}>Data</Text></View>
-          <View style={s.cellMatricula}><Text style={s.headerText}>Matrícula</Text></View>
-          <View style={s.cellCpf}><Text style={s.headerText}>CPF</Text></View>
-          <View style={s.cellHoraEntrada}><Text style={s.headerText}>Hora Inicial</Text></View>
-          <View style={s.cellHoraSaida}><Text style={s.headerText}>Hora Final</Text></View>
+          <View style={s.colDia}><Text style={s.headerText}>Dia</Text></View>
+          <View style={s.colEntrada}><Text style={s.headerText}>Entrada</Text></View>
+          <View style={s.colIntS}><Text style={s.headerText}>Int. Saída</Text></View>
+          <View style={s.colIntE}><Text style={s.headerText}>Int. Entrada</Text></View>
+          <View style={s.colSaida}><Text style={s.headerText}>Saída</Text></View>
+          <View style={s.colCC}><Text style={s.headerText}>C.C</Text></View>
+          <View style={s.colAssinatura}><Text style={s.headerText}>Assinatura Diária</Text></View>
         </View>
 
-        {func.dias.map((dia, i) => (
-          <View key={i} style={[s.tableRow, i % 2 === 1 ? s.tableRowAlt : {}]} wrap={false}>
-            <View style={s.cellData}><Text style={s.cellText}>{formatData(dia.data)}</Text></View>
-            <View style={s.cellMatricula}><Text style={s.cellText}>{func.matricula || '-'}</Text></View>
-            <View style={s.cellCpf}><Text style={s.cellText}>{func.cpf || '-'}</Text></View>
-            <View style={s.cellHoraEntrada}><Text style={s.cellText}>{dia.hora_entrada ? formatTime(dia.hora_entrada) : ':'}</Text></View>
-            <View style={s.cellHoraSaida}><Text style={s.cellText}>{dia.hora_saida ? formatTime(dia.hora_saida) : ':'}</Text></View>
-          </View>
-        ))}
+        {func.dias.map((dia, i) => {
+          const weekend = isWeekendDate(dia.data);
+          return (
+            <View key={i} style={[s.tableRow, weekend ? s.tableRowWeekend : {}]} wrap={false}>
+              <View style={s.colDia}>
+                <Text style={s.cellText}>{formatDateBR(dia.data)}</Text>
+              </View>
+              <View style={s.colEntrada}>
+                <Text style={s.cellTextCenter}>{formatTime(dia.hora_entrada)}</Text>
+              </View>
+              <View style={s.colIntS}>
+                <Text style={s.cellTextCenter}>{formatTime(dia.intervalo_saida)}</Text>
+              </View>
+              <View style={s.colIntE}>
+                <Text style={s.cellTextCenter}>{formatTime(dia.intervalo_entrada)}</Text>
+              </View>
+              <View style={s.colSaida}>
+                <Text style={s.cellTextCenter}>{formatTime(dia.hora_saida)}</Text>
+              </View>
+              <View style={s.colCC}>
+                <Text style={s.cellTextCenter}>{dia.centro_custo || ''}</Text>
+              </View>
+              <View style={s.colAssinatura}>
+                <Text style={s.cellText}></Text>
+              </View>
+            </View>
+          );
+        })}
       </View>
 
-      {/* Signature */}
+      {/* SUMMARY */}
+      <View style={s.summaryRow}>
+        <View style={s.summaryCell}>
+          <Text style={s.infoLabel}>Total de Faltas: <Text style={s.infoValue}>{totalFaltas}</Text></Text>
+        </View>
+        <View style={s.summaryCell}>
+          <Text style={s.infoLabel}>Total de Atraso: <Text style={s.infoValue}>______</Text></Text>
+        </View>
+        <View style={[s.summaryCell, { borderRightWidth: 0 }]}>
+          <Text style={s.infoLabel}>Dias Trabalhados: <Text style={s.infoValue}>{func.dias.filter(d => !!d.hora_entrada).length}</Text></Text>
+        </View>
+      </View>
+
+      {/* OBSERVATIONS */}
+      <View style={s.observacoesBox}>
+        <Text style={s.infoLabel}>Observações:</Text>
+      </View>
+
+      {/* LEGAL TEXT */}
+      <Text style={s.legalText}>
+        Os horários deverão ser assinalados pelo próprio empregado, e qualquer engano ou omissão, 
+        comunicado ao encarregado de pessoal, para as devidas correções. A marcação de ponto é 
+        obrigatória, e sua falta constitui falta grave, sujeita às penalidades previstas em lei.
+      </Text>
+
+      {/* SIGNATURES */}
       <View style={s.signatureArea}>
-        <View style={s.signatureLine}>
-          <Text style={s.signatureLabel}>Assinatura</Text>
-          <Text style={s.signatureName}>{func.nome_completo}</Text>
+        <View style={s.signatureBlock}>
+          <View style={s.signatureLine} />
+          <Text style={s.signatureLabel}>Encarregado</Text>
+        </View>
+        <View style={s.signatureBlock}>
+          <View style={s.signatureLine} />
+          <Text style={s.signatureLabel}>Funcionário</Text>
         </View>
       </View>
 
-      {/* Footer */}
-      <View style={s.footer}>
-        <Text>Sistema LYTEC – Gestão de Diárias</Text>
-        <Text>Gerado em: {geradoEm}</Text>
+      <Text style={s.localDataRow}>
+        ____________, _____ de _________________ de {new Date().getFullYear()}
+      </Text>
+
+      {/* BANK INFO */}
+      <View style={s.bankRow}>
+        <View style={s.bankCell}>
+          <Text style={s.infoLabel}>CPF: </Text>
+          <Text style={s.infoValue}>{formatCPFDisplay(func.cpf)}</Text>
+        </View>
+        <View style={s.bankCell}>
+          <Text style={s.infoLabel}>Banco: </Text>
+          <Text style={s.infoValue}>{func.banco || '-'}</Text>
+        </View>
+        <View style={s.bankCell}>
+          <Text style={s.infoLabel}>Agência: </Text>
+          <Text style={s.infoValue}>{func.agencia || '-'}</Text>
+        </View>
+        <View style={[s.bankCell, { borderRightWidth: 0 }]}>
+          <Text style={s.infoLabel}>Conta: </Text>
+          <Text style={s.infoValue}>{func.conta_corrente || '-'}</Text>
+        </View>
       </View>
-    </View>
+    </Page>
   );
 };
 
@@ -253,46 +436,33 @@ const FolhaIndividual: React.FC<{
 // =====================================================
 
 export const FolhaPontoPDFDocument: React.FC<FolhaPontoPDFProps> = ({
-  numeroSolicitacao,
-  codigoCentroCusto,
+  periodoInicio,
+  periodoFim,
   funcionarios,
   logoUrl,
 }) => {
-  const geradoEm = format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
-
-  // Group employees in pairs for 2-per-page layout
-  const pairs: FolhaPontoFuncionario[][] = [];
-  for (let i = 0; i < funcionarios.length; i += 2) {
-    pairs.push(funcionarios.slice(i, i + 2));
+  if (funcionarios.length === 0) {
+    return (
+      <Document>
+        <Page size="A4" style={s.page}>
+          <Text style={{ fontSize: 14, textAlign: 'center', marginTop: 40 }}>
+            Nenhum dado encontrado para gerar a folha de ponto.
+          </Text>
+        </Page>
+      </Document>
+    );
   }
 
   return (
     <Document>
-      {pairs.map((pair, pageIdx) => (
-        <Page key={pageIdx} size="A4" style={s.page}>
-          {/* First sheet */}
-          <FolhaIndividual
-            func={pair[0]}
-            numeroSolicitacao={numeroSolicitacao}
-            codigoCentroCusto={codigoCentroCusto}
-            logoUrl={logoUrl}
-            geradoEm={geradoEm}
-          />
-
-          {/* Separator between sheets */}
-          {pair[1] && <View style={s.separator} />}
-
-          {/* Second sheet (if exists) */}
-          {pair[1] && (
-            <FolhaIndividual
-              func={pair[1]}
-              numeroSolicitacao={numeroSolicitacao}
-              codigoCentroCusto={codigoCentroCusto}
-              logoUrl={logoUrl}
-              geradoEm={geradoEm}
-            />
-          )}
-        </Page>
+      {funcionarios.map((func, idx) => (
+        <FolhaPontoPage
+          key={idx}
+          func={func}
+          periodoInicio={periodoInicio}
+          periodoFim={periodoFim}
+          logoUrl={logoUrl}
+        />
       ))}
     </Document>
   );
