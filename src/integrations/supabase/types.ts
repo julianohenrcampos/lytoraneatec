@@ -4598,6 +4598,7 @@ export type Database = {
       }
       normalize_email: { Args: { input_email: string }; Returns: string }
       normalize_text: { Args: { input_text: string }; Returns: string }
+      rbac_auto_migrate_user: { Args: { p_user_id: string }; Returns: Json }
       relatorio_correcao_status_massa: {
         Args: never
         Returns: {
