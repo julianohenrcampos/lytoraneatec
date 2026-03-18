@@ -2506,6 +2506,72 @@ export type Database = {
           },
         ]
       }
+      bd_permission_audit_logs: {
+        Row: {
+          created_at: string | null
+          id: string
+          origem: string | null
+          permitido: boolean | null
+          rota: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          origem?: string | null
+          permitido?: boolean | null
+          rota?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          origem?: string | null
+          permitido?: boolean | null
+          rota?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      bd_permissions: {
+        Row: {
+          ativo: boolean
+          codigo: string
+          created_at: string
+          descricao: string | null
+          id: string
+          modulo: string | null
+          nome: string
+          rota: string | null
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          codigo: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          modulo?: string | null
+          nome: string
+          rota?: string | null
+          tipo?: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          codigo?: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          modulo?: string | null
+          nome?: string
+          rota?: string | null
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       bd_permissoes: {
         Row: {
           created_at: string | null
@@ -3604,6 +3670,69 @@ export type Database = {
           },
         ]
       }
+      bd_role_permissions: {
+        Row: {
+          created_at: string
+          id: string
+          permission_id: string
+          role_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          permission_id: string
+          role_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          permission_id?: string
+          role_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_role_permissions_permission_id_fkey"
+            columns: ["permission_id"]
+            isOneToOne: false
+            referencedRelation: "bd_permissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_role_permissions_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "bd_roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_roles: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          descricao: string | null
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       bd_ruas_requisicao: {
         Row: {
           area: number | null
@@ -3983,6 +4112,42 @@ export type Database = {
             columns: ["categoria_id"]
             isOneToOne: false
             referencedRelation: "bd_categorias_ativos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_user_roles_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "bd_roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
