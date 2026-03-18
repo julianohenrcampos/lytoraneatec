@@ -5,9 +5,7 @@ export interface Veiculo {
   numero_frota: string | null;
   departamento_id: string | null;
   placa: string | null;
-  tipo_veiculo: 'Caminhão' | 'Equipamento' | 'Prancha' | 'Van' | 'Ônibus' | string;
   fabricante: string | null;
-  modelo: string | null;
   cor: string | null;
   motor: string | null;
   ano_fabricacao: string | null;
@@ -22,7 +20,7 @@ export interface Veiculo {
   updated_at: string | null;
   empresa_id: string | null;
   
-  // New fields
+  // Category fields (replace legacy tipo_veiculo / modelo)
   categoria_ativo_id: string | null;
   subcategoria_ativo_id: string | null;
   numero_serie: string | null;
@@ -48,9 +46,7 @@ export interface VeiculoFilterParams {
   frota?: string;
   departamento_id?: string;
   placa?: string;
-  tipo_veiculo?: string;
   fabricante?: string;
-  modelo?: string;
   situacao?: string;
   empresa_id?: string;
   categoria_ativo_id?: string;

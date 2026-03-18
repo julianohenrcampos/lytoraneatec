@@ -54,12 +54,13 @@ export const useVeiculoColumns = ({
       header: "Categoria",
       cell: ({ row }) => {
         const veiculo = row.original;
-        return veiculo.nome_categoria || veiculo.tipo_veiculo || "Não classificado";
+        return veiculo.nome_categoria || "Não classificado";
       },
     },
     {
-      accessorKey: "modelo",
-      header: "Modelo",
+      id: "subcategoria",
+      header: "Subcategoria",
+      cell: ({ row }) => row.original.nome_subcategoria || "-",
     },
     {
       accessorKey: "nome_departamento",

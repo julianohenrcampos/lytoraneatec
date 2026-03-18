@@ -56,7 +56,7 @@ export function CaminhaoCombobox({
         setLoading(true);
         let query = supabase
           .from("bd_caminhoes_equipamentos")
-          .select(`id, frota, numero_frota, placa`);
+          .select("id, frota, numero_frota, placa") as any;
           
         // Apply vehicle type filter
         if (!includeEquipamentos) {

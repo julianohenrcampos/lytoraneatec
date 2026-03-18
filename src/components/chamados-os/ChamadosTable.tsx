@@ -155,9 +155,9 @@ const ChamadosTable: React.FC<ChamadosTableProps> = ({
               <TableCell>
                 {chamado.caminhao_equipamento ? (
                   <>
-                    <div className="font-medium">{chamado.caminhao_equipamento.placa || chamado.caminhao_equipamento.modelo}</div>
+                    <div className="font-medium">{chamado.caminhao_equipamento.placa}</div>
                     <div className="text-xs text-muted-foreground">
-                      {chamado.caminhao_equipamento.tipo_veiculo} {chamado.caminhao_equipamento.fabricante}
+                      {chamado.caminhao_equipamento.fabricante}
                     </div>
                   </>
                 ) : "-"}

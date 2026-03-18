@@ -369,7 +369,7 @@ export default function VisaoGeralFrotaMelhorada({
                         className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs"
                       >
                         <span className="flex items-center gap-2">
-                          {ativo.tipo_veiculo?.toLowerCase().includes('caminhão') ? (
+                          {ativo.nome_categoria?.toLowerCase().includes('caminhão') ? (
                             <Truck className="h-3 w-3 text-blue-600" />
                           ) : (
                             <Settings className="h-3 w-3 text-green-600" />
@@ -379,7 +379,7 @@ export default function VisaoGeralFrotaMelhorada({
                           </span>
                         </span>
                         <span className="text-muted-foreground truncate max-w-20">
-                          {ativo.modelo}
+                          {ativo.nome_subcategoria}
                         </span>
                       </div>
                     ))}
@@ -439,7 +439,7 @@ export default function VisaoGeralFrotaMelhorada({
                         className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs"
                       >
                         <span className="flex items-center gap-2">
-                          {ativo.tipo_veiculo?.toLowerCase().includes('caminhão') ? (
+                          {ativo.nome_categoria?.toLowerCase().includes('caminhão') ? (
                             <Truck className="h-3 w-3 text-blue-600" />
                           ) : (
                             <Settings className="h-3 w-3 text-green-600" />
@@ -450,7 +450,7 @@ export default function VisaoGeralFrotaMelhorada({
                         </span>
                         <div className="text-right">
                           <div className="text-muted-foreground truncate max-w-16">
-                            {ativo.modelo}
+                            {ativo.nome_subcategoria}
                           </div>
                           <div className="font-medium">
                             {ativo.ano_fabricacao}
@@ -601,7 +601,7 @@ export default function VisaoGeralFrotaMelhorada({
                           className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs"
                         >
                           <span className="flex items-center gap-2">
-                            {ativo.tipo_veiculo?.toLowerCase().includes('caminhão') ? (
+                            {ativo.nome_categoria?.toLowerCase().includes('caminhão') ? (
                               <Truck className="h-3 w-3 text-blue-600" />
                             ) : (
                               <Settings className="h-3 w-3 text-green-600" />
@@ -611,7 +611,7 @@ export default function VisaoGeralFrotaMelhorada({
                             </span>
                           </span>
                           <span className="text-muted-foreground">
-                            {ativo.modelo}
+                            {ativo.nome_subcategoria}
                           </span>
                         </div>
                       ))}
@@ -687,7 +687,7 @@ export default function VisaoGeralFrotaMelhorada({
                           className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs"
                         >
                           <span className="flex items-center gap-2">
-                            {ativo.tipo_veiculo?.toLowerCase().includes('caminhão') ? (
+                            {ativo.nome_categoria?.toLowerCase().includes('caminhão') ? (
                               <Truck className="h-3 w-3 text-blue-600" />
                             ) : (
                               <Settings className="h-3 w-3 text-green-600" />
@@ -698,7 +698,7 @@ export default function VisaoGeralFrotaMelhorada({
                           </span>
                           <div className="text-right">
                             <div className="text-muted-foreground">
-                              {ativo.modelo}
+                              {ativo.nome_subcategoria}
                             </div>
                             <div className="font-medium">
                               {ativo.ano_fabricacao}

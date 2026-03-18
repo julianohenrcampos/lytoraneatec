@@ -73,7 +73,7 @@ export const fetchApontamentos = async (
       .select(`
         *,
         operador:operador_id(id, nome_completo),
-        veiculo:caminhao_equipamento_id(id, placa, modelo, frota, tipo_veiculo, numero_frota),
+        veiculo:caminhao_equipamento_id(id, placa, frota, numero_frota),
         centro_custo:centro_custo_id(id, nome_centro_custo, codigo_centro_custo)
       `)
       .order('data', { ascending: false })
@@ -127,15 +127,11 @@ const formatarIdentificacaoVeiculo = (item: any): string => {
   const frota = item.veiculo.frota || '';
   const numeroFrota = item.veiculo.numero_frota || '';
   const placa = item.veiculo.placa || '';
-  const modelo = item.veiculo.modelo || '';
-  const tipo = item.veiculo.tipo_veiculo || '';
   
   if (frota && placa) {
-    return `${frota}${numeroFrota} - ${placa} ${modelo ? `(${modelo})` : ''}`;
-  } else if (tipo && modelo) {
-    return `${tipo} - ${modelo}`;
+    return `${frota}${numeroFrota} - ${placa}`;
   } else {
-    return placa || modelo || tipo || 'Veículo sem identificação';
+    return placa || frota || 'Veículo sem identificação';
   }
 };
 
@@ -146,7 +142,7 @@ export const fetchApontamentoById = async (id: string): Promise<{apontamento: Ap
       .select(`
         *,
         operador:operador_id(id, nome_completo),
-        veiculo:caminhao_equipamento_id(id, placa, modelo, frota, tipo_veiculo, situacao),
+        veiculo:caminhao_equipamento_id(id, placa, frota, situacao),
         centro_custo:centro_custo_id(id, nome_centro_custo, codigo_centro_custo)
       `)
       .eq('id', id)

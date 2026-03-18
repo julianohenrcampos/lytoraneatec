@@ -48,14 +48,16 @@ const ChamadosOS: React.FC = () => {
       try {
         const { data: veiculos, error: veiculosError } = await supabase
           .from('bd_caminhoes_equipamentos')
-          .select('id, frota, numero_frota, placa, tipo_veiculo, fabricante, modelo');
+          .select(`id, frota, numero_frota, placa, fabricante,
+            categoria:bd_categorias_ativos(nome_categoria),
+            subcategoria:bd_subcategorias_ativos(nome_subcategoria)
+          `);
         
         if (veiculosError) {
           console.error('Error loading veículos:', veiculosError);
         } else if (veiculos) {
           setVeiculosDropdown(
-            veiculos.map(veiculo => {
-              // Gerar identificador igual à tabela de veículos
+            veiculos.map((veiculo: any) => {
               let identificador = "";
               
               if (veiculo.frota && veiculo.numero_frota) {
@@ -70,7 +72,7 @@ const ChamadosOS: React.FC = () => {
               
               return {
                 id: veiculo.id,
-                label: identificador || `${veiculo.fabricante || ''} ${veiculo.modelo || ''}`.trim() || 'Sem identificação'
+                label: identificador || `${veiculo.fabricante || ''} ${veiculo.subcategoria?.nome_subcategoria || ''}`.trim() || 'Sem identificação'
               };
             })
           );

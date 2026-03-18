@@ -92,11 +92,11 @@ export function ComboboxCaminhao({
       console.log("Fetching vehicles with filters:", { includeEquipamentos, situacaoFilter });
       let query = supabase
         .from("bd_caminhoes_equipamentos")
-        .select("id, frota, numero_frota, placa")
+        .select("id, frota, numero_frota, placa, categoria_ativo_id")
         
-      // Apply vehicle type filter
+      // Apply vehicle type filter - filter by VEÍCULO category
       if (!includeEquipamentos) {
-        query = query.eq("tipo_veiculo", "Caminhão");
+        query = query.eq("categoria_ativo_id", "a1b2c3d4-1111-4000-8000-000000000001");
       }
       
       // Apply situation filter if provided

@@ -1,17 +1,18 @@
 
 import { supabase } from "@/integrations/supabase/client";
+import { CATEGORIA_IDS } from "@/constants/categorias";
 
 export interface Caminhao {
   id: string;
   placa?: string;
-  modelo?: string;
   situacao?: string;
-  tipo_veiculo?: string;
   frota?: string;
   numero_frota?: string;
   fabricante?: string;
   empresa_id?: string;
   nome_empresa?: string;
+  nome_categoria?: string;
+  nome_subcategoria?: string;
   /** @deprecated Use fabricante instead */
   marca?: string;
 }
@@ -24,14 +25,14 @@ export const fetchCaminhoes = async (): Promise<Caminhao[]> => {
       .select(`
         id,
         placa,
-        modelo,
-        tipo_veiculo,
         situacao,
         frota,
         numero_frota,
         fabricante,
         empresa_id,
-        empresa:bd_empresas(id, nome_empresa)
+        empresa:bd_empresas(id, nome_empresa),
+        categoria:bd_categorias_ativos(nome_categoria),
+        subcategoria:bd_subcategorias_ativos(nome_subcategoria)
       `)
       .order('placa', { ascending: true });
 
@@ -40,35 +41,29 @@ export const fetchCaminhoes = async (): Promise<Caminhao[]> => {
       throw new Error('Falha ao buscar dados de caminhões');
     }
 
-    // Mapear os resultados para incluir o nome da empresa
-    const caminhoes = data?.map(item => {
-      // Extrair o nome da empresa com segurança
+    const caminhoes = data?.map((item: any) => {
       let nomeEmpresa = null;
       
-      // Verificar se o campo empresa existe
       if (item.empresa) {
-        // Se for um array (como em algumas respostas do Supabase)
         if (Array.isArray(item.empresa) && item.empresa.length > 0) {
           nomeEmpresa = item.empresa[0]?.nome_empresa || null;
-        } 
-        // Se for um objeto direto
-        else if (typeof item.empresa === 'object') {
-          nomeEmpresa = (item.empresa as any).nome_empresa || null;
+        } else if (typeof item.empresa === 'object') {
+          nomeEmpresa = item.empresa.nome_empresa || null;
         }
       }
       
       return {
         id: item.id,
         placa: item.placa,
-        modelo: item.modelo,
         situacao: item.situacao,
-        tipo_veiculo: item.tipo_veiculo,
         frota: item.frota,
         numero_frota: item.numero_frota,
         fabricante: item.fabricante,
-        marca: item.fabricante, // backward compat
+        marca: item.fabricante,
         empresa_id: item.empresa_id,
-        nome_empresa: nomeEmpresa
+        nome_empresa: nomeEmpresa,
+        nome_categoria: item.categoria?.nome_categoria || null,
+        nome_subcategoria: item.subcategoria?.nome_subcategoria || null,
       } as Caminhao;
     }) || [];
 

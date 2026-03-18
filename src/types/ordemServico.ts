@@ -41,9 +41,7 @@ export interface OrdemServico {
   // Relationships
   caminhao_equipamento?: {
     placa: string;
-    tipo_veiculo: string;
     fabricante: string;
-    modelo: string;
   };
   centro_custo?: {
     codigo_centro_custo: string;

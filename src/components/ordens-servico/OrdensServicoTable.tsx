@@ -158,11 +158,11 @@ const OrdensServicoTable: React.FC<OrdensServicoTableProps> = ({
                 </TableCell>
               <TableCell>{os.obra_patio || "-"}</TableCell>
               <TableCell>
-                {os.caminhao_equipamento ? (
+              {os.caminhao_equipamento ? (
                   <>
-                    <div className="font-medium">{os.caminhao_equipamento.placa || os.caminhao_equipamento.modelo}</div>
+                    <div className="font-medium">{os.caminhao_equipamento.placa}</div>
                     <div className="text-xs text-muted-foreground">
-                      {os.caminhao_equipamento.tipo_veiculo} {os.caminhao_equipamento.fabricante}
+                      {os.caminhao_equipamento.fabricante}
                     </div>
                   </>
                 ) : "-"}

@@ -85,7 +85,7 @@ export const useApontamentoCaminhoes = () => {
       const data = await fetchCaminhoes();
       const veiculosFormatados = data.map(veiculo => ({
         id: veiculo.id,
-        label: `${veiculo.frota || ''}${veiculo.numero_frota || ''} - ${veiculo.placa || ''} ${veiculo.modelo ? `(${veiculo.modelo})` : ''}`.trim(),
+        label: `${veiculo.frota || ''}${veiculo.numero_frota || ''} - ${veiculo.placa || ''} ${veiculo.nome_subcategoria ? `(${veiculo.nome_subcategoria})` : ''}`.trim(),
         situacao: veiculo.situacao || "Operando"
       }));
       setVeiculosDropdown(veiculosFormatados);

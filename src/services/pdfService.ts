@@ -79,7 +79,7 @@ export const generateReportPDF = async (
 };
 
 // Helper para carregar imagem como base64
-const loadImageAsBase64 = async (url: string): Promise<string> => {
+export const loadImageAsBase64 = async (url: string): Promise<string> => {
   try {
     const response = await fetch(url, { mode: 'cors' });
     const blob = await response.blob();

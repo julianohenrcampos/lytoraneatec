@@ -8,25 +8,44 @@ const compressImage = async (file: File): Promise<File> => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const img = new Image();
+    img.crossOrigin = 'anonymous';
+    
+    const objectUrl = URL.createObjectURL(file);
+
+    const timeout = setTimeout(() => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Timeout ao comprimir imagem'));
+    }, 10000);
     
     img.onload = () => {
-      const maxWidth = 1600;
-      const scale = Math.min(1, maxWidth / img.width);
-      canvas.width = img.width * scale;
-      canvas.height = img.height * scale;
-      ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-      
-      canvas.toBlob((blob) => {
-        if (blob) {
-          resolve(new File([blob], file.name, { type: 'image/jpeg' }));
-        } else {
-          reject(new Error('Erro ao comprimir imagem'));
-        }
-      }, 'image/jpeg', 0.8);
+      clearTimeout(timeout);
+      try {
+        const maxWidth = 1600;
+        const scale = Math.min(1, maxWidth / img.width);
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+        
+        canvas.toBlob((blob) => {
+          URL.revokeObjectURL(objectUrl);
+          if (blob) {
+            resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+          } else {
+            reject(new Error('Erro ao comprimir imagem'));
+          }
+        }, 'image/jpeg', 0.8);
+      } catch (e) {
+        URL.revokeObjectURL(objectUrl);
+        reject(e);
+      }
     };
     
-    img.onerror = () => reject(new Error('Erro ao carregar imagem'));
-    img.src = URL.createObjectURL(file);
+    img.onerror = () => {
+      clearTimeout(timeout);
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Erro ao carregar imagem'));
+    };
+    img.src = objectUrl;
   });
 };
 
@@ -63,20 +82,22 @@ export const verAgirStorageService = {
   async uploadFotoAntes(id: string, file: File): Promise<string> {
     validateFile(file);
     
-    // Comprimir imagem
-    const compressedFile = await compressImage(file);
+    let fileToUpload: File;
+    try {
+      fileToUpload = await compressImage(file);
+    } catch (e) {
+      console.warn('Compressão falhou, usando arquivo original:', e);
+      fileToUpload = file;
+    }
     
-    // Definir path
     const ext = file.name.split('.').pop() || 'jpg';
     const path = `ver-agir/${id}/antes.${ext}`;
     
-    // Remover anteriores
     await removeExistingFiles(id, 'antes');
     
-    // Upload novo com upsert
     const { error } = await supabase.storage
       .from(BUCKET_NAME)
-      .upload(path, compressedFile, { upsert: true });
+      .upload(path, fileToUpload, { upsert: true });
 
     if (error) {
       console.error('Erro ao fazer upload da foto ANTES:', error);
@@ -89,20 +110,22 @@ export const verAgirStorageService = {
   async uploadFotoDepois(id: string, file: File): Promise<string> {
     validateFile(file);
     
-    // Comprimir imagem
-    const compressedFile = await compressImage(file);
+    let fileToUpload: File;
+    try {
+      fileToUpload = await compressImage(file);
+    } catch (e) {
+      console.warn('Compressão falhou, usando arquivo original:', e);
+      fileToUpload = file;
+    }
     
-    // Definir path
     const ext = file.name.split('.').pop() || 'jpg';
     const path = `ver-agir/${id}/depois.${ext}`;
     
-    // Remover anteriores
     await removeExistingFiles(id, 'depois');
     
-    // Upload novo com upsert
     const { error } = await supabase.storage
       .from(BUCKET_NAME)
-      .upload(path, compressedFile, { upsert: true });
+      .upload(path, fileToUpload, { upsert: true });
 
     if (error) {
       console.error('Erro ao fazer upload da foto DEPOIS:', error);

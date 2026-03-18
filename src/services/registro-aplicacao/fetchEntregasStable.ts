@@ -8,7 +8,6 @@ import { format } from "date-fns";
 interface SupabaseCaminhao {
   id: string;
   placa?: string;
-  modelo?: string;
   frota?: string;
   numero_frota?: string;
 }
@@ -108,7 +107,6 @@ export const fetchEntregasStable = async (
         caminhao:bd_caminhoes_equipamentos(
           id,
           placa,
-          modelo,
           frota,
           numero_frota
         ),

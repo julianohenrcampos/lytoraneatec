@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,8 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import { CentroCusto, CentroCustoFormData } from "@/types/centroCusto";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Label } from "@/components/ui/label";
 import { Info } from "lucide-react";
+import AddressAutocomplete, { AddressResult } from "./AddressAutocomplete";
 
 interface CentroCustoFormModalProps {
   isOpen: boolean;
@@ -30,8 +31,32 @@ const formSchema = z.object({
   telefone: z.string().optional(),
   situacao: z.enum(["Ativo", "Inativo"]),
   aprovador_diarias_id: z.string().optional(),
+  adm_sede_funcionario_id: z.string().min(1, { message: "ADM SEDE é obrigatório" }),
   diretoria_id: z.string().optional(),
-});
+  // Address fields (hidden from user)
+  endereco_completo: z.string().optional(),
+  endereco_rua: z.string().optional(),
+  endereco_numero: z.string().optional(),
+  endereco_bairro: z.string().optional(),
+  endereco_cidade: z.string().optional(),
+  endereco_estado: z.string().optional(),
+  endereco_cep: z.string().optional(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  geocoding_status: z.string().optional(),
+}).refine(
+  (data) => {
+    // If endereco_completo is filled, lat/lng must be present
+    if (data.endereco_completo && data.endereco_completo.trim().length > 0) {
+      return data.latitude !== undefined && data.longitude !== undefined;
+    }
+    return true;
+  },
+  {
+    message: "Selecione um endereço da lista para validar as coordenadas",
+    path: ["endereco_completo"],
+  }
+);
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -71,6 +96,25 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
     },
     enabled: isOpen
   });
+
+  const { data: admSedeCandidates = [] } = useQuery({
+    queryKey: ['adm-sede-candidates'],
+    queryFn: async () => {
+      const { data } = await (supabase
+        .from("bd_funcionarios")
+        .select("id, nome_completo, bd_funcoes(nome_funcao)")
+        .eq("status", "Ativo") as any);
+      return (data || []).filter((f: any) => {
+        const funcao = (f.bd_funcoes?.nome_funcao || '').toLowerCase();
+        return funcao.includes('administrativo') || funcao.includes('adm');
+      }).map((f: any) => ({
+        id: f.id,
+        nome_completo: f.nome_completo,
+        funcao: f.bd_funcoes?.nome_funcao || 'Sem função'
+      }));
+    },
+    enabled: isOpen
+  });
   
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -81,7 +125,18 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
       telefone: "",
       situacao: "Ativo",
       aprovador_diarias_id: "",
-      diretoria_id: ""
+      adm_sede_funcionario_id: "",
+      diretoria_id: "",
+      endereco_completo: "",
+      endereco_rua: "",
+      endereco_numero: "",
+      endereco_bairro: "",
+      endereco_cidade: "",
+      endereco_estado: "",
+      endereco_cep: "",
+      latitude: undefined,
+      longitude: undefined,
+      geocoding_status: "pending",
     }
   });
 
@@ -94,7 +149,18 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
         telefone: centroCusto.telefone || "",
         situacao: centroCusto.situacao,
         aprovador_diarias_id: centroCusto.aprovador_diarias_id || "",
-        diretoria_id: centroCusto.diretoria_id || ""
+        adm_sede_funcionario_id: centroCusto.adm_sede_funcionario_id || "",
+        diretoria_id: centroCusto.diretoria_id || "",
+        endereco_completo: centroCusto.endereco_completo || "",
+        endereco_rua: centroCusto.endereco_rua || "",
+        endereco_numero: centroCusto.endereco_numero || "",
+        endereco_bairro: centroCusto.endereco_bairro || "",
+        endereco_cidade: centroCusto.endereco_cidade || "",
+        endereco_estado: centroCusto.endereco_estado || "",
+        endereco_cep: centroCusto.endereco_cep || "",
+        latitude: centroCusto.latitude ? Number(centroCusto.latitude) : undefined,
+        longitude: centroCusto.longitude ? Number(centroCusto.longitude) : undefined,
+        geocoding_status: centroCusto.geocoding_status || "pending",
       });
     } else {
       form.reset({
@@ -104,16 +170,34 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
         telefone: "",
         situacao: "Ativo",
         aprovador_diarias_id: "",
-        diretoria_id: ""
+        adm_sede_funcionario_id: "",
+        diretoria_id: "",
+        endereco_completo: "",
+        latitude: undefined,
+        longitude: undefined,
+        geocoding_status: "pending",
       });
     }
   }, [centroCusto, form, isOpen]);
+
+  const handleAddressSelected = (result: AddressResult) => {
+    form.setValue("endereco_completo", result.endereco_completo);
+    form.setValue("latitude", result.latitude);
+    form.setValue("longitude", result.longitude);
+    form.setValue("endereco_rua", result.endereco_rua || "");
+    form.setValue("endereco_numero", result.endereco_numero || "");
+    form.setValue("endereco_bairro", result.endereco_bairro || "");
+    form.setValue("endereco_cidade", result.endereco_cidade || "");
+    form.setValue("endereco_estado", result.endereco_estado || "");
+    form.setValue("endereco_cep", result.endereco_cep || "");
+    form.setValue("geocoding_status", "success");
+    form.clearErrors("endereco_completo");
+  };
 
   const onSubmit = async (values: FormValues) => {
     try {
       setIsSubmitting(true);
       
-      // Verificar se o centro de custo já existe
       const exists = await checkCentroCustoExists(
         values.codigo_centro_custo, 
         values.nome_centro_custo,
@@ -135,18 +219,27 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
         telefone: values.telefone || undefined,
         situacao: values.situacao,
         aprovador_diarias_id: values.aprovador_diarias_id || undefined,
-        diretoria_id: values.diretoria_id || undefined
+        adm_sede_funcionario_id: values.adm_sede_funcionario_id || undefined,
+        diretoria_id: values.diretoria_id || undefined,
+        endereco_completo: values.endereco_completo || undefined,
+        endereco_rua: values.endereco_rua || undefined,
+        endereco_numero: values.endereco_numero || undefined,
+        endereco_bairro: values.endereco_bairro || undefined,
+        endereco_cidade: values.endereco_cidade || undefined,
+        endereco_estado: values.endereco_estado || undefined,
+        endereco_cep: values.endereco_cep || undefined,
+        latitude: values.latitude,
+        longitude: values.longitude,
+        geocoding_status: values.geocoding_status || "pending",
       };
 
       if (centroCusto) {
-        // Edição
         await updateCentroCusto(centroCusto.id, formData);
         toast({
           title: "Centro de custo atualizado",
           description: "O centro de custo foi atualizado com sucesso."
         });
       } else {
-        // Criação
         await createCentroCusto(formData);
         toast({
           title: "Centro de custo cadastrado",
@@ -168,9 +261,13 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
     }
   };
 
+  const watchLat = form.watch("latitude");
+  const watchEnderecoCompleto = form.watch("endereco_completo");
+  const isAddressValidated = !!watchLat && !!watchEnderecoCompleto;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {centroCusto ? "Editar Centro de Custo" : "Cadastrar Novo Centro de Custo"}
@@ -234,6 +331,26 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
                 </FormItem>
               )}
             />
+
+            {/* Endereço com autocomplete */}
+            <FormField
+              control={form.control}
+              name="endereco_completo"
+              render={() => (
+                <FormItem>
+                  <FormLabel>Endereço da Obra</FormLabel>
+                  <FormControl>
+                    <AddressAutocomplete
+                      value={watchEnderecoCompleto || ""}
+                      isValidated={isAddressValidated}
+                      onAddressSelected={handleAddressSelected}
+                      disabled={isSubmitting}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             
             <FormField
               control={form.control}
@@ -291,6 +408,34 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
                   </Select>
                   <p className="text-xs text-muted-foreground mt-1">
                     Apenas funcionários cadastrados como "Gerente Regional" podem ser aprovadores de diárias.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Campo ADM SEDE Responsável */}
+            <FormField
+              control={form.control}
+              name="adm_sede_funcionario_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>ADM SEDE Responsável *</FormLabel>
+                  <FormControl>
+                    <Combobox
+                      options={admSedeCandidates.map((adm: any) => ({
+                        value: adm.id,
+                        label: `${adm.nome_completo} — ${adm.funcao}`,
+                      }))}
+                      value={field.value || ""}
+                      onChange={field.onChange}
+                      placeholder="Selecione um ADM SEDE..."
+                      searchPlaceholder="Buscar funcionário..."
+                      emptyText="Nenhum funcionário encontrado"
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Apenas funcionários com função Administrativo/ADM são listados.
                   </p>
                   <FormMessage />
                 </FormItem>

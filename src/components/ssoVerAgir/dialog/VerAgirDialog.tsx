@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { Save, X, Upload, Trash2, Loader2, FileDown } from 'lucide-react';
 import { pdf } from '@react-pdf/renderer';
 import { VerAgirPDFDocument } from '../pdf';
+import { loadImageAsBase64 } from '@/services/pdfService';
 
 interface VerAgirDialogProps {
   open: boolean;
@@ -261,14 +262,20 @@ export const VerAgirDialog: React.FC<VerAgirDialogProps> = ({
     
     setIsExporting(true);
     try {
-      // Get signed URLs for photos
+      // Get signed URLs and convert to base64 for PDF rendering
       const photoUrls: { antes?: string; depois?: string } = {};
       
       if (registro.foto_antes_url) {
-        photoUrls.antes = await getSignedUrl(registro.foto_antes_url);
+        const signedUrl = await getSignedUrl(registro.foto_antes_url);
+        if (signedUrl) {
+          photoUrls.antes = await loadImageAsBase64(signedUrl);
+        }
       }
       if (registro.foto_depois_url) {
-        photoUrls.depois = await getSignedUrl(registro.foto_depois_url);
+        const signedUrl = await getSignedUrl(registro.foto_depois_url);
+        if (signedUrl) {
+          photoUrls.depois = await loadImageAsBase64(signedUrl);
+        }
       }
       
       // Generate PDF

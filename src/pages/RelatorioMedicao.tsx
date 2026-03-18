@@ -130,8 +130,11 @@ const RelatorioMedicao: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from("bd_caminhoes_equipamentos")
-        .select("id, placa, modelo, frota, numero_frota, tipo_veiculo, aluguel, imagem_url")
-        .eq("tipo_veiculo", vehicleType);
+        .select(`id, placa, frota, numero_frota, aluguel, imagem_url, categoria_ativo_id,
+          categoria:bd_categorias_ativos(nome_categoria),
+          subcategoria:bd_subcategorias_ativos(nome_subcategoria)
+        `)
+        .eq("categoria_ativo_id", vehicleType);
       
       if (error) {
         console.error("Error fetching vehicles:", error);
@@ -143,12 +146,12 @@ const RelatorioMedicao: React.FC = () => {
         return;
       }
       
-      const options = data.map(vehicle => ({
+      const options = (data as any[]).map(vehicle => ({
         id: vehicle.id,
-        tipo_veiculo: vehicle.tipo_veiculo,
+        tipo_veiculo: vehicle.categoria?.nome_categoria || '',
         aluguel: parseFloat(vehicle.aluguel || '0'),
         imagem_url: vehicle.imagem_url,
-        label: `${vehicle.frota || ""}${vehicle.numero_frota || ""} - ${vehicle.placa || ""} ${vehicle.modelo ? `(${vehicle.modelo})` : ""}`
+        label: `${vehicle.frota || ""}${vehicle.numero_frota || ""} - ${vehicle.placa || ""} ${vehicle.subcategoria?.nome_subcategoria ? `(${vehicle.subcategoria.nome_subcategoria})` : ""}`
       }));
       
       setVehicleOptions(options);
@@ -175,17 +178,16 @@ const RelatorioMedicao: React.FC = () => {
   const fetchVehicleTypes = async () => {
     try {
       const { data, error } = await supabase
-        .from("bd_caminhoes_equipamentos")
-        .select("tipo_veiculo")
-        .not("tipo_veiculo", "is", null);
+        .from("bd_categorias_ativos")
+        .select("id, nome_categoria")
+        .eq("ativo", true);
         
       if (error) throw error;
       
-      const uniqueTypes = [...new Set(data.map(item => item.tipo_veiculo))];
-      return uniqueTypes.filter(Boolean);
+      return data.map(item => ({ id: item.id, nome: item.nome_categoria }));
     } catch (error) {
       console.error("Error fetching vehicle types:", error);
-      return ["Caminhão", "Equipamento"];
+      return [];
     }
   };
   
@@ -921,11 +923,8 @@ const RelatorioMedicao: React.FC = () => {
                     <SelectValue placeholder="Selecione o tipo" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Caminhão">Caminhão</SelectItem>
+                    <SelectItem value="Veículo">Veículo</SelectItem>
                     <SelectItem value="Equipamento">Equipamento</SelectItem>
-                    <SelectItem value="Prancha">Prancha</SelectItem>
-                    <SelectItem value="Van">Van</SelectItem>
-                    <SelectItem value="Ônibus">Ônibus</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

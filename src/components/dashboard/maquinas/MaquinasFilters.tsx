@@ -30,11 +30,8 @@ export default function MaquinasFiltros({
   ];
 
   const tiposVeiculo = [
-    { value: "Caminhão", label: "Caminhão" },
+    { value: "Veículo", label: "Veículo" },
     { value: "Equipamento", label: "Equipamento" },
-    { value: "Prancha", label: "Prancha" },
-    { value: "Van", label: "Van" },
-    { value: "Ônibus", label: "Ônibus" }
   ];
 
   const periodosPlanejamento = [

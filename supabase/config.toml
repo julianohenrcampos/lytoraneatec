@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.process-desligamentos]
 verify_jwt = false
+
+[functions.geocode-proxy]
+verify_jwt = false

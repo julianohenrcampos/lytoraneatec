@@ -34,7 +34,7 @@ type FilterValues = z.infer<typeof filterSchema>;
 
 interface RegistroAplicacaoFiltersProps {
   onFilter: (filters: RegistroAplicacaoFiltersType) => void;
-  caminhoesList: { id: string; placa: string; modelo: string }[];
+  caminhoesList: { id: string; placa: string; nome_subcategoria: string }[];
   centrosCustoList: { id: string; nome_centro_custo: string }[];
   hasActiveFilters: boolean;
   onClearFilters: () => void;
@@ -182,7 +182,7 @@ const RegistroAplicacaoFilters: React.FC<RegistroAplicacaoFiltersProps> = ({
                             {caminhoesList.length > 0 ? (
                               caminhoesList.map((caminhao) => (
                                 <SelectItem key={caminhao.id} value={caminhao.id}>
-                                  {`${caminhao.placa} - ${caminhao.modelo}`}
+                                  {`${caminhao.placa} - ${caminhao.nome_subcategoria}`}
                                 </SelectItem>
                               ))
                             ) : (

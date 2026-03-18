@@ -4,8 +4,6 @@ import { Veiculo, VeiculoFormData } from "@/types/veiculo";
 export interface VeiculoFilter {
   placa?: string;
   fabricante?: string;
-  modelo?: string;
-  tipo_veiculo?: string;
   frota?: string;
   departamento_id?: string;
   situacao?: string;

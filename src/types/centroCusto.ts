@@ -20,6 +20,22 @@ export interface CentroCusto {
     id: string;
     nome: string;
   };
+  adm_sede_funcionario_id: string | null;
+  adm_sede_funcionario?: {
+    id: string;
+    nome_completo: string;
+  };
+  // Endereço e geolocalização
+  endereco_rua: string | null;
+  endereco_numero: string | null;
+  endereco_bairro: string | null;
+  endereco_cidade: string | null;
+  endereco_estado: string | null;
+  endereco_cep: string | null;
+  endereco_completo: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  geocoding_status: string | null;
 }
 
 export interface CentroCustoFormData {
@@ -30,6 +46,18 @@ export interface CentroCustoFormData {
   situacao: 'Ativo' | 'Inativo';
   aprovador_diarias_id?: string;
   diretoria_id?: string;
+  adm_sede_funcionario_id?: string;
+  // Endereço e geolocalização
+  endereco_rua?: string;
+  endereco_numero?: string;
+  endereco_bairro?: string;
+  endereco_cidade?: string;
+  endereco_estado?: string;
+  endereco_cep?: string;
+  endereco_completo?: string;
+  latitude?: number;
+  longitude?: number;
+  geocoding_status?: string;
 }
 
 export interface CentroCustoFilter {

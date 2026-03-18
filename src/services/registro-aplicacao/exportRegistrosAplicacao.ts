@@ -12,7 +12,7 @@ export const exportRegistrosAplicacaoToExcel = (entregas: ListaProgramacaoEntreg
         'Data da Aplicação': getCurrentBrazilianDate(),
         'Logradouro': entrega.logradouro || 'N/A',
         'Caminhão': entrega.caminhao 
-          ? `${entrega.caminhao.placa} - ${entrega.caminhao.modelo}` 
+          ? `${entrega.caminhao.placa}` 
           : 'N/A',
         'Equipe': entrega.equipe?.nome_equipe || 'N/A',
         'Qtd. Massa (t)': entrega.quantidade_massa || 'N/A',

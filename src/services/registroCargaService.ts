@@ -17,7 +17,6 @@ export const fetchListaProgramacaoEntregaByDate = async (
         caminhao:bd_caminhoes_equipamentos(
           id,
           placa,
-          modelo,
           frota,
           numero_frota
         ),
@@ -76,7 +75,6 @@ export const fetchListaProgramacaoEntregaFiltered = async (
         caminhao:bd_caminhoes_equipamentos(
           id,
           placa,
-          modelo,
           frota,
           numero_frota
         ),

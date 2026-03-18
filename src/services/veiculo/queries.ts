@@ -23,14 +23,6 @@ export const getVeiculos = async (filters: VeiculoFilter = {}) => {
     query = query.ilike("fabricante", `%${filters.fabricante}%`);
   }
 
-  if (filters.modelo) {
-    query = query.ilike("modelo", `%${filters.modelo}%`);
-  }
-
-  if (filters.tipo_veiculo && filters.tipo_veiculo !== "_all") {
-    query = query.eq("tipo_veiculo", filters.tipo_veiculo);
-  }
-
   if (filters.situacao && filters.situacao !== "_all") {
     query = query.eq("situacao", filters.situacao);
   }

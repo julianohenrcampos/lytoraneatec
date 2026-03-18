@@ -45,7 +45,7 @@ const VeiculoDetailsModal: React.FC<VeiculoDetailsModalProps> = ({ isOpen, onClo
             
             <div className="text-center mt-2">
               <p className="text-lg font-bold">{veiculo.placa || veiculo.numero_serie || "Sem identificador"}</p>
-              <p className="text-sm text-muted-foreground">{veiculo.fabricante} {veiculo.modelo}</p>
+              <p className="text-sm text-muted-foreground">{veiculo.fabricante} {veiculo.nome_subcategoria}</p>
             </div>
           </div>
           
@@ -54,7 +54,7 @@ const VeiculoDetailsModal: React.FC<VeiculoDetailsModalProps> = ({ isOpen, onClo
               <DetailItem label="Categoria" value={veiculo.nome_categoria} />
               <DetailItem label="Subcategoria" value={veiculo.nome_subcategoria} />
               <DetailItem label="Fabricante" value={veiculo.fabricante} />
-              <DetailItem label="Modelo" value={veiculo.modelo} />
+              <DetailItem label="Subcategoria" value={veiculo.nome_subcategoria} />
               <DetailItem label="Placa" value={veiculo.placa} />
               <DetailItem label="Nº de Série" value={veiculo.numero_serie} />
               <DetailItem label="Chassi" value={veiculo.chassi} />

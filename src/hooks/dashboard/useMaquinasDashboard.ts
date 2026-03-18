@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { CATEGORIA_IDS } from "@/constants/categorias";
 import { 
   MaquinasKpis, 
   TipoVeiculoDistribution, 
@@ -19,19 +20,16 @@ import {
 } from "@/types/maquinas";
 
 export const useMaquinasDashboard = (filters: MaquinasFilters) => {
-  // 1. KPIs Principais (CORRIGIDO - baseado na situação atual real)
+  // 1. KPIs Principais
   const kpisQuery = useQuery<MaquinasKpis>({
     queryKey: ["maquinas-kpis", filters],
     queryFn: async () => {
-      console.log("🔍 DEBUG useMaquinasDashboard - buscando KPIs corrigidos baseados na situação real");
-
-      // Buscar todos os ativos com seus status reais do cadastro
       let ativosQuery = supabase
         .from("bd_caminhoes_equipamentos")
         .select("id, situacao");
 
       if (filters.tipoVeiculo && filters.tipoVeiculo.length > 0) {
-        ativosQuery = ativosQuery.in("tipo_veiculo", filters.tipoVeiculo);
+        ativosQuery = ativosQuery.in("categoria_ativo_id", filters.tipoVeiculo);
       }
 
       if (filters.empresaId) {
@@ -41,7 +39,6 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
       const { data: ativos } = await ativosQuery;
       const totalAtivos = ativos?.length || 0;
 
-      // Buscar apenas apontamentos DO DIA ATUAL para identificar quem está operando HOJE
       const hoje = new Date().toISOString().split('T')[0];
       const { data: apontamentosHoje } = await supabase
         .from("bd_registro_apontamento_cam_equipa")
@@ -49,59 +46,29 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
         .eq("data", hoje)
         .eq("situacao", "Operando");
 
-      // Criar Set dos equipamentos que estão operando hoje
       const equipamentosOperandoHoje = new Set(
         apontamentosHoje?.map(apt => apt.caminhao_equipamento_id) || []
       );
 
-      console.log("📊 Apontamentos de hoje (Operando):", apontamentosHoje?.length || 0);
-      console.log("🚛 Equipamentos operando hoje:", equipamentosOperandoHoje.size);
-
-      // Calcular situações baseado na REALIDADE ATUAL
       let ativosOperando = 0;
       let ativosManutencao = 0;
       let ativosDisponiveis = 0;
 
       ativos?.forEach(ativo => {
-        // 1. Se está apontado como "Operando" hoje, é Operando
         if (equipamentosOperandoHoje.has(ativo.id)) {
           ativosOperando++;
-        }
-        // 2. Se está "Em Manutenção" no cadastro, é Manutenção (prioridade alta)
-        else if (ativo.situacao === 'Em Manutenção') {
+        } else if (ativo.situacao === 'Em Manutenção') {
           ativosManutencao++;
-        }
-        // 3. Todos os outros são Disponíveis
-        else {
+        } else {
           ativosDisponiveis++;
         }
       });
 
-      console.log("📈 KPIs calculados:", {
-        totalAtivos,
-        ativosOperando,
-        ativosManutencao,
-        ativosDisponiveis,
-        verificacao: ativosOperando + ativosManutencao + ativosDisponiveis
-      });
-
-      // Validação de consistência
-      const somaCalculada = ativosOperando + ativosManutencao + ativosDisponiveis;
-      if (somaCalculada !== totalAtivos) {
-        console.warn("⚠️ INCONSISTÊNCIA: Soma dos status não bate com total de ativos", {
-          total: totalAtivos,
-          soma: somaCalculada,
-          diferenca: totalAtivos - somaCalculada
-        });
-      }
-
-      // Chamados abertos
       const { count: chamadosAbertos } = await supabase
         .from("bd_chamados_os")
         .select("*", { count: "exact", head: true })
         .eq("status", "Aberto");
 
-      // Tempo médio de reparo
       const { data: chamadosFechados } = await supabase
         .from("bd_chamados_os")
         .select("data_solicitacao, created_at, updated_at")
@@ -114,7 +81,7 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
         const tempos = chamadosFechados.map(chamado => {
           const inicio = new Date(chamado.data_solicitacao);
           const fim = new Date(chamado.updated_at || chamado.created_at);
-          return (fim.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24); // dias
+          return (fim.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24);
         });
         tempoMedioReparo = tempos.reduce((a, b) => a + b, 0) / tempos.length;
       }
@@ -130,13 +97,16 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
     }
   });
 
-  // 2. Distribuição por Tipo de Veículo (mantém o existente)
+  // 2. Distribuição por Categoria
   const tipoVeiculoQuery = useQuery<TipoVeiculoDistribution[]>({
     queryKey: ["maquinas-tipo-veiculo", filters],
     queryFn: async () => {
       let query = supabase
         .from("bd_caminhoes_equipamentos")
-        .select("tipo_veiculo, capacidade, aluguel");
+        .select(`
+          capacidade, aluguel, categoria_ativo_id,
+          categoria:bd_categorias_ativos(nome_categoria)
+        `);
 
       if (filters.empresaId) {
         query = query.eq("empresa_id", filters.empresaId);
@@ -150,8 +120,8 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
         valorLocacaoTotal: number;
       }>();
 
-      ativos?.forEach(ativo => {
-        const tipo = ativo.tipo_veiculo || "Não informado";
+      ativos?.forEach((ativo: any) => {
+        const tipo = ativo.categoria?.nome_categoria || "Não informado";
         const capacidade = parseFloat(ativo.capacidade?.replace(/[^\d,.-]/g, '').replace(',', '.') || "0");
         const aluguel = parseFloat(ativo.aluguel?.replace(/[^\d,.-]/g, '').replace(',', '.') || "0");
         
@@ -176,19 +146,20 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
     }
   });
 
-  // 3. Status Operacional (CORRIGIDO - baseado na situação real atual)
+  // 3. Status Operacional
   const statusOperacionalQuery = useQuery<StatusOperacionalData[]>({
     queryKey: ["maquinas-status", filters],
     queryFn: async () => {
-      console.log("🔍 DEBUG statusOperacionalQuery - buscando status real atual");
-
-      // Buscar todos os ativos com filtros aplicados
       let ativosQuery = supabase
         .from("bd_caminhoes_equipamentos")
-        .select("id, frota, numero_frota, tipo_veiculo, modelo, situacao");
+        .select(`
+          id, frota, numero_frota, situacao, categoria_ativo_id,
+          categoria:bd_categorias_ativos(nome_categoria),
+          subcategoria:bd_subcategorias_ativos(nome_subcategoria)
+        `);
 
       if (filters.tipoVeiculo && filters.tipoVeiculo.length > 0) {
-        ativosQuery = ativosQuery.in("tipo_veiculo", filters.tipoVeiculo);
+        ativosQuery = ativosQuery.in("categoria_ativo_id", filters.tipoVeiculo);
       }
 
       if (filters.empresaId) {
@@ -197,7 +168,6 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
 
       const { data: ativos } = await ativosQuery;
 
-      // Buscar apontamentos de hoje para identificar quem está operando
       const hoje = new Date().toISOString().split('T')[0];
       const { data: apontamentosHoje } = await supabase
         .from("bd_registro_apontamento_cam_equipa")
@@ -209,19 +179,17 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
         apontamentosHoje?.map(apt => apt.caminhao_equipamento_id) || []
       );
 
-      // Agrupar por status REAL
       const statusMap = new Map<string, Array<{
         id: string;
         frota: string;
         numero_frota: string;
-        tipo_veiculo: string;
-        modelo?: string;
+        nome_categoria: string;
+        nome_subcategoria?: string;
       }>>();
 
-      ativos?.forEach(ativo => {
+      ativos?.forEach((ativo: any) => {
         let statusFinal: string;
 
-        // Determinar status real
         if (equipamentosOperandoHoje.has(ativo.id)) {
           statusFinal = 'Operando';
         } else if (ativo.situacao === 'Em Manutenção') {
@@ -238,30 +206,30 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
           id: ativo.id,
           frota: ativo.frota || '',
           numero_frota: ativo.numero_frota || '',
-          tipo_veiculo: ativo.tipo_veiculo || '',
-          modelo: ativo.modelo
+          nome_categoria: ativo.categoria?.nome_categoria || '',
+          nome_subcategoria: ativo.subcategoria?.nome_subcategoria
         });
       });
 
-      const resultado = Array.from(statusMap.entries()).map(([status, ativos]) => ({
+      return Array.from(statusMap.entries()).map(([status, ativos]) => ({
         status,
         quantidade: ativos.length,
         ativos
       }));
-
-      console.log("📊 Status operacional calculado:", resultado);
-
-      return resultado;
     }
   });
 
-  // 4. Idade da Frota (mantém o existente)
+  // 4. Idade da Frota
   const idadeFrotaQuery = useQuery<IdadeFrotaData[]>({
     queryKey: ["maquinas-idade", filters],
     queryFn: async () => {
       let query = supabase
         .from("bd_caminhoes_equipamentos")
-        .select("id, frota, numero_frota, ano_fabricacao, tipo_veiculo, modelo");
+        .select(`
+          id, frota, numero_frota, ano_fabricacao, categoria_ativo_id,
+          categoria:bd_categorias_ativos(nome_categoria),
+          subcategoria:bd_subcategorias_ativos(nome_subcategoria)
+        `);
 
       if (filters.empresaId) {
         query = query.eq("empresa_id", filters.empresaId);
@@ -274,12 +242,12 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
         id: string;
         frota: string;
         numero_frota: string;
-        tipo_veiculo: string;
+        nome_categoria: string;
         ano_fabricacao: string;
-        modelo?: string;
+        nome_subcategoria?: string;
       }>>();
       
-      ativos?.forEach(ativo => {
+      ativos?.forEach((ativo: any) => {
         const ano = parseInt(ativo.ano_fabricacao || "0");
         const idade = ano > 0 ? anoAtual - ano : 0;
         
@@ -297,9 +265,9 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
           id: ativo.id,
           frota: ativo.frota || '',
           numero_frota: ativo.numero_frota || '',
-          tipo_veiculo: ativo.tipo_veiculo || '',
+          nome_categoria: ativo.categoria?.nome_categoria || '',
           ano_fabricacao: ativo.ano_fabricacao || '',
-          modelo: ativo.modelo
+          nome_subcategoria: ativo.subcategoria?.nome_subcategoria
         });
       });
 
@@ -311,7 +279,7 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
     }
   });
 
-  // 5. Equipamentos por Centro de Custo (corrigido)
+  // 5. Equipamentos por Centro de Custo
   const equipamentosPorCentroCustoQuery = useQuery<EquipamentosPorCentroCusto[]>({
     queryKey: ["equipamentos-centro-custo", filters],
     queryFn: async () => {
@@ -326,7 +294,7 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
           hora_final,
           operador_id,
           centro_custo_id,
-          bd_caminhoes_equipamentos(id, frota, numero_frota, tipo_veiculo),
+          bd_caminhoes_equipamentos(id, frota, numero_frota, categoria_ativo_id),
           bd_centros_custo(nome_centro_custo),
           bd_funcionarios(nome_completo)
         `)
@@ -357,7 +325,7 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
           situacao: apt.situacao || 'Disponível'
         };
         
-        const isCaminhao = caminhao?.tipo_veiculo?.toLowerCase().includes('caminhão');
+        const isCaminhao = caminhao?.categoria_ativo_id === CATEGORIA_IDS.CAMINHAO;
         
         if (isCaminhao) {
           centroMap.get(centro)!.caminhoes.push(equipamento);
@@ -376,7 +344,7 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
     }
   });
 
-  // 6. Utilização por Centro de Custo (melhorado para gráfico de rosca)
+  // 6. Utilização por Centro de Custo
   const centroCustoQuery = useQuery<CentroCustoUtilizacao[]>({
     queryKey: ["maquinas-centro-custo", filters],
     queryFn: async () => {
@@ -448,7 +416,7 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
     }
   });
 
-  // 8. Manutenções por Tipo de Falha (melhorado)
+  // 8. Manutenções por Tipo de Falha
   const tipoFalhaQuery = useQuery<ManutencaoTipoFalha[]>({
     queryKey: ["maquinas-tipo-falha", filters],
     queryFn: async () => {
@@ -470,7 +438,7 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
       return Array.from(falhaMap.entries()).map(([tipoFalha, quantidade]) => ({
         tipoFalha,
         quantidade,
-        custoEstimado: quantidade * 1500, // Estimativa base
+        custoEstimado: quantidade * 1500,
         percentual: total > 0 ? (quantidade / total) * 100 : 0
       }));
     }
@@ -495,7 +463,6 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
         return total + aluguel;
       }, 0) || 0;
 
-      // Calcular dias de manutenção no período
       const { data: manutencoes } = await supabase
         .from("bd_registro_apontamento_cam_equipa")
         .select("data, horimetro_inicial, horimetro_final")
@@ -508,7 +475,7 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
         return total + Math.max(0, (man.horimetro_final || 0) - (man.horimetro_inicial || 0));
       }, 0) || 0;
 
-      const totalDescontos = diasManutencao * 500; // R$ 500 por dia de manutenção
+      const totalDescontos = diasManutencao * 500;
       const valorLiquido = valorTotal - totalDescontos;
 
       return {
@@ -521,28 +488,23 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
     }
   });
 
-  // 10. Caminhões Programados para Entrega (AGRUPADOS POR CENTRO DE CUSTO)
+  // 10. Caminhões Programados para Entrega
   const caminhoesProgramadosQuery = useQuery<CaminhoesPorCentroCusto[]>({
     queryKey: ["caminhoes-programados", filters],
     queryFn: async () => {
-      // Determine as datas baseadas nos novos filtros específicos
       let dataInicio: string;
       let dataFim: string;
 
       if (filters.dataInicioPlanejamanento && filters.dataFimPlanejamento) {
-        // Usar as datas específicas dos filtros
         dataInicio = filters.dataInicioPlanejamanento;
         dataFim = filters.dataFimPlanejamento;
       } else {
-        // Comportamento padrão: próximos 7 dias
         const hoje = new Date();
         dataInicio = hoje.toISOString().split('T')[0];
         const proximos7dias = new Date(hoje);
         proximos7dias.setDate(hoje.getDate() + 7);
         dataFim = proximos7dias.toISOString().split('T')[0];
       }
-
-      console.log("🔍 Buscando caminhões programados entre:", dataInicio, "e", dataFim);
 
       const { data: programacoes, error } = await supabase
         .from("bd_lista_programacao_entrega")
@@ -564,14 +526,11 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
         .order("data_entrega", { ascending: true })
         .limit(50);
 
-      console.log("🔍 Query resultado:", { programacoes, error, count: programacoes?.length });
-
       if (error) {
-        console.error("❌ Erro na query de caminhões programados:", error);
+        console.error("Erro na query de caminhões programados:", error);
         return [];
       }
 
-      // Agrupar por centro de custo
       const gruposPorCentroCusto = new Map<string, {
         codigoCentroCusto: string;
         nomeCentroCusto: string;
@@ -613,34 +572,28 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
         }
       });
 
-      const resultado = Array.from(gruposPorCentroCusto.values()).map(grupo => ({
+      return Array.from(gruposPorCentroCusto.values()).map(grupo => ({
         ...grupo,
         totalCaminhoes: grupo.caminhoes.length
       }));
-
-      console.log("🔍 Resultado agrupado por centro de custo:", { count: resultado.length, grupos: resultado });
-
-      return resultado;
     }
   });
 
-  // 11. Distribuição Real da Frota por Centro de Custo (MODIFICADO - apenas apontamentos do dia atual)
+  // 11. Distribuição Real da Frota por Centro de Custo
   const distribuicaoCentroCustoQuery = useQuery<DistribuicaoCentroCusto[]>({
     queryKey: ["distribuicao-centro-custo", filters],
     queryFn: async () => {
-      console.log("🔍 DEBUG useMaquinasDashboard - buscando distribuição por centro de custo do dia atual");
-
-      // Data de hoje
       const hoje = new Date().toISOString().split('T')[0];
-      console.log("📅 Filtrando apontamentos para a data:", hoje);
 
-      // Buscar todos os veículos
       let veiculosQuery = supabase
         .from("bd_caminhoes_equipamentos")
-        .select("id, frota, numero_frota, tipo_veiculo");
+        .select(`
+          id, frota, numero_frota, categoria_ativo_id,
+          categoria:bd_categorias_ativos(nome_categoria)
+        `);
 
       if (filters.tipoVeiculo && filters.tipoVeiculo.length > 0) {
-        veiculosQuery = veiculosQuery.in("tipo_veiculo", filters.tipoVeiculo);
+        veiculosQuery = veiculosQuery.in("categoria_ativo_id", filters.tipoVeiculo);
       }
 
       if (filters.empresaId) {
@@ -653,7 +606,6 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
         return [];
       }
 
-      // Buscar apenas os apontamentos do dia atual
       const { data: apontamentosHoje } = await supabase
         .from("bd_registro_apontamento_cam_equipa")
         .select(`
@@ -663,9 +615,6 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
         `)
         .eq("data", hoje);
 
-      console.log("📊 Apontamentos encontrados para hoje:", apontamentosHoje?.length || 0);
-
-      // Criar mapeamento de veículo -> centro de custo (apenas para hoje)
       const veiculoCentroCusto = new Map<string, {
         codigo: string;
         nomeCompleto: string;
@@ -681,18 +630,17 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
         }
       });
 
-      // Agrupar veículos por centro de custo
       const centroMap = new Map<string, {
         nomeCompleto: string;
         veiculos: Array<{
           id: string;
           frota: string;
           numero_frota: string;
-          tipo_veiculo: string;
+          nome_categoria: string;
         }>;
       }>();
 
-      veiculos.forEach(veiculo => {
+      veiculos.forEach((veiculo: any) => {
         const centroCustoInfo = veiculoCentroCusto.get(veiculo.id);
         
         let centroCusto = "Não Alocado Hoje";
@@ -714,26 +662,18 @@ export const useMaquinasDashboard = (filters: MaquinasFilters) => {
           id: veiculo.id,
           frota: veiculo.frota || '',
           numero_frota: veiculo.numero_frota || '',
-          tipo_veiculo: veiculo.tipo_veiculo || ''
+          nome_categoria: veiculo.categoria?.nome_categoria || ''
         });
       });
 
       const totalVeiculos = veiculos.length;
-      const resultado = Array.from(centroMap.entries()).map(([centroCusto, data]) => ({
+      return Array.from(centroMap.entries()).map(([centroCusto, data]) => ({
         centroCusto,
         nomeCompleto: data.nomeCompleto,
         quantidade: data.veiculos.length,
         percentual: totalVeiculos > 0 ? (data.veiculos.length / totalVeiculos) * 100 : 0,
         veiculos: data.veiculos
-      })).sort((a, b) => b.quantidade - a.quantidade); // Ordenar por quantidade decrescente
-
-      console.log("📈 Distribuição calculada para hoje:", { 
-        totalCentros: resultado.length, 
-        totalVeiculos, 
-        alocadosHoje: totalVeiculos - (resultado.find(r => r.centroCusto === "Não Alocado Hoje")?.quantidade || 0)
-      });
-
-      return resultado;
+      })).sort((a, b) => b.quantidade - a.quantidade);
     }
   });
 

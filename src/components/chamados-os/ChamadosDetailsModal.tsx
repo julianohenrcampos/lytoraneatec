@@ -126,11 +126,10 @@ const ChamadosDetailsModal: React.FC<ChamadosDetailsModalProps> = ({
               <h3 className="text-sm font-medium text-gray-500">Caminhão/Equipamento</h3>
               <p className="mt-1 text-sm">
                 {chamado.caminhao_equipamento 
-                  ? `${chamado.caminhao_equipamento.placa || ""} ${chamado.caminhao_equipamento.fabricante || ""} ${chamado.caminhao_equipamento.modelo || ""}`.trim()
+                  ? `${chamado.caminhao_equipamento.placa || ""} ${chamado.caminhao_equipamento.fabricante || ""}`.trim()
                   : "-"}
               </p>
               <p className="text-xs text-gray-500">
-                {chamado.caminhao_equipamento?.tipo_veiculo || ""}
               </p>
             </div>
 

@@ -134,16 +134,16 @@ const ProgramacaoEntregaFormModal: React.FC<ProgramacaoEntregaFormModalProps> = 
     
     // First, try to use the relation data from the database JOIN
     if (item.caminhao && typeof item.caminhao === 'object') {
-      const truck = item.caminhao;
+      const truck = item.caminhao as any;
       console.log("Using truck from relation:", truck);
-      return truck.placa || truck.modelo || 'Caminhão sem placa';
+      return truck.placa || truck.subcategoria?.nome_subcategoria || 'Caminhão sem placa';
     }
     
     // Fallback: search in the caminhoes list
     const truck = caminhoes.find(c => c.id === item.caminhao_id);
     if (truck) {
       console.log("Using truck from list:", truck);
-      return truck.placa || truck.modelo || 'Caminhão sem placa';
+      return truck.placa || 'Caminhão sem placa';
     }
     
     console.log("No truck found for item:", item.caminhao_id);

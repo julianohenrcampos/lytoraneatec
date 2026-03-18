@@ -137,7 +137,7 @@ export const fetchEntregasEnviadas = async (
     const [caminhoesResult, equipesResult, usinasResult] = await Promise.all([
       caminhaoIds.length > 0 ? supabase
         .from("bd_caminhoes_equipamentos")
-        .select("id, placa, modelo, marca")
+        .select("id, placa, fabricante")
         .in("id", caminhaoIds) : Promise.resolve({ data: [] }),
       equipeIds.length > 0 ? supabase
         .from("bd_equipes")
@@ -247,8 +247,7 @@ export const fetchEntregasEnviadas = async (
         caminhao: caminhao ? {
           id: caminhao.id,
           placa: caminhao.placa || 'N/A',
-          modelo: caminhao.modelo || 'N/A',
-          marca: caminhao.marca
+          fabricante: (caminhao as any).fabricante
         } : undefined,
         equipe: equipe ? {
           id: equipe.id,

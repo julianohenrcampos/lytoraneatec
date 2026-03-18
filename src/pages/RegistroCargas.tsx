@@ -212,7 +212,7 @@ const RegistroCargas: React.FC = () => {
           caminhoesList={caminhoes.map(caminhao => ({
             id: caminhao.id,
             placa: caminhao.placa || "",
-            modelo: caminhao.modelo || ""
+            modelo: caminhao.nome_subcategoria || ""
           }))}
         />
 

@@ -87,7 +87,7 @@ export function VehicleCombobox({
     
     if (onlyTrucks) {
       filtered = filtered.filter(
-        vehicle => vehicle.tipo_veiculo?.toLowerCase().includes('caminh')
+        vehicle => vehicle.nome_categoria?.toLowerCase().includes('caminh')
       )
     }
     
@@ -108,7 +108,7 @@ export function VehicleCombobox({
     return filteredVehicles.filter(
       vehicle => 
         (vehicle.placa && vehicle.placa.toLowerCase().includes(searchLower)) ||
-        (vehicle.modelo && vehicle.modelo.toLowerCase().includes(searchLower)) ||
+        (vehicle.nome_subcategoria && vehicle.nome_subcategoria.toLowerCase().includes(searchLower)) ||
         (vehicle.frota && vehicle.frota.toLowerCase().includes(searchLower)) ||
         (vehicle.numero_frota && vehicle.numero_frota.toLowerCase().includes(searchLower))
     )
@@ -195,8 +195,8 @@ export function VehicleCombobox({
                   />
                   <div className="flex flex-col">
                     <span>{formatVehicleDisplay(vehicle)}</span>
-                    {vehicle.modelo && (
-                      <span className="text-xs text-muted-foreground">{vehicle.modelo}</span>
+                    {vehicle.nome_subcategoria && (
+                      <span className="text-xs text-muted-foreground">{vehicle.nome_subcategoria}</span>
                     )}
                   </div>
                 </CommandItem>

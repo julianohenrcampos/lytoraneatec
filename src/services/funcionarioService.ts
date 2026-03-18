@@ -305,9 +305,10 @@ const sanitizeFormData = (data: FuncionarioFormData) => {
     sanitizedData.nome_completo = sanitizedData.nome_completo.toUpperCase().trim();
   }
   
-  // Strip CPF mask (keep digits only)
-  if (sanitizedData.cpf) {
-    sanitizedData.cpf = sanitizedData.cpf.replace(/\D/g, '');
+  // Preserve CPF format (legacy records may already store masked CPF)
+  // to avoid forcing value changes during updates that can trigger duplicate conflicts.
+  if (typeof sanitizedData.cpf === 'string') {
+    sanitizedData.cpf = sanitizedData.cpf.trim();
   }
   
   // Normalize email

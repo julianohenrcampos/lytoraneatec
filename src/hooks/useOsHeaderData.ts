@@ -132,16 +132,20 @@ export const useOsHeaderData = (currentOs: OrdemServico | null, chamadoId?: stri
         if (equipamentoId) {
           const { data: veic, error: veicErr } = await supabase
             .from("bd_caminhoes_equipamentos")
-            .select("placa, modelo, fabricante, tipo_veiculo, numero_frota")
+            .select(`placa, fabricante, numero_frota,
+              categoria:bd_categorias_ativos(nome_categoria),
+              subcategoria:bd_subcategorias_ativos(nome_subcategoria)
+            `)
             .eq("id", equipamentoId)
             .maybeSingle();
           if (veicErr) throw veicErr;
           if (veic) {
-            // Usar o modelo específico ao invés do tipo genérico
-            header.equipamentoTipo = veic.modelo || veic.tipo_veiculo;
+            const cat = (veic.categoria as any)?.nome_categoria;
+            const subcat = (veic.subcategoria as any)?.nome_subcategoria;
+            header.equipamentoTipo = subcat || cat;
             header.equipamentoPlaca = veic.placa;
             header.equipamentoFrota = veic.numero_frota;
-            header.equipamentoMarcaModelo = [veic.fabricante, veic.modelo].filter(Boolean).join(" ") || null;
+            header.equipamentoMarcaModelo = [veic.fabricante, subcat].filter(Boolean).join(" ") || null;
           }
         }
 

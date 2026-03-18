@@ -14,8 +14,7 @@ export const registroAplicacaoSelectQuery = `
     apontador_id,
     caminhao:caminhao_id (
       id,
-      placa,
-      modelo
+      placa
     ),
     equipe:equipe_id (
       id,

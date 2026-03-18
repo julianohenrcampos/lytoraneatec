@@ -207,7 +207,7 @@ export const getDeliveriesWithStatusIssues = async () => {
         logradouro,
         status,
         quantidade_massa,
-        caminhao:caminhao_id (placa, modelo)
+        caminhao:caminhao_id (placa)
       `)
       .order("data_entrega", { ascending: false });
     

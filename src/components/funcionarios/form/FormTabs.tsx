@@ -93,30 +93,53 @@ const FormTabs: React.FC<FormTabsProps> = ({
   const { toast } = useToast();
 
   const handleFormSubmit = (data: FuncionarioFormData) => {
-    if (!data.funcao_id || data.funcao_id.trim() === "") {
-      setActiveTab("profissional");
-      toast({ title: "Campo obrigatório", description: "Selecione uma função na aba Profissional.", variant: "destructive" });
-      return;
-    }
-    
     onSubmit(data);
   };
 
   const handleInvalidSubmit = (errors: FieldErrors<FuncionarioFormData>) => {
+    console.log("❌ Validation errors:", errors);
+    
     const errorFields = Object.keys(errors);
     const pessoalFields = ['nome_completo', 'cpf', 'data_nascimento', 'genero', 'email', 'endereco_completo', 'escolaridade'];
     const profissionalFields = ['funcao_id', 'departamento_id', 'centro_custo_id', 'empresa_id', 'matricula'];
     const contratualFields = ['data_admissao', 'data_demissao', 'data_ferias', 'status'];
+    const financeiroFields = ['salario_base', 'insalubridade', 'periculosidade', 'gratificacao', 'adicional_noturno', 'custo_passagem', 'refeicao', 'diarias'];
 
+    // Navegar para a aba com o primeiro erro
     if (errorFields.some(f => pessoalFields.includes(f))) {
       setActiveTab("pessoal");
     } else if (errorFields.some(f => profissionalFields.includes(f))) {
       setActiveTab("profissional");
     } else if (errorFields.some(f => contratualFields.includes(f))) {
       setActiveTab("contratual");
+    } else if (errorFields.some(f => financeiroFields.includes(f))) {
+      setActiveTab("financeiro");
     }
 
-    toast({ title: "Campos obrigatórios", description: "Preencha todos os campos obrigatórios antes de salvar.", variant: "destructive" });
+    // Mapear nomes amigáveis para todos os campos com erro
+    const fieldLabels: Record<string, string> = {
+      nome_completo: "Nome Completo",
+      funcao_id: "Função",
+      salario_base: "Salário Base",
+      insalubridade: "Insalubridade",
+      periculosidade: "Periculosidade",
+      gratificacao: "Gratificação",
+      adicional_noturno: "Adicional Noturno",
+      custo_passagem: "Custo com Passagem",
+      refeicao: "Refeição",
+      diarias: "Diárias",
+      email: "Email",
+    };
+
+    const messages = errorFields
+      .map(f => fieldLabels[f] || f)
+      .slice(0, 5);
+
+    const description = messages.length > 0
+      ? `Campos com erro: ${messages.join(", ")}${errorFields.length > 5 ? ` e mais ${errorFields.length - 5}` : ""}`
+      : "Preencha todos os campos obrigatórios antes de salvar.";
+
+    toast({ title: "Erro de validação", description, variant: "destructive" });
   };
 
   return (

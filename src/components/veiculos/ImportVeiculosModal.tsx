@@ -56,7 +56,6 @@ const ImportVeiculosModal: React.FC<ImportVeiculosModalProps> = ({
         parseCSV(files[0]);
       } else if (files[0].name.toLowerCase().endsWith(".xlsx") || 
                 files[0].name.toLowerCase().endsWith(".xls")) {
-        // For Excel files we'll just use direct file import
         setImportErrors([]);
         setStep("confirm");
       } else {
@@ -99,25 +98,27 @@ const ImportVeiculosModal: React.FC<ImportVeiculosModalProps> = ({
 
   const downloadTemplate = () => {
     const headers = [
-      "Placa", "Tipo de Veículo", "Frota", "Número Frota", 
-      "Marca", "Modelo", "Cor", "Departamento", 
+      "Placa", "Categoria", "Subcategoria", "Frota", "Número Frota", 
+      "Fabricante", "Cor", "Departamento", "Empresa",
       "Motor", "Ano de Fabricação", "Tipo de Combustível", 
       "Status IPVA", "Situação", "Capacidade", 
-      "Aluguel", "Observações", "Empresa"
+      "Aluguel", "Observações", "Número de Série", "Chassi",
+      "Tipo Ativo", "Proprietário Tipo", "Empresa Locadora",
+      "Informações Complementares"
     ];
     
     const exampleRow = [
-      "ABC1234", "Caminhão", "F1", "12345", 
-      "Volvo", "FH 540", "Branco", "Operações", 
+      "ABC1234", "VEÍCULO", "CAMINHÃO BASCULANTE", "F1", "12345", 
+      "Volvo", "Branco", "Operações", "Empresa XYZ",
       "12345678", "2022", "Diesel", 
       "Pago", "Operando", "30 ton", 
-      "Não", "Observação de exemplo", "Empresa XYZ"
+      "Não", "Observação de exemplo", "", "",
+      "proprio", "proprio", "",
+      ""
     ];
     
-    // Create CSV content
     const csvContent = [headers.join(","), exampleRow.join(",")].join("\n");
     
-    // Create a blob and download link
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -135,39 +136,35 @@ const ImportVeiculosModal: React.FC<ImportVeiculosModalProps> = ({
       
       if (file?.name.toLowerCase().endsWith(".xlsx") || 
           file?.name.toLowerCase().endsWith(".xls")) {
-        // Directly import Excel file
         console.log("Importing Excel file:", file.name);
         result = await onImport(file);
       } else {
-        // For CSV, use the parsed data
         const formattedData = parseResults.map((item) => ({
-          frota: item.frota || item.Frota || null,
-          numero_frota: item.numero_frota || item["Número Frota"] || item["Numero Frota"] || null,
-          departamento_id: item.departamento_id || null,
-          placa: item.placa || item.Placa || null,
-          tipo_veiculo: item.tipo_veiculo || item["Tipo de Veículo"] || item["Tipo de Veiculo"] || null,
-          fabricante: item.marca || item.Marca || item.fabricante || item.Fabricante || null,
-          modelo: item.modelo || item.Modelo || null,
-          cor: item.cor || item.Cor || null,
-          motor: item.motor || item.Motor || null,
-          ano_fabricacao: item.ano_fabricacao || item["Ano de Fabricação"] || item["Ano de Fabricacao"] || null,
-          tipo_combustivel: item.tipo_combustivel || item["Tipo de Combustível"] || item["Tipo de Combustivel"] || null,
-          status_ipva: item.status_ipva || item["Status IPVA"] || null,
-          situacao: item.situacao || item.Situação || item.Situacao || null,
-          capacidade: item.capacidade || item.Capacidade || null,
-          aluguel: item.aluguel || item.Aluguel || null,
-          observacoes: item.observacoes || item.Observações || item.Observacoes || null,
-          empresa_id: item.empresa_id || null,
+          frota: item.Frota || item.frota || null,
+          numero_frota: item["Número Frota"] || item["Numero Frota"] || item.numero_frota || null,
+          departamento_id: null,
+          placa: item.Placa || item.placa || null,
+          fabricante: item.Fabricante || item.fabricante || item.Marca || item.marca || null,
+          cor: item.Cor || item.cor || null,
+          motor: item.Motor || item.motor || null,
+          ano_fabricacao: item["Ano de Fabricação"] || item["Ano de Fabricacao"] || item.ano_fabricacao || null,
+          tipo_combustivel: item["Tipo de Combustível"] || item["Tipo de Combustivel"] || item.tipo_combustivel || null,
+          status_ipva: item["Status IPVA"] || item.status_ipva || null,
+          situacao: item.Situação || item.Situacao || item.situacao || null,
+          capacidade: item.Capacidade || item.capacidade || null,
+          aluguel: item.Aluguel || item.aluguel || null,
+          observacoes: item.Observações || item.Observacoes || item.observacoes || null,
+          empresa_id: null,
           imagem_url: null,
           categoria_ativo_id: null,
           subcategoria_ativo_id: null,
-          numero_serie: null,
-          chassi: null,
-          informacoes_complementares: null,
-          status_cadastro: 'ativo',
-          status_disponibilidade: 'disponivel',
-          proprietario_tipo: 'proprio',
-          tipo_ativo: 'proprio',
+          numero_serie: item["Número de Série"] || item["Numero de Serie"] || item.numero_serie || null,
+          chassi: item.Chassi || item.chassi || null,
+          informacoes_complementares: item["Informações Complementares"] || item["Informacoes Complementares"] || item.informacoes_complementares || null,
+          status_cadastro: item["Status Cadastro"] || item.status_cadastro || 'ativo',
+          status_disponibilidade: item["Status Disponibilidade"] || item.status_disponibilidade || 'disponivel',
+          proprietario_tipo: item["Proprietário Tipo"] || item["Proprietario Tipo"] || item.proprietario_tipo || 'proprio',
+          tipo_ativo: item["Tipo Ativo"] || item.tipo_ativo || 'proprio',
           empresa_locadora_id: null,
         }));
 
@@ -235,25 +232,24 @@ const ImportVeiculosModal: React.FC<ImportVeiculosModalProps> = ({
               <FileSpreadsheet className="h-4 w-4" />
               <AlertTitle>Formato esperado</AlertTitle>
               <AlertDescription className="text-xs">
-                <p>O arquivo Excel deve conter as seguintes colunas:</p>
+                <p>O arquivo deve conter as seguintes colunas:</p>
                 <ul className="list-disc ml-4 mt-1">
+                  <li><strong>Categoria</strong> (obrigatório: VEÍCULO ou EQUIPAMENTO)</li>
+                  <li>Subcategoria</li>
                   <li>Placa</li>
-                  <li>Tipo de Veículo</li>
-                  <li>Frota</li>
-                  <li>Número Frota</li>
-                  <li>Marca</li>
-                  <li>Modelo</li>
+                  <li>Frota / Número Frota</li>
+                  <li>Fabricante</li>
                   <li>Cor</li>
-                  <li>Departamento</li>
-                  <li>Motor</li>
-                  <li>Ano de Fabricação</li>
+                  <li>Departamento / Empresa</li>
+                  <li>Motor / Ano de Fabricação</li>
                   <li>Tipo de Combustível</li>
-                  <li>Status IPVA</li>
-                  <li>Situação</li>
-                  <li>Capacidade</li>
-                  <li>Aluguel</li>
+                  <li>Status IPVA / Situação</li>
+                  <li>Capacidade / Aluguel</li>
                   <li>Observações</li>
-                  <li>Empresa</li>
+                  <li>Número de Série / Chassi</li>
+                  <li>Tipo Ativo / Proprietário Tipo</li>
+                  <li>Empresa Locadora</li>
+                  <li>Informações Complementares</li>
                 </ul>
               </AlertDescription>
             </Alert>

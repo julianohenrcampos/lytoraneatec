@@ -31,16 +31,18 @@ const DeleteVeiculoDialog: React.FC<DeleteVeiculoDialogProps> = ({
     return null;
   }
 
+  const tipoLabel = veiculo.nome_categoria || 'Ativo';
+
   return (
     <AlertDialog open={isOpen} onOpenChange={onClose}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Excluir {veiculo.tipo_veiculo}</AlertDialogTitle>
+          <AlertDialogTitle>Excluir {tipoLabel}</AlertDialogTitle>
           <AlertDialogDescription>
-            Tem certeza que deseja excluir o {veiculo.tipo_veiculo.toLowerCase()}{' '}
+            Tem certeza que deseja excluir o {tipoLabel.toLowerCase()}{' '}
             <span className="font-semibold">
-              {veiculo.placa ? `${veiculo.fabricante} ${veiculo.modelo} - Placa ${veiculo.placa}` : 
-                `${veiculo.fabricante} ${veiculo.modelo}` }
+              {veiculo.placa ? `${veiculo.fabricante} ${veiculo.nome_subcategoria || ''} - Placa ${veiculo.placa}` : 
+                `${veiculo.fabricante} ${veiculo.nome_subcategoria || ''}` }
             </span>
             ?
             <br />

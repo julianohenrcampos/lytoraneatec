@@ -68,6 +68,24 @@ const CentroCustoDetailsModal: React.FC<CentroCustoDetailsModalProps> = ({
               {centroCusto.telefone || "Não informado"}
             </div>
           </div>
+
+          {centroCusto.adm_sede_funcionario?.nome_completo && (
+            <div>
+              <Label className="text-sm font-medium">ADM SEDE Responsável</Label>
+              <div className="rounded-md border p-2 mt-1 bg-muted/50">
+                {centroCusto.adm_sede_funcionario.nome_completo}
+              </div>
+            </div>
+          )}
+
+          {centroCusto.endereco_completo && (
+            <div>
+              <Label className="text-sm font-medium">Endereço da Obra</Label>
+              <div className="rounded-md border p-2 mt-1 bg-muted/50">
+                {centroCusto.endereco_completo}
+              </div>
+            </div>
+          )}
           
           <div className="grid grid-cols-2 gap-4">
             <div>

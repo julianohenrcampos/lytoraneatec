@@ -23,8 +23,8 @@ export interface StatusOperacionalData {
     id: string;
     frota: string;
     numero_frota: string;
-    tipo_veiculo: string;
-    modelo?: string;
+    nome_categoria: string;
+    nome_subcategoria?: string;
   }>;
 }
 
@@ -35,9 +35,9 @@ export interface IdadeFrotaData {
     id: string;
     frota: string;
     numero_frota: string;
-    tipo_veiculo: string;
+    nome_categoria: string;
     ano_fabricacao: string;
-    modelo?: string;
+    nome_subcategoria?: string;
   }>;
 }
 
@@ -128,7 +128,7 @@ export interface DistribuicaoCentroCusto {
     id: string;
     frota: string;
     numero_frota: string;
-    tipo_veiculo: string;
+    nome_categoria: string;
   }>;
 }
 
@@ -147,5 +147,5 @@ export interface AtivoBasico {
   id: string;
   frota: string;
   numero_frota: string;
-  tipo_veiculo: string;
+  nome_categoria: string;
 }

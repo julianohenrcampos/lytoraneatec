@@ -6,11 +6,11 @@ import { Veiculo, VeiculoFormData, ImportResult } from "./types";
 export const exportVeiculos = async (veiculos: Veiculo[]) => {
   const data = veiculos.map(veiculo => ({
     'Placa': veiculo.placa || 'N/A',
-    'Tipo de Veículo': veiculo.tipo_veiculo || 'N/A',
+    'Categoria': veiculo.nome_categoria || 'N/A',
+    'Subcategoria': veiculo.nome_subcategoria || 'N/A',
     'Frota': veiculo.frota || 'N/A',
     'Número Frota': veiculo.numero_frota || 'N/A',
     'Fabricante': veiculo.fabricante || 'N/A',
-    'Modelo': veiculo.modelo || 'N/A',
     'Cor': veiculo.cor || 'N/A',
     'Departamento': veiculo.nome_departamento || 'N/A',
     'Empresa': veiculo.nome_empresa || 'N/A',
@@ -24,8 +24,6 @@ export const exportVeiculos = async (veiculos: Veiculo[]) => {
     'Observações': veiculo.observacoes || 'N/A',
     'Número de Série': veiculo.numero_serie || 'N/A',
     'Chassi': veiculo.chassi || 'N/A',
-    'Categoria': veiculo.nome_categoria || 'N/A',
-    'Subcategoria': veiculo.nome_subcategoria || 'N/A',
     'Informações Complementares': veiculo.informacoes_complementares || 'N/A',
     'Status Cadastro': veiculo.status_cadastro || 'N/A',
     'Status Disponibilidade': veiculo.status_disponibilidade || 'N/A',
@@ -45,24 +43,21 @@ export const importVeiculos = async (veiculos: VeiculoFormData[] | File): Promis
         const jsonData = await parseExcelFile(veiculos);
         console.log("Parsed Excel data:", jsonData);
         
-        // Map Excel columns to database fields
         const mappedVeiculos = jsonData.map((row: any) => ({
-          frota: row.Frota || row.frota,
-          numero_frota: row["Numero frota"] || row["Número frota"] || row.numero_frota,
+          frota: row.Frota || row.frota || null,
+          numero_frota: row["Numero frota"] || row["Número frota"] || row["Número Frota"] || row.numero_frota || null,
           departamento_id: null,
-          placa: row.Placa || row.placa,
-          tipo_veiculo: row["Tipo de Veículo"] || row["Tipo de Veiculo"] || row.tipo_veiculo,
-          fabricante: row.Marca || row.marca || row.Fabricante || row.fabricante,
-          modelo: row.Modelo || row.modelo,
-          cor: row.Cor || row.cor,
-          motor: row.Motor || row.motor,
-          ano_fabricacao: row["Ano de Fabricação"] || row["Ano de Fabricacao"] || row.ano_fabricacao,
-          tipo_combustivel: row["Tipo de Combustível"] || row["Tipo de Combustivel"] || row.tipo_combustivel,
-          status_ipva: row["Status IPVA"] || row.status_ipva,
-          situacao: row.Situação || row.Situacao || row.situacao,
-          capacidade: row.Capacidade || row.capacidade,
-          aluguel: row.Aluguel || row.aluguel,
-          observacoes: row.Observações || row.Observacoes || row.observacoes,
+          placa: row.Placa || row.placa || null,
+          fabricante: row.Fabricante || row.fabricante || row.Marca || row.marca || null,
+          cor: row.Cor || row.cor || null,
+          motor: row.Motor || row.motor || null,
+          ano_fabricacao: row["Ano de Fabricação"] || row["Ano de Fabricacao"] || row.ano_fabricacao || null,
+          tipo_combustivel: row["Tipo de Combustível"] || row["Tipo de Combustivel"] || row.tipo_combustivel || null,
+          status_ipva: row["Status IPVA"] || row.status_ipva || null,
+          situacao: row.Situação || row.Situacao || row.situacao || null,
+          capacidade: row.Capacidade || row.capacidade || null,
+          aluguel: row.Aluguel || row.aluguel || null,
+          observacoes: row.Observações || row.Observacoes || row.observacoes || null,
           empresa_id: null,
           imagem_url: null,
           categoria_ativo_id: null,
@@ -79,55 +74,51 @@ export const importVeiculos = async (veiculos: VeiculoFormData[] | File): Promis
 
         console.log("Mapped vehicles:", mappedVeiculos);
 
-        // Try to find departments by name from the Excel data
+        // Resolve relationships by name
         for (const veiculo of mappedVeiculos) {
-          const rowData = jsonData.find((r: any) => 
-            (r.Placa === veiculo.placa || r.placa === veiculo.placa) || 
-            (!veiculo.placa && (r.Modelo === veiculo.modelo || r.modelo === veiculo.modelo))
-          );
+          const rowData = jsonData.find((r: any) => {
+            const rowPlaca = r.Placa || r.placa;
+            const rowSerie = r["Número de Série"] || r["Numero de Serie"] || r.numero_serie;
+            if (veiculo.placa && rowPlaca === veiculo.placa) return true;
+            if (veiculo.numero_serie && rowSerie === veiculo.numero_serie) return true;
+            return false;
+          });
           
-          if (rowData && (rowData.Departamento || rowData.departamento)) {
-            const deptName = rowData.Departamento || rowData.departamento;
+          if (!rowData) continue;
+
+          // Resolve Departamento
+          const deptName = rowData.Departamento || rowData.departamento;
+          if (deptName) {
             try {
-              console.log("Looking for department:", deptName);
               const { data: deptData } = await supabase
                 .from("bd_departamentos")
                 .select("id")
                 .ilike("nome_departamento", deptName)
                 .maybeSingle();
-              
-              if (deptData) {
-                console.log("Found department ID:", deptData.id);
-                veiculo.departamento_id = deptData.id;
-              }
+              if (deptData) veiculo.departamento_id = deptData.id;
             } catch (err) {
-              console.error("Error finding department by name:", err);
+              console.error("Error finding department:", err);
             }
           }
           
-          // Similar logic for empresa_id if company name is in the Excel
-          if (rowData && (rowData.Empresa || rowData.empresa)) {
-            const empresaNome = rowData.Empresa || rowData.empresa;
+          // Resolve Empresa
+          const empresaNome = rowData.Empresa || rowData.empresa;
+          if (empresaNome) {
             try {
-              console.log("Looking for company:", empresaNome);
               const { data: empresaData } = await supabase
                 .from("bd_empresas")
                 .select("id")
                 .ilike("nome_empresa", empresaNome)
                 .maybeSingle();
-              
-              if (empresaData) {
-                console.log("Found company ID:", empresaData.id);
-                veiculo.empresa_id = empresaData.id;
-              }
+              if (empresaData) veiculo.empresa_id = empresaData.id;
             } catch (err) {
-              console.error("Error finding company by name:", err);
+              console.error("Error finding company:", err);
             }
           }
 
-          // Resolve Categoria by name
-          if (rowData && (rowData.Categoria || rowData.categoria)) {
-            const catName = rowData.Categoria || rowData.categoria;
+          // Resolve Categoria
+          const catName = rowData.Categoria || rowData.categoria;
+          if (catName) {
             try {
               const { data: catData } = await supabase
                 .from("bd_categorias_ativos")
@@ -137,39 +128,35 @@ export const importVeiculos = async (veiculos: VeiculoFormData[] | File): Promis
               if (catData) {
                 veiculo.categoria_ativo_id = catData.id;
 
-                // Resolve Subcategoria by name + categoria_id
-                if (rowData.Subcategoria || rowData.subcategoria) {
-                  const subName = rowData.Subcategoria || rowData.subcategoria;
+                // Resolve Subcategoria
+                const subName = rowData.Subcategoria || rowData.subcategoria;
+                if (subName) {
                   const { data: subData } = await supabase
                     .from("bd_subcategorias_ativos")
                     .select("id")
                     .ilike("nome_subcategoria", subName)
                     .eq("categoria_id", catData.id)
                     .maybeSingle();
-                  if (subData) {
-                    veiculo.subcategoria_ativo_id = subData.id;
-                  }
+                  if (subData) veiculo.subcategoria_ativo_id = subData.id;
                 }
               }
             } catch (err) {
-              console.error("Error finding categoria by name:", err);
+              console.error("Error finding categoria:", err);
             }
           }
 
-          // Resolve Empresa Locadora by name
-          if (rowData && (rowData["Empresa Locadora"] || rowData.empresa_locadora)) {
-            const locName = rowData["Empresa Locadora"] || rowData.empresa_locadora;
+          // Resolve Empresa Locadora
+          const locName = rowData["Empresa Locadora"] || rowData.empresa_locadora;
+          if (locName) {
             try {
               const { data: locData } = await supabase
                 .from("bd_empresas_locadoras")
                 .select("id")
                 .ilike("nome_empresa", locName)
                 .maybeSingle();
-              if (locData) {
-                veiculo.empresa_locadora_id = locData.id;
-              }
+              if (locData) veiculo.empresa_locadora_id = locData.id;
             } catch (err) {
-              console.error("Error finding empresa locadora by name:", err);
+              console.error("Error finding empresa locadora:", err);
             }
           }
         }
@@ -199,17 +186,9 @@ const processImportVeiculos = async (veiculos: VeiculoFormData[]): Promise<Impor
   try {
     console.log("Processing import vehicles, count:", veiculos.length);
     
-    // Filter valid vehicles - allow both vehicles with plates and equipment without plates
     const validVeiculos = veiculos.filter(v => {
-      const isValid = v.tipo_veiculo && 
-        (v.placa || 
-         v.tipo_veiculo.toLowerCase() === 'maquina' || 
-         v.tipo_veiculo.toLowerCase() === 'equipamento' ||
-         v.tipo_veiculo.toLowerCase() === 'máquina');
-        
-      if (!isValid) {
-        console.log("Invalid entry:", v);
-      }
+      const isValid = v.categoria_ativo_id || v.placa || v.numero_serie || v.chassi;
+      if (!isValid) console.log("Invalid entry:", v);
       return isValid;
     });
     
@@ -218,11 +197,10 @@ const processImportVeiculos = async (veiculos: VeiculoFormData[]): Promise<Impor
     if (validVeiculos.length === 0) {
       return { 
         success: [], 
-        errors: [{ message: "Nenhum veículo válido encontrado para importação" }] 
+        errors: [{ message: "Nenhum veículo válido encontrado para importação. É necessário ao menos Placa, Número de Série, Chassi ou Categoria." }] 
       };
     }
 
-    // Prepare data for insertion, nullifying empty departamento_id
     const processedVeiculos = validVeiculos.map(v => ({
       ...v,
       departamento_id: (v.departamento_id === "" || v.departamento_id === "_none") ? null : v.departamento_id,

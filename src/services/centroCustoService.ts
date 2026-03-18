@@ -7,7 +7,7 @@ import * as XLSX from "xlsx";
 export const fetchCentrosCusto = async (filters: CentroCustoFilter = {}, isSuperAdmin: boolean = false): Promise<CentroCusto[]> => {
   let query = supabase
     .from("bd_centros_custo")
-    .select("*");
+    .select("*, adm_sede_funcionario:bd_funcionarios!adm_sede_funcionario_id(id, nome_completo)");
   
   // Ocultar DIR001 para não-SuperAdmin
   query = excludeRestrictedCC(query, isSuperAdmin);
@@ -93,7 +93,17 @@ export const createCentroCusto = async (data: CentroCustoFormData): Promise<Cent
     nome_centro_custo: data.nome_centro_custo,
     cnpj_vinculado: data.cnpj_vinculado || null,
     telefone: data.telefone || null,
-    situacao: data.situacao
+    situacao: data.situacao,
+    endereco_completo: data.endereco_completo || null,
+    endereco_rua: data.endereco_rua || null,
+    endereco_numero: data.endereco_numero || null,
+    endereco_bairro: data.endereco_bairro || null,
+    endereco_cidade: data.endereco_cidade || null,
+    endereco_estado: data.endereco_estado || null,
+    endereco_cep: data.endereco_cep || null,
+    latitude: data.latitude || null,
+    longitude: data.longitude || null,
+    geocoding_status: data.geocoding_status || 'pending',
   };
   
   if (data.aprovador_diarias_id && data.aprovador_diarias_id !== '__none__') {
@@ -101,6 +111,9 @@ export const createCentroCusto = async (data: CentroCustoFormData): Promise<Cent
   }
   if (data.diretoria_id && data.diretoria_id !== '__none__') {
     insertData.diretoria_id = data.diretoria_id;
+  }
+  if (data.adm_sede_funcionario_id && data.adm_sede_funcionario_id !== '__none__') {
+    insertData.adm_sede_funcionario_id = data.adm_sede_funcionario_id;
   }
 
   const { data: newData, error } = await supabase
@@ -124,7 +137,17 @@ export const updateCentroCusto = async (id: string, data: CentroCustoFormData): 
     nome_centro_custo: data.nome_centro_custo,
     cnpj_vinculado: data.cnpj_vinculado || null,
     telefone: data.telefone || null,
-    situacao: data.situacao
+    situacao: data.situacao,
+    endereco_completo: data.endereco_completo || null,
+    endereco_rua: data.endereco_rua || null,
+    endereco_numero: data.endereco_numero || null,
+    endereco_bairro: data.endereco_bairro || null,
+    endereco_cidade: data.endereco_cidade || null,
+    endereco_estado: data.endereco_estado || null,
+    endereco_cep: data.endereco_cep || null,
+    latitude: data.latitude || null,
+    longitude: data.longitude || null,
+    geocoding_status: data.geocoding_status || 'pending',
   };
   
   if (data.aprovador_diarias_id && data.aprovador_diarias_id !== '__none__') {
@@ -136,6 +159,11 @@ export const updateCentroCusto = async (id: string, data: CentroCustoFormData): 
     updateData.diretoria_id = data.diretoria_id;
   } else {
     updateData.diretoria_id = null;
+  }
+  if (data.adm_sede_funcionario_id && data.adm_sede_funcionario_id !== '__none__') {
+    updateData.adm_sede_funcionario_id = data.adm_sede_funcionario_id;
+  } else {
+    updateData.adm_sede_funcionario_id = null;
   }
 
   const { data: updatedData, error } = await supabase
@@ -174,6 +202,7 @@ export const exportToExcel = (data: CentroCusto[]): void => {
     "Nome do Centro de Custo": item.nome_centro_custo,
     "CNPJ Vinculado": item.cnpj_vinculado || "",
     "Telefone": item.telefone || "",
+    "Endereço": item.endereco_completo || "",
     "Situação": item.situacao
   }));
   

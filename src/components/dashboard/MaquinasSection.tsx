@@ -23,25 +23,17 @@ const MaquinasSection: React.FC<MaquinasSectionProps> = ({ navigateTo, period, s
     queryKey: ['veiculos-distribution', period],
     queryFn: async () => {
       try {
-        // Get vehicles with related department information
         const { data, error } = await supabase
           .from('bd_caminhoes_equipamentos')
           .select(`
-            id, tipo_veiculo, situacao, frota, numero_frota, departamento_id,
-            departamento:departamento_id (id, nome_departamento)
+            id, situacao, frota, numero_frota, categoria_ativo_id,
+            categoria:bd_categorias_ativos(id, nome_categoria)
           `);
           
         if (error) throw error;
         
-        // Count by detailed vehicle types
-        const tipoCount = {
-          Caminhão: 0,
-          Equipamento: 0,
-          Prancha: 0,
-          Van: 0,
-          Ônibus: 0,
-          Outros: 0
-        };
+        // Count by category name
+        const tipoCount: Record<string, number> = {};
         
         const situacaoDetails = {
           operando: [] as Array<{frota: string, numero_frota: string}>,
@@ -50,24 +42,8 @@ const MaquinasSection: React.FC<MaquinasSectionProps> = ({ navigateTo, period, s
         };
         
         data?.forEach(item => {
-          // Categorize by vehicle type more precisely
-          if (item.tipo_veiculo) {
-            if (item.tipo_veiculo.includes('Caminhão')) {
-              tipoCount.Caminhão += 1;
-            } else if (item.tipo_veiculo.includes('Equipamento')) {
-              tipoCount.Equipamento += 1;
-            } else if (item.tipo_veiculo.includes('Prancha')) {
-              tipoCount.Prancha += 1;
-            } else if (item.tipo_veiculo.includes('Van')) {
-              tipoCount.Van += 1;
-            } else if (item.tipo_veiculo.includes('Ônibus')) {
-              tipoCount.Ônibus += 1;
-            } else {
-              tipoCount.Outros += 1;
-            }
-          } else {
-            tipoCount.Outros += 1;
-          }
+          const categoria = (item.categoria as any)?.nome_categoria || 'Outros';
+          tipoCount[categoria] = (tipoCount[categoria] || 0) + 1;
           
           const frotaInfo = {
             frota: item.frota || 'Sem frota',
@@ -83,9 +59,8 @@ const MaquinasSection: React.FC<MaquinasSectionProps> = ({ navigateTo, period, s
           }
         });
         
-        // Convert to array format for chart
         const distribuicaoArray = Object.entries(tipoCount)
-          .filter(([_, count]) => count > 0) // Only include types that have at least one vehicle
+          .filter(([_, count]) => count > 0)
           .map(([name, value]) => ({ name, value }));
         
         return {
@@ -123,7 +98,6 @@ const MaquinasSection: React.FC<MaquinasSectionProps> = ({ navigateTo, period, s
       </h2>
       
       <ResponsiveGrid cols={{ sm: 1, md: 2, lg: 2 }} gap="md">
-        {/* Distribuição entre Caminhões e Equipamentos */}
         <PieChartCard
           title="Caminhões e Equipamentos"
           icon={Truck}
@@ -133,7 +107,6 @@ const MaquinasSection: React.FC<MaquinasSectionProps> = ({ navigateTo, period, s
           onClick={() => navigateTo("/gestao-maquinas/caminhoes")}
         />
 
-        {/* Situação Operacional dos Veículos */}
         <BarChartCard
           title="Situação Operacional"
           icon={Settings}

@@ -160,10 +160,10 @@ const DetailedOsModal: React.FC<DetailedOsModalProps> = ({
                     </div>
                     <div className="space-y-1">
                       <div className="font-medium">
-                        {os.caminhao_equipamento.placa} - {os.caminhao_equipamento.tipo_veiculo}
+                        {os.caminhao_equipamento.placa}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {os.caminhao_equipamento.fabricante} {os.caminhao_equipamento.modelo}
+                        {os.caminhao_equipamento.fabricante}
                       </div>
                     </div>
                   </div>}

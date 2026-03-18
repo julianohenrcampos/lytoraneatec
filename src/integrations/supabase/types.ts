@@ -684,6 +684,30 @@ export type Database = {
           },
         ]
       }
+      bd_cache_enderecos: {
+        Row: {
+          created_at: string | null
+          endereco: string
+          id: string
+          latitude: number
+          longitude: number
+        }
+        Insert: {
+          created_at?: string | null
+          endereco: string
+          id?: string
+          latitude: number
+          longitude: number
+        }
+        Update: {
+          created_at?: string | null
+          endereco?: string
+          id?: string
+          latitude?: number
+          longitude?: number
+        }
+        Relationships: []
+      }
       bd_caminhoes_equipamentos: {
         Row: {
           aluguel: string | null
@@ -701,7 +725,6 @@ export type Database = {
           id: string
           imagem_url: string | null
           informacoes_complementares: string | null
-          modelo: string | null
           modificado_por: string | null
           motor: string | null
           numero_frota: string | null
@@ -716,7 +739,6 @@ export type Database = {
           subcategoria_ativo_id: string | null
           tipo_ativo: string | null
           tipo_combustivel: string | null
-          tipo_veiculo: string | null
           updated_at: string | null
         }
         Insert: {
@@ -735,7 +757,6 @@ export type Database = {
           id?: string
           imagem_url?: string | null
           informacoes_complementares?: string | null
-          modelo?: string | null
           modificado_por?: string | null
           motor?: string | null
           numero_frota?: string | null
@@ -750,7 +771,6 @@ export type Database = {
           subcategoria_ativo_id?: string | null
           tipo_ativo?: string | null
           tipo_combustivel?: string | null
-          tipo_veiculo?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -769,7 +789,6 @@ export type Database = {
           id?: string
           imagem_url?: string | null
           informacoes_complementares?: string | null
-          modelo?: string | null
           modificado_por?: string | null
           motor?: string | null
           numero_frota?: string | null
@@ -784,7 +803,6 @@ export type Database = {
           subcategoria_ativo_id?: string | null
           tipo_ativo?: string | null
           tipo_combustivel?: string | null
-          tipo_veiculo?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -915,12 +933,23 @@ export type Database = {
       }
       bd_centros_custo: {
         Row: {
+          adm_sede_funcionario_id: string | null
           aprovador_diarias_id: string | null
           cnpj_vinculado: string | null
           codigo_centro_custo: string
           created_at: string | null
           diretoria_id: string | null
+          endereco_bairro: string | null
+          endereco_cep: string | null
+          endereco_cidade: string | null
+          endereco_completo: string | null
+          endereco_estado: string | null
+          endereco_numero: string | null
+          endereco_rua: string | null
+          geocoding_status: string | null
           id: string
+          latitude: number | null
+          longitude: number | null
           modificado_por: string | null
           nome_alterdata: string | null
           nome_centro_custo: string
@@ -929,12 +958,23 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          adm_sede_funcionario_id?: string | null
           aprovador_diarias_id?: string | null
           cnpj_vinculado?: string | null
           codigo_centro_custo: string
           created_at?: string | null
           diretoria_id?: string | null
+          endereco_bairro?: string | null
+          endereco_cep?: string | null
+          endereco_cidade?: string | null
+          endereco_completo?: string | null
+          endereco_estado?: string | null
+          endereco_numero?: string | null
+          endereco_rua?: string | null
+          geocoding_status?: string | null
           id?: string
+          latitude?: number | null
+          longitude?: number | null
           modificado_por?: string | null
           nome_alterdata?: string | null
           nome_centro_custo: string
@@ -943,12 +983,23 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          adm_sede_funcionario_id?: string | null
           aprovador_diarias_id?: string | null
           cnpj_vinculado?: string | null
           codigo_centro_custo?: string
           created_at?: string | null
           diretoria_id?: string | null
+          endereco_bairro?: string | null
+          endereco_cep?: string | null
+          endereco_cidade?: string | null
+          endereco_completo?: string | null
+          endereco_estado?: string | null
+          endereco_numero?: string | null
+          endereco_rua?: string | null
+          geocoding_status?: string | null
           id?: string
+          latitude?: number | null
+          longitude?: number | null
           modificado_por?: string | null
           nome_alterdata?: string | null
           nome_centro_custo?: string
@@ -957,6 +1008,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "bd_centros_custo_adm_sede_funcionario_id_fkey"
+            columns: ["adm_sede_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bd_centros_custo_aprovador_diarias_id_fkey"
             columns: ["aprovador_diarias_id"]
