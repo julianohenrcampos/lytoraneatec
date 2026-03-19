@@ -3,17 +3,21 @@ import MainLayout from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { AgendamentoExamesFilters, AgendamentoExamesTable } from '@/components/ssoAgendamentoExames/list';
 import { BulkActionBar } from '@/components/ssoAgendamentoExames/list/BulkActionBar';
-import { AgendamentoExamesDialog, AgendamentoExamesViewDialog } from '@/components/ssoAgendamentoExames/dialog';
+import { AgendamentoExamesDialog, AgendamentoExamesViewDialog, AgendamentoDocumentosDialog } from '@/components/ssoAgendamentoExames/dialog';
 import { NovoAgendamentoDropdown } from '@/components/ssoAgendamentoExames/NovoAgendamentoDropdown';
 import { FuncionarioSelectorDialog } from '@/components/ssoAgendamentoExames/FuncionarioSelectorDialog';
 import { ImportStatusCarteiraModal, ImportAlterdataModal } from '@/components/ssoAgendamentoExames/import';
 import { useAgendamentoExames } from '@/hooks/ssoAgendamentoExames';
 import { AgendamentoExameFilters, TipoExame, FuncionarioSelecionado } from '@/types/ssoAgendamentoExames';
 import { useAuthPermissions } from '@/hooks/useAuthPermissions';
-import { FileSpreadsheet, Loader2 } from 'lucide-react';
+import { FileSpreadsheet, FileText, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
+import { pdf } from '@react-pdf/renderer';
+import { saveAs } from 'file-saver';
+import { AgendamentoExamesPDFDocument } from '@/components/ssoAgendamentoExames/pdf/AgendamentoExamesPDFDocument';
+import { supabase } from '@/integrations/supabase/client';
 import { ptBR } from 'date-fns/locale';
 import {
   AlertDialog,
@@ -42,6 +46,8 @@ const SSOAgendamentoExames: React.FC = () => {
   const [modoFuncionario, setModoFuncionario] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importAlterdataOpen, setImportAlterdataOpen] = useState(false);
+  const [docsDialogOpen, setDocsDialogOpen] = useState(false);
+  const [docsAgendamentoId, setDocsAgendamentoId] = useState<string | undefined>();
 
   const { 
     agendamentos, 
@@ -213,6 +219,64 @@ const SSOAgendamentoExames: React.FC = () => {
     toast.success('Arquivo exportado com sucesso!');
   };
 
+  const [exportingPdf, setExportingPdf] = useState(false);
+
+  const handleExportPDF = async () => {
+    if (agendamentos.length === 0) {
+      toast.error('Nenhum dado para exportar');
+      return;
+    }
+    setExportingPdf(true);
+    try {
+      // Collect unique CPFs
+      const cpfs = [...new Set(agendamentos.map(a => a.cpf?.replace(/\D/g, '')).filter(Boolean))] as string[];
+
+      // Fetch salarios from bd_funcionarios
+      const salarios: Record<string, number> = {};
+      if (cpfs.length > 0) {
+        const { data: funcs } = await (supabase
+          .from('bd_funcionarios' as any) as any)
+          .select('cpf, salario_base')
+          .in('cpf', cpfs);
+        if (funcs) {
+          funcs.forEach((f: any) => {
+            if (f.cpf && f.salario_base != null) {
+              salarios[f.cpf.replace(/\D/g, '')] = Number(f.salario_base);
+            }
+          });
+        }
+      }
+
+      // Build filter description
+      const parts: string[] = [];
+      if (filters.contrato) parts.push(`Centro de Custo: ${filters.contrato}`);
+      if (filters.data_inicio || filters.data_fim) {
+        const di = filters.data_inicio ? format(new Date(filters.data_inicio + 'T12:00:00'), 'dd/MM/yyyy') : '—';
+        const df = filters.data_fim ? format(new Date(filters.data_fim + 'T12:00:00'), 'dd/MM/yyyy') : '—';
+        parts.push(`Período: ${di} a ${df}`);
+      }
+      if (filters.status && filters.status !== 'all') parts.push(`Status: ${filters.status}`);
+      if (filters.nome_colaborador) parts.push(`Colaborador: ${filters.nome_colaborador}`);
+      const filtrosTexto = parts.length > 0 ? `Filtros: ${parts.join(' | ')}` : `Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')}`;
+
+      const blob = await pdf(
+        <AgendamentoExamesPDFDocument
+          agendamentos={agendamentos}
+          salarios={salarios}
+          filtrosTexto={filtrosTexto}
+        />
+      ).toBlob();
+
+      saveAs(blob, `relatorio_admissao_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+      toast.success('PDF exportado com sucesso!');
+    } catch (err) {
+      console.error('Erro ao gerar PDF:', err);
+      toast.error('Erro ao gerar PDF');
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -223,6 +287,10 @@ const SSOAgendamentoExames: React.FC = () => {
             <p className="text-muted-foreground">Gerencie os agendamentos de exames ocupacionais</p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" onClick={handleExportPDF} disabled={exportingPdf}>
+              {exportingPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileText className="h-4 w-4 mr-2" />}
+              Exportar PDF
+            </Button>
             <Button variant="outline" onClick={handleExportExcel}>
               <FileSpreadsheet className="h-4 w-4 mr-2" />
               Exportar Excel
@@ -274,7 +342,7 @@ const SSOAgendamentoExames: React.FC = () => {
             onView={handleView}
             onEdit={handleEdit}
             onDelete={(id) => setDeleteId(id)}
-            onAnexos={() => toast.info('Funcionalidade de anexos em desenvolvimento')}
+            onAnexos={(id) => { setDocsAgendamentoId(id); setDocsDialogOpen(true); }}
             onStatusChange={handleStatusChange}
             onCarteiraChange={handleCarteiraChange}
             onIntegracoChange={handleIntegracoChange}
@@ -331,6 +399,13 @@ const SSOAgendamentoExames: React.FC = () => {
         <ImportAlterdataModal
           open={importAlterdataOpen}
           onOpenChange={setImportAlterdataOpen}
+        />
+
+        {/* Documentos Dialog */}
+        <AgendamentoDocumentosDialog
+          open={docsDialogOpen}
+          onOpenChange={setDocsDialogOpen}
+          agendamentoId={docsAgendamentoId}
         />
 
         {/* Delete Confirmation */}

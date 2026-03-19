@@ -12,16 +12,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { FuncaoPermissao, FuncaoPermissaoFilter } from "@/types/permissao";
+import { type RBACRole, type RBACRoleFilter } from "@/services/rbac/rolesCRUD";
 import { usePagination } from "@/hooks/usePagination";
 import TablePagination from "@/components/ui/table-pagination";
 
 interface FuncaoPermissaoTableProps {
-  funcoesPermissao: FuncaoPermissao[];
+  funcoesPermissao: RBACRole[];
   isLoading: boolean;
-  onEdit: (funcaoPermissao: FuncaoPermissao) => void;
-  onDelete: (funcaoPermissao: FuncaoPermissao) => void;
-  filters: FuncaoPermissaoFilter;
+  onEdit: (funcaoPermissao: RBACRole) => void;
+  onDelete: (funcaoPermissao: RBACRole) => void;
+  filters: RBACRoleFilter;
   onFilterChange: (name: string, value: any) => void;
   onResetFilters: () => void;
 }
@@ -47,13 +47,13 @@ const FuncaoPermissaoTable: React.FC<FuncaoPermissaoTableProps> = ({
       <Card className="p-4">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label htmlFor="nome_funcao" className="text-sm font-medium">
+            <label htmlFor="nome" className="text-sm font-medium">
               Nome da Função
             </label>
             <Input
-              id="nome_funcao"
-              name="nome_funcao"
-              value={filters.nome_funcao || ""}
+              id="nome"
+              name="nome"
+              value={filters.nome || ""}
               onChange={handleInputChange}
               placeholder="Filtrar por nome da função"
               className="mt-1"
@@ -97,10 +97,10 @@ const FuncaoPermissaoTable: React.FC<FuncaoPermissaoTableProps> = ({
             ) : (
               pagination.paginatedData.map((funcaoPermissao) => (
                 <TableRow key={funcaoPermissao.id}>
-                  <TableCell>{funcaoPermissao.nome_funcao}</TableCell>
+                  <TableCell>{funcaoPermissao.nome}</TableCell>
                   <TableCell>{funcaoPermissao.descricao || "-"}</TableCell>
                   <TableCell>
-                    {funcaoPermissao.permissoes.length} permissões
+                    {(funcaoPermissao.permissions || []).length} permissões
                   </TableCell>
                   <TableCell>
                     <div className="flex space-x-2">

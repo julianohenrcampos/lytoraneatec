@@ -36,17 +36,18 @@ const AssignPermissionModal: React.FC<AssignPermissionModalProps> = ({
 }) => {
   const [selectedFuncao, setSelectedFuncao] = React.useState<string>("");
 
-  // Buscar funções da tabela bd_funcoes_permissao
-  const { data: funcoesDB } = useQuery({
-    queryKey: ['funcoes-permissao-para-atribuicao'],
+  // Buscar roles da tabela bd_roles (novo RBAC)
+  const { data: rolesDB } = useQuery({
+    queryKey: ['rbac-roles-for-assignment'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('bd_funcoes_permissao')
-        .select('id, nome_funcao, descricao')
-        .order('nome_funcao');
+        .from('bd_roles')
+        .select('id, nome, descricao')
+        .eq('ativo', true)
+        .order('nome');
       
       if (error) {
-        console.error('❌ Erro ao buscar funções:', error);
+        console.error('❌ Erro ao buscar roles:', error);
         return [];
       }
       
@@ -64,7 +65,6 @@ const AssignPermissionModal: React.FC<AssignPermissionModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (profile && selectedFuncao) {
-      console.log('📤 Enviando atribuição:', { profileId: profile.id, funcao: selectedFuncao });
       onAssign(profile.id, selectedFuncao);
     }
   };
@@ -75,18 +75,18 @@ const AssignPermissionModal: React.FC<AssignPermissionModalProps> = ({
   const currentRole = currentFunctions.find(f => f !== 'user' && f.trim() !== '') || null;
   const isEditing = !!currentRole;
 
-  // Combinar funções do BD com funções padrão
-  const functionsFromDB = funcoesDB?.map(f => f.nome_funcao) || [];
+  // Combine roles from DB
+  const functionsFromDB = rolesDB?.map(f => f.nome) || [];
   const allAvailableFunctions = [...new Set([...availableFunctions, ...functionsFromDB])].sort();
 
-  // Montar opções para o Combobox
+  // Build combobox options
   const comboboxOptions = allAvailableFunctions.map((funcao) => ({
     value: funcao,
     label: funcao,
   }));
 
   const selectedFuncaoDescricao = selectedFuncao 
-    ? funcoesDB?.find(f => f.nome_funcao === selectedFuncao)?.descricao 
+    ? rolesDB?.find(f => f.nome === selectedFuncao)?.descricao 
     : null;
 
   return (
@@ -146,7 +146,6 @@ const AssignPermissionModal: React.FC<AssignPermissionModalProps> = ({
             )}
           </div>
 
-          {/* Alerta de substituição */}
           {isEditing && selectedFuncao && selectedFuncao !== currentRole && (
             <Alert>
               <AlertCircle className="h-4 w-4" />
@@ -156,7 +155,6 @@ const AssignPermissionModal: React.FC<AssignPermissionModalProps> = ({
             </Alert>
           )}
 
-          {/* Alerta sobre função administrativa */}
           {selectedFuncao && ['SuperAdm', 'Administrador', 'AdmRH', 'AdmLogistica', 'AdmEquipamentos'].includes(selectedFuncao) && (
             <Alert>
               <AlertCircle className="h-4 w-4" />

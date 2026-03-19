@@ -1771,7 +1771,13 @@ export type Database = {
           diarias: number | null
           email: string | null
           empresa_id: string | null
+          endereco_bairro: string | null
+          endereco_cep: string | null
+          endereco_cidade: string | null
           endereco_completo: string | null
+          endereco_estado: string | null
+          endereco_numero: string | null
+          endereco_rua: string | null
           equipe_id: string | null
           escolaridade: string | null
           funcao_id: string | null
@@ -1809,7 +1815,13 @@ export type Database = {
           diarias?: number | null
           email?: string | null
           empresa_id?: string | null
+          endereco_bairro?: string | null
+          endereco_cep?: string | null
+          endereco_cidade?: string | null
           endereco_completo?: string | null
+          endereco_estado?: string | null
+          endereco_numero?: string | null
+          endereco_rua?: string | null
           equipe_id?: string | null
           escolaridade?: string | null
           funcao_id?: string | null
@@ -1847,7 +1859,13 @@ export type Database = {
           diarias?: number | null
           email?: string | null
           empresa_id?: string | null
+          endereco_bairro?: string | null
+          endereco_cep?: string | null
+          endereco_cidade?: string | null
           endereco_completo?: string | null
+          endereco_estado?: string | null
+          endereco_numero?: string | null
+          endereco_rua?: string | null
           equipe_id?: string | null
           escolaridade?: string | null
           funcao_id?: string | null
@@ -4184,6 +4202,101 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      bd_vale_transporte: {
+        Row: {
+          agendamento_id: string | null
+          assinatura_base64: string | null
+          bairro: string | null
+          candidato_id: string | null
+          cep: string | null
+          cidade: string | null
+          comprovante_url: string | null
+          created_at: string | null
+          created_by: string | null
+          data_solicitacao: string | null
+          endereco: string | null
+          estado: string | null
+          id: string
+          linhas: Json | null
+          motivo: string | null
+          motivo_outros_texto: string | null
+          motivos_nao_beneficiario: string[] | null
+          numero: string | null
+          pdf_assinado_url: string | null
+          pdf_gerado_url: string | null
+          pdf_url: string | null
+          rua: string | null
+          tipo: string
+          valor_jae: number | null
+          valor_riocard: number | null
+          valor_total: number | null
+        }
+        Insert: {
+          agendamento_id?: string | null
+          assinatura_base64?: string | null
+          bairro?: string | null
+          candidato_id?: string | null
+          cep?: string | null
+          cidade?: string | null
+          comprovante_url?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          data_solicitacao?: string | null
+          endereco?: string | null
+          estado?: string | null
+          id?: string
+          linhas?: Json | null
+          motivo?: string | null
+          motivo_outros_texto?: string | null
+          motivos_nao_beneficiario?: string[] | null
+          numero?: string | null
+          pdf_assinado_url?: string | null
+          pdf_gerado_url?: string | null
+          pdf_url?: string | null
+          rua?: string | null
+          tipo: string
+          valor_jae?: number | null
+          valor_riocard?: number | null
+          valor_total?: number | null
+        }
+        Update: {
+          agendamento_id?: string | null
+          assinatura_base64?: string | null
+          bairro?: string | null
+          candidato_id?: string | null
+          cep?: string | null
+          cidade?: string | null
+          comprovante_url?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          data_solicitacao?: string | null
+          endereco?: string | null
+          estado?: string | null
+          id?: string
+          linhas?: Json | null
+          motivo?: string | null
+          motivo_outros_texto?: string | null
+          motivos_nao_beneficiario?: string[] | null
+          numero?: string | null
+          pdf_assinado_url?: string | null
+          pdf_gerado_url?: string | null
+          pdf_url?: string | null
+          rua?: string | null
+          tipo?: string
+          valor_jae?: number | null
+          valor_riocard?: number | null
+          valor_total?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_vale_transporte_agendamento_id_fkey"
+            columns: ["agendamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_agendamentos_exames"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {

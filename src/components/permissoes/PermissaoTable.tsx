@@ -12,16 +12,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Permissao, PermissaoFilter } from "@/types/permissao";
+import { type RBACPermission, type RBACPermissionFilter } from "@/services/rbac/permissionsCRUD";
 import { usePagination } from "@/hooks/usePagination";
 import TablePagination from "@/components/ui/table-pagination";
 
 interface PermissaoTableProps {
-  permissoes: Permissao[];
+  permissoes: RBACPermission[];
   isLoading: boolean;
-  onEdit: (permissao: Permissao) => void;
-  onDelete: (permissao: Permissao) => void;
-  filters: PermissaoFilter;
+  onEdit: (permissao: RBACPermission) => void;
+  onDelete: (permissao: RBACPermission) => void;
+  filters: RBACPermissionFilter;
   onFilterChange: (name: string, value: any) => void;
   onResetFilters: () => void;
 }
@@ -47,15 +47,15 @@ const PermissaoTable: React.FC<PermissaoTableProps> = ({
       <Card className="p-4">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div>
-            <label htmlFor="nome_permissao" className="text-sm font-medium">
-              Nome da Permissão
+            <label htmlFor="codigo" className="text-sm font-medium">
+              Código da Permissão
             </label>
             <Input
-              id="nome_permissao"
-              name="nome_permissao"
-              value={filters.nome_permissao || ""}
+              id="codigo"
+              name="codigo"
+              value={filters.codigo || ""}
               onChange={handleInputChange}
-              placeholder="Filtrar por nome"
+              placeholder="Filtrar por código"
               className="mt-1"
             />
           </div>
@@ -88,7 +88,8 @@ const PermissaoTable: React.FC<PermissaoTableProps> = ({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Nome da Permissão</TableHead>
+              <TableHead>Código</TableHead>
+              <TableHead>Nome</TableHead>
               <TableHead>Descrição</TableHead>
               <TableHead>Rota</TableHead>
               <TableHead className="w-[100px]">Ações</TableHead>
@@ -97,20 +98,21 @@ const PermissaoTable: React.FC<PermissaoTableProps> = ({
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-4">
+                <TableCell colSpan={5} className="text-center py-4">
                   Carregando...
                 </TableCell>
               </TableRow>
             ) : pagination.paginatedData.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-4">
+                <TableCell colSpan={5} className="text-center py-4">
                   Nenhuma permissão encontrada
                 </TableCell>
               </TableRow>
             ) : (
               pagination.paginatedData.map((permissao) => (
                 <TableRow key={permissao.id}>
-                  <TableCell>{permissao.nome_permissao}</TableCell>
+                  <TableCell className="font-mono text-sm">{permissao.codigo}</TableCell>
+                  <TableCell>{permissao.nome}</TableCell>
                   <TableCell>{permissao.descricao || "-"}</TableCell>
                   <TableCell>{permissao.rota || "-"}</TableCell>
                   <TableCell>

@@ -22,18 +22,19 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Permissao, PermissaoFormData } from "@/types/permissao";
+import { type RBACPermission, type RBACPermissionFormData } from "@/services/rbac/permissionsCRUD";
 
 interface PermissaoFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  permissao: Permissao | null;
-  onSubmit: (data: PermissaoFormData) => void;
+  permissao: RBACPermission | null;
+  onSubmit: (data: RBACPermissionFormData) => void;
   isSubmitting: boolean;
 }
 
 const formSchema = z.object({
-  nome_permissao: z.string().min(3, "Nome da permissão deve ter pelo menos 3 caracteres"),
+  codigo: z.string().min(3, "Código da permissão deve ter pelo menos 3 caracteres"),
+  nome: z.string().min(3, "Nome deve ter pelo menos 3 caracteres"),
   descricao: z.string().optional(),
   rota: z.string().optional(),
 });
@@ -48,7 +49,8 @@ const PermissaoFormModal: React.FC<PermissaoFormModalProps> = ({
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      nome_permissao: "",
+      codigo: "",
+      nome: "",
       descricao: "",
       rota: "",
     },
@@ -57,13 +59,15 @@ const PermissaoFormModal: React.FC<PermissaoFormModalProps> = ({
   React.useEffect(() => {
     if (permissao) {
       form.reset({
-        nome_permissao: permissao.nome_permissao,
+        codigo: permissao.codigo,
+        nome: permissao.nome,
         descricao: permissao.descricao || "",
         rota: permissao.rota || "",
       });
     } else {
       form.reset({
-        nome_permissao: "",
+        codigo: "",
+        nome: "",
         descricao: "",
         rota: "",
       });
@@ -71,9 +75,9 @@ const PermissaoFormModal: React.FC<PermissaoFormModalProps> = ({
   }, [permissao, form]);
 
   const handleFormSubmit = (data: z.infer<typeof formSchema>) => {
-    // Ensure all required fields are present to satisfy PermissaoFormData type
-    const formData: PermissaoFormData = {
-      nome_permissao: data.nome_permissao,
+    const formData: RBACPermissionFormData = {
+      codigo: data.codigo,
+      nome: data.nome,
       descricao: data.descricao || "",
       rota: data.rota || "",
     };
@@ -93,12 +97,26 @@ const PermissaoFormModal: React.FC<PermissaoFormModalProps> = ({
           <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="nome_permissao"
+              name="codigo"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nome da Permissão</FormLabel>
+                  <FormLabel>Código da Permissão</FormLabel>
                   <FormControl>
-                    <Input placeholder="Nome da permissão" {...field} />
+                    <Input placeholder="ex: dashboard_view" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="nome"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nome</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Nome legível da permissão" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

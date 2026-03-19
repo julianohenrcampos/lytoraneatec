@@ -11,6 +11,12 @@ interface FuncionarioRaw {
   data_nascimento: string | null;
   agencia: string | null;
   conta_corrente: string | null;
+  endereco_rua: string | null;
+  endereco_numero: string | null;
+  endereco_bairro: string | null;
+  endereco_cidade: string | null;
+  endereco_estado: string | null;
+  endereco_cep: string | null;
   bd_funcoes: { nome_funcao: string } | null;
   bd_empresas: { nome_empresa: string } | null;
   bd_centros_custo: { nome_centro_custo: string } | null;
@@ -32,6 +38,12 @@ export const useFuncionarioSearch = () => {
           data_nascimento,
           agencia,
           conta_corrente,
+          endereco_rua,
+          endereco_numero,
+          endereco_bairro,
+          endereco_cidade,
+          endereco_estado,
+          endereco_cep,
           bd_funcoes(nome_funcao),
           bd_empresas(nome_empresa),
           bd_centros_custo!bd_funcionarios_centro_custo_id_fkey(nome_centro_custo)
@@ -58,7 +70,13 @@ export const useFuncionarioSearch = () => {
       empresa: func.bd_empresas?.nome_empresa || '',
       centro_custo: func.bd_centros_custo?.nome_centro_custo || null,
       banco_agencia: func.agencia,
-      banco_conta: func.conta_corrente
+      banco_conta: func.conta_corrente,
+      endereco_rua: func.endereco_rua,
+      endereco_numero: func.endereco_numero,
+      endereco_bairro: func.endereco_bairro,
+      endereco_cidade: func.endereco_cidade,
+      endereco_estado: func.endereco_estado,
+      endereco_cep: func.endereco_cep,
     }));
   }, [funcionariosRaw]);
 

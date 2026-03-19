@@ -217,6 +217,12 @@ export interface FuncionarioSelecionado {
   centro_custo: string | null;
   banco_agencia: string | null;
   banco_conta: string | null;
+  endereco_rua: string | null;
+  endereco_numero: string | null;
+  endereco_bairro: string | null;
+  endereco_cidade: string | null;
+  endereco_estado: string | null;
+  endereco_cep: string | null;
 }
 
 // Helper functions para badges de status

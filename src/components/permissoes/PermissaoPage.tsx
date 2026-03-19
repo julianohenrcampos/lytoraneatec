@@ -22,18 +22,15 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useVincularFuncionario } from "@/hooks/useVincularFuncionario";
 import { useRemoverPermissoes } from "@/hooks/useRemoverPermissoes";
 import { useExcluirUsuario } from "@/hooks/useExcluirUsuario";
-import { useAuthPermissions } from "@/hooks/useAuthPermissions";
+import { useAccessControlHybrid } from "@/hooks/useAccessControlHybrid";
 
 const PermissaoPage: React.FC = () => {
-  // Hook de autenticação para verificar se é SuperAdmin
-  const { userId, isSuperAdmin } = useAuthPermissions();
+  const { userId, isSuperAdmin } = useAccessControlHybrid();
   
-  // Estado para modal de criação de gestor
   const [isCreateGestorOpen, setIsCreateGestorOpen] = useState(false);
   const [isUnlinkDialogOpen, setIsUnlinkDialogOpen] = useState(false);
   const [unlinkingProfileId, setUnlinkingProfileId] = useState<string | null>(null);
 
-  // Hook de vinculação
   const {
     isLinkModalOpen,
     selectedProfileId,
@@ -46,7 +43,6 @@ const PermissaoPage: React.FC = () => {
   } = useVincularFuncionario();
 
   const {
-    // Estados
     isPermissaoFormOpen,
     isFuncaoFormOpen,
     isDeletePermissaoOpen,
@@ -62,8 +58,6 @@ const PermissaoPage: React.FC = () => {
     allPermissoes,
     isSubmitting,
     isDeleting,
-    
-    // Novos estados para usuários
     isAssignPermissionOpen,
     isUserDetailsOpen,
     isRemoveAllPermissionsOpen,
@@ -71,9 +65,7 @@ const PermissaoPage: React.FC = () => {
     profileFilter,
     profiles,
     isProfilesLoading,
-    availableFunctions, // Nova propriedade
-    
-    // Ações
+    availableFunctions,
     setIsPermissaoFormOpen,
     setIsFuncaoFormOpen,
     setIsDeletePermissaoOpen,
@@ -92,8 +84,6 @@ const PermissaoPage: React.FC = () => {
     handleSaveFuncaoPermissao,
     refetchPermissoes,
     refetchFuncoesPermissao,
-
-    // Novas ações para usuários
     setIsAssignPermissionOpen,
     setIsUserDetailsOpen,
     setIsRemoveAllPermissionsOpen,
@@ -108,7 +98,6 @@ const PermissaoPage: React.FC = () => {
 
   const { removerTodasFuncoes, isRemoving } = useRemoverPermissoes();
 
-  // Hook de exclusão de usuário
   const {
     isDeleting: isDeletingUser,
     isDeleteDialogOpen,
@@ -131,13 +120,6 @@ const PermissaoPage: React.FC = () => {
     if (result.success) {
       refetchProfiles();
     }
-  };
-
-  // Buscar nome da função de permissão para exibir nos detalhes
-  const getFuncaoPermissaoNome = (funcaoPermissaoId: string | null) => {
-    if (!funcaoPermissaoId || !funcoesPermissao) return undefined;
-    const funcao = funcoesPermissao.find(f => f.id === funcaoPermissaoId);
-    return funcao?.nome_funcao;
   };
 
   return (
@@ -186,7 +168,6 @@ const PermissaoPage: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="users" className="space-y-4">
-          {/* Botão Novo Gestor - apenas para SuperAdmin */}
           {isSuperAdmin && (
             <div className="flex justify-end">
               <Button onClick={() => setIsCreateGestorOpen(true)}>
@@ -211,7 +192,7 @@ const PermissaoPage: React.FC = () => {
             }}
             onRemoveAllPermissions={openRemoveAllPermissions}
             onDeleteUser={openDeleteDialog}
-            currentUserId={userId}
+            currentUserId={userId || undefined}
             isSuperAdmin={isSuperAdmin}
             filters={profileFilter}
             onFilterChange={handleProfileFilterChange}
@@ -220,7 +201,7 @@ const PermissaoPage: React.FC = () => {
         </TabsContent>
       </Tabs>
       
-      {/* Modais existentes */}
+      {/* Modais */}
       <PermissaoFormModal
         isOpen={isPermissaoFormOpen}
         onClose={() => setIsPermissaoFormOpen(false)}
@@ -238,7 +219,6 @@ const PermissaoPage: React.FC = () => {
         isSubmitting={isSubmitting}
       />
 
-      {/* Novos modais para usuários */}
       <AssignPermissionModal
         isOpen={isAssignPermissionOpen}
         onClose={() => setIsAssignPermissionOpen(false)}
@@ -254,7 +234,6 @@ const PermissaoPage: React.FC = () => {
         profile={currentProfile}
       />
 
-      {/* Modal de vinculação de funcionário */}
       <LinkFuncionarioModal
         isOpen={isLinkModalOpen}
         onClose={closeLinkModal}
@@ -276,7 +255,7 @@ const PermissaoPage: React.FC = () => {
         onClose={() => setIsDeletePermissaoOpen(false)}
         onConfirm={handleDeletePermissao}
         permissaoId={currentPermissao?.id}
-        permissaoNome={currentPermissao?.nome_permissao}
+        permissaoNome={currentPermissao?.codigo}
         isDeleting={isDeleting}
       />
       
@@ -285,11 +264,10 @@ const PermissaoPage: React.FC = () => {
         onClose={() => setIsDeleteFuncaoPermissaoOpen(false)}
         onConfirm={handleDeleteFuncaoPermissao}
         funcaoPermissaoId={currentFuncaoPermissao?.id}
-        funcaoPermissaoNome={currentFuncaoPermissao?.nome_funcao}
+        funcaoPermissaoNome={currentFuncaoPermissao?.nome}
         isDeleting={isDeleting}
       />
 
-      {/* Modal de exclusão de usuário */}
       <DeleteUserDialog
         isOpen={isDeleteDialogOpen}
         onClose={closeDeleteDialog}
@@ -298,14 +276,12 @@ const PermissaoPage: React.FC = () => {
         isDeleting={isDeletingUser}
       />
 
-      {/* Modal de criação de gestor */}
       <CreateGestorModal
         isOpen={isCreateGestorOpen}
         onClose={() => setIsCreateGestorOpen(false)}
         onSuccess={refetchProfiles}
       />
 
-      {/* Diálogo de confirmação para desvincular funcionário */}
       <ConfirmDialog
         isOpen={isUnlinkDialogOpen}
         onClose={() => {

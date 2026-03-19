@@ -16,33 +16,33 @@ interface StepIndicatorProps {
 
 export const StepIndicator: React.FC<StepIndicatorProps> = ({ steps, onStepClick }) => {
   return (
-    <div className="flex items-center justify-center w-full mb-6">
+    <div className="flex items-start justify-between w-full mb-6 px-2">
       {steps.map((step, index) => (
         <React.Fragment key={step.number}>
           <div
             className={cn(
-              "flex items-center cursor-pointer",
+              "flex flex-col items-center cursor-pointer min-w-0",
               !step.completed && !step.current && "opacity-50"
             )}
             onClick={() => step.completed || step.current ? onStepClick?.(step.number) : null}
           >
             <div
               className={cn(
-                "flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors",
+                "flex items-center justify-center w-8 h-8 rounded-full border-2 transition-colors shrink-0",
                 step.completed && "bg-primary border-primary text-primary-foreground",
                 step.current && !step.completed && "border-primary text-primary bg-primary/10",
                 !step.completed && !step.current && "border-muted-foreground text-muted-foreground"
               )}
             >
               {step.completed ? (
-                <Check className="h-5 w-5" />
+                <Check className="h-4 w-4" />
               ) : (
-                <span className="text-sm font-semibold">{step.number}</span>
+                <span className="text-xs font-semibold">{step.number}</span>
               )}
             </div>
             <span
               className={cn(
-                "ml-2 text-sm font-medium",
+                "mt-1.5 text-xs font-medium text-center leading-tight",
                 step.current && "text-primary",
                 !step.current && step.completed && "text-foreground",
                 !step.current && !step.completed && "text-muted-foreground"
@@ -55,7 +55,7 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({ steps, onStepClick
           {index < steps.length - 1 && (
             <div
               className={cn(
-                "w-16 h-0.5 mx-4",
+                "flex-1 h-0.5 mx-1 mt-4 shrink",
                 step.completed ? "bg-primary" : "bg-muted"
               )}
             />

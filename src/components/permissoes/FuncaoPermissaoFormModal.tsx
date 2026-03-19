@@ -25,21 +25,22 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
-import { FuncaoPermissao, Permissao, FuncaoPermissaoFormData } from "@/types/permissao";
+import { type RBACRole, type RBACRoleFormData } from "@/services/rbac/rolesCRUD";
+import { type RBACPermission } from "@/services/rbac/permissionsCRUD";
 
 interface FuncaoPermissaoFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  funcaoPermissao: FuncaoPermissao | null;
-  permissoes: Permissao[];
-  onSubmit: (data: FuncaoPermissaoFormData) => void;
+  funcaoPermissao: RBACRole | null;
+  permissoes: RBACPermission[];
+  onSubmit: (data: RBACRoleFormData) => void;
   isSubmitting: boolean;
 }
 
 const formSchema = z.object({
-  nome_funcao: z.string().min(3, "Nome da função deve ter pelo menos 3 caracteres"),
+  nome: z.string().min(3, "Nome da função deve ter pelo menos 3 caracteres"),
   descricao: z.string().optional(),
-  permissoes: z.array(z.string()),
+  permissions: z.array(z.string()),
 });
 
 const FuncaoPermissaoFormModal: React.FC<FuncaoPermissaoFormModalProps> = ({
@@ -53,57 +54,62 @@ const FuncaoPermissaoFormModal: React.FC<FuncaoPermissaoFormModalProps> = ({
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      nome_funcao: "",
+      nome: "",
       descricao: "",
-      permissoes: [],
+      permissions: [],
     },
   });
 
   React.useEffect(() => {
     if (funcaoPermissao) {
       form.reset({
-        nome_funcao: funcaoPermissao.nome_funcao,
+        nome: funcaoPermissao.nome,
         descricao: funcaoPermissao.descricao || "",
-        permissoes: funcaoPermissao.permissoes || [],
+        permissions: funcaoPermissao.permissions || [],
       });
     } else {
       form.reset({
-        nome_funcao: "",
+        nome: "",
         descricao: "",
-        permissoes: [],
+        permissions: [],
       });
     }
   }, [funcaoPermissao, form]);
 
   const handleFormSubmit = (data: z.infer<typeof formSchema>) => {
-    // Create a valid FuncaoPermissaoFormData object with all required fields
-    const formData: FuncaoPermissaoFormData = {
-      nome_funcao: data.nome_funcao,
+    const formData: RBACRoleFormData = {
+      nome: data.nome,
       descricao: data.descricao || "",
-      permissoes: data.permissoes,
+      permissions: data.permissions,
     };
     onSubmit(formData);
   };
 
-  // Group permissions by module based on their name
+  // Group permissions by module based on their codigo
   const groupedPermissions = React.useMemo(() => {
-    const groups: Record<string, Permissao[]> = {
+    const groups: Record<string, RBACPermission[]> = {
       Dashboard: [],
       'Gestão de RH': [],
       'Gestão de Máquinas/Equipamentos': [],
       'Requisições e Logística': [],
+      'SSO': [],
+      'Diárias': [],
       'Outros': [],
     };
 
     permissoes.forEach(permission => {
-      if (permission.nome_permissao.startsWith('dashboard_')) {
+      if (permission.codigo.startsWith('dashboard_')) {
         groups['Dashboard'].push(permission);
-      } else if (permission.nome_permissao.startsWith('gestao_rh_')) {
+      } else if (permission.codigo.startsWith('gestao_rh_')) {
         groups['Gestão de RH'].push(permission);
-      } else if (permission.nome_permissao.startsWith('gestao_maquinas_')) {
+      } else if (permission.codigo.startsWith('gestao_maquinas_')) {
         groups['Gestão de Máquinas/Equipamentos'].push(permission);
-      } else if (permission.nome_permissao.startsWith('requisicoes_')) {
+      } else if (permission.codigo.startsWith('requisicoes_')) {
         groups['Requisições e Logística'].push(permission);
+      } else if (permission.codigo.startsWith('acesso_sso_')) {
+        groups['SSO'].push(permission);
+      } else if (permission.codigo.startsWith('diarias_')) {
+        groups['Diárias'].push(permission);
       } else {
         groups['Outros'].push(permission);
       }
@@ -125,7 +131,7 @@ const FuncaoPermissaoFormModal: React.FC<FuncaoPermissaoFormModalProps> = ({
           <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="nome_funcao"
+              name="nome"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Nome da Função</FormLabel>
@@ -157,7 +163,7 @@ const FuncaoPermissaoFormModal: React.FC<FuncaoPermissaoFormModalProps> = ({
 
             <FormField
               control={form.control}
-              name="permissoes"
+              name="permissions"
               render={() => (
                 <FormItem>
                   <FormLabel>Permissões</FormLabel>
@@ -173,7 +179,7 @@ const FuncaoPermissaoFormModal: React.FC<FuncaoPermissaoFormModalProps> = ({
                                   <FormField
                                     key={permission.id}
                                     control={form.control}
-                                    name="permissoes"
+                                    name="permissions"
                                     render={({ field }) => (
                                       <FormItem
                                         key={permission.id}
@@ -194,7 +200,7 @@ const FuncaoPermissaoFormModal: React.FC<FuncaoPermissaoFormModalProps> = ({
                                           />
                                         </FormControl>
                                         <FormLabel className="font-normal cursor-pointer text-sm">
-                                          {permission.descricao || permission.nome_permissao}
+                                          {permission.descricao || permission.nome || permission.codigo}
                                         </FormLabel>
                                       </FormItem>
                                     )}

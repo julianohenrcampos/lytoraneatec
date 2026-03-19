@@ -18,6 +18,7 @@ import {
 import { useAgendamentoExames } from '@/hooks/ssoAgendamentoExames';
 import { useDesligamentos } from '@/hooks/useDesligamentos';
 import { agendamentoExamesStorageService } from '@/services/ssoAgendamentoExames/agendamentoExamesStorageService';
+import { valeTransporteService } from '@/services/valeTransporte/valeTransporteService';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2, Paperclip, Trash2, Download, ArrowLeft, ArrowRight, User } from 'lucide-react';
@@ -26,13 +27,14 @@ import { Etapa1CadastroForm } from './Etapa1CadastroForm';
 import { Etapa2AgendamentoForm } from './Etapa2AgendamentoForm';
 import { DemissionalFields, DemissionalFormData, initialDemissionalData } from './DemissionalFields';
 import { Badge } from '@/components/ui/badge';
+import { ValeTransporteStep, ValeTransporteStepData } from '@/components/agendamento-exames/vale-transporte';
+import { LinhaTransporte } from '@/components/agendamento-exames/vale-transporte/LinhaTransporteItem';
 
 interface AgendamentoExamesDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   agendamentoId?: string;
   canChangeStatus?: boolean;
-  // Props para modo funcionário existente
   modoFuncionario?: boolean;
   tipoExamePreSelecionado?: TipoExame;
   funcionarioData?: FuncionarioSelecionado;
@@ -76,6 +78,27 @@ const initialEtapa2Data: Etapa2FormData = {
   motivo_mudanca_risco: ''
 };
 
+const today = new Date().toISOString().split('T')[0];
+
+const initialVtData: ValeTransporteStepData = {
+  isNaoBeneficiario: false,
+  endereco: { rua: '', numero: '', bairro: '', cidade: '', estado: '', cep: '' },
+  beneficiarioData: {
+    endereco: { rua: '', numero: '', bairro: '', cidade: '', estado: '', cep: '' },
+    linhas: [{ nome: '', numero: '', tarifa: 0, operadora: 'Jaé' } as LinhaTransporte],
+    motivo: '',
+    data_solicitacao: today,
+  },
+  naoBeneficiarioData: {
+    motivos: [],
+    motivo_outros_texto: '',
+    data_solicitacao: today,
+  },
+  pdfGerado: false,
+  pdfAssinadoFile: undefined,
+  skipped: true,
+};
+
 export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = ({
   open,
   onOpenChange,
@@ -88,6 +111,7 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
   const [currentStep, setCurrentStep] = useState(1);
   const [etapa1Data, setEtapa1Data] = useState<Etapa1FormData>(initialEtapa1Data);
   const [etapa2Data, setEtapa2Data] = useState<Etapa2FormData>(initialEtapa2Data);
+  const [vtData, setVtData] = useState<ValeTransporteStepData>(initialVtData);
   const [tecnicoSeguranca, setTecnicoSeguranca] = useState('');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
@@ -106,17 +130,28 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
       const mappedData = mapFuncionarioToEtapa1(funcionarioData);
       setEtapa1Data(prev => ({ ...prev, ...mappedData }));
       
-      // Pré-selecionar tipo de exame
       if (tipoExamePreSelecionado) {
         setEtapa2Data(prev => ({ ...prev, tipo_exame: tipoExamePreSelecionado }));
       }
+
+      // Auto-preencher endereço no VT a partir do funcionário
+      setVtData(prev => ({
+        ...prev,
+        endereco: {
+          rua: funcionarioData.endereco_rua || '',
+          numero: funcionarioData.endereco_numero || '',
+          bairro: funcionarioData.endereco_bairro || '',
+          cidade: funcionarioData.endereco_cidade || '',
+          estado: funcionarioData.endereco_estado || '',
+          cep: funcionarioData.endereco_cep || '',
+        },
+      }));
       
-      // No modo funcionário, ir direto para Etapa 2 pois dados já estão preenchidos
       setCurrentStep(2);
     }
   }, [modoFuncionario, funcionarioData, tipoExamePreSelecionado, agendamentoId, open]);
 
-  // Buscar nome do usuário logado ao abrir novo agendamento
+  // Buscar nome do usuário logado
   useEffect(() => {
     const fetchCurrentUser = async () => {
       if (!agendamentoId && open) {
@@ -137,7 +172,7 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
     fetchCurrentUser();
   }, [agendamentoId, open]);
 
-  // Carregar dados do agendamento existente OU resetar (mas NÃO resetar quando for modo funcionário)
+  // Carregar dados do agendamento existente OU resetar
   useEffect(() => {
     if (agendamento && agendamentoId) {
       setEtapa1Data({
@@ -178,21 +213,19 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
       
       setTecnicoSeguranca(agendamento.tecnico_seguranca || '');
       
-      // Se já está na etapa 2, ir direto para ela
       if (agendamento.etapa1_concluida) {
         setCurrentStep(2);
       }
     } else if (!agendamentoId && !modoFuncionario && open) {
-      // Só resetar se NÃO for modo funcionário - evita sobrescrever dados pré-preenchidos
       setEtapa1Data(initialEtapa1Data);
       setEtapa2Data(initialEtapa2Data);
+      setVtData(initialVtData);
       setCurrentStep(1);
     }
   }, [agendamento, agendamentoId, open, modoFuncionario]);
 
-  // Validação da Etapa 1 (data_inicio_prevista removido - será calculado na Etapa 2)
+  // Validação da Etapa 1
   const isEtapa1Valid = useMemo(() => {
-    // Se for funcionário existente (Retorno/Demissional/Periódico), validar apenas campos essenciais
     if (modoFuncionario) {
       const camposEssenciais = [
         etapa1Data.nome_colaborador,
@@ -203,7 +236,6 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
       return camposEssenciais.every(field => field && field.trim() !== '');
     }
     
-    // Para NOVO funcionário (Admissional), validar TODOS os campos
     const requiredFields = [
       etapa1Data.nome_colaborador,
       etapa1Data.telefone_celular,
@@ -216,14 +248,12 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
     const allFieldsFilled = requiredFields.every(field => field && field.trim() !== '');
     if (!allFieldsFilled) return false;
     
-    // Se tem conta Santander, verificar agência e conta
     if (etapa1Data.possui_conta_santander) {
       if (!etapa1Data.banco_agencia || !etapa1Data.banco_conta) {
         return false;
       }
     }
     
-    // Para NOVO (Admissional), validar checklist obrigatório (menos conta Santander que já foi validado acima)
     const checklistObrigatorio = [
       etapa1Data.doc_titulo_eleitor,
       etapa1Data.doc_pis_pasep,
@@ -239,7 +269,7 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
     return checklistObrigatorio.every(field => field === true);
   }, [etapa1Data, modoFuncionario]);
 
-  // Validação da Etapa 2
+  // Validação da Etapa 2 (agora é step 2 = checklist, mas aqui mantemos a lógica original)
   const isEtapa2Valid = useMemo(() => {
     const baseValid = (
       etapa2Data.tipo_exame &&
@@ -247,16 +277,33 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
       etapa2Data.data_agendamento &&
       etapa2Data.horario_agendamento
     );
-    // Mudança de Risco requer motivo
     if (etapa2Data.tipo_exame === 'Mudança de Risco') {
       return baseValid && !!etapa2Data.motivo_mudanca_risco;
     }
-    // Demissional requer motivo do desligamento
     if (etapa2Data.tipo_exame === 'Demissional') {
       return baseValid && !!demissionalData.motivo;
     }
     return baseValid;
   }, [etapa2Data, demissionalData]);
+
+  // Validação VT (step 3) — opcional, mas se preenchido, validações se aplicam
+  const isVtValid = useMemo(() => {
+    if (vtData.skipped) return true;
+    const hasPdf = vtData.pdfGerado || !!vtData.pdfAssinadoFile;
+    if (!hasPdf) return false;
+    if (vtData.isNaoBeneficiario) {
+      const end = vtData.endereco;
+      return !!end.rua.trim() && !!end.numero.trim() && !!end.bairro.trim() && !!end.cidade.trim() && vtData.naoBeneficiarioData.motivos.length > 0;
+    }
+    const end = vtData.endereco;
+    const endValid = !!end.rua.trim() && !!end.numero.trim() && !!end.bairro.trim() && !!end.cidade.trim();
+    if (!endValid) return false;
+    return (
+      vtData.beneficiarioData.linhas.length >= 1 &&
+      vtData.beneficiarioData.linhas.some(l => l.nome.trim()) &&
+      !!vtData.beneficiarioData.motivo
+    );
+  }, [vtData]);
 
   // Handlers
   const handleEtapa1Change = (field: keyof Etapa1FormData, value: any) => {
@@ -266,7 +313,6 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
   const handleEtapa2Change = (field: keyof Etapa2FormData, value: any) => {
     setEtapa2Data(prev => ({ ...prev, [field]: value }));
     
-    // Calcular data de início automaticamente quando data de agendamento mudar (exceto Demissional)
     if (field === 'data_agendamento' && value && etapa2Data.tipo_exame !== 'Demissional') {
       const dataInicio = calcularDataInicioPrevista(value);
       setEtapa1Data(prev => ({ ...prev, data_inicio_prevista: dataInicio }));
@@ -286,21 +332,38 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
   };
 
   const handleNextStep = () => {
-    if (!isEtapa1Valid) {
+    if (currentStep === 1 && !isEtapa1Valid) {
       toast.error('Preencha todos os campos obrigatórios da Etapa 1');
       return;
     }
-    setCurrentStep(2);
+    if (currentStep === 2) {
+      // Step 2 não precisa de validação para avançar para VT
+    }
+    if (currentStep === 3 && !isVtValid) {
+      const missing: string[] = [];
+      if (!vtData.pdfGerado && !vtData.pdfAssinadoFile) missing.push('PDF assinado');
+      const end = vtData.endereco;
+      if (!end.rua.trim() || !end.numero.trim() || !end.bairro.trim() || !end.cidade.trim()) missing.push('Endereço (rua, número, bairro, cidade)');
+      if (!vtData.isNaoBeneficiario) {
+        if (!vtData.beneficiarioData.linhas.some(l => l.nome.trim())) missing.push('Linha de transporte');
+        if (!vtData.beneficiarioData.motivo) missing.push('Motivo');
+      } else {
+        if (vtData.naoBeneficiarioData.motivos.length === 0) missing.push('Motivo de não beneficiário');
+      }
+      toast.error(missing.length > 0 ? `Campos faltando: ${missing.join(', ')}` : 'Preencha os campos obrigatórios ou pule esta etapa');
+      return;
+    }
+    setCurrentStep(prev => Math.min(prev + 1, 4));
   };
 
   const handlePreviousStep = () => {
-    setCurrentStep(1);
+    setCurrentStep(prev => Math.max(prev - 1, 1));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (currentStep === 1) {
+    if (currentStep < 4) {
       handleNextStep();
       return;
     }
@@ -311,7 +374,6 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
     }
     
     try {
-      // Combinar dados das duas etapas
       const formData: AgendamentoExameFormData = {
         ...etapa1Data,
         ...etapa2Data,
@@ -332,7 +394,7 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
         savedAgendamentoId = newAgendamento?.id;
       }
       
-      // Se for Demissional e novo agendamento, criar desligamento simultaneamente
+      // Demissional
       if (etapa2Data.tipo_exame === 'Demissional' && !agendamentoId && funcionarioData?.id) {
         await createDesligamento.mutateAsync({
           funcionario_id: funcionarioData.id,
@@ -342,6 +404,19 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
           recontratavel: demissionalData.recontratavel,
           observacoes: demissionalData.observacoes_desligamento,
         });
+      }
+
+      // Vale Transporte (se não pulou)
+      if (!vtData.skipped && savedAgendamentoId) {
+        const candidato = {
+          nome: etapa1Data.nome_colaborador,
+          cpf: etapa1Data.cpf,
+          funcao: etapa1Data.funcao,
+          empresa: etapa1Data.empresa,
+          data_nascimento: etapa1Data.data_nascimento,
+          telefone: etapa1Data.telefone_celular,
+        };
+        await valeTransporteService.salvar(savedAgendamentoId, vtData, candidato);
       }
       
       // Upload de arquivos pendentes
@@ -361,7 +436,6 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
     }
   };
 
-  // Título do dialog baseado no modo
   const getDialogTitle = () => {
     if (agendamentoId) return 'Editar Agendamento';
     if (modoFuncionario && tipoExamePreSelecionado) {
@@ -370,10 +444,23 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
     return 'Novo Agendamento';
   };
 
+  const candidatoVt = useMemo(() => ({
+    nome: etapa1Data.nome_colaborador,
+    cpf: etapa1Data.cpf,
+    funcao: etapa1Data.funcao,
+    empresa: etapa1Data.empresa,
+    data_nascimento: etapa1Data.data_nascimento,
+    telefone: etapa1Data.telefone_celular,
+  }), [etapa1Data]);
+
   const steps = [
     { number: 1, title: 'Cadastro', completed: isEtapa1Valid && currentStep > 1, current: currentStep === 1 },
-    { number: 2, title: 'Agendamento', completed: false, current: currentStep === 2 }
+    { number: 2, title: 'Agendamento', completed: isEtapa2Valid && currentStep > 2, current: currentStep === 2 },
+    { number: 3, title: 'Vale Transporte', completed: (isVtValid && !vtData.skipped) && currentStep > 3, current: currentStep === 3 },
+    { number: 4, title: 'Finalizar', completed: false, current: currentStep === 4 }
   ];
+
+  const isLastStep = currentStep === 4;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -389,7 +476,6 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
           </DialogTitle>
         </DialogHeader>
 
-        {/* Info do funcionário selecionado (modo funcionário) */}
         {modoFuncionario && funcionarioData && (
           <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg border">
             <User className="h-5 w-5 text-muted-foreground" />
@@ -405,15 +491,16 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
         <StepIndicator 
           steps={steps} 
           onStepClick={(step) => {
-            if (step === 1 || isEtapa1Valid) {
-              setCurrentStep(step);
-            }
+            if (step === 1) setCurrentStep(1);
+            else if (step === 2 && isEtapa1Valid) setCurrentStep(2);
+            else if (step === 3 && isEtapa1Valid) setCurrentStep(3);
+            else if (step === 4 && isEtapa1Valid && isEtapa2Valid) setCurrentStep(4);
           }}
         />
         
         <ScrollArea className="max-h-[60vh] pr-4">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {currentStep === 1 ? (
+            {currentStep === 1 && (
               <Etapa1CadastroForm
                 formData={etapa1Data}
                 onChange={handleEtapa1Change}
@@ -422,7 +509,9 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
                 centrosCusto={centrosCusto}
                 modoFuncionario={modoFuncionario}
               />
-            ) : (
+            )}
+            
+            {currentStep === 2 && (
               <>
                 <Etapa2AgendamentoForm
                   etapa1Data={etapa1Data}
@@ -432,15 +521,26 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
                   canChangeStatus={canChangeStatus}
                 />
                 
-                {/* Campos de Desligamento (apenas para Demissional) */}
                 {etapa2Data.tipo_exame === 'Demissional' && (
                   <DemissionalFields
                     formData={demissionalData}
                     onChange={handleDemissionalChange}
                   />
                 )}
-                
-                {/* Seção de Responsável */}
+              </>
+            )}
+
+            {currentStep === 3 && (
+              <ValeTransporteStep
+                data={vtData}
+                onChange={setVtData}
+                candidato={candidatoVt}
+              />
+            )}
+
+            {currentStep === 4 && (
+              <>
+                {/* Responsável */}
                 <div className="space-y-2">
                   <Label>Responsável</Label>
                   <Input
@@ -450,7 +550,7 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
                   />
                 </div>
                 
-                {/* Seção de Anexos */}
+                {/* Anexos */}
                 {etapa2Data.documentos_anexados && (
                   <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
                     <Label className="flex items-center gap-2">
@@ -498,6 +598,18 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
                     )}
                   </div>
                 )}
+
+                {/* Resumo */}
+                <div className="p-4 border rounded-lg bg-muted/20 space-y-2">
+                  <p className="font-medium text-sm">Resumo do Agendamento</p>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <p><span className="text-muted-foreground">Nome:</span> {etapa1Data.nome_colaborador}</p>
+                    <p><span className="text-muted-foreground">CPF:</span> {etapa1Data.cpf}</p>
+                    <p><span className="text-muted-foreground">Tipo Exame:</span> {etapa2Data.tipo_exame}</p>
+                    <p><span className="text-muted-foreground">Data:</span> {etapa2Data.data_agendamento}</p>
+                    <p><span className="text-muted-foreground">VT:</span> {vtData.skipped ? 'Não preenchido' : vtData.isNaoBeneficiario ? 'Não beneficiário' : 'Solicitado'}</p>
+                  </div>
+                </div>
               </>
             )}
           </form>
@@ -506,26 +618,26 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
         {/* Botões de navegação */}
         <div className="flex justify-between gap-2 pt-4 border-t">
           <div>
-            {currentStep === 2 && (
-              <Button type="button" variant="outline" onClick={handlePreviousStep}>
-                <ArrowLeft className="h-4 w-4 mr-2" />
+            {currentStep > 1 && (
+              <Button type="button" variant="outline" size="sm" onClick={handlePreviousStep}>
+                <ArrowLeft className="h-4 w-4 mr-1" />
                 Voltar
               </Button>
             )}
           </div>
           
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <div className="flex gap-1.5">
+            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
             
-            {currentStep === 1 ? (
+            {!isLastStep ? (
               <Button 
                 type="button" 
                 onClick={handleNextStep}
-                disabled={!isEtapa1Valid}
+                disabled={currentStep === 1 && !isEtapa1Valid}
               >
-                Próximo
+                {currentStep === 3 ? 'Pular / Próximo' : 'Próximo'}
                 <ArrowRight className="h-4 w-4 ml-2" />
               </Button>
             ) : (
