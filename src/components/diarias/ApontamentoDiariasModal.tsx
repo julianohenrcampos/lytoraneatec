@@ -111,11 +111,13 @@ function calcularJornada(entrada: string | undefined, saida: string | undefined)
   let totalMinutos = (hS * 60 + mS) - (hE * 60 + mE);
   if (totalMinutos < 0) totalMinutos += 24 * 60;
   
-  const horas = totalMinutos / 60;
+  const horasBrutas = totalMinutos / 60;
+  // Descontar 1h de almoço se jornada bruta > 6h
+  const horas = horasBrutas > 6 ? horasBrutas - 1 : horasBrutas;
 
-  if (horas > 12) return { horas, tipo: 'uma_e_meia', excede12h: true };
-  if (horas > 9) return { horas, tipo: 'uma_e_meia', excede12h: false };
-  if (horas > 4 + 20/60) return { horas, tipo: 'completa', excede12h: false };
+  if (horasBrutas > 12) return { horas: horasBrutas, tipo: 'uma_e_meia', excede12h: true };
+  if (horas >= 9.75) return { horas, tipo: 'uma_e_meia', excede12h: false }; // >= 9:45
+  if (horas >= 4.5) return { horas, tipo: 'completa', excede12h: false };    // >= 4:30
   if (horas > 0) return { horas, tipo: 'meia', excede12h: false };
   return { horas, tipo: 'nenhuma', excede12h: false };
 }

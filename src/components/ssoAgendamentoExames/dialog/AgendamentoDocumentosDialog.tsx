@@ -7,7 +7,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Eye, Download, FileText, Image, FileWarning } from 'lucide-react';
+import { Loader2, Eye, Download, FileText, Image, FileWarning, RefreshCw } from 'lucide-react';
 import { valeTransporteService } from '@/services/valeTransporte/valeTransporteService';
 import { toast } from 'sonner';
 import PdfViewer from './PdfViewer';
@@ -24,6 +24,16 @@ interface AgendamentoDocumentosDialogProps {
   agendamentoId: string | undefined;
 }
 
+// Helper to detect if a doc is a VT replaceable document
+function getVtDocType(doc: DocumentoInfo): 'comprovante' | 'declaracao' | null {
+  const nomeLower = doc.nome.toLowerCase();
+  if (nomeLower.includes('comprovante')) return 'comprovante';
+  if (nomeLower.includes('assinada') || nomeLower.includes('declaração') || nomeLower.includes('solicitação')) {
+    if (nomeLower.includes('assinada')) return 'declaracao';
+  }
+  return null;
+}
+
 export const AgendamentoDocumentosDialog: React.FC<AgendamentoDocumentosDialogProps> = ({
   open,
   onOpenChange,
@@ -32,12 +42,17 @@ export const AgendamentoDocumentosDialog: React.FC<AgendamentoDocumentosDialogPr
   const [documentos, setDocumentos] = useState<DocumentoInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [replacingDoc, setReplacingDoc] = useState<string | null>(null);
 
   // Fullscreen viewer state
   const [viewerBlob, setViewerBlob] = useState<Blob | null>(null);
   const [viewerType, setViewerType] = useState<'pdf' | 'imagem' | null>(null);
   const [viewerFileName, setViewerFileName] = useState('');
   const [viewerImageUrl, setViewerImageUrl] = useState<string | null>(null);
+
+  // Hidden file input refs for replacement
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingReplaceRef = useRef<{ docType: 'comprovante' | 'declaracao' } | null>(null);
 
   const cleanupViewer = useCallback(() => {
     if (viewerImageUrl) {
@@ -130,6 +145,35 @@ export const AgendamentoDocumentosDialog: React.FC<AgendamentoDocumentosDialogPr
     }
   };
 
+  const handleReplace = (docType: 'comprovante' | 'declaracao') => {
+    pendingReplaceRef.current = { docType };
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !agendamentoId || !pendingReplaceRef.current) return;
+
+    const { docType } = pendingReplaceRef.current;
+    const key = `replace-${docType}`;
+    setReplacingDoc(key);
+
+    try {
+      await valeTransporteService.substituirDocumento(agendamentoId, docType, file);
+      toast.success('Documento substituído com sucesso!');
+      await fetchDocumentos();
+    } catch (error) {
+      console.error('Erro ao substituir documento:', error);
+      toast.error('Erro ao substituir documento');
+    } finally {
+      setReplacingDoc(null);
+      pendingReplaceRef.current = null;
+    }
+  };
+
   const handleDownloadFromViewer = () => {
     if (viewerBlob) {
       const url = URL.createObjectURL(viewerBlob);
@@ -172,51 +216,80 @@ export const AgendamentoDocumentosDialog: React.FC<AgendamentoDocumentosDialogPr
             </div>
           ) : (
             <div className="space-y-4">
-              {documentos.map((doc) => (
-                <div key={doc.path} className="rounded-lg border p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {getIcon(doc.tipo)}
-                      <span className="font-medium text-sm">{doc.nome}</span>
-                      <Badge variant="secondary" className="text-xs">
-                        {doc.tipo === 'pdf' ? 'PDF' : 'Imagem'}
-                      </Badge>
-                    </div>
-                    <div className="flex gap-1.5">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handlePreview(doc)}
-                        disabled={loadingAction === doc.path}
-                      >
-                        {loadingAction === doc.path ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Eye className="h-3.5 w-3.5" />
+              {documentos.map((doc) => {
+                const vtDocType = getVtDocType(doc);
+                const isReplacing = replacingDoc === `replace-${vtDocType}`;
+
+                return (
+                  <div key={doc.path} className="rounded-lg border p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {getIcon(doc.tipo)}
+                        <span className="font-medium text-sm">{doc.nome}</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {doc.tipo === 'pdf' ? 'PDF' : 'Imagem'}
+                        </Badge>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handlePreview(doc)}
+                          disabled={loadingAction === doc.path}
+                        >
+                          {loadingAction === doc.path ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Eye className="h-3.5 w-3.5" />
+                          )}
+                          <span className="ml-1.5 text-xs">Visualizar</span>
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDownload(doc)}
+                          disabled={loadingAction === `download-${doc.path}`}
+                        >
+                          {loadingAction === `download-${doc.path}` ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Download className="h-3.5 w-3.5" />
+                          )}
+                          <span className="ml-1.5 text-xs">Baixar</span>
+                        </Button>
+                        {vtDocType && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleReplace(vtDocType)}
+                            disabled={isReplacing}
+                          >
+                            {isReplacing ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-3.5 w-3.5" />
+                            )}
+                            <span className="ml-1.5 text-xs">Substituir</span>
+                          </Button>
                         )}
-                        <span className="ml-1.5 text-xs">Visualizar</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDownload(doc)}
-                        disabled={loadingAction === `download-${doc.path}`}
-                      >
-                        {loadingAction === `download-${doc.path}` ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Download className="h-3.5 w-3.5" />
-                        )}
-                        <span className="ml-1.5 text-xs">Baixar</span>
-                      </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Hidden file input for replacement */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        className="hidden"
+        accept=".pdf,.jpg,.jpeg,.png,.webp"
+        onChange={handleFileSelected}
+      />
 
       {/* Fullscreen PDF Viewer */}
       {viewerType === 'pdf' && viewerBlob && (

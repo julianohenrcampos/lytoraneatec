@@ -128,6 +128,9 @@ const SSOAgendamentoExames: React.FC = () => {
   };
 
   const handleEdit = (id: string) => {
+    setModoFuncionario(false);
+    setFuncionarioSelecionado(null);
+    setTipoExameSelecionado(null);
     setEditingId(id);
     setDialogOpen(true);
   };

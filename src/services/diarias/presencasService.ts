@@ -566,11 +566,13 @@ export async function editarHoraSaida(
   const [hS, mS] = novaHoraSaida.split(':').map(Number);
   let totalMinutos = (hS * 60 + mS) - (hE * 60 + mE);
   if (totalMinutos < 0) totalMinutos += 24 * 60;
-  const horas = totalMinutos / 60;
+  const horasBrutas = totalMinutos / 60;
+  // Descontar 1h de almoço se jornada bruta > 6h
+  const horas = horasBrutas > 6 ? horasBrutas - 1 : horasBrutas;
 
   let tipoDiaria: TipoDiaria = 'nenhuma';
-  if (horas > 9) tipoDiaria = 'uma_e_meia';
-  else if (horas > 4 + 20/60) tipoDiaria = 'completa';
+  if (horas >= 9.75) tipoDiaria = 'uma_e_meia';       // >= 9:45
+  else if (horas >= 4.5) tipoDiaria = 'completa';      // >= 4:30
   else if (horas > 0) tipoDiaria = 'meia';
 
   let novoValor = 0;

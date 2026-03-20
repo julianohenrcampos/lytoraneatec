@@ -175,46 +175,88 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
   // Carregar dados do agendamento existente OU resetar
   useEffect(() => {
     if (agendamento && agendamentoId) {
-      setEtapa1Data({
-        nome_colaborador: agendamento.nome_colaborador,
-        telefone_celular: agendamento.telefone_celular || '',
-        email: agendamento.email || '',
-        funcao: agendamento.funcao,
-        contrato: agendamento.contrato || '',
-        empresa: agendamento.empresa,
-        rg: agendamento.rg || '',
-        cpf: agendamento.cpf || '',
-        data_nascimento: agendamento.data_nascimento || '',
-        data_inicio_prevista: agendamento.data_inicio_prevista || '',
-        doc_titulo_eleitor: agendamento.doc_titulo_eleitor || false,
-        doc_pis_pasep: agendamento.doc_pis_pasep || false,
-        doc_certificado_reservista: agendamento.doc_certificado_reservista || false,
-        doc_comprovante_residencia: agendamento.doc_comprovante_residencia || false,
-        doc_comprovante_escolaridade: agendamento.doc_comprovante_escolaridade || false,
-        doc_cnh: agendamento.doc_cnh || false,
-        doc_exame_toxicologico: agendamento.doc_exame_toxicologico || false,
-        doc_certidao_filhos: agendamento.doc_certidao_filhos || false,
-        possui_carteira_digital: agendamento.possui_carteira_digital || false,
-        possui_conta_santander: agendamento.possui_conta_santander || false,
-        banco_agencia: agendamento.banco_agencia || '',
-        banco_conta: agendamento.banco_conta || ''
-      });
-      
-      setEtapa2Data({
-        tipo_exame: agendamento.tipo_exame,
-        local_atendimento_id: agendamento.local_atendimento_id,
-        data_agendamento: agendamento.data_agendamento,
-        horario_agendamento: agendamento.horario_agendamento.substring(0, 5),
-        observacoes: agendamento.observacoes || '',
-        status: agendamento.status,
-        documentos_anexados: agendamento.documentos_anexados,
-        motivo_mudanca_risco: agendamento.motivo_mudanca_risco || ''
-      });
-      
-      setTecnicoSeguranca(agendamento.tecnico_seguranca || '');
-      
-      if (agendamento.etapa1_concluida) {
-        setCurrentStep(2);
+      try {
+        setEtapa1Data({
+          nome_colaborador: agendamento.nome_colaborador || '',
+          telefone_celular: agendamento.telefone_celular || '',
+          email: agendamento.email || '',
+          funcao: agendamento.funcao || '',
+          contrato: agendamento.contrato || '',
+          empresa: agendamento.empresa || '',
+          rg: agendamento.rg || '',
+          cpf: agendamento.cpf || '',
+          data_nascimento: agendamento.data_nascimento || '',
+          data_inicio_prevista: agendamento.data_inicio_prevista || '',
+          doc_titulo_eleitor: agendamento.doc_titulo_eleitor || false,
+          doc_pis_pasep: agendamento.doc_pis_pasep || false,
+          doc_certificado_reservista: agendamento.doc_certificado_reservista || false,
+          doc_comprovante_residencia: agendamento.doc_comprovante_residencia || false,
+          doc_comprovante_escolaridade: agendamento.doc_comprovante_escolaridade || false,
+          doc_cnh: agendamento.doc_cnh || false,
+          doc_exame_toxicologico: agendamento.doc_exame_toxicologico || false,
+          doc_certidao_filhos: agendamento.doc_certidao_filhos || false,
+          possui_carteira_digital: agendamento.possui_carteira_digital || false,
+          possui_conta_santander: agendamento.possui_conta_santander || false,
+          banco_agencia: agendamento.banco_agencia || '',
+          banco_conta: agendamento.banco_conta || ''
+        });
+        
+        setEtapa2Data({
+          tipo_exame: (agendamento.tipo_exame || 'Admissional') as any,
+          local_atendimento_id: agendamento.local_atendimento_id || '',
+          data_agendamento: agendamento.data_agendamento || '',
+          horario_agendamento: (agendamento.horario_agendamento || '08:00').substring(0, 5),
+          observacoes: agendamento.observacoes || '',
+          status: agendamento.status || 'Agendado',
+          documentos_anexados: agendamento.documentos_anexados || false,
+          motivo_mudanca_risco: agendamento.motivo_mudanca_risco || ''
+        });
+        
+        setTecnicoSeguranca(agendamento.tecnico_seguranca || '');
+        
+        if (agendamento.etapa1_concluida) {
+          setCurrentStep(2);
+        }
+
+        // Buscar dados VT existentes e popular vtData
+        valeTransporteService.getByAgendamento(agendamentoId).then((vtRecord) => {
+          if (vtRecord) {
+            const isNaoBeneficiario = vtRecord.tipo === 'nao_beneficiario';
+            const endereco = {
+              rua: vtRecord.rua || '',
+              numero: vtRecord.numero || '',
+              bairro: vtRecord.bairro || '',
+              cidade: vtRecord.cidade || '',
+              estado: vtRecord.estado || '',
+              cep: vtRecord.cep || '',
+            };
+            setVtData({
+              isNaoBeneficiario,
+              endereco,
+              beneficiarioData: {
+                endereco,
+                linhas: (vtRecord.linhas && Array.isArray(vtRecord.linhas) && vtRecord.linhas.length > 0)
+                  ? vtRecord.linhas
+                  : [{ nome: '', numero: '', tarifa: 0, operadora: 'Jaé' } as LinhaTransporte],
+                motivo: vtRecord.motivo || '',
+                data_solicitacao: vtRecord.data_solicitacao || today,
+              },
+              naoBeneficiarioData: {
+                motivos: vtRecord.motivos_nao_beneficiario || [],
+                motivo_outros_texto: vtRecord.motivo_outros_texto || '',
+                data_solicitacao: vtRecord.data_solicitacao || today,
+              },
+              pdfGerado: !!(vtRecord.pdf_assinado_url || vtRecord.pdf_gerado_url),
+              pdfAssinadoFile: undefined,
+              skipped: false,
+            });
+          }
+        }).catch((err) => {
+          console.error('Erro ao buscar dados VT:', err);
+        });
+
+      } catch (err) {
+        console.error('Erro ao popular formulário de edição:', err);
       }
     } else if (!agendamentoId && !modoFuncionario && open) {
       setEtapa1Data(initialEtapa1Data);

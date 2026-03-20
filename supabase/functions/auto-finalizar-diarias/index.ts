@@ -72,13 +72,15 @@ Deno.serve(async (req) => {
       const [hE, mE] = (p.hora_entrada as string).split(':').map(Number)
       let totalMinutos = (hSaida * 60 + mSaida) - (hE * 60 + mE)
       if (totalMinutos < 0) totalMinutos += 24 * 60
-      const horas = totalMinutos / 60
+      const horasBrutas = totalMinutos / 60
+      // Descontar 1h de almoço se jornada bruta > 6h
+      const horas = horasBrutas > 6 ? horasBrutas - 1 : horasBrutas
 
       // Determine tipo_diaria
       let tipo_diaria = 'nenhuma'
       let multiplier = 0
-      if (horas > 9) { tipo_diaria = 'uma_e_meia'; multiplier = 1.5 }
-      else if (horas > 4.33) { tipo_diaria = 'completa'; multiplier = 1 }
+      if (horas >= 9.75) { tipo_diaria = 'uma_e_meia'; multiplier = 1.5 }    // >= 9:45
+      else if (horas >= 4.5) { tipo_diaria = 'completa'; multiplier = 1 }     // >= 4:30
       else if (horas > 0) { tipo_diaria = 'meia'; multiplier = 0.5 }
 
       // Get the base value (valor_diaria_original) from convocados_pre

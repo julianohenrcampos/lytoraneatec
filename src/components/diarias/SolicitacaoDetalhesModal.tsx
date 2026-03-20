@@ -228,8 +228,8 @@ export function SolicitacaoDetalhesModal({
   const domingosReal = analise?.domingos || 0;
   const feriadosReal = analise?.feriados || diasFeriados;
   
-  const diasNormais = diasUteisReal + sabadosReal; // pagam diária normal
-  const diasExclusivos = domingosReal + feriadosReal; // pagam diária exclusiva
+  const diasNormais = diasUteisReal; // apenas dias úteis pagam diária normal
+  const diasExclusivos = sabadosReal + domingosReal + feriadosReal; // sábados, domingos e feriados pagam diária exclusiva
   const consideraFdsEFeriado = solicitacao.considera_fds_feriado;
   const mostrarColunaDiariaEspecial = consideraFdsEFeriado && diasExclusivos > 0;
 

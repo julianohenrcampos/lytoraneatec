@@ -80,14 +80,30 @@ export async function getRelatorioFolha(
     query = query.eq('presenca_status', statusBoolean as unknown as string);
   }
 
-  const { data, error } = await query;
+  // Busca paginada para ultrapassar limite de 1000 do PostgREST
+  let allData: RelatorioFolhaItem[] = [];
+  let from = 0;
+  const pageSize = 1000;
+  let hasMore = true;
 
-  if (error) {
-    console.error('Erro ao buscar relatório:', error);
-    throw new Error(error.message);
+  while (hasMore) {
+    const { data, error } = await query.range(from, from + pageSize - 1);
+
+    if (error) {
+      console.error('Erro ao buscar relatório:', error);
+      throw new Error(error.message);
+    }
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...(data as RelatorioFolhaItem[])];
+      hasMore = data.length === pageSize;
+      from += pageSize;
+    } else {
+      hasMore = false;
+    }
   }
 
-  return (data || []) as RelatorioFolhaItem[];
+  return allData;
 }
 
 // =====================================================

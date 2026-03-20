@@ -155,8 +155,8 @@ export function analisarPeriodo(
 /**
  * Calcula a estimativa total de valores para o período
  * 
- * Sábados: valor_diaria (normal)
- * Domingos + Feriados: valor_diaria_exclusiva
+ * Dias úteis (seg-sex): valor_diaria (normal)
+ * Sábados + Domingos + Feriados: valor_diaria_exclusiva
  */
 export function calcularEstimativaTotal(
   funcionarios: FuncionarioParaCalculo[],
@@ -171,8 +171,8 @@ export function calcularEstimativaTotal(
     // Se usar_diaria_exclusiva === true, TODOS os dias usam diária exclusiva
     const forcarExclusiva = (func as any).usar_diaria_exclusiva === true;
     
-    const diasNormais = analise.diasUteis + analise.sabados;
-    const diasExclusivos = analise.domingos + analise.feriados;
+    const diasNormais = analise.diasUteis; // apenas dias úteis pagam diária normal
+    const diasExclusivos = analise.sabados + analise.domingos + analise.feriados; // sábados, domingos e feriados pagam exclusiva
     
     let valorDiasUteisESabados: number;
     let valorDomFeriados: number;

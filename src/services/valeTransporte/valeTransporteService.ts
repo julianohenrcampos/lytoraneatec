@@ -10,11 +10,9 @@ interface DocumentoInfo {
 }
 
 function normalizePath(path: string): string {
-  // If it's a full URL, extract the object path
   if (path.startsWith('http')) {
     const match = path.match(/\/object\/(?:public|sign)\/[^/]+\/(.+)/);
     if (match) return decodeURIComponent(match[1]);
-    // fallback: extract after bucket name
     const bucketMatch = path.match(new RegExp(`${BUCKET}/(.+)`));
     if (bucketMatch) return decodeURIComponent(bucketMatch[1]);
   }
@@ -22,9 +20,23 @@ function normalizePath(path: string): string {
 }
 
 export const valeTransporteService = {
+  // Buscar registro VT existente para um agendamento
+  async getByAgendamento(agendamentoId: string) {
+    const { data, error } = await supabase
+      .from('bd_vale_transporte' as any)
+      .select('*')
+      .eq('agendamento_id', agendamentoId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data as any;
+  },
+
   async uploadComprovante(agendamentoId: string, file: File): Promise<string> {
     const ext = file.name.split('.').pop();
-    const path = `vale-transporte/${agendamentoId}/comprovante_residencia.${ext}`;
+    const path = `vale-transporte/${agendamentoId}/comprovante.${ext}`;
     const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true });
     if (error) throw error;
     return path;
@@ -32,44 +44,98 @@ export const valeTransporteService = {
 
   async uploadPdfAssinado(agendamentoId: string, file: File): Promise<string> {
     const ext = file.name.split('.').pop() || 'pdf';
-    const path = `vale-transporte/${agendamentoId}/vt_assinado.${ext}`;
+    const path = `vale-transporte/${agendamentoId}/declaracao.${ext}`;
     const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true });
     if (error) throw error;
     return path;
   },
 
-  async getDocumentos(agendamentoId: string): Promise<DocumentoInfo[]> {
-    const { data, error } = await supabase
+  // Substituir documento existente e atualizar campo no banco
+  async substituirDocumento(agendamentoId: string, docType: 'comprovante' | 'declaracao', file: File): Promise<string> {
+    const ext = file.name.split('.').pop() || (docType === 'declaracao' ? 'pdf' : 'jpg');
+    const path = `vale-transporte/${agendamentoId}/${docType}.${ext}`;
+
+    // Upload com upsert
+    const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true });
+    if (uploadError) throw uploadError;
+
+    // Atualizar campo correspondente no banco
+    const campo = docType === 'comprovante' ? 'comprovante_url' : 'pdf_assinado_url';
+    const { error: updateError } = await supabase
       .from('bd_vale_transporte' as any)
-      .select('pdf_assinado_url, comprovante_url, tipo')
-      .eq('agendamento_id', agendamentoId)
-      .maybeSingle();
+      .update({ [campo]: path } as any)
+      .eq('agendamento_id', agendamentoId);
 
-    if (error) throw error;
-    if (!data) return [];
+    if (updateError) throw updateError;
+    return path;
+  },
 
+  async getDocumentos(agendamentoId: string): Promise<DocumentoInfo[]> {
     const docs: DocumentoInfo[] = [];
-    const record = data as any;
 
-    if (record.pdf_assinado_url) {
-      const ext = (record.pdf_assinado_url as string).split('.').pop()?.toLowerCase() || '';
-      docs.push({
-        nome: record.tipo === 'nao_beneficiario'
+    const { data: vtRecords, error: vtError } = await supabase
+      .from('bd_vale_transporte' as any)
+      .select('pdf_assinado_url, comprovante_url, pdf_gerado_url, pdf_url, tipo')
+      .eq('agendamento_id', agendamentoId);
+
+    if (vtError) throw vtError;
+
+    const docFields: { field: string; label: (tipo: string) => string }[] = [
+      {
+        field: 'pdf_gerado_url',
+        label: (tipo) => tipo === 'nao_beneficiario'
+          ? 'Declaração de Não Beneficiário (Gerada)'
+          : 'Solicitação de Vale Transporte (Gerada)',
+      },
+      {
+        field: 'pdf_assinado_url',
+        label: (tipo) => tipo === 'nao_beneficiario'
           ? 'Declaração de Não Beneficiário (Assinada)'
           : 'Solicitação de Vale Transporte (Assinada)',
-        path: record.pdf_assinado_url,
-        tipo: ext === 'pdf' ? 'pdf' : 'imagem',
-      });
+      },
+      {
+        field: 'pdf_url',
+        label: () => 'Documento PDF do Vale Transporte',
+      },
+      {
+        field: 'comprovante_url',
+        label: () => 'Comprovante de Residência',
+      },
+    ];
+
+    if (vtRecords) {
+      for (const record of vtRecords as any[]) {
+        const tipo = record.tipo || '';
+        for (const df of docFields) {
+          const url = record[df.field];
+          if (url) {
+            const ext = (url as string).split('.').pop()?.toLowerCase() || '';
+            const isImage = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext);
+            docs.push({
+              nome: df.label(tipo),
+              path: url,
+              tipo: isImage ? 'imagem' : 'pdf',
+            });
+          }
+        }
+      }
     }
 
-    if (record.comprovante_url) {
-      const ext = (record.comprovante_url as string).split('.').pop()?.toLowerCase() || '';
-      const isImage = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext);
-      docs.push({
-        nome: 'Comprovante de Residência',
-        path: record.comprovante_url,
-        tipo: isImage ? 'imagem' : 'pdf',
-      });
+    const { data: anexos, error: anexosError } = await supabase
+      .from('bd_agendamentos_exames_anexos' as any)
+      .select('arquivo_nome, arquivo_path')
+      .eq('agendamento_id', agendamentoId);
+
+    if (!anexosError && anexos) {
+      for (const anexo of anexos as any[]) {
+        const ext = (anexo.arquivo_path as string).split('.').pop()?.toLowerCase() || '';
+        const isImage = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext);
+        docs.push({
+          nome: anexo.arquivo_nome || 'Anexo',
+          path: anexo.arquivo_path,
+          tipo: isImage ? 'imagem' : 'pdf',
+        });
+      }
     }
 
     return docs;
@@ -116,7 +182,7 @@ export const valeTransporteService = {
       cep: end.cep,
     };
 
-    const { error } = await supabase.from('bd_vale_transporte' as any).insert({
+    const payload: any = {
       agendamento_id: agendamentoId,
       tipo,
       ...enderecoData,
@@ -126,13 +192,29 @@ export const valeTransporteService = {
       motivo: stepData.isNaoBeneficiario ? null : stepData.beneficiarioData.motivo,
       motivos_nao_beneficiario: stepData.isNaoBeneficiario ? stepData.naoBeneficiarioData.motivos : null,
       motivo_outros_texto: stepData.isNaoBeneficiario ? stepData.naoBeneficiarioData.motivo_outros_texto : null,
-      comprovante_url: comprovanteUrl,
-      pdf_assinado_url: pdfAssinadoUrl,
       data_solicitacao: stepData.isNaoBeneficiario
         ? stepData.naoBeneficiarioData.data_solicitacao
         : stepData.beneficiarioData.data_solicitacao,
-    } as any);
+    };
 
-    if (error) throw error;
+    // Only include URLs if new files were uploaded
+    if (pdfAssinadoUrl) payload.pdf_assinado_url = pdfAssinadoUrl;
+    if (comprovanteUrl) payload.comprovante_url = comprovanteUrl;
+
+    // Check if record already exists → update; otherwise → insert
+    const existing = await this.getByAgendamento(agendamentoId);
+
+    if (existing) {
+      const { error } = await supabase
+        .from('bd_vale_transporte' as any)
+        .update(payload as any)
+        .eq('id', existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase
+        .from('bd_vale_transporte' as any)
+        .insert(payload as any);
+      if (error) throw error;
+    }
   },
 };

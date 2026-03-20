@@ -88,7 +88,7 @@ export const agendamentoExamesService = {
         profiles:criado_por(id, nome_completo, email)
       `)
       .eq('id', id)
-      .single();
+      .maybeSingle();
     
     if (error) throw error;
     return data;

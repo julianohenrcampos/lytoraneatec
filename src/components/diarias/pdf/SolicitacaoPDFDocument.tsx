@@ -66,8 +66,8 @@ export const SolicitacaoPDFDocument = ({
   const domingosReal = analise?.domingos || 0;
   const feriadosReal = analise?.feriados || solicitacao.qtde_feriados_estimado || 0;
 
-  const diasNormais = diasUteisReal + sabadosReal; // pagam diária normal
-  const diasExclusivos = domingosReal + feriadosReal; // pagam diária exclusiva
+  const diasNormais = diasUteisReal; // apenas dias úteis pagam diária normal
+  const diasExclusivos = sabadosReal + domingosReal + feriadosReal; // sábados, domingos e feriados pagam diária exclusiva
   const mostrarDiariasExclusivas = consideraFdsEFeriado && diasExclusivos > 0;
 
   // Calcular totais
