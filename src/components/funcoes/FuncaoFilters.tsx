@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
 import { FuncaoFilter } from "@/types/funcao";
 import { useIsSmallScreen, useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,7 +20,6 @@ const FuncaoFilters: React.FC<FuncaoFiltersProps> = ({
   const isSmallScreen = useIsSmallScreen();
   const isMobile = useIsMobile();
 
-  // Buscar lista de funções no Supabase
   const [funcoes, setFuncoes] = useState<{ id: string; nome_funcao: string }[]>([]);
 
   useEffect(() => {
@@ -38,6 +37,29 @@ const FuncaoFilters: React.FC<FuncaoFiltersProps> = ({
     fetchFuncoes();
   }, []);
 
+  const comboboxOptions = useMemo(() => {
+    return [
+      { value: "", label: "Todas" },
+      ...funcoes.map((f) => ({ value: f.id, label: f.nome_funcao })),
+    ];
+  }, [funcoes]);
+
+  // Find selected value by matching the filter text to a label
+  const selectedValue = useMemo(() => {
+    if (!filters.nome_funcao) return "";
+    const match = funcoes.find((f) => f.nome_funcao === filters.nome_funcao);
+    return match ? match.id : "";
+  }, [filters.nome_funcao, funcoes]);
+
+  const handleSelect = (value: string) => {
+    if (!value) {
+      onFilterChange("nome_funcao", "");
+      return;
+    }
+    const match = funcoes.find((f) => f.id === value);
+    onFilterChange("nome_funcao", match ? match.nome_funcao : "");
+  };
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -45,21 +67,14 @@ const FuncaoFilters: React.FC<FuncaoFiltersProps> = ({
           <label htmlFor="nome_funcao" className="text-sm font-medium">
             Nome da Função
           </label>
-          <div className="relative">
-            <Input
-              list="funcaoList"
-              id="nome_funcao"
-              placeholder="Buscar por nome"
-              className="pl-2"
-              value={filters.nome_funcao || ""}
-              onChange={(e) => onFilterChange("nome_funcao", e.target.value)}
-            />
-            <datalist id="funcaoList">
-              {funcoes.map((funcao) => (
-                <option key={funcao.id} value={funcao.nome_funcao} />
-              ))}
-            </datalist>
-          </div>
+          <Combobox
+            options={comboboxOptions}
+            value={selectedValue}
+            onChange={handleSelect}
+            placeholder="Selecione uma função"
+            searchPlaceholder="Buscar função..."
+            emptyText="Nenhuma função encontrada"
+          />
         </div>
       </div>
 

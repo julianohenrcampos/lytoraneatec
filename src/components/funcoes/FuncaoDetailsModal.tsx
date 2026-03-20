@@ -64,7 +64,7 @@ const FuncaoDetailsModal: React.FC<FuncaoDetailsModalProps> = ({
                 ? funcao.valor_diaria_exclusiva.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
                 : 'Não definido'
               }
-              <p className="text-xs text-muted-foreground">Finais de Semana e Feriados</p>
+              <p className="text-xs text-muted-foreground">Sábados, Domingos e Feriados</p>
             </div>
           </div>
 
@@ -76,6 +76,16 @@ const FuncaoDetailsModal: React.FC<FuncaoDetailsModalProps> = ({
                 : 'Não definido'
               }
               <p className="text-xs text-muted-foreground">Valor por refeição</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label className="text-right">Salário Base</Label>
+            <div className="col-span-3 font-medium">
+              {funcao.salario_base 
+                ? funcao.salario_base.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                : 'Não definido'
+              }
             </div>
           </div>
           

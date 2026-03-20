@@ -10,7 +10,9 @@ import { ImportStatusCarteiraModal, ImportAlterdataModal } from '@/components/ss
 import { useAgendamentoExames } from '@/hooks/ssoAgendamentoExames';
 import { AgendamentoExameFilters, TipoExame, FuncionarioSelecionado } from '@/types/ssoAgendamentoExames';
 import { useAuthPermissions } from '@/hooks/useAuthPermissions';
-import { FileSpreadsheet, FileText, Loader2 } from 'lucide-react';
+import { FileSpreadsheet, FileText, Loader2, Filter } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
@@ -38,6 +40,8 @@ const SSOAgendamentoExames: React.FC = () => {
   const [editingId, setEditingId] = useState<string | undefined>();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  
+  const [filterSemPendencia, setFilterSemPendencia] = useState(false);
   
   // Estados para dropdown de novo agendamento
   const [selectorOpen, setSelectorOpen] = useState(false);
@@ -78,6 +82,11 @@ const SSOAgendamentoExames: React.FC = () => {
   useEffect(() => {
     setSelectedIds([]);
   }, [filters]);
+
+  // Filter agendamentos by carteira status
+  const agendamentosFiltrados = filterSemPendencia
+    ? agendamentos.filter(a => ['Registrado', 'Revisado'].includes(a.status_carteira || ''))
+    : agendamentos;
 
   // Handlers para dropdown
   const handleNovoAgendamento = () => {
@@ -225,26 +234,45 @@ const SSOAgendamentoExames: React.FC = () => {
   const [exportingPdf, setExportingPdf] = useState(false);
 
   const handleExportPDF = async () => {
-    if (agendamentos.length === 0) {
+    const dataParaPdf = selectedIds.length > 0
+      ? agendamentosFiltrados.filter(a => selectedIds.includes(a.id))
+      : agendamentosFiltrados;
+
+    if (dataParaPdf.length === 0) {
       toast.error('Nenhum dado para exportar');
       return;
     }
     setExportingPdf(true);
     try {
-      // Collect unique CPFs
-      const cpfs = [...new Set(agendamentos.map(a => a.cpf?.replace(/\D/g, '')).filter(Boolean))] as string[];
-
-      // Fetch salarios from bd_funcionarios
+      // Fetch salarios from bd_funcoes (keyed by nome_funcao)
+      const funcNames = [...new Set(dataParaPdf.map(a => a.funcao).filter(Boolean))];
       const salarios: Record<string, number> = {};
+      if (funcNames.length > 0) {
+        const { data: funcoesData } = await (supabase
+          .from('bd_funcoes' as any) as any)
+          .select('nome_funcao, salario_base')
+          .in('nome_funcao', funcNames);
+        if (funcoesData) {
+          funcoesData.forEach((f: any) => {
+            if (f.nome_funcao && f.salario_base != null) {
+              salarios[f.nome_funcao] = Number(f.salario_base);
+            }
+          });
+        }
+      }
+
+      // Fetch passagens (custo_passagem) from bd_funcionarios by CPF
+      const cpfs = [...new Set(dataParaPdf.map(a => a.cpf?.replace(/\D/g, '')).filter(Boolean))] as string[];
+      const passagens: Record<string, number | null> = {};
       if (cpfs.length > 0) {
         const { data: funcs } = await (supabase
           .from('bd_funcionarios' as any) as any)
-          .select('cpf, salario_base')
+          .select('cpf, custo_passagem')
           .in('cpf', cpfs);
         if (funcs) {
           funcs.forEach((f: any) => {
-            if (f.cpf && f.salario_base != null) {
-              salarios[f.cpf.replace(/\D/g, '')] = Number(f.salario_base);
+            if (f.cpf) {
+              passagens[f.cpf.replace(/\D/g, '')] = f.custo_passagem != null ? Number(f.custo_passagem) : null;
             }
           });
         }
@@ -264,8 +292,9 @@ const SSOAgendamentoExames: React.FC = () => {
 
       const blob = await pdf(
         <AgendamentoExamesPDFDocument
-          agendamentos={agendamentos}
+          agendamentos={dataParaPdf}
           salarios={salarios}
+          passagens={passagens}
           filtrosTexto={filtrosTexto}
         />
       ).toBlob();
@@ -324,6 +353,28 @@ const SSOAgendamentoExames: React.FC = () => {
           onClearFilters={() => setFilters({})}
         />
 
+        {/* PDF Selection Controls */}
+        <div className="flex flex-wrap items-center gap-4 px-1">
+          <div className="flex items-center gap-2">
+            <Switch
+              id="filter-sem-pendencia"
+              checked={filterSemPendencia}
+              onCheckedChange={(checked) => {
+                setFilterSemPendencia(checked);
+                setSelectedIds([]);
+              }}
+            />
+            <Label htmlFor="filter-sem-pendencia" className="text-sm cursor-pointer">
+              Apenas sem pendência de carteira
+            </Label>
+          </div>
+          {selectedIds.length > 0 && (
+            <span className="text-sm text-muted-foreground">
+              {selectedIds.length} selecionado(s) para PDF
+            </span>
+          )}
+        </div>
+
         {/* Bulk Action Bar */}
         {canChangeStatus && (
           <BulkActionBar
@@ -341,7 +392,7 @@ const SSOAgendamentoExames: React.FC = () => {
           </div>
         ) : (
           <AgendamentoExamesTable
-            agendamentos={agendamentos}
+            agendamentos={agendamentosFiltrados}
             onView={handleView}
             onEdit={handleEdit}
             onDelete={(id) => setDeleteId(id)}

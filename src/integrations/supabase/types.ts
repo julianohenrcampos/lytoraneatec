@@ -1936,6 +1936,7 @@ export type Database = {
           id: string
           modificado_por: string | null
           nome_funcao: string
+          salario_base: number | null
           situacao: string | null
           updated_at: string | null
           valor_diaria: number | null
@@ -1948,6 +1949,7 @@ export type Database = {
           id?: string
           modificado_por?: string | null
           nome_funcao: string
+          salario_base?: number | null
           situacao?: string | null
           updated_at?: string | null
           valor_diaria?: number | null
@@ -1960,6 +1962,7 @@ export type Database = {
           id?: string
           modificado_por?: string | null
           nome_funcao?: string
+          salario_base?: number | null
           situacao?: string | null
           updated_at?: string | null
           valor_diaria?: number | null

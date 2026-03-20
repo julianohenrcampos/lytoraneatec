@@ -1,3 +1,4 @@
+import '@/lib/pdfFonts';
 import { StyleSheet } from '@react-pdf/renderer';
 
 export const desvioStyles = StyleSheet.create({
@@ -7,7 +8,7 @@ export const desvioStyles = StyleSheet.create({
     paddingBottom: 60,
     paddingHorizontal: 40,
     fontSize: 10,
-    fontFamily: 'Helvetica',
+    fontFamily: 'Roboto',
     backgroundColor: '#ffffff',
   },
 
@@ -20,14 +21,14 @@ export const desvioStyles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#1e3a5f',
     textAlign: 'center',
     marginBottom: 4,
   },
   headerReportNumber: {
     fontSize: 14,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#dc2626',
     textAlign: 'center',
     marginBottom: 12,
@@ -65,7 +66,7 @@ export const desvioStyles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 9,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#ffffff',
   },
 
@@ -75,7 +76,7 @@ export const desvioStyles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 11,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#1e3a5f',
     marginBottom: 8,
     paddingBottom: 4,
@@ -101,7 +102,7 @@ export const desvioStyles = StyleSheet.create({
   infoValue: {
     fontSize: 10,
     color: '#1f2937',
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
   },
 
   // Tipos de Desvio
@@ -124,7 +125,7 @@ export const desvioStyles = StyleSheet.create({
   },
   tipoCheckmarkText: {
     fontSize: 10,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#ffffff',
   },
   tipoText: {
@@ -166,7 +167,7 @@ export const desvioStyles = StyleSheet.create({
   },
   acaoLabel: {
     fontSize: 9,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#166534',
     marginBottom: 4,
   },

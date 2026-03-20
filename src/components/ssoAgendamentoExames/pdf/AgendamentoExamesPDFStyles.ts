@@ -1,20 +1,21 @@
+import '@/lib/pdfFonts';
 import { StyleSheet } from '@react-pdf/renderer';
 
 export const agendamentoExamesStyles = StyleSheet.create({
   page: {
     padding: 20,
-    fontFamily: 'Helvetica',
+    fontFamily: 'Roboto',
     fontSize: 8,
   },
   title: {
     fontSize: 12,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     textAlign: 'center',
     marginBottom: 2,
   },
   titleAdmissao: {
     fontSize: 11,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     textAlign: 'center',
     marginBottom: 4,
     color: '#CC0000',
@@ -52,7 +53,7 @@ export const agendamentoExamesStyles = StyleSheet.create({
   },
   // Header cells
   headerCell: {
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     fontSize: 7,
     textAlign: 'center',
     paddingVertical: 4,
@@ -61,7 +62,7 @@ export const agendamentoExamesStyles = StyleSheet.create({
     borderColor: '#000',
   },
   headerCellLast: {
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     fontSize: 7,
     textAlign: 'center',
     paddingVertical: 4,
@@ -90,15 +91,16 @@ export const agendamentoExamesStyles = StyleSheet.create({
     borderRightWidth: 1,
     borderColor: '#000',
   },
-  // Column widths
-  colNome: { width: '20%' },
-  colCargo: { width: '12%' },
-  colArea: { width: '14%' },
-  colCpf: { width: '12%' },
-  colData: { width: '10%' },
-  colSalario: { width: '10%' },
-  colExame: { width: '12%' },
+  // Column widths (9 columns)
+  colNome: { width: '18%' },
+  colCargo: { width: '11%' },
+  colArea: { width: '12%' },
+  colCpf: { width: '11%' },
+  colData: { width: '9%' },
+  colSalario: { width: '9%' },
+  colExame: { width: '13%' },
   colPassagem: { width: '10%' },
+  colVr: { width: '7%' },
   // Group header
   groupHeader: {
     flexDirection: 'row',
@@ -110,7 +112,7 @@ export const agendamentoExamesStyles = StyleSheet.create({
     marginTop: 6,
   },
   groupHeaderText: {
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     fontSize: 8,
   },
   // Footer section (legacy — kept for compat)
@@ -126,7 +128,7 @@ export const agendamentoExamesStyles = StyleSheet.create({
     marginBottom: 3,
   },
   footerLabel: {
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     fontSize: 8,
   },
   footerValue: {
@@ -149,7 +151,7 @@ export const agendamentoExamesStyles = StyleSheet.create({
     borderColor: '#000',
   },
   funcoesHeaderCell: {
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     fontSize: 8,
     textAlign: 'center',
     paddingVertical: 4,
@@ -184,14 +186,14 @@ export const agendamentoExamesStyles = StyleSheet.create({
     backgroundColor: '#FFF3E0',
   },
   funcoesTotalCell: {
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     fontSize: 8,
     paddingVertical: 4,
     paddingHorizontal: 4,
     color: '#CC0000',
   },
   funcoesTotalCellCenter: {
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     fontSize: 8,
     textAlign: 'center',
     paddingVertical: 4,
@@ -210,7 +212,7 @@ export const agendamentoExamesStyles = StyleSheet.create({
     backgroundColor: '#FFF0F0',
   },
   totalValorHeaderText: {
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     fontSize: 9,
     textAlign: 'center',
     color: '#000',
@@ -224,7 +226,7 @@ export const agendamentoExamesStyles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   totalValorText: {
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     fontSize: 10,
     textAlign: 'center',
     color: '#CC0000',

@@ -76,7 +76,7 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
   canChangeBeneficios,
   canChangeCarteira,
   selectedIds,
-  onSelectionChange
+  onSelectionChange,
 }) => {
   const isMobile = useIsMobile();
   const pagination = usePagination(agendamentos, { pageSize: 10 });
@@ -127,6 +127,7 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
     pagination.paginatedData.every(a => selectedIds.includes(a.id));
   const isIndeterminate = pagination.paginatedData.some(a => selectedIds.includes(a.id)) && 
     !pagination.paginatedData.every(a => selectedIds.includes(a.id));
+
 
   // Helper para verificar se exibe campos de contratação (Admissional ou Mudança de Risco)
   const showHiringFields = (tipoExame: string) => tipoExame === 'Admissional' || tipoExame === 'Mudança de Risco';

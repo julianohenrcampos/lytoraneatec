@@ -1,3 +1,4 @@
+import '@/lib/pdfFonts';
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 import { format } from 'date-fns';
@@ -24,7 +25,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     paddingHorizontal: 40,
     fontSize: 10,
-    fontFamily: 'Helvetica',
+    fontFamily: 'Roboto',
   },
   // Mini-header fixo (repete em todas as páginas)
   miniHeader: {
@@ -55,7 +56,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 16,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     marginBottom: 6,
   },
   subtitle: {
@@ -122,7 +123,7 @@ const styles = StyleSheet.create({
     padding: 5,
   },
   headerText: {
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     fontSize: 9,
   },
   cellText: {

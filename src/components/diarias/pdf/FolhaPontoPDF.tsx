@@ -1,3 +1,4 @@
+import '@/lib/pdfFonts';
 import React from 'react';
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
 import { format, isWeekend as isWeekendFn } from 'date-fns';
@@ -49,7 +50,7 @@ const s = StyleSheet.create({
     paddingBottom: 20,
     paddingHorizontal: 25,
     fontSize: 8,
-    fontFamily: 'Helvetica',
+    fontFamily: 'Roboto',
   },
   headerContainer: {
     borderWidth: 1,
@@ -73,7 +74,7 @@ const s = StyleSheet.create({
   },
   title: {
     fontSize: 14,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     letterSpacing: 1,
   },
   periodo: {
@@ -95,7 +96,7 @@ const s = StyleSheet.create({
     borderColor: BORDER,
   },
   infoLabel: {
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     fontSize: 7.5,
     marginRight: 4,
   },
@@ -132,7 +133,7 @@ const s = StyleSheet.create({
   colCC: { width: '12%', padding: 2, textAlign: 'center', borderRightWidth: 0.5, borderColor: BORDER },
   colAssinatura: { width: '34%', padding: 2, paddingLeft: 4 },
   headerText: {
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     fontSize: 7,
     textAlign: 'center',
   },
@@ -189,7 +190,7 @@ const s = StyleSheet.create({
   },
   signatureLabel: {
     fontSize: 7,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
   },
   localDataRow: {
     marginTop: 10,

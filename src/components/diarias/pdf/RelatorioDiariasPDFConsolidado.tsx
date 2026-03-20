@@ -1,10 +1,10 @@
-import { Document, Page, View, Text, Image, Font } from '@react-pdf/renderer';
+import '@/lib/pdfFonts';
+import { Document, Page, View, Text, Image } from '@react-pdf/renderer';
 import { diariaStyles as styles } from './DiariaReportStyles';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { RelatorioFolhaItem, RelatorioFilters } from '@/types/diarias';
 
-Font.registerHyphenationCallback(word => [word]);
 
 // =====================================================
 // TYPES
@@ -451,12 +451,12 @@ function CoverSheet({
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 20, paddingHorizontal: 20 }}>
           <View style={{ alignItems: 'center', width: '40%' }}>
             <View style={{ borderTopWidth: 1, borderTopColor: '#374151', width: '100%', marginTop: 30, marginBottom: 4 }} />
-            <Text style={{ fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#374151' }}>Gerente Regional</Text>
+            <Text style={{ fontSize: 10, fontFamily: 'Roboto', fontWeight: 'bold' as const, color: '#374151' }}>Gerente Regional</Text>
             <Text style={{ fontSize: 8, color: '#6b7280', marginTop: 2 }}>{gerenteNome}</Text>
           </View>
           <View style={{ alignItems: 'center', width: '40%' }}>
             <View style={{ borderTopWidth: 1, borderTopColor: '#374151', width: '100%', marginTop: 30, marginBottom: 4 }} />
-            <Text style={{ fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#374151' }}>Diretor</Text>
+            <Text style={{ fontSize: 10, fontFamily: 'Roboto', fontWeight: 'bold' as const, color: '#374151' }}>Diretor</Text>
             <Text style={{ fontSize: 8, color: '#6b7280', marginTop: 2 }}>{diretorNome || '___________________________'}</Text>
           </View>
         </View>
@@ -631,15 +631,15 @@ function ResumoFinanceiroPage({
             if (row.isSeparator) {
               return (
                 <View key={idx} style={{ flexDirection: 'row', backgroundColor: '#e5e7eb', paddingVertical: 4, paddingHorizontal: 4 }}>
-                  <Text style={{ fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#1e3a5f' }}>{row.label}</Text>
+                  <Text style={{ fontSize: 8, fontFamily: 'Roboto', fontWeight: 'bold' as const, color: '#1e3a5f' }}>{row.label}</Text>
                 </View>
               );
             }
             if (row.isTotal) {
               return (
                 <View key={idx} style={{ flexDirection: 'row', backgroundColor: '#1e3a5f', paddingVertical: 6, paddingHorizontal: 4 }}>
-                  <Text style={{ flex: 3.8, fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#ffffff' }}>{row.label}</Text>
-                  <Text style={{ flex: 1.2, fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#ffffff', textAlign: 'right' }}>{formatCurrency(row.valor)}</Text>
+                  <Text style={{ flex: 3.8, fontSize: 10, fontFamily: 'Roboto', fontWeight: 'bold' as const, color: '#ffffff' }}>{row.label}</Text>
+                  <Text style={{ flex: 1.2, fontSize: 10, fontFamily: 'Roboto', fontWeight: 'bold' as const, color: '#ffffff', textAlign: 'right' }}>{formatCurrency(row.valor)}</Text>
                 </View>
               );
             }

@@ -1,6 +1,19 @@
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { PDFDocument, rgb } from 'pdf-lib';
 import { saveAs } from 'file-saver';
 import { LinhaTransporte } from '@/components/agendamento-exames/vale-transporte/LinhaTransporteItem';
+
+const ROBOTO_REGULAR_URL = 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/roboto-regular-webfont.ttf';
+const ROBOTO_BOLD_URL = 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/roboto-bold-webfont.ttf';
+
+async function embedRobotoFonts(pdfDoc: PDFDocument) {
+  const [regularBytes, boldBytes] = await Promise.all([
+    fetch(ROBOTO_REGULAR_URL).then(r => r.arrayBuffer()),
+    fetch(ROBOTO_BOLD_URL).then(r => r.arrayBuffer()),
+  ]);
+  const font = await pdfDoc.embedFont(regularBytes);
+  const fontBold = await pdfDoc.embedFont(boldBytes);
+  return { font, fontBold };
+}
 
 const formatDateBR = (date: string): string => {
   if (!date) return '';
@@ -49,8 +62,7 @@ const SPACING_LINE = 20;
 export async function gerarPdfBeneficiario(dados: BeneficiarioData): Promise<void> {
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([595, 842]);
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const { font, fontBold } = await embedRobotoFonts(pdfDoc);
 
   const drawText = (text: string, x: number, y: number, size = 10, bold = false) => {
     page.drawText(text || '', { x, y, size, font: bold ? fontBold : font, color: rgb(0, 0, 0) });
@@ -218,8 +230,7 @@ export async function gerarPdfBeneficiario(dados: BeneficiarioData): Promise<voi
 export async function gerarPdfNaoBeneficiario(dados: NaoBeneficiarioData): Promise<void> {
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([595, 842]);
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const { font, fontBold } = await embedRobotoFonts(pdfDoc);
 
   const drawText = (text: string, x: number, y: number, size = 10, bold = false) => {
     page.drawText(text || '', { x, y, size, font: bold ? fontBold : font, color: rgb(0, 0, 0) });

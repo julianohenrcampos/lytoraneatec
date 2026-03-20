@@ -1,3 +1,4 @@
+import '@/lib/pdfFonts';
 import { Document, Page, View, Text, Image } from '@react-pdf/renderer';
 import { diariaStyles as styles } from './DiariaReportStyles';
 import { format } from 'date-fns';

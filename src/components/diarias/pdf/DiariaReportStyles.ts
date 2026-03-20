@@ -1,3 +1,4 @@
+import '@/lib/pdfFonts';
 import { StyleSheet } from '@react-pdf/renderer';
 
 export const diariaStyles = StyleSheet.create({
@@ -7,7 +8,7 @@ export const diariaStyles = StyleSheet.create({
     paddingBottom: 60,
     paddingHorizontal: 40,
     fontSize: 10,
-    fontFamily: 'Helvetica',
+    fontFamily: 'Roboto',
     backgroundColor: '#ffffff',
   },
   pageLandscape: {
@@ -15,7 +16,7 @@ export const diariaStyles = StyleSheet.create({
     paddingBottom: 60,
     paddingHorizontal: 30,
     fontSize: 9,
-    fontFamily: 'Helvetica',
+    fontFamily: 'Roboto',
     backgroundColor: '#ffffff',
   },
 
@@ -39,12 +40,12 @@ export const diariaStyles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 16,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#1e3a5f',
   },
   headerTitleSmall: {
     fontSize: 14,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#1e3a5f',
   },
   headerSubtitle: {
@@ -59,7 +60,7 @@ export const diariaStyles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 11,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#1e3a5f',
     marginBottom: 8,
     paddingBottom: 4,
@@ -93,7 +94,7 @@ export const diariaStyles = StyleSheet.create({
   infoValueBold: {
     fontSize: 10,
     color: '#1f2937',
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
   },
 
   // Stats Panel (Dias Úteis, FDS, Feriados)
@@ -125,7 +126,7 @@ export const diariaStyles = StyleSheet.create({
   },
   statValue: {
     fontSize: 18,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#1e3a5f',
     marginBottom: 2,
   },
@@ -148,7 +149,7 @@ export const diariaStyles = StyleSheet.create({
   },
   tableHeaderCell: {
     fontSize: 8,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#ffffff',
     textAlign: 'left',
     paddingRight: 4,
@@ -176,7 +177,7 @@ export const diariaStyles = StyleSheet.create({
   tableCellBold: {
     fontSize: 9,
     color: '#374151',
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     paddingRight: 4,
   },
 
@@ -201,7 +202,7 @@ export const diariaStyles = StyleSheet.create({
   totalValue: {
     fontSize: 9,
     color: '#1e3a5f',
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
   },
   totalRowMain: {
     flexDirection: 'row',
@@ -214,12 +215,12 @@ export const diariaStyles = StyleSheet.create({
   totalLabelMain: {
     fontSize: 11,
     color: '#1e3a5f',
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
   },
   totalValueMain: {
     fontSize: 14,
     color: '#1e3a5f',
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
   },
 
   // Status Badge
@@ -243,7 +244,7 @@ export const diariaStyles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 8,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
   },
   badgeTextRascunho: {
     color: '#475569',
@@ -336,7 +337,7 @@ export const diariaStyles = StyleSheet.create({
   signatureLabel: {
     fontSize: 10,
     color: '#374151',
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
   },
   signatureDate: {
     fontSize: 9,

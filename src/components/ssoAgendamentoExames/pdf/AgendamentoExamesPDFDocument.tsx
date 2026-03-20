@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 interface Props {
   agendamentos: AgendamentoExame[];
   salarios: Record<string, number>;
+  passagens: Record<string, number | null>;
   filtrosTexto: string;
 }
 
@@ -29,10 +30,21 @@ const formatCurrency = (v: number | null | undefined) => {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 };
 
-const getStatusVT = (ag: AgendamentoExame): string => {
+const getStatusVR = (ag: AgendamentoExame): string => {
+  if (ag.vr_entregue_em) return 'Entregue';
+  if (ag.vr_solicitado_em) return 'Solicitado';
+  return 'Pendente';
+};
+
+const getPassagemDisplay = (ag: AgendamentoExame, passagens: Record<string, number | null>): string => {
+  if (!ag.cpf) return 'NÃO necessita';
+  const cpfClean = ag.cpf.replace(/\D/g, '');
+  const valor = passagens[cpfClean];
+  if (valor != null && valor > 0) return formatCurrency(valor);
+  // Check VT status as fallback indicator
   if (ag.vt_entregue_em) return 'Entregue';
   if (ag.vt_solicitado_em) return 'Solicitado';
-  return 'Pendente';
+  return 'NÃO necessita';
 };
 
 const COLUMNS = [
@@ -44,6 +56,7 @@ const COLUMNS = [
   { label: 'SALÁRIO', style: 'colSalario' },
   { label: 'EXAME ADMISSIONAL', style: 'colExame' },
   { label: 'PASSAGEM', style: 'colPassagem' },
+  { label: 'VR', style: 'colVr' },
 ] as const;
 
 const HeaderRow = () => (
@@ -58,7 +71,7 @@ const HeaderRow = () => (
   </View>
 );
 
-const DataRow = ({ ag, salario, index }: { ag: AgendamentoExame; salario: number | null; index: number }) => {
+const DataRow = ({ ag, salario, passagens, index }: { ag: AgendamentoExame; salario: number | null; passagens: Record<string, number | null>; index: number }) => {
   const rowStyle = index % 2 === 0 ? s.row : s.rowAlt;
   const values = [
     ag.nome_colaborador,
@@ -67,8 +80,9 @@ const DataRow = ({ ag, salario, index }: { ag: AgendamentoExame; salario: number
     formatCPF(ag.cpf),
     formatDate(ag.data_agendamento),
     formatCurrency(salario),
-    ag.tipo_exame,
-    getStatusVT(ag),
+    ag.status,
+    getPassagemDisplay(ag, passagens),
+    getStatusVR(ag),
   ];
 
   return (
@@ -136,7 +150,7 @@ const TotalValorTable = ({ total }: { total: number }) => (
   </View>
 );
 
-export const AgendamentoExamesPDFDocument: React.FC<Props> = ({ agendamentos, salarios, filtrosTexto }) => {
+export const AgendamentoExamesPDFDocument: React.FC<Props> = ({ agendamentos, salarios, passagens, filtrosTexto }) => {
   // Group by empresa
   const grouped = agendamentos.reduce<Record<string, AgendamentoExame[]>>((acc, ag) => {
     const key = ag.empresa || 'Sem Empresa';
@@ -147,9 +161,9 @@ export const AgendamentoExamesPDFDocument: React.FC<Props> = ({ agendamentos, sa
 
   const groups = Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
 
-  // Totals
+  // Totals — salary by funcao name
   const totalSalarios = agendamentos.reduce((sum, ag) => {
-    const sal = ag.cpf ? salarios[ag.cpf.replace(/\D/g, '')] : undefined;
+    const sal = salarios[ag.funcao];
     return sum + (sal || 0);
   }, 0);
 
@@ -163,7 +177,6 @@ export const AgendamentoExamesPDFDocument: React.FC<Props> = ({ agendamentos, sa
       <Page size="A4" orientation="landscape" style={s.page}>
         {/* Header */}
         <Text style={s.title}>RELATÓRIO DE ADMISSÃO — AGENDAMENTO DE EXAMES</Text>
-        <Text style={s.titleAdmissao}>ADMISSÃO ACAM</Text>
         <Text style={s.subtitle}>{filtrosTexto}</Text>
 
         {/* Main data table */}
@@ -177,7 +190,8 @@ export const AgendamentoExamesPDFDocument: React.FC<Props> = ({ agendamentos, sa
               <DataRow
                 key={ag.id}
                 ag={ag}
-                salario={ag.cpf ? salarios[ag.cpf.replace(/\D/g, '')] ?? null : null}
+                salario={salarios[ag.funcao] ?? null}
+                passagens={passagens}
                 index={idx}
               />
             ))}

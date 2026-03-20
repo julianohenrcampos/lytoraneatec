@@ -13,14 +13,60 @@ export function generateCentroCustoTemplate() {
   return new Blob([], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 }
 
-export function parseFuncoesExcel(file) {
-  console.log("Simulando parseFuncoesExcel...");
-  return [];
+// ========== Funções - Parse e Template reais ==========
+export function parseFuncoesExcel(file: File): Promise<any[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+        
+        // Filter out empty rows
+        const filteredData = jsonData.filter((row: any) => {
+          const nome = row["Nome Função"] || row["Nome da Função"] || row["Função"] || "";
+          return nome.toString().trim() !== "";
+        });
+        
+        resolve(filteredData);
+      } catch (error) {
+        reject(new Error("Erro ao ler o arquivo Excel. Verifique o formato."));
+      }
+    };
+    reader.onerror = () => reject(new Error("Erro ao ler o arquivo."));
+    reader.readAsArrayBuffer(file);
+  });
 }
 
 export function generateFuncoesTemplate() {
-  console.log("Simulando generateFuncoesTemplate...");
-  return new Blob([], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const templateData = [
+    {
+      "Nome Função": "Exemplo: Motorista",
+      "Valor Diária (R$)": 150.00,
+      "Diária Exclusiva (R$)": 200.00,
+      "Valor Refeição (R$)": 35.00,
+      "Salário Base (R$)": 2500.00
+    }
+  ];
+  
+  const worksheet = XLSX.utils.json_to_sheet(templateData);
+  worksheet["!cols"] = [
+    { wch: 30 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 18 }
+  ];
+  
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Funções");
+  
+  const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
+  saveAs(blob, "modelo_importacao_funcoes.xlsx");
 }
 
 export function downloadExcel(data, filename = "dados.xlsx") {
@@ -130,17 +176,17 @@ export function downloadLicitacoesPerfilExcel(licitacoes: any[], nomePerfil: str
   const worksheet = XLSX.utils.json_to_sheet(dados);
   
   worksheet["!cols"] = [
-    { wch: 40 }, // Órgão
-    { wch: 5 },  // UF
-    { wch: 20 }, // Município
-    { wch: 60 }, // Objeto
-    { wch: 15 }, // Valor
-    { wch: 15 }, // Data
-    { wch: 25 }, // Modalidade
-    { wch: 10 }, // Prioridade
-    { wch: 12 }, // Participando
-    { wch: 12 }, // Status
-    { wch: 50 }, // Link
+    { wch: 40 },
+    { wch: 5 },
+    { wch: 20 },
+    { wch: 60 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 25 },
+    { wch: 10 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 50 },
   ];
 
   const workbook = XLSX.utils.book_new();

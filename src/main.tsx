@@ -4,8 +4,14 @@ import './index.css'
 import { preloadEssentialData, clearOldCache } from './utils/offlineQueries'
 
 // Initialize the application
-const root = createRoot(document.getElementById("root")!)
-root.render(<App />)
+const container = document.getElementById("root")!
+const root = createRoot(container)
+
+function renderApp() {
+  root.render(<App />)
+}
+
+renderApp()
 
 // Preload essential data after app renders (VitePWA handles SW registration)
 setTimeout(() => {

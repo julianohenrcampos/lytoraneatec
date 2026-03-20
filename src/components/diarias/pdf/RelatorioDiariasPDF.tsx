@@ -1,11 +1,11 @@
-import { Document, Page, View, Text, Image, Font } from '@react-pdf/renderer';
+import '@/lib/pdfFonts';
+import { Document, Page, View, Text, Image } from '@react-pdf/renderer';
 import { diariaStyles as styles } from './DiariaReportStyles';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { calcularRangesDSFS } from '@/utils/diariasPeriodoUtils';
 import type { RelatorioFolhaItem, PresencaResumo, RelatorioFilters } from '@/types/diarias';
 
-Font.registerHyphenationCallback(word => [word]);
 
 interface FuncionarioConsolidado {
   funcionario_id: string;
@@ -307,12 +307,12 @@ export const RelatorioDiariasPDF = ({
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 20, paddingHorizontal: 20 }}>
             <View style={{ alignItems: 'center', width: '40%' }}>
               <View style={{ borderTopWidth: 1, borderTopColor: '#374151', width: '100%', marginTop: 30, marginBottom: 4 }} />
-              <Text style={{ fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#374151' }}>Gerente Regional</Text>
+              <Text style={{ fontSize: 10, fontFamily: 'Roboto', fontWeight: 'bold' as const, color: '#374151' }}>Gerente Regional</Text>
               <Text style={{ fontSize: 8, color: '#6b7280', marginTop: 2 }}>{gerenteRegional || '___________________________'}</Text>
             </View>
             <View style={{ alignItems: 'center', width: '40%' }}>
               <View style={{ borderTopWidth: 1, borderTopColor: '#374151', width: '100%', marginTop: 30, marginBottom: 4 }} />
-              <Text style={{ fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#374151' }}>Diretor</Text>
+              <Text style={{ fontSize: 10, fontFamily: 'Roboto', fontWeight: 'bold' as const, color: '#374151' }}>Diretor</Text>
               <Text style={{ fontSize: 8, color: '#6b7280', marginTop: 2 }}>___________________________</Text>
             </View>
           </View>

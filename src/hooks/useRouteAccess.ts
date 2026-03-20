@@ -47,6 +47,11 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   '/sso/checklists/dashboard': ['acesso_sso_dashboard'],
   '/sso/agendamento-exames': ['acesso_sso_agendamento_exames'],
 
+  // Licitações PNCP
+  '/licitacoes/monitoramento-pncp': ['acesso_monitoramento_pncp'],
+  '/licitacoes/configuracoes-pncp': ['configuracoes_pncp_view'],
+  '/licitacoes/relatorio': ['relatorio_licitacoes_view'],
+
   // Administração
   '/admin/permissoes': ['admin_permissoes_view'],
 };

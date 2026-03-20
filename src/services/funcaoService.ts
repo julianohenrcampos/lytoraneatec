@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { Funcao, FuncaoFormData, FuncaoFilter } from "@/types/funcao";
 import * as XLSX from "xlsx";
@@ -9,7 +8,6 @@ export const fetchFuncoes = async (filters: FuncaoFilter = {}): Promise<Funcao[]
     .from("bd_funcoes")
     .select("*");
   
-  // Apply filters if provided
   if (filters.nome_funcao) {
     query = query.ilike("nome_funcao", `%${filters.nome_funcao}%`);
   }
@@ -40,7 +38,6 @@ export const checkFuncaoExists = async (
     throw new Error(`Erro ao verificar função: ${error.message}`);
   }
 
-  // If found and it's not the current record
   if (data && data.id !== id) {
     return true;
   }
@@ -102,7 +99,6 @@ export const checkFuncaoInUse = async (id: string): Promise<{ inUse: boolean; co
 
 // Delete a function
 export const deleteFuncao = async (id: string): Promise<void> => {
-  // First check if function is in use
   const usage = await checkFuncaoInUse(id);
   
   if (usage.inUse) {
@@ -117,7 +113,6 @@ export const deleteFuncao = async (id: string): Promise<void> => {
   if (error) {
     console.error("Error deleting função:", error);
     
-    // Check for foreign key constraint error
     if (error.code === '23503' || error.message.includes('foreign key')) {
       throw new Error('Não é possível excluir esta função pois existem funcionários vinculados a ela. Primeiro remova ou transfira os funcionários para outras funções.');
     }
@@ -128,95 +123,123 @@ export const deleteFuncao = async (id: string): Promise<void> => {
 
 // Export data to Excel
 export const exportToExcel = (data: Funcao[]): void => {
-  // Format data for export
   const formattedData = data.map((item) => ({
-    "Função": item.nome_funcao,
-    "Valor Diária": item.valor_diaria 
-      ? item.valor_diaria.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-      : '-',
-    "Diária Exclusiva": item.valor_diaria_exclusiva 
-      ? item.valor_diaria_exclusiva.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-      : '-',
-    "Valor Refeição": item.valor_refeicao 
-      ? item.valor_refeicao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-      : '-'
+    "Nome Função": item.nome_funcao,
+    "Valor Diária (R$)": item.valor_diaria ?? 0,
+    "Diária Exclusiva (R$)": item.valor_diaria_exclusiva ?? 0,
+    "Valor Refeição (R$)": item.valor_refeicao ?? 0,
+    "Salário Base (R$)": item.salario_base ?? 0
   }));
   
-  // Create worksheet
   const worksheet = XLSX.utils.json_to_sheet(formattedData);
   
-  // Create workbook and add worksheet
+  worksheet["!cols"] = [
+    { wch: 30 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 18 }
+  ];
+  
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Funções");
   
-  // Generate Excel file
-  XLSX.writeFile(workbook, "funcoes.xlsx");
+  XLSX.writeFile(workbook, "funcoes_sistema.xlsx");
 };
 
-// Process imported data
-export const processImportData = async (data: any[]): Promise<{ success: string[]; errors: string[] }> => {
+// Helper to parse monetary value from import
+const parseMonetaryValue = (value: any): number => {
+  if (value === null || value === undefined || value === '') return 0;
+  if (typeof value === 'number') return value;
+  const cleanValue = value.toString().replace(/[R$\s.]/g, '').replace(',', '.');
+  return parseFloat(cleanValue) || 0;
+};
+
+// Process imported data with delta update logic
+export const processImportData = async (data: any[]): Promise<{ 
+  created: string[]; 
+  updated: string[]; 
+  unchanged: string[];
+  errors: string[];
+  // Keep backward compat
+  success: string[];
+}> => {
   const results = {
-    success: [] as string[],
-    errors: [] as string[]
+    created: [] as string[],
+    updated: [] as string[],
+    unchanged: [] as string[],
+    errors: [] as string[],
+    success: [] as string[]
   };
   
   for (const row of data) {
     try {
-      // Get the function name from either "Nome da Função" or "Função" field
-      const funcaoNome = row["Nome da Função"] || row["Função"] || null;
+      const funcaoNome = (row["Nome Função"] || row["Nome da Função"] || row["Função"] || "").toString().trim();
       
-      // Validate required fields
       if (!funcaoNome) {
         results.errors.push(`Linha com dados incompletos: ${JSON.stringify(row)}`);
         continue;
       }
       
-      // Check if already exists
-      const exists = await checkFuncaoExists(funcaoNome);
-      if (exists) {
-        results.errors.push(`Função já existe: ${funcaoNome}`);
+      const valorDiaria = parseMonetaryValue(row["Valor Diária (R$)"] || row["Valor Diária"] || row["Valor da Diária"] || 0);
+      const valorDiariaExclusiva = parseMonetaryValue(row["Diária Exclusiva (R$)"] || row["Diária Exclusiva"] || row["Valor Diária Exclusiva"] || 0);
+      const valorRefeicao = parseMonetaryValue(row["Valor Refeição (R$)"] || row["Valor Refeição"] || row["Valor Refeicao"] || 0);
+      const salarioBase = parseMonetaryValue(row["Salário Base (R$)"] || row["Salário Base"] || row["Salario Base"] || 0);
+      
+      // Check if function exists
+      const { data: existing, error: searchError } = await supabase
+        .from("bd_funcoes")
+        .select("*")
+        .ilike("nome_funcao", funcaoNome)
+        .maybeSingle();
+      
+      if (searchError) {
+        results.errors.push(`Erro ao buscar ${funcaoNome}: ${searchError.message}`);
         continue;
       }
       
-      // Parse valor diária from import (handle various formats)
-      const valorDiariaStr = row["Valor Diária"] || row["Valor da Diária"] || row["Valor_Diaria"] || "";
-      let valorDiaria = 0;
-      if (valorDiariaStr) {
-        // Remove R$, espaços e trocar vírgula por ponto
-        const cleanValue = valorDiariaStr.toString().replace(/[R$\s]/g, '').replace(',', '.');
-        valorDiaria = parseFloat(cleanValue) || 0;
+      if (existing) {
+        // Delta update: compare field by field
+        const updates: Record<string, number> = {};
+        
+        if (valorDiaria !== (existing.valor_diaria ?? 0)) updates.valor_diaria = valorDiaria;
+        if (valorDiariaExclusiva !== (existing.valor_diaria_exclusiva ?? 0)) updates.valor_diaria_exclusiva = valorDiariaExclusiva;
+        if (valorRefeicao !== (existing.valor_refeicao ?? 0)) updates.valor_refeicao = valorRefeicao;
+        if (salarioBase !== (existing.salario_base ?? 0)) updates.salario_base = salarioBase;
+        
+        if (Object.keys(updates).length > 0) {
+          const { error: updateError } = await supabase
+            .from("bd_funcoes")
+            .update(updates)
+            .eq("id", existing.id);
+          
+          if (updateError) {
+            results.errors.push(`Erro ao atualizar ${funcaoNome}: ${updateError.message}`);
+          } else {
+            const changedFields = Object.keys(updates).join(', ');
+            results.updated.push(`${funcaoNome} (${changedFields})`);
+            results.success.push(`${funcaoNome} (atualizada)`);
+          }
+        } else {
+          results.unchanged.push(funcaoNome);
+        }
+      } else {
+        // Insert new
+        const funcaoData: FuncaoFormData = {
+          nome_funcao: funcaoNome,
+          valor_diaria: valorDiaria,
+          valor_diaria_exclusiva: valorDiariaExclusiva,
+          valor_refeicao: valorRefeicao,
+          salario_base: salarioBase
+        };
+        
+        await createFuncao(funcaoData);
+        results.created.push(funcaoNome);
+        results.success.push(`${funcaoNome} (criada)`);
       }
-      
-      // Parse valor diária exclusiva from import
-      const valorDiariaExclusivaStr = row["Diária Exclusiva"] || row["Valor Diária Exclusiva"] || "";
-      let valorDiariaExclusiva = 0;
-      if (valorDiariaExclusivaStr) {
-        const cleanValue = valorDiariaExclusivaStr.toString().replace(/[R$\s]/g, '').replace(',', '.');
-        valorDiariaExclusiva = parseFloat(cleanValue) || 0;
-      }
-
-      // Parse valor refeição from import
-      const valorRefeicaoStr = row["Valor Refeição"] || row["Valor Refeicao"] || "";
-      let valorRefeicao = 0;
-      if (valorRefeicaoStr) {
-        const cleanValue = valorRefeicaoStr.toString().replace(/[R$\s]/g, '').replace(',', '.');
-        valorRefeicao = parseFloat(cleanValue) || 0;
-      }
-      
-      // Format data for insertion
-      const funcaoData: FuncaoFormData = {
-        nome_funcao: funcaoNome,
-        valor_diaria: valorDiaria,
-        valor_diaria_exclusiva: valorDiariaExclusiva,
-        valor_refeicao: valorRefeicao
-      };
-      
-      // Insert into database
-      await createFuncao(funcaoData);
-      results.success.push(`${funcaoNome}`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-      const funcaoNome = row["Nome da Função"] || row["Função"] || "Desconhecido";
+      const funcaoNome = row["Nome Função"] || row["Nome da Função"] || row["Função"] || "Desconhecido";
       results.errors.push(`Erro ao processar ${funcaoNome}: ${errorMessage}`);
     }
   }

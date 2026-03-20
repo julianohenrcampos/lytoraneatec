@@ -16,6 +16,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Funcao, FuncaoFormData } from "@/types/funcao";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { checkFuncaoExists, createFuncao, updateFuncao } from "@/services/funcaoService";
@@ -26,7 +27,8 @@ const formSchema = z.object({
   nome_funcao: z.string().min(1, "Nome da função é obrigatório"),
   valor_diaria: z.number().min(0, "Valor deve ser maior ou igual a zero").optional().nullable(),
   valor_diaria_exclusiva: z.number().min(0, "Valor deve ser maior ou igual a zero").optional().nullable(),
-  valor_refeicao: z.number().min(0, "Valor deve ser maior ou igual a zero").optional().nullable()
+  valor_refeicao: z.number().min(0, "Valor deve ser maior ou igual a zero").optional().nullable(),
+  salario_base: z.number().min(0, "Valor deve ser maior ou igual a zero").optional().nullable()
 });
 
 interface FuncaoFormModalProps {
@@ -50,9 +52,10 @@ const FuncaoFormModal: React.FC<FuncaoFormModalProps> = ({
     resolver: zodResolver(formSchema),
     defaultValues: {
       nome_funcao: funcao?.nome_funcao || "",
-      valor_diaria: funcao?.valor_diaria || 0,
-      valor_diaria_exclusiva: funcao?.valor_diaria_exclusiva || 0,
-      valor_refeicao: funcao?.valor_refeicao || 0
+      valor_diaria: funcao?.valor_diaria ?? 0,
+      valor_diaria_exclusiva: funcao?.valor_diaria_exclusiva ?? 0,
+      valor_refeicao: funcao?.valor_refeicao ?? 0,
+      salario_base: funcao?.salario_base ?? 0
     }
   });
   
@@ -60,9 +63,10 @@ const FuncaoFormModal: React.FC<FuncaoFormModalProps> = ({
     if (isOpen) {
       form.reset({
         nome_funcao: funcao?.nome_funcao || "",
-        valor_diaria: funcao?.valor_diaria || 0,
-        valor_diaria_exclusiva: funcao?.valor_diaria_exclusiva || 0,
-        valor_refeicao: funcao?.valor_refeicao || 0
+        valor_diaria: funcao?.valor_diaria ?? 0,
+        valor_diaria_exclusiva: funcao?.valor_diaria_exclusiva ?? 0,
+        valor_refeicao: funcao?.valor_refeicao ?? 0,
+        salario_base: funcao?.salario_base ?? 0
       });
     }
   }, [isOpen, funcao, form]);
@@ -112,7 +116,6 @@ const FuncaoFormModal: React.FC<FuncaoFormModalProps> = ({
   
   const onSubmit = async (data: FuncaoFormData) => {
     try {
-      // Check if function name already exists
       const exists = await checkFuncaoExists(data.nome_funcao, funcao?.id);
       if (exists) {
         form.setError("nome_funcao", { 
@@ -138,7 +141,7 @@ const FuncaoFormModal: React.FC<FuncaoFormModalProps> = ({
   
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[550px]">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? "Editar Função" : "Cadastrar Nova Função"}
@@ -161,7 +164,7 @@ const FuncaoFormModal: React.FC<FuncaoFormModalProps> = ({
               )}
             />
             
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <FormField
                 control={form.control}
                 name="valor_diaria"
@@ -169,14 +172,9 @@ const FuncaoFormModal: React.FC<FuncaoFormModalProps> = ({
                   <FormItem>
                     <FormLabel>Valor da Diária (R$)</FormLabel>
                     <FormControl>
-                      <Input 
-                        type="number" 
-                        step="0.01"
-                        min="0"
-                        placeholder="0,00" 
-                        {...field}
-                        value={field.value || ''}
-                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                      <CurrencyInput
+                        value={field.value ?? 0}
+                        onChange={(v) => field.onChange(v)}
                       />
                     </FormControl>
                     <p className="text-xs text-muted-foreground">Segunda a Sexta</p>
@@ -192,17 +190,12 @@ const FuncaoFormModal: React.FC<FuncaoFormModalProps> = ({
                   <FormItem>
                     <FormLabel>Diária Exclusiva (R$)</FormLabel>
                     <FormControl>
-                      <Input 
-                        type="number" 
-                        step="0.01"
-                        min="0"
-                        placeholder="0,00" 
-                        {...field}
-                        value={field.value || ''}
-                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                      <CurrencyInput
+                        value={field.value ?? 0}
+                        onChange={(v) => field.onChange(v)}
                       />
                     </FormControl>
-                    <p className="text-xs text-muted-foreground">Finais de Semana e Feriados</p>
+                    <p className="text-xs text-muted-foreground">Sábados, Domingos e Feriados</p>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -215,14 +208,9 @@ const FuncaoFormModal: React.FC<FuncaoFormModalProps> = ({
                   <FormItem>
                     <FormLabel>Valor Refeição (R$)</FormLabel>
                     <FormControl>
-                      <Input 
-                        type="number" 
-                        step="0.01"
-                        min="0"
-                        placeholder="0,00" 
-                        {...field}
-                        value={field.value || ''}
-                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                      <CurrencyInput
+                        value={field.value ?? 0}
+                        onChange={(v) => field.onChange(v)}
                       />
                     </FormControl>
                     <p className="text-xs text-muted-foreground">Valor por refeição</p>
@@ -231,6 +219,23 @@ const FuncaoFormModal: React.FC<FuncaoFormModalProps> = ({
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="salario_base"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Salário Base (R$)</FormLabel>
+                    <FormControl>
+                      <CurrencyInput
+                        value={field.value ?? 0}
+                        onChange={(v) => field.onChange(v)}
+                      />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             
             <DialogFooter className="pt-4">
               <Button

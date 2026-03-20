@@ -1,3 +1,4 @@
+import '@/lib/pdfFonts';
 import { StyleSheet } from '@react-pdf/renderer';
 
 export const verAgirStyles = StyleSheet.create({
@@ -7,7 +8,7 @@ export const verAgirStyles = StyleSheet.create({
     paddingBottom: 60,
     paddingHorizontal: 40,
     fontSize: 10,
-    fontFamily: 'Helvetica',
+    fontFamily: 'Roboto',
     backgroundColor: '#ffffff',
   },
 
@@ -20,7 +21,7 @@ export const verAgirStyles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#1e3a5f',
     textAlign: 'center',
     marginBottom: 4,
@@ -38,7 +39,7 @@ export const verAgirStyles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 11,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#1e3a5f',
     marginBottom: 8,
     paddingBottom: 4,
@@ -75,7 +76,7 @@ export const verAgirStyles = StyleSheet.create({
   infoValue: {
     fontSize: 10,
     color: '#1f2937',
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
   },
 
   // Text Content
@@ -102,7 +103,7 @@ export const verAgirStyles = StyleSheet.create({
   },
   photoLabel: {
     fontSize: 10,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#1e3a5f',
     marginBottom: 6,
     textAlign: 'center',

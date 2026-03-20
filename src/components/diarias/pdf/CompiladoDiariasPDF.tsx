@@ -1,8 +1,8 @@
+import '@/lib/pdfFonts';
 import { Document, Page, View, Text, Image, Font, StyleSheet } from '@react-pdf/renderer';
 import type { RelatorioFolhaItem } from '@/types/diarias';
 import { calcularRangesDSFS } from '@/utils/diariasPeriodoUtils';
 
-Font.registerHyphenationCallback(word => [word]);
 
 interface CentroCustoDetalhe {
   centroCusto: string;
@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
     paddingBottom: 60,
     paddingHorizontal: 40,
     fontSize: 9,
-    fontFamily: 'Helvetica',
+    fontFamily: 'Roboto',
     backgroundColor: '#ffffff',
   },
   headerContainer: {
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 14,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: BC,
     textAlign: 'center' as any,
     flex: 1,
@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
   },
   totalGeralTitleText: {
     fontSize: 12,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: BC,
     textTransform: 'uppercase' as any,
   },
@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
   totalGeralHeaderCell: {
     width: '50%',
     padding: 4,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     fontSize: 8,
     color: BC,
     textTransform: 'uppercase' as any,
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
     width: '50%',
     padding: 8,
     fontSize: 12,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: BC,
     textAlign: 'center' as any,
     borderRightWidth: BW,
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
     width: '50%',
     padding: 8,
     fontSize: 12,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: BC,
     textAlign: 'center' as any,
   },
@@ -165,19 +165,19 @@ function CentroCustoCard({ cc, width, compact }: { cc: CentroCustoDetalhe; width
     }}>
       {/* Centro name */}
       <View style={{ backgroundColor: '#f0f4f8', padding: compact ? 3 : 5, borderBottomWidth: BW, borderBottomColor: BC }}>
-        <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: nameFontSize, color: BC, textAlign: 'center' as any }}>
+        <Text style={{ fontFamily: 'Roboto', fontWeight: 'bold' as const, fontSize: nameFontSize, color: BC, textAlign: 'center' as any }}>
           {cc.centroCusto}
         </Text>
       </View>
       <View style={{ flexDirection: 'row' as any, backgroundColor: BC, borderBottomWidth: BW, borderBottomColor: BC }}>
         <View style={{ flex: 1, padding: compact ? 2 : 3, borderRightWidth: 0.5, borderRightColor: '#ffffff' }}>
-          <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: headerFontSize, color: '#ffffff', textAlign: 'center' as any }}>D.S</Text>
+          <Text style={{ fontFamily: 'Roboto', fontWeight: 'bold' as const, fontSize: headerFontSize, color: '#ffffff', textAlign: 'center' as any }}>D.S</Text>
           {cc.dsLabel && cc.dsLabel !== '-' && (
             <Text style={{ fontSize: compact ? 4.5 : 5.5, color: '#e2e8f0', textAlign: 'center' as any, marginTop: 1 }}>{cc.dsLabel}</Text>
           )}
         </View>
         <View style={{ flex: 1, padding: compact ? 2 : 3 }}>
-          <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: headerFontSize, color: '#ffffff', textAlign: 'center' as any }}>F.S</Text>
+          <Text style={{ fontFamily: 'Roboto', fontWeight: 'bold' as const, fontSize: headerFontSize, color: '#ffffff', textAlign: 'center' as any }}>F.S</Text>
           {cc.fsLabel && cc.fsLabel !== '-' && (
             <Text style={{ fontSize: compact ? 4.5 : 5.5, color: '#e2e8f0', textAlign: 'center' as any, marginTop: 1 }}>{cc.fsLabel}</Text>
           )}
@@ -185,12 +185,12 @@ function CentroCustoCard({ cc, width, compact }: { cc: CentroCustoDetalhe; width
       </View>
       <View style={{ flexDirection: 'row' as any, borderBottomWidth: BW, borderBottomColor: BC }}>
         <View style={{ flex: 1, padding: compact ? 2 : 4, borderRightWidth: 0.5, borderRightColor: '#d1d5db' }}>
-          <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: qtyFontSize, color: '#1f2937', textAlign: 'center' as any }}>
+          <Text style={{ fontFamily: 'Roboto', fontWeight: 'bold' as const, fontSize: qtyFontSize, color: '#1f2937', textAlign: 'center' as any }}>
             {cc.quantidadeDS || '-'}
           </Text>
         </View>
         <View style={{ flex: 1, padding: compact ? 2 : 4 }}>
-          <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: qtyFontSize, color: '#1f2937', textAlign: 'center' as any }}>
+          <Text style={{ fontFamily: 'Roboto', fontWeight: 'bold' as const, fontSize: qtyFontSize, color: '#1f2937', textAlign: 'center' as any }}>
             {cc.quantidadeFS || '-'}
           </Text>
         </View>
@@ -251,21 +251,21 @@ function GerenciaBlock({ gerencia, mesAno, periodo, feriados, dataInicio, dataFi
       <View style={{ borderBottomWidth: 0 }}>
         <View style={{ flexDirection: 'row' as any }}>
           <View style={{ width: '50%', backgroundColor: '#f0f4f8', padding: 5, borderRightWidth: BW, borderRightColor: BC, borderBottomWidth: BW, borderBottomColor: BC }}>
-            <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 10, color: BC, textAlign: 'center' as any, textTransform: 'uppercase' as any }}>MÊS</Text>
+            <Text style={{ fontFamily: 'Roboto', fontWeight: 'bold' as const, fontSize: 10, color: BC, textAlign: 'center' as any, textTransform: 'uppercase' as any }}>MÊS</Text>
           </View>
           <View style={{ width: '50%', backgroundColor: '#f0f4f8', padding: 5, borderBottomWidth: BW, borderBottomColor: BC }}>
-            <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 10, color: BC, textAlign: 'center' as any, textTransform: 'uppercase' as any }}>GERÊNCIA</Text>
+            <Text style={{ fontFamily: 'Roboto', fontWeight: 'bold' as const, fontSize: 10, color: BC, textAlign: 'center' as any, textTransform: 'uppercase' as any }}>GERÊNCIA</Text>
           </View>
         </View>
         <View style={{ flexDirection: 'row' as any, borderBottomWidth: BW, borderBottomColor: BC }}>
           <View style={{ width: '50%', padding: 6, borderRightWidth: BW, borderRightColor: BC, justifyContent: 'center' as any, alignItems: 'center' as any }}>
-            <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 12, color: '#1f2937', textAlign: 'center' as any }}>{mesResumo}</Text>
+            <Text style={{ fontFamily: 'Roboto', fontWeight: 'bold' as const, fontSize: 12, color: '#1f2937', textAlign: 'center' as any }}>{mesResumo}</Text>
             {periodo && (
               <Text style={{ fontSize: 8, color: '#4b5563', textAlign: 'center' as any, marginTop: 2 }}>{periodo}</Text>
             )}
           </View>
           <View style={{ width: '50%', padding: 6, justifyContent: 'center' as any, alignItems: 'center' as any }}>
-            <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 11, color: '#1f2937', textAlign: 'center' as any }}>{gerencia.gerenteNome}</Text>
+            <Text style={{ fontFamily: 'Roboto', fontWeight: 'bold' as const, fontSize: 11, color: '#1f2937', textAlign: 'center' as any }}>{gerencia.gerenteNome}</Text>
           </View>
         </View>
       </View>
@@ -286,24 +286,24 @@ function GerenciaBlock({ gerencia, mesAno, periodo, feriados, dataInicio, dataFi
       <View style={{ borderTopWidth: BW, borderTopColor: BC }}>
         {/* Row 1: DIÁRIAS spanning full width */}
         <View style={{ backgroundColor: '#ffffff', padding: 6, alignItems: 'center' as any, borderBottomWidth: BW, borderBottomColor: BC }}>
-          <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 10, color: BC, textTransform: 'uppercase' as any }}>DIÁRIAS</Text>
+          <Text style={{ fontFamily: 'Roboto', fontWeight: 'bold' as const, fontSize: 10, color: BC, textTransform: 'uppercase' as any }}>DIÁRIAS</Text>
         </View>
         {/* Row 2: Headers */}
         <View style={{ flexDirection: 'row' as any, borderBottomWidth: BW, borderBottomColor: BC }}>
           <View style={{ width: '50%', backgroundColor: '#f0f4f8', padding: 4, borderRightWidth: BW, borderRightColor: BC }}>
-            <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 8, color: BC, textAlign: 'center' as any, textTransform: 'uppercase' as any }}>QUANT. TOTAL</Text>
+            <Text style={{ fontFamily: 'Roboto', fontWeight: 'bold' as const, fontSize: 8, color: BC, textAlign: 'center' as any, textTransform: 'uppercase' as any }}>QUANT. TOTAL</Text>
           </View>
           <View style={{ width: '50%', backgroundColor: '#f0f4f8', padding: 4 }}>
-            <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 8, color: BC, textAlign: 'center' as any, textTransform: 'uppercase' as any }}>VALOR TOTAL</Text>
+            <Text style={{ fontFamily: 'Roboto', fontWeight: 'bold' as const, fontSize: 8, color: BC, textAlign: 'center' as any, textTransform: 'uppercase' as any }}>VALOR TOTAL</Text>
           </View>
         </View>
         {/* Row 3: Values */}
         <View style={{ flexDirection: 'row' as any }}>
           <View style={{ width: '50%', padding: 8, borderRightWidth: BW, borderRightColor: BC, alignItems: 'center' as any }}>
-            <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 12, color: BC, textAlign: 'center' as any }}>{gerencia.totalQuantidade}</Text>
+            <Text style={{ fontFamily: 'Roboto', fontWeight: 'bold' as const, fontSize: 12, color: BC, textAlign: 'center' as any }}>{gerencia.totalQuantidade}</Text>
           </View>
           <View style={{ width: '50%', padding: 8, alignItems: 'center' as any }}>
-            <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 11, color: BC, textAlign: 'center' as any }}>{formatCurrency(gerencia.totalValor)}</Text>
+            <Text style={{ fontFamily: 'Roboto', fontWeight: 'bold' as const, fontSize: 11, color: BC, textAlign: 'center' as any }}>{formatCurrency(gerencia.totalValor)}</Text>
           </View>
         </View>
       </View>
@@ -347,10 +347,10 @@ export const CompiladoDiariasPDF = ({
           </View>
           <View style={styles.totalGeralHeaderRow}>
             <View style={{ ...styles.totalGeralHeaderCell, borderRightWidth: BW, borderRightColor: BC }}>
-              <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 8, color: BC, textTransform: 'uppercase' as any, textAlign: 'center' as any }}>QUANTIDADE</Text>
+              <Text style={{ fontFamily: 'Roboto', fontWeight: 'bold' as const, fontSize: 8, color: BC, textTransform: 'uppercase' as any, textAlign: 'center' as any }}>QUANTIDADE</Text>
             </View>
             <View style={styles.totalGeralHeaderCell}>
-              <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 8, color: BC, textTransform: 'uppercase' as any, textAlign: 'center' as any }}>VALOR</Text>
+              <Text style={{ fontFamily: 'Roboto', fontWeight: 'bold' as const, fontSize: 8, color: BC, textTransform: 'uppercase' as any, textAlign: 'center' as any }}>VALOR</Text>
             </View>
           </View>
           <View style={styles.totalGeralDataRow}>

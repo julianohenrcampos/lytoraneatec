@@ -1,3 +1,4 @@
+import '@/lib/pdfFonts';
 import { StyleSheet } from '@react-pdf/renderer';
 
 export const styles = StyleSheet.create({
@@ -7,7 +8,7 @@ export const styles = StyleSheet.create({
     paddingBottom: 70,
     paddingHorizontal: 40,
     fontSize: 10,
-    fontFamily: 'Helvetica',
+    fontFamily: 'Roboto',
     backgroundColor: '#ffffff',
   },
   coverPage: {
@@ -15,7 +16,7 @@ export const styles = StyleSheet.create({
     paddingBottom: 40,
     paddingHorizontal: 40,
     fontSize: 10,
-    fontFamily: 'Helvetica',
+    fontFamily: 'Roboto',
     backgroundColor: '#ffffff',
   },
 
@@ -34,7 +35,7 @@ export const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 11,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#1e3a5f',
   },
   headerDate: {
@@ -67,7 +68,7 @@ export const styles = StyleSheet.create({
   // Cover Page Styles
   coverTitle: {
     fontSize: 18,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#1e3a5f',
     textAlign: 'center',
     marginBottom: 4,
@@ -90,7 +91,7 @@ export const styles = StyleSheet.create({
   },
   infoSectionTitle: {
     fontSize: 11,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#1e3a5f',
     marginBottom: 8,
     paddingBottom: 4,
@@ -114,7 +115,7 @@ export const styles = StyleSheet.create({
   infoValue: {
     fontSize: 10,
     color: '#1f2937',
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
   },
 
   // Stats Panel
@@ -153,7 +154,7 @@ export const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 20,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     marginBottom: 2,
   },
   statValueCritical: {
@@ -185,7 +186,7 @@ export const styles = StyleSheet.create({
   },
   observationsTitle: {
     fontSize: 10,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#1e3a5f',
     marginBottom: 6,
   },
@@ -221,7 +222,7 @@ export const styles = StyleSheet.create({
   },
   ncNumberText: {
     fontSize: 10,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#ffffff',
   },
   ncCategory: {
@@ -233,7 +234,7 @@ export const styles = StyleSheet.create({
   },
   ncCategoryText: {
     fontSize: 9,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#dc2626',
   },
   ncBadge: {
@@ -244,7 +245,7 @@ export const styles = StyleSheet.create({
   },
   ncBadgeText: {
     fontSize: 8,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#ffffff',
   },
   ncDescription: {
@@ -263,7 +264,7 @@ export const styles = StyleSheet.create({
   },
   ncEvidenceLabel: {
     fontSize: 8,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#854d0e',
     marginBottom: 4,
   },
@@ -279,7 +280,7 @@ export const styles = StyleSheet.create({
   },
   ncPhotosLabel: {
     fontSize: 8,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
     color: '#6b7280',
     marginBottom: 6,
   },

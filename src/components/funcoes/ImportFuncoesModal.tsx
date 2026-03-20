@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { processImportData } from "@/services/funcaoService";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, Check, X, FileText, Download } from "lucide-react";
+import { Loader2, Upload, Check, X, Minus, FileText, Download } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { parseFuncoesExcel, generateFuncoesTemplate } from "@/lib/excel";
 
@@ -28,8 +28,11 @@ const ImportFuncoesModal: React.FC<ImportFuncoesModalProps> = ({
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState<{
-    success: string[];
+    created: string[];
+    updated: string[];
+    unchanged: string[];
     errors: string[];
+    success: string[];
   } | null>(null);
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -53,7 +56,6 @@ const ImportFuncoesModal: React.FC<ImportFuncoesModalProps> = ({
     try {
       setIsLoading(true);
       
-      // Parse Excel file with our specialized function
       const data = await parseFuncoesExcel(file);
       
       if (data.length === 0) {
@@ -65,26 +67,28 @@ const ImportFuncoesModal: React.FC<ImportFuncoesModalProps> = ({
         return;
       }
       
-      // Process data
-      const results = await processImportData(data);
-      setResults(results);
+      const importResults = await processImportData(data);
+      setResults(importResults);
       
-      // Show toast with results summary
-      if (results.success.length > 0) {
+      const totalProcessed = importResults.created.length + importResults.updated.length;
+      
+      if (totalProcessed > 0) {
         toast({
           title: "Importação concluída",
-          description: `${results.success.length} funções importadas com sucesso.${
-            results.errors.length > 0 ? ` ${results.errors.length} erros encontrados.` : ""
-          }`
+          description: `${importResults.created.length} criadas, ${importResults.updated.length} atualizadas, ${importResults.unchanged.length} sem alteração.`
         });
         
-        // Refresh data
         queryClient.invalidateQueries({ queryKey: ["funcoes"] });
         onSuccess();
+      } else if (importResults.unchanged.length > 0) {
+        toast({
+          title: "Nenhuma alteração necessária",
+          description: `${importResults.unchanged.length} funções já estão atualizadas.`
+        });
       } else {
         toast({
           title: "Importação falhou",
-          description: `Nenhuma função foi importada. ${results.errors.length} erros encontrados.`,
+          description: `${importResults.errors.length} erros encontrados.`,
           variant: "destructive"
         });
       }
@@ -141,7 +145,7 @@ const ImportFuncoesModal: React.FC<ImportFuncoesModalProps> = ({
               </Button>
             </div>
             <p className="text-sm text-muted-foreground">
-              O arquivo deve conter uma coluna com o nome "Função" ou apenas valores das funções.
+              Colunas esperadas: Nome Função, Valor Diária (R$), Diária Exclusiva (R$), Valor Refeição (R$), Salário Base (R$)
             </p>
           </div>
           
@@ -156,22 +160,48 @@ const ImportFuncoesModal: React.FC<ImportFuncoesModalProps> = ({
           )}
           
           {results && (
-            <div className="space-y-3 max-h-48 overflow-auto border rounded-md p-3">
-              <div className="space-y-1">
-                <h4 className="text-sm font-semibold flex items-center">
-                  <Check className="h-4 w-4 mr-1 text-green-500" />
-                  Importados ({results.success.length})
-                </h4>
-                {results.success.length > 0 ? (
+            <div className="space-y-3 max-h-60 overflow-auto border rounded-md p-3">
+              {results.created.length > 0 && (
+                <div className="space-y-1">
+                  <h4 className="text-sm font-semibold flex items-center">
+                    <Check className="h-4 w-4 mr-1 text-green-500" />
+                    Criadas ({results.created.length})
+                  </h4>
                   <ul className="text-sm space-y-1 ml-6 list-disc">
-                    {results.success.map((item, index) => (
-                      <li key={`success-${index}`}>{item}</li>
+                    {results.created.map((item, index) => (
+                      <li key={`created-${index}`}>{item}</li>
                     ))}
                   </ul>
-                ) : (
-                  <p className="text-sm text-muted-foreground ml-6">Nenhum item importado.</p>
-                )}
-              </div>
+                </div>
+              )}
+              
+              {results.updated.length > 0 && (
+                <div className="space-y-1">
+                  <h4 className="text-sm font-semibold flex items-center text-blue-600">
+                    <Check className="h-4 w-4 mr-1 text-blue-500" />
+                    Atualizadas ({results.updated.length})
+                  </h4>
+                  <ul className="text-sm space-y-1 ml-6 list-disc">
+                    {results.updated.map((item, index) => (
+                      <li key={`updated-${index}`}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              {results.unchanged.length > 0 && (
+                <div className="space-y-1">
+                  <h4 className="text-sm font-semibold flex items-center text-muted-foreground">
+                    <Minus className="h-4 w-4 mr-1" />
+                    Sem alteração ({results.unchanged.length})
+                  </h4>
+                  <ul className="text-sm space-y-1 ml-6 list-disc text-muted-foreground">
+                    {results.unchanged.map((item, index) => (
+                      <li key={`unchanged-${index}`}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               
               {results.errors.length > 0 && (
                 <div className="space-y-1">

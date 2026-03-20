@@ -1,0 +1,1 @@
+ALTER TABLE bd_funcoes ADD COLUMN salario_base NUMERIC(10,2) DEFAULT 0;
