@@ -413,46 +413,27 @@ export const generateListaPresencaPDF = async (
 };
 
 // =====================================================
-// DIÁRIAS PDF - Compilado por Gerência
+// DIÁRIAS PDF - Compilado de Diárias
 // =====================================================
 
-interface CompiladoGerencia {
-  gerenteNome: string;
-  centrosCusto: {
-    centroCusto: string;
-    quantidade: number;
-    valor: number;
-    quantidadeDS: number;
-    valorDS: number;
-    quantidadeFS: number;
-    valorFS: number;
-  }[];
-  totalQuantidade: number;
-  totalValor: number;
-}
-
 export const generateCompiladoDiariasPDF = async (
-  dados: CompiladoGerencia[],
-  mesAno: string,
+  centros: any[],
+  ano: number,
+  sequencia: string,
   totalGeralQuantidade: number,
   totalGeralValor: number,
   fileName: string,
-  periodo?: string,
-  options?: { feriados?: string[]; dataInicio?: string; dataFim?: string }
 ): Promise<void> => {
   try {
     const logoUrl = await loadImageAsBase64('/lyto-uploads/dcf6c980-f927-4180-b109-b425da1323ba.png');
 
     const doc = createElement(CompiladoDiariasPDF, {
-      dados,
-      mesAno,
+      centros,
+      ano,
+      sequencia,
       logoUrl: logoUrl || undefined,
       totalGeralQuantidade,
       totalGeralValor,
-      periodo,
-      feriados: options?.feriados,
-      dataInicio: options?.dataInicio,
-      dataFim: options?.dataFim,
     });
 
     const blob = await pdf(doc as any).toBlob();

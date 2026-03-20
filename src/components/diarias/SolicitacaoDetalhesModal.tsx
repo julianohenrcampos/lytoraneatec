@@ -231,7 +231,10 @@ export function SolicitacaoDetalhesModal({
   const diasNormais = diasUteisReal; // apenas dias úteis pagam diária normal
   const diasExclusivos = sabadosReal + domingosReal + feriadosReal; // sábados, domingos e feriados pagam diária exclusiva
   const consideraFdsEFeriado = solicitacao.considera_fds_feriado;
-  const mostrarColunaDiariaEspecial = consideraFdsEFeriado && diasExclusivos > 0;
+  // Se período é exclusivamente FDS/feriados, calcular sempre (mesmo se flag salvo como false)
+  const periodoExclusivoFDS = diasNormais === 0;
+  const deveCalcularExclusivos = consideraFdsEFeriado || periodoExclusivoFDS;
+  const mostrarColunaDiariaEspecial = deveCalcularExclusivos && diasExclusivos > 0;
 
   let totalDiariasNormais = 0;
   let totalDiariasExclusivas = 0;
@@ -244,16 +247,15 @@ export function SolicitacaoDetalhesModal({
     const forcarExclusiva = conv.usar_diaria_exclusiva === true;
     
     if (forcarExclusiva) {
-      // Todos os dias com valor exclusiva
-      const totalDias = consideraFdsEFeriado ? diasNormais + diasExclusivos : diasNormais;
+      const totalDias = deveCalcularExclusivos ? diasNormais + diasExclusivos : diasNormais;
       totalDiariasExclusivas += totalDias * valorExclusiva;
       totalRefeicoes += totalDias * valorRefeicao;
     } else {
       totalDiariasNormais += diasNormais * valorDiaria;
-      if (consideraFdsEFeriado) {
+      if (deveCalcularExclusivos) {
         totalDiariasExclusivas += diasExclusivos * valorExclusiva;
       }
-      const diasParaRefeicao = consideraFdsEFeriado ? diasNormais + diasExclusivos : diasNormais;
+      const diasParaRefeicao = deveCalcularExclusivos ? diasNormais + diasExclusivos : diasNormais;
       totalRefeicoes += diasParaRefeicao * valorRefeicao;
     }
   });

@@ -467,52 +467,23 @@ export default function DiariasRelatorio() {
       const gerentesMap: Record<string, string> = {};
       gerentesRegionais.forEach((g: any) => { gerentesMap[g.id] = g.nome_completo; });
 
-      const { dados, totalGeralQuantidade, totalGeralValor } = buildCompiladoData(
+      const { centros, totalGeralQuantidade, totalGeralValor } = buildCompiladoData(
         relatorio,
         centrosCusto as any,
         gerentesMap,
         feriados
       );
 
-      // Determine período label
-      let mesAno: string;
-      if (filters.data_inicio && filters.data_fim) {
-        const dtInicio = new Date(filters.data_inicio + 'T12:00:00');
-        const dtFim = new Date(filters.data_fim + 'T12:00:00');
-        const mesInicio = dtInicio.getMonth();
-        const mesFim = dtFim.getMonth();
-        const anoInicio = dtInicio.getFullYear();
-        const anoFim = dtFim.getFullYear();
-        
-        const mesesPT = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
-        
-        if (mesInicio === mesFim && anoInicio === anoFim) {
-          mesAno = `${mesesPT[mesInicio]} ${anoInicio}`;
-        } else if (anoInicio === anoFim) {
-          const diffMeses = mesFim - mesInicio;
-          if (diffMeses === 1) {
-            mesAno = `${mesesPT[mesInicio]} E ${mesesPT[mesFim]} ${anoInicio}`;
-          } else {
-            mesAno = `${mesesPT[mesInicio]} A ${mesesPT[mesFim]} ${anoInicio}`;
-          }
-        } else {
-          mesAno = `${mesesPT[mesInicio]}/${anoInicio} A ${mesesPT[mesFim]}/${anoFim}`;
-        }
-      } else if (filters.data_inicio) {
-        mesAno = format(new Date(filters.data_inicio + 'T12:00:00'), 'MMMM/yyyy', { locale: ptBR }).toUpperCase();
-      } else {
-        mesAno = format(new Date(), 'MMMM/yyyy', { locale: ptBR }).toUpperCase();
-      }
-      // Build periodo string
-      let periodo: string | undefined;
-      if (filters.data_inicio && filters.data_fim) {
-        const fmtInicio = format(new Date(filters.data_inicio + 'T12:00:00'), 'dd/MM/yyyy');
-        const fmtFim = format(new Date(filters.data_fim + 'T12:00:00'), 'dd/MM/yyyy');
-        periodo = `${fmtInicio} à ${fmtFim}`;
-      }
+      // Determine year
+      const ano = filters.data_inicio
+        ? new Date(filters.data_inicio + 'T12:00:00').getFullYear()
+        : new Date().getFullYear();
 
-      const fileName = `Compilado_Diarias_${mesAno.replace(/[^a-zA-Z0-9]/g, '_')}`;
-      await generateCompiladoDiariasPDF(dados, mesAno, totalGeralQuantidade, totalGeralValor, fileName, periodo, { feriados, dataInicio: filters.data_inicio, dataFim: filters.data_fim });
+      // Sequence number (simple: "01 - YEAR")
+      const sequencia = `01 - ${ano}`;
+
+      const fileName = `Relatorio_Diarias_${ano}`;
+      await generateCompiladoDiariasPDF(centros, ano, sequencia, totalGeralQuantidade, totalGeralValor, fileName);
       toast.success('PDF Compilado gerado com sucesso!');
     } catch (error) {
       console.error('Erro ao gerar PDF compilado:', error);

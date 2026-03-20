@@ -103,6 +103,15 @@ export function SolicitacaoFormModal({
     const feriadosFormatados = feriados.map(f => ({ data: f.data, nome: f.nome }));
     return analisarPeriodo(dataInicio, dataFim, feriadosFormatados, consideraFdsFeriado);
   }, [dataInicio, dataFim, feriados, consideraFdsFeriado]);
+
+  // Auto-detectar se deve considerar FDS/Feriados baseado no período
+  useEffect(() => {
+    if (!dataInicio || !dataFim) return;
+    const temFDS = analise.domingos > 0 || analise.sabados > 0;
+    const temFeriado = analise.feriados > 0;
+    const deveConsiderar = temFDS || temFeriado;
+    setConsideraFdsFeriado(deveConsiderar);
+  }, [dataInicio, dataFim, analise.domingos, analise.sabados, analise.feriados]);
   
   // Validar período
   const periodoValidacao = useMemo(() => {
@@ -559,21 +568,21 @@ export function SolicitacaoFormModal({
                 )}
               </div>
               
-              {/* Toggle FDS/Feriados */}
-              <div className="flex items-center justify-between p-3 border rounded-lg">
+              {/* Indicador automático FDS/Feriados */}
+              <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
                 <div className="space-y-0.5">
-                  <Label htmlFor="considera-fds" className="text-sm font-medium">
-                    Considerar finais de semana e feriados
+                  <Label className="text-sm font-medium">
+                    Finais de semana e feriados
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Quando ativo, inclui FDS e feriados no cálculo estimado
+                    {consideraFdsFeriado 
+                      ? 'Detectado automaticamente — FDS/feriados incluídos no cálculo'
+                      : 'Período contém apenas dias úteis — sem FDS/feriados'}
                   </p>
                 </div>
-                <Switch
-                  id="considera-fds"
-                  checked={consideraFdsFeriado}
-                  onCheckedChange={setConsideraFdsFeriado}
-                />
+                <Badge variant={consideraFdsFeriado ? 'default' : 'outline'}>
+                  {consideraFdsFeriado ? 'Incluso' : 'N/A'}
+                </Badge>
               </div>
               
               {/* Resumo do Período */}

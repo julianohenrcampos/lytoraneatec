@@ -163,6 +163,10 @@ export function calcularEstimativaTotal(
   analise: PeriodoAnalise,
   considerarFdsFeriado: boolean
 ): SimulacaoValores {
+  // Se período é exclusivamente FDS/feriados (sem dias úteis), calcular sempre
+  const periodoExclusivoFDS = analise.diasUteis === 0;
+  const deveCalcularExclusivos = considerarFdsFeriado || periodoExclusivoFDS;
+
   const detalhePorFuncionario = funcionarios.map(func => {
     const valorDiaria = func.valor_diaria || 0;
     const valorDiariaExclusiva = func.valor_diaria_exclusiva || valorDiaria * 1.2;
@@ -180,7 +184,7 @@ export function calcularEstimativaTotal(
     
     if (forcarExclusiva) {
       // Todos os dias com valor exclusiva
-      const totalDias = considerarFdsFeriado 
+      const totalDias = deveCalcularExclusivos 
         ? diasNormais + diasExclusivos 
         : diasNormais;
       valorDiasUteisESabados = 0;
@@ -189,10 +193,10 @@ export function calcularEstimativaTotal(
     } else {
       // Comportamento padrão
       valorDiasUteisESabados = diasNormais * valorDiaria;
-      valorDomFeriados = considerarFdsFeriado 
+      valorDomFeriados = deveCalcularExclusivos 
         ? diasExclusivos * valorDiariaExclusiva 
         : 0;
-      diasParaRefeicao = considerarFdsFeriado
+      diasParaRefeicao = deveCalcularExclusivos
         ? diasNormais + diasExclusivos
         : diasNormais;
     }
