@@ -22,12 +22,14 @@ export function useFuncionarioQueries(
 ) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { departamentoId, shouldFilterByDepartment, isLoading: isSecurityLoading } = useRhSecurity();
+  const { departamentoId, centroCustoIds, shouldFilterByDepartment, shouldFilterByCentroCusto, isLoading: isSecurityLoading } = useRhSecurity();
 
-  // Aplicar filtro de departamento automaticamente para usuários com acesso restrito
+  // Aplicar filtro automaticamente baseado no contexto de segurança
   const secureFilters: FuncionarioFilter = shouldFilterByDepartment && departamentoId
     ? { ...filters, departamento_id: departamentoId }
-    : filters;
+    : shouldFilterByCentroCusto && centroCustoIds && centroCustoIds.length > 0
+      ? { ...filters, centro_custo_ids: centroCustoIds }
+      : filters;
 
   // Query para buscar funcionários
   const { 
@@ -37,7 +39,7 @@ export function useFuncionarioQueries(
     error,
     refetch 
   } = useQuery({
-    queryKey: ['funcionarios', secureFilters, departamentoId, shouldFilterByDepartment],
+    queryKey: ['funcionarios', secureFilters, departamentoId, shouldFilterByDepartment, shouldFilterByCentroCusto],
     queryFn: () => fetchFuncionarios(secureFilters),
     enabled: !isSecurityLoading, // Aguarda carregar o contexto de segurança
     retry: 1, // Tentar apenas uma vez (fallback já é tentado internamente)

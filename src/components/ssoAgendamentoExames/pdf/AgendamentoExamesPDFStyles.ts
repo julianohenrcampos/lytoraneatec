@@ -52,32 +52,21 @@ export const agendamentoExamesStyles = StyleSheet.create({
     backgroundColor: '#F5F5F5',
   },
   // Header cells
+  // Column border (applied to View wrapper, not Text)
+  colBorder: {
+    borderRightWidth: 1,
+    borderColor: '#000',
+  },
+  // Header cell text
   headerCell: {
     fontFamily: 'Roboto', fontWeight: 'bold' as const,
     fontSize: 7,
     textAlign: 'center',
     paddingVertical: 4,
     paddingHorizontal: 2,
-    borderRightWidth: 1,
-    borderColor: '#000',
   },
-  headerCellLast: {
-    fontFamily: 'Roboto', fontWeight: 'bold' as const,
-    fontSize: 7,
-    textAlign: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 2,
-  },
-  // Data cells
+  // Data cells text
   cell: {
-    fontSize: 7,
-    textAlign: 'center',
-    paddingVertical: 3,
-    paddingHorizontal: 2,
-    borderRightWidth: 1,
-    borderColor: '#000',
-  },
-  cellLast: {
     fontSize: 7,
     textAlign: 'center',
     paddingVertical: 3,
@@ -88,8 +77,6 @@ export const agendamentoExamesStyles = StyleSheet.create({
     textAlign: 'left',
     paddingVertical: 3,
     paddingHorizontal: 3,
-    borderRightWidth: 1,
-    borderColor: '#000',
   },
   // Column widths (9 columns)
   colNome: { width: '18%' },
@@ -230,5 +217,27 @@ export const agendamentoExamesStyles = StyleSheet.create({
     fontSize: 10,
     textAlign: 'center',
     color: '#CC0000',
+  },
+  // ===== Signatures =====
+  signaturesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 40,
+    paddingHorizontal: 20,
+  },
+  signatureBlock: {
+    width: '28%',
+    alignItems: 'center',
+  },
+  signatureLine: {
+    borderTopWidth: 1,
+    borderColor: '#000',
+    width: '100%',
+    marginBottom: 5,
+  },
+  signatureLabel: {
+    fontFamily: 'Roboto', fontWeight: 'bold' as const,
+    fontSize: 8,
+    textAlign: 'center',
   },
 });

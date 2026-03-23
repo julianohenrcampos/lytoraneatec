@@ -5174,6 +5174,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      get_admsede_centros_custo: {
+        Args: { p_user_id?: string }
+        Returns: string[]
+      }
       get_configuracao_sistema: { Args: { p_chave: string }; Returns: string }
       get_etapas_utilizadas: {
         Args: { p_checklist_id?: string; p_obra_id: string }
@@ -5217,6 +5221,10 @@ export type Database = {
       iniciar_fluxo_dinamico: {
         Args: { p_solicitacao_id: string }
         Returns: undefined
+      }
+      is_admsede_for_cc: {
+        Args: { p_cc_id: string; p_user_id: string }
+        Returns: boolean
       }
       is_departmental_super_admin: { Args: never; Returns: boolean }
       is_super_admin: { Args: { p_user_id: string }; Returns: boolean }

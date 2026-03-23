@@ -10,7 +10,13 @@ import { ImportStatusCarteiraModal, ImportAlterdataModal } from '@/components/ss
 import { useAgendamentoExames } from '@/hooks/ssoAgendamentoExames';
 import { AgendamentoExameFilters, TipoExame, FuncionarioSelecionado } from '@/types/ssoAgendamentoExames';
 import { useAuthPermissions } from '@/hooks/useAuthPermissions';
-import { FileSpreadsheet, FileText, Loader2, Filter } from 'lucide-react';
+import { FileSpreadsheet, FileText, Loader2, Filter, Download, Upload, ChevronDown } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
@@ -319,20 +325,27 @@ const SSOAgendamentoExames: React.FC = () => {
             <p className="text-muted-foreground">Gerencie os agendamentos de exames ocupacionais</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={handleExportPDF} disabled={exportingPdf}>
-              {exportingPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileText className="h-4 w-4 mr-2" />}
-              Exportar PDF
-            </Button>
-            <Button variant="outline" onClick={handleExportExcel}>
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
-              Exportar Excel
-            </Button>
-            <Button variant="outline" onClick={() => setImportModalOpen(true)}>
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
-              Importar Excel
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Download className="h-4 w-4 mr-2" />
+                  Exportar
+                  <ChevronDown className="h-4 w-4 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleExportPDF} disabled={exportingPdf} className="cursor-pointer">
+                  {exportingPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileText className="h-4 w-4 mr-2" />}
+                  PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportExcel} className="cursor-pointer">
+                  <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <Button variant="outline" onClick={() => setImportAlterdataOpen(true)}>
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              <Upload className="h-4 w-4 mr-2" />
               Importar Alterdata
             </Button>
             {canCreate && (

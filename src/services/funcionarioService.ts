@@ -49,6 +49,10 @@ const applyFilters = (query: any, filters: FuncionarioFilter) => {
     }
   }
 
+  if (filters.centro_custo_ids && filters.centro_custo_ids.length > 0) {
+    query = query.in("centro_custo_id", filters.centro_custo_ids);
+  }
+
   if (filters.empresa_id) {
     if (filters.empresa_id === "sem_valor") {
       query = query.is("empresa_id", null);

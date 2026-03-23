@@ -104,6 +104,7 @@ export interface FuncionarioFilter {
   data_admissao_inicio?: string;
   data_admissao_fim?: string;
   centro_custo_id?: string;
+  centro_custo_ids?: string[];
   departamento_id?: string;
   funcao_id?: string;
   empresa_id?: string;

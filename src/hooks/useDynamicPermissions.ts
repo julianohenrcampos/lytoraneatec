@@ -29,10 +29,22 @@ const ADM_SSO_PERMISSIONS = [
   'diarias_dashboard_view'
 ];
 
+const ADM_SEDE_PERMISSIONS = [
+  'dashboard_view', 'dashboard_rh_view',
+  'gestao_rh_empresas_view', 'gestao_rh_departamentos_view',
+  'gestao_rh_funcionarios_view', 'gestao_rh_funcoes_view',
+  'gestao_rh_centros_custo_view', 'gestao_rh_equipes_view',
+  'acesso_sso_agendamento_exames',
+  'diarias_view', 'diarias_dashboard_view', 'diarias_solicitacoes_view',
+  'diarias_apontamento_view', 'diarias_relatorio_view', 'acesso_gestao_aprovacoes',
+  'acesso_sso_dashboard', 'acesso_sso_checklists', 'acesso_sso_desvios', 'acesso_sso_ver_agir'
+];
+
 const SSO_ROLE_PERMISSIONS: Record<string, string[]> = {
   'TecSSO': ['acesso_sso_checklists', 'acesso_sso_desvios', 'acesso_sso_ver_agir', 'dashboard_view'],
   'AdmSSO': ADM_SSO_PERMISSIONS,
   'AdmOBRA': ADM_SSO_PERMISSIONS,
+  'AdmSede': ADM_SEDE_PERMISSIONS,
   'AdmtreinoSSO': [
     'acesso_sso_checklists', 'acesso_sso_desvios', 'acesso_sso_dashboard',
     'acesso_sso_agendamento_exames', 'acesso_sso_ver_agir', 'dashboard_view',
@@ -210,8 +222,8 @@ export const useDynamicPermissions = (): DynamicPermissions => {
         }
 
         // 🔧 FALLBACK SSO: Garantir permissões mínimas para roles SSO
-        if (profile.funcoes.includes('TecSSO') || profile.funcoes.includes('AdmSSO') || profile.funcoes.includes('AdmOBRA') || profile.funcoes.includes('GerenteRegional') || profile.funcoes.includes('AdmtreinoSSO')) {
-          const ssoRole = profile.funcoes.includes('AdmSSO') ? 'AdmSSO' : profile.funcoes.includes('AdmOBRA') ? 'AdmOBRA' : profile.funcoes.includes('AdmtreinoSSO') ? 'AdmtreinoSSO' : profile.funcoes.includes('GerenteRegional') ? 'GerenteRegional' : 'TecSSO';
+        if (profile.funcoes.includes('TecSSO') || profile.funcoes.includes('AdmSSO') || profile.funcoes.includes('AdmOBRA') || profile.funcoes.includes('GerenteRegional') || profile.funcoes.includes('AdmtreinoSSO') || profile.funcoes.includes('AdmSede')) {
+          const ssoRole = profile.funcoes.includes('AdmSSO') ? 'AdmSSO' : profile.funcoes.includes('AdmOBRA') ? 'AdmOBRA' : profile.funcoes.includes('AdmSede') ? 'AdmSede' : profile.funcoes.includes('AdmtreinoSSO') ? 'AdmtreinoSSO' : profile.funcoes.includes('GerenteRegional') ? 'GerenteRegional' : 'TecSSO';
           const minimumPermissions = SSO_ROLE_PERMISSIONS[ssoRole];
           
           console.log(`🔧 [DYNAMIC] Aplicando fallback SSO para ${ssoRole}:`, minimumPermissions);
@@ -344,6 +356,22 @@ export const useDynamicPermissions = (): DynamicPermissions => {
             };
             setPermissions(admOBRAFallback);
             permissionsCache = admOBRAFallback;
+            lastCacheTime = Date.now();
+            return;
+          }
+          
+          if (profileFallback?.funcoes?.includes('AdmSede')) {
+            console.log('✅ [DYNAMIC] Fallback AdmSede ativado - mantendo acesso');
+            const admSedeFallback = {
+              userId: user.id,
+              isSuperAdmin: false,
+              userRole: 'AdmSede',
+              permissions: SSO_ROLE_PERMISSIONS['AdmSede'],
+              isLoading: false,
+              canAccessDashboard: true,
+            };
+            setPermissions(admSedeFallback);
+            permissionsCache = admSedeFallback;
             lastCacheTime = Date.now();
             return;
           }

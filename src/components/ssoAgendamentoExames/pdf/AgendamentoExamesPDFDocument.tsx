@@ -62,8 +62,8 @@ const COLUMNS = [
 const HeaderRow = () => (
   <View style={s.headerRow} fixed>
     {COLUMNS.map((col, i) => (
-      <View key={col.label} style={[s[col.style as keyof typeof s] as any]}>
-        <Text style={i < COLUMNS.length - 1 ? s.headerCell : s.headerCellLast}>
+      <View key={col.label} style={[s[col.style as keyof typeof s] as any, i < COLUMNS.length - 1 && s.colBorder]}>
+        <Text style={s.headerCell}>
           {col.label}
         </Text>
       </View>
@@ -88,8 +88,8 @@ const DataRow = ({ ag, salario, passagens, index }: { ag: AgendamentoExame; sala
   return (
     <View style={rowStyle} wrap={false}>
       {values.map((val, i) => (
-        <View key={i} style={[s[COLUMNS[i].style as keyof typeof s] as any]}>
-          <Text style={i === 0 ? s.cellLeft : (i < values.length - 1 ? s.cell : s.cellLast)}>
+        <View key={i} style={[s[COLUMNS[i].style as keyof typeof s] as any, i < values.length - 1 && s.colBorder]}>
+          <Text style={i === 0 ? s.cellLeft : s.cell}>
             {val}
           </Text>
         </View>
@@ -176,7 +176,7 @@ export const AgendamentoExamesPDFDocument: React.FC<Props> = ({ agendamentos, sa
     <Document>
       <Page size="A4" orientation="landscape" style={s.page}>
         {/* Header */}
-        <Text style={s.title}>RELATÓRIO DE ADMISSÃO — AGENDAMENTO DE EXAMES</Text>
+        <Text style={s.title}><Text style={s.title}>RELATÓRIO DE ADMISSÃO</Text></Text>
         <Text style={s.subtitle}>{filtrosTexto}</Text>
 
         {/* Main data table */}
@@ -202,6 +202,22 @@ export const AgendamentoExamesPDFDocument: React.FC<Props> = ({ agendamentos, sa
         <View style={s.bottomRow}>
           <FuncoesSummaryTable funcoesCont={funcoesCont} />
           <TotalValorTable total={totalSalarios} />
+        </View>
+
+        {/* Assinaturas */}
+        <View style={s.signaturesRow}>
+          <View style={s.signatureBlock}>
+            <View style={s.signatureLine} />
+            <Text style={s.signatureLabel}>Gerente Regional</Text>
+          </View>
+          <View style={s.signatureBlock}>
+            <View style={s.signatureLine} />
+            <Text style={s.signatureLabel}>Diretor de Engenharia</Text>
+          </View>
+          <View style={s.signatureBlock}>
+            <View style={s.signatureLine} />
+            <Text style={s.signatureLabel}>Diretor Financeiro</Text>
+          </View>
         </View>
       </Page>
     </Document>

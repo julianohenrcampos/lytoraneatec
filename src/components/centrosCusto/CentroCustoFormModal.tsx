@@ -212,15 +212,22 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
         return;
       }
 
+      // Preserve original FK values if form value is empty but original has data
+      const resolveFK = (formVal: string | undefined, originalVal: string | null | undefined) => {
+        if (formVal && formVal !== '__none__') return formVal;
+        if (!formVal && centroCusto && originalVal) return originalVal;
+        return undefined;
+      };
+
       const formData: CentroCustoFormData = {
         codigo_centro_custo: values.codigo_centro_custo,
         nome_centro_custo: values.nome_centro_custo,
         cnpj_vinculado: values.cnpj_vinculado || undefined,
         telefone: values.telefone || undefined,
         situacao: values.situacao,
-        aprovador_diarias_id: values.aprovador_diarias_id || undefined,
-        adm_sede_funcionario_id: values.adm_sede_funcionario_id || undefined,
-        diretoria_id: values.diretoria_id || undefined,
+        aprovador_diarias_id: resolveFK(values.aprovador_diarias_id, centroCusto?.aprovador_diarias_id),
+        adm_sede_funcionario_id: resolveFK(values.adm_sede_funcionario_id, centroCusto?.adm_sede_funcionario_id),
+        diretoria_id: resolveFK(values.diretoria_id, centroCusto?.diretoria_id),
         endereco_completo: values.endereco_completo || undefined,
         endereco_rua: values.endereco_rua || undefined,
         endereco_numero: values.endereco_numero || undefined,
@@ -267,7 +274,7 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>
             {centroCusto ? "Editar Centro de Custo" : "Cadastrar Novo Centro de Custo"}
@@ -425,7 +432,7 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
                     <Combobox
                       options={admSedeCandidates.map((adm: any) => ({
                         value: adm.id,
-                        label: `${adm.nome_completo} — ${adm.funcao}`,
+                        label: adm.nome_completo,
                       }))}
                       value={field.value || ""}
                       onChange={field.onChange}
@@ -451,7 +458,7 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
                   <FormLabel>Diretoria Responsável</FormLabel>
                   <Select
                     onValueChange={field.onChange}
-                    value={field.value || ""}
+                    value={field.value || "__none__"}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -459,6 +466,7 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
+                      <SelectItem value="__none__">Selecione uma diretoria...</SelectItem>
                       {diretorias.map((dir: any) => (
                         <SelectItem key={dir.id} value={dir.id}>
                           {dir.nome}

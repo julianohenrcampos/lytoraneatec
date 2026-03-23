@@ -24,8 +24,8 @@ export const LinhaTransporteItem: React.FC<LinhaTransporteItemProps> = ({
   linha, index, onChange, onRemove, canRemove
 }) => {
   return (
-    <div className="grid grid-cols-12 gap-2 items-end p-3 border rounded-md bg-muted/30">
-      <div className="col-span-4 space-y-1">
+    <div className="grid grid-cols-[1fr_0.6fr_0.6fr_0.6fr_0.8fr_auto] gap-2 items-end p-3 border rounded-md bg-muted/30">
+      <div className="space-y-1">
         <Label className="text-xs">Nome da Linha</Label>
         <Input
           value={linha.nome}
@@ -33,7 +33,7 @@ export const LinhaTransporteItem: React.FC<LinhaTransporteItemProps> = ({
           placeholder="Ex: Linha 474"
         />
       </div>
-      <div className="col-span-2 space-y-1">
+      <div className="space-y-1">
         <Label className="text-xs">Número</Label>
         <Input
           value={linha.numero}
@@ -41,7 +41,7 @@ export const LinhaTransporteItem: React.FC<LinhaTransporteItemProps> = ({
           placeholder="474"
         />
       </div>
-      <div className="col-span-2 space-y-1">
+      <div className="space-y-1">
         <Label className="text-xs">Tarifa (R$)</Label>
         <Input
           type="number"
@@ -52,7 +52,15 @@ export const LinhaTransporteItem: React.FC<LinhaTransporteItemProps> = ({
           placeholder="4.40"
         />
       </div>
-      <div className="col-span-3 space-y-1">
+      <div className="space-y-1">
+        <Label className="text-xs">Ida/Volta</Label>
+        <Input
+          value={((linha.tarifa || 0) * 2).toFixed(2)}
+          readOnly
+          className="bg-muted"
+        />
+      </div>
+      <div className="space-y-1">
         <Label className="text-xs">Operadora</Label>
         <Select
           value={linha.operadora}
@@ -65,7 +73,7 @@ export const LinhaTransporteItem: React.FC<LinhaTransporteItemProps> = ({
           </SelectContent>
         </Select>
       </div>
-      <div className="col-span-1 flex justify-end">
+      <div className="flex justify-end">
         {canRemove && (
           <Button type="button" variant="ghost" size="icon" onClick={() => onRemove(index)}>
             <Trash2 className="h-4 w-4 text-destructive" />

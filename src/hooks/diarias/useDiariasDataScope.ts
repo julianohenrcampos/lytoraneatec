@@ -8,7 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
 import type { DiariaSolicitacao, SolicitacaoFilters, RelatorioFilters } from '@/types/diarias';
 
-export type DiariasUserScope = 'superadmin' | 'admsso' | 'engenheiro' | 'gerente' | 'apontador' | 'nenhum';
+export type DiariasUserScope = 'superadmin' | 'admsso' | 'admsede' | 'engenheiro' | 'gerente' | 'apontador' | 'nenhum';
 
 export interface DiariasDataScopeFilters {
   criado_por?: string;
@@ -81,8 +81,27 @@ export function useDiariasDataScope(): DiariasDataScope {
           .eq('id', userId)
           .single();
 
-        // 2b. Verificar se é AdmSSO (visão ampla, sem aprovação)
         const funcoes = (profile?.funcoes as string[]) || [];
+
+        // 2b. Verificar se é AdmSede (acesso por CC vinculado)
+        if (funcoes.includes('AdmSede')) {
+          setFuncionarioId(profile?.funcionario_id || null);
+          
+          // Buscar CCs gerenciados
+          const { data: ccIds } = await supabase.rpc('get_admsede_centros_custo', {
+            p_user_id: userId!,
+          });
+          
+          if (ccIds && (ccIds as string[]).length > 0) {
+            setCentrosCustoGerenciados(ccIds as string[]);
+            setUserScope('admsede');
+            lastDeterminedUserId.current = userId;
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        // 2c. Verificar se é AdmSSO (visão ampla, sem aprovação)
         if (funcoes.includes('AdmSSO') || funcoes.includes('AdmOBRA')) {
           setFuncionarioId(profile?.funcionario_id || null);
           setUserScope('admsso');
@@ -149,6 +168,7 @@ export function useDiariasDataScope(): DiariasDataScope {
   // Filtros de escopo baseado no perfil
   const scopeFilters = useMemo((): DiariasDataScopeFilters => {
     if (userScope === 'superadmin') return {};
+    if (userScope === 'admsede') return { centro_custo_ids: centrosCustoGerenciados };
     if (userScope === 'engenheiro') return { criado_por: userId || undefined };
     if (userScope === 'gerente') return { centro_custo_ids: centrosCustoGerenciados };
     if (userScope === 'apontador') return { responsavel_campo_id: funcionarioId || undefined };
@@ -164,7 +184,7 @@ export function useDiariasDataScope(): DiariasDataScope {
     if (userScope === 'apontador' && funcionarioId) {
       return { responsavel_campo_id: funcionarioId };
     }
-    if (userScope === 'gerente' && centrosCustoGerenciados.length > 0) {
+    if ((userScope === 'gerente' || userScope === 'admsede') && centrosCustoGerenciados.length > 0) {
       return { centro_custo_ids: centrosCustoGerenciados };
     }
     return {};
@@ -172,6 +192,7 @@ export function useDiariasDataScope(): DiariasDataScope {
 
   const getRelatorioFilter = useCallback((): RelatorioFilters & DiariasDataScopeFilters => {
     if (userScope === 'superadmin') return {};
+    if (userScope === 'admsede') return { centro_custo_ids: centrosCustoGerenciados };
     if (userScope === 'engenheiro') return { criado_por: userId || undefined };
     if (userScope === 'gerente') return { centro_custo_ids: centrosCustoGerenciados };
     return {};
@@ -191,7 +212,7 @@ export function useDiariasDataScope(): DiariasDataScope {
   }, [centrosCustoGerenciados]);
 
   const canCreateSolicitacao = useMemo(() => {
-    if (userScope === 'admsso') return true;
+    if (userScope === 'admsso' || userScope === 'admsede') return true;
     if (userScope === 'apontador') return false;
     return hasPermission('diarias_solicitar_create') || hasPermission('diarias_solicitar') || hasPermission('diarias_view');
   }, [hasPermission, userScope]);
@@ -212,8 +233,8 @@ export function useDiariasDataScope(): DiariasDataScope {
     // SuperAdmin pode excluir qualquer solicitação
     if (isSuperAdmin) return true;
     
-    // AdmSSO pode excluir qualquer solicitação (cascata)
-    if (permissions.includes('acesso_sso_checklists')) return true;
+    // AdmSSO/AdmSede pode excluir solicitações do seu escopo
+    if (userScope === 'admsso' || (userScope === 'admsede' && centrosCustoGerenciados.includes(sol.centro_custo_id))) return true;
     
     // Criador pode excluir apenas rascunho/enviada
     if (sol.criado_por !== userId) return false;
@@ -247,8 +268,8 @@ export function useDiariasDataScope(): DiariasDataScope {
     // Verificar segregação: criador não pode aprovar própria solicitação
     if (sol.criado_por === userId) return false;
     
-    // Verificar se o CC pertence ao escopo do gerente
-    if (userScope === 'gerente' && !centrosCustoGerenciados.includes(sol.centro_custo_id)) {
+    // Verificar se o CC pertence ao escopo do gerente/admsede
+    if ((userScope === 'gerente' || userScope === 'admsede') && !centrosCustoGerenciados.includes(sol.centro_custo_id)) {
       return false;
     }
     

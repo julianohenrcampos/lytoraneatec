@@ -186,19 +186,26 @@ export async function gerarPdfBeneficiario(dados: BeneficiarioData): Promise<voi
   y -= 5;
   drawLine(50, y + 5, 550, y + 5);
 
-  // VALORES
+  // VALORES (ida e volta = tarifa x2)
   y -= 10;
-  const valorJae = dados.linhas.filter(l => l.operadora === 'Jaé').reduce((s, l) => s + (l.tarifa || 0), 0);
-  const valorRioCard = dados.linhas.filter(l => l.operadora === 'RioCard').reduce((s, l) => s + (l.tarifa || 0), 0);
+  const valorJae = dados.linhas.filter(l => l.operadora === 'Jaé').reduce((s, l) => s + (l.tarifa || 0) * 2, 0);
+  const valorRioCard = dados.linhas.filter(l => l.operadora === 'RioCard').reduce((s, l) => s + (l.tarifa || 0) * 2, 0);
   const valorTotal = valorJae + valorRioCard;
+  const excedeLimite = valorTotal > 28;
 
-  drawText(`VALOR JAÉ: R$ ${valorJae.toFixed(2)}`, 50, y, 10, true);
-  drawText(`VALOR RIOCARD: R$ ${valorRioCard.toFixed(2)}`, 250, y, 10, true);
+  drawText(`VALOR JAÉ (IDA/VOLTA): R$ ${valorJae.toFixed(2)}`, 50, y, 10, true);
+  drawText(`VALOR RIOCARD (IDA/VOLTA): R$ ${valorRioCard.toFixed(2)}`, 280, y, 10, true);
   y -= 25;
 
-  drawText('TOTAL DIÁRIO: R$', 50, y, 10, true);
-  drawLine(165, y - 5, 270, y - 5);
-  drawText(valorTotal.toFixed(2), 170, y);
+  drawText('TOTAL DIÁRIO (IDA/VOLTA): R$', 50, y, 10, true);
+  drawLine(210, y - 5, 310, y - 5);
+  drawText(valorTotal.toFixed(2), 215, y);
+
+  // Aviso de limite
+  if (excedeLimite) {
+    y -= 25;
+    drawText('VALOR EXCEDE R$ 28,00 — REQUER AUTORIZAÇÃO DA DIRETORIA FINANCEIRA', 50, y, 9, true);
+  }
 
   // Separador antes de MOTIVOS
   y -= SPACING_SECTION;
@@ -222,11 +229,27 @@ export async function gerarPdfBeneficiario(dados: BeneficiarioData): Promise<voi
   drawLine(85, y - 5, 200, y - 5);
   drawText(formatDateBR(dados.data_solicitacao), 90, y);
 
-  // ASSINATURA
+  // ASSINATURAS (4 campos: 2x2)
   y -= 50;
-  drawLine(50, y, 300, y);
+
+  // Linha 1: Empregado e Gerente Regional
+  drawLine(50, y, 260, y);
+  drawLine(310, y, 550, y);
   y -= 15;
-  drawText('Assinatura do Empregado', 50, y, 8);
+  drawText('Assinatura do Empregado', 90, y, 8);
+  drawText('Gerente Regional', 380, y, 8);
+
+  // Linha 2: Diretor Engenharia e Diretor Financeiro
+  y -= 45;
+  drawLine(50, y, 260, y);
+  if (excedeLimite) {
+    drawLine(310, y, 550, y);
+  }
+  y -= 15;
+  drawText('Diretor de Engenharia', 95, y, 8);
+  if (excedeLimite) {
+    drawText('Diretor Financeiro', 380, y, 8);
+  }
 
   const pdfBytes = await pdfDoc.save();
   const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });

@@ -59,14 +59,15 @@ export const ValeTransporteForm: React.FC<ValeTransporteFormProps> = ({ data, on
   };
 
   const valorJae = useMemo(() =>
-    data.linhas.filter(l => l.operadora === 'Jaé').reduce((s, l) => s + (l.tarifa || 0), 0),
+    data.linhas.filter(l => l.operadora === 'Jaé').reduce((s, l) => s + (l.tarifa || 0) * 2, 0),
     [data.linhas]
   );
   const valorRioCard = useMemo(() =>
-    data.linhas.filter(l => l.operadora === 'RioCard').reduce((s, l) => s + (l.tarifa || 0), 0),
+    data.linhas.filter(l => l.operadora === 'RioCard').reduce((s, l) => s + (l.tarifa || 0) * 2, 0),
     [data.linhas]
   );
   const valorTotal = valorJae + valorRioCard;
+  const excedeLimite = valorTotal > 28;
 
   return (
     <div className="space-y-4">
@@ -95,21 +96,27 @@ export const ValeTransporteForm: React.FC<ValeTransporteFormProps> = ({ data, on
         </div>
       </div>
 
-      {/* Valores calculados */}
+      {/* Valores calculados (ida e volta) */}
       <div className="grid grid-cols-3 gap-3">
         <div className="space-y-1">
-          <Label className="text-xs">Valor Jaé (R$)</Label>
+          <Label className="text-xs">Valor Jaé Ida/Volta (R$)</Label>
           <Input value={valorJae.toFixed(2)} readOnly className="bg-muted" />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">Valor RioCard (R$)</Label>
+          <Label className="text-xs">Valor RioCard Ida/Volta (R$)</Label>
           <Input value={valorRioCard.toFixed(2)} readOnly className="bg-muted" />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs font-semibold">Total (R$)</Label>
-          <Input value={valorTotal.toFixed(2)} readOnly className="bg-muted font-semibold" />
+          <Label className="text-xs font-semibold">Total Ida/Volta (R$)</Label>
+          <Input value={valorTotal.toFixed(2)} readOnly className={`bg-muted font-semibold ${excedeLimite ? 'text-destructive border-destructive' : ''}`} />
         </div>
       </div>
+
+      {excedeLimite && (
+        <div className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive font-medium">
+          ⚠ Valor excede R$ 28,00 — requer autorização da Diretoria Financeira
+        </div>
+      )}
 
       {/* Motivo */}
       <div className="space-y-2">
