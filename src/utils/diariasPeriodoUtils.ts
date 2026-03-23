@@ -3,8 +3,8 @@
  * Calcula dias úteis, sábados, domingos e feriados
  * 
  * Regra de negócio:
- * - Sábado: é FDS visualmente, mas paga Diária Normal (valor_diaria)
- * - Domingo e Feriado: pagam Diária Exclusiva (valor_diaria_exclusiva)
+ * - Sábado, Domingo e Feriado: pagam Diária Exclusiva (valor_diaria_exclusiva)
+ * - Dias úteis (Seg-Sex): pagam Diária Normal (valor_diaria)
  */
 
 import { addDays, differenceInDays, parseISO, format } from 'date-fns';
@@ -113,7 +113,7 @@ export function analisarPeriodo(
     
     const diaSemana = dataObj.getDay();
     
-    // Sábado: FDS visualmente, mas paga diária normal
+    // Sábado: paga diária exclusiva (mesmo tratamento de domingo/feriado)
     if (diaSemana === 6) {
       return { data: dataStr, tipo: 'sabado' as TipoDia };
     }

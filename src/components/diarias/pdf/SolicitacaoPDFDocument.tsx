@@ -3,7 +3,8 @@ import { Document, Page, View, Text, Image } from '@react-pdf/renderer';
 import { diariaStyles as styles } from './DiariaReportStyles';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import type { DiariaSolicitacao, FuncionarioPreConvocado } from '@/types/diarias';
+import type { DiariaSolicitacao, FuncionarioPreConvocado, AssinaturaAprovacao } from '@/types/diarias';
+import { AssinaturaPDFBlock } from '@/components/assinatura/AssinaturaPDFBlock';
 
 interface AnalisePerido {
   diasUteis: number;
@@ -24,6 +25,7 @@ interface SolicitacaoPDFDocumentProps {
   };
   logoUrl?: string;
   analise?: AnalisePerido;
+  assinaturas?: AssinaturaAprovacao[];
 }
 
 function formatCurrency(value: number): string {
@@ -57,7 +59,8 @@ export const SolicitacaoPDFDocument = ({
   convocados,
   dadosComplementares,
   logoUrl,
-  analise
+  analise,
+  assinaturas
 }: SolicitacaoPDFDocumentProps) => {
   const consideraFdsEFeriado = solicitacao.considera_fds_feriado;
 
@@ -272,6 +275,11 @@ export const SolicitacaoPDFDocument = ({
               </Text>
             </View>
           </View>
+        )}
+
+        {/* Assinaturas de Aprovação */}
+        {assinaturas && assinaturas.length > 0 && (
+          <AssinaturaPDFBlock assinaturas={assinaturas} />
         )}
 
         {/* Footer */}

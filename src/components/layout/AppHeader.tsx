@@ -7,6 +7,7 @@ import {
   Settings,
   LogOut,
   Users,
+  PenTool,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -21,6 +22,7 @@ import {
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import UserProfileModal from "@/components/user/UserProfileModal";
 import UserImageUploadModal from "@/components/user/UserImageUploadModal";
+import AssinaturaDigitalModal from "@/components/user/AssinaturaDigitalModal";
 import { PWAInstallButton } from "@/components/pwa/PWAInstallButton";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
@@ -44,6 +46,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
 }) => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isImageUploadModalOpen, setIsImageUploadModal] = useState(false);
+  const [isAssinaturaModalOpen, setIsAssinaturaModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navigate = useNavigate();
@@ -112,6 +115,10 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         <DropdownMenuItem onClick={() => setIsProfileModalOpen(true)}>
           <User className="mr-2 h-4 w-4" />
           <span>Perfil</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setIsAssinaturaModalOpen(true)}>
+          <PenTool className="mr-2 h-4 w-4" />
+          <span>Assinatura Digital</span>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setIsImageUploadModal(true)}>
           <Settings className="mr-2 h-4 w-4" />
@@ -189,6 +196,10 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         onClose={() => setIsImageUploadModal(false)}
         currentImage={displayUser.imagem_url}
         onImageUpdated={updateUserImage}
+      />
+      <AssinaturaDigitalModal
+        isOpen={isAssinaturaModalOpen}
+        onClose={() => setIsAssinaturaModalOpen(false)}
       />
     </header>
   );

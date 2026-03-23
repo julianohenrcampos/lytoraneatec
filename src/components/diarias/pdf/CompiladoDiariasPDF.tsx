@@ -1,8 +1,9 @@
 import React from 'react';
 import '@/lib/pdfFonts';
 import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer';
-import type { RelatorioFolhaItem } from '@/types/diarias';
+import type { RelatorioFolhaItem, AssinaturaAprovacao } from '@/types/diarias';
 import { parseISO, format, differenceInDays } from 'date-fns';
+import { AssinaturaPDFBlock } from '@/components/assinatura/AssinaturaPDFBlock';
 
 // =====================================================
 // TYPES
@@ -32,6 +33,7 @@ interface CompiladoDiariasPDFProps {
   logoUrl?: string;
   totalGeralQuantidade: number;
   totalGeralValor: number;
+  assinaturas?: AssinaturaAprovacao[];
 }
 
 // Legacy compat
@@ -544,6 +546,7 @@ export const CompiladoDiariasPDF = ({
   logoUrl,
   totalGeralQuantidade,
   totalGeralValor,
+  assinaturas,
 }: CompiladoDiariasPDFProps) => {
   return (
     <Document>
@@ -587,6 +590,11 @@ export const CompiladoDiariasPDF = ({
             <View style={s.totalCell}><Text style={s.totalValue}>{formatBRL(totalGeralValor)}</Text></View>
           </View>
         </View>
+
+        {/* Assinaturas de Aprovação */}
+        {assinaturas && assinaturas.length > 0 && (
+          <AssinaturaPDFBlock assinaturas={assinaturas} />
+        )}
 
         {/* Footer */}
         <View style={s.footer} fixed>

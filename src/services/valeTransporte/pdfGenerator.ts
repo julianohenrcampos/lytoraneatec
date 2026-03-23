@@ -6,9 +6,15 @@ const ROBOTO_REGULAR_URL = 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fo
 const ROBOTO_BOLD_URL = 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/roboto-bold-webfont.ttf';
 
 async function embedRobotoFonts(pdfDoc: PDFDocument) {
+  const [regularRes, boldRes] = await Promise.all([
+    fetch(ROBOTO_REGULAR_URL),
+    fetch(ROBOTO_BOLD_URL),
+  ]);
+  if (!regularRes.ok) throw new Error(`Erro ao baixar fonte Roboto Regular: ${regularRes.status}`);
+  if (!boldRes.ok) throw new Error(`Erro ao baixar fonte Roboto Bold: ${boldRes.status}`);
   const [regularBytes, boldBytes] = await Promise.all([
-    fetch(ROBOTO_REGULAR_URL).then(r => r.arrayBuffer()),
-    fetch(ROBOTO_BOLD_URL).then(r => r.arrayBuffer()),
+    regularRes.arrayBuffer(),
+    boldRes.arrayBuffer(),
   ]);
   const font = await pdfDoc.embedFont(regularBytes);
   const fontBold = await pdfDoc.embedFont(boldBytes);
@@ -223,7 +229,7 @@ export async function gerarPdfBeneficiario(dados: BeneficiarioData): Promise<voi
   drawText('Assinatura do Empregado', 50, y, 8);
 
   const pdfBytes = await pdfDoc.save();
-  const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+  const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
   saveAs(blob, `VT_${dados.nome.replace(/\s+/g, '_')}.pdf`);
 }
 
@@ -355,6 +361,6 @@ export async function gerarPdfNaoBeneficiario(dados: NaoBeneficiarioData): Promi
   drawText('( ASSINATURA DO EMPREGADO )', 210, y, 8, true);
 
   const pdfBytes = await pdfDoc.save();
-  const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+  const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
   saveAs(blob, `Declaracao_NB_${dados.nome.replace(/\s+/g, '_')}.pdf`);
 }

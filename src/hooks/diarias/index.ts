@@ -46,3 +46,19 @@ export {
 
 // Pendentes (badge sidebar)
 export { useDiariasPendentes } from './useDiariasPendentes';
+
+// Fluxo de Aprovação Administrativo
+export {
+  useDocumentosFluxo,
+  useDocumentosRelacionados,
+  useAprovarGerenteAdm,
+  useReprovarGerenteAdm,
+  useAprovarDiretorOperacional,
+  useReprovarDiretorOperacional,
+  useAprovarDiretorAdm,
+  useReprovarDiretorAdm
+} from './useFluxoAprovacao';
+
+// Gestão de Aprovações
+export { useGestaoAprovacoesDiarias } from './useGestaoAprovacoesDiarias';
+export type { GestaoFluxoRole, GestaoAprovacoesFiltros, GestaoKpis, SolicitacaoGestao } from './useGestaoAprovacoesDiarias';

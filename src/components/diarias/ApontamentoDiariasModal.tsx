@@ -397,8 +397,9 @@ export default function ApontamentoDiariasModal({
             );
             const dateSel = parseBrazilianDate(selectedDate);
             const isDomingo = dateSel.getDay() === 0;
+            const isSabado = dateSel.getDay() === 6;
             const isFeriado = feriados.some(f => f.data === selectedDate);
-            const usarExclusiva = conv.usar_diaria_exclusiva === true || isDomingo || isFeriado;
+            const usarExclusiva = conv.usar_diaria_exclusiva === true || isDomingo || isSabado || isFeriado;
 
             const vNormal = conv.valor_diaria;
             const vExclusiva = conv.valor_diaria_exclusiva || conv.valor_diaria;
@@ -446,6 +447,7 @@ export default function ApontamentoDiariasModal({
             const newAvulsoSet = new Set(funcionariosAvulsos);
             const dateSel = parseBrazilianDate(selectedDate);
             const isDomingo = dateSel.getDay() === 0;
+            const isSabado = dateSel.getDay() === 6;
             const isFeriadoFlag = feriados.some(f => f.data === selectedDate);
 
             presencasAvulsas.forEach((existente, i) => {
@@ -453,7 +455,7 @@ export default function ApontamentoDiariasModal({
               const funcaoData = funcData?.bd_funcoes as any;
               const vNormal = funcaoData?.valor_diaria || 0;
               const vExclusiva = funcaoData?.valor_diaria_exclusiva || vNormal;
-              const usarExclusiva = isDomingo || isFeriadoFlag;
+              const usarExclusiva = isDomingo || isSabado || isFeriadoFlag;
               const existenteUsaExclusiva = existente.valor_diaria_aplicada !== undefined && vExclusiva !== vNormal
                 ? Math.abs((existente.valor_diaria_aplicada || 0) - vExclusiva) < Math.abs((existente.valor_diaria_aplicada || 0) - vNormal)
                 : usarExclusiva;
@@ -491,9 +493,10 @@ export default function ApontamentoDiariasModal({
           const mapped: ColaboradorPresenca[] = convocadosPre.map((conv, index) => {
             const dateSel2 = parseBrazilianDate(selectedDate);
             const isDomingo2 = dateSel2.getDay() === 0;
+            const isSabado2 = dateSel2.getDay() === 6;
             const isFeriado2 = feriados.some(f => f.data === selectedDate);
             // Respeitar flag usar_diaria_exclusiva do convocado_pre
-            const usarExclusiva2 = conv.usar_diaria_exclusiva === true || isDomingo2 || isFeriado2;
+            const usarExclusiva2 = conv.usar_diaria_exclusiva === true || isDomingo2 || isSabado2 || isFeriado2;
 
             const vNormal = conv.valor_diaria;
             const vExclusiva = conv.valor_diaria_exclusiva || conv.valor_diaria;
@@ -803,8 +806,9 @@ export default function ApontamentoDiariasModal({
       // Adicionar ao state local
       const dateSel = parseBrazilianDate(selectedDate);
       const isDomingo = dateSel.getDay() === 0;
+      const isSabado = dateSel.getDay() === 6;
       const isFeriado = feriados.some(f => f.data === selectedDate);
-      const usarExclusiva = isDomingo || isFeriado;
+      const usarExclusiva = isDomingo || isSabado || isFeriado;
       const valorOriginal = usarExclusiva ? valorDiariaExclusiva : valorDiaria;
 
       const novoColab: ColaboradorPresenca = {
@@ -890,8 +894,9 @@ export default function ApontamentoDiariasModal({
       // Adicionar ao state local
       const dateSel = parseBrazilianDate(selectedDate);
       const isDomingo = dateSel.getDay() === 0;
+      const isSabado = dateSel.getDay() === 6;
       const isFeriado = feriados.some(f => f.data === selectedDate);
-      const usarExclusiva = isDomingo || isFeriado;
+      const usarExclusiva = isDomingo || isSabado || isFeriado;
       const valorOriginal = usarExclusiva ? valorDiariaExclusiva : valorDiaria;
 
       const novoColab: ColaboradorPresenca = {

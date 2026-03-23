@@ -79,6 +79,6 @@ export default defineConfig(({ mode }) => ({
     }
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', '@tanstack/react-query']
+    include: ['react', 'react-dom', '@tanstack/react-query', '@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities']
   }
 }));

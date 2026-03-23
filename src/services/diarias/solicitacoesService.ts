@@ -554,33 +554,11 @@ export async function adicionarFuncionarioConvocado(
     nome_funcao: string;
   }
 ): Promise<void> {
-  // Buscar convocados_pre atual
-  const { data: solicitacao, error: fetchError } = await supabase
-    .from('bd_diaria_solicitacoes')
-    .select('convocados_pre')
-    .eq('id', solicitacaoId)
-    .single();
-
-  if (fetchError) throw new Error(fetchError.message);
-
-  const currentList = Array.isArray(solicitacao?.convocados_pre) 
-    ? solicitacao.convocados_pre as any[] 
-    : [];
-
-  // Verificar se já existe
-  if (currentList.some((c: any) => c.funcionario_id === funcionarioData.funcionario_id)) {
-    throw new Error('Funcionário já está na lista de convocados');
-  }
-
-  const updatedList = [...currentList, funcionarioData];
-
-  const { error } = await supabase
-    .from('bd_diaria_solicitacoes')
-    .update({ 
-      convocados_pre: updatedList,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', solicitacaoId);
+  const { error } = await supabase.rpc('gerenciar_convocado_diaria', {
+    p_solicitacao_id: solicitacaoId,
+    p_funcionario_data: funcionarioData as any,
+    p_acao: 'adicionar'
+  });
 
   if (error) throw new Error(error.message);
 }
@@ -589,27 +567,11 @@ export async function removerFuncionarioConvocado(
   solicitacaoId: string,
   funcionarioId: string
 ): Promise<void> {
-  const { data: solicitacao, error: fetchError } = await supabase
-    .from('bd_diaria_solicitacoes')
-    .select('convocados_pre')
-    .eq('id', solicitacaoId)
-    .single();
-
-  if (fetchError) throw new Error(fetchError.message);
-
-  const currentList = Array.isArray(solicitacao?.convocados_pre) 
-    ? solicitacao.convocados_pre as any[] 
-    : [];
-
-  const updatedList = currentList.filter((c: any) => c.funcionario_id !== funcionarioId);
-
-  const { error } = await supabase
-    .from('bd_diaria_solicitacoes')
-    .update({ 
-      convocados_pre: updatedList,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', solicitacaoId);
+  const { error } = await supabase.rpc('gerenciar_convocado_diaria', {
+    p_solicitacao_id: solicitacaoId,
+    p_funcionario_data: { funcionario_id: funcionarioId } as any,
+    p_acao: 'remover'
+  });
 
   if (error) throw new Error(error.message);
 }

@@ -1,0 +1,1 @@
+INSERT INTO bd_permissoes (nome_permissao, descricao, rota) VALUES ('acesso_gestao_aprovacoes', 'Acesso à Gestão de Aprovações de Diárias', '/gestao-aprovacoes-diarias') ON CONFLICT DO NOTHING;

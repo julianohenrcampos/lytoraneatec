@@ -49,6 +49,10 @@ import RelatorioAplicacaoDiaria from "@/pages/RelatorioAplicacaoDiaria";
 
 // Admin - using correct file names
 import GestaoPermissoes from "@/pages/GestaoPermissoes";
+import ConfiguracoesSistema from "@/pages/admin/ConfiguracoesSistema";
+
+// Diárias
+import GestaoAprovacoesDiarias from "@/pages/diarias/GestaoAprovacoesDiarias";
 
 // Security Components
 import SecureRouteGuard from "@/components/routing/SecureRouteGuard";
@@ -260,12 +264,30 @@ const App = () => {
               </SimpleAuthGuard>
             } />
             
+            {/* Diárias */}
+            <Route path="/gestao-aprovacoes-diarias" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <GestaoAprovacoesDiarias />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            
             {/* Admin */}
             <Route path="/admin/permissoes" element={
               <SimpleAuthGuard>
                 <SimplePermissionGuard>
                   <SecureRouteGuard requiredPermission="admin_permissoes_view">
                     <GestaoPermissoes />
+                  </SecureRouteGuard>
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/admin/configuracoes-sistema" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <SecureRouteGuard requiredPermission="admin_permissoes_view">
+                    <ConfiguracoesSistema />
                   </SecureRouteGuard>
                 </SimplePermissionGuard>
               </SimpleAuthGuard>

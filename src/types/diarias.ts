@@ -34,6 +34,9 @@ export interface DiariaSolicitacao {
   criado_por: string | null;
   autorizado_por: string | null;
   autorizado_em: string | null;
+  status_fluxo?: string | null;
+  etapa_atual?: number | null;
+  tipo_envio?: string | null;
   created_at: string;
   updated_at: string;
   // Relations
@@ -411,4 +414,66 @@ export interface DiariaApontamento {
     id: string;
     nome_completo: string;
   };
+}
+
+// =====================================================
+// FLUXO ADMINISTRATIVO (Etapas 7-10)
+// =====================================================
+
+export type StatusFluxo =
+  | 'documentos_gerados'
+  | 'aguardando_aprovacao_gerente_regional'
+  | 'aprovada_gerente_regional'
+  | 'aguardando_aprovacao_adm'
+  | 'ajuste_solicitado_adm'
+  | 'aprovada_adm'
+  | 'aguardando_aprovacao_gerenteadm'
+  | 'aguardando_aprovacao_diretor_operacional'
+  | 'aguardando_aprovacao_diretor_adm'
+  | 'finalizado';
+
+export interface FluxoAprovacaoData {
+  solicitacao_id: string;
+  assinatura_png: string;
+  nome_usuario: string;
+  cargo: string;
+  cpf?: string;
+}
+
+export interface AssinaturaAprovacao {
+  nome_usuario: string;
+  cargo: string | null;
+  cpf: string | null;
+  assinatura_base64: string | null;
+  data_assinatura: string | null;
+  hash_assinatura: string | null;
+  ip: string | null;
+  tipo_assinatura: string | null;
+}
+
+export interface DocumentoFluxo {
+  id: string;
+  solicitacao_id: string;
+  tipo_documento: string;
+  url_arquivo: string | null;
+  versao: number;
+  etapa_origem: number | null;
+  criado_em: string;
+  criado_por: string | null;
+}
+
+export interface DocumentoRelacao {
+  id: string;
+  documento_pai_id: string;
+  documento_filho_id: string;
+}
+
+export interface EnvioDocumento {
+  id: string;
+  documento_id: string;
+  solicitacao_id: string;
+  destino: string;
+  data_envio: string;
+  status: string;
+  criado_por: string | null;
 }

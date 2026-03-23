@@ -40,6 +40,7 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   '/requisicoes/diarias/solicitacoes': ['diarias_solicitacoes_view', 'diarias_view'],
   '/requisicoes/diarias/apontamento-campo': ['diarias_apontamento_view'],
   '/requisicoes/diarias/relatorio': ['diarias_relatorio_view'],
+  '/gestao-aprovacoes-diarias': ['acesso_gestao_aprovacoes'],
 
   // SSO - Segurança
   '/sso/checklists': ['acesso_sso_checklists'],
@@ -54,6 +55,7 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
 
   // Administração
   '/admin/permissoes': ['admin_permissoes_view'],
+  '/admin/gestao-fluxos': ['admin_gestao_fluxos_view'],
 };
 
 export const useRouteAccess = () => {

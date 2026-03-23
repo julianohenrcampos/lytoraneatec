@@ -216,6 +216,12 @@ export const menuStructure = [
         href: "/requisicoes/diarias/relatorio",
         icon: BarChart3,
         requiredPermission: "diarias_relatorio_view"
+      },
+      {
+        name: "Gestão de Aprovações",
+        href: "/gestao-aprovacoes-diarias",
+        icon: ClipboardCheck,
+        requiredPermission: "acesso_gestao_aprovacoes"
       }
     ]
   },
@@ -277,6 +283,18 @@ export const menuStructure = [
       {
         name: "Gestão de Permissões",
         href: "/admin/permissoes",
+        icon: Settings,
+        requiredPermission: "admin_permissoes_view"
+      },
+      {
+        name: "Gestão de Fluxos",
+        href: "/admin/gestao-fluxos",
+        icon: Settings,
+        requiredPermission: "admin_gestao_fluxos_view"
+      },
+      {
+        name: "Configurações do Sistema",
+        href: "/admin/configuracoes-sistema",
         icon: Settings,
         requiredPermission: "admin_permissoes_view"
       }

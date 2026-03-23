@@ -51,14 +51,16 @@ import ChamadosOS from "@/pages/ChamadosOS";
 import GestaoOrdemServico from "@/pages/GestaoOrdemServico";
 import RelatorioAplicacaoDiaria from "@/pages/RelatorioAplicacaoDiaria";
 
-// Admin - using correct file names
 import GestaoPermissoes from "@/pages/GestaoPermissoes";
+import GestaoFluxos from "@/pages/admin/GestaoFluxos";
+import ConfiguracoesSistema from "@/pages/admin/ConfiguracoesSistema";
 
 // Diárias (Fim de Semana/Feriado)
 import DashboardDiarias from "@/pages/DashboardDiarias";
 import DiariasSolicitacoes from "@/pages/DiariasSolicitacoes";
 import DiariasRelatorio from "@/pages/DiariasRelatorio";
 import DiariasApontamentoCampo from "@/pages/DiariasApontamentoCampo";
+import GestaoAprovacoesDiarias from "@/pages/diarias/GestaoAprovacoesDiarias";
 
 // SSO - Saúde e Segurança Ocupacional
 import SSOChecklistList from "@/pages/SSOChecklistList";
@@ -326,6 +328,15 @@ const App = () => {
                 </SimplePermissionGuard>
               </SimpleAuthGuard>
             } />
+            <Route path="/admin/gestao-fluxos" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <SecureRouteGuard requiredPermission="admin_gestao_fluxos_view">
+                    <GestaoFluxos />
+                  </SecureRouteGuard>
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
             
             {/* SSO - Saúde e Segurança Ocupacional */}
             <Route path="/sso/checklists" element={
@@ -421,6 +432,13 @@ const App = () => {
                 </SimplePermissionGuard>
               </SimpleAuthGuard>
             } />
+            <Route path="/gestao-aprovacoes-diarias" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <GestaoAprovacoesDiarias />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
             
             {/* Licitações PNCP */}
             <Route path="/licitacoes/dashboard" element={
@@ -451,6 +469,16 @@ const App = () => {
               </SimpleAuthGuard>
             } />
             
+            {/* Admin - Configurações do Sistema */}
+            <Route path="/admin/configuracoes-sistema" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <SecureRouteGuard requiredPermission="admin_permissoes_view">
+                    <ConfiguracoesSistema />
+                  </SecureRouteGuard>
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
             {/* Catch-all route para 404 */}
             <Route path="*" element={<NotFound />} />
               </Routes>

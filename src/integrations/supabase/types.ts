@@ -444,6 +444,171 @@ export type Database = {
           },
         ]
       }
+      bd_aprovacoes_fluxo_exec: {
+        Row: {
+          created_at: string | null
+          data_aprovacao: string | null
+          etapa_id: string | null
+          etapa_nome_snapshot: string | null
+          fluxo_versao: number | null
+          id: string
+          observacao: string | null
+          ordem: number | null
+          pode_aprovar: boolean | null
+          solicitacao_id: string
+          status: string | null
+          usuario_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          data_aprovacao?: string | null
+          etapa_id?: string | null
+          etapa_nome_snapshot?: string | null
+          fluxo_versao?: number | null
+          id?: string
+          observacao?: string | null
+          ordem?: number | null
+          pode_aprovar?: boolean | null
+          solicitacao_id: string
+          status?: string | null
+          usuario_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          data_aprovacao?: string | null
+          etapa_id?: string | null
+          etapa_nome_snapshot?: string | null
+          fluxo_versao?: number | null
+          id?: string
+          observacao?: string | null
+          ordem?: number | null
+          pode_aprovar?: boolean | null
+          solicitacao_id?: string
+          status?: string | null
+          usuario_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_aprovacoes_fluxo_exec_etapa_id_fkey"
+            columns: ["etapa_id"]
+            isOneToOne: false
+            referencedRelation: "bd_fluxo_etapas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_assinaturas: {
+        Row: {
+          assinatura_png: string | null
+          cargo: string | null
+          cpf: string | null
+          data_assinatura: string | null
+          documento_id: string | null
+          etapa_exec_id: string | null
+          hash_assinatura: string | null
+          id: string
+          ip: string | null
+          nome_usuario: string
+          solicitacao_id: string
+          tipo_assinatura: string | null
+          usuario_id: string
+        }
+        Insert: {
+          assinatura_png?: string | null
+          cargo?: string | null
+          cpf?: string | null
+          data_assinatura?: string | null
+          documento_id?: string | null
+          etapa_exec_id?: string | null
+          hash_assinatura?: string | null
+          id?: string
+          ip?: string | null
+          nome_usuario: string
+          solicitacao_id: string
+          tipo_assinatura?: string | null
+          usuario_id: string
+        }
+        Update: {
+          assinatura_png?: string | null
+          cargo?: string | null
+          cpf?: string | null
+          data_assinatura?: string | null
+          documento_id?: string | null
+          etapa_exec_id?: string | null
+          hash_assinatura?: string | null
+          id?: string
+          ip?: string | null
+          nome_usuario?: string
+          solicitacao_id?: string
+          tipo_assinatura?: string | null
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_assinaturas_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_documentos_fluxo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_assinaturas_etapa_exec_id_fkey"
+            columns: ["etapa_exec_id"]
+            isOneToOne: false
+            referencedRelation: "bd_aprovacoes_fluxo_exec"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_assinaturas_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_assinaturas_usuarios: {
+        Row: {
+          assinatura_hash: string | null
+          assinatura_url: string
+          ativo: boolean | null
+          cargo: string | null
+          cpf: string
+          created_at: string | null
+          id: string
+          ip_registro: string | null
+          nome_completo: string
+          updated_at: string | null
+          usuario_id: string
+        }
+        Insert: {
+          assinatura_hash?: string | null
+          assinatura_url: string
+          ativo?: boolean | null
+          cargo?: string | null
+          cpf: string
+          created_at?: string | null
+          id?: string
+          ip_registro?: string | null
+          nome_completo: string
+          updated_at?: string | null
+          usuario_id: string
+        }
+        Update: {
+          assinatura_hash?: string | null
+          assinatura_url?: string
+          ativo?: boolean | null
+          cargo?: string | null
+          cpf?: string
+          created_at?: string | null
+          id?: string
+          ip_registro?: string | null
+          nome_completo?: string
+          updated_at?: string | null
+          usuario_id?: string
+        }
+        Relationships: []
+      }
       bd_auditoria_correcao_registros_carga: {
         Row: {
           data_correcao: string | null
@@ -1114,6 +1279,36 @@ export type Database = {
           },
         ]
       }
+      bd_configuracoes_sistema: {
+        Row: {
+          ativo: boolean
+          chave: string
+          created_at: string | null
+          descricao: string | null
+          id: string
+          updated_at: string | null
+          valor: string
+        }
+        Insert: {
+          ativo?: boolean
+          chave: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          updated_at?: string | null
+          valor?: string
+        }
+        Update: {
+          ativo?: boolean
+          chave?: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          updated_at?: string | null
+          valor?: string
+        }
+        Relationships: []
+      }
       bd_departamentos: {
         Row: {
           created_at: string | null
@@ -1413,9 +1608,11 @@ export type Database = {
           data_fim: string
           data_inicio: string
           engenheiro_solicitante_id: string | null
+          etapa_atual: number | null
           id: string
           justificativa: string
           modificado_por: string | null
+          motor_aprovacao: string
           numero_solicitacao: string
           observacao_gerente: string | null
           qtde_dias_uteis_estimado: number | null
@@ -1423,6 +1620,8 @@ export type Database = {
           qtde_feriados_estimado: number | null
           responsavel_campo_id: string | null
           status: string
+          status_fluxo: string | null
+          tipo_envio: string | null
           updated_at: string | null
           valor_estimado_total: number | null
         }
@@ -1437,9 +1636,11 @@ export type Database = {
           data_fim: string
           data_inicio: string
           engenheiro_solicitante_id?: string | null
+          etapa_atual?: number | null
           id?: string
           justificativa: string
           modificado_por?: string | null
+          motor_aprovacao?: string
           numero_solicitacao: string
           observacao_gerente?: string | null
           qtde_dias_uteis_estimado?: number | null
@@ -1447,6 +1648,8 @@ export type Database = {
           qtde_feriados_estimado?: number | null
           responsavel_campo_id?: string | null
           status?: string
+          status_fluxo?: string | null
+          tipo_envio?: string | null
           updated_at?: string | null
           valor_estimado_total?: number | null
         }
@@ -1461,9 +1664,11 @@ export type Database = {
           data_fim?: string
           data_inicio?: string
           engenheiro_solicitante_id?: string | null
+          etapa_atual?: number | null
           id?: string
           justificativa?: string
           modificado_por?: string | null
+          motor_aprovacao?: string
           numero_solicitacao?: string
           observacao_gerente?: string | null
           qtde_dias_uteis_estimado?: number | null
@@ -1471,6 +1676,8 @@ export type Database = {
           qtde_feriados_estimado?: number | null
           responsavel_campo_id?: string | null
           status?: string
+          status_fluxo?: string | null
+          tipo_envio?: string | null
           updated_at?: string | null
           valor_estimado_total?: number | null
         }
@@ -1587,6 +1794,80 @@ export type Database = {
           },
         ]
       }
+      bd_documentos_fluxo: {
+        Row: {
+          criado_em: string | null
+          criado_por: string | null
+          etapa_origem: number | null
+          id: string
+          solicitacao_id: string
+          tipo_documento: string
+          url_arquivo: string | null
+          versao: number | null
+        }
+        Insert: {
+          criado_em?: string | null
+          criado_por?: string | null
+          etapa_origem?: number | null
+          id?: string
+          solicitacao_id: string
+          tipo_documento: string
+          url_arquivo?: string | null
+          versao?: number | null
+        }
+        Update: {
+          criado_em?: string | null
+          criado_por?: string | null
+          etapa_origem?: number | null
+          id?: string
+          solicitacao_id?: string
+          tipo_documento?: string
+          url_arquivo?: string | null
+          versao?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_documentos_fluxo_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_documentos_relacao: {
+        Row: {
+          documento_filho_id: string
+          documento_pai_id: string
+          id: string
+        }
+        Insert: {
+          documento_filho_id: string
+          documento_pai_id: string
+          id?: string
+        }
+        Update: {
+          documento_filho_id?: string
+          documento_pai_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_documentos_relacao_documento_filho_id_fkey"
+            columns: ["documento_filho_id"]
+            isOneToOne: false
+            referencedRelation: "bd_documentos_fluxo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_documentos_relacao_documento_pai_id_fkey"
+            columns: ["documento_pai_id"]
+            isOneToOne: false
+            referencedRelation: "bd_documentos_fluxo"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_empresas: {
         Row: {
           cnpj: string
@@ -1652,6 +1933,51 @@ export type Database = {
           rg_cpf_socio_url?: string | null
         }
         Relationships: []
+      }
+      bd_envios: {
+        Row: {
+          criado_por: string | null
+          data_envio: string | null
+          destino: string
+          documento_id: string
+          id: string
+          solicitacao_id: string
+          status: string | null
+        }
+        Insert: {
+          criado_por?: string | null
+          data_envio?: string | null
+          destino: string
+          documento_id: string
+          id?: string
+          solicitacao_id: string
+          status?: string | null
+        }
+        Update: {
+          criado_por?: string | null
+          data_envio?: string | null
+          destino?: string
+          documento_id?: string
+          id?: string
+          solicitacao_id?: string
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_envios_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_documentos_fluxo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_envios_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       bd_equipes: {
         Row: {
@@ -1748,6 +2074,173 @@ export type Database = {
           tipo?: string | null
           uf?: string | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      bd_fluxo_centro_custo: {
+        Row: {
+          ativo: boolean | null
+          centro_custo_id: string
+          created_at: string | null
+          fluxo_id: string
+          id: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          centro_custo_id: string
+          created_at?: string | null
+          fluxo_id: string
+          id?: string
+        }
+        Update: {
+          ativo?: boolean | null
+          centro_custo_id?: string
+          created_at?: string | null
+          fluxo_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_fluxo_centro_custo_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_fluxo_centro_custo_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_fluxo_centro_custo_fluxo_id_fkey"
+            columns: ["fluxo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_fluxos_aprovacao"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_fluxo_etapas: {
+        Row: {
+          ativo: boolean | null
+          cargo_id: string | null
+          created_at: string | null
+          fluxo_id: string
+          id: string
+          nome_exibicao: string
+          nome_tecnico: string
+          obrigatorio: boolean | null
+          ordem: number
+          permite_multiplo: boolean | null
+          status_fluxo_nome: string | null
+          tipo_aprovador: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          cargo_id?: string | null
+          created_at?: string | null
+          fluxo_id: string
+          id?: string
+          nome_exibicao: string
+          nome_tecnico: string
+          obrigatorio?: boolean | null
+          ordem: number
+          permite_multiplo?: boolean | null
+          status_fluxo_nome?: string | null
+          tipo_aprovador: string
+        }
+        Update: {
+          ativo?: boolean | null
+          cargo_id?: string | null
+          created_at?: string | null
+          fluxo_id?: string
+          id?: string
+          nome_exibicao?: string
+          nome_tecnico?: string
+          obrigatorio?: boolean | null
+          ordem?: number
+          permite_multiplo?: boolean | null
+          status_fluxo_nome?: string | null
+          tipo_aprovador?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_fluxo_etapas_fluxo_id_fkey"
+            columns: ["fluxo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_fluxos_aprovacao"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_fluxo_historico: {
+        Row: {
+          data_movimentacao: string | null
+          id: string
+          observacao: string | null
+          solicitacao_id: string
+          status_anterior: string | null
+          status_novo: string
+          usuario_id: string | null
+        }
+        Insert: {
+          data_movimentacao?: string | null
+          id?: string
+          observacao?: string | null
+          solicitacao_id: string
+          status_anterior?: string | null
+          status_novo: string
+          usuario_id?: string | null
+        }
+        Update: {
+          data_movimentacao?: string | null
+          id?: string
+          observacao?: string | null
+          solicitacao_id?: string
+          status_anterior?: string | null
+          status_novo?: string
+          usuario_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_fluxo_historico_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_fluxos_aprovacao: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          descricao: string | null
+          id: string
+          nome: string
+          updated_at: string | null
+          versao: number | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+          updated_at?: string | null
+          versao?: number | null
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          updated_at?: string | null
+          versao?: number | null
         }
         Relationships: []
       }
@@ -4304,6 +4797,8 @@ export type Database = {
       profiles: {
         Row: {
           acesso_global: boolean | null
+          assinatura_png: string | null
+          cargo: string | null
           created_at: string | null
           email: string | null
           funcao_permissao: string | null
@@ -4318,6 +4813,8 @@ export type Database = {
         }
         Insert: {
           acesso_global?: boolean | null
+          assinatura_png?: string | null
+          cargo?: string | null
           created_at?: string | null
           email?: string | null
           funcao_permissao?: string | null
@@ -4332,6 +4829,8 @@ export type Database = {
         }
         Update: {
           acesso_global?: boolean | null
+          assinatura_png?: string | null
+          cargo?: string | null
           created_at?: string | null
           email?: string | null
           funcao_permissao?: string | null
@@ -4498,6 +4997,11 @@ export type Database = {
       }
     }
     Functions: {
+      _map_tipo_aprovador_to_role: { Args: { p_tipo: string }; Returns: string }
+      _map_tipo_aprovador_to_status: {
+        Args: { p_tipo: string }
+        Returns: string
+      }
       api_listar_apontamentos: {
         Args: { _data_fim?: string; _data_inicio?: string; _equipe?: string }
         Returns: {
@@ -4523,6 +5027,44 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      aprovar_diretor_adm: {
+        Args: {
+          p_assinatura_png: string
+          p_cargo: string
+          p_cpf?: string
+          p_nome_usuario: string
+          p_solicitacao_id: string
+        }
+        Returns: undefined
+      }
+      aprovar_diretor_operacional: {
+        Args: {
+          p_assinatura_png: string
+          p_cargo: string
+          p_cpf?: string
+          p_nome_usuario: string
+          p_solicitacao_id: string
+        }
+        Returns: undefined
+      }
+      aprovar_etapa_dinamica: {
+        Args: {
+          p_etapa_exec_id: string
+          p_observacao?: string
+          p_solicitacao_id: string
+        }
+        Returns: undefined
+      }
+      aprovar_gerente_adm: {
+        Args: {
+          p_assinatura_png: string
+          p_cargo: string
+          p_cpf?: string
+          p_nome_usuario: string
+          p_solicitacao_id: string
+        }
+        Returns: undefined
       }
       atualizar_status_entrega_automatico: {
         Args: {
@@ -4624,6 +5166,15 @@ export type Database = {
         Returns: string
       }
       generate_numero_solicitacao: { Args: never; Returns: string }
+      gerenciar_convocado_diaria: {
+        Args: {
+          p_acao: string
+          p_funcionario_data: Json
+          p_solicitacao_id: string
+        }
+        Returns: undefined
+      }
+      get_configuracao_sistema: { Args: { p_chave: string }; Returns: string }
       get_etapas_utilizadas: {
         Args: { p_checklist_id?: string; p_obra_id: string }
         Returns: string[]
@@ -4663,7 +5214,16 @@ export type Database = {
       has_pncp_access: { Args: { p_user_id?: string }; Returns: boolean }
       has_sso_full_access: { Args: { p_user_id?: string }; Returns: boolean }
       has_sso_permission: { Args: { p_user_id?: string }; Returns: boolean }
+      iniciar_fluxo_dinamico: {
+        Args: { p_solicitacao_id: string }
+        Returns: undefined
+      }
       is_departmental_super_admin: { Args: never; Returns: boolean }
+      is_super_admin: { Args: { p_user_id: string }; Returns: boolean }
+      liberar_proxima_etapa_dinamica: {
+        Args: { p_solicitacao_id: string }
+        Returns: undefined
+      }
       link_profile_from_funcionario_email: {
         Args: { _funcionario_id: string }
         Returns: boolean
@@ -4715,6 +5275,14 @@ export type Database = {
       normalize_email: { Args: { input_email: string }; Returns: string }
       normalize_text: { Args: { input_text: string }; Returns: string }
       rbac_auto_migrate_user: { Args: { p_user_id: string }; Returns: Json }
+      rejeitar_etapa_dinamica: {
+        Args: {
+          p_etapa_exec_id: string
+          p_observacao?: string
+          p_solicitacao_id: string
+        }
+        Returns: undefined
+      }
       relatorio_correcao_status_massa: {
         Args: never
         Returns: {
@@ -4727,6 +5295,18 @@ export type Database = {
           total_entregas: number
         }[]
       }
+      reprovar_diretor_adm: {
+        Args: { p_observacao?: string; p_solicitacao_id: string }
+        Returns: undefined
+      }
+      reprovar_diretor_operacional: {
+        Args: { p_observacao?: string; p_solicitacao_id: string }
+        Returns: undefined
+      }
+      reprovar_gerente_adm: {
+        Args: { p_observacao?: string; p_solicitacao_id: string }
+        Returns: undefined
+      }
       sincronizar_hora_saida_aplicacao: {
         Args: { p_registro_aplicacao_id: string }
         Returns: undefined
@@ -4736,6 +5316,10 @@ export type Database = {
         Returns: undefined
       }
       unaccent: { Args: { "": string }; Returns: string }
+      update_configuracao_sistema: {
+        Args: { p_chave: string; p_valor: string }
+        Returns: undefined
+      }
       update_profile_funcionario_id: {
         Args: { _funcionario_id: string; _profile_id: string }
         Returns: undefined

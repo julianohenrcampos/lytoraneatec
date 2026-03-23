@@ -373,13 +373,18 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
     }
   };
 
+  const isDemissional = etapa2Data.tipo_exame === 'Demissional';
+
   const handleNextStep = () => {
     if (currentStep === 1 && !isEtapa1Valid) {
       toast.error('Preencha todos os campos obrigatórios da Etapa 1');
       return;
     }
-    if (currentStep === 2) {
-      // Step 2 não precisa de validação para avançar para VT
+    if (currentStep === 2 && isDemissional) {
+      // Pular step 3 (VT) para Demissional, ir direto para Finalizar
+      setVtData(prev => ({ ...prev, skipped: true }));
+      setCurrentStep(4);
+      return;
     }
     if (currentStep === 3 && !isVtValid) {
       const missing: string[] = [];
@@ -399,6 +404,11 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
   };
 
   const handlePreviousStep = () => {
+    if (currentStep === 4 && isDemissional) {
+      // Voltar do Finalizar direto para step 2 (pula VT)
+      setCurrentStep(2);
+      return;
+    }
     setCurrentStep(prev => Math.max(prev - 1, 1));
   };
 
@@ -495,12 +505,18 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
     telefone: etapa1Data.telefone_celular,
   }), [etapa1Data]);
 
-  const steps = [
-    { number: 1, title: 'Cadastro', completed: isEtapa1Valid && currentStep > 1, current: currentStep === 1 },
-    { number: 2, title: 'Agendamento', completed: isEtapa2Valid && currentStep > 2, current: currentStep === 2 },
-    { number: 3, title: 'Vale Transporte', completed: (isVtValid && !vtData.skipped) && currentStep > 3, current: currentStep === 3 },
-    { number: 4, title: 'Finalizar', completed: false, current: currentStep === 4 }
-  ];
+  const steps = isDemissional
+    ? [
+        { number: 1, title: 'Cadastro', completed: isEtapa1Valid && currentStep > 1, current: currentStep === 1 },
+        { number: 2, title: 'Agendamento', completed: isEtapa2Valid && currentStep > 2, current: currentStep === 2 },
+        { number: 3, title: 'Finalizar', completed: false, current: currentStep === 4 }
+      ]
+    : [
+        { number: 1, title: 'Cadastro', completed: isEtapa1Valid && currentStep > 1, current: currentStep === 1 },
+        { number: 2, title: 'Agendamento', completed: isEtapa2Valid && currentStep > 2, current: currentStep === 2 },
+        { number: 3, title: 'Vale Transporte', completed: (isVtValid && !vtData.skipped) && currentStep > 3, current: currentStep === 3 },
+        { number: 4, title: 'Finalizar', completed: false, current: currentStep === 4 }
+      ];
 
   const isLastStep = currentStep === 4;
 
@@ -533,10 +549,16 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
         <StepIndicator 
           steps={steps} 
           onStepClick={(step) => {
-            if (step === 1) setCurrentStep(1);
-            else if (step === 2 && isEtapa1Valid) setCurrentStep(2);
-            else if (step === 3 && isEtapa1Valid) setCurrentStep(3);
-            else if (step === 4 && isEtapa1Valid && isEtapa2Valid) setCurrentStep(4);
+            if (isDemissional) {
+              if (step === 1) setCurrentStep(1);
+              else if (step === 2 && isEtapa1Valid) setCurrentStep(2);
+              else if (step === 3 && isEtapa1Valid && isEtapa2Valid) setCurrentStep(4);
+            } else {
+              if (step === 1) setCurrentStep(1);
+              else if (step === 2 && isEtapa1Valid) setCurrentStep(2);
+              else if (step === 3 && isEtapa1Valid) setCurrentStep(3);
+              else if (step === 4 && isEtapa1Valid && isEtapa2Valid) setCurrentStep(4);
+            }
           }}
         />
         

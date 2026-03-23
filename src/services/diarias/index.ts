@@ -52,6 +52,18 @@ export {
 
 export type { PresencaDiaria, PresencaFormData } from './presencasService';
 
+// Fluxo de Aprovação Administrativo
+export {
+  aprovarComoGerenteAdm,
+  reprovarComoGerenteAdm,
+  aprovarComoDiretorOperacional,
+  reprovarComoDiretorOperacional,
+  aprovarComoDiretorAdm,
+  reprovarComoDiretorAdm,
+  getDocumentosFluxo,
+  getDocumentosRelacionados
+} from './fluxoAprovacaoService';
+
 // Notificações de Diárias
 export {
   notificarAprovador,

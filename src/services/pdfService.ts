@@ -18,6 +18,7 @@ import type { FolhaPontoFuncionario } from '@/components/diarias/pdf/FolhaPontoP
 import { SSOChecklist, SSOChecklistItem } from '@/types/sso';
 import { SSODesvio, SSODesvioFoto } from '@/types/ssoDesvios';
 import { DiariaSolicitacao, FuncionarioPreConvocado, RelatorioFolhaItem, PresencaResumo, RelatorioFilters } from '@/types/diarias';
+import { fetchAssinaturasParaPDF } from '@/services/diarias/assinaturasPdfService';
 import { ssoStorageService } from '@/services/sso/ssoStorageService';
 import { ssoDesvioStorageService } from '@/services/ssoDesvios/ssoDesvioStorageService';
 import { createElement } from 'react';
@@ -255,8 +256,11 @@ export const generateSolicitacaoPDF = async (
   }
 ): Promise<void> => {
   try {
-    // Carregar logo como base64
-    const logoUrl = await loadImageAsBase64('/logo-lyto.svg');
+    // Carregar logo e assinaturas em paralelo
+    const [logoUrl, assinaturas] = await Promise.all([
+      loadImageAsBase64('/logo-lyto.svg'),
+      fetchAssinaturasParaPDF(solicitacao.id),
+    ]);
     
     // Criar o documento React-PDF
     const doc = createElement(SolicitacaoPDFDocument, {
@@ -264,7 +268,8 @@ export const generateSolicitacaoPDF = async (
       convocados,
       dadosComplementares,
       logoUrl: logoUrl || undefined,
-      analise
+      analise,
+      assinaturas: assinaturas.length > 0 ? assinaturas : undefined,
     });
     
     // Gerar o blob do PDF
@@ -423,9 +428,24 @@ export const generateCompiladoDiariasPDF = async (
   totalGeralQuantidade: number,
   totalGeralValor: number,
   fileName: string,
+  solicitacaoIds?: string[],
 ): Promise<void> => {
   try {
-    const logoUrl = await loadImageAsBase64('/lyto-uploads/dcf6c980-f927-4180-b109-b425da1323ba.png');
+    // Carregar logo e assinaturas em paralelo
+    const assinaturasPromises = (solicitacaoIds || []).map(id => fetchAssinaturasParaPDF(id));
+    const [logoUrl, ...assinaturasArrays] = await Promise.all([
+      loadImageAsBase64('/lyto-uploads/dcf6c980-f927-4180-b109-b425da1323ba.png'),
+      ...assinaturasPromises,
+    ]);
+
+    // Deduplica assinaturas por nome+tipo (mesmo aprovador pode aparecer em várias solicitações)
+    const allAssinaturas = assinaturasArrays.flat();
+    const uniqueMap = new Map<string, typeof allAssinaturas[0]>();
+    for (const a of allAssinaturas) {
+      const key = `${a.nome_usuario}_${a.tipo_assinatura}`;
+      if (!uniqueMap.has(key)) uniqueMap.set(key, a);
+    }
+    const assinaturas = Array.from(uniqueMap.values());
 
     const doc = createElement(CompiladoDiariasPDF, {
       centros,
@@ -434,6 +454,7 @@ export const generateCompiladoDiariasPDF = async (
       logoUrl: logoUrl || undefined,
       totalGeralQuantidade,
       totalGeralValor,
+      assinaturas: assinaturas.length > 0 ? assinaturas : undefined,
     });
 
     const blob = await pdf(doc as any).toBlob();
