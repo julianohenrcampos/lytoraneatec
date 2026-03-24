@@ -37,6 +37,7 @@ export const CardUpload: React.FC<CardUploadProps> = ({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (f) onFileChange?.(f);
+    e.target.value = '';
   };
 
   const Icon = icon === 'download' ? Download : Upload;
@@ -70,6 +71,7 @@ export const CardUpload: React.FC<CardUploadProps> = ({
             type="file"
             accept={accept}
             className="hidden"
+            onClick={(e) => e.stopPropagation()}
             onChange={handleChange}
           />
         )}

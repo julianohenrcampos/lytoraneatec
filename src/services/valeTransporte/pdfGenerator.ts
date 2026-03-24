@@ -1,4 +1,5 @@
 import { PDFDocument, rgb } from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
 import { saveAs } from 'file-saver';
 import { LinhaTransporte } from '@/components/agendamento-exames/vale-transporte/LinhaTransporteItem';
 
@@ -6,6 +7,7 @@ const ROBOTO_REGULAR_URL = 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fo
 const ROBOTO_BOLD_URL = 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/roboto-bold-webfont.ttf';
 
 async function embedRobotoFonts(pdfDoc: PDFDocument) {
+  pdfDoc.registerFontkit(fontkit);
   const [regularRes, boldRes] = await Promise.all([
     fetch(ROBOTO_REGULAR_URL),
     fetch(ROBOTO_BOLD_URL),

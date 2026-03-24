@@ -267,18 +267,20 @@ const SSOAgendamentoExames: React.FC = () => {
         }
       }
 
-      // Fetch passagens (custo_passagem) from bd_funcionarios by CPF
-      const cpfs = [...new Set(dataParaPdf.map(a => a.cpf?.replace(/\D/g, '')).filter(Boolean))] as string[];
+      // Fetch passagens from bd_vale_transporte by agendamento_id
+      const agendamentoIds = dataParaPdf.map(a => a.id);
       const passagens: Record<string, number | null> = {};
-      if (cpfs.length > 0) {
-        const { data: funcs } = await (supabase
-          .from('bd_funcionarios' as any) as any)
-          .select('cpf, custo_passagem')
-          .in('cpf', cpfs);
-        if (funcs) {
-          funcs.forEach((f: any) => {
-            if (f.cpf) {
-              passagens[f.cpf.replace(/\D/g, '')] = f.custo_passagem != null ? Number(f.custo_passagem) : null;
+      if (agendamentoIds.length > 0) {
+        const { data: vtRecords } = await (supabase
+          .from('bd_vale_transporte' as any) as any)
+          .select('agendamento_id, valor_jae, valor_riocard, tipo')
+          .in('agendamento_id', agendamentoIds);
+        if (vtRecords) {
+          (vtRecords as any[]).forEach((vt: any) => {
+            if (vt.tipo === 'nao_beneficiario') {
+              passagens[vt.agendamento_id] = 0;
+            } else {
+              passagens[vt.agendamento_id] = (Number(vt.valor_jae || 0) + Number(vt.valor_riocard || 0)) * 2;
             }
           });
         }

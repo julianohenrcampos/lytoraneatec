@@ -37,14 +37,11 @@ const getStatusVR = (ag: AgendamentoExame): string => {
 };
 
 const getPassagemDisplay = (ag: AgendamentoExame, passagens: Record<string, number | null>): string => {
-  if (!ag.cpf) return 'NÃO necessita';
-  const cpfClean = ag.cpf.replace(/\D/g, '');
-  const valor = passagens[cpfClean];
+  const valor = passagens[ag.id];
   if (valor != null && valor > 0) return formatCurrency(valor);
-  // Check VT status as fallback indicator
   if (ag.vt_entregue_em) return 'Entregue';
   if (ag.vt_solicitado_em) return 'Solicitado';
-  return 'NÃO necessita';
+  return 'Não necessita';
 };
 
 const COLUMNS = [

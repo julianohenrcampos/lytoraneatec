@@ -8,8 +8,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Save, Upload, PenTool } from 'lucide-react';
+import { Loader2, Save, Upload, PenTool, X } from 'lucide-react';
 import { useAssinaturaDigital } from '@/hooks/useAssinaturaDigital';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
@@ -56,9 +55,13 @@ export default function AssinaturaDigitalModal({ isOpen, onClose }: AssinaturaDi
   const [cargo, setCargo] = useState('');
   const [uploadedImage, setUploadedImage] = useState<Blob | null>(null);
   const [uploadedPreview, setUploadedPreview] = useState<string | null>(null);
+  const [removedCurrent, setRemovedCurrent] = useState(false);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      setRemovedCurrent(false);
+      return;
+    }
     if (assinatura) {
       setNome(assinatura.nome_completo);
       setCpf(formatCPF(assinatura.cpf));
@@ -78,6 +81,16 @@ export default function AssinaturaDigitalModal({ isOpen, onClose }: AssinaturaDi
     }
     setUploadedImage(file);
     setUploadedPreview(URL.createObjectURL(file));
+    setRemovedCurrent(false);
+  };
+
+  const handleRemoveImage = () => {
+    if (uploadedPreview) {
+      URL.revokeObjectURL(uploadedPreview);
+    }
+    setUploadedImage(null);
+    setUploadedPreview(null);
+    setRemovedCurrent(true);
   };
 
   const handleSave = async () => {
@@ -92,8 +105,11 @@ export default function AssinaturaDigitalModal({ isOpen, onClose }: AssinaturaDi
     await salvarAssinatura({ nome_completo: nome, cpf: cleanCpf, cargo, imageBlob: blob });
     setUploadedImage(null);
     setUploadedPreview(null);
+    setRemovedCurrent(false);
     onClose();
   };
+
+  const currentImageUrl = uploadedPreview || (!removedCurrent && hasAssinatura && signedUrl ? signedUrl : null);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -106,15 +122,6 @@ export default function AssinaturaDigitalModal({ isOpen, onClose }: AssinaturaDi
         </DialogHeader>
 
         <div className="space-y-5">
-          {hasAssinatura && signedUrl && (
-            <Card className="border-primary/20 bg-primary/5">
-              <CardContent className="p-4">
-                <p className="text-xs font-medium text-muted-foreground mb-2">Assinatura atual</p>
-                <img src={signedUrl} alt="Assinatura" className="max-h-20 border rounded-lg bg-white p-1" />
-              </CardContent>
-            </Card>
-          )}
-
           <div className="grid gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="nome">Nome completo *</Label>
@@ -140,15 +147,25 @@ export default function AssinaturaDigitalModal({ isOpen, onClose }: AssinaturaDi
 
           <div className="space-y-3">
             <Label>Imagem da assinatura *</Label>
-            <label className="flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-8 cursor-pointer hover:border-primary/50 hover:bg-muted/50 transition-colors">
-              <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-              <span className="text-sm text-muted-foreground">Clique para selecionar uma imagem PNG</span>
-              <input type="file" accept="image/png,image/*" className="hidden" onChange={handleFileUpload} />
-            </label>
-            {uploadedPreview && (
-              <div className="border rounded-lg p-2 bg-white">
-                <img src={uploadedPreview} alt="Preview" className="max-h-24 mx-auto" />
+            {currentImageUrl ? (
+              <div className="relative border rounded-lg p-3 bg-white inline-block">
+                <img src={currentImageUrl} alt="Assinatura" className="max-h-24" />
+                <Button
+                  size="icon"
+                  variant="destructive"
+                  className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
+                  onClick={handleRemoveImage}
+                  type="button"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
               </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-8 cursor-pointer hover:border-primary/50 hover:bg-muted/50 transition-colors">
+                <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                <span className="text-sm text-muted-foreground">Clique para selecionar uma imagem PNG</span>
+                <input type="file" accept="image/png,image/*" className="hidden" onChange={handleFileUpload} />
+              </label>
             )}
           </div>
 
