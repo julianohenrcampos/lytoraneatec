@@ -1,15 +1,16 @@
-import { PNCPSyncLog } from "@/types/pncp";
+import { PNCPSyncLog, PNCPSyncResult } from "@/types/pncp";
 import { formatDateTime } from "@/services/pncpService";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, CheckCircle2, AlertCircle, RefreshCw } from "lucide-react";
+import { Clock, CheckCircle2, AlertCircle, RefreshCw, Building2, AlertTriangle } from "lucide-react";
 
 interface PNCPSyncStatusProps {
   lastSync: PNCPSyncLog | null | undefined;
   isSyncing: boolean;
+  lastSyncResult?: PNCPSyncResult | null;
 }
 
-export function PNCPSyncStatus({ lastSync, isSyncing }: PNCPSyncStatusProps) {
+export function PNCPSyncStatus({ lastSync, isSyncing, lastSyncResult }: PNCPSyncStatusProps) {
   if (isSyncing) {
     return (
       <Card className="border-primary/50 bg-primary/5">
@@ -19,8 +20,60 @@ export function PNCPSyncStatus({ lastSync, isSyncing }: PNCPSyncStatusProps) {
             <div>
               <p className="font-medium text-primary">Sincronizando com PNCP...</p>
               <p className="text-sm text-muted-foreground">
-                Buscando licitações de obras em Rio de Janeiro/RJ
+                Buscando licitações e classificando órgãos automaticamente
               </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show sync result summary if available
+  if (lastSyncResult && lastSyncResult.success) {
+    return (
+      <Card className="border-green-500/50 bg-green-500/5">
+        <CardContent className="py-3">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              <div>
+                <p className="font-medium text-green-700 dark:text-green-400">
+                  Sincronização concluída com sucesso
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {lastSync ? formatDateTime(lastSync.data_execucao) : "Agora"} 
+                  {lastSyncResult.duracao_segundos && ` • ${lastSyncResult.duracao_segundos.toFixed(1)}s`}
+                </p>
+              </div>
+            </div>
+
+            {/* Classification summary cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="rounded-md border bg-background p-2 text-center">
+                <p className="text-lg font-bold">{lastSyncResult.total_encontrados}</p>
+                <p className="text-xs text-muted-foreground">Analisadas</p>
+              </div>
+              <div className="rounded-md border bg-background p-2 text-center">
+                <p className="text-lg font-bold text-primary">{lastSyncResult.total_inseridos}</p>
+                <p className="text-xs text-muted-foreground">Importadas</p>
+              </div>
+              <div className="rounded-md border bg-background p-2 text-center">
+                <p className="text-lg font-bold text-green-600">
+                  {lastSyncResult.total_orgaos_classificados ?? 0}
+                </p>
+                <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                  <Building2 className="h-3 w-3" /> Classificados
+                </p>
+              </div>
+              <div className="rounded-md border bg-background p-2 text-center">
+                <p className="text-lg font-bold text-amber-600">
+                  {lastSyncResult.total_orgaos_pendentes ?? 0}
+                </p>
+                <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                  <AlertTriangle className="h-3 w-3" /> Pendentes
+                </p>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -37,7 +90,7 @@ export function PNCPSyncStatus({ lastSync, isSyncing }: PNCPSyncStatusProps) {
             <div>
               <p className="font-medium">Nenhuma sincronização realizada</p>
               <p className="text-sm text-muted-foreground">
-                Clique em "Sincronizar Agora" para buscar licitações do PNCP
+                Clique em "Sincronizar" para buscar licitações do PNCP
               </p>
             </div>
           </div>

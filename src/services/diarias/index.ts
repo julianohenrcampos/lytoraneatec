@@ -47,7 +47,8 @@ export {
   getPresencasPorSolicitacao,
   salvarPresencas,
   getResumoPresencas,
-  verificarPresencasExistentes
+  verificarPresencasExistentes,
+  deletePresencaRegistro
 } from './presencasService';
 
 export type { PresencaDiaria, PresencaFormData } from './presencasService';

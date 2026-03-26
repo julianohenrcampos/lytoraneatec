@@ -25,6 +25,10 @@ export interface PNCPContratacao {
   perfil_busca_id: string | null;
   perfil_busca_nome: string | null;
   perfil_cor: string | null;
+  orgao_id: string | null;
+  orgao_sigla: string | null;
+  score_busca: number;
+  grupos_match: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -58,6 +62,8 @@ export interface PNCPSyncResult {
   total_encontrados: number;
   total_inseridos: number;
   total_duplicados: number;
+  total_orgaos_classificados: number;
+  total_orgaos_pendentes: number;
   duracao_segundos: number;
   error?: string;
 }

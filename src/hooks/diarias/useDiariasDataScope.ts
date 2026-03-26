@@ -6,7 +6,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
-import type { DiariaSolicitacao, SolicitacaoFilters, RelatorioFilters } from '@/types/diarias';
+import type { DiariaSolicitacao, SolicitacaoFilters, RelatorioFilters, RelatorioFolhaItem } from '@/types/diarias';
 
 export type DiariasUserScope = 'superadmin' | 'admsso' | 'admsede' | 'engenheiro' | 'gerente' | 'apontador' | 'nenhum';
 
@@ -43,6 +43,7 @@ export interface DiariasDataScope {
   // Verificação de segregação
   isOwnSolicitacao: (sol: DiariaSolicitacao) => boolean;
   isGerenciaCentroCusto: (centroCustoId: string) => boolean;
+  canDeletePresenca: (item: RelatorioFolhaItem) => boolean;
 }
 
 export function useDiariasDataScope(): DiariasDataScope {
@@ -306,6 +307,20 @@ export function useDiariasDataScope(): DiariasDataScope {
     return false;
   }, [isSuperAdmin, userScope, funcionarioId, userId, hasPermission]);
 
+  const canDeletePresenca = useCallback((item: RelatorioFolhaItem): boolean => {
+    // SuperAdmin pode excluir tudo
+    if (isSuperAdmin) return true;
+    // AdmSede pode excluir registros dos CCs gerenciados
+    if (userScope === 'admsede' && centrosCustoGerenciados.includes(item.centro_custo_id)) return true;
+    // AdmSSO pode excluir tudo (visão ampla)
+    if (userScope === 'admsso') return true;
+    // Engenheiro/Gerente pode excluir se é solicitante
+    if ((userScope === 'engenheiro' || userScope === 'gerente') && item.solicitante_id === userId) return true;
+    // Gerente pode excluir registros dos seus CCs
+    if (userScope === 'gerente' && centrosCustoGerenciados.includes(item.centro_custo_id)) return true;
+    return false;
+  }, [isSuperAdmin, userScope, centrosCustoGerenciados, userId]);
+
   return {
     userScope,
     userId,
@@ -326,5 +341,6 @@ export function useDiariasDataScope(): DiariasDataScope {
     canApontar,
     isOwnSolicitacao,
     isGerenciaCentroCusto,
+    canDeletePresenca,
   };
 }

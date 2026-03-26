@@ -73,7 +73,9 @@ import SSOVerAgir from "@/pages/SSOVerAgir";
 // Licitações PNCP
 import MonitoramentoPNCP from "@/pages/MonitoramentoPNCP";
 import ConfiguracoesPNCP from "@/pages/ConfiguracoesPNCP";
+import OrgaosPendentes from "@/pages/OrgaosPendentes";
 import RelatorioLicitacoes from "@/pages/RelatorioLicitacoes";
+import ConfiguracoesMatching from "@/pages/ConfiguracoesMatching";
 
 // Security Components
 import SecureRouteGuard from "@/components/routing/SecureRouteGuard";
@@ -464,6 +466,24 @@ const App = () => {
                 <SimplePermissionGuard>
                   <SecureRouteGuard requiredPermission="configuracoes_pncp_view">
                     <ConfiguracoesPNCP />
+                  </SecureRouteGuard>
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/licitacoes/orgaos-pendentes" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <SecureRouteGuard requiredPermission="acesso_monitoramento_pncp">
+                    <OrgaosPendentes />
+                  </SecureRouteGuard>
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/licitacoes/configuracoes-matching" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <SecureRouteGuard requiredPermission="acesso_monitoramento_pncp">
+                    <ConfiguracoesMatching />
                   </SecureRouteGuard>
                 </SimplePermissionGuard>
               </SimpleAuthGuard>

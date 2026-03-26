@@ -9,8 +9,9 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, Building2, MapPin, Calendar, DollarSign, FileText, Tag, XCircle, RotateCcw, Clock, CheckCircle } from "lucide-react";
+import { ExternalLink, Building2, MapPin, Calendar, DollarSign, FileText, Tag, XCircle, RotateCcw, Clock, CheckCircle, Brain, Info } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { getScoreLabel, DICIONARIO_SINONIMOS, calcularSmartMatch } from "@/utils/smartMatching";
 
 interface PNCPDetailsModalProps {
   contratacao: PNCPContratacao | null;
@@ -59,12 +60,33 @@ export function PNCPDetailsModal({ contratacao, open, onOpenChange, onToggleDesc
 
           <Separator />
 
+          {/* Órgão Interno (Normalizado) */}
+          {contratacao.orgao_id && contratacao.orgao_sigla ? (
+            <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+              <h4 className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-2 flex items-center gap-1">
+                <Building2 className="h-4 w-4" />
+                Órgão Classificado
+              </h4>
+              <Badge className="bg-blue-600 text-white mb-1">{contratacao.orgao_sigla}</Badge>
+              <p className="text-sm text-blue-600 dark:text-blue-400">{contratacao.orgao_nome}</p>
+            </div>
+          ) : (
+            <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+              <h4 className="text-sm font-medium text-amber-700 dark:text-amber-300 flex items-center gap-1">
+                <Tag className="h-3 w-3" />
+                Órgão pendente de classificação
+              </h4>
+            </div>
+          )}
+
+          <Separator />
+
           {/* Órgão e Unidade */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex items-start gap-2">
               <Building2 className="h-4 w-4 text-muted-foreground mt-1" />
               <div>
-                <h4 className="text-sm font-medium text-muted-foreground">Órgão</h4>
+                <h4 className="text-sm font-medium text-muted-foreground">Órgão (API)</h4>
                 <p className="text-sm font-medium">{contratacao.orgao_nome || "N/A"}</p>
                 {contratacao.orgao_cnpj && (
                   <p className="text-xs text-muted-foreground">CNPJ: {contratacao.orgao_cnpj}</p>
@@ -140,8 +162,8 @@ export function PNCPDetailsModal({ contratacao, open, onOpenChange, onToggleDesc
 
           <Separator />
 
-          {/* Prioridade e Termos */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Prioridade, Termos e Score */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <h4 className="text-sm font-medium text-muted-foreground mb-2">Prioridade</h4>
               {getPrioridadeBadge(contratacao.prioridade)}
@@ -162,6 +184,100 @@ export function PNCPDetailsModal({ contratacao, open, onOpenChange, onToggleDesc
                 </div>
               </div>
             )}
+
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                <Brain className="h-3 w-3" />
+                Score de Relevância (Auditoria)
+              </h4>
+              {(() => {
+                const score = contratacao.score_busca || 0;
+                const { label, variant } = getScoreLabel(score);
+                const grupos = contratacao.grupos_match || [];
+                
+                // Recalculate to show breakdown
+                const audit = calcularSmartMatch(
+                  contratacao.objeto || '',
+                  contratacao.orgao_sigla,
+                  contratacao.valor_total_estimado
+                );
+
+                return (
+                  <div className="space-y-2">
+                    <Badge variant={variant} className="flex items-center gap-1 w-fit">
+                      <Brain className="h-3 w-3" />
+                      {score} pts — {label}
+                    </Badge>
+                    
+                    {/* Breakdown */}
+                    <div className="text-xs space-y-0.5 bg-muted/30 rounded p-2">
+                      <p className="font-medium text-muted-foreground flex items-center gap-1 mb-1">
+                        <Info className="h-3 w-3" /> Detalhamento do score:
+                      </p>
+                      {audit.motivos.length > 0 ? (
+                        audit.motivos.map((motivo, i) => (
+                          <p key={i} className="text-foreground">{motivo}</p>
+                        ))
+                      ) : (
+                        <p className="text-muted-foreground italic">Nenhuma regra ativada</p>
+                      )}
+                    </div>
+
+                    {audit.gruposNomes.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {audit.gruposNomes.map((nome, i) => (
+                          <Badge key={i} variant="outline" className="text-xs">
+                            {nome}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* Auditoria de Classificação */}
+          <div className="p-3 rounded-lg bg-muted/50 border">
+            <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1">
+              <Tag className="h-3 w-3" />
+              Dados de Importação / Auditoria
+            </h4>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <span className="text-muted-foreground">Órgão (API):</span>
+                <p className="font-medium">{contratacao.orgao_nome || "N/A"}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Sigla Interna:</span>
+                <p className="font-medium">{contratacao.orgao_sigla || "Não classificado"}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">CNPJ Órgão:</span>
+                <p className="font-medium">{contratacao.orgao_cnpj || "N/A"}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Unidade (API):</span>
+                <p className="font-medium">{contratacao.unidade_nome || "N/A"}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Importado em:</span>
+                <p className="font-medium">{formatDateTime(contratacao.created_at)}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Status Classificação:</span>
+                <p className="font-medium">
+                  {contratacao.orgao_id ? (
+                    <Badge variant="success" className="text-xs">Classificado</Badge>
+                  ) : contratacao.orgao_nome ? (
+                    <Badge variant="warning" className="text-xs">Pendente</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-xs">Sem órgão</Badge>
+                  )}
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Metadados */}

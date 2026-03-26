@@ -612,3 +612,19 @@ export async function editarHoraSaida(
       comentario: justificativaCompleta
     });
 }
+
+// =====================================================
+// EXCLUIR REGISTRO DE PRESENÇA
+// =====================================================
+
+export async function deletePresencaRegistro(presencaId: string): Promise<void> {
+  const { error } = await supabase
+    .from('bd_diaria_presencas')
+    .delete()
+    .eq('id', presencaId);
+
+  if (error) {
+    console.error('Erro ao excluir registro de presença:', error);
+    throw new Error(error.message);
+  }
+}

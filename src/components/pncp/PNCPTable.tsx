@@ -7,11 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { ExternalLink, Eye, Trash2, Clock, AlertTriangle, CheckCircle, XCircle, RotateCcw, Sparkles } from "lucide-react";
+import { ExternalLink, Eye, Trash2, Clock, AlertTriangle, CheckCircle, XCircle, RotateCcw, Sparkles, Brain } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { PNCPDetailsModal } from "./PNCPDetailsModal";
+import { getScoreLabel, DICIONARIO_SINONIMOS } from "@/utils/smartMatching";
 interface PNCPTableProps {
   contratacoes: PNCPContratacao[];
   onDelete?: (id: string) => void;
@@ -183,6 +184,7 @@ export function PNCPTable({
               <TableHead>Local</TableHead>
               <TableHead>Perfil</TableHead>
               <TableHead className="text-right">Valor Estimado</TableHead>
+              <TableHead className="text-center">Score</TableHead>
               <TableHead>Prazo Propostas</TableHead>
               <TableHead>Capturado em</TableHead>
               {showParticipandoColumn && <TableHead className="text-center">Participando</TableHead>}
@@ -212,6 +214,19 @@ export function PNCPTable({
                 <TableCell>
                   <div className="space-y-1">
                     <p className="font-medium text-sm">{item.orgao_nome || "N/A"}</p>
+                    {item.orgao_sigla ? (
+                      <Badge variant="success" className="text-xs">
+                        {item.orgao_sigla}
+                      </Badge>
+                    ) : item.orgao_nome ? (
+                      <Badge variant="warning" className="text-xs">
+                        Pendente
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs text-muted-foreground">
+                        Sem órgão
+                      </Badge>
+                    )}
                     {item.unidade_nome && <p className="text-xs text-muted-foreground">{item.unidade_nome}</p>}
                   </div>
                 </TableCell>
@@ -243,6 +258,45 @@ export function PNCPTable({
                     </span>
                     {getValorBadge(item.valor_total_estimado)}
                   </div>
+                </TableCell>
+                <TableCell className="text-center">
+                  {(() => {
+                    const score = item.score_busca || 0;
+                    const { label, variant } = getScoreLabel(score);
+                    const grupos = item.grupos_match || [];
+                    const grupoNomes = grupos.map(g => {
+                      const found = DICIONARIO_SINONIMOS.find(d => d.id === g);
+                      return found?.nome || g;
+                    });
+                    return (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex flex-col items-center gap-1">
+                            {score > 0 ? (
+                              <Badge variant={variant} className="flex items-center gap-1">
+                                <Brain className="h-3 w-3" />
+                                {score}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">-</span>
+                            )}
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          {score > 0 ? (
+                            <div className="space-y-1">
+                              <p className="font-medium">Score: {score} ({label})</p>
+                              {grupoNomes.length > 0 && (
+                                <p className="text-xs">Grupos: {grupoNomes.join(', ')}</p>
+                              )}
+                            </div>
+                          ) : (
+                            <p>Sem score de relevância</p>
+                          )}
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  })()}
                 </TableCell>
                 <TableCell>
                   <div className="space-y-1">

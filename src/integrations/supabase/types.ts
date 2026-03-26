@@ -2583,6 +2583,42 @@ export type Database = {
           },
         ]
       }
+      bd_licitacoes_orgaos_pendentes: {
+        Row: {
+          created_at: string
+          id: string
+          licitacao_id: string | null
+          licitacao_numero: string | null
+          nome_api_normalizado: string
+          nome_api_original: string
+          observacoes: string | null
+          origem: string | null
+          status: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          licitacao_id?: string | null
+          licitacao_numero?: string | null
+          nome_api_normalizado: string
+          nome_api_original: string
+          observacoes?: string | null
+          origem?: string | null
+          status?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          licitacao_id?: string | null
+          licitacao_numero?: string | null
+          nome_api_normalizado?: string
+          nome_api_original?: string
+          observacoes?: string | null
+          origem?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
       bd_lista_programacao_entrega: {
         Row: {
           apontador_id: string
@@ -2710,6 +2746,60 @@ export type Database = {
           id?: string
           nome_local?: string
           telefone?: string | null
+        }
+        Relationships: []
+      }
+      bd_matching_config: {
+        Row: {
+          ativo: boolean
+          created_at: string | null
+          grupo: string
+          id: string
+          nome: string
+          peso: number
+          updated_at: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string | null
+          grupo: string
+          id?: string
+          nome: string
+          peso?: number
+          updated_at?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string | null
+          grupo?: string
+          id?: string
+          nome?: string
+          peso?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      bd_matching_exclusoes: {
+        Row: {
+          ativo: boolean
+          created_at: string | null
+          id: string
+          motivo: string | null
+          termo: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string | null
+          id?: string
+          motivo?: string | null
+          termo: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string | null
+          id?: string
+          motivo?: string | null
+          termo?: string
         }
         Relationships: []
       }
@@ -2895,6 +2985,130 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      bd_orgaos_alias: {
+        Row: {
+          alias_nome: string
+          alias_normalizado: string
+          created_at: string
+          id: string
+          orgao_id: string
+        }
+        Insert: {
+          alias_nome: string
+          alias_normalizado: string
+          created_at?: string
+          id?: string
+          orgao_id: string
+        }
+        Update: {
+          alias_nome?: string
+          alias_normalizado?: string
+          created_at?: string
+          id?: string
+          orgao_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_orgaos_alias_orgao_id_fkey"
+            columns: ["orgao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_orgaos_publicos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_orgaos_historico_metricas: {
+        Row: {
+          id: string
+          orgao_id: string
+          total_ganhas: number
+          total_licitacoes: number
+          total_participadas: number
+          total_perdidas: number
+          updated_at: string
+          valor_total_estimado: number
+          valor_total_ganho: number
+        }
+        Insert: {
+          id?: string
+          orgao_id: string
+          total_ganhas?: number
+          total_licitacoes?: number
+          total_participadas?: number
+          total_perdidas?: number
+          updated_at?: string
+          valor_total_estimado?: number
+          valor_total_ganho?: number
+        }
+        Update: {
+          id?: string
+          orgao_id?: string
+          total_ganhas?: number
+          total_licitacoes?: number
+          total_participadas?: number
+          total_perdidas?: number
+          updated_at?: string
+          valor_total_estimado?: number
+          valor_total_ganho?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_orgaos_historico_metricas_orgao_id_fkey"
+            columns: ["orgao_id"]
+            isOneToOne: true
+            referencedRelation: "bd_orgaos_publicos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_orgaos_publicos: {
+        Row: {
+          area_atuacao: string | null
+          ativo: boolean
+          created_at: string
+          esfera: string | null
+          frequencia_licitacoes: string | null
+          id: string
+          nivel_prioridade: number | null
+          nome: string
+          observacoes: string | null
+          perfil_contratacao: string | null
+          sigla: string
+          ticket_medio: number | null
+          updated_at: string
+        }
+        Insert: {
+          area_atuacao?: string | null
+          ativo?: boolean
+          created_at?: string
+          esfera?: string | null
+          frequencia_licitacoes?: string | null
+          id?: string
+          nivel_prioridade?: number | null
+          nome: string
+          observacoes?: string | null
+          perfil_contratacao?: string | null
+          sigla: string
+          ticket_medio?: number | null
+          updated_at?: string
+        }
+        Update: {
+          area_atuacao?: string | null
+          ativo?: boolean
+          created_at?: string
+          esfera?: string | null
+          frequencia_licitacoes?: string | null
+          id?: string
+          nivel_prioridade?: number | null
+          nome?: string
+          observacoes?: string | null
+          perfil_contratacao?: string | null
+          sigla?: string
+          ticket_medio?: number | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       bd_os_mao_obra: {
         Row: {
@@ -3190,6 +3404,7 @@ export type Database = {
           data_marcacao_participando: string | null
           data_publicacao: string | null
           descartada: boolean | null
+          grupos_match: string[] | null
           id: string
           link_origem_pncp: string | null
           match_termos: string[] | null
@@ -3199,12 +3414,15 @@ export type Database = {
           numero_controle_pncp: string
           objeto: string
           orgao_cnpj: string | null
+          orgao_id: string | null
           orgao_nome: string | null
+          orgao_sigla: string | null
           participando: boolean | null
           perfil_busca_id: string | null
           perfil_busca_nome: string | null
           prioridade: string | null
           raw_data: Json | null
+          score_busca: number | null
           status_resultado: string | null
           uf: string | null
           unidade_nome: string | null
@@ -3219,6 +3437,7 @@ export type Database = {
           data_marcacao_participando?: string | null
           data_publicacao?: string | null
           descartada?: boolean | null
+          grupos_match?: string[] | null
           id?: string
           link_origem_pncp?: string | null
           match_termos?: string[] | null
@@ -3228,12 +3447,15 @@ export type Database = {
           numero_controle_pncp: string
           objeto: string
           orgao_cnpj?: string | null
+          orgao_id?: string | null
           orgao_nome?: string | null
+          orgao_sigla?: string | null
           participando?: boolean | null
           perfil_busca_id?: string | null
           perfil_busca_nome?: string | null
           prioridade?: string | null
           raw_data?: Json | null
+          score_busca?: number | null
           status_resultado?: string | null
           uf?: string | null
           unidade_nome?: string | null
@@ -3248,6 +3470,7 @@ export type Database = {
           data_marcacao_participando?: string | null
           data_publicacao?: string | null
           descartada?: boolean | null
+          grupos_match?: string[] | null
           id?: string
           link_origem_pncp?: string | null
           match_termos?: string[] | null
@@ -3257,12 +3480,15 @@ export type Database = {
           numero_controle_pncp?: string
           objeto?: string
           orgao_cnpj?: string | null
+          orgao_id?: string | null
           orgao_nome?: string | null
+          orgao_sigla?: string | null
           participando?: boolean | null
           perfil_busca_id?: string | null
           perfil_busca_nome?: string | null
           prioridade?: string | null
           raw_data?: Json | null
+          score_busca?: number | null
           status_resultado?: string | null
           uf?: string | null
           unidade_nome?: string | null
@@ -3271,6 +3497,13 @@ export type Database = {
           valor_total_estimado?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "bd_pncp_contratacoes_orgao_id_fkey"
+            columns: ["orgao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_orgaos_publicos"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bd_pncp_contratacoes_perfil_busca_id_fkey"
             columns: ["perfil_busca_id"]
@@ -5106,6 +5339,14 @@ export type Database = {
       check_is_admsso: { Args: { user_id?: string }; Returns: boolean }
       check_is_super_admin: { Args: { user_id?: string }; Returns: boolean }
       check_vistorias_sso_pendentes: { Args: never; Returns: undefined }
+      classificar_orgao_pendente: {
+        Args: {
+          p_criar_alias?: boolean
+          p_orgao_id: string
+          p_pendente_id: string
+        }
+        Returns: number
+      }
       compute_funcao_sistema: { Args: { _profile_id: string }; Returns: string }
       convert_chamado_para_os: {
         Args: { p_chamado_id: string; p_tipo_falha?: string }

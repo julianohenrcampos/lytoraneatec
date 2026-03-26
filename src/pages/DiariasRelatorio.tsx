@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { format, eachDayOfInterval, isWeekend } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Download,
   FileText,
@@ -16,11 +17,18 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  Printer } from
+  Printer,
+  Trash2 } from
 "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { generateRelatorioDiariasPDF, generateRelatorioDiariasPDFDetalhado, generateCompiladoDiariasPDF, generateFolhaPontoPDF, generateRelatorioDiariasPDFConsolidado, generateRelatorioDiariasPDFPorPeriodo } from "@/services/pdfService";
+import { generateRelatorioFolhaPDF } from "@/services/pdf/relatorioFolhaPdf";
+import { generateProtocoloDocumentosPDF } from "@/services/pdf/protocoloDocumentosPdf";
+import { deletePresencaRegistro } from "@/services/diarias/presencasService";
 import type { FolhaPontoFuncionario } from "@/components/diarias/pdf/FolhaPontoPDF";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Calendar } from "@/components/ui/calendar";
 
 import MainLayout from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -66,8 +74,10 @@ export default function DiariasRelatorio() {
   const {
     userScope,
     scopeFilters,
-    isLoading: isLoadingScope
+    isLoading: isLoadingScope,
+    canDeletePresenca
   } = useDiariasDataScope();
+  const queryClient = useQueryClient();
 
   // Verificar permissão de acesso (inclui AdmSSO explicitamente)
   const hasAccess = isSuperAdmin || userScope === 'admsso' || hasPermission('diarias_relatorio_view') || hasPermission('diarias_view');
@@ -112,6 +122,10 @@ export default function DiariasRelatorio() {
   // Filtros multi-select client-side
   const [solicitacaoFilter, setSolicitacaoFilter] = useState<string[]>([]);
   const [centroCustoFilter, setCentroCustoFilter] = useState<string[]>([]);
+
+  // Modal calendário para data de pagamento (Protocolo)
+  const [dataPagamentoOpen, setDataPagamentoOpen] = useState(false);
+  const [dataPagamento, setDataPagamento] = useState<Date | undefined>(new Date());
 
   // Filtragem client-side por empresa, tipo de vínculo e gerente regional
   const relatorio = useMemo(() => {
@@ -226,7 +240,54 @@ export default function DiariasRelatorio() {
   const exportMutation = useExportarExcel();
   const [isPDFLoading, setIsPDFLoading] = useState(false);
   const [isGeneratingFolhaPonto, setIsGeneratingFolhaPonto] = useState(false);
-  
+  const [deleteTarget, setDeleteTarget] = useState<RelatorioFolhaItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Verificar se o user pode ver a coluna de ações
+  const showDeleteColumn = useMemo(() => {
+    return relatorio.some(item => canDeletePresenca(item));
+  }, [relatorio, canDeletePresenca]);
+
+  // Handler: Protocolo de Documentos
+  const handleExportProtocolo = () => {
+    if (relatorio.length === 0) {
+      toast.error('Não há dados para exportar.');
+      return;
+    }
+    setDataPagamentoOpen(true);
+  };
+
+  const handleConfirmProtocolo = () => {
+    if (!dataPagamento) return;
+    try {
+      const dataPag = format(dataPagamento, 'yyyy-MM-dd');
+      console.log('Gerando protocolo com', relatorio.length, 'registros, data:', dataPag);
+      generateProtocoloDocumentosPDF(relatorio, dataPag);
+      toast.success('Protocolo de Documentos gerado com sucesso!');
+      setDataPagamentoOpen(false);
+      setDataPagamento(undefined);
+    } catch (error: any) {
+      console.error('Erro ao gerar Protocolo:', error);
+      toast.error(error?.message || 'Erro ao gerar o PDF. Verifique os dados.');
+    }
+  };
+
+  // Handler: Excluir presença
+  const handleDeletePresenca = async () => {
+    if (!deleteTarget?.presenca_id) return;
+    setIsDeleting(true);
+    try {
+      await deletePresencaRegistro(deleteTarget.presenca_id);
+      toast.success('Registro excluído com sucesso.');
+      queryClient.invalidateQueries({ queryKey: ['relatorio-folha'] });
+    } catch (error: any) {
+      console.error('Erro ao excluir registro:', error);
+      toast.error(error?.message || 'Erro ao excluir registro.');
+    } finally {
+      setIsDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
 
   // Folha de Ponto
   const canPrintFolhaPonto = !!filters.data_inicio && !!filters.data_fim && (centroCustoFilter.length > 0 || !!filters.centro_custo_id);
@@ -789,6 +850,9 @@ export default function DiariasRelatorio() {
                   <DropdownMenuItem onClick={() => { handleExportExcel(); handleExportPDF(); }} className="cursor-pointer">
                     🗂 Ambos
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportProtocolo} className="cursor-pointer">
+                    📋 Protocolo de Documentos
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
               <Button
@@ -980,6 +1044,7 @@ export default function DiariasRelatorio() {
                       <TableHead className="text-right">V. ½ Diária</TableHead>
                       <TableHead className="text-right">V. Refeição</TableHead>
                       <TableHead className="text-right">Total</TableHead>
+                      {showDeleteColumn && <TableHead className="w-12"></TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1048,6 +1113,20 @@ export default function DiariasRelatorio() {
                         <TableCell className="text-right font-medium">
                           {formatCurrency(Math.ceil(item.valor_diaria_aplicada || 0) + Math.ceil(item.valor_refeicao_aplicado || 0))}
                         </TableCell>
+                        {showDeleteColumn && (
+                          <TableCell className="text-center">
+                            {canDeletePresenca(item) && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => setDeleteTarget(item)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </TableCell>
+                        )}
                       </TableRow>
                   )}
                   </TableBody>
@@ -1123,6 +1202,44 @@ export default function DiariasRelatorio() {
           }
         </Card>
       </div>
+
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDeletePresenca}
+        title="Excluir Registro"
+        description={`Tem certeza que deseja excluir o registro de "${deleteTarget?.nome_funcionario || ''}" do dia ${deleteTarget?.data ? format(new Date(deleteTarget.data + 'T12:00:00'), 'dd/MM/yyyy') : ''}?`}
+        confirmText="Excluir"
+        cancelText="Cancelar"
+        variant="danger"
+        isLoading={isDeleting}
+      />
+
+      {/* Modal: Data de Pagamento para Protocolo */}
+      <Dialog open={dataPagamentoOpen} onOpenChange={setDataPagamentoOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Selecione a data de pagamento</DialogTitle>
+          </DialogHeader>
+          <div className="flex justify-center py-4">
+            <Calendar
+              mode="single"
+              selected={dataPagamento}
+              onSelect={setDataPagamento}
+              className="pointer-events-auto"
+              locale={ptBR}
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDataPagamentoOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirmProtocolo} disabled={!dataPagamento}>
+              Confirmar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>);
 
 }

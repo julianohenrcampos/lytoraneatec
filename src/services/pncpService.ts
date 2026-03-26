@@ -5,6 +5,8 @@ export interface ContratacaoRaw {
   id: string;
   objeto: string;
   orgao_nome: string | null;
+  orgao_sigla: string | null;
+  orgao_id: string | null;
   uf: string | null;
   municipio_nome: string | null;
   valor_total_estimado: number | null;
@@ -19,7 +21,7 @@ export interface ContratacaoRaw {
 export const fetchTodasContratacoes = async (): Promise<ContratacaoRaw[]> => {
   const { data, error } = await supabase
     .from("bd_pncp_contratacoes")
-    .select("id, objeto, orgao_nome, uf, municipio_nome, valor_total_estimado, status_resultado, participando, updated_at, data_fim_propostas")
+    .select("id, objeto, orgao_nome, orgao_sigla, orgao_id, uf, municipio_nome, valor_total_estimado, status_resultado, participando, updated_at, data_fim_propostas")
     .order("data_fim_propostas", { ascending: true });
 
   if (error) {

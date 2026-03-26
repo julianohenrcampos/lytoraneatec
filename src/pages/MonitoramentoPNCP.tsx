@@ -1,13 +1,13 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import MainLayout from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Gavel, ArrowLeft, Settings } from "lucide-react";
+import { RefreshCw, Gavel, ArrowLeft, Settings, Building2, BarChart3, Brain } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { fetchContratacoes, syncContratacoes, getLastSyncStatus, deleteContratacao, deleteMultipleContratacoes, getEncerradasCount, deleteEncerradas, toggleParticipando, toggleDescartada } from "@/services/pncpService";
-import { PNCPFilters as PNCPFiltersType } from "@/types/pncp";
+import { PNCPFilters as PNCPFiltersType, PNCPSyncResult } from "@/types/pncp";
 import { PNCPTable } from "@/components/pncp/PNCPTable";
 import { PNCPFilters } from "@/components/pncp/PNCPFilters";
 import { PNCPMobileCards } from "@/components/pncp/PNCPMobileCards";
@@ -16,12 +16,17 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Label } from "@/components/ui/label";
+import { useConfiguracaoSistema, useUpdateConfiguracao } from "@/hooks/useConfiguracaoSistema";
 export default function MonitoramentoPNCP() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<PNCPFiltersType>({ ocultarEncerradas: true, ordenacao: 'prazo' });
   const [salvarTodas, setSalvarTodas] = useState(false);
+  const [lastSyncResult, setLastSyncResult] = useState<PNCPSyncResult | null>(null);
+  const modoEngQuery = useConfiguracaoSistema('modo_engenharia_licitacoes');
+  const updateConfig = useUpdateConfiguracao();
+  const modoEngenharia = modoEngQuery.data === 'true';
   const {
     data: contratacoes,
     isLoading,
@@ -40,8 +45,12 @@ export default function MonitoramentoPNCP() {
   const syncMutation = useMutation({
     mutationFn: (salvarTodas: boolean) => syncContratacoes(salvarTodas),
     onSuccess: data => {
+      setLastSyncResult(data);
+      const orgInfo = data.total_orgaos_classificados != null 
+        ? ` | 🏢 ${data.total_orgaos_classificados} classificados, ⚠️ ${data.total_orgaos_pendentes} pendentes`
+        : '';
       toast.success(`Sincronização concluída!`, {
-        description: `${data.total_inseridos} novas licitações encontradas.${salvarTodas ? ` Todas as ${data.total_encontrados} licitações foram salvas.` : ''}`
+        description: `${data.total_inseridos} novas licitações encontradas.${orgInfo}`
       });
       queryClient.invalidateQueries({
         queryKey: ["pncp-contratacoes"]
@@ -197,6 +206,30 @@ export default function MonitoramentoPNCP() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="flex items-center gap-2 px-3 py-2 border rounded-md bg-background">
+                  <Brain className="h-4 w-4 text-primary" />
+                  <Label htmlFor="modo-eng" className="text-sm whitespace-nowrap cursor-pointer">
+                    Modo Engenharia
+                  </Label>
+                  <Switch 
+                    id="modo-eng"
+                    checked={modoEngenharia}
+                    onCheckedChange={(checked) => {
+                      updateConfig.mutate({ chave: 'modo_engenharia_licitacoes', valor: checked ? 'true' : 'false' });
+                    }}
+                    disabled={updateConfig.isPending}
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Matching inteligente por sinônimos técnicos (ex: "serviços hidráulicos" → drenagem)</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-2 px-3 py-2 border rounded-md bg-background">
                   <Label htmlFor="salvar-todas" className="text-sm whitespace-nowrap cursor-pointer">
                     Salvar Todas
                   </Label>
@@ -213,6 +246,21 @@ export default function MonitoramentoPNCP() {
             </Tooltip>
           </TooltipProvider>
 
+          <Button variant="outline" onClick={() => navigate("/licitacoes/dashboard")}>
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Dashboard
+          </Button>
+
+          <Button variant="outline" onClick={() => navigate("/licitacoes/orgaos-pendentes")}>
+            <Building2 className="h-4 w-4 mr-2" />
+            Órgãos Pendentes
+          </Button>
+
+          <Button variant="outline" onClick={() => navigate("/licitacoes/configuracoes-matching")}>
+            <Brain className="h-4 w-4 mr-2" />
+            Calibração
+          </Button>
+
           <Button variant="outline" onClick={() => navigate("/licitacoes/configuracoes-pncp")}>
             <Settings className="h-4 w-4 mr-2" />
             Configurações
@@ -227,7 +275,7 @@ export default function MonitoramentoPNCP() {
         </div>
       </div>
 
-      <PNCPSyncStatus lastSync={lastSync} isSyncing={syncMutation.isPending} />
+      <PNCPSyncStatus lastSync={lastSync} isSyncing={syncMutation.isPending} lastSyncResult={lastSyncResult} />
 
       <PNCPFilters filters={filters} onFilterChange={(newFilters) => setFilters(prev => ({ ...prev, ...newFilters }))} onClearFilters={() => setFilters({ ocultarEncerradas: filters.ocultarEncerradas })} />
 
