@@ -14,7 +14,11 @@ import {
   ClipboardList,
   ClipboardCheck,
   Gavel,
-  Calendar } from
+  Calendar,
+  Layers,
+  Activity,
+  Briefcase,
+  FileSearch } from
 "lucide-react";
 
 // Define all modules with their permissions and colors
@@ -126,6 +130,42 @@ const portalModules = [
   route: "/admin/permissoes",
   permission: "admin_permissoes_view",
   color: "hsl(215, 16%, 47%)" // Gray
+},
+{
+  id: "frotas",
+  title: "Frotas",
+  description: "Gestão de Frotas",
+  icon: Layers,
+  route: "/gestao-maquinas/frotas",
+  permission: "gestao_maquinas_caminhoes_view",
+  color: "hsl(190, 70%, 42%)"
+},
+{
+  id: "disponibilidade",
+  title: "Disponibilidade",
+  description: "Disponibilidade Operacional",
+  icon: Activity,
+  route: "/gestao-maquinas/disponibilidade",
+  permission: "gestao_maquinas_caminhoes_view",
+  color: "hsl(150, 60%, 40%)"
+},
+{
+  id: "portfolio-empresas",
+  title: "Portfólio de Empresas",
+  description: "Capacidade dos Fornecedores",
+  icon: Briefcase,
+  route: "/gestao-maquinas/portfolio-empresas",
+  permission: "gestao_maquinas_caminhoes_view",
+  color: "hsl(340, 65%, 47%)"
+},
+{
+  id: "solicitacoes-equipamentos",
+  title: "Solicitações de Equipamento",
+  description: "Pedidos e Matching",
+  icon: FileSearch,
+  route: "/gestao-maquinas/solicitacoes-equipamentos",
+  permission: "gestao_maquinas_caminhoes_view",
+  color: "hsl(260, 55%, 50%)"
 }];
 
 

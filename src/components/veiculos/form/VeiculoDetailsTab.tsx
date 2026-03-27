@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Combobox } from "@/components/ui/combobox";
 import VeiculoImageUpload from "../VeiculoImageUpload";
 import { useSubcategoriasQuery } from "@/hooks/vehicles/useVeiculoQueries";
+import { useFrotasDropdown, useFabricantesRelacionalDropdown, useModelosDropdown } from "@/hooks/vehicles/useRelacionalDropdowns";
 
 interface VeiculoDetailsTabProps {
   form: UseFormReturn<any>;
@@ -26,7 +27,17 @@ const VeiculoDetailsTab: React.FC<VeiculoDetailsTabProps> = ({
   onImageChange,
 }) => {
   const categoriaId = form.watch('categoria_ativo_id');
+  const fabricanteId = form.watch('fabricante_id');
+  const frotaId = form.watch('frota_id');
   const { subcategoriasDropdown, isLoadingSubcategorias } = useSubcategoriasQuery(categoriaId);
+
+  // Relational dropdowns
+  const { data: frotasData = [], isLoading: isLoadingFrotas } = useFrotasDropdown();
+  const { data: fabricantesData = [], isLoading: isLoadingFabricantes } = useFabricantesRelacionalDropdown();
+  const { data: modelosData = [], isLoading: isLoadingModelos } = useModelosDropdown(fabricanteId);
+
+  // Get empresa vinculada from selected frota
+  const selectedFrota = frotasData.find(f => f.id === frotaId);
 
   const subcategoriaOptions = useMemo(() => [
     { value: "_none", label: "Nenhuma" },
@@ -38,9 +49,29 @@ const VeiculoDetailsTab: React.FC<VeiculoDetailsTabProps> = ({
     ...departamentos.map((dep) => ({ value: dep.id, label: dep.nome_departamento })),
   ], [departamentos]);
 
+  const frotaOptions = useMemo(() => [
+    { value: "_none", label: "Selecione" },
+    ...frotasData.map((f) => ({ value: f.id, label: `${f.codigo}${f.descricao ? ` - ${f.descricao}` : ''}` })),
+  ], [frotasData]);
+
+  const fabricanteOptions = useMemo(() => [
+    { value: "_none", label: "Nenhum" },
+    ...fabricantesData.map((f) => ({ value: f.id, label: f.nome })),
+  ], [fabricantesData]);
+
+  const modeloOptions = useMemo(() => [
+    { value: "_none", label: "Nenhum" },
+    ...modelosData.map((m) => ({ value: m.id, label: m.nome_modelo })),
+  ], [modelosData]);
+
   const handleCategoriaChange = (value: string, fieldOnChange: (v: string) => void) => {
     fieldOnChange(value);
     form.setValue('subcategoria_ativo_id', '_none');
+  };
+
+  const handleFabricanteChange = (value: string) => {
+    form.setValue('fabricante_id', value);
+    form.setValue('modelo_id', '_none');
   };
 
   return (
@@ -106,34 +137,51 @@ const VeiculoDetailsTab: React.FC<VeiculoDetailsTabProps> = ({
           )}
         />
 
-        {/* Frota */}
+        {/* Frota (select relacional → bd_frotas) */}
         <FormField
           control={form.control}
-          name="frota"
+          name="frota_id"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Frota *</FormLabel>
               <FormControl>
-                <Select 
-                  onValueChange={field.onChange} 
-                  value={field.value}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione uma frota" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white">
-                    <SelectItem value="LYE">LYE</SelectItem>
-                    <SelectItem value="LYC">LYC</SelectItem>
-                    <SelectItem value="LOC">LOC</SelectItem>
-                    <SelectItem value="LOK">LOK</SelectItem>
-                    <SelectItem value="LYU">LYU</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Combobox
+                  options={frotaOptions}
+                  value={field.value || "_none"}
+                  onChange={field.onChange}
+                  placeholder={isLoadingFrotas ? "Carregando..." : "Selecione a frota"}
+                  searchPlaceholder="Buscar frota..."
+                  emptyText="Nenhuma frota encontrada"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
+
+        {/* Empresa vinculada à frota (readonly) */}
+        {selectedFrota?.empresa && (
+          <FormItem>
+            <FormLabel className="text-xs text-muted-foreground">Empresa vinculada (via frota)</FormLabel>
+            <Input value={selectedFrota.empresa.nome_empresa} readOnly className="bg-muted/30 text-muted-foreground text-sm" />
+          </FormItem>
+        )}
+
+        {/* Frota legado (readonly) */}
+        {form.watch('frota') && (
+          <FormField
+            control={form.control}
+            name="frota"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-muted-foreground text-xs">Frota (legado)</FormLabel>
+                <FormControl>
+                  <Input {...field} value={field.value || ''} readOnly className="bg-muted/30 text-muted-foreground text-sm" />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+        )}
         
         {/* Número Frota */}
         <FormField
@@ -150,30 +198,61 @@ const VeiculoDetailsTab: React.FC<VeiculoDetailsTabProps> = ({
           )}
         />
 
-        {/* Fabricante */}
+        {/* Fabricante (select relacional → bd_fabricantes) */}
         <FormField
           control={form.control}
-          name="fabricante"
+          name="fabricante_id"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Fabricante</FormLabel>
               <FormControl>
-                <Input placeholder="Volvo, Caterpillar, etc." {...field} value={field.value || ''} />
+                <Combobox
+                  options={fabricanteOptions}
+                  value={field.value || "_none"}
+                  onChange={(v) => handleFabricanteChange(v)}
+                  placeholder={isLoadingFabricantes ? "Carregando..." : "Selecione o fabricante"}
+                  searchPlaceholder="Buscar fabricante..."
+                  emptyText="Nenhum fabricante encontrado"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
+
+        {/* Fabricante legado (readonly) */}
+        {form.watch('fabricante') && (
+          <FormField
+            control={form.control}
+            name="fabricante"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-muted-foreground text-xs">Fabricante (legado)</FormLabel>
+                <FormControl>
+                  <Input {...field} value={field.value || ''} readOnly className="bg-muted/30 text-muted-foreground text-sm" />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+        )}
         
-        {/* Modelo */}
+        {/* Modelo (select relacional → bd_modelos, filtrado por fabricante) */}
         <FormField
           control={form.control}
-          name="modelo"
+          name="modelo_id"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Modelo</FormLabel>
               <FormControl>
-                <Input placeholder="FH 540, 320D, etc." {...field} value={field.value || ''} />
+                <Combobox
+                  options={modeloOptions}
+                  value={field.value || "_none"}
+                  onChange={field.onChange}
+                  placeholder={isLoadingModelos ? "Carregando..." : "Selecione o modelo"}
+                  searchPlaceholder="Buscar modelo..."
+                  emptyText="Nenhum modelo encontrado"
+                  disabled={!fabricanteId || fabricanteId === '_none'}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

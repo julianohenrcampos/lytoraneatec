@@ -21,7 +21,7 @@ export default function MonitoramentoPNCP() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
-  const [filters, setFilters] = useState<PNCPFiltersType>({ ocultarEncerradas: true, ordenacao: 'prazo' });
+  const [filters, setFilters] = useState<PNCPFiltersType>({ ocultarEncerradas: false, ordenacao: 'prazo' });
   const [salvarTodas, setSalvarTodas] = useState(false);
   const [lastSyncResult, setLastSyncResult] = useState<PNCPSyncResult | null>(null);
   const modoEngQuery = useConfiguracaoSistema('modo_engenharia_licitacoes');
@@ -57,8 +57,10 @@ export default function MonitoramentoPNCP() {
       });
       refetchSync();
     },
-    onError: error => {
-      toast.error("Erro na sincronização");
+    onError: (error: any) => {
+      const msg = error?.message || error?.context?.body?.message || "Erro desconhecido";
+      toast.error("Erro na sincronização", { description: msg });
+      console.error("Sync error:", error);
       refetchSync();
     }
   });

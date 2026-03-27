@@ -1,4 +1,5 @@
 import jsPDF from 'jspdf';
+import { supabase } from "@/integrations/supabase/client";
 import html2canvas from 'html2canvas';
 import { pdf } from '@react-pdf/renderer';
 import { SSOReportDocument } from '@/components/sso/pdf/SSOReportDocument';
@@ -93,6 +94,41 @@ export const loadImageAsBase64 = async (url: string): Promise<string> => {
   } catch (error) {
     console.error('Erro ao carregar imagem:', error);
     return '';
+  }
+};
+
+// Helper para buscar logos das empresas presentes no relatório
+const fetchEmpresaLogosMap = async (relatorio: RelatorioFolhaItem[]): Promise<Record<string, string>> => {
+  try {
+    // Collect unique empresa names from the report
+    const empresaNomes = [...new Set(relatorio.map(r => r.empresa_funcionario).filter(Boolean))] as string[];
+    if (empresaNomes.length === 0) return {};
+
+    // Fetch logo_url for each empresa
+    const { data, error } = await supabase
+      .from('bd_empresas')
+      .select('nome_empresa, logo_url')
+      .in('nome_empresa', empresaNomes)
+      .not('logo_url', 'is', null);
+
+    if (error || !data) return {};
+
+    // Convert logo URLs to base64
+    const logoMap: Record<string, string> = {};
+    await Promise.all(
+      data.map(async (emp) => {
+        if (emp.logo_url) {
+          try {
+            const base64 = await loadImageAsBase64(emp.logo_url);
+            if (base64) logoMap[emp.nome_empresa] = base64;
+          } catch { /* skip */ }
+        }
+      })
+    );
+    return logoMap;
+  } catch (error) {
+    console.error('Erro ao buscar logos das empresas:', error);
+    return {};
   }
 };
 
@@ -354,14 +390,18 @@ export const generateRelatorioDiariasPDFDetalhado = async (
   }
 ): Promise<void> => {
   try {
-    const logoUrl = await loadImageAsBase64('/lyto-uploads/dcf6c980-f927-4180-b109-b425da1323ba.png');
+    const defaultLogoUrl = await loadImageAsBase64('/lyto-uploads/dcf6c980-f927-4180-b109-b425da1323ba.png');
+    
+    // Fetch empresa logos for per-empresa headers
+    const logoMap = await fetchEmpresaLogosMap(relatorio);
     
     const doc = createElement(RelatorioDiariasPDFDetalhado, {
       relatorio,
       resumo,
       filtros,
       feriados,
-      logoUrl: logoUrl || undefined,
+      logoUrl: defaultLogoUrl || undefined,
+      logoMap: Object.keys(logoMap).length > 0 ? logoMap : undefined,
       engenheiroSolicitante: extras?.engenheiroSolicitante,
       gerenteRegional: extras?.gerenteRegional
     });
@@ -569,13 +609,17 @@ export const generateRelatorioDiariasPDFPorPeriodo = async (
   }
 ): Promise<void> => {
   try {
-    const logoUrl = await loadImageAsBase64('/lyto-uploads/dcf6c980-f927-4180-b109-b425da1323ba.png');
+    const [defaultLogoUrl, logoMap] = await Promise.all([
+      loadImageAsBase64('/lyto-uploads/dcf6c980-f927-4180-b109-b425da1323ba.png'),
+      fetchEmpresaLogosMap(relatorio),
+    ]);
 
     const doc = createElement(RelatorioDiariasPDFPorPeriodo, {
       relatorio,
       filtros,
       feriados,
-      logoUrl: logoUrl || undefined,
+      logoUrl: defaultLogoUrl || undefined,
+      logoMap: Object.keys(logoMap).length > 0 ? logoMap : undefined,
       centrosCustoInfo: extras.centrosCustoInfo,
       gerentesMap: extras.gerentesMap,
       diretoresMap: extras.diretoresMap,

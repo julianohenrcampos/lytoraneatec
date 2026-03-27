@@ -78,7 +78,7 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <Truck className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Cadastro de C/E</h1>
+          <h1 className="text-2xl font-bold">Veículos e Equipamentos</h1>
         </div>
         
         <VeiculoHeaderActions 

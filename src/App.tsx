@@ -35,6 +35,10 @@ import DashboardMaquinas from "@/pages/DashboardMaquinas";
 import GestaoCaminhoes from "@/pages/GestaoCaminhoes";
 import GestaoUsinas from "@/pages/GestaoUsinas";
 import RelatorioMedicao from "@/pages/RelatorioMedicao";
+import GestaoSolicitacoesEquipamento from "@/pages/GestaoSolicitacoesEquipamento";
+import GestaoFrotas from "@/pages/GestaoFrotas";
+import GestaoDisponibilidade from "@/pages/GestaoDisponibilidade";
+import GestaoPortfolio from "@/pages/GestaoPortfolio";
 import Abastecimento from "@/pages/GestaoAbastecimento"; // Fixed casing
 
 // Dashboard CBUQ
@@ -241,6 +245,42 @@ const App = () => {
                   <SecureRouteGuard requiredPermission="gestao_maquinas_abastecimento_view">
                     <Abastecimento />
                   </SecureRouteGuard>
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            
+            {/* Solicitações de Equipamento */}
+            <Route path="/gestao-maquinas/solicitacoes-equipamentos" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <GestaoSolicitacoesEquipamento />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            
+            {/* Gestão de Frotas */}
+            <Route path="/gestao-maquinas/frotas" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <GestaoFrotas />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            
+            {/* Disponibilidade Operacional */}
+            <Route path="/gestao-maquinas/disponibilidade" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <GestaoDisponibilidade />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            
+            {/* Portfólio de Empresas */}
+            <Route path="/gestao-maquinas/portfolio-empresas" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <GestaoPortfolio />
                 </SimplePermissionGuard>
               </SimpleAuthGuard>
             } />

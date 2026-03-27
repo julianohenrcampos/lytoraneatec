@@ -40,6 +40,7 @@ interface RelatorioDiariasPDFDetalhadoProps {
   filtros: RelatorioFilters;
   feriados?: string[];
   logoUrl?: string;
+  logoMap?: Record<string, string>;
   engenheiroSolicitante?: string;
   gerenteRegional?: string;
 }
@@ -412,26 +413,29 @@ function EmpresaSection({
 }
 
 export const RelatorioDiariasPDFDetalhado = ({
-  relatorio, resumo, filtros, feriados = [], logoUrl, engenheiroSolicitante, gerenteRegional
+  relatorio, resumo, filtros, feriados = [], logoUrl, logoMap, engenheiroSolicitante, gerenteRegional
 }: RelatorioDiariasPDFDetalhadoProps) => {
   const feriadosSet = new Set(feriados);
   const empresaGroups = agruparPorEmpresa(relatorio);
 
   return (
     <Document>
-      {empresaGroups.map((group, idx) => (
-        <EmpresaSection
-          key={group.empresa_id}
-          group={group}
-          feriadosSet={feriadosSet}
-          filtros={filtros}
-          logoUrl={logoUrl}
-          engenheiroSolicitante={engenheiroSolicitante}
-          gerenteRegional={gerenteRegional}
-          empresaIndex={idx}
-          totalEmpresas={empresaGroups.length}
-        />
-      ))}
+      {empresaGroups.map((group, idx) => {
+        const empresaLogo = logoMap?.[group.empresa_nome] || logoUrl;
+        return (
+          <EmpresaSection
+            key={group.empresa_id}
+            group={group}
+            feriadosSet={feriadosSet}
+            filtros={filtros}
+            logoUrl={empresaLogo}
+            engenheiroSolicitante={engenheiroSolicitante}
+            gerenteRegional={gerenteRegional}
+            empresaIndex={idx}
+            totalEmpresas={empresaGroups.length}
+          />
+        );
+      })}
     </Document>
   );
 };

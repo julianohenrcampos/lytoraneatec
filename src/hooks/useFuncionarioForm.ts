@@ -12,7 +12,7 @@ import {
 
 const funcionarioSchema = z.object({
   nome_completo: z.string().min(1, { message: "Nome completo é obrigatório" }),
-  cpf: z.string().optional(),
+  cpf: z.string().min(1, { message: "CPF é obrigatório" }),
   data_nascimento: z.string().nullable().optional(),
   genero: z.string().optional(),
   escolaridade: z.string().optional(),

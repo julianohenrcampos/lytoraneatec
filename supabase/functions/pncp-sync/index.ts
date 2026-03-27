@@ -234,10 +234,13 @@ async function fetchContratacoes(
 ): Promise<any[]> {
   const url = `${PNCP_BASE_URL}${endpoint}?` + new URLSearchParams(params).toString();
   console.log(`    📡 ${descricao}...`);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
 
   try {
     const response = await fetch(url, {
       headers: { Accept: "application/json", "User-Agent": "Lytotec-PNCP-Monitor/1.0" },
+      signal: controller.signal,
     });
 
     const contentType = response.headers.get("content-type") || "";
@@ -272,8 +275,59 @@ async function fetchContratacoes(
     console.log(`    📦 ${contratacoes.length} registros recebidos`);
     return contratacoes;
   } catch (error) {
+    if (error?.name === "AbortError") {
+      console.error(`    ⏱️ Timeout ao buscar ${descricao}`);
+      return [];
+    }
     console.error(`    ❌ Erro ao buscar: ${error.message}`);
     return [];
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function registrarOrgaoPendente(
+  supabase: any,
+  pendentesRegistrados: Set<string>,
+  orgaoNomeApi: string,
+  numeroControle: string,
+): Promise<void> {
+  const nomeApiNormalizado = normalizeText(orgaoNomeApi);
+  if (!nomeApiNormalizado || pendentesRegistrados.has(nomeApiNormalizado)) return;
+
+  pendentesRegistrados.add(nomeApiNormalizado);
+
+  try {
+    const { data: existente, error: buscaError } = await supabase
+      .from("bd_licitacoes_orgaos_pendentes")
+      .select("id")
+      .eq("nome_api_normalizado", nomeApiNormalizado)
+      .limit(1)
+      .maybeSingle();
+
+    if (buscaError && buscaError.code !== "PGRST116") {
+      console.warn("    ⚠️ Erro ao verificar órgão pendente:", buscaError.message);
+      return;
+    }
+
+    if (existente?.id) return;
+
+    const { error: insertError } = await supabase
+      .from("bd_licitacoes_orgaos_pendentes")
+      .insert({
+        nome_api_original: orgaoNomeApi,
+        nome_api_normalizado: nomeApiNormalizado,
+        licitacao_numero: numeroControle,
+        origem: 'PNCP',
+        status: 'pendente',
+        observacoes: 'Órgão não reconhecido automaticamente no pipeline de importação',
+      });
+
+    if (insertError) {
+      console.warn('    ⚠️ Órgão pendente (não-bloqueante):', insertError.message);
+    }
+  } catch (e) {
+    console.warn('    ⚠️ Erro ao registrar órgão pendente (não-bloqueante):', e);
   }
 }
 
@@ -423,6 +477,7 @@ serve(async (req) => {
     let totalOrgaosClassificados = 0, totalOrgaosPendentes = 0;
 
     const processados = new Set<string>();
+    const pendentesRegistrados = new Set<string>();
 
     for (const uf of config.ufs_ativas) {
       console.log(`\n🗺️ Processando UF: ${uf}`);
@@ -444,20 +499,25 @@ serve(async (req) => {
           if (contratacoes.length === 0) { temMaisPaginas = false; continue; }
 
           for (const item of contratacoes) {
-            const resultado = await processarContratacao(
-              item, uf, config, perfisAtivos, supabase, processados, salvarTodas, syncLogId, aliasCache, orgaosBySigla, modoEngenharia, pesosConfig, exclusoesConfig, scoreMinimo
-            );
-            totalEncontrados++;
-            if (resultado.startsWith('inserido')) {
-              totalInseridos++;
-              if (resultado === 'inserido:classificado') totalOrgaosClassificados++;
-              else if (resultado === 'inserido:pendente') totalOrgaosPendentes++;
+            try {
+              const resultado = await processarContratacao(
+                item, uf, config, perfisAtivos, supabase, processados, pendentesRegistrados, salvarTodas, syncLogId, aliasCache, orgaosBySigla, modoEngenharia, pesosConfig, exclusoesConfig, scoreMinimo
+              );
+              totalEncontrados++;
+              if (resultado.startsWith('inserido')) {
+                totalInseridos++;
+                if (resultado === 'inserido:classificado') totalOrgaosClassificados++;
+                else if (resultado === 'inserido:pendente') totalOrgaosPendentes++;
+              }
+              else if (resultado === 'termo') rejeitadosPorTermo++;
+              else if (resultado === 'valor') rejeitadosPorValor++;
+              else if (resultado === 'exclusao') rejeitadosPorExclusao++;
+              else if (resultado === 'prazo') rejeitadosPorPrazo++;
+              else if (resultado === 'duplicado') totalDuplicados++;
+            } catch (itemError) {
+              console.error('    ❌ Erro ao processar item (continuando):', itemError);
+              totalEncontrados++;
             }
-            else if (resultado === 'termo') rejeitadosPorTermo++;
-            else if (resultado === 'valor') rejeitadosPorValor++;
-            else if (resultado === 'exclusao') rejeitadosPorExclusao++;
-            else if (resultado === 'prazo') rejeitadosPorPrazo++;
-            else if (resultado === 'duplicado') totalDuplicados++;
           }
 
           if (contratacoes.length < 50) temMaisPaginas = false;
@@ -480,20 +540,25 @@ serve(async (req) => {
           if (contratacoes.length === 0) { temMaisPaginas = false; continue; }
 
           for (const item of contratacoes) {
-            const resultado = await processarContratacao(
-              item, uf, config, perfisAtivos, supabase, processados, salvarTodas, syncLogId, aliasCache, orgaosBySigla, modoEngenharia, pesosConfig, exclusoesConfig, scoreMinimo
-            );
-            totalEncontrados++;
-            if (resultado.startsWith('inserido')) {
-              totalInseridos++;
-              if (resultado === 'inserido:classificado') totalOrgaosClassificados++;
-              else if (resultado === 'inserido:pendente') totalOrgaosPendentes++;
+            try {
+              const resultado = await processarContratacao(
+                item, uf, config, perfisAtivos, supabase, processados, pendentesRegistrados, salvarTodas, syncLogId, aliasCache, orgaosBySigla, modoEngenharia, pesosConfig, exclusoesConfig, scoreMinimo
+              );
+              totalEncontrados++;
+              if (resultado.startsWith('inserido')) {
+                totalInseridos++;
+                if (resultado === 'inserido:classificado') totalOrgaosClassificados++;
+                else if (resultado === 'inserido:pendente') totalOrgaosPendentes++;
+              }
+              else if (resultado === 'termo') rejeitadosPorTermo++;
+              else if (resultado === 'valor') rejeitadosPorValor++;
+              else if (resultado === 'exclusao') rejeitadosPorExclusao++;
+              else if (resultado === 'prazo') rejeitadosPorPrazo++;
+              else if (resultado === 'duplicado') totalDuplicados++;
+            } catch (itemError) {
+              console.error('    ❌ Erro ao processar item (continuando):', itemError);
+              totalEncontrados++;
             }
-            else if (resultado === 'termo') rejeitadosPorTermo++;
-            else if (resultado === 'valor') rejeitadosPorValor++;
-            else if (resultado === 'exclusao') rejeitadosPorExclusao++;
-            else if (resultado === 'prazo') rejeitadosPorPrazo++;
-            else if (resultado === 'duplicado') totalDuplicados++;
           }
 
           if (contratacoes.length < 50) temMaisPaginas = false;
@@ -592,7 +657,7 @@ async function salvarLicitacaoCompleta(
 
 async function processarContratacao(
   item: any, uf: string, config: PNCPConfig, perfisAtivos: PerfilBusca[],
-  supabase: any, processados: Set<string>, salvarTodas: boolean = false,
+  supabase: any, processados: Set<string>, pendentesRegistrados: Set<string>, salvarTodas: boolean = false,
   syncLogId: string | null = null, aliasCache: AliasCache[] = [],
   orgaosBySigla: Map<string, any> = new Map(), modoEngenharia: boolean = false,
   pesosConfig: MatchingPeso[] | null = null, exclusoesConfig: MatchingExclusao[] | null = null, scoreMinimo: number = 5
@@ -731,13 +796,7 @@ async function processarContratacao(
     };
 
     if (orgaoMatch.strategy === 'manual_needed' && orgaoNomeApi) {
-      await supabase.from("bd_licitacoes_orgaos_pendentes").upsert({
-        nome_api_original: orgaoNomeApi,
-        nome_api_normalizado: normalizeText(orgaoNomeApi),
-        licitacao_numero: numeroControle,
-        origem: 'PNCP', status: 'pendente',
-        observacoes: 'Órgão não reconhecido automaticamente no pipeline de importação',
-      }, { onConflict: 'nome_api_normalizado', ignoreDuplicates: true }).catch(() => {});
+      await registrarOrgaoPendente(supabase, pendentesRegistrados, orgaoNomeApi, numeroControle);
     }
 
     const { error: upsertError } = await supabase
@@ -837,13 +896,7 @@ async function processarContratacao(
   };
 
   if (orgaoMatch.strategy === 'manual_needed' && orgaoNomeApi) {
-    await supabase.from("bd_licitacoes_orgaos_pendentes").upsert({
-      nome_api_original: orgaoNomeApi,
-      nome_api_normalizado: normalizeText(orgaoNomeApi),
-      licitacao_numero: numeroControle,
-      origem: 'PNCP', status: 'pendente',
-      observacoes: 'Órgão não reconhecido automaticamente no pipeline de importação',
-    }, { onConflict: 'nome_api_normalizado', ignoreDuplicates: true }).catch(() => {});
+    await registrarOrgaoPendente(supabase, pendentesRegistrados, orgaoNomeApi, numeroControle);
   }
 
   const { error: upsertError } = await supabase

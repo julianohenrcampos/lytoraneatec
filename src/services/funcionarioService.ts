@@ -339,6 +339,11 @@ const sanitizeFormData = (data: FuncionarioFormData) => {
 // Function to create new funcionario
 export const createFuncionario = async (data: FuncionarioFormData): Promise<Funcionario> => {
   try {
+    // Validate CPF before proceeding
+    if (!data.cpf || data.cpf.trim() === '') {
+      throw new Error('CPF é obrigatório. Preencha o campo CPF antes de salvar.');
+    }
+
     // Sanitize form data (convert empty strings to null)
     const sanitizedData = sanitizeFormData(data);
     

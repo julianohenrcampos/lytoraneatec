@@ -35,8 +35,9 @@ const EmpresaTable: React.FC<EmpresaTableProps> = ({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[300px]">Nome da Empresa</TableHead>
+                <TableHead className="w-[250px]">Nome da Empresa</TableHead>
                 <TableHead>CNPJ</TableHead>
+                <TableHead>Tipo</TableHead>
                 <TableHead>Telefone</TableHead>
                 <TableHead>Situação</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
@@ -45,7 +46,7 @@ const EmpresaTable: React.FC<EmpresaTableProps> = ({
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
+                  <TableCell colSpan={6} className="h-24 text-center">
                     <div className="flex justify-center items-center">
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       <span>Carregando...</span>
@@ -54,7 +55,7 @@ const EmpresaTable: React.FC<EmpresaTableProps> = ({
                 </TableRow>
               ) : isError ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                     Erro ao carregar os dados. Tente novamente.
                   </TableCell>
                 </TableRow>
@@ -68,6 +69,11 @@ const EmpresaTable: React.FC<EmpresaTableProps> = ({
                       {empresa.nome_empresa}
                     </TableCell>
                     <TableCell>{empresa.cnpj}</TableCell>
+                    <TableCell>
+                      <span className="inline-flex items-center rounded-full bg-muted px-2 py-1 text-xs font-medium">
+                        {empresa.tipo_empresa === 'PROPRIA' ? 'Própria' : empresa.tipo_empresa === 'GRUPO' ? 'Grupo' : empresa.tipo_empresa === 'FORNECEDOR' ? 'Fornecedor' : empresa.tipo_empresa || '—'}
+                      </span>
+                    </TableCell>
                     <TableCell>{empresa.telefone || "Não informado"}</TableCell>
                     <TableCell>
                       {empresa.situacao === 'Ativa' ? (
@@ -115,7 +121,7 @@ const EmpresaTable: React.FC<EmpresaTableProps> = ({
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                     Nenhuma empresa encontrada
                   </TableCell>
                 </TableRow>

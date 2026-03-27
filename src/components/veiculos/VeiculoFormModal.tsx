@@ -20,7 +20,10 @@ interface VeiculoFormModalProps {
 }
 
 const formSchema = z.object({
-  frota: z.string().min(1, { message: "Frota é obrigatória" }),
+  frota: z.string().optional().nullable(),
+  frota_id: z.string().optional().nullable(),
+  fabricante_id: z.string().optional().nullable(),
+  modelo_id: z.string().optional().nullable(),
   numero_frota: z.string().optional().nullable(),
   departamento_id: z.string().optional().nullable(),
   empresa_id: z.string().optional().nullable(),
@@ -41,6 +44,12 @@ const formSchema = z.object({
   numero_serie: z.string().optional().nullable(),
   chassi: z.string().optional().nullable(),
   informacoes_complementares: z.string().optional().nullable(),
+}).refine((data) => {
+  const hasFrota = (data.frota_id && data.frota_id !== '_none') || (data.frota && data.frota.trim().length > 0);
+  return !!hasFrota;
+}, {
+  message: "Selecione uma frota",
+  path: ["frota_id"],
 }).refine((data) => {
   const hasPlaca = data.placa && data.placa.trim().length > 0;
   const hasSerie = data.numero_serie && data.numero_serie.trim().length > 0;
@@ -69,6 +78,9 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
     resolver: zodResolver(formSchema),
     defaultValues: {
       frota: "",
+      frota_id: "_none",
+      fabricante_id: "_none",
+      modelo_id: "_none",
       numero_frota: "",
       departamento_id: "_none",
       empresa_id: "",
@@ -96,6 +108,9 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
     if (veiculo) {
       form.reset({
         frota: veiculo.frota || "",
+        frota_id: (veiculo as any).frota_id || "_none",
+        fabricante_id: (veiculo as any).fabricante_id || "_none",
+        modelo_id: (veiculo as any).modelo_id || "_none",
         numero_frota: veiculo.numero_frota || "",
         departamento_id: veiculo.departamento_id || "_none",
         empresa_id: veiculo.empresa_id || "",
@@ -120,6 +135,9 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
     } else {
       form.reset({
         frota: "",
+        frota_id: "_none",
+        fabricante_id: "_none",
+        modelo_id: "_none",
         numero_frota: "",
         departamento_id: "_none",
         empresa_id: "",
@@ -174,9 +192,12 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
       const departamentoId = values.departamento_id === "_none" ? null : values.departamento_id;
       const categoriaId = values.categoria_ativo_id === "_none" ? null : values.categoria_ativo_id;
       const subcategoriaId = values.subcategoria_ativo_id === "_none" ? null : values.subcategoria_ativo_id;
+      const frotaId = values.frota_id === "_none" ? null : values.frota_id;
+      const fabricanteRelId = values.fabricante_id === "_none" ? null : values.fabricante_id;
+      const modeloId = values.modelo_id === "_none" ? null : values.modelo_id;
       
       const formData: VeiculoFormData = {
-        frota: values.frota,
+        frota: values.frota || null,
         numero_frota: values.numero_frota,
         departamento_id: departamentoId,
         empresa_id: values.empresa_id || null,
@@ -202,7 +223,10 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
         proprietario_tipo: 'proprio',
         tipo_ativo: (values as any).tipo_ativo || 'proprio',
         empresa_locadora_id: (values as any).empresa_locadora_id || null,
-      };
+        frota_id: frotaId,
+        fabricante_id: fabricanteRelId,
+        modelo_id: modeloId,
+      } as any;
 
       console.log("Saving vehicle with data:", formData);
       await onSave(veiculo?.id, formData);

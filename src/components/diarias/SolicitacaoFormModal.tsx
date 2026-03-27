@@ -154,8 +154,19 @@ export function SolicitacaoFormModal({
   const { data: funcionarios = [] } = useQuery({
     queryKey: ['funcionarios-para-diarias'],
     queryFn: async () => {
-      const { data } = await supabase.rpc('get_funcionarios_para_diarias');
-      return (data || []).map((f: any) => ({
+      const PAGE_SIZE = 1000;
+      let allData: any[] = [];
+      let page = 0;
+      while (true) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+        const { data } = await supabase.rpc('get_funcionarios_para_diarias').range(from, to);
+        if (!data || data.length === 0) break;
+        allData = allData.concat(data);
+        if (data.length < PAGE_SIZE) break;
+        page++;
+      }
+      return allData.map((f: any) => ({
         id: f.id,
         nome_completo: f.nome_completo,
         cpf: f.cpf,

@@ -50,6 +50,7 @@ export interface RelatorioDiariasPDFPorPeriodoProps {
   filtros: RelatorioFilters;
   feriados: string[];
   logoUrl?: string;
+  logoMap?: Record<string, string>;
   centrosCustoInfo: {
     id: string;
     codigo_centro_custo: string;
@@ -452,24 +453,27 @@ function BlocoSection({
 // =====================================================
 
 export const RelatorioDiariasPDFPorPeriodo = ({
-  relatorio, filtros, feriados, logoUrl, centrosCustoInfo, gerentesMap, diretoresMap
+  relatorio, filtros, feriados, logoUrl, logoMap, centrosCustoInfo, gerentesMap, diretoresMap
 }: RelatorioDiariasPDFPorPeriodoProps) => {
   const feriadosSet = new Set(feriados);
   const blocos = agruparEmBlocos(relatorio, centrosCustoInfo, gerentesMap, diretoresMap);
 
   return (
     <Document>
-      {blocos.map((bloco, idx) => (
-        <BlocoSection
-          key={bloco.key}
-          bloco={bloco}
-          feriadosSet={feriadosSet}
-          filtros={filtros}
-          logoUrl={logoUrl}
-          blocoIndex={idx}
-          totalBlocos={blocos.length}
-        />
-      ))}
+      {blocos.map((bloco, idx) => {
+        const empresaLogo = logoMap?.[bloco.empresa_nome] || logoUrl;
+        return (
+          <BlocoSection
+            key={bloco.key}
+            bloco={bloco}
+            feriadosSet={feriadosSet}
+            filtros={filtros}
+            logoUrl={empresaLogo}
+            blocoIndex={idx}
+            totalBlocos={blocos.length}
+          />
+        );
+      })}
     </Document>
   );
 };

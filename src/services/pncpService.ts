@@ -81,7 +81,7 @@ export const fetchContratacoes = async (filters: PNCPFilters = {}): Promise<PNCP
   // Filtro para ocultar licitações encerradas (data_fim_propostas < hoje)
   if (filters.ocultarEncerradas) {
     const hoje = new Date().toISOString().split('T')[0];
-    query = query.gte("data_fim_propostas", hoje);
+    query = query.or(`data_fim_propostas.gte.${hoje},data_fim_propostas.is.null`);
   }
 
   // Filtro para mostrar apenas licitações sincronizadas hoje
@@ -155,6 +155,24 @@ export const getLastSyncStatus = async (): Promise<PNCPSyncLog | null> => {
   if (!user) {
     console.warn("Usuário não autenticado ao buscar status de sincronização");
     return null;
+  }
+
+  const { data: completedData, error: completedError } = await supabase
+    .from("bd_pncp_sync_log")
+    .select("*")
+    .eq("user_id", user.id)
+    .in("status", ["concluido", "erro"])
+    .order("data_execucao", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (completedError) {
+    console.error("Erro ao buscar status de sincronização concluída:", completedError);
+    throw completedError;
+  }
+
+  if (completedData) {
+    return completedData as PNCPSyncLog;
   }
 
   const { data, error } = await supabase

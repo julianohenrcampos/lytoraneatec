@@ -15,7 +15,11 @@ import {
   ShieldCheck,
   Gavel,
   Calendar,
-  ClipboardCheck
+  ClipboardCheck,
+  Layers,
+  Activity,
+  Briefcase,
+  FileSearch
 } from "lucide-react";
 
 export const menuStructure = [
@@ -140,6 +144,35 @@ export const menuStructure = [
         href: "/gestao-maquinas/abastecimento",
         icon: Fuel,
         requiredPermission: "gestao_maquinas_relatorio_medicao_view"
+      },
+    ]
+  },
+  {
+    title: "Gestão de Equipamentos",
+    items: [
+      {
+        name: "Frotas",
+        href: "/gestao-maquinas/frotas",
+        icon: Layers,
+        requiredPermission: "gestao_maquinas_caminhoes_view"
+      },
+      {
+        name: "Disponibilidade",
+        href: "/gestao-maquinas/disponibilidade",
+        icon: Activity,
+        requiredPermission: "gestao_maquinas_caminhoes_view"
+      },
+      {
+        name: "Portfólio de Empresas",
+        href: "/gestao-maquinas/portfolio-empresas",
+        icon: Briefcase,
+        requiredPermission: "gestao_maquinas_caminhoes_view"
+      },
+      {
+        name: "Solicitações de Equipamento",
+        href: "/gestao-maquinas/solicitacoes-equipamentos",
+        icon: FileSearch,
+        requiredPermission: "gestao_maquinas_caminhoes_view"
       }
     ]
   },

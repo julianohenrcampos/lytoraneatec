@@ -24,11 +24,11 @@ const VeiculoHeaderActions: React.FC<VeiculoHeaderActionsProps> = ({
         <Plus className="mr-2 h-4 w-4" />
         Novo C/E
       </Button>
-      <Button variant="outline" onClick={onManageCategorias} className="whitespace-nowrap">
+      <Button variant="outline" onClick={onManageCategorias} className="whitespace-nowrap bg-[#0080ff] text-slate-50">
         <FolderPlus className="mr-2 h-4 w-4" />
         Categoria
       </Button>
-      <Button variant="outline" onClick={onManageSubcategorias} className="whitespace-nowrap">
+      <Button variant="outline" onClick={onManageSubcategorias} className="whitespace-nowrap bg-[#0080ff] text-slate-50">
         <FolderPlus className="mr-2 h-4 w-4" />
         Subcategoria
       </Button>

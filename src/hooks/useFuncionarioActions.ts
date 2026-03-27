@@ -76,6 +76,7 @@ export function useFuncionarioActions() {
 
   const openFormModal = useCallback((funcionario?: Funcionario) => {
     state.setCurrentFuncionario(funcionario || null);
+    state.setIsSubmitting(false);
     state.setIsFormModalOpen(true);
   }, [state]);
 

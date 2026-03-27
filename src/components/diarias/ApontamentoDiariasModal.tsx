@@ -262,9 +262,19 @@ export default function ApontamentoDiariasModal({
   const { data: funcionariosAtivos = [] } = useQuery({
     queryKey: ['funcionarios-ativos-diarias'],
     queryFn: async () => {
-      const { data } = await supabase
-        .rpc('get_funcionarios_para_diarias');
-      return data || [];
+      const PAGE_SIZE = 1000;
+      let allData: any[] = [];
+      let page = 0;
+      while (true) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+        const { data } = await supabase.rpc('get_funcionarios_para_diarias').range(from, to);
+        if (!data || data.length === 0) break;
+        allData = allData.concat(data);
+        if (data.length < PAGE_SIZE) break;
+        page++;
+      }
+      return allData;
     },
     enabled: showAddFuncionario
   });

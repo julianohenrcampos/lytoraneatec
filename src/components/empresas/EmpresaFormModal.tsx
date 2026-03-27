@@ -1,17 +1,19 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Empresa, EmpresaFormData } from "@/types/empresa";
 import { createEmpresa, updateEmpresa, checkCnpjExists } from "@/services/empresaService";
+import { uploadImage } from "@/services/storageService";
 import { useToast } from "@/hooks/use-toast";
+import { Upload, X } from "lucide-react";
 
 interface EmpresaFormModalProps {
   isOpen: boolean;
@@ -24,12 +26,24 @@ const formSchema = z.object({
   nome_empresa: z.string().min(1, { message: "Nome da empresa é obrigatório" }),
   cnpj: z.string().min(1, { message: "CNPJ é obrigatório" }),
   telefone: z.string().optional().nullable(),
-  situacao: z.enum(["Ativa", "Inativa"])
+  situacao: z.enum(["Ativa", "Inativa"]),
+  tipo_empresa: z.string().optional().nullable(),
+  pertence_ao_grupo: z.boolean().optional(),
+  fornece_equipamento: z.boolean().optional(),
+  status_homologacao: z.string().optional().nullable(),
+  endereco_completo: z.string().optional().nullable(),
+  endereco_cep: z.string().optional().nullable(),
+  endereco_cidade: z.string().optional().nullable(),
+  endereco_estado: z.string().optional().nullable(),
 });
 
 const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, onSuccess, empresa }) => {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [currentLogoUrl, setCurrentLogoUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -37,7 +51,15 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
       nome_empresa: "",
       cnpj: "",
       telefone: "",
-      situacao: "Ativa" as const
+      situacao: "Ativa" as const,
+      tipo_empresa: "PROPRIA",
+      pertence_ao_grupo: false,
+      fornece_equipamento: false,
+      status_homologacao: "PENDENTE",
+      endereco_completo: "",
+      endereco_cep: "",
+      endereco_cidade: "",
+      endereco_estado: "",
     }
   });
 
@@ -47,56 +69,73 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
         nome_empresa: empresa.nome_empresa,
         cnpj: empresa.cnpj,
         telefone: empresa.telefone || "",
-        situacao: empresa.situacao
+        situacao: empresa.situacao,
+        tipo_empresa: empresa.tipo_empresa || "PROPRIA",
+        pertence_ao_grupo: empresa.pertence_ao_grupo ?? false,
+        fornece_equipamento: empresa.fornece_equipamento ?? false,
+        status_homologacao: empresa.status_homologacao || "PENDENTE",
+        endereco_completo: empresa.endereco_completo || "",
+        endereco_cep: empresa.endereco_cep || "",
+        endereco_cidade: empresa.endereco_cidade || "",
+        endereco_estado: empresa.endereco_estado || "",
       });
+      setCurrentLogoUrl(empresa.logo_url || null);
     } else {
       form.reset({
         nome_empresa: "",
         cnpj: "",
         telefone: "",
-        situacao: "Ativa"
+        situacao: "Ativa",
+        tipo_empresa: "PROPRIA",
+        pertence_ao_grupo: false,
+        fornece_equipamento: false,
+        status_homologacao: "PENDENTE",
+        endereco_completo: "",
+        endereco_cep: "",
+        endereco_cidade: "",
+        endereco_estado: "",
       });
+      setCurrentLogoUrl(null);
     }
+    setLogoFile(null);
+    setLogoPreview(null);
   }, [empresa, form, isOpen]);
 
-  const formatCnpj = (value: string) => {
-    // Remove todos os caracteres não numéricos
-    const numericValue = value.replace(/\D/g, '');
-    
-    // Limita a 14 dígitos
-    const truncated = numericValue.slice(0, 14);
-    
-    // Aplica a máscara do CNPJ: 00.000.000/0001-00
-    if (truncated.length <= 2) {
-      return truncated;
-    } else if (truncated.length <= 5) {
-      return `${truncated.slice(0, 2)}.${truncated.slice(2)}`;
-    } else if (truncated.length <= 8) {
-      return `${truncated.slice(0, 2)}.${truncated.slice(2, 5)}.${truncated.slice(5)}`;
-    } else if (truncated.length <= 12) {
-      return `${truncated.slice(0, 2)}.${truncated.slice(2, 5)}.${truncated.slice(5, 8)}/${truncated.slice(8)}`;
-    } else {
-      return `${truncated.slice(0, 2)}.${truncated.slice(2, 5)}.${truncated.slice(5, 8)}/${truncated.slice(8, 12)}-${truncated.slice(12, 14)}`;
+  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast({ title: "Arquivo inválido", description: "Selecione uma imagem PNG ou JPG.", variant: "destructive" });
+      return;
     }
+    setLogoFile(file);
+    setLogoPreview(URL.createObjectURL(file));
+  };
+
+  const removeLogo = () => {
+    if (logoPreview) URL.revokeObjectURL(logoPreview);
+    setLogoFile(null);
+    setLogoPreview(null);
+    setCurrentLogoUrl(null);
+  };
+
+  const formatCnpj = (value: string) => {
+    const numericValue = value.replace(/\D/g, '');
+    const truncated = numericValue.slice(0, 14);
+    if (truncated.length <= 2) return truncated;
+    else if (truncated.length <= 5) return `${truncated.slice(0, 2)}.${truncated.slice(2)}`;
+    else if (truncated.length <= 8) return `${truncated.slice(0, 2)}.${truncated.slice(2, 5)}.${truncated.slice(5)}`;
+    else if (truncated.length <= 12) return `${truncated.slice(0, 2)}.${truncated.slice(2, 5)}.${truncated.slice(5, 8)}/${truncated.slice(8)}`;
+    else return `${truncated.slice(0, 2)}.${truncated.slice(2, 5)}.${truncated.slice(5, 8)}/${truncated.slice(8, 12)}-${truncated.slice(12, 14)}`;
   };
 
   const formatTelefone = (value: string) => {
-    // Remove todos os caracteres não numéricos
     const numericValue = value.replace(/\D/g, '');
-    
-    // Limita a 11 dígitos (para celular com DDD)
     const truncated = numericValue.slice(0, 11);
-    
-    // Aplica a máscara de telefone: (00) 0000-0000 ou (00) 00000-0000
-    if (truncated.length <= 2) {
-      return truncated.length ? `(${truncated}` : truncated;
-    } else if (truncated.length <= 6) {
-      return `(${truncated.slice(0, 2)}) ${truncated.slice(2)}`;
-    } else if (truncated.length <= 10) {
-      return `(${truncated.slice(0, 2)}) ${truncated.slice(2, 6)}-${truncated.slice(6)}`;
-    } else {
-      return `(${truncated.slice(0, 2)}) ${truncated.slice(2, 7)}-${truncated.slice(7)}`;
-    }
+    if (truncated.length <= 2) return truncated.length ? `(${truncated}` : truncated;
+    else if (truncated.length <= 6) return `(${truncated.slice(0, 2)}) ${truncated.slice(2)}`;
+    else if (truncated.length <= 10) return `(${truncated.slice(0, 2)}) ${truncated.slice(2, 6)}-${truncated.slice(6)}`;
+    else return `(${truncated.slice(0, 2)}) ${truncated.slice(2, 7)}-${truncated.slice(7)}`;
   };
 
   const handleCnpjChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -113,63 +152,108 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
     try {
       setIsSubmitting(true);
       
-      // Verificar se o CNPJ já existe, excluindo o ID atual em caso de edição
       const cnpjExists = await checkCnpjExists(values.cnpj, empresa?.id);
-      
       if (cnpjExists) {
-        form.setError("cnpj", { 
-          type: "manual", 
-          message: "Este CNPJ já está cadastrado" 
-        });
+        form.setError("cnpj", { type: "manual", message: "Este CNPJ já está cadastrado" });
         return;
+      }
+
+      let logoUrl = currentLogoUrl;
+      if (logoFile) {
+        try {
+          logoUrl = await uploadImage(logoFile, 'empresas-logos');
+        } catch (uploadError) {
+          console.error("Erro ao fazer upload da logo:", uploadError);
+          toast({ title: "Erro no upload", description: "Não foi possível enviar a logo. Os demais dados serão salvos.", variant: "destructive" });
+        }
       }
 
       const empresaData: EmpresaFormData = {
         nome_empresa: values.nome_empresa,
         cnpj: values.cnpj,
         telefone: values.telefone || null,
-        situacao: values.situacao
+        situacao: values.situacao,
+        tipo_empresa: values.tipo_empresa || null,
+        pertence_ao_grupo: values.pertence_ao_grupo ?? false,
+        fornece_equipamento: values.fornece_equipamento ?? false,
+        status_homologacao: values.status_homologacao || null,
+        endereco_completo: values.endereco_completo || null,
+        endereco_cep: values.endereco_cep || null,
+        endereco_cidade: values.endereco_cidade || null,
+        endereco_estado: values.endereco_estado || null,
+        logo_url: logoUrl,
       };
 
       if (empresa) {
-        // Edição
         await updateEmpresa(empresa.id, empresaData);
-        toast({
-          title: "Empresa atualizada",
-          description: "Os dados da empresa foram atualizados com sucesso."
-        });
+        toast({ title: "Empresa atualizada", description: "Os dados da empresa foram atualizados com sucesso." });
       } else {
-        // Criação
         await createEmpresa(empresaData);
-        toast({
-          title: "Empresa cadastrada",
-          description: "A empresa foi cadastrada com sucesso."
-        });
+        toast({ title: "Empresa cadastrada", description: "A empresa foi cadastrada com sucesso." });
       }
       
       onSuccess();
       onClose();
     } catch (error) {
       console.error("Erro ao salvar empresa:", error);
-      toast({
-        title: "Erro",
-        description: "Ocorreu um erro ao salvar os dados da empresa.",
-        variant: "destructive"
-      });
+      toast({ title: "Erro", description: "Ocorreu um erro ao salvar os dados da empresa.", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const displayLogo = logoPreview || currentLogoUrl;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{empresa ? "Editar Empresa" : "Cadastrar Nova Empresa"}</DialogTitle>
         </DialogHeader>
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Logo Upload */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Logo da Empresa</label>
+              <div className="flex items-center gap-4">
+                {displayLogo ? (
+                  <div className="relative w-[120px] h-[50px] border rounded-md overflow-hidden bg-muted flex items-center justify-center">
+                    <img src={displayLogo} alt="Logo" className="max-w-full max-h-full object-contain" />
+                    <button
+                      type="button"
+                      onClick={removeLogo}
+                      className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5"
+                      disabled={isSubmitting}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-[120px] h-[50px] border border-dashed rounded-md flex items-center justify-center bg-muted/50 hover:bg-muted/80 transition-colors"
+                    disabled={isSubmitting}
+                  >
+                    <div className="flex flex-col items-center text-muted-foreground">
+                      <Upload className="h-4 w-4" />
+                      <span className="text-[10px]">Upload logo</span>
+                    </div>
+                  </button>
+                )}
+                <p className="text-xs text-muted-foreground">PNG ou JPG. Será usada nos cabeçalhos dos relatórios PDF.</p>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg"
+                className="hidden"
+                onChange={handleLogoSelect}
+                disabled={isSubmitting}
+              />
+            </div>
+
             <FormField
               control={form.control}
               name="nome_empresa"
@@ -232,11 +316,7 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Situação *</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    value={field.value}
-                  >
+                  <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione a situação" />
@@ -251,6 +331,132 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
                 </FormItem>
               )}
             />
+
+            <FormField
+              control={form.control}
+              name="tipo_empresa"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipo de Empresa</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || "PROPRIA"}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="PROPRIA">Própria</SelectItem>
+                      <SelectItem value="GRUPO">Grupo</SelectItem>
+                      <SelectItem value="FORNECEDOR">Fornecedor</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="status_homologacao"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status Homologação</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || "PENDENTE"}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="HOMOLOGADO">Homologado</SelectItem>
+                      <SelectItem value="PENDENTE">Pendente</SelectItem>
+                      <SelectItem value="BLOQUEADO">Bloqueado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="pertence_ao_grupo"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                    <FormLabel className="mb-0 text-sm">Pertence ao grupo</FormLabel>
+                    <FormControl>
+                      <Switch checked={field.value ?? false} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="fornece_equipamento"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                    <FormLabel className="mb-0 text-sm">Fornece equipamento</FormLabel>
+                    <FormControl>
+                      <Switch checked={field.value ?? false} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name="endereco_completo"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Endereço</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Endereço completo" {...field} value={field.value || ""} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-3 gap-3">
+              <FormField
+                control={form.control}
+                name="endereco_cep"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>CEP</FormLabel>
+                    <FormControl>
+                      <Input placeholder="00000-000" {...field} value={field.value || ""} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="endereco_cidade"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Cidade</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Cidade" {...field} value={field.value || ""} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="endereco_estado"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>UF</FormLabel>
+                    <FormControl>
+                      <Input placeholder="UF" maxLength={2} {...field} value={field.value || ""} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
             
             <DialogFooter className="pt-4">
               <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
