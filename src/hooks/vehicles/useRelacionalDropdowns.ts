@@ -4,6 +4,7 @@ import {
   getFabricantesRelacionalDropdown,
   getModelosDropdown,
   getTiposEquipamentoDropdown,
+  getLinhasOperacionaisDropdown,
 } from "@/services/veiculo/dropdownsRelacional";
 
 export const useFrotasDropdown = () => {
@@ -32,5 +33,12 @@ export const useTiposEquipamentoDropdown = () => {
   return useQuery({
     queryKey: ["tipos-equipamento-dropdown"],
     queryFn: getTiposEquipamentoDropdown,
+  });
+};
+
+export const useLinhasOperacionaisDropdown = () => {
+  return useQuery({
+    queryKey: ["linhas-operacionais-dropdown"],
+    queryFn: getLinhasOperacionaisDropdown,
   });
 };

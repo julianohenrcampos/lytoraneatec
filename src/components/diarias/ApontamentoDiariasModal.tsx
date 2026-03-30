@@ -1068,7 +1068,9 @@ export default function ApontamentoDiariasModal({
         hora_entrada: col.presente ? col.hora_entrada : undefined,
         valor_diaria_original: col.valor_diaria_original,
         usar_diaria_exclusiva: col.usarDiariaExclusiva,
-        turno: col.turno
+        turno: col.turno,
+        recebe_refeicao: col.recebe_refeicao ?? true,
+        valor_refeicao_aplicado: (col.recebe_refeicao ?? true) ? (funcoesMap[col.funcao_id] || 0) : 0,
       }));
 
       await salvarInicio(solicitacao.id, selectedDate, registros);

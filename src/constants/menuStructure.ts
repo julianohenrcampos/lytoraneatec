@@ -151,9 +151,9 @@ export const menuStructure = [
     title: "Gestão de Equipamentos",
     items: [
       {
-        name: "Frotas",
-        href: "/gestao-maquinas/frotas",
-        icon: Layers,
+        name: "Linhas Operacionais",
+        href: "/gestao-maquinas/linhas-operacionais",
+        icon: Activity,
         requiredPermission: "gestao_maquinas_caminhoes_view"
       },
       {

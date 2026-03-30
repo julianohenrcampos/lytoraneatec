@@ -1,7 +1,8 @@
 
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileUp, FolderPlus, Plus } from "lucide-react";
+import { FileDown, FileUp, FolderPlus, Plus, Download } from "lucide-react";
+import { downloadEquipamentoTemplate } from "@/services/veiculo/importExport";
 
 interface VeiculoHeaderActionsProps {
   onNewClick: () => void;
@@ -9,6 +10,7 @@ interface VeiculoHeaderActionsProps {
   onImport: () => void;
   onManageCategorias: () => void;
   onManageSubcategorias: () => void;
+  onManageFrotas: () => void;
 }
 
 const VeiculoHeaderActions: React.FC<VeiculoHeaderActionsProps> = ({
@@ -17,6 +19,7 @@ const VeiculoHeaderActions: React.FC<VeiculoHeaderActionsProps> = ({
   onImport,
   onManageCategorias,
   onManageSubcategorias,
+  onManageFrotas,
 }) => {
   return (
     <div className="flex flex-wrap gap-2">
@@ -32,11 +35,19 @@ const VeiculoHeaderActions: React.FC<VeiculoHeaderActionsProps> = ({
         <FolderPlus className="mr-2 h-4 w-4" />
         Subcategoria
       </Button>
-      <Button variant="outline" onClick={onExport} className="whitespace-nowrap">
+      <Button variant="outline" onClick={onManageFrotas} className="whitespace-nowrap bg-[#0080ff] text-slate-50">
+        <FolderPlus className="mr-2 h-4 w-4" />
+        Frota
+      </Button>
+      <Button variant="outline" onClick={() => downloadEquipamentoTemplate()} className="whitespace-nowrap bg-[#0080ff] text-slate-50">
+        <Download className="mr-2 h-4 w-4" />
+        Baixar Modelo
+      </Button>
+      <Button variant="outline" onClick={onExport} className="whitespace-nowrap bg-[#0080ff] text-slate-50">
         <FileDown className="mr-2 h-4 w-4" />
         Exportar
       </Button>
-      <Button variant="outline" onClick={onImport} className="whitespace-nowrap">
+      <Button variant="outline" onClick={onImport} className="whitespace-nowrap bg-[#0080ff] text-slate-50">
         <FileUp className="mr-2 h-4 w-4" />
         Importar
       </Button>

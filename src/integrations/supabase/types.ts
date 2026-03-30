@@ -942,6 +942,7 @@ export type Database = {
           id: string
           imagem_url: string | null
           informacoes_complementares: string | null
+          linha_operacional_id: string | null
           modelo_id: string | null
           modificado_por: string | null
           motor: string | null
@@ -979,6 +980,7 @@ export type Database = {
           id?: string
           imagem_url?: string | null
           informacoes_complementares?: string | null
+          linha_operacional_id?: string | null
           modelo_id?: string | null
           modificado_por?: string | null
           motor?: string | null
@@ -1016,6 +1018,7 @@ export type Database = {
           id?: string
           imagem_url?: string | null
           informacoes_complementares?: string | null
+          linha_operacional_id?: string | null
           modelo_id?: string | null
           modificado_por?: string | null
           motor?: string | null
@@ -1076,6 +1079,13 @@ export type Database = {
             columns: ["frota_id"]
             isOneToOne: false
             referencedRelation: "bd_frotas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_caminhoes_equipamentos_linha_operacional_id_fkey"
+            columns: ["linha_operacional_id"]
+            isOneToOne: false
+            referencedRelation: "bd_linhas_operacionais"
             referencedColumns: ["id"]
           },
           {

@@ -132,15 +132,6 @@ const portalModules = [
   color: "hsl(215, 16%, 47%)" // Gray
 },
 {
-  id: "frotas",
-  title: "Frotas",
-  description: "Gestão de Frotas",
-  icon: Layers,
-  route: "/gestao-maquinas/frotas",
-  permission: "gestao_maquinas_caminhoes_view",
-  color: "hsl(190, 70%, 42%)"
-},
-{
   id: "disponibilidade",
   title: "Disponibilidade",
   description: "Disponibilidade Operacional",
@@ -166,6 +157,15 @@ const portalModules = [
   route: "/gestao-maquinas/solicitacoes-equipamentos",
   permission: "gestao_maquinas_caminhoes_view",
   color: "hsl(260, 55%, 50%)"
+},
+{
+  id: "linhas-operacionais",
+  title: "Linhas Operacionais",
+  description: "Gestão de Linhas",
+  icon: Activity,
+  route: "/gestao-maquinas/linhas-operacionais",
+  permission: "gestao_maquinas_caminhoes_view",
+  color: "hsl(45, 80%, 45%)"
 }];
 
 

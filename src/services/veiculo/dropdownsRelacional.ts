@@ -66,6 +66,21 @@ export const getTiposEquipamentoDropdown = async () => {
   return data;
 };
 
+export const getLinhasOperacionaisDropdown = async () => {
+  const { data, error } = await supabase
+    .from("bd_linhas_operacionais")
+    .select("id, codigo, nome, descricao, cor_hex")
+    .eq("ativo", true)
+    .order("codigo");
+
+  if (error) {
+    console.error("Error fetching linhas operacionais dropdown:", error);
+    throw error;
+  }
+
+  return data as { id: string; codigo: string; nome: string; descricao: string | null; cor_hex: string | null }[];
+};
+
 export const getCentrosCustoDropdown = async () => {
   const { data, error } = await supabase
     .from("bd_centros_custo")

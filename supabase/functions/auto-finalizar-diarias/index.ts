@@ -32,6 +32,8 @@ Deno.serve(async (req) => {
       .limit(1)
     
     const isHoliday = (feriados && feriados.length > 0)
+    // Dia exclusivo = sábado, domingo ou feriado
+    const isDiaExclusivo = isWeekend || isHoliday
 
     if (!isWeekend && !isHoliday) {
       return new Response(
@@ -43,7 +45,7 @@ Deno.serve(async (req) => {
     // Find presences with hora_entrada but no hora_saida for today
     const { data: pendentes, error: fetchError } = await supabase
       .from('bd_diaria_presencas')
-      .select('id, funcionario_id, hora_entrada, funcao_id, valor_diaria_aplicada, solicitacao_id, turno')
+      .select('id, funcionario_id, hora_entrada, funcao_id, valor_diaria_aplicada, solicitacao_id, turno, recebe_refeicao, valor_refeicao_aplicado, usar_diaria_exclusiva')
       .eq('data', brDate)
       .eq('presente', true)
       .not('hora_entrada', 'is', null)
@@ -59,6 +61,19 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    // For exclusive days, fetch convocados_pre from solicitações to get correct exclusive values
+    const solicitacaoIds = [...new Set(pendentes.map(p => p.solicitacao_id))];
+    const { data: solicitacoes } = await supabase
+      .from('bd_diaria_solicitacoes')
+      .select('id, convocados_pre')
+      .in('id', solicitacaoIds)
+
+    const solicitacoesMap = new Map<string, any[]>();
+    (solicitacoes || []).forEach(s => {
+      const convocados = Array.isArray(s.convocados_pre) ? s.convocados_pre : [];
+      solicitacoesMap.set(s.id, convocados);
+    });
 
     // Calculate jornada for each record and update
     let updated = 0
@@ -79,26 +94,56 @@ Deno.serve(async (req) => {
       // Determine tipo_diaria
       let tipo_diaria = 'nenhuma'
       let multiplier = 0
-      if (horas >= 9.75) { tipo_diaria = 'uma_e_meia'; multiplier = 1.5 }    // >= 9:45
-      else if (horas >= 4.5) { tipo_diaria = 'completa'; multiplier = 1 }     // >= 4:30
+      if (horas >= 9.75) { tipo_diaria = 'uma_e_meia'; multiplier = 1.5 }
+      else if (horas >= 4.5) { tipo_diaria = 'completa'; multiplier = 1 }
       else if (horas > 0) { tipo_diaria = 'meia'; multiplier = 0.5 }
 
-      // Get the base value (valor_diaria_original) from convocados_pre
-      // We use the current valor_diaria_aplicada as the base since it was set at start
-      const baseValor = p.valor_diaria_aplicada || 0
-      // Recalculate: if entrada was already saved, the valor was set based on 'completa'
-      // So we need to reverse it. The original value = valor / 1 (completa multiplier)
-      // Actually, the valor_diaria_aplicada is already the original * multiplier from start phase
-      // At start, tipo is 'completa' so valor = original * 1. So baseValor IS the original.
+      // Get the correct base value for dia exclusivo
+      // Look up convocados_pre to find valor_diaria_exclusiva
+      const convocados = solicitacoesMap.get(p.solicitacao_id) || [];
+      const convocado = convocados.find((c: any) => c.funcionario_id === p.funcionario_id);
+      
+      let baseValor: number;
+      if (isDiaExclusivo && convocado) {
+        // Use exclusive value if available, otherwise use normal value
+        baseValor = convocado.valor_diaria_exclusiva || convocado.valor_diaria || p.valor_diaria_aplicada || 0;
+      } else {
+        baseValor = p.valor_diaria_aplicada || 0;
+      }
+      
       const valorFinal = baseValor * multiplier
+
+      // Always persist refeição — fill from convocado if missing
+      let recebeRefeicao = p.recebe_refeicao;
+      let valorRefeicao = p.valor_refeicao_aplicado;
+      
+      // If recebe_refeicao is null, default to true
+      if (recebeRefeicao === null || recebeRefeicao === undefined) {
+        recebeRefeicao = true;
+      }
+      
+      // If receives meal but value is missing, fill from convocado
+      if (recebeRefeicao && (!valorRefeicao || valorRefeicao === 0) && convocado) {
+        valorRefeicao = convocado.valor_refeicao || 0;
+      }
+      
+      // If doesn't receive meal, zero out
+      if (!recebeRefeicao) {
+        valorRefeicao = 0;
+      }
+
+      const updateData: Record<string, any> = {
+        hora_saida: horaSaidaPadrao,
+        tipo_diaria,
+        valor_diaria_aplicada: valorFinal,
+        usar_diaria_exclusiva: isDiaExclusivo,
+        recebe_refeicao: recebeRefeicao,
+        valor_refeicao_aplicado: valorRefeicao || 0,
+      };
 
       const { error: updateError } = await supabase
         .from('bd_diaria_presencas')
-        .update({
-          hora_saida: horaSaidaPadrao,
-          tipo_diaria,
-          valor_diaria_aplicada: valorFinal
-        })
+        .update(updateData)
         .eq('id', p.id)
 
       if (!updateError) updated++
@@ -110,6 +155,7 @@ Deno.serve(async (req) => {
         date: brDate,
         isWeekend,
         isHoliday,
+        isDiaExclusivo,
         total: pendentes.length,
         updated
       }),

@@ -1,0 +1,1 @@
+ALTER TABLE bd_caminhoes_equipamentos ADD COLUMN IF NOT EXISTS linha_operacional_id uuid REFERENCES bd_linhas_operacionais(id);

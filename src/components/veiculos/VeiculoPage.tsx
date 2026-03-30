@@ -11,6 +11,7 @@ import DeleteVeiculoDialog from "./DeleteVeiculoDialog";
 import VeiculoHeaderActions from "./VeiculoHeaderActions";
 import GerenciarCategoriasModal from "./GerenciarCategoriasModal";
 import GerenciarSubcategoriasModal from "./GerenciarSubcategoriasModal";
+import GerenciarFrotasModal from "./GerenciarFrotasModal";
 import { VeiculoFormData } from "@/types/veiculo";
 
 interface VeiculoPageProps {
@@ -21,7 +22,7 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
   const [isSuccessMessageVisible, setIsSuccessMessageVisible] = useState(false);
   const [isCategoriaModalOpen, setIsCategoriaModalOpen] = useState(false);
   const [isSubcategoriaModalOpen, setIsSubcategoriaModalOpen] = useState(false);
-  
+  const [isFrotaModalOpen, setIsFrotaModalOpen] = useState(false);
   const {
     veiculos,
     isLoading,
@@ -87,6 +88,7 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
           onNewClick={() => openFormModal()}
           onManageCategorias={() => setIsCategoriaModalOpen(true)}
           onManageSubcategorias={() => setIsSubcategoriaModalOpen(true)}
+          onManageFrotas={() => setIsFrotaModalOpen(true)}
         />
       </div>
       
@@ -155,6 +157,11 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
         isOpen={isSubcategoriaModalOpen}
         onClose={() => setIsSubcategoriaModalOpen(false)}
         categorias={categoriasDropdown}
+      />
+
+      <GerenciarFrotasModal
+        isOpen={isFrotaModalOpen}
+        onClose={() => setIsFrotaModalOpen(false)}
       />
     </div>
   );

@@ -31,6 +31,8 @@ export interface Veiculo {
   proprietario_tipo: string | null;
   tipo_ativo: string | null;
   empresa_locadora_id: string | null;
+  linha_operacional_id: string | null;
+  tipo_equipamento_id: string | null;
   
   // Join fields
   nome_departamento?: string;

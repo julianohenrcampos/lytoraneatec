@@ -286,6 +286,17 @@ const SSOAgendamentoExames: React.FC = () => {
         }
       }
 
+      // Fetch centros de custo map (nome → codigo)
+      const centrosCustoMap: Record<string, string> = {};
+      const { data: ccData } = await supabase
+        .from('bd_centros_custo')
+        .select('nome_centro_custo, codigo_centro_custo');
+      if (ccData) {
+        ccData.forEach((cc: any) => {
+          centrosCustoMap[cc.nome_centro_custo] = cc.codigo_centro_custo;
+        });
+      }
+
       // Build filter description
       const parts: string[] = [];
       if (filters.contrato) parts.push(`Centro de Custo: ${filters.contrato}`);
@@ -304,6 +315,7 @@ const SSOAgendamentoExames: React.FC = () => {
           salarios={salarios}
           passagens={passagens}
           filtrosTexto={filtrosTexto}
+          centrosCustoMap={centrosCustoMap}
         />
       ).toBlob();
 

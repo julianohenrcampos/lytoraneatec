@@ -96,37 +96,9 @@ const ImportVeiculosModal: React.FC<ImportVeiculosModalProps> = ({
     });
   };
 
-  const downloadTemplate = () => {
-    const headers = [
-      "Placa", "Categoria", "Subcategoria", "Frota", "Número Frota", 
-      "Fabricante", "Cor", "Departamento", "Empresa",
-      "Motor", "Ano de Fabricação", "Tipo de Combustível", 
-      "Status IPVA", "Situação", "Capacidade", 
-      "Aluguel", "Observações", "Número de Série", "Chassi",
-      "Tipo Ativo", "Proprietário Tipo", "Empresa Locadora",
-      "Informações Complementares"
-    ];
-    
-    const exampleRow = [
-      "ABC1234", "VEÍCULO", "CAMINHÃO BASCULANTE", "F1", "12345", 
-      "Volvo", "Branco", "Operações", "Empresa XYZ",
-      "12345678", "2022", "Diesel", 
-      "Pago", "Operando", "30 ton", 
-      "Não", "Observação de exemplo", "", "",
-      "proprio", "proprio", "",
-      ""
-    ];
-    
-    const csvContent = [headers.join(","), exampleRow.join(",")].join("\n");
-    
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "modelo_importacao_veiculos.csv";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const downloadTemplate = async () => {
+    const { downloadEquipamentoTemplate } = await import("@/services/veiculo/importExport");
+    downloadEquipamentoTemplate();
   };
 
   const handleImport = async () => {
@@ -166,6 +138,8 @@ const ImportVeiculosModal: React.FC<ImportVeiculosModalProps> = ({
           proprietario_tipo: item["Proprietário Tipo"] || item["Proprietario Tipo"] || item.proprietario_tipo || 'proprio',
           tipo_ativo: item["Tipo Ativo"] || item.tipo_ativo || 'proprio',
           empresa_locadora_id: null,
+          linha_operacional_id: null,
+          tipo_equipamento_id: null,
         }));
 
         console.log("Importing CSV data with entries:", formattedData.length);
@@ -232,25 +206,20 @@ const ImportVeiculosModal: React.FC<ImportVeiculosModalProps> = ({
               <FileSpreadsheet className="h-4 w-4" />
               <AlertTitle>Formato esperado</AlertTitle>
               <AlertDescription className="text-xs">
-                <p>O arquivo deve conter as seguintes colunas:</p>
+                <p>Baixe o modelo oficial (botão acima) com todas as colunas padronizadas.</p>
+                <p className="mt-1">Colunas obrigatórias:</p>
                 <ul className="list-disc ml-4 mt-1">
-                  <li><strong>Categoria</strong> (obrigatório: VEÍCULO ou EQUIPAMENTO)</li>
-                  <li>Subcategoria</li>
-                  <li>Placa</li>
-                  <li>Frota / Número Frota</li>
-                  <li>Fabricante</li>
-                  <li>Cor</li>
-                  <li>Departamento / Empresa</li>
-                  <li>Motor / Ano de Fabricação</li>
-                  <li>Tipo de Combustível</li>
-                  <li>Status IPVA / Situação</li>
-                  <li>Capacidade / Aluguel</li>
-                  <li>Observações</li>
-                  <li>Número de Série / Chassi</li>
-                  <li>Tipo Ativo / Proprietário Tipo</li>
-                  <li>Empresa Locadora</li>
-                  <li>Informações Complementares</li>
+                  <li><strong>categoria</strong> (ex: EQUIPAMENTO, VEÍCULO)</li>
+                  <li><strong>subcategoria</strong> (ex: ESCAVADEIRA, CAMINHÃO)</li>
+                  <li><strong>frota_codigo</strong> (código da frota cadastrada)</li>
+                  <li><strong>placa</strong> ou <strong>chassi</strong> (ao menos um)</li>
                 </ul>
+                <p className="mt-1">Colunas opcionais:</p>
+                <ul className="list-disc ml-4 mt-1">
+                  <li>linha_operacional, fabricante, modelo, ano_fabricacao</li>
+                  <li>empresa, tipo_empresa, status_operacional, capacidade</li>
+                </ul>
+                <p className="mt-1 text-muted-foreground">Veja a aba INSTRUCOES no modelo para detalhes.</p>
               </AlertDescription>
             </Alert>
 

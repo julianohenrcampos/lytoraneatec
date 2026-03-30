@@ -148,6 +148,8 @@ export interface InicioFormData {
   valor_diaria_original: number;
   usar_diaria_exclusiva?: boolean;
   turno?: TurnoDiaria;
+  recebe_refeicao?: boolean;
+  valor_refeicao_aplicado?: number;
 }
 
 export interface FinalizacaoFormData {
@@ -178,8 +180,8 @@ export async function salvarInicio(
     valor_diaria_aplicada: r.valor_diaria_original,
     funcao_id: r.funcao_id || null,
     tipo_diaria: null,
-    recebe_refeicao: null,
-    valor_refeicao_aplicado: null,
+    recebe_refeicao: r.recebe_refeicao ?? true,
+    valor_refeicao_aplicado: r.valor_refeicao_aplicado ?? 0,
     usar_diaria_exclusiva: r.usar_diaria_exclusiva ?? false,
     turno: r.turno || 'diurno',
     confirmado_por: userId,
@@ -215,8 +217,8 @@ export async function salvarInicioParcial(
     valor_diaria_aplicada: r.valor_diaria_original,
     funcao_id: r.funcao_id || null,
     tipo_diaria: null,
-    recebe_refeicao: null,
-    valor_refeicao_aplicado: null,
+    recebe_refeicao: r.recebe_refeicao ?? true,
+    valor_refeicao_aplicado: r.valor_refeicao_aplicado ?? 0,
     usar_diaria_exclusiva: r.usar_diaria_exclusiva ?? false,
     turno: r.turno || 'diurno',
     confirmado_por: userId,

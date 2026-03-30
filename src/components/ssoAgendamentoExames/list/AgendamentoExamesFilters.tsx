@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Combobox } from '@/components/ui/combobox';
+import { MultiCombobox } from '@/components/ui/multi-combobox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AgendamentoExameFilters, TIPOS_EXAME, STATUS_AGENDAMENTO, STATUS_INTEGRACAO, STATUS_CARTEIRA } from '@/types/ssoAgendamentoExames';
 import { useAgendamentoExames } from '@/hooks/ssoAgendamentoExames';
@@ -31,7 +32,7 @@ export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> =
   const [tipoExame, setTipoExame] = useState('');
   const [localAtendimentoId, setLocalAtendimentoId] = useState('');
   const [empresa, setEmpresa] = useState('');
-  const [contrato, setContrato] = useState('');
+  const [contrato, setContrato] = useState<string[]>([]);
   const [nomeColaborador, setNomeColaborador] = useState('');
   const [cpf, setCpf] = useState('');
   const [statusIntegracao, setStatusIntegracao] = useState('');
@@ -44,13 +45,12 @@ export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> =
     ...empresas.map(e => ({ value: e.nome_empresa, label: e.nome_empresa }))
   ], [empresas]);
 
-  const centrosCustoOptions = useMemo(() => [
-    { value: '', label: 'Todos os centros de custo' },
-    ...centrosCusto.map(cc => ({
+  const centrosCustoOptions = useMemo(() =>
+    centrosCusto.map(cc => ({
       value: cc.nome_centro_custo,
-      label: `${cc.codigo_centro_custo} - ${cc.nome_centro_custo}`
+      label: cc.codigo_centro_custo || cc.nome_centro_custo
     }))
-  ], [centrosCusto]);
+  , [centrosCusto]);
 
   const funcoesOptions = useMemo(() => [
     { value: '', label: 'Todas as funções' },
@@ -67,7 +67,7 @@ export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> =
     if (tipoExame && tipoExame !== 'all') filters.tipo_exame = tipoExame;
     if (localAtendimentoId && localAtendimentoId !== 'all') filters.local_atendimento_id = localAtendimentoId;
     if (empresa) filters.empresa = empresa;
-    if (contrato) filters.contrato = contrato;
+    if (contrato.length > 0) filters.contrato = contrato;
     if (nomeColaborador) filters.nome_colaborador = nomeColaborador;
     if (cpf) filters.cpf = cpf;
     if (statusIntegracao && statusIntegracao !== 'all') filters.status_integracao = statusIntegracao;
@@ -84,7 +84,7 @@ export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> =
     setTipoExame('');
     setLocalAtendimentoId('');
     setEmpresa('');
-    setContrato('');
+    setContrato([]);
     setNomeColaborador('');
     setCpf('');
     setStatusIntegracao('');
@@ -178,7 +178,7 @@ export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> =
       {/* Centro de Custo */}
       <div className="space-y-2">
         <Label>Centro de Custo</Label>
-        <Combobox
+        <MultiCombobox
           options={centrosCustoOptions}
           value={contrato}
           onChange={setContrato}

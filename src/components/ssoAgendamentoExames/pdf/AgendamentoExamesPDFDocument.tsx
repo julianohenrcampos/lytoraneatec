@@ -9,6 +9,7 @@ interface Props {
   salarios: Record<string, number>;
   passagens: Record<string, number | null>;
   filtrosTexto: string;
+  centrosCustoMap: Record<string, string>; // nome_centro_custo → codigo_centro_custo
 }
 
 const formatCPF = (cpf: string | null) => {
@@ -68,14 +69,14 @@ const HeaderRow = () => (
   </View>
 );
 
-const DataRow = ({ ag, salario, passagens, index }: { ag: AgendamentoExame; salario: number | null; passagens: Record<string, number | null>; index: number }) => {
+const DataRow = ({ ag, salario, passagens, index, codigoCentro }: { ag: AgendamentoExame; salario: number | null; passagens: Record<string, number | null>; index: number; codigoCentro?: string }) => {
   const rowStyle = index % 2 === 0 ? s.row : s.rowAlt;
   const values = [
     ag.nome_colaborador,
     ag.funcao,
-    ag.contrato || '—',
+    codigoCentro || ag.contrato || '—',
     formatCPF(ag.cpf),
-    formatDate(ag.data_agendamento),
+    '',
     formatCurrency(salario),
     ag.status,
     getPassagemDisplay(ag, passagens),
@@ -147,10 +148,10 @@ const TotalValorTable = ({ total }: { total: number }) => (
   </View>
 );
 
-export const AgendamentoExamesPDFDocument: React.FC<Props> = ({ agendamentos, salarios, passagens, filtrosTexto }) => {
-  // Group by empresa
+export const AgendamentoExamesPDFDocument: React.FC<Props> = ({ agendamentos, salarios, passagens, filtrosTexto, centrosCustoMap }) => {
+  // Group by centro de custo (contrato)
   const grouped = agendamentos.reduce<Record<string, AgendamentoExame[]>>((acc, ag) => {
-    const key = ag.empresa || 'Sem Empresa';
+    const key = ag.contrato || 'Sem Centro de Custo';
     if (!acc[key]) acc[key] = [];
     acc[key].push(ag);
     return acc;
@@ -158,30 +159,35 @@ export const AgendamentoExamesPDFDocument: React.FC<Props> = ({ agendamentos, sa
 
   const groups = Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
 
-  // Totals — salary by funcao name
-  const totalSalarios = agendamentos.reduce((sum, ag) => {
-    const sal = salarios[ag.funcao];
-    return sum + (sal || 0);
-  }, 0);
-
-  const funcoesCont: Record<string, number> = {};
-  agendamentos.forEach(ag => {
-    funcoesCont[ag.funcao] = (funcoesCont[ag.funcao] || 0) + 1;
-  });
-
   return (
     <Document>
-      <Page size="A4" orientation="landscape" style={s.page}>
-        {/* Header */}
-        <Text style={s.title}><Text style={s.title}>RELATÓRIO DE ADMISSÃO</Text></Text>
-        <Text style={s.subtitle}>{filtrosTexto}</Text>
+      {groups.map(([centroNome, items]) => {
+        const codigoCentro = centrosCustoMap[centroNome] || centroNome;
 
-        {/* Main data table */}
-        {groups.map(([groupName, items]) => (
-          <View key={groupName}>
+        // Per-group totals
+        const totalSalarios = items.reduce((sum, ag) => {
+          const sal = salarios[ag.funcao];
+          return sum + (sal || 0);
+        }, 0);
+
+        const funcoesCont: Record<string, number> = {};
+        items.forEach(ag => {
+          funcoesCont[ag.funcao] = (funcoesCont[ag.funcao] || 0) + 1;
+        });
+
+        return (
+          <Page key={centroNome} size="A4" orientation="landscape" style={s.page}>
+            {/* Header */}
+            <Text style={s.title}>RELATÓRIO DE ADMISSÃO</Text>
+            <Text style={s.subtitle}>Centro de Custo: {codigoCentro}</Text>
+            {filtrosTexto ? <Text style={s.subtitle}>{filtrosTexto}</Text> : null}
+
+            {/* Group header */}
             <View style={s.groupHeader}>
-              <Text style={s.groupHeaderText}>{groupName} ({items.length} colaboradores)</Text>
+              <Text style={s.groupHeaderText}>{codigoCentro} ({items.length} colaboradores)</Text>
             </View>
+
+            {/* Table */}
             <HeaderRow />
             {items.map((ag, idx) => (
               <DataRow
@@ -190,33 +196,34 @@ export const AgendamentoExamesPDFDocument: React.FC<Props> = ({ agendamentos, sa
                 salario={salarios[ag.funcao] ?? null}
                 passagens={passagens}
                 index={idx}
+                codigoCentro={codigoCentro}
               />
             ))}
-          </View>
-        ))}
 
-        {/* Bottom section: Funções + Total Valor side by side */}
-        <View style={s.bottomRow}>
-          <FuncoesSummaryTable funcoesCont={funcoesCont} />
-          <TotalValorTable total={totalSalarios} />
-        </View>
+            {/* Bottom section: Funções + Total Valor side by side */}
+            <View style={s.bottomRow}>
+              <FuncoesSummaryTable funcoesCont={funcoesCont} />
+              <TotalValorTable total={totalSalarios} />
+            </View>
 
-        {/* Assinaturas */}
-        <View style={s.signaturesRow}>
-          <View style={s.signatureBlock}>
-            <View style={s.signatureLine} />
-            <Text style={s.signatureLabel}>Gerente Regional</Text>
-          </View>
-          <View style={s.signatureBlock}>
-            <View style={s.signatureLine} />
-            <Text style={s.signatureLabel}>Diretor de Engenharia</Text>
-          </View>
-          <View style={s.signatureBlock}>
-            <View style={s.signatureLine} />
-            <Text style={s.signatureLabel}>Diretor Financeiro</Text>
-          </View>
-        </View>
-      </Page>
+            {/* Assinaturas */}
+            <View style={s.signaturesRow}>
+              <View style={s.signatureBlock}>
+                <View style={s.signatureLine} />
+                <Text style={s.signatureLabel}>Gerente Regional</Text>
+              </View>
+              <View style={s.signatureBlock}>
+                <View style={s.signatureLine} />
+                <Text style={s.signatureLabel}>Diretor de Engenharia</Text>
+              </View>
+              <View style={s.signatureBlock}>
+                <View style={s.signatureLine} />
+                <Text style={s.signatureLabel}>Diretor Financeiro</Text>
+              </View>
+            </View>
+          </Page>
+        );
+      })}
     </Document>
   );
 };

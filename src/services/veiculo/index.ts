@@ -1,7 +1,7 @@
 
 import { fetchVeiculos, getVeiculos, getVeiculoById } from './queries';
 import { createVeiculo, updateVeiculo, deleteVeiculo } from './mutations';
-import { importVeiculos, exportVeiculos } from './importExport';
+import { importVeiculos, exportVeiculos, downloadEquipamentoTemplate } from './importExport';
 import { getMarcasDropdown, getFabricantesDropdown, getDepartamentosDropdown, getEmpresasDropdown, getCategoriasDropdown, getSubcategoriasDropdown } from './dropdowns';
 import { VeiculoFilter } from './types';
 
@@ -14,6 +14,7 @@ export {
   deleteVeiculo,
   importVeiculos,
   exportVeiculos,
+  downloadEquipamentoTemplate,
   getMarcasDropdown,
   getFabricantesDropdown,
   getDepartamentosDropdown,

@@ -6,7 +6,9 @@ import * as z from "zod";
 import { Veiculo, VeiculoFormData } from "@/types/veiculo";
 import { useToast } from "@/hooks/use-toast";
 import { uploadFile } from "@/services/storageService";
-import VeiculoFormTabs from "./form/VeiculoFormTabs";
+import VeiculoFormStepper from "./form/VeiculoFormStepper";
+import { getFrotaTipo } from "@/hooks/vehicles/useEmpresasByFrota";
+import { supabase } from "@/integrations/supabase/client";
 
 interface VeiculoFormModalProps {
   isOpen: boolean;
@@ -19,11 +21,12 @@ interface VeiculoFormModalProps {
   categorias?: { id: string, nome_categoria: string }[] | undefined;
 }
 
+// frota_id is now relational — validation done via .min(1)
 const formSchema = z.object({
   frota: z.string().optional().nullable(),
-  frota_id: z.string().optional().nullable(),
+  frota_id: z.string().min(1, "Selecione uma frota"),
   fabricante_id: z.string().optional().nullable(),
-  modelo_id: z.string().optional().nullable(),
+  modelo: z.string().optional().nullable(),
   numero_frota: z.string().optional().nullable(),
   departamento_id: z.string().optional().nullable(),
   empresa_id: z.string().optional().nullable(),
@@ -44,19 +47,13 @@ const formSchema = z.object({
   numero_serie: z.string().optional().nullable(),
   chassi: z.string().optional().nullable(),
   informacoes_complementares: z.string().optional().nullable(),
-}).refine((data) => {
-  const hasFrota = (data.frota_id && data.frota_id !== '_none') || (data.frota && data.frota.trim().length > 0);
-  return !!hasFrota;
-}, {
-  message: "Selecione uma frota",
-  path: ["frota_id"],
+  linha_operacional_id: z.string().optional().nullable(),
 }).refine((data) => {
   const hasPlaca = data.placa && data.placa.trim().length > 0;
-  const hasSerie = data.numero_serie && data.numero_serie.trim().length > 0;
   const hasChassi = data.chassi && data.chassi.trim().length > 0;
-  return hasPlaca || hasSerie || hasChassi;
+  return hasPlaca || hasChassi;
 }, {
-  message: "Preencha pelo menos um identificador: Placa, Número de Série ou Chassi",
+  message: "Preencha pelo menos um identificador: Placa ou Chassi",
   path: ["placa"],
 });
 
@@ -78,9 +75,9 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
     resolver: zodResolver(formSchema),
     defaultValues: {
       frota: "",
-      frota_id: "_none",
+      frota_id: "",
       fabricante_id: "_none",
-      modelo_id: "_none",
+      modelo: "",
       numero_frota: "",
       departamento_id: "_none",
       empresa_id: "",
@@ -101,6 +98,7 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
       numero_serie: "",
       chassi: "",
       informacoes_complementares: "",
+      linha_operacional_id: "_none",
     }
   });
 
@@ -108,9 +106,9 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
     if (veiculo) {
       form.reset({
         frota: veiculo.frota || "",
-        frota_id: (veiculo as any).frota_id || "_none",
+        frota_id: (veiculo as any).frota_id || "",
         fabricante_id: (veiculo as any).fabricante_id || "_none",
-        modelo_id: (veiculo as any).modelo_id || "_none",
+        modelo: (veiculo as any).modelo || "",
         numero_frota: veiculo.numero_frota || "",
         departamento_id: veiculo.departamento_id || "_none",
         empresa_id: veiculo.empresa_id || "",
@@ -131,13 +129,15 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
         numero_serie: veiculo.numero_serie || "",
         chassi: veiculo.chassi || "",
         informacoes_complementares: veiculo.informacoes_complementares || "",
+        linha_operacional_id: (veiculo as any).linha_operacional_id || "_none",
+        
       });
     } else {
       form.reset({
         frota: "",
-        frota_id: "_none",
+        frota_id: "",
         fabricante_id: "_none",
-        modelo_id: "_none",
+        modelo: "",
         numero_frota: "",
         departamento_id: "_none",
         empresa_id: "",
@@ -158,6 +158,8 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
         numero_serie: "",
         chassi: "",
         informacoes_complementares: "",
+        linha_operacional_id: "_none",
+        
       });
       setSelectedImage(null);
     }
@@ -192,15 +194,32 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
       const departamentoId = values.departamento_id === "_none" ? null : values.departamento_id;
       const categoriaId = values.categoria_ativo_id === "_none" ? null : values.categoria_ativo_id;
       const subcategoriaId = values.subcategoria_ativo_id === "_none" ? null : values.subcategoria_ativo_id;
-      const frotaId = values.frota_id === "_none" ? null : values.frota_id;
       const fabricanteRelId = values.fabricante_id === "_none" ? null : values.fabricante_id;
-      const modeloId = values.modelo_id === "_none" ? null : values.modelo_id;
+      const linhaId = values.linha_operacional_id === "_none" ? null : values.linha_operacional_id;
+      const empresaId = values.empresa_id === "_none" ? null : (values.empresa_id || null);
+      const frotaIdVal = values.frota_id === "_none" ? null : (values.frota_id || null);
+      const frotaSigla = values.frota?.toUpperCase() || null;
+      
+      // Resolve frota tipo from bd_frotas record
+      let tipoFrota: string | null = null;
+      if (frotaIdVal) {
+        const { data: frotaRecord } = await supabase
+          .from("bd_frotas")
+          .select("tipo_propriedade_padrao")
+          .eq("id", frotaIdVal)
+          .single();
+        tipoFrota = frotaRecord?.tipo_propriedade_padrao || null;
+      }
+      
+      const proprietarioTipo = tipoFrota === "PROPRIO" ? "proprio" 
+        : tipoFrota === "GRUPO" ? "grupo" 
+        : tipoFrota === "LOCADO" ? "locado" : "proprio";
       
       const formData: VeiculoFormData = {
-        frota: values.frota || null,
+        frota: frotaSigla,
         numero_frota: values.numero_frota,
         departamento_id: departamentoId,
-        empresa_id: values.empresa_id || null,
+        empresa_id: empresaId,
         placa: values.placa,
         categoria_ativo_id: categoriaId,
         subcategoria_ativo_id: subcategoriaId,
@@ -220,12 +239,14 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
         informacoes_complementares: values.informacoes_complementares || null,
         status_cadastro: 'ativo',
         status_disponibilidade: 'disponivel',
-        proprietario_tipo: 'proprio',
-        tipo_ativo: (values as any).tipo_ativo || 'proprio',
-        empresa_locadora_id: (values as any).empresa_locadora_id || null,
-        frota_id: frotaId,
+        proprietario_tipo: proprietarioTipo,
+        tipo_ativo: proprietarioTipo,
+        empresa_locadora_id: tipoFrota === "LOCADO" ? empresaId : null,
+        frota_id: frotaIdVal,
         fabricante_id: fabricanteRelId,
-        modelo_id: modeloId,
+        modelo_id: null,
+        linha_operacional_id: linhaId,
+        tipo_equipamento_id: null,
       } as any;
 
       console.log("Saving vehicle with data:", formData);
@@ -270,7 +291,7 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
           </DialogDescription>
         </DialogHeader>
         
-        <VeiculoFormTabs
+        <VeiculoFormStepper
           form={form}
           onSubmit={onSubmit}
           isSubmitting={isSubmitting}

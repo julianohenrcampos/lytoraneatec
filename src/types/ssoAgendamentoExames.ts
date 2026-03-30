@@ -201,7 +201,7 @@ export interface AgendamentoExameFilters {
   cpf?: string;
   status_integracao?: string;
   status_carteira?: string;
-  contrato?: string;
+  contrato?: string[];
 }
 
 // Interface para funcionário selecionado (vindo de bd_funcionarios)

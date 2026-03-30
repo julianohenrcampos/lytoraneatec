@@ -36,9 +36,10 @@ import GestaoCaminhoes from "@/pages/GestaoCaminhoes";
 import GestaoUsinas from "@/pages/GestaoUsinas";
 import RelatorioMedicao from "@/pages/RelatorioMedicao";
 import GestaoSolicitacoesEquipamento from "@/pages/GestaoSolicitacoesEquipamento";
-import GestaoFrotas from "@/pages/GestaoFrotas";
+
 import GestaoDisponibilidade from "@/pages/GestaoDisponibilidade";
 import GestaoPortfolio from "@/pages/GestaoPortfolio";
+import LinhasOperacionaisPage from "@/pages/LinhasOperacionaisPage";
 import Abastecimento from "@/pages/GestaoAbastecimento"; // Fixed casing
 
 // Dashboard CBUQ
@@ -254,15 +255,6 @@ const App = () => {
               <SimpleAuthGuard>
                 <SimplePermissionGuard>
                   <GestaoSolicitacoesEquipamento />
-                </SimplePermissionGuard>
-              </SimpleAuthGuard>
-            } />
-            
-            {/* Gestão de Frotas */}
-            <Route path="/gestao-maquinas/frotas" element={
-              <SimpleAuthGuard>
-                <SimplePermissionGuard>
-                  <GestaoFrotas />
                 </SimplePermissionGuard>
               </SimpleAuthGuard>
             } />
@@ -525,6 +517,15 @@ const App = () => {
                   <SecureRouteGuard requiredPermission="acesso_monitoramento_pncp">
                     <ConfiguracoesMatching />
                   </SecureRouteGuard>
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            
+            {/* Linhas Operacionais */}
+            <Route path="/gestao-maquinas/linhas-operacionais" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <LinhasOperacionaisPage />
                 </SimplePermissionGuard>
               </SimpleAuthGuard>
             } />

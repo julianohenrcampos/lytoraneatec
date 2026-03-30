@@ -118,7 +118,7 @@ function consolidarFuncionarios(
     const existing = funcionariosMap.get(item.funcionario_id);
     const data = new Date(item.data + 'T12:00:00');
     const diaSemana = data.getDay();
-    const isDomingo = diaSemana === 0;
+    const isFds = diaSemana === 0 || diaSemana === 6;
     const isFeriado = feriadosSet.has(item.data);
 
     const valor = Math.ceil(item.valor_diaria_aplicada || 0);
@@ -136,7 +136,7 @@ function consolidarFuncionarios(
       existing.valor_diaria_integral += integralAdd;
       existing.valor_meia_diaria += meiaAdd;
       if (isFeriado) existing.dias_feriados += 1;
-      else if (isDomingo) existing.dias_fds += 1;
+      else if (isFds) existing.dias_fds += 1;
       else existing.dias_uteis += 1;
     } else {
       funcionariosMap.set(item.funcionario_id, {
@@ -151,8 +151,8 @@ function consolidarFuncionarios(
         conta: item.conta_funcionario || '-',
         chave_pix: item.pix_funcionario || '-',
         total_dias: 1,
-        dias_uteis: !isDomingo && !isFeriado ? 1 : 0,
-        dias_fds: isDomingo && !isFeriado ? 1 : 0,
+        dias_uteis: !isFds && !isFeriado ? 1 : 0,
+        dias_fds: isFds && !isFeriado ? 1 : 0,
         dias_feriados: isFeriado ? 1 : 0,
         valor_total: valor,
         valor_refeicao: Math.ceil(item.valor_refeicao_aplicado || 0),
@@ -179,10 +179,11 @@ function calcularTotaisDias(
     if (!datasUnicas.has(item.data)) {
       datasUnicas.add(item.data);
       const data = new Date(item.data + 'T12:00:00');
-      const isDomingo = data.getDay() === 0;
+      const diaSemana = data.getDay();
+      const isFds = diaSemana === 0 || diaSemana === 6;
       const isFeriado = feriadosSet.has(item.data);
       if (isFeriado) diasFeriados += 1;
-      else if (isDomingo) diasFds += 1;
+      else if (isFds) diasFds += 1;
       else diasUteis += 1;
     }
   });
