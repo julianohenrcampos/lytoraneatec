@@ -1,5 +1,6 @@
 
 import React from "react";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import MainLayout from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { FileDown, Plus } from "lucide-react";
@@ -14,6 +15,7 @@ import { useCentrosCusto } from "@/hooks/useCentrosCusto";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const ApontamentoCaminhoes: React.FC = () => {
+  usePageTitle("Apontamento de C&E");
   useApontamentoCaminhoesInit();
   const { centrosCusto } = useCentrosCusto();
   const isMobile = useIsMobile();
@@ -51,7 +53,6 @@ const ApontamentoCaminhoes: React.FC = () => {
     <MainLayout>
       <div className="container mx-auto py-6 px-2 md:px-6">
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-slate-800 mb-4 sm:mb-0">Apontamento de C&E</h1>
           <div className="flex space-x-2 w-full sm:w-auto">
             <Button 
               onClick={() => handleOpenFormModal()}

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import MainLayout from "@/components/layout/MainLayout";
 import { ResponsiveContainer } from "@/components/layout/ResponsiveContainer";
 import { usePermissionGuard } from "@/hooks/usePermissionGuard";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import DashboardCBUQContent from "@/components/dashboard/cbuq/DashboardCBUQContent";
 import DashboardCBUQFilters from "@/components/dashboard/cbuq/DashboardCBUQFilters";
 
@@ -18,6 +19,7 @@ export interface CBUQFilters {
 }
 
 export default function DashboardRequisicoes() {
+  usePageTitle("Dashboard CBUQ");
   const [filters, setFilters] = useState<CBUQFilters>({
     periodo: "month"
   });
@@ -71,11 +73,7 @@ export default function DashboardRequisicoes() {
     <MainLayout>
       <ResponsiveContainer className="pt-6 pb-10">
         <div className="flex flex-col space-y-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Dashboard CBUQ</h1>
-              <p className="text-muted-foreground">Monitoramento de aplicações de CBUQ e logística</p>
-            </div>
+           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           </div>
 
           {/* Filtros Horizontais */}

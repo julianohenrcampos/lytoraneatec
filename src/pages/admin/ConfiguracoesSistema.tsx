@@ -30,7 +30,6 @@ const ConfiguracoesSistema: React.FC = () => {
           <Settings className="h-7 w-7 text-primary" />
           <div>
             <h1 className="text-2xl font-bold text-foreground">Configurações do Sistema</h1>
-            <p className="text-sm text-muted-foreground">Gerencie feature toggles e configurações globais</p>
           </div>
         </div>
 

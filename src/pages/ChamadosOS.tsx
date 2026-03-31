@@ -1,5 +1,6 @@
 
 import React, { useEffect, useState } from "react";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import MainLayout from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { FileDown, Plus } from "lucide-react";
@@ -14,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
 
 const ChamadosOS: React.FC = () => {
+  usePageTitle("Chamados para Ordem de Serviço");
   const [veiculosDropdown, setVeiculosDropdown] = useState<{ id: string; label: string }[]>([]);
   const [centrosCustoDropdown, setCentrosCustoDropdown] = useState<{ id: string; label: string, codigo_centro_custo?: string }[]>([]);
   const { toast } = useToast();
@@ -145,9 +147,6 @@ const ChamadosOS: React.FC = () => {
     <MainLayout>
       <div className="container mx-auto py-6">
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-slate-800 mb-4 sm:mb-0">
-            Chamados para Ordem de Serviço
-          </h1>
           <div className="flex space-x-2">
             <Button 
               onClick={() => handleOpenFormModal()}

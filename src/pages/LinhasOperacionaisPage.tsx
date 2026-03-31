@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -32,6 +33,7 @@ interface LinhaForm {
 const emptyForm: LinhaForm = { codigo: "", nome: "", descricao: "", cor_hex: "#FFD700", ativo: true };
 
 export default function LinhasOperacionaisPage() {
+  usePageTitle("Linhas Operacionais");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
@@ -107,10 +109,7 @@ export default function LinhasOperacionaisPage() {
     <MainLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Linhas Operacionais</h1>
-            <p className="text-muted-foreground">Gerencie as linhas operacionais do sistema</p>
-          </div>
+          <div></div>
           <Button onClick={openCreate} className="gap-2">
             <Plus className="h-4 w-4" /> Nova Linha
           </Button>

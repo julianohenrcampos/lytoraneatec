@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import MainLayout from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
@@ -8,6 +9,7 @@ import { useFluxos, useDeleteFluxo, useDuplicarFluxo } from "@/hooks/useFluxoCon
 import type { FluxoAprovacao } from "@/types/fluxoAprovacao";
 
 export default function GestaoFluxos() {
+  usePageTitle("Gestão de Fluxos de Aprovação");
   const { data: fluxos = [], isLoading } = useFluxos();
   const deleteFluxo = useDeleteFluxo();
   const duplicarFluxo = useDuplicarFluxo();
@@ -34,12 +36,7 @@ export default function GestaoFluxos() {
     <MainLayout>
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Gestão de Fluxos de Aprovação</h1>
-            <p className="text-sm text-muted-foreground">
-              Configure os fluxos de aprovação e vincule aos centros de custo.
-            </p>
-          </div>
+          <div></div>
           <Button onClick={handleNew}>
             <Plus className="h-4 w-4 mr-1" /> Novo Fluxo
           </Button>

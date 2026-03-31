@@ -34,6 +34,8 @@ import {
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 
 interface AppHeaderProps {
   user: any;
@@ -53,6 +55,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const { count: onlineCount, users: onlineUsers } = useOnlineUsers();
+  const { pageTitle } = usePageTitle();
 
   const displayUser = user || {
     nome_completo: "Usuário",
@@ -141,10 +144,13 @@ const AppHeader: React.FC<AppHeaderProps> = ({
       <div className="flex h-14 items-center justify-between px-4 lg:px-6">
         <div className="flex items-center gap-2">
           <SidebarTrigger />
-          <span className="font-semibold text-lg hidden sm:block">Sistema</span>
+          {pageTitle && (
+            <span className="font-semibold text-lg hidden sm:block truncate max-w-xs lg:max-w-md">{pageTitle}</span>
+          )}
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
+          <ThemeToggle />
           <NotificationBell />
           
           <Popover>

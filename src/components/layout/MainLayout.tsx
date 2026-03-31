@@ -1,5 +1,6 @@
 
 import React, { useEffect } from "react";
+import { useTheme } from "next-themes";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import AppHeader from "./AppHeader";
@@ -19,6 +20,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const { openGroups, setOpenGroups, toggleGroup } = useSidebarState();
   const { user, isLoading, updateUserImage } = useUserProfile();
   const isMobile = useIsMobile();
+  const { resolvedTheme } = useTheme();
   
   // Sincronizar permissões com contexto offline
   useOfflinePermissionsSync();
@@ -46,15 +48,15 @@ export default function MainLayout({ children }: MainLayoutProps) {
       'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover'
     );
     
-    // Adicionar meta theme-color para PWA
+    // Adicionar meta theme-color para PWA — dinâmico por tema
     let themeColorMeta = document.querySelector('meta[name="theme-color"]');
     if (!themeColorMeta) {
       themeColorMeta = document.createElement('meta');
       themeColorMeta.setAttribute('name', 'theme-color');
-      themeColorMeta.setAttribute('content', '#ffffff');
       document.head.appendChild(themeColorMeta);
     }
-  }, []);
+    themeColorMeta.setAttribute('content', resolvedTheme === 'dark' ? '#1A1A1A' : '#DD2C00');
+  }, [resolvedTheme]);
 
   console.log("MainLayout rendering, user:", user ? "loaded" : "not loaded");
 

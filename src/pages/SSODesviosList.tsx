@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import MainLayout from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { SSODesvioFiltersComponent, SSODesvioTable } from '@/components/ssoDesvios/list';
@@ -11,6 +12,7 @@ import { Plus, BarChart3, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function SSODesviosList() {
+  usePageTitle("Registro de Desvios – SSO");
   const navigate = useNavigate();
   const [filters, setFilters] = useState<SSODesvioFilters>({});
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -66,12 +68,7 @@ export default function SSODesviosList() {
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">REGISTRO DE DESVIOS – SSO</h1>
-            <p className="text-muted-foreground">
-              Segurança e Saúde do Trabalho – Não Conformidades e Riscos
-            </p>
-          </div>
+          <div></div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => navigate('/sso/checklists/dashboard')}>
               <BarChart3 className="h-4 w-4 mr-2" />

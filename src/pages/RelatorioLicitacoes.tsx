@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import { format } from "date-fns";
 import MainLayout from "@/components/layout/MainLayout";
 import { ptBR } from "date-fns/locale";
@@ -52,6 +53,7 @@ const formatCompactCurrency = (value: number) => {
 };
 
 export default function RelatorioLicitacoes() {
+  usePageTitle("Dashboard Estratégico de Licitações");
   const navigate = useNavigate();
 
   // Filtros
@@ -222,15 +224,7 @@ export default function RelatorioLicitacoes() {
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
-              <BarChart3 className="h-7 w-7 text-primary" />
-              Dashboard Estratégico de Licitações
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Inteligência para tomada de decisão comercial
-            </p>
-          </div>
+          <div></div>
           <Button variant="outline" onClick={() => navigate("/licitacoes/monitoramento-pncp")}>
             <Gavel className="h-4 w-4 mr-2" />
             Monitoramento

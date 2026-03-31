@@ -1,5 +1,6 @@
 
 import React, { useEffect, useState } from "react";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import MainLayout from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { FileDown, Wrench, CheckCircle, Plus } from "lucide-react";
@@ -18,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 const GestaoOrdemServico: React.FC = () => {
+  usePageTitle("Gestão de Ordens de Serviço");
   const { toast } = useToast();
   const { funcionarios } = useFuncionarios();
   const { veiculos } = useVeiculos();
@@ -113,9 +115,6 @@ const GestaoOrdemServico: React.FC = () => {
     <MainLayout>
       <div className="container mx-auto py-6">
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-slate-800 mb-4 sm:mb-0">
-            Gestão de Ordens de Serviço
-          </h1>
           <div className="flex space-x-2">
             <Button 
               onClick={handleExportToExcel}

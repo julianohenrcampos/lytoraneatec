@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import MainLayout from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +31,7 @@ interface MatchingExclusao {
 }
 
 export default function ConfiguracoesMatching() {
+  usePageTitle("Calibração do Matching Inteligente");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [novoTermo, setNovoTermo] = useState("");
@@ -132,15 +134,7 @@ export default function ConfiguracoesMatching() {
           <Button variant="ghost" size="icon" onClick={() => navigate("/monitoramento-pncp")}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Brain className="h-6 w-6 text-primary" />
-              Calibração do Matching Inteligente
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Ajuste pesos, exclusões e score mínimo sem alterar código
-            </p>
-          </div>
+            <div></div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">

@@ -374,7 +374,9 @@ export function SolicitacaoFormModal({
       valor_diaria_exclusiva: func.bd_funcoes.valor_diaria_exclusiva || undefined,
       valor_refeicao: func.bd_funcoes.valor_refeicao || 0,
       nome_funcionario: func.nome_completo,
-      nome_funcao: func.bd_funcoes.nome_funcao
+      nome_funcao: func.bd_funcoes.nome_funcao,
+      cpf: func.cpf || '',
+      matricula: func.matricula || ''
     };
 
     setConvocadosPre([...convocadosPre, novoConvocado]);
@@ -406,7 +408,9 @@ export function SolicitacaoFormModal({
         valor_diaria_exclusiva: func.bd_funcoes.valor_diaria_exclusiva || undefined,
         valor_refeicao: func.bd_funcoes.valor_refeicao || 0,
         nome_funcionario: func.nome_completo,
-        nome_funcao: func.bd_funcoes.nome_funcao
+        nome_funcao: func.bd_funcoes.nome_funcao,
+        cpf: func.cpf || '',
+        matricula: func.matricula || ''
       });
     }
 
@@ -478,7 +482,9 @@ export function SolicitacaoFormModal({
       valor_refeicao: c.valor_refeicao,
       nome_funcionario: c.nome_funcionario,
       nome_funcao: c.nome_funcao,
-      usar_diaria_exclusiva: c.usar_diaria_exclusiva || false
+      usar_diaria_exclusiva: c.usar_diaria_exclusiva || false,
+      cpf: c.cpf,
+      matricula: c.matricula
     })),
     responsavel_campo_id: responsavelCampoId || undefined,
     engenheiro_solicitante_id: engenheiroSolicitanteId || undefined

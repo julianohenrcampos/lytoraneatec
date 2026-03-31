@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import MainLayout from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { ClinicaDialog, ClinicasTable } from '@/components/ssoClinicas';
@@ -17,6 +18,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 const SSOClinicas: React.FC = () => {
+  usePageTitle("Clínicas / Locais de Atendimento");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | undefined>();
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -61,15 +63,7 @@ const SSOClinicas: React.FC = () => {
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Building2 className="h-6 w-6" />
-              Clínicas / Locais de Atendimento
-            </h1>
-            <p className="text-muted-foreground">
-              Gerencie as clínicas disponíveis para agendamento de exames
-            </p>
-          </div>
+          <div></div>
           {canCreate && (
             <Button onClick={handleNew}>
               <Plus className="h-4 w-4 mr-2" />

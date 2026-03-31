@@ -18,13 +18,13 @@ export const useSidebarState = () => {
     if (path === '/dashboard-rh') {
       initialState["Gestão de RH"] = true;
     } else if (path === '/dashboard-maquinas') {
-      initialState["Gestão de Máquinas"] = true;
+      initialState["Gestão Veic/Equip"] = true;
     } else if (path === '/dashboard-cbuq') {
       initialState["Requisições e Logística"] = true;
     } else if (path.includes('/gestao-rh/')) {
       initialState["Gestão de RH"] = true;
     } else if (path.includes('/gestao-maquinas/')) {
-      initialState["Gestão de Máquinas"] = true;
+      initialState["Gestão Veic/Equip"] = true;
     } else if (path.includes('/requisicoes/diarias/')) {
       initialState["Diárias"] = true;
     } else if (path.includes('/requisicoes/') || path.includes('/programacao-entrega') || path.includes('/registro-aplicacao') || path.includes('/relatorio-aplicacao-diaria')) {

@@ -141,10 +141,7 @@ export default function RhDashboardComplete() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Indicador de Segurança */}
-      <RhSecurityIndicator securityContext={securityContext} />
-
-      {/* Painel de Filtros com Botão de Refresh */}
+      {/* Painel de Filtros */}
       <div className="flex justify-between items-end gap-4">
         <div className="flex-1">
           <RhDashboardFilters
@@ -167,15 +164,6 @@ export default function RhDashboardComplete() {
             filtrosAtivos={filtrosAtivos}
           />
         </div>
-        <Button
-          onClick={forceRefreshFinancialData}
-          variant="outline"
-          size="sm"
-          className="flex items-center gap-2 self-end"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Refresh Cache
-        </Button>
       </div>
       
       {/* KPIs Principais com Novo Design */}

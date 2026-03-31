@@ -1,5 +1,6 @@
 
 import React, { useState } from "react";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import MainLayout from "@/components/layout/MainLayout";
@@ -16,6 +17,7 @@ import { useSecureApontamentoEquipe } from "@/hooks/useSecureApontamentoEquipe";
 import { useNavigate } from "react-router-dom";
 
 const SecureApontamentoEquipe: React.FC = () => {
+  usePageTitle("Apontamento de Equipe");
   const navigate = useNavigate();
   const [avaliacaoStatusMap] = useState(new Map());
   
@@ -71,12 +73,7 @@ const SecureApontamentoEquipe: React.FC = () => {
     <MainLayout>
       <div className="container mx-auto py-6 space-y-6 px-4 md:px-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Apontamento de Equipe (Seguro)</h1>
-            <p className="text-muted-foreground">
-              Sistema com controle de acesso por dados - você vê apenas o que tem permissão.
-            </p>
-          </div>
+          <div></div>
           <div className="flex gap-2 w-full sm:w-auto flex-row justify-end">
             {canCreateApontamento && allowedTeamIds.length > 0 && (
               <Button 

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import { useNavigate } from "react-router-dom";
 import { format, eachDayOfInterval, isWeekend, getDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -50,6 +51,7 @@ import type { FolhaPontoFuncionario } from "@/components/diarias/pdf/FolhaPontoP
 
 
 export default function DiariasApontamentoCampo() {
+  usePageTitle("Apontamento de Campo - Diárias");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { permissions, isSuperAdmin, isLoading: isLoadingPermissions } = useDynamicPermissions();
@@ -508,16 +510,7 @@ export default function DiariasApontamentoCampo() {
   return (
     <MainLayout>
       <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <ClipboardCheck className="h-6 w-6" />
-            Apontamento de Campo - Diárias
-          </h1>
-          <p className="text-muted-foreground">
-            Registre a presença e horários dos funcionários em campo
-          </p>
-        </div>
+        {/* Content */}
 
         {/* Filters */}
         <Card>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import MainLayout from '@/components/layout/MainLayout';
 import { useSSODashboard, DashboardFilters } from '@/hooks/sso/useSSODashboard';
 import { SSOKPICards } from '@/components/sso/dashboard/SSOKPICards';
@@ -10,8 +11,8 @@ import { SSOTopNaoConformidades } from '@/components/sso/dashboard/SSOTopNaoConf
 import { SSODashboardFilters } from '@/components/sso/dashboard/SSODashboardFilters';
 import { SSODashboardEmptyState } from '@/components/sso/dashboard/SSODashboardEmptyState';
 import { Skeleton } from '@/components/ui/skeleton';
-
 const SSODashboard = () => {
+  usePageTitle("Dashboard SSO");
   const [filters, setFilters] = useState<DashboardFilters>({});
   const { dashboardData, obrasStatus, isLoading } = useSSODashboard(filters);
 
@@ -19,12 +20,7 @@ const SSODashboard = () => {
     return (
       <MainLayout>
         <div className="container mx-auto py-6 space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold">Dashboard SSO</h1>
-            <p className="text-muted-foreground">
-              Análise de conformidade e tendências
-            </p>
-          </div>
+          <div></div>
 
           <Skeleton className="h-24 w-full" />
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -43,12 +39,7 @@ const SSODashboard = () => {
     return (
       <MainLayout>
         <div className="container mx-auto py-6 space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold">Dashboard SSO</h1>
-            <p className="text-muted-foreground">
-              Análise de conformidade e tendências
-            </p>
-          </div>
+          <div></div>
           <SSODashboardEmptyState />
         </div>
       </MainLayout>
@@ -58,12 +49,7 @@ const SSODashboard = () => {
   return (
     <MainLayout>
       <div className="container mx-auto py-6 space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Dashboard SSO</h1>
-          <p className="text-muted-foreground">
-            Análise de conformidade e tendências MTE_TAC
-          </p>
-        </div>
+        <div></div>
 
         {/* Filtros */}
         <SSODashboardFilters filters={filters} onFilterChange={setFilters} />

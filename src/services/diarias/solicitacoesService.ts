@@ -552,6 +552,8 @@ export async function adicionarFuncionarioConvocado(
     valor_refeicao?: number;
     nome_funcionario: string;
     nome_funcao: string;
+    cpf?: string;
+    matricula?: string;
   }
 ): Promise<void> {
   const { error } = await supabase.rpc('gerenciar_convocado_diaria', {

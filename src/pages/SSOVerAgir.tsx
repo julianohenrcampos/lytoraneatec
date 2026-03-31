@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import MainLayout from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { VerAgirFiltersComponent, VerAgirTable } from '@/components/ssoVerAgir/list';
@@ -12,6 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
 export default function SSOVerAgir() {
+  usePageTitle("Ver e Agir - Não Conformidade");
   const navigate = useNavigate();
   const [filters, setFilters] = useState<VerAgirFilters>({});
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -91,12 +93,7 @@ export default function SSOVerAgir() {
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">VER E AGIR - NÃO CONFORMIDADE</h1>
-            <p className="text-muted-foreground">
-              Registro de não conformidades com evidências e ação corretiva
-            </p>
-          </div>
+          <div></div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => navigate('/sso/checklists/dashboard')}>
               <BarChart3 className="h-4 w-4 mr-2" />

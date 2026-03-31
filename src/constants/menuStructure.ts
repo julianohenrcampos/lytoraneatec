@@ -24,6 +24,7 @@ import {
 
 export const menuStructure = [
   {
+    groupIcon: Users,
     title: "Gestão de RH",
     items: [
       {
@@ -95,7 +96,8 @@ export const menuStructure = [
     ]
   },
   {
-    title: "Gestão de Máquinas",
+    groupIcon: Truck,
+    title: "Gestão Veic/Equip",
     items: [
       {
         name: "Dashboard Máquinas",
@@ -145,17 +147,6 @@ export const menuStructure = [
         icon: Fuel,
         requiredPermission: "gestao_maquinas_relatorio_medicao_view"
       },
-    ]
-  },
-  {
-    title: "Gestão de Equipamentos",
-    items: [
-      {
-        name: "Linhas Operacionais",
-        href: "/gestao-maquinas/linhas-operacionais",
-        icon: Activity,
-        requiredPermission: "gestao_maquinas_caminhoes_view"
-      },
       {
         name: "Disponibilidade",
         href: "/gestao-maquinas/disponibilidade",
@@ -177,6 +168,7 @@ export const menuStructure = [
     ]
   },
   {
+    groupIcon: Package,
     title: "Requisições e Logística",
     items: [
       {
@@ -224,6 +216,7 @@ export const menuStructure = [
     ]
   },
   {
+    groupIcon: CalendarDays,
     title: "Diárias",
     items: [
       {
@@ -259,6 +252,7 @@ export const menuStructure = [
     ]
   },
   {
+    groupIcon: Gavel,
     title: "Licitações",
     items: [
       {
@@ -282,6 +276,7 @@ export const menuStructure = [
     ]
   },
   {
+    groupIcon: ShieldCheck,
     title: "SSO - Segurança",
     items: [
       {
@@ -311,6 +306,7 @@ export const menuStructure = [
     ]
   },
   {
+    groupIcon: Settings,
     title: "Administração",
     items: [
       {

@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import { format, eachDayOfInterval, isWeekend } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -67,6 +68,7 @@ import type { RelatorioFilters, RelatorioFolhaItem } from "@/types/diarias";
 import { Badge } from "@/components/ui/badge";
 
 export default function DiariasRelatorio() {
+  usePageTitle("Relatório de Diárias");
   const { permissions, isSuperAdmin, isLoading: isLoadingPermissions } = useDynamicPermissions();
   const hasPermission = (perm: string) => permissions.includes(perm);
 
@@ -806,10 +808,6 @@ export default function DiariasRelatorio() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Relatório de Diárias</h1>
-            <p className="text-muted-foreground">
-              Folha de ponto e controle de pagamentos
-            </p>
             <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm text-muted-foreground">
               <span><strong>Empresa:</strong> {filters.empresa_id ? empresas.find((e: any) => e.id === filters.empresa_id)?.nome_empresa || '—' : 'Todas'}</span>
               <span><strong>Centro de Custo:</strong> {centroCustoFilter.length > 0 ? centrosCusto.filter((c: any) => centroCustoFilter.includes(c.id)).map((c: any) => c.codigo_centro_custo).join(', ') : 'Todos'}</span>

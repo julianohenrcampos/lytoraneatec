@@ -12,6 +12,7 @@ import VeiculoHeaderActions from "./VeiculoHeaderActions";
 import GerenciarCategoriasModal from "./GerenciarCategoriasModal";
 import GerenciarSubcategoriasModal from "./GerenciarSubcategoriasModal";
 import GerenciarFrotasModal from "./GerenciarFrotasModal";
+import GerenciarLinhasOperacionaisModal from "./GerenciarLinhasOperacionaisModal";
 import { VeiculoFormData } from "@/types/veiculo";
 
 interface VeiculoPageProps {
@@ -23,6 +24,7 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
   const [isCategoriaModalOpen, setIsCategoriaModalOpen] = useState(false);
   const [isSubcategoriaModalOpen, setIsSubcategoriaModalOpen] = useState(false);
   const [isFrotaModalOpen, setIsFrotaModalOpen] = useState(false);
+  const [isLinhaOperacionalModalOpen, setIsLinhaOperacionalModalOpen] = useState(false);
   const {
     veiculos,
     isLoading,
@@ -89,6 +91,7 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
           onManageCategorias={() => setIsCategoriaModalOpen(true)}
           onManageSubcategorias={() => setIsSubcategoriaModalOpen(true)}
           onManageFrotas={() => setIsFrotaModalOpen(true)}
+          onManageLinhasOperacionais={() => setIsLinhaOperacionalModalOpen(true)}
         />
       </div>
       
@@ -162,6 +165,11 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
       <GerenciarFrotasModal
         isOpen={isFrotaModalOpen}
         onClose={() => setIsFrotaModalOpen(false)}
+      />
+
+      <GerenciarLinhasOperacionaisModal
+        isOpen={isLinhaOperacionalModalOpen}
+        onClose={() => setIsLinhaOperacionalModalOpen(false)}
       />
     </div>
   );

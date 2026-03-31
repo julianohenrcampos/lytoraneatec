@@ -29,7 +29,7 @@ export default defineConfig(({ mode }) => ({
         name: 'Lytorânea Construtora - Sistema ERP',
         short_name: 'LYTOTEC ERP',
         description: 'Sistema ERP completo para gestão de empresas de construção civil',
-        theme_color: '#3b82f6',
+        theme_color: '#DD2C00',
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait-primary',

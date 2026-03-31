@@ -149,6 +149,8 @@ export interface FuncionarioPreConvocado {
   nome_funcionario?: string;
   nome_funcao?: string;
   usar_diaria_exclusiva?: boolean; // Forçar diária exclusiva independente do dia
+  cpf?: string; // Snapshot para resiliência a ID órfão
+  matricula?: string; // Snapshot para resiliência a ID órfão
 }
 
 export interface SolicitacaoFormData {

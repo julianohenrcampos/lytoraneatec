@@ -338,42 +338,96 @@ export default function ApontamentoDiariasModal({
     return [];
   }, [solicitacao?.convocados_pre]);
 
-  // Buscar matricula e cpf dos funcionários para o PDF (convocados + avulsos)
-  const funcionarioIds = useMemo(() => {
-    const convIds = convocadosPre.map(c => c.funcionario_id);
-    const avulsoIds = Array.from(funcionariosAvulsos);
-    const allIds = new Set([...convIds, ...avulsoIds]);
-    return Array.from(allIds);
-  }, [convocadosPre, funcionariosAvulsos]);
-  const { data: funcionariosData = [] } = useQuery({
-    queryKey: ['funcionarios-matricula-cpf', funcionarioIds],
-    queryFn: async () => {
-      if (funcionarioIds.length === 0) return [];
-      const { data } = await supabase
-        .from('bd_funcionarios')
-        .select('id, nome_completo, matricula, cpf')
-        .in('id', funcionarioIds);
-      return data || [];
-    },
-    enabled: funcionarioIds.length > 0
-  });
-
   const [isPrinting, setIsPrinting] = useState(false);
+
+  // Normalizar nome para comparação (sem acento, lowercase, espaços únicos)
+  const normalizeName = (name: string): string => {
+    return name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
 
   const handleImprimirLista = async () => {
     if (!solicitacao || !centroCusto || !selectedDate) return;
     setIsPrinting(true);
     try {
+      // 1. Buscar matricula/CPF por ID direto
+      const ids = colaboradores.map(c => c.funcionario_id);
+      const { data: funcsData } = await supabase
+        .from('bd_funcionarios')
+        .select('id, nome_completo, matricula, cpf')
+        .in('id', ids);
+
+      // 2. Identificar colaboradores sem match por ID
+      const matchedIds = new Set((funcsData || []).map(f => f.id));
+      const orphanColabs = colaboradores.filter(c => !matchedIds.has(c.funcionario_id));
+
+      // 3. Para órfãos, buscar via RPC (SECURITY DEFINER) com fallback por nome
+      let rpcFuncionarios: any[] = [];
+      if (orphanColabs.length > 0) {
+        const PAGE_SIZE = 1000;
+        let page = 0;
+        while (true) {
+          const from = page * PAGE_SIZE;
+          const to = from + PAGE_SIZE - 1;
+          const { data } = await supabase.rpc('get_funcionarios_para_diarias').range(from, to);
+          if (!data || data.length === 0) break;
+          rpcFuncionarios = rpcFuncionarios.concat(data);
+          if (data.length < PAGE_SIZE) break;
+          page++;
+        }
+      }
+
+      // Buscar snapshots do convocados_pre para fallback final
+      const convocadosPreMap = new Map<string, FuncionarioPreConvocado>();
+      convocadosPre.forEach(c => convocadosPreMap.set(c.funcionario_id, c));
+
       const itens: ListaPresencaItem[] = colaboradores.map(colab => {
-        const func = funcionariosData.find(f => f.id === colab.funcionario_id);
+        const func = funcsData?.find(f => f.id === colab.funcionario_id);
+        
+        if (func) {
+          // Match por ID — caso ideal
+          return {
+            nome_completo: func.nome_completo || colab.nome_funcionario || '',
+            matricula: func.matricula || null,
+            cpf: func.cpf || '',
+            hora_entrada: colab?.hora_entrada || '',
+            hora_saida: colab?.hora_saida || '',
+          };
+        }
+
+        // Fallback: match por nome normalizado via RPC
+        const nomeNorm = normalizeName(colab.nome_funcionario || '');
+        if (nomeNorm && rpcFuncionarios.length > 0) {
+          const matches = rpcFuncionarios.filter(f => normalizeName(f.nome_completo || '') === nomeNorm);
+          if (matches.length === 1) {
+            return {
+              nome_completo: matches[0].nome_completo || colab.nome_funcionario || '',
+              matricula: matches[0].matricula || null,
+              cpf: matches[0].cpf || '',
+              hora_entrada: colab?.hora_entrada || '',
+              hora_saida: colab?.hora_saida || '',
+            };
+          }
+          if (matches.length > 1) {
+            console.warn(`[PDF] Nome ambíguo para "${colab.nome_funcionario}" — ${matches.length} correspondências. Usando snapshot.`);
+          }
+        }
+
+        // Fallback final: snapshot do convocados_pre
+        const snapshot = convocadosPreMap.get(colab.funcionario_id);
         return {
-          nome_completo: func?.nome_completo || colab.nome_funcionario || '',
-          matricula: func?.matricula || null,
-          cpf: func?.cpf || '',
+          nome_completo: colab.nome_funcionario || '',
+          matricula: snapshot?.matricula || null,
+          cpf: snapshot?.cpf || '',
           hora_entrada: colab?.hora_entrada || '',
           hora_saida: colab?.hora_saida || '',
         };
       });
+
       const ccLabel = `${centroCusto.codigo_centro_custo} - ${centroCusto.nome_centro_custo}`;
       const fileName = `Lista_Presenca_${solicitacao.numero_solicitacao}_${selectedDate}`;
       await generateListaPresencaPDF(solicitacao.numero_solicitacao, ccLabel, selectedDate, itens, fileName);
@@ -808,7 +862,9 @@ export default function ApontamentoDiariasModal({
         valor_diaria_exclusiva: valorDiariaExclusiva,
         valor_refeicao: funcao?.valor_refeicao || funcionario.valor_refeicao || 0,
         nome_funcionario: funcionario.nome_completo,
-        nome_funcao: nomeFuncao
+        nome_funcao: nomeFuncao,
+        cpf: funcionario.cpf || '',
+        matricula: funcionario.matricula || ''
       };
 
       await adicionarFuncionarioConvocado(solicitacao.id, novoConvocado);
@@ -896,7 +952,9 @@ export default function ApontamentoDiariasModal({
         valor_diaria_exclusiva: valorDiariaExclusiva,
         valor_refeicao: funcao?.valor_refeicao || funcionario.valor_refeicao || 0,
         nome_funcionario: funcionario.nome_completo,
-        nome_funcao: nomeFuncao
+        nome_funcao: nomeFuncao,
+        cpf: funcionario.cpf || '',
+        matricula: funcionario.matricula || ''
       };
 
       await adicionarFuncionarioConvocado(solicitacao.id, novoConvocado);

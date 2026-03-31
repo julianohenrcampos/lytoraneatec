@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import MainLayout from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +19,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Label } from "@/components/ui/label";
 import { useConfiguracaoSistema, useUpdateConfiguracao } from "@/hooks/useConfiguracaoSistema";
 export default function MonitoramentoPNCP() {
+  usePageTitle("Monitoramento de Licitações - PNCP");
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
@@ -192,15 +194,7 @@ export default function MonitoramentoPNCP() {
           <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
-              <Gavel className="h-7 w-7 text-primary" />
-              Monitoramento de Licitações - PNCP
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Licitações públicas de obras - configuração dinâmica
-            </p>
-          </div>
+          <div></div>
         </div>
         
         <div className="flex gap-2 flex-wrap items-center">

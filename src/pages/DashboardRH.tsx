@@ -5,6 +5,7 @@ import { ResponsiveContainer } from "@/components/layout/ResponsiveContainer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePermissionGuard } from "@/hooks/usePermissionGuard";
 import { useToast } from "@/hooks/use-toast";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 
 // Dashboard Sections
 import RhSection from "@/components/dashboard/RhSection";
@@ -17,6 +18,7 @@ type PeriodFilter = "day" | "week" | "month" | "all";
 
 export default function DashboardRH() {
   console.log("DashboardRH component rendering");
+  usePageTitle("Dashboard RH");
   const navigate = useNavigate();
   const [period, setPeriod] = useState<PeriodFilter>("day");
   const [isLoaded, setIsLoaded] = useState(false);
@@ -169,23 +171,6 @@ export default function DashboardRH() {
     <MainLayout>
       <ResponsiveContainer className="pt-6 pb-10">
         <div className="flex flex-col space-y-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Dashboard RH</h1>
-              <p className="text-muted-foreground">Visão geral dos indicadores de Recursos Humanos</p>
-            </div>
-            
-            {/* Period Selector */}
-            <Tabs defaultValue="day" value={period} onValueChange={(v) => setPeriod(v as PeriodFilter)} className="w-full sm:w-auto">
-              <TabsList className="grid grid-cols-4 w-full sm:w-[400px]">
-                <TabsTrigger value="day">Hoje</TabsTrigger>
-                <TabsTrigger value="week">Semana</TabsTrigger>
-                <TabsTrigger value="month">Mês</TabsTrigger>
-                <TabsTrigger value="all">Todos</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-
           {/* DASHBOARD RH COMPLETO */}
           <RhDashboardComplete />
 

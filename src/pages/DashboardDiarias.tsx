@@ -6,8 +6,10 @@ import { startOfMonth, endOfMonth } from "date-fns";
 import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
 import { useDiariasDataScope } from "@/hooks/diarias";
 import { Loader2 } from "lucide-react";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 
 export default function DashboardDiarias() {
+  usePageTitle("Dashboard de Diárias");
   const { isSuperAdmin, permissions, isLoading: isLoadingPermissions } = useDynamicPermissions();
   const { userScope, isLoading: isLoadingScope } = useDiariasDataScope();
   
@@ -60,9 +62,6 @@ export default function DashboardDiarias() {
       <div className="space-y-6">
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl font-bold text-foreground">Dashboard de Diárias</h1>
-          <p className="text-muted-foreground">
-            Análise consolidada de diárias de finais de semana e feriados
-          </p>
         </div>
 
         <DashboardDiariasFilters 

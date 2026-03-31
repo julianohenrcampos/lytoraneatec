@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import MainLayout from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,6 +16,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 const GestaoDesligamentos = () => {
+  usePageTitle("Gestão de Desligamentos");
   const { desligamentos, isLoading, createDesligamento, cancelDesligamento } = useDesligamentos();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -55,11 +57,7 @@ const GestaoDesligamentos = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <UserMinus className="h-8 w-8 text-destructive" />
-          <div>
-            <h1 className="text-2xl font-bold">Gestão de Desligamentos</h1>
-            <p className="text-sm text-muted-foreground">Controle de desligamentos e aviso prévio</p>
-          </div>
+          <div></div>
         </div>
         <Button onClick={() => setDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-2" /> Novo Desligamento

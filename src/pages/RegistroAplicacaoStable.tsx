@@ -1,5 +1,6 @@
 
 import React, { useState, useCallback, useMemo } from "react";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import { useQuery } from "@tanstack/react-query";
 import MainLayout from "@/components/layout/MainLayout";
 import { useToast } from "@/hooks/use-toast";
@@ -18,6 +19,7 @@ import EntregasEnviadasTable from "@/components/registro-aplicacao/EntregasEnvia
 import NovoRegistroAplicacaoModal from "@/components/registro-aplicacao/NovoRegistroAplicacaoModal";
 
 const RegistroAplicacaoStable: React.FC = () => {
+  usePageTitle("Registro de Aplicação");
   const { toast } = useToast();
   
   // Estados consolidados
@@ -147,10 +149,7 @@ const RegistroAplicacaoStable: React.FC = () => {
     <MainLayout>
       <div className="container py-6">
         <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800">Registro de Aplicação</h1>
-            <p className="text-muted-foreground">Selecione uma entrega para registrar a aplicação</p>
-          </div>
+          <div></div>
           <div className="flex gap-2">
             <Button 
               onClick={handleRefresh} 

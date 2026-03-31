@@ -4,6 +4,7 @@ import MainLayout from "@/components/layout/MainLayout";
 import { ResponsiveContainer } from "@/components/layout/ResponsiveContainer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePermissionGuard } from "@/hooks/usePermissionGuard";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 
 // Dashboard Sections
 import RhSection from "@/components/dashboard/RhSection";
@@ -15,6 +16,7 @@ type PeriodFilter = "day" | "week" | "month" | "all";
 
 export default function Dashboard1() {
   console.log("Dashboard1 component rendering");
+  usePageTitle("Dashboard Geral");
   const navigate = useNavigate();
   const [period, setPeriod] = useState<PeriodFilter>("day");
   const [isLoaded, setIsLoaded] = useState(false);
@@ -136,11 +138,8 @@ export default function Dashboard1() {
     <MainLayout>
       <ResponsiveContainer className="pt-6 pb-10">
         <div className="flex flex-col space-y-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Dashboard 1</h1>
-              <p className="text-muted-foreground">Visão geral dos principais indicadores do sistema</p>
-            </div>
+           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div></div>
             
             {/* Period Selector */}
             <Tabs defaultValue="day" value={period} onValueChange={(v) => setPeriod(v as PeriodFilter)} className="w-full sm:w-auto">

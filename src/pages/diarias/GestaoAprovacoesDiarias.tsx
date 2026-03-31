@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import MainLayout from "@/components/layout/MainLayout";
 import { RefreshCw, X, Clock, FileCheck, Shield, CheckCircle2, CalendarIcon, Filter, FileText, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
@@ -116,6 +117,7 @@ function MobileSkeleton() {
 // ── Main Page ──
 
 export default function GestaoAprovacoesDiarias() {
+  usePageTitle("Gestão de Aprovações de Diárias");
   const isMobile = useIsMobile();
   const [centroCusto, setCentroCusto] = useState("");
   const [status, setStatus] = useState("");
@@ -311,14 +313,7 @@ export default function GestaoAprovacoesDiarias() {
       <div className="max-w-[1400px] mx-auto px-4 md:px-8 py-8 space-y-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-              Gestão de Aprovações de Diárias
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Controle e aprovação por etapa do fluxo
-            </p>
-          </div>
+          <div></div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="gap-2" onClick={() => refetch()}>
               <RefreshCw className="h-4 w-4" />

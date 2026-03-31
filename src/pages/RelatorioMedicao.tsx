@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import { addDays, format, parse, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { FileDown, FileText, BarChart3, X, Download } from "lucide-react";
@@ -81,6 +82,7 @@ interface GroupedDataItem {
 }
 
 const RelatorioMedicao: React.FC = () => {
+  usePageTitle("Relatório de Medição");
   const [vehicleType, setVehicleType] = useState<string>("");
   const [selectedVehicle, setSelectedVehicle] = useState<string>("");
   const [desmobilizacao, setDesmobilizacao] = useState<boolean>(false);
@@ -901,7 +903,6 @@ const RelatorioMedicao: React.FC = () => {
     <MainLayout>
       <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-3xl font-bold tracking-tight">Relatório de Medição</h2>
         </div>
         
         <Card>

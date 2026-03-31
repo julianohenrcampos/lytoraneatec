@@ -5,197 +5,194 @@ import { cn } from "@/lib/utils";
 import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
 import { menuStructure } from "@/constants/menuStructure";
 import { useDiariasPendentes } from "@/hooks/diarias/useDiariasPendentes";
+import { ChevronRight } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
-  SidebarMenuItem } from
-"@/components/ui/sidebar";
+  SidebarMenuItem,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { APP_VERSION } from "@/lib/version";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const location = useLocation();
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
   const { isSuperAdmin, userRole, permissions, isLoading } = useDynamicPermissions();
   const { count: pendentesCount } = useDiariasPendentes();
 
-  console.log('🎯 SIDEBAR DEBUG - Estado atual DINÂMICO:', {
-    isLoading,
-    isSuperAdmin,
-    userRole,
-    permissions,
-    permissionsCount: permissions?.length || 0,
-    currentPath: location.pathname
-  });
-
-  // Função para verificar se pode acessar um item baseado nas permissões dinâmicas
   const canAccessItem = (item: any) => {
-    console.log(`🔍 Verificando acesso DINÂMICO para: ${item.name}`);
-
-    // 🚀 REGRA ABSOLUTA: SuperAdmin pode ver TUDO
-    if (isSuperAdmin) {
-      console.log(`🔓 SuperAdmin - Acesso TOTAL para: ${item.name}`);
-      return true;
-    }
-
-    // 🔓 Se não há permissão requerida, permitir acesso (itens públicos como Dashboard)
-    if (!item.requiredPermission && !item.requiredPermissions?.length) {
-      console.log(`🔓 Item público - Acesso para: ${item.name}`);
-      return true;
-    }
-
-    // Verificar permissão específica requerida
-    if (item.requiredPermission) {
-      const hasPermission = permissions.includes(item.requiredPermission);
-      console.log(`${hasPermission ? '✅' : '❌'} Permissão dinâmica "${item.requiredPermission}" para "${item.name}": ${hasPermission}`);
-      return hasPermission;
-    }
-
-    // Verificar múltiplas permissões (se pelo menos uma for atendida)
+    if (isSuperAdmin) return true;
+    if (!item.requiredPermission && !item.requiredPermissions?.length) return true;
+    if (item.requiredPermission) return permissions.includes(item.requiredPermission);
     if (item.requiredPermissions?.length) {
-      const hasAnyPermission = item.requiredPermissions.some((perm: string) => permissions.includes(perm));
-      console.log(`${hasAnyPermission ? '✅' : '❌'} Alguma permissão dinâmica de ${JSON.stringify(item.requiredPermissions)} para "${item.name}": ${hasAnyPermission}`);
-      return hasAnyPermission;
+      return item.requiredPermissions.some((perm: string) => permissions.includes(perm));
     }
-
-    console.log(`❌ Sem critério de acesso definido para: ${item.name}`);
     return false;
   };
 
-  const getVisibleItems = (items: any[]) => {
-    const visibleItems = items.filter(canAccessItem);
-    console.log(`📋 Itens visíveis no grupo (DINÂMICO):`, visibleItems.map((item) => item.name));
-    return visibleItems;
-  };
-
   const getVisibleGroups = () => {
-    const visibleGroups = menuStructure.
-    map((group) => ({
-      ...group,
-      items: getVisibleItems(group.items)
-    })).
-    filter((group) => group.items.length > 0);
-
-    console.log(`📋 Grupos visíveis (DINÂMICO):`, visibleGroups.map((g) => `${g.title} (${g.items.length} itens)`));
-    return visibleGroups;
+    return menuStructure
+      .map((group) => ({
+        ...group,
+        items: group.items.filter(canAccessItem),
+      }))
+      .filter((group) => group.items.length > 0);
   };
 
   const visibleGroups = getVisibleGroups();
 
-  // Auto-scroll para o grupo que contém a rota ativa
-  React.useEffect(() => {
-    if (isLoading) return;
-    const activeGroup = visibleGroups.find((group) =>
-    group.items.some((item) => location.pathname === item.href)
-    );
-    if (activeGroup) {
-      const groupElement = document.querySelector(
-        `[data-sidebar-group="${activeGroup.title}"]`
-      );
-      if (groupElement) {
-        setTimeout(() => {
-          groupElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }, 100);
-      }
-    }
-  }, [location.pathname, isLoading]);
-
-  // Loading state
   if (isLoading) {
     return (
-      <Sidebar {...props}>
+      <Sidebar collapsible="icon" {...props}>
         <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupLabel>Carregando permissões...</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <div className="flex items-center justify-center p-4">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                <span className="ml-2 text-sm">Sistema dinâmico...</span>
-              </div>
-            </SidebarGroupContent>
-          </SidebarGroup>
+          <div className="flex items-center justify-center p-4">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-sidebar-primary"></div>
+          </div>
         </SidebarContent>
-      </Sidebar>);
-
-  }
-
-  console.log('🎯 RESULTADO FINAL - Renderizando sidebar DINÂMICO:', {
-    isSuperAdmin,
-    userRole,
-    totalGroups: visibleGroups.length,
-    groupDetails: visibleGroups.map((g) => `${g.title}: ${g.items.length} itens`)
-  });
-
-  // Se não tem grupos visíveis, mostrar apenas Dashboard básico
-  if (visibleGroups.length === 0) {
-    console.log('⚠️ Nenhum grupo visível - aplicando fallback básico DINÂMICO');
-    return (
-      <Sidebar {...props}>
-        <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupLabel>Menu Básico</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location.pathname === '/dashboard'}>
-                    <Link to="/dashboard">
-                      <span>Dashboard</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarContent>
-      </Sidebar>);
-
+      </Sidebar>
+    );
   }
 
   return (
-    <Sidebar {...props}>
-      <SidebarContent>
-        {visibleGroups.map((group, index) =>
-        <SidebarGroup key={index} data-sidebar-group={group.title}>
-            <SidebarGroupLabel>{group.title}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {group.items.map((item) => {
-                const isPendenteSolicitacoes = item.href === '/requisicoes/diarias/solicitacoes' && pendentesCount > 0;
-                return (
-                  <SidebarMenuItem key={item.name}>
-                    <SidebarMenuButton asChild isActive={location.pathname === item.href}>
-                      <Link to={item.href} className={cn(
-                        "relative",
-                        isPendenteSolicitacoes && "animate-pulse"
-                      )}>
-                        
-                        <span className={cn(isPendenteSolicitacoes && "text-orange-600 font-semibold")}>{item.name}</span>
-                        {isPendenteSolicitacoes
-
-
-
-                        }
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>);
-
-              })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-        <SidebarFooter className="border-t border-sidebar-border mt-auto">
-          <div className="flex items-center justify-center py-2 px-3">
-            <span className="text-xs text-muted-foreground">
-              v{APP_VERSION}
+    <Sidebar collapsible="icon" {...props}>
+      {/* Header */}
+      <SidebarHeader className="border-b border-sidebar-border px-3 py-3">
+        <div className="flex items-center gap-2">
+          <img
+            src="/colorida.ico"
+            alt="Lytorânea"
+            className="h-8 w-8 shrink-0 rounded-md block dark:hidden"
+          />
+          <img
+            src="/branca.ico"
+            alt="Lytorânea"
+            className="h-8 w-8 shrink-0 rounded-md hidden dark:block"
+          />
+          {!isCollapsed && (
+            <span className="text-sm font-semibold text-sidebar-foreground truncate">
+              Lytorânea
             </span>
-          </div>
-        </SidebarFooter>
-      </SidebarContent>
-    </Sidebar>);
+          )}
+        </div>
+      </SidebarHeader>
 
+      {/* Content */}
+      <SidebarContent className="px-2 py-2">
+        {visibleGroups.map((group, index) => {
+          const GroupIcon = group.groupIcon;
+          const hasActiveChild = group.items.some(
+            (item) => location.pathname === item.href
+          );
+
+          // Mini mode: show only group icon with tooltip
+          if (isCollapsed) {
+            return (
+              <SidebarGroup key={index} className="p-0">
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={hasActiveChild}
+                          className="h-9 w-9 p-0 flex items-center justify-center mx-auto"
+                        >
+                          <Link to={group.items[0]?.href || "#"}>
+                            {GroupIcon && (
+                              <GroupIcon className={cn(
+                                "h-4 w-4",
+                                hasActiveChild && "text-sidebar-primary"
+                              )} />
+                            )}
+                          </Link>
+                        </SidebarMenuButton>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="font-medium">
+                        {group.title}
+                      </TooltipContent>
+                    </Tooltip>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroup>
+            );
+          }
+
+          // Expanded mode: collapsible accordion groups
+          return (
+            <Collapsible key={index} defaultOpen={hasActiveChild} className="group/collapsible">
+              <SidebarGroup className="p-0">
+                <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors">
+                  {GroupIcon && <GroupIcon className="h-4 w-4 shrink-0" />}
+                  <span className="flex-1 text-left truncate">{group.title}</span>
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                </CollapsibleTrigger>
+
+                <CollapsibleContent>
+                  <SidebarGroupContent>
+                    <SidebarMenu className="mt-1 ml-2 border-l border-sidebar-border/50 pl-2">
+                      {group.items.map((item) => {
+                        const isActive = location.pathname === item.href;
+                        const isPendente =
+                          item.href === "/requisicoes/diarias/solicitacoes" &&
+                          pendentesCount > 0;
+
+                        return (
+                          <SidebarMenuItem key={item.name}>
+                            <SidebarMenuButton
+                              asChild
+                              isActive={isActive}
+                              className={cn(
+                                "text-sm h-8",
+                                isActive && "border-l-2 border-sidebar-primary -ml-[calc(0.5rem+1px)] pl-[calc(0.5rem+1px)] bg-sidebar-accent text-sidebar-foreground font-medium",
+                                isPendente && "animate-pulse"
+                              )}
+                            >
+                              <Link to={item.href}>
+                                <span className={cn(
+                                  "truncate",
+                                  isPendente && "text-destructive font-semibold"
+                                )}>
+                                  {item.name}
+                                </span>
+                              </Link>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        );
+                      })}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </CollapsibleContent>
+              </SidebarGroup>
+            </Collapsible>
+          );
+        })}
+      </SidebarContent>
+
+      {/* Footer */}
+      <SidebarFooter className="border-t border-sidebar-border">
+        <div className="flex items-center justify-center py-2 px-3">
+          <span className="text-xs text-sidebar-foreground/40">
+            v{APP_VERSION}
+          </span>
+        </div>
+      </SidebarFooter>
+    </Sidebar>
+  );
 }

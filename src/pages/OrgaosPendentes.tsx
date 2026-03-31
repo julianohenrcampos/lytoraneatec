@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import MainLayout from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +21,7 @@ import TablePagination from "@/components/ui/table-pagination";
 import { usePagination } from "@/hooks/usePagination";
 
 export default function OrgaosPendentes() {
+  usePageTitle("Órgãos Pendentes de Classificação");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -132,15 +134,7 @@ export default function OrgaosPendentes() {
             <Button variant="ghost" size="icon" onClick={() => navigate("/licitacoes/monitoramento-pncp")}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
-                <Building2 className="h-7 w-7 text-primary" />
-                Órgãos Pendentes de Classificação
-              </h1>
-              <p className="text-muted-foreground mt-1">
-                Revise e classifique órgãos não reconhecidos automaticamente
-              </p>
-            </div>
+            <div></div>
           </div>
           {totalPendentes > 0 && (
             <Badge variant="warning" className="text-sm px-3 py-1">

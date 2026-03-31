@@ -157,15 +157,6 @@ const portalModules = [
   route: "/gestao-maquinas/solicitacoes-equipamentos",
   permission: "gestao_maquinas_caminhoes_view",
   color: "hsl(260, 55%, 50%)"
-},
-{
-  id: "linhas-operacionais",
-  title: "Linhas Operacionais",
-  description: "Gestão de Linhas",
-  icon: Activity,
-  route: "/gestao-maquinas/linhas-operacionais",
-  permission: "gestao_maquinas_caminhoes_view",
-  color: "hsl(45, 80%, 45%)"
 }];
 
 

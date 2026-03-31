@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import { useNavigate } from "react-router-dom";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -201,6 +202,7 @@ export default function DiariasSolicitacoes() {
   }
 
   // Handlers
+  usePageTitle("Solicitações de Diária");
   const handleOpenForm = (solicitacao?: DiariaSolicitacao) => {
     setEditingSolicitacao(solicitacao || null);
     setIsFormOpen(true);
@@ -334,12 +336,7 @@ export default function DiariasSolicitacoes() {
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Solicitações de Diária</h1>
-            <p className="text-muted-foreground">
-              Gerencie solicitações de diária para fins de semana e feriados
-            </p>
-          </div>
+          <div></div>
           {canCreateSolicitacao && (
             <Button onClick={() => handleOpenForm()}>
               <Plus className="h-4 w-4 mr-2" />

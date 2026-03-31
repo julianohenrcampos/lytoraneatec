@@ -5,6 +5,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import GlobalErrorBoundary from "@/components/error/GlobalErrorBoundary";
 import { useBodyPointerEvents } from "@/hooks/useBodyPointerEvents";
+import { PageTitleProvider } from "@/contexts/PageTitleContext";
 
 // Simple Auth Components
 import SimpleAuthGuard from "@/components/routing/SimpleAuthGuard";
@@ -107,8 +108,9 @@ const App = () => {
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           <TooltipProvider>
             <Sonner />
+            <PageTitleProvider>
             <BrowserRouter>
-              <Routes>
+               <Routes>
                 {/* Rotas públicas */}
                 <Route path="/login" element={<SimpleLogin />} />
                 <Route path="/register" element={<Register />} />
@@ -521,14 +523,6 @@ const App = () => {
               </SimpleAuthGuard>
             } />
             
-            {/* Linhas Operacionais */}
-            <Route path="/gestao-maquinas/linhas-operacionais" element={
-              <SimpleAuthGuard>
-                <SimplePermissionGuard>
-                  <LinhasOperacionaisPage />
-                </SimplePermissionGuard>
-              </SimpleAuthGuard>
-            } />
             
             {/* Admin - Configurações do Sistema */}
             <Route path="/admin/configuracoes-sistema" element={
@@ -546,6 +540,7 @@ const App = () => {
               <PWAUpdateNotification />
               
             </BrowserRouter>
+            </PageTitleProvider>
           </TooltipProvider>
         </ThemeProvider>
       </QueryClientProvider>
