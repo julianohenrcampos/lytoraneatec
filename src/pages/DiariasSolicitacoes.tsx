@@ -106,6 +106,7 @@ function StatusBadge({ status }: { status: StatusSolicitacao }) {
 }
 
 export default function DiariasSolicitacoes() {
+  usePageTitle("Solicitações de Diária");
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const { permissions, userId, isSuperAdmin, isLoading: isLoadingPermissions } = useDynamicPermissions();
@@ -202,7 +203,6 @@ export default function DiariasSolicitacoes() {
   }
 
   // Handlers
-  usePageTitle("Solicitações de Diária");
   const handleOpenForm = (solicitacao?: DiariaSolicitacao) => {
     setEditingSolicitacao(solicitacao || null);
     setIsFormOpen(true);
