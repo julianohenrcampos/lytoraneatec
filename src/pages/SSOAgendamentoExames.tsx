@@ -1,5 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import MainLayout from '@/components/layout/MainLayout';
+import { isWithinBrazilianBusinessHours, getCurrentBrazilianTime } from '@/utils/timezoneUtils';
+import { useConfiguracaoSistema, useUpdateConfiguracao } from '@/hooks/useConfiguracaoSistema';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Clock, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AgendamentoExamesFilters, AgendamentoExamesTable } from '@/components/ssoAgendamentoExames/list';
 import { BulkActionBar } from '@/components/ssoAgendamentoExames/list/BulkActionBar';
@@ -73,10 +77,18 @@ const SSOAgendamentoExames: React.FC = () => {
   } = useAgendamentoExames(undefined, filters);
   const { isSuperAdmin, userRole } = useAuthPermissions();
 
-  const canCreate = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO', 'JovemAdm', 'EnferAdm', 'TecSSO', 'AdmTec', 'AdmtreinoSSO'].includes(userRole || '');
-  const canEdit = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO', 'AdmtreinoSSO'].includes(userRole || '');
+  // Bloqueio de horário (6h-16h BRT)
+  const dentroDoHorario = isWithinBrazilianBusinessHours(6, 16);
+  const { data: desbloqueioConfig, isLoading: isLoadingConfig } = useConfiguracaoSistema('desbloqueio_horario_agendamento_exames');
+  const updateConfiguracao = useUpdateConfiguracao();
+  const desbloqueioAtivo = desbloqueioConfig === 'true';
+  const podeAgendar = dentroDoHorario || desbloqueioAtivo;
+  const horarioAtual = getCurrentBrazilianTime();
+
+  const canCreate = (isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO', 'JovemAdm', 'EnferAdm', 'TecSSO', 'AdmTec', 'AdmtreinoSSO'].includes(userRole || '')) && podeAgendar;
+  const canEdit = (isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO', 'AdmtreinoSSO'].includes(userRole || '')) && podeAgendar;
   const canDelete = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA'].includes(userRole || '');
-  const canChangeStatus = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO', 'ConsultaExames', 'AdmtreinoSSO'].includes(userRole || '');
+  const canChangeStatus = (isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO', 'ConsultaExames', 'AdmtreinoSSO'].includes(userRole || '')) && podeAgendar;
   
   // Permissões granulares por coluna
   const canChangeStatusExame = isSuperAdmin || ['SuperAdm', 'TecEnferSSO'].includes(userRole || '');
@@ -372,6 +384,38 @@ const SSOAgendamentoExames: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* Alerta de bloqueio de horário */}
+        {!dentroDoHorario && (
+          <Alert variant={desbloqueioAtivo ? 'default' : 'destructive'} className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {desbloqueioAtivo ? <Clock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+              <AlertDescription>
+                {desbloqueioAtivo
+                  ? `Horário fora do expediente (${horarioAtual} BRT) — desbloqueio ativo temporariamente.`
+                  : `Agendamentos bloqueados fora do horário comercial (6h-16h BRT). Horário atual: ${horarioAtual}.`}
+              </AlertDescription>
+            </div>
+            {isSuperAdmin && (
+              <div className="flex items-center gap-2 ml-4">
+                <Switch
+                  id="desbloqueio-horario"
+                  checked={desbloqueioAtivo}
+                  disabled={updateConfiguracao.isPending}
+                  onCheckedChange={(checked) => {
+                    updateConfiguracao.mutate({
+                      chave: 'desbloqueio_horario_agendamento_exames',
+                      valor: checked ? 'true' : 'false',
+                    });
+                  }}
+                />
+                <Label htmlFor="desbloqueio-horario" className="text-sm cursor-pointer whitespace-nowrap">
+                  Desbloquear
+                </Label>
+              </div>
+            )}
+          </Alert>
+        )}
 
         {/* Filters */}
         <AgendamentoExamesFilters
