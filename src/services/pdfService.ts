@@ -8,10 +8,6 @@ import { SolicitacaoPDFDocument } from '@/components/diarias/pdf/SolicitacaoPDFD
 import { CompiladoDiariasPDF } from '@/components/diarias/pdf/CompiladoDiariasPDF';
 import { ListaPresencaPDFDocument } from '@/components/diarias/pdf/ListaPresencaPDF';
 import type { ListaPresencaItem } from '@/components/diarias/pdf/ListaPresencaPDF';
-import { RelatorioDiariasPDF } from '@/components/diarias/pdf/RelatorioDiariasPDF';
-import { RelatorioDiariasPDFDetalhado } from '@/components/diarias/pdf/RelatorioDiariasPDFDetalhado';
-import { RelatorioDiariasPDFConsolidado } from '@/components/diarias/pdf/RelatorioDiariasPDFConsolidado';
-import type { RelatorioDiariasPDFConsolidadoProps } from '@/components/diarias/pdf/RelatorioDiariasPDFConsolidado';
 import { RelatorioDiariasPDFPorPeriodo } from '@/components/diarias/pdf/RelatorioDiariasPDFPorPeriodo';
 import type { RelatorioDiariasPDFPorPeriodoProps } from '@/components/diarias/pdf/RelatorioDiariasPDFPorPeriodo';
 import { FolhaPontoPDFDocument } from '@/components/diarias/pdf/FolhaPontoPDF';
@@ -330,99 +326,8 @@ export const generateSolicitacaoPDF = async (
 // DIÁRIAS PDF - Relatório de Folha
 // =====================================================
 
-export const generateRelatorioDiariasPDF = async (
-  relatorio: RelatorioFolhaItem[],
-  resumo: PresencaResumo,
-  filtros: RelatorioFilters,
-  feriados: string[],
-  fileName: string,
-  extras?: {
-    engenheiroSolicitante?: string;
-    gerenteRegional?: string;
-  }
-): Promise<void> => {
-  try {
-    // Carregar logo como base64
-    const logoUrl = await loadImageAsBase64('/lyto-uploads/dcf6c980-f927-4180-b109-b425da1323ba.png');
-    
-    // Criar o documento React-PDF
-    const doc = createElement(RelatorioDiariasPDF, {
-      relatorio,
-      resumo,
-      filtros,
-      feriados,
-      logoUrl: logoUrl || undefined,
-      engenheiroSolicitante: extras?.engenheiroSolicitante,
-      gerenteRegional: extras?.gerenteRegional
-    });
-    
-    // Gerar o blob do PDF
-    const blob = await pdf(doc as any).toBlob();
-    
-    // Fazer download
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${fileName}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  } catch (error) {
-    console.error('Erro ao gerar PDF de relatório de diárias:', error);
-    throw error;
-  }
-};
-
-// =====================================================
-// DIÁRIAS PDF - Relatório Detalhado por Empresa
-// =====================================================
-
-export const generateRelatorioDiariasPDFDetalhado = async (
-  relatorio: RelatorioFolhaItem[],
-  resumo: PresencaResumo,
-  filtros: RelatorioFilters,
-  feriados: string[],
-  fileName: string,
-  extras?: {
-    engenheiroSolicitante?: string;
-    gerenteRegional?: string;
-  }
-): Promise<void> => {
-  try {
-    const defaultLogoUrl = await loadImageAsBase64('/lyto-uploads/dcf6c980-f927-4180-b109-b425da1323ba.png');
-    
-    // Fetch empresa logos for per-empresa headers
-    const logoMap = await fetchEmpresaLogosMap(relatorio);
-    
-    const doc = createElement(RelatorioDiariasPDFDetalhado, {
-      relatorio,
-      resumo,
-      filtros,
-      feriados,
-      logoUrl: defaultLogoUrl || undefined,
-      logoMap: Object.keys(logoMap).length > 0 ? logoMap : undefined,
-      engenheiroSolicitante: extras?.engenheiroSolicitante,
-      gerenteRegional: extras?.gerenteRegional
-    });
-    
-    const blob = await pdf(doc as any).toBlob();
-    
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${fileName}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  } catch (error) {
-    console.error('Erro ao gerar PDF detalhado por empresa:', error);
-    throw error;
-  }
-};
-
-// =====================================================
+// generateRelatorioDiariasPDF e generateRelatorioDiariasPDFDetalhado removidos
+// Usar generateRelatorioDiariasPDFConsolidado ou generateRelatorioDiariasPDFPorPeriodo
 // DIÁRIAS PDF - Lista de Presença para Assinatura
 // =====================================================
 
@@ -549,49 +454,6 @@ export const generateFolhaPontoPDF = async (
   }
 };
 
-// =====================================================
-// DIÁRIAS PDF - Relatório Consolidado (Empresa → Gerente → Vínculo → CC)
-// =====================================================
-
-export const generateRelatorioDiariasPDFConsolidado = async (
-  relatorio: RelatorioFolhaItem[],
-  filtros: RelatorioFilters,
-  feriados: string[],
-  fileName: string,
-  extras: {
-    centrosCustoInfo: RelatorioDiariasPDFConsolidadoProps['centrosCustoInfo'];
-    gerentesMap: Record<string, string>;
-    diretoresMap: Record<string, string>;
-  }
-): Promise<void> => {
-  try {
-    const logoUrl = await loadImageAsBase64('/lyto-uploads/dcf6c980-f927-4180-b109-b425da1323ba.png');
-
-    const doc = createElement(RelatorioDiariasPDFConsolidado, {
-      relatorio,
-      filtros,
-      feriados,
-      logoUrl: logoUrl || undefined,
-      centrosCustoInfo: extras.centrosCustoInfo,
-      gerentesMap: extras.gerentesMap,
-      diretoresMap: extras.diretoresMap,
-    });
-
-    const blob = await pdf(doc as any).toBlob();
-
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${fileName}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  } catch (error) {
-    console.error('Erro ao gerar PDF consolidado:', error);
-    throw error;
-  }
-};
 
 // =====================================================
 // DIÁRIAS PDF - Detalhado por Período (blocos simples)

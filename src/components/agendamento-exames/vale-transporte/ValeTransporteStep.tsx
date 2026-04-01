@@ -8,6 +8,7 @@ import { ValeTransporteForm, ValeTransporteFormData } from './ValeTransporteForm
 import { NaoBeneficiarioForm, NaoBeneficiarioFormData } from './NaoBeneficiarioForm';
 import { CardUpload } from './CardUpload';
 import { EnderecoEstruturado } from './ValeTransporteForm';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface ValeTransporteStepData {
   isNaoBeneficiario: boolean;
@@ -52,20 +53,44 @@ export const ValeTransporteStep: React.FC<ValeTransporteStepProps> = ({ data, on
     onChange({ ...data, naoBeneficiarioData, skipped: false });
   };
 
+  const fetchLogoBase64 = async (empresaNome: string): Promise<string | undefined> => {
+    try {
+      const { data: empresa } = await supabase
+        .from('bd_empresas')
+        .select('logo_url')
+        .ilike('nome_empresa', empresaNome)
+        .maybeSingle();
+      if (!empresa?.logo_url) return undefined;
+      const res = await fetch(empresa.logo_url);
+      if (!res.ok) return undefined;
+      const blob = await res.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = () => resolve(undefined);
+        reader.readAsDataURL(blob);
+      });
+    } catch { return undefined; }
+  };
+
   const handleDownloadPdf = useCallback(async () => {
     setIsGeneratingPdf(true);
     try {
+      const logoBase64 = await fetchLogoBase64(candidato.empresa);
+
       if (data.isNaoBeneficiario) {
         await gerarPdfNaoBeneficiario({
           ...candidato,
           ...data.naoBeneficiarioData,
           endereco: data.endereco,
+          logoBase64,
         });
       } else {
         await gerarPdfBeneficiario({
           ...candidato,
           ...data.beneficiarioData,
           endereco: data.endereco,
+          logoBase64,
         });
       }
       onChange({ ...data, pdfGerado: true, skipped: false });

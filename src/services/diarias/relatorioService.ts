@@ -103,6 +103,46 @@ export async function getRelatorioFolha(
     }
   }
 
+  // Suplementar dados faltantes via RPC SECURITY DEFINER
+  // Detectar registros com qualquer metadado crítico ausente
+  const needsSupplement = allData.filter(r => r.funcionario_id && (
+    !r.nome_funcionario || !r.cpf_funcionario || !r.matricula_funcionario ||
+    !r.nome_funcao || !r.banco_funcionario || !r.agencia_funcionario ||
+    !r.conta_funcionario || !r.pix_funcionario
+  ));
+  if (needsSupplement.length > 0) {
+    let rpcAll: any[] = [];
+    let page = 0;
+    while (true) {
+      const { data } = await supabase.rpc('get_funcionarios_para_diarias')
+        .range(page * 1000, (page + 1) * 1000 - 1);
+      if (!data?.length) break;
+      rpcAll = rpcAll.concat(data);
+      if (data.length < 1000) break;
+      page++;
+    }
+    const rpcMap = new Map(rpcAll.map((f: any) => [f.id, f]));
+
+    allData = allData.map(item => {
+      if (!item.funcionario_id) return item;
+      const f = rpcMap.get(item.funcionario_id);
+      if (!f) return item;
+      
+      // Preencher apenas campos que estejam vazios/nulos
+      return {
+        ...item,
+        nome_funcionario: item.nome_funcionario || f.nome_completo,
+        cpf_funcionario: item.cpf_funcionario || f.cpf,
+        matricula_funcionario: item.matricula_funcionario || f.matricula,
+        nome_funcao: item.nome_funcao || f.funcao_nome,
+        banco_funcionario: item.banco_funcionario || f.banco,
+        agencia_funcionario: item.agencia_funcionario || f.agencia,
+        conta_funcionario: item.conta_funcionario || f.conta_corrente,
+        pix_funcionario: item.pix_funcionario || f.chave_pix,
+      };
+    });
+  }
+
   return allData;
 }
 

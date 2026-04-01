@@ -17,7 +17,8 @@ import {
   Undo2,
   Eye,
   Users,
-  DollarSign
+  DollarSign,
+  Search
 } from "lucide-react";
 
 import MainLayout from "@/components/layout/MainLayout";
@@ -396,7 +397,19 @@ export default function DiariasSolicitacoes() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-5">
+              <div>
+                <Label>Nº Solicitação</Label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar nº..."
+                    value={filters.numero_solicitacao || ''}
+                    onChange={(e) => setFilters({ ...filters, numero_solicitacao: e.target.value || undefined })}
+                    className="pl-8"
+                  />
+                </div>
+              </div>
               <div>
                 <Label>Data Início</Label>
                 <Input

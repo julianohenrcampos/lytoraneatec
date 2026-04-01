@@ -353,7 +353,7 @@ export async function inserirPresencasCompletas(
     hora_entrada: r.hora_entrada || null,
     hora_saida: r.hora_saida || null,
     valor_diaria_aplicada: r.valor_diaria_aplicada,
-    funcao_id: null as string | null,
+    funcao_id: r.funcao_id || null,
     tipo_diaria: r.tipo_diaria,
     recebe_refeicao: r.recebe_refeicao,
     valor_refeicao_aplicado: r.valor_refeicao_aplicado,
@@ -466,6 +466,7 @@ export interface CorrecaoFormData {
   recebe_refeicao: boolean;
   valor_refeicao_aplicado: number;
   turno?: TurnoDiaria;
+  funcao_id?: string;
 }
 
 export async function salvarCorrecao(
@@ -480,9 +481,7 @@ export async function salvarCorrecao(
   const justificativa = `[CORREÇÃO - EDIÇÃO LIBERADA] ${observacao} | Por: ${userId} em ${new Date().toISOString()}`;
 
   const promises = registros.map(async (r) => {
-    const { error } = await supabase
-      .from('bd_diaria_presencas')
-      .update({
+    const updatePayload: any = {
         presente: r.presente,
         hora_entrada: r.hora_entrada || null,
         hora_saida: r.hora_saida || null,
@@ -495,7 +494,13 @@ export async function salvarCorrecao(
         confirmado_por: userId,
         confirmado_em: new Date().toISOString(),
         updated_at: new Date().toISOString()
-      })
+      };
+    if (r.funcao_id) {
+      updatePayload.funcao_id = r.funcao_id;
+    }
+    const { error } = await supabase
+      .from('bd_diaria_presencas')
+      .update(updatePayload)
       .eq('solicitacao_id', solicitacaoId)
       .eq('funcionario_id', r.funcionario_id)
       .eq('data', data);

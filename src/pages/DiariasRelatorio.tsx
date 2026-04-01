@@ -22,7 +22,7 @@ import {
   Trash2 } from
 "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { generateRelatorioDiariasPDF, generateRelatorioDiariasPDFDetalhado, generateCompiladoDiariasPDF, generateFolhaPontoPDF, generateRelatorioDiariasPDFConsolidado, generateRelatorioDiariasPDFPorPeriodo } from "@/services/pdfService";
+import { generateCompiladoDiariasPDF, generateFolhaPontoPDF, generateRelatorioDiariasPDFPorPeriodo } from "@/services/pdfService";
 import { generateRelatorioFolhaPDF } from "@/services/pdf/relatorioFolhaPdf";
 import { generateProtocoloDocumentosPDF } from "@/services/pdf/protocoloDocumentosPdf";
 import { deletePresencaRegistro } from "@/services/diarias/presencasService";
@@ -439,86 +439,7 @@ export default function DiariasRelatorio() {
     exportMutation.mutate(filters);
   };
 
-  const handleExportPDF = async () => {
-    if (relatorio.length === 0) {
-      toast.error('Não há dados para exportar.');
-      return;
-    }
-
-    setIsPDFLoading(true);
-    try {
-      const dateStr = filters.data_inicio ?
-      format(new Date(filters.data_inicio + 'T12:00:00'), 'yyyyMMdd') :
-      format(new Date(), 'yyyyMMdd');
-      const fileName = `Relatorio_Diarias_${dateStr}`;
-
-      const resumoParaPDF = {
-        total: relatorio.length,
-        presentes: resumo.total_diarias,
-        ausentes: 0,
-        pendentes: 0,
-        substituidos: 0,
-        valor_total_presentes: resumo.valor_total,
-        valor_total_previsto: resumo.valor_total
-      };
-
-      // Buscar nomes do Engenheiro Solicitante e Gerente Regional
-      let engenheiroSolicitante: string | undefined;
-      let gerenteRegionalNome: string | undefined;
-
-      const solicitacaoIds = [...new Set(relatorio.map(r => r.solicitacao_id))];
-      if (solicitacaoIds.length > 0) {
-        // Buscar engenheiro solicitante
-        const { data: solicitacoes } = await supabase
-          .from('bd_diaria_solicitacoes')
-          .select('engenheiro_solicitante_id, centro_custo_id')
-          .in('id', solicitacaoIds);
-
-        if (solicitacoes) {
-          const engenheiroIds = [...new Set(solicitacoes.map(s => s.engenheiro_solicitante_id).filter(Boolean))];
-          if (engenheiroIds.length > 0) {
-            const { data: engenheiros } = await supabase
-              .from('bd_funcionarios')
-              .select('nome_completo')
-              .in('id', engenheiroIds);
-            if (engenheiros?.length) {
-              engenheiroSolicitante = [...new Set(engenheiros.map(e => (e.nome_completo || '').split(' ')[0]))].join(' | ');
-            }
-          }
-
-          // Buscar gerente regional via centro de custo
-          const ccIds = [...new Set(solicitacoes.map(s => s.centro_custo_id).filter(Boolean))];
-          if (ccIds.length > 0) {
-            const { data: ccs } = await supabase
-              .from('bd_centros_custo')
-              .select('aprovador_diarias_id')
-              .in('id', ccIds);
-            const aprovadorIds = [...new Set(ccs?.map(cc => cc.aprovador_diarias_id).filter(Boolean) || [])];
-            if (aprovadorIds.length > 0) {
-              const { data: gerentes } = await supabase
-                .from('bd_funcionarios')
-                .select('nome_completo')
-                .in('id', aprovadorIds);
-              if (gerentes?.length) {
-                gerenteRegionalNome = gerentes.map(g => g.nome_completo).join(', ');
-              }
-            }
-          }
-        }
-      }
-
-      await generateRelatorioDiariasPDF(relatorio, resumoParaPDF, filters, feriados, fileName, {
-        engenheiroSolicitante,
-        gerenteRegional: gerenteRegionalNome
-      });
-      toast.success('PDF gerado com sucesso!');
-    } catch (error) {
-      console.error('Erro ao gerar PDF:', error);
-      toast.error('Erro ao gerar PDF.');
-    } finally {
-      setIsPDFLoading(false);
-    }
-  };
+  // handleExportPDF removido — usar PDF Consolidado ou PDF por Período
 
   const handleExportCompilado = async () => {
     if (relatorio.length === 0) {
@@ -551,155 +472,6 @@ export default function DiariasRelatorio() {
     } catch (error) {
       console.error('Erro ao gerar PDF compilado:', error);
       toast.error('Erro ao gerar PDF compilado.');
-    } finally {
-      setIsPDFLoading(false);
-    }
-  };
-
-  const handleExportPDFDetalhado = async () => {
-    if (relatorio.length === 0) {
-      toast.error('Não há dados para exportar.');
-      return;
-    }
-
-    setIsPDFLoading(true);
-    try {
-      const dateStr = filters.data_inicio ?
-        format(new Date(filters.data_inicio + 'T12:00:00'), 'yyyyMMdd') :
-        format(new Date(), 'yyyyMMdd');
-      const fileName = `Relatorio_Diarias_Detalhado_${dateStr}`;
-
-      const resumoParaPDF = {
-        total: relatorio.length,
-        presentes: resumo.total_diarias,
-        ausentes: 0,
-        pendentes: 0,
-        substituidos: 0,
-        valor_total_presentes: resumo.valor_total,
-        valor_total_previsto: resumo.valor_total
-      };
-
-      // Buscar nomes do Engenheiro Solicitante e Gerente Regional
-      let engenheiroSolicitante: string | undefined;
-      let gerenteRegionalNome: string | undefined;
-
-      const solicitacaoIds = [...new Set(relatorio.map(r => r.solicitacao_id))];
-      if (solicitacaoIds.length > 0) {
-        const { data: solicitacoes } = await supabase
-          .from('bd_diaria_solicitacoes')
-          .select('engenheiro_solicitante_id, centro_custo_id')
-          .in('id', solicitacaoIds);
-
-        if (solicitacoes) {
-          const engenheiroIds = [...new Set(solicitacoes.map(s => s.engenheiro_solicitante_id).filter(Boolean))];
-          if (engenheiroIds.length > 0) {
-            const { data: engenheiros } = await supabase
-              .from('bd_funcionarios')
-              .select('nome_completo')
-              .in('id', engenheiroIds);
-            if (engenheiros?.length) {
-              engenheiroSolicitante = [...new Set(engenheiros.map(e => (e.nome_completo || '').split(' ')[0]))].join(' | ');
-            }
-          }
-
-          const ccIds = [...new Set(solicitacoes.map(s => s.centro_custo_id).filter(Boolean))];
-          if (ccIds.length > 0) {
-            const { data: ccs } = await supabase
-              .from('bd_centros_custo')
-              .select('aprovador_diarias_id')
-              .in('id', ccIds);
-            const aprovadorIds = [...new Set(ccs?.map(cc => cc.aprovador_diarias_id).filter(Boolean) || [])];
-            if (aprovadorIds.length > 0) {
-              const { data: gerentes } = await supabase
-                .from('bd_funcionarios')
-                .select('nome_completo')
-                .in('id', aprovadorIds);
-              if (gerentes?.length) {
-                gerenteRegionalNome = gerentes.map(g => g.nome_completo).join(', ');
-              }
-            }
-          }
-        }
-      }
-
-      await generateRelatorioDiariasPDFDetalhado(relatorio, resumoParaPDF, filters, feriados, fileName, {
-        engenheiroSolicitante,
-        gerenteRegional: gerenteRegionalNome
-      });
-      toast.success('PDF Detalhado gerado com sucesso!');
-    } catch (error) {
-      console.error('Erro ao gerar PDF detalhado:', error);
-      toast.error('Erro ao gerar PDF detalhado.');
-    } finally {
-      setIsPDFLoading(false);
-    }
-  };
-
-  const handleExportPDFConsolidado = async () => {
-    if (relatorio.length === 0) {
-      toast.error('Não há dados para exportar.');
-      return;
-    }
-
-    setIsPDFLoading(true);
-    try {
-      const dateStr = filters.data_inicio
-        ? format(new Date(filters.data_inicio + 'T12:00:00'), 'yyyyMMdd')
-        : format(new Date(), 'yyyyMMdd');
-      const fileName = `Relatorio_Diarias_Consolidado_${dateStr}`;
-
-      // Build centrosCustoInfo with diretoria_id
-      const ccIds = [...new Set(relatorio.map(r => r.centro_custo_id).filter(Boolean))];
-      let centrosCustoInfo: { id: string; codigo_centro_custo: string; nome_centro_custo: string; aprovador_diarias_id: string | null; diretoria_id: string | null }[] = [];
-
-      if (ccIds.length > 0) {
-        const { data: ccsData } = await supabase
-          .from('bd_centros_custo')
-          .select('id, codigo_centro_custo, nome_centro_custo, aprovador_diarias_id, diretoria_id')
-          .in('id', ccIds);
-        centrosCustoInfo = (ccsData || []).map((cc: any) => ({
-          id: cc.id,
-          codigo_centro_custo: cc.codigo_centro_custo,
-          nome_centro_custo: cc.nome_centro_custo,
-          aprovador_diarias_id: cc.aprovador_diarias_id,
-          diretoria_id: cc.diretoria_id,
-        }));
-      }
-
-      // Build gerentesMap
-      const aprovadorIds = [...new Set(centrosCustoInfo.map(cc => cc.aprovador_diarias_id).filter(Boolean))] as string[];
-      const gerentesMap: Record<string, string> = {};
-      if (aprovadorIds.length > 0) {
-        const { data: gerentes } = await supabase
-          .from('bd_funcionarios')
-          .select('id, nome_completo')
-          .in('id', aprovadorIds);
-        gerentes?.forEach((g: any) => { gerentesMap[g.id] = g.nome_completo; });
-      }
-
-      // Build diretoresMap (diretoria_id → director name)
-      const diretoriaIds = [...new Set(centrosCustoInfo.map(cc => cc.diretoria_id).filter(Boolean))] as string[];
-      const diretoresMap: Record<string, string> = {};
-      if (diretoriaIds.length > 0) {
-        const { data: diretorias } = await supabase
-          .from('bd_diretorias')
-          .select('id, diretor_id, bd_funcionarios!bd_diretorias_diretor_id_fkey(nome_completo)')
-          .in('id', diretoriaIds);
-        diretorias?.forEach((d: any) => {
-          const nome = d.bd_funcionarios?.nome_completo;
-          if (nome) diretoresMap[d.id] = nome;
-        });
-      }
-
-      await generateRelatorioDiariasPDFConsolidado(relatorio, filters, feriados, fileName, {
-        centrosCustoInfo,
-        gerentesMap,
-        diretoresMap,
-      });
-      toast.success('PDF Consolidado gerado com sucesso!');
-    } catch (error) {
-      console.error('Erro ao gerar PDF consolidado:', error);
-      toast.error('Erro ao gerar PDF consolidado.');
     } finally {
       setIsPDFLoading(false);
     }
@@ -830,22 +602,13 @@ export default function DiariasRelatorio() {
                   <DropdownMenuItem onClick={handleExportExcel} className="cursor-pointer">
                     📊 Excel
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleExportPDF} className="cursor-pointer">
-                    📄 PDF
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleExportPDFDetalhado} className="cursor-pointer">
-                    📑 PDF Detalhado
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleExportPDFConsolidado} className="cursor-pointer">
-                    📊 PDF Consolidado
-                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleExportPDFPorPeriodo} className="cursor-pointer">
                     📋 PDF Detalhado por Período
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleExportCompilado} className="cursor-pointer">
                     📦 Compilado
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { handleExportExcel(); handleExportPDF(); }} className="cursor-pointer">
+                  <DropdownMenuItem onClick={() => { handleExportExcel(); handleExportPDFPorPeriodo(); }} className="cursor-pointer">
                     🗂 Ambos
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleExportProtocolo} className="cursor-pointer">

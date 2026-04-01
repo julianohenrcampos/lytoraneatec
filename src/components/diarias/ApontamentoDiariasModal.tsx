@@ -222,7 +222,9 @@ export default function ApontamentoDiariasModal({
   const [releaseConfirm, setReleaseConfirm] = useState<{
     funcionarioId: string;
     nomeFuncionario: string;
+    hasPresenca?: boolean;
   } | null>(null);
+  const [releaseJustificativa, setReleaseJustificativa] = useState('');
 
   const queryClient = useQueryClient();
 
@@ -915,13 +917,14 @@ export default function ApontamentoDiariasModal({
   };
 
   // Handler para remover/liberar funcionário da lista
-  const handleRemoverFuncionario = async (funcionarioId: string, nomeFuncionario: string) => {
+  const handleRemoverFuncionario = async (funcionarioId: string, nomeFuncionario: string, forcarRemocao?: boolean) => {
     if (!solicitacao?.id) return;
     try {
-      await removerFuncionarioConvocado(solicitacao.id, funcionarioId);
+      await removerFuncionarioConvocado(solicitacao.id, funcionarioId, forcarRemocao);
       setColaboradores(prev => prev.filter(c => c.funcionario_id !== funcionarioId));
       queryClient.invalidateQueries({ queryKey: ['solicitacao-detalhes'] });
       queryClient.invalidateQueries({ queryKey: ['diarias-solicitacoes'] });
+      queryClient.invalidateQueries({ queryKey: ['diaria-apontamentos'] });
       toast.success(`${nomeFuncionario} liberado da lista.`);
     } catch (error: any) {
       console.error('Erro ao liberar funcionário:', error);
@@ -1287,7 +1290,8 @@ export default function ApontamentoDiariasModal({
             valor_diaria_aplicada: valorFinal,
             recebe_refeicao: col.recebe_refeicao ?? true,
             valor_refeicao_aplicado: col.recebe_refeicao ? (funcoesMap[col.funcao_id] || 0) : 0,
-            turno: col.turno
+            turno: col.turno,
+            funcao_id: col.funcao_id || undefined
           };
         });
         await salvarCorrecao(solicitacao.id, selectedDate, registrosUpdate, observacaoCorrecao);
@@ -1307,7 +1311,8 @@ export default function ApontamentoDiariasModal({
             valor_diaria_aplicada: valorFinal,
             recebe_refeicao: col.recebe_refeicao ?? true,
             valor_refeicao_aplicado: col.recebe_refeicao ? (funcoesMap[col.funcao_id] || 0) : 0,
-            turno: col.turno
+            turno: col.turno,
+            funcao_id: col.funcao_id || undefined
           };
         });
         await inserirPresencasCompletas(solicitacao.id, selectedDate, registrosInsert, observacaoCorrecao);
@@ -1330,7 +1335,7 @@ export default function ApontamentoDiariasModal({
   const faseLabel = {
     inicio: { text: 'Registrar Entrada', color: 'text-blue-600' },
     finalizacao: { text: 'Registrar Saída', color: 'text-orange-600' },
-    concluido: { text: 'Concluído', color: 'text-green-600' }
+    concluido: { text: 'Concluído', color: 'text-green-600 dark:text-green-400' }
   };
 
   return (
@@ -1567,7 +1572,7 @@ export default function ApontamentoDiariasModal({
                               <p className="text-sm font-medium">{addSelectedFunc.nome_completo}</p>
                               <p className="text-xs text-muted-foreground">{addSelectedFunc.funcao_nome || 'Sem função'}</p>
                               {addSelectedFunc.matricula && (
-                                <Badge variant="outline" className="mt-1 text-[10px] px-1 py-0 border-amber-400 text-amber-700">Remessa</Badge>
+                                <Badge variant="outline" className="mt-1 text-[10px] px-1 py-0 border-amber-400 dark:border-amber-500 text-amber-700 dark:text-amber-300">Remessa</Badge>
                               )}
                             </div>
 
@@ -1685,7 +1690,7 @@ export default function ApontamentoDiariasModal({
                                           <div className="flex items-center gap-1">
                                             <p className="font-medium text-xs sm:text-sm">{func.nome_completo}</p>
                                             {func.matricula && (
-                                              <Badge variant="outline" className="text-[10px] px-1 py-0 border-amber-400 text-amber-700">Remessa</Badge>
+                                              <Badge variant="outline" className="text-[10px] px-1 py-0 border-amber-400 dark:border-amber-500 text-amber-700 dark:text-amber-300">Remessa</Badge>
                                             )}
                                           </div>
                                           <p className="text-[10px] sm:text-xs text-muted-foreground">{func.funcao_nome || func.nome_funcao || 'Sem função'}</p>
@@ -1770,7 +1775,7 @@ export default function ApontamentoDiariasModal({
                                     <Badge variant="success" className="text-[10px] sm:text-xs hidden sm:flex items-center gap-1">
                                       <Lock className="h-2.5 w-2.5" /> Finalizado
                                     </Badge>
-                                    <Lock className="h-3 w-3 text-green-600 sm:hidden" />
+                                    <Lock className="h-3 w-3 text-green-600 dark:text-green-400 sm:hidden" />
                                     {!readOnly && colaborador.presencaId && (
                                       <Button variant="ghost" size="xs" onClick={() => handleStartEditExit(colaborador)} className="h-5 w-5 sm:h-6 sm:w-6 p-0">
                                         <Pencil className="h-3 w-3" />
@@ -1782,8 +1787,8 @@ export default function ApontamentoDiariasModal({
                                 ) : (
                                   <>
                                     <Badge variant="destructive" className="text-[10px] sm:text-xs">Falta</Badge>
-                                    {!readOnly && !colaborador.presencaId && (
-                                      <Button variant="ghost" size="xs" onClick={() => setReleaseConfirm({ funcionarioId: colaborador.funcionario_id, nomeFuncionario: colaborador.nome_funcionario })} className="h-5 w-5 p-0 text-destructive hover:text-destructive" title="Liberar funcionário">
+                                    {!readOnly && (!colaborador.presencaId || isSuperAdmin) && (
+                                      <Button variant="ghost" size="xs" onClick={() => setReleaseConfirm({ funcionarioId: colaborador.funcionario_id, nomeFuncionario: colaborador.nome_funcionario, hasPresenca: !!colaborador.presencaId })} className="h-5 w-5 p-0 text-destructive hover:text-destructive" title="Liberar funcionário">
                                         <X className="h-3.5 w-3.5" />
                                       </Button>
                                     )}
@@ -1832,7 +1837,7 @@ export default function ApontamentoDiariasModal({
                               <Lock className="h-3 w-3 text-muted-foreground shrink-0 hidden sm:block" />
                             )}
                             {jaSalvouSaida && fase === 'finalizacao' && (
-                              <span title="Saída já salva"><Lock className="h-3 w-3 text-green-600 shrink-0" /></span>
+                              <span title="Saída já salva"><Lock className="h-3 w-3 text-green-600 dark:text-green-400 shrink-0" /></span>
                             )}
                           </div>
                         </div>
@@ -1845,7 +1850,7 @@ export default function ApontamentoDiariasModal({
                               size="xs"
                               onClick={() => handleSalvarSaidaIndividual(colaborador)}
                               disabled={isSavingIndividual === colaborador.funcionario_id}
-                              className="text-[10px] sm:text-xs gap-1 border-green-300 text-green-700 hover:bg-green-50 h-6 w-full sm:w-auto"
+                              className="text-[10px] sm:text-xs gap-1 border-green-300 dark:border-green-600 text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30 h-6 w-full sm:w-auto"
                             >
                               {isSavingIndividual === colaborador.funcionario_id ? (
                                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -1930,7 +1935,7 @@ export default function ApontamentoDiariasModal({
 
                         {isEditingThis && (
                           <div className="mt-3 pt-3 border-t border-dashed space-y-2 bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded">
-                            <p className="text-xs font-medium flex items-center gap-1 text-yellow-700">
+                            <p className="text-xs font-medium flex items-center gap-1 text-yellow-700 dark:text-yellow-300">
                               <AlertTriangle className="h-3 w-3" />
                               Edição pós-conclusão — justificativa obrigatória
                             </p>
@@ -2080,21 +2085,29 @@ export default function ApontamentoDiariasModal({
 
       <ConfirmDialog
         isOpen={!!releaseConfirm}
-        onClose={() => setReleaseConfirm(null)}
+        onClose={() => { setReleaseConfirm(null); setReleaseJustificativa(''); }}
         onConfirm={async () => {
           if (releaseConfirm) {
-            await handleRemoverFuncionario(releaseConfirm.funcionarioId, releaseConfirm.nomeFuncionario);
+            const forcar = !!releaseConfirm.hasPresenca;
+            if (forcar && releaseJustificativa.trim().length < 5) {
+              toast.error('Justificativa obrigatória (mínimo 5 caracteres).');
+              return;
+            }
+            await handleRemoverFuncionario(releaseConfirm.funcionarioId, releaseConfirm.nomeFuncionario, forcar);
             setReleaseConfirm(null);
+            setReleaseJustificativa('');
           }
         }}
-        title="Liberar funcionário"
+        title={releaseConfirm?.hasPresenca ? "Liberar funcionário (retroativo)" : "Liberar funcionário"}
         description={releaseConfirm
-          ? `Deseja remover ${releaseConfirm.nomeFuncionario} da lista de convocados desta solicitação? Ele ficará disponível para ser alocado em outra.`
+          ? releaseConfirm.hasPresenca
+            ? `⚠️ ${releaseConfirm.nomeFuncionario} já possui presença registrada. A liberação retroativa irá EXCLUIR os registros de presença existentes. Esta ação é irreversível. Informe a justificativa antes de confirmar.`
+            : `Deseja remover ${releaseConfirm.nomeFuncionario} da lista de convocados desta solicitação? Ele ficará disponível para ser alocado em outra.`
           : ''
         }
-        confirmText="Liberar"
+        confirmText={releaseConfirm?.hasPresenca ? "Confirmar liberação retroativa" : "Liberar"}
         cancelText="Cancelar"
-        variant="warning"
+        variant={releaseConfirm?.hasPresenca ? "danger" : "warning"}
       />
     </>
   );

@@ -36,7 +36,7 @@ export async function getSolicitacoes(
         nome_completo
       )
     `)
-    .order('data_inicio', { ascending: false });
+    .order('created_at', { ascending: false });
 
   // Aplicar filtros de ESCOPO OBRIGATÓRIOS
   if (scope?.criado_por) {
@@ -44,6 +44,11 @@ export async function getSolicitacoes(
   }
   if (scope?.centro_custo_ids?.length) {
     query = query.in('centro_custo_id', scope.centro_custo_ids);
+  }
+
+  // Filtro por número de solicitação (busca parcial)
+  if (filters?.numero_solicitacao) {
+    query = query.ilike('numero_solicitacao', `%${filters.numero_solicitacao}%`);
   }
 
   // Aplicar filtros opcionais do usuário
@@ -567,8 +572,20 @@ export async function adicionarFuncionarioConvocado(
 
 export async function removerFuncionarioConvocado(
   solicitacaoId: string,
-  funcionarioId: string
+  funcionarioId: string,
+  forcarRemocao?: boolean
 ): Promise<void> {
+  // Se forçar remoção (SuperAdm retroativo), primeiro deletar presenças existentes
+  if (forcarRemocao) {
+    const { error: delError } = await supabase
+      .from('bd_diaria_presencas')
+      .delete()
+      .eq('solicitacao_id', solicitacaoId)
+      .eq('funcionario_id', funcionarioId);
+    
+    if (delError) throw new Error(`Erro ao remover presenças: ${delError.message}`);
+  }
+
   const { error } = await supabase.rpc('gerenciar_convocado_diaria', {
     p_solicitacao_id: solicitacaoId,
     p_funcionario_data: { funcionario_id: funcionarioId } as any,

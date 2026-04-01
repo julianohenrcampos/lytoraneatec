@@ -49,6 +49,7 @@ interface BeneficiarioData {
   linhas: LinhaTransporte[];
   motivo: string;
   data_solicitacao: string;
+  logoBase64?: string;
 }
 
 interface NaoBeneficiarioData {
@@ -62,6 +63,7 @@ interface NaoBeneficiarioData {
   motivos: string[];
   motivo_outros_texto: string;
   data_solicitacao: string;
+  logoBase64?: string;
 }
 
 const SPACING_SECTION = 30;
@@ -80,11 +82,30 @@ export async function gerarPdfBeneficiario(dados: BeneficiarioData): Promise<voi
     page.drawLine({ start: { x: x1, y: y1 }, end: { x: x2, y: y2 }, thickness: 1, color: rgb(0, 0, 0) });
   };
 
-  // Título
-  drawText('SOLICITAÇÃO DE 1ª VIA DE VALE TRANSPORTE', 120, 800, 12, true);
+  // Logo
+  let headerY = 810;
+  if (dados.logoBase64) {
+    try {
+      const isJpg = dados.logoBase64.startsWith('data:image/jpeg') || dados.logoBase64.startsWith('data:image/jpg');
+      const base64Data = dados.logoBase64.split(',')[1];
+      const imgBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+      const img = isJpg ? await pdfDoc.embedJpg(imgBytes) : await pdfDoc.embedPng(imgBytes);
+      const imgDims = img.scale(1);
+      const maxW = 77, maxH = 73;
+      const scale = Math.min(maxW / imgDims.width, maxH / imgDims.height);
+      const logoW = imgDims.width * scale;
+      const logoH = imgDims.height * scale;
+      page.drawImage(img, { x: 50, y: 806 - logoH / 2, width: logoW, height: logoH });
+    } catch (e) { console.warn('Erro ao embutir logo no PDF VT:', e); }
+  }
+
+  // Título centralizado
+  const titulo = 'SOLICITAÇÃO DE 1ª VIA DE VALE TRANSPORTE';
+  const tituloW = fontBold.widthOfTextAtSize(titulo, 12);
+  drawText(titulo, (595 - tituloW) / 2, 800, 12, true);
 
   // NOME
-  let y = 770;
+  let y = 755;
   drawText('NOME:', 50, y, 10, true);
   drawLine(100, y - 5, 550, y - 5);
   drawText(dados.nome, 105, y);
@@ -231,24 +252,14 @@ export async function gerarPdfBeneficiario(dados: BeneficiarioData): Promise<voi
   drawLine(85, y - 5, 200, y - 5);
   drawText(formatDateBR(dados.data_solicitacao), 90, y);
 
-  // ASSINATURAS (4 campos: 2x2)
+  // ASSINATURAS
   y -= 50;
-
-  // Linha 1: Empregado e Gerente Regional
-  drawLine(50, y, 260, y);
-  drawLine(310, y, 550, y);
-  y -= 15;
-  drawText('Assinatura do Empregado', 90, y, 8);
-  drawText('Gerente Regional', 380, y, 8);
-
-  // Linha 2: Diretor Engenharia e Diretor Financeiro
-  y -= 45;
   drawLine(50, y, 260, y);
   if (excedeLimite) {
     drawLine(310, y, 550, y);
   }
   y -= 15;
-  drawText('Diretor de Engenharia', 95, y, 8);
+  drawText('Assinatura do Empregado', 90, y, 8);
   if (excedeLimite) {
     drawText('Diretor Financeiro', 380, y, 8);
   }
@@ -275,9 +286,27 @@ export async function gerarPdfNaoBeneficiario(dados: NaoBeneficiarioData): Promi
     page.drawRectangle({ x, y, width, height, borderColor: rgb(0, 0, 0), borderWidth: 1, color: undefined });
   };
 
+  // Logo
+  if (dados.logoBase64) {
+    try {
+      const isJpg = dados.logoBase64.startsWith('data:image/jpeg') || dados.logoBase64.startsWith('data:image/jpg');
+      const base64Data = dados.logoBase64.split(',')[1];
+      const imgBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+      const img = isJpg ? await pdfDoc.embedJpg(imgBytes) : await pdfDoc.embedPng(imgBytes);
+      const imgDims = img.scale(1);
+      const maxW = 77, maxH = 73;
+      const scale = Math.min(maxW / imgDims.width, maxH / imgDims.height);
+      const logoW = imgDims.width * scale;
+      const logoH = imgDims.height * scale;
+      page.drawImage(img, { x: 50, y: 807 - logoH / 2, width: logoW, height: logoH });
+    } catch (e) { console.warn('Erro ao embutir logo no PDF NB:', e); }
+  }
+
   // ── CABEÇALHO ──
-  drawText('VALE - TRANSPORTE', 210, 800, 14, true);
-  drawText('Declaração de Não Beneficiário', 190, 780, 11, true);
+  const t1 = 'VALE - TRANSPORTE';
+  drawText(t1, (595 - fontBold.widthOfTextAtSize(t1, 14)) / 2, 800, 14, true);
+  const t2 = 'Declaração de Não Beneficiário';
+  drawText(t2, (595 - fontBold.widthOfTextAtSize(t2, 11)) / 2, 780, 11, true);
 
   // ── BLOCO 1 — EMPRESA ──
   const b1Top = 755;

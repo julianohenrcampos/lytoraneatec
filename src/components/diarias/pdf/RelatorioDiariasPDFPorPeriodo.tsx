@@ -376,16 +376,16 @@ function BlocoSection({
         </View>
 
         {/* Aprovação */}
-        <View style={{ marginTop: 20, paddingTop: 8 }} wrap={false}>
+        <View style={{ marginTop: 10, paddingTop: 4 }}>
           <Text style={[styles.sectionTitle, { borderBottomWidth: 0 }]}>APROVAÇÃO</Text>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 20, paddingHorizontal: 20 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, paddingHorizontal: 20 }}>
             <View style={{ alignItems: 'center', width: '40%' }}>
-              <View style={{ borderTopWidth: 1, borderTopColor: '#374151', width: '100%', marginTop: 30, marginBottom: 4 }} />
+              <View style={{ borderTopWidth: 1, borderTopColor: '#374151', width: '100%', marginTop: 15, marginBottom: 4 }} />
               <Text style={{ fontSize: 10, fontFamily: 'Roboto', fontWeight: 'bold' as const, color: '#374151' }}>Gerente Regional</Text>
               <Text style={{ fontSize: 8, color: '#6b7280', marginTop: 2 }}>{bloco.gerente_nome}</Text>
             </View>
             <View style={{ alignItems: 'center', width: '40%' }}>
-              <View style={{ borderTopWidth: 1, borderTopColor: '#374151', width: '100%', marginTop: 30, marginBottom: 4 }} />
+              <View style={{ borderTopWidth: 1, borderTopColor: '#374151', width: '100%', marginTop: 15, marginBottom: 4 }} />
               <Text style={{ fontSize: 10, fontFamily: 'Roboto', fontWeight: 'bold' as const, color: '#374151' }}>Diretor</Text>
               <Text style={{ fontSize: 8, color: '#6b7280', marginTop: 2 }}>{bloco.diretor_nome || '___________________________'}</Text>
             </View>

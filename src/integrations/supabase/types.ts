@@ -6300,7 +6300,11 @@ export type Database = {
       get_funcionarios_para_diarias: {
         Args: never
         Returns: {
+          agencia: string
+          banco: string
           centro_custo_id: string
+          chave_pix: string
+          conta_corrente: string
           cpf: string
           funcao_id: string
           funcao_nome: string

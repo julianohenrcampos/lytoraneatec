@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, { createContext, useContext, useState, useCallback, useMemo } from "react";
 
 interface PageTitleContextType {
   pageTitle: string;
@@ -15,11 +15,13 @@ export function PageTitleProvider({ children }: { children: React.ReactNode }) {
   const [pageTitle, setPageTitleState] = useState("");
 
   const setPageTitle = useCallback((title: string) => {
-    setPageTitleState(title);
+    setPageTitleState(prev => prev === title ? prev : title);
   }, []);
 
+  const value = useMemo(() => ({ pageTitle, setPageTitle }), [pageTitle, setPageTitle]);
+
   return (
-    <PageTitleContext.Provider value={{ pageTitle, setPageTitle }}>
+    <PageTitleContext.Provider value={value}>
       {children}
     </PageTitleContext.Provider>
   );

@@ -207,6 +207,7 @@ export interface AprovacaoFormData {
 // =====================================================
 
 export interface SolicitacaoFilters {
+  numero_solicitacao?: string;
   periodo_inicio?: string;
   periodo_fim?: string;
   centro_custo_id?: string;
