@@ -6,6 +6,7 @@ import { Empresa } from "@/types/empresa";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Check, X } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 
 interface EmpresaDetailsModalProps {
   isOpen: boolean;
@@ -25,56 +26,77 @@ const EmpresaDetailsModal: React.FC<EmpresaDetailsModalProps> = ({ isOpen, onClo
     }
   };
 
+  const isPJ = (empresa.pessoa_tipo || "PJ") === "PJ";
+
+  const Row = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    <div className="grid grid-cols-4 gap-4 py-2 border-b last:border-b-0">
+      <span className="font-medium text-muted-foreground col-span-1">{label}:</span>
+      <span className="col-span-3">{value || "Não informado"}</span>
+    </div>
+  );
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Detalhes da Empresa</DialogTitle>
         </DialogHeader>
         
         <div className="py-4 space-y-4">
           <div className="flex flex-col">
-            <div className="grid grid-cols-4 gap-4 py-2 border-b">
-              <span className="font-medium text-muted-foreground col-span-1">Nome:</span>
-              <span className="col-span-3">{empresa.nome_empresa}</span>
-            </div>
-            
-            <div className="grid grid-cols-4 gap-4 py-2 border-b">
-              <span className="font-medium text-muted-foreground col-span-1">CNPJ:</span>
-              <span className="col-span-3">{empresa.cnpj}</span>
-            </div>
-            
-            <div className="grid grid-cols-4 gap-4 py-2 border-b">
-              <span className="font-medium text-muted-foreground col-span-1">Telefone:</span>
-              <span className="col-span-3">{empresa.telefone || "Não informado"}</span>
-            </div>
-            
-            <div className="grid grid-cols-4 gap-4 py-2 border-b">
-              <span className="font-medium text-muted-foreground col-span-1">Situação:</span>
-              <span className="col-span-3 flex items-center">
-                {empresa.situacao === 'Ativa' ? (
-                  <>
-                    <Check className="mr-1 h-4 w-4 text-green-500" />
-                    <span>Ativa</span>
-                  </>
-                ) : (
-                  <>
-                    <X className="mr-1 h-4 w-4 text-red-500" />
-                    <span>Inativa</span>
-                  </>
-                )}
-              </span>
-            </div>
-            
-            <div className="grid grid-cols-4 gap-4 py-2 border-b">
-              <span className="font-medium text-muted-foreground col-span-1">Criado em:</span>
-              <span className="col-span-3">{formatDate(empresa.created_at)}</span>
-            </div>
-            
-            <div className="grid grid-cols-4 gap-4 py-2">
-              <span className="font-medium text-muted-foreground col-span-1">Atualizado em:</span>
-              <span className="col-span-3">{formatDate(empresa.updated_at)}</span>
-            </div>
+            <Row label="Tipo" value={isPJ ? "Pessoa Jurídica" : "Pessoa Física"} />
+            <Row label="Nome" value={empresa.nome_empresa} />
+            <Row label={isPJ ? "CNPJ" : "CPF"} value={empresa.cnpj} />
+            {isPJ && <Row label="Insc. Estadual" value={empresa.inscricao_estadual} />}
+            {isPJ && <Row label="Insc. Municipal" value={empresa.inscricao_municipal} />}
+            <Row label="Telefone" value={empresa.telefone} />
+            <Row label="Contato" value={empresa.nome_contato} />
+            <Row label="Situação" value={
+              empresa.situacao === 'Ativa' ? (
+                <span className="flex items-center">
+                  <Check className="mr-1 h-4 w-4 text-green-500" />
+                  Ativa
+                </span>
+              ) : (
+                <span className="flex items-center">
+                  <X className="mr-1 h-4 w-4 text-red-500" />
+                  Inativa
+                </span>
+              )
+            } />
+          </div>
+
+          {(empresa.endereco_completo || empresa.endereco_cidade) && (
+            <>
+              <Separator />
+              <h3 className="text-sm font-semibold text-muted-foreground">Endereço</h3>
+              <div className="flex flex-col">
+                <Row label="Endereço" value={empresa.endereco_completo} />
+                <Row label="CEP" value={empresa.endereco_cep} />
+                <Row label="Cidade" value={empresa.endereco_cidade} />
+                <Row label="UF" value={empresa.endereco_estado} />
+              </div>
+            </>
+          )}
+
+          {(empresa.banco || empresa.pix) && (
+            <>
+              <Separator />
+              <h3 className="text-sm font-semibold text-muted-foreground">Dados Bancários</h3>
+              <div className="flex flex-col">
+                <Row label="Banco" value={empresa.banco} />
+                <Row label="Agência" value={empresa.agencia} />
+                <Row label="Conta" value={empresa.conta} />
+                <Row label="Tipo Conta" value={empresa.tipo_conta === 'CORRENTE' ? 'Corrente' : empresa.tipo_conta === 'POUPANCA' ? 'Poupança' : empresa.tipo_conta} />
+                <Row label="PIX" value={empresa.pix} />
+              </div>
+            </>
+          )}
+
+          <Separator />
+          <div className="flex flex-col">
+            <Row label="Criado em" value={formatDate(empresa.created_at)} />
+            <Row label="Atualizado" value={formatDate(empresa.updated_at)} />
           </div>
         </div>
         

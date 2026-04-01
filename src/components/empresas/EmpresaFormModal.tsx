@@ -14,6 +14,9 @@ import { createEmpresa, updateEmpresa, checkCnpjExists } from "@/services/empres
 import { uploadImage } from "@/services/storageService";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, X } from "lucide-react";
+import AddressAutocomplete, { AddressResult } from "@/components/centrosCusto/AddressAutocomplete";
+import { formatCPF } from "@/utils/textTransform";
+import { Separator } from "@/components/ui/separator";
 
 interface EmpresaFormModalProps {
   isOpen: boolean;
@@ -24,7 +27,7 @@ interface EmpresaFormModalProps {
 
 const formSchema = z.object({
   nome_empresa: z.string().min(1, { message: "Nome da empresa é obrigatório" }),
-  cnpj: z.string().min(1, { message: "CNPJ é obrigatório" }),
+  cnpj: z.string().min(1, { message: "CPF/CNPJ é obrigatório" }),
   telefone: z.string().optional().nullable(),
   situacao: z.enum(["Ativa", "Inativa"]),
   tipo_empresa: z.string().optional().nullable(),
@@ -35,6 +38,17 @@ const formSchema = z.object({
   endereco_cep: z.string().optional().nullable(),
   endereco_cidade: z.string().optional().nullable(),
   endereco_estado: z.string().optional().nullable(),
+  endereco_latitude: z.number().optional().nullable(),
+  endereco_longitude: z.number().optional().nullable(),
+  pessoa_tipo: z.string().default("PJ"),
+  inscricao_estadual: z.string().optional().nullable(),
+  inscricao_municipal: z.string().optional().nullable(),
+  nome_contato: z.string().optional().nullable(),
+  banco: z.string().optional().nullable(),
+  agencia: z.string().optional().nullable(),
+  conta: z.string().optional().nullable(),
+  tipo_conta: z.string().optional().nullable(),
+  pix: z.string().optional().nullable(),
 });
 
 const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, onSuccess, empresa }) => {
@@ -43,6 +57,7 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [currentLogoUrl, setCurrentLogoUrl] = useState<string | null>(null);
+  const [addressValidated, setAddressValidated] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const form = useForm<z.infer<typeof formSchema>>({
@@ -60,8 +75,22 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
       endereco_cep: "",
       endereco_cidade: "",
       endereco_estado: "",
+      endereco_latitude: null,
+      endereco_longitude: null,
+      pessoa_tipo: "PJ",
+      inscricao_estadual: "",
+      inscricao_municipal: "",
+      nome_contato: "",
+      banco: "",
+      agencia: "",
+      conta: "",
+      tipo_conta: "",
+      pix: "",
     }
   });
+
+  const pessoaTipo = form.watch("pessoa_tipo");
+  const isPJ = pessoaTipo === "PJ";
 
   useEffect(() => {
     if (empresa) {
@@ -78,8 +107,20 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
         endereco_cep: empresa.endereco_cep || "",
         endereco_cidade: empresa.endereco_cidade || "",
         endereco_estado: empresa.endereco_estado || "",
+        endereco_latitude: empresa.endereco_latitude ?? null,
+        endereco_longitude: empresa.endereco_longitude ?? null,
+        pessoa_tipo: empresa.pessoa_tipo || "PJ",
+        inscricao_estadual: empresa.inscricao_estadual || "",
+        inscricao_municipal: empresa.inscricao_municipal || "",
+        nome_contato: empresa.nome_contato || "",
+        banco: empresa.banco || "",
+        agencia: empresa.agencia || "",
+        conta: empresa.conta || "",
+        tipo_conta: empresa.tipo_conta || "",
+        pix: empresa.pix || "",
       });
       setCurrentLogoUrl(empresa.logo_url || null);
+      setAddressValidated(!!empresa.endereco_completo);
     } else {
       form.reset({
         nome_empresa: "",
@@ -94,8 +135,20 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
         endereco_cep: "",
         endereco_cidade: "",
         endereco_estado: "",
+        endereco_latitude: null,
+        endereco_longitude: null,
+        pessoa_tipo: "PJ",
+        inscricao_estadual: "",
+        inscricao_municipal: "",
+        nome_contato: "",
+        banco: "",
+        agencia: "",
+        conta: "",
+        tipo_conta: "",
+        pix: "",
       });
       setCurrentLogoUrl(null);
+      setAddressValidated(false);
     }
     setLogoFile(null);
     setLogoPreview(null);
@@ -138,8 +191,8 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
     else return `(${truncated.slice(0, 2)}) ${truncated.slice(2, 7)}-${truncated.slice(7)}`;
   };
 
-  const handleCnpjChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatCnpj(e.target.value);
+  const handleDocumentoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = isPJ ? formatCnpj(e.target.value) : formatCPF(e.target.value);
     form.setValue("cnpj", formatted);
   };
 
@@ -148,13 +201,23 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
     form.setValue("telefone", formatted);
   };
 
+  const handleAddressSelected = (result: AddressResult) => {
+    form.setValue("endereco_completo", result.endereco_completo);
+    form.setValue("endereco_cep", result.endereco_cep || "");
+    form.setValue("endereco_cidade", result.endereco_cidade || "");
+    form.setValue("endereco_estado", result.endereco_estado || "");
+    form.setValue("endereco_latitude", result.latitude);
+    form.setValue("endereco_longitude", result.longitude);
+    setAddressValidated(true);
+  };
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       setIsSubmitting(true);
       
       const cnpjExists = await checkCnpjExists(values.cnpj, empresa?.id);
       if (cnpjExists) {
-        form.setError("cnpj", { type: "manual", message: "Este CNPJ já está cadastrado" });
+        form.setError("cnpj", { type: "manual", message: isPJ ? "Este CNPJ já está cadastrado" : "Este CPF já está cadastrado" });
         return;
       }
 
@@ -174,14 +237,25 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
         telefone: values.telefone || null,
         situacao: values.situacao,
         tipo_empresa: values.tipo_empresa || null,
-        pertence_ao_grupo: values.pertence_ao_grupo ?? false,
-        fornece_equipamento: values.fornece_equipamento ?? false,
-        status_homologacao: values.status_homologacao || null,
+        pertence_ao_grupo: values.tipo_empresa === "GRUPO",
+        fornece_equipamento: values.tipo_empresa === "FORNECEDOR",
+        status_homologacao: values.tipo_empresa === "FORNECEDOR" ? (values.status_homologacao || null) : null,
         endereco_completo: values.endereco_completo || null,
         endereco_cep: values.endereco_cep || null,
         endereco_cidade: values.endereco_cidade || null,
         endereco_estado: values.endereco_estado || null,
+        endereco_latitude: values.endereco_latitude ?? null,
+        endereco_longitude: values.endereco_longitude ?? null,
         logo_url: logoUrl,
+        pessoa_tipo: values.pessoa_tipo,
+        inscricao_estadual: isPJ ? (values.inscricao_estadual || null) : null,
+        inscricao_municipal: isPJ ? (values.inscricao_municipal || null) : null,
+        nome_contato: values.nome_contato || null,
+        banco: values.banco || null,
+        agencia: values.agencia || null,
+        conta: values.conta || null,
+        tipo_conta: values.tipo_conta || null,
+        pix: values.pix || null,
       };
 
       if (empresa) {
@@ -206,7 +280,7 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{empresa ? "Editar Empresa" : "Cadastrar Nova Empresa"}</DialogTitle>
         </DialogHeader>
@@ -254,14 +328,37 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
               />
             </div>
 
+            {/* Toggle PF/PJ */}
+            <FormField
+              control={form.control}
+              name="pessoa_tipo"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                  <FormLabel className="mb-0 text-sm font-medium">
+                    {isPJ ? "Pessoa Jurídica (PJ)" : "Pessoa Física (PF)"}
+                  </FormLabel>
+                  <FormControl>
+                    <Switch
+                      checked={field.value === "PJ"}
+                      onCheckedChange={(checked) => {
+                        const newType = checked ? "PJ" : "PF";
+                        field.onChange(newType);
+                        form.setValue("cnpj", "");
+                      }}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={form.control}
               name="nome_empresa"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nome da Empresa *</FormLabel>
+                  <FormLabel>{isPJ ? "Nome da Empresa *" : "Nome Completo *"}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Nome da empresa" {...field} />
+                    <Input placeholder={isPJ ? "Nome da empresa" : "Nome completo"} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -273,14 +370,14 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
               name="cnpj"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>CNPJ *</FormLabel>
+                  <FormLabel>{isPJ ? "CNPJ *" : "CPF *"}</FormLabel>
                   <FormControl>
                     <Input 
-                      placeholder="00.000.000/0001-00" 
+                      placeholder={isPJ ? "00.000.000/0001-00" : "000.000.000-00"}
                       value={field.value} 
                       onChange={(e) => {
                         field.onChange(e);
-                        handleCnpjChange(e);
+                        handleDocumentoChange(e);
                       }} 
                     />
                   </FormControl>
@@ -288,27 +385,70 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
                 </FormItem>
               )}
             />
+
+            {isPJ && (
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  control={form.control}
+                  name="inscricao_estadual"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Inscrição Estadual</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Inscrição Estadual" {...field} value={field.value || ""} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="inscricao_municipal"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Inscrição Municipal</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Inscrição Municipal" {...field} value={field.value || ""} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
             
-            <FormField
-              control={form.control}
-              name="telefone"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Telefone</FormLabel>
-                  <FormControl>
-                    <Input 
-                      placeholder="(00) 00000-0000" 
-                      value={field.value || ""} 
-                      onChange={(e) => {
-                        field.onChange(e);
-                        handleTelefoneChange(e);
-                      }} 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                control={form.control}
+                name="telefone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Telefone</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="(00) 00000-0000" 
+                        value={field.value || ""} 
+                        onChange={(e) => {
+                          field.onChange(e);
+                          handleTelefoneChange(e);
+                        }} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="nome_contato"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nome para Contato</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Nome do contato" {...field} value={field.value || ""} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
             
             <FormField
               control={form.control}
@@ -355,51 +495,107 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="status_homologacao"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Status Homologação</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || "PENDENTE"}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="HOMOLOGADO">Homologado</SelectItem>
-                      <SelectItem value="PENDENTE">Pendente</SelectItem>
-                      <SelectItem value="BLOQUEADO">Bloqueado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="grid grid-cols-2 gap-4">
+            {form.watch("tipo_empresa") === "FORNECEDOR" && (
               <FormField
                 control={form.control}
-                name="pertence_ao_grupo"
+                name="status_homologacao"
                 render={({ field }) => (
-                  <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                    <FormLabel className="mb-0 text-sm">Pertence ao grupo</FormLabel>
+                  <FormItem>
+                    <FormLabel>Status Homologação</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || "PENDENTE"}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="HOMOLOGADO">Homologado</SelectItem>
+                        <SelectItem value="PENDENTE">Pendente</SelectItem>
+                        <SelectItem value="BLOQUEADO">Bloqueado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {/* Endereço com geocodificação */}
+            <Separator />
+            <h3 className="text-sm font-semibold text-muted-foreground">Endereço</h3>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Buscar Endereço</label>
+              <AddressAutocomplete
+                value={form.getValues("endereco_completo") || ""}
+                isValidated={addressValidated}
+                onAddressSelected={handleAddressSelected}
+                disabled={isSubmitting}
+              />
+            </div>
+
+
+            {/* Dados Bancários */}
+            <Separator />
+            <h3 className="text-sm font-semibold text-muted-foreground">Dados Bancários</h3>
+
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                control={form.control}
+                name="banco"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Banco</FormLabel>
                     <FormControl>
-                      <Switch checked={field.value ?? false} onCheckedChange={field.onChange} />
+                      <Input placeholder="Nome do banco" {...field} value={field.value || ""} />
                     </FormControl>
                   </FormItem>
                 )}
               />
               <FormField
                 control={form.control}
-                name="fornece_equipamento"
+                name="agencia"
                 render={({ field }) => (
-                  <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                    <FormLabel className="mb-0 text-sm">Fornece equipamento</FormLabel>
+                  <FormItem>
+                    <FormLabel>Agência</FormLabel>
                     <FormControl>
-                      <Switch checked={field.value ?? false} onCheckedChange={field.onChange} />
+                      <Input placeholder="Agência" {...field} value={field.value || ""} />
                     </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                control={form.control}
+                name="conta"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Conta</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Número da conta" {...field} value={field.value || ""} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="tipo_conta"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo de Conta</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="CORRENTE">Corrente</SelectItem>
+                        <SelectItem value="POUPANCA">Poupança</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </FormItem>
                 )}
               />
@@ -407,56 +603,16 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
 
             <FormField
               control={form.control}
-              name="endereco_completo"
+              name="pix"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Endereço</FormLabel>
+                  <FormLabel>Chave PIX</FormLabel>
                   <FormControl>
-                    <Input placeholder="Endereço completo" {...field} value={field.value || ""} />
+                    <Input placeholder="CPF, CNPJ, e-mail, telefone ou chave aleatória" {...field} value={field.value || ""} />
                   </FormControl>
-                  <FormMessage />
                 </FormItem>
               )}
             />
-
-            <div className="grid grid-cols-3 gap-3">
-              <FormField
-                control={form.control}
-                name="endereco_cep"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>CEP</FormLabel>
-                    <FormControl>
-                      <Input placeholder="00000-000" {...field} value={field.value || ""} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="endereco_cidade"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Cidade</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Cidade" {...field} value={field.value || ""} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="endereco_estado"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>UF</FormLabel>
-                    <FormControl>
-                      <Input placeholder="UF" maxLength={2} {...field} value={field.value || ""} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </div>
             
             <DialogFooter className="pt-4">
               <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>

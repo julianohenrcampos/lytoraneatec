@@ -2265,59 +2265,92 @@ export type Database = {
       }
       bd_empresas: {
         Row: {
+          agencia: string | null
+          banco: string | null
           cnpj: string
+          conta: string | null
           created_at: string | null
           endereco_cep: string | null
           endereco_cidade: string | null
           endereco_completo: string | null
           endereco_estado: string | null
+          endereco_latitude: number | null
+          endereco_longitude: number | null
           fornece_equipamento: boolean | null
           id: string
+          inscricao_estadual: string | null
+          inscricao_municipal: string | null
           logo_url: string | null
           modificado_por: string | null
+          nome_contato: string | null
           nome_empresa: string
           pertence_ao_grupo: boolean | null
+          pessoa_tipo: string | null
+          pix: string | null
           situacao: string | null
           status_homologacao: string | null
           telefone: string | null
+          tipo_conta: string | null
           tipo_empresa: string | null
           updated_at: string | null
         }
         Insert: {
+          agencia?: string | null
+          banco?: string | null
           cnpj: string
+          conta?: string | null
           created_at?: string | null
           endereco_cep?: string | null
           endereco_cidade?: string | null
           endereco_completo?: string | null
           endereco_estado?: string | null
+          endereco_latitude?: number | null
+          endereco_longitude?: number | null
           fornece_equipamento?: boolean | null
           id?: string
+          inscricao_estadual?: string | null
+          inscricao_municipal?: string | null
           logo_url?: string | null
           modificado_por?: string | null
+          nome_contato?: string | null
           nome_empresa: string
           pertence_ao_grupo?: boolean | null
+          pessoa_tipo?: string | null
+          pix?: string | null
           situacao?: string | null
           status_homologacao?: string | null
           telefone?: string | null
+          tipo_conta?: string | null
           tipo_empresa?: string | null
           updated_at?: string | null
         }
         Update: {
+          agencia?: string | null
+          banco?: string | null
           cnpj?: string
+          conta?: string | null
           created_at?: string | null
           endereco_cep?: string | null
           endereco_cidade?: string | null
           endereco_completo?: string | null
           endereco_estado?: string | null
+          endereco_latitude?: number | null
+          endereco_longitude?: number | null
           fornece_equipamento?: boolean | null
           id?: string
+          inscricao_estadual?: string | null
+          inscricao_municipal?: string | null
           logo_url?: string | null
           modificado_por?: string | null
+          nome_contato?: string | null
           nome_empresa?: string
           pertence_ao_grupo?: boolean | null
+          pessoa_tipo?: string | null
+          pix?: string | null
           situacao?: string | null
           status_homologacao?: string | null
           telefone?: string | null
+          tipo_conta?: string | null
           tipo_empresa?: string | null
           updated_at?: string | null
         }

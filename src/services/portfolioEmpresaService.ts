@@ -80,7 +80,7 @@ export const getEmpresasFornecedorasDropdown = async () => {
   const { data, error } = await supabase
     .from("bd_empresas")
     .select("id, nome_empresa, status_homologacao")
-    .eq("fornece_equipamento", true)
+    .eq("tipo_empresa", "FORNECEDOR")
     .order("nome_empresa");
   if (error) throw error;
   return data || [];

@@ -1,0 +1,11 @@
+ALTER TABLE bd_empresas ADD COLUMN IF NOT EXISTS pessoa_tipo text DEFAULT 'PJ';
+ALTER TABLE bd_empresas ADD COLUMN IF NOT EXISTS inscricao_estadual text;
+ALTER TABLE bd_empresas ADD COLUMN IF NOT EXISTS inscricao_municipal text;
+ALTER TABLE bd_empresas ADD COLUMN IF NOT EXISTS nome_contato text;
+ALTER TABLE bd_empresas ADD COLUMN IF NOT EXISTS banco text;
+ALTER TABLE bd_empresas ADD COLUMN IF NOT EXISTS agencia text;
+ALTER TABLE bd_empresas ADD COLUMN IF NOT EXISTS conta text;
+ALTER TABLE bd_empresas ADD COLUMN IF NOT EXISTS tipo_conta text;
+ALTER TABLE bd_empresas ADD COLUMN IF NOT EXISTS pix text;
+ALTER TABLE bd_empresas ADD COLUMN IF NOT EXISTS endereco_latitude double precision;
+ALTER TABLE bd_empresas ADD COLUMN IF NOT EXISTS endereco_longitude double precision;

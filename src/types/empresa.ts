@@ -13,7 +13,18 @@ export interface Empresa {
   endereco_cep?: string | null;
   endereco_cidade?: string | null;
   endereco_estado?: string | null;
+  endereco_latitude?: number | null;
+  endereco_longitude?: number | null;
   logo_url?: string | null;
+  pessoa_tipo?: string | null;
+  inscricao_estadual?: string | null;
+  inscricao_municipal?: string | null;
+  nome_contato?: string | null;
+  banco?: string | null;
+  agencia?: string | null;
+  conta?: string | null;
+  tipo_conta?: string | null;
+  pix?: string | null;
   created_at?: string;
   updated_at?: string;
 }

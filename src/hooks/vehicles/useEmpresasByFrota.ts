@@ -39,9 +39,9 @@ async function fetchEmpresasByFrota(sigla: string | null): Promise<EmpresaOption
   if (tipo === "PROPRIO") {
     query = query.eq("tipo_empresa", "PROPRIA");
   } else if (tipo === "GRUPO") {
-    query = query.eq("pertence_ao_grupo", true);
+    query = query.eq("tipo_empresa", "GRUPO");
   } else if (tipo === "LOCADO") {
-    query = query.eq("fornece_equipamento", true).eq("tipo_empresa", "FORNECEDOR");
+    query = query.eq("tipo_empresa", "FORNECEDOR");
   }
 
   const { data, error } = await query.order("nome_empresa");
