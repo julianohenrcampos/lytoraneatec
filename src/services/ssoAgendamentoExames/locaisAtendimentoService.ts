@@ -7,6 +7,9 @@ export interface LocalAtendimentoFormData {
   cidade: string;
   telefone?: string;
   ativo?: boolean;
+  dias_atendimento?: string[];
+  horario_inicio?: string;
+  horario_fim?: string;
 }
 
 export const locaisAtendimentoService = {
@@ -50,7 +53,10 @@ export const locaisAtendimentoService = {
         endereco: formData.endereco,
         cidade: formData.cidade || null,
         telefone: formData.telefone || null,
-        ativo: formData.ativo !== false
+        ativo: formData.ativo !== false,
+        dias_atendimento: formData.dias_atendimento || ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'],
+        horario_inicio: formData.horario_inicio || '07:00',
+        horario_fim: formData.horario_fim || '17:00'
       })
       .select()
       .single();
@@ -67,7 +73,10 @@ export const locaisAtendimentoService = {
         endereco: formData.endereco,
         cidade: formData.cidade || null,
         telefone: formData.telefone || null,
-        ativo: formData.ativo
+        ativo: formData.ativo,
+        dias_atendimento: formData.dias_atendimento,
+        horario_inicio: formData.horario_inicio,
+        horario_fim: formData.horario_fim
       })
       .eq('id', id)
       .select()

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -6,6 +6,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
 import { 
   Etapa1FormData, 
   Etapa2FormData, 
@@ -16,7 +26,7 @@ import {
   calcularDataRegistroCarteira
 } from '@/types/ssoAgendamentoExames';
 import { formatBrazilianDateForDisplay } from '@/utils/timezoneUtils';
-import { Building2, User, Calendar, Briefcase } from 'lucide-react';
+import { Building2, User, Calendar, Briefcase, AlertTriangle, MessageCircle } from 'lucide-react';
 
 interface Etapa2AgendamentoFormProps {
   etapa1Data: Etapa1FormData;
@@ -27,6 +37,16 @@ interface Etapa2AgendamentoFormProps {
   disabled?: boolean;
 }
 
+const DIAS_SEMANA_MAP: Record<number, string> = {
+  0: 'Domingo',
+  1: 'Segunda',
+  2: 'Terça',
+  3: 'Quarta',
+  4: 'Quinta',
+  5: 'Sexta',
+  6: 'Sábado'
+};
+
 export const Etapa2AgendamentoForm: React.FC<Etapa2AgendamentoFormProps> = ({
   etapa1Data,
   formData,
@@ -35,12 +55,89 @@ export const Etapa2AgendamentoForm: React.FC<Etapa2AgendamentoFormProps> = ({
   canChangeStatus = true,
   disabled = false
 }) => {
+  const [showIndisponivel, setShowIndisponivel] = useState(false);
+  const [motivoIndisponivel, setMotivoIndisponivel] = useState('');
+
   const dataRegistroCarteira = etapa1Data.data_inicio_prevista 
     ? calcularDataRegistroCarteira(etapa1Data.data_inicio_prevista)
     : '';
 
+  // Validação de disponibilidade da clínica
+  useEffect(() => {
+    if (!formData.local_atendimento_id || !formData.data_agendamento || !formData.horario_agendamento) return;
+
+    const clinica = locais.find(l => l.id === formData.local_atendimento_id);
+    if (!clinica) return;
+
+    const diasAtendimento = clinica.dias_atendimento || ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'];
+    const horarioInicio = clinica.horario_inicio || '07:00';
+    const horarioFim = clinica.horario_fim || '17:00';
+
+    // Verificar dia da semana
+    const dataSelecionada = new Date(formData.data_agendamento + 'T12:00:00');
+    const diaSemana = DIAS_SEMANA_MAP[dataSelecionada.getDay()];
+    
+    if (!diasAtendimento.includes(diaSemana)) {
+      setMotivoIndisponivel(`A clínica não atende às ${diaSemana}s. Dias disponíveis: ${diasAtendimento.join(', ')}.`);
+      setShowIndisponivel(true);
+      return;
+    }
+
+    // Verificar horário
+    const horarioSelecionado = formData.horario_agendamento;
+    const inicioNorm = horarioInicio.substring(0, 5);
+    const fimNorm = horarioFim.substring(0, 5);
+
+    if (horarioSelecionado < inicioNorm || horarioSelecionado > fimNorm) {
+      setMotivoIndisponivel(`Horário fora do expediente da clínica (${inicioNorm} às ${fimNorm}).`);
+      setShowIndisponivel(true);
+      return;
+    }
+  }, [formData.local_atendimento_id, formData.data_agendamento, formData.horario_agendamento, locais]);
+
+  const handleCloseIndisponivel = () => {
+    setShowIndisponivel(false);
+    onChange('data_agendamento', '');
+    onChange('horario_agendamento', '');
+  };
+
+  const handleWhatsApp = () => {
+    const msg = encodeURIComponent('Olá, preciso de orientação sobre agendamento de exame ocupacional. A clínica selecionada não possui disponibilidade para o período desejado.');
+    window.open(`https://wa.me/5521976652245?text=${msg}`, '_blank');
+  };
+
   return (
     <div className="space-y-6">
+      {/* Popup de Indisponibilidade */}
+      <AlertDialog open={showIndisponivel} onOpenChange={setShowIndisponivel}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Aviso: Indisponibilidade de Agenda
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3 pt-2">
+              <p>{motivoIndisponivel}</p>
+              <p>
+                Não há vagas disponíveis na clínica selecionada para este período.
+                Por favor, entre em contato com o gestor de contratos para orientações sobre como proceder:
+              </p>
+              <div className="bg-muted rounded-md p-3 space-y-1">
+                <p className="font-medium text-foreground">Responsável: Saúde Ocupacional</p>
+                <p className="text-foreground">Contato direto: (21) 97665-2245</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCloseIndisponivel}>Fechar</AlertDialogCancel>
+            <Button onClick={handleWhatsApp} className="gap-2">
+              <MessageCircle className="h-4 w-4" />
+              Abrir WhatsApp
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Resumo do Candidato (somente leitura) */}
       <Card className="p-4 bg-muted/30">
         <h4 className="font-semibold mb-3 text-sm text-muted-foreground">Resumo do Candidato</h4>
@@ -131,7 +228,7 @@ export const Etapa2AgendamentoForm: React.FC<Etapa2AgendamentoFormProps> = ({
               <SelectContent>
                 {locais.map((local) => (
                   <SelectItem key={local.id} value={local.id}>
-                    {local.cidade || local.nome_local}
+                    {local.nome_local}
                   </SelectItem>
                 ))}
               </SelectContent>

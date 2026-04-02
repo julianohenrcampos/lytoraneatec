@@ -156,7 +156,7 @@ export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> =
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
             {locais.map((local) => (
-              <SelectItem key={local.id} value={local.id}>{local.cidade || local.nome_local}</SelectItem>
+              <SelectItem key={local.id} value={local.id}>{local.nome_local}</SelectItem>
             ))}
           </SelectContent>
         </Select>

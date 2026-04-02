@@ -56,6 +56,10 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   // Administração
   '/admin/permissoes': ['admin_permissoes_view'],
   '/admin/gestao-fluxos': ['admin_gestao_fluxos_view'],
+
+  // Rotas adicionais
+  '/gestao-rh/diretorias': ['gestao_rh_diretorias_view'],
+  '/sso/ver-e-agir': ['acesso_sso_ver_agir'],
 };
 
 export const useRouteAccess = () => {

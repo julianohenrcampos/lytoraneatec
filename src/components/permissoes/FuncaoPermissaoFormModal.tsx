@@ -85,31 +85,38 @@ const FuncaoPermissaoFormModal: React.FC<FuncaoPermissaoFormModalProps> = ({
     onSubmit(formData);
   };
 
-  // Group permissions by module based on their codigo
+  // Group permissions by module matching sidebar menu structure
   const groupedPermissions = React.useMemo(() => {
     const groups: Record<string, RBACPermission[]> = {
-      Dashboard: [],
+      'Dashboards': [],
       'Gestão de RH': [],
-      'Gestão de Máquinas/Equipamentos': [],
+      'Gestão de Veículos/Equipamentos': [],
       'Requisições e Logística': [],
-      'SSO': [],
       'Diárias': [],
+      'SSO - Segurança': [],
+      'Licitações': [],
+      'Administração': [],
       'Outros': [],
     };
 
     permissoes.forEach(permission => {
-      if (permission.codigo.startsWith('dashboard_')) {
-        groups['Dashboard'].push(permission);
-      } else if (permission.codigo.startsWith('gestao_rh_')) {
+      const c = permission.codigo;
+      if (c.startsWith('dashboard_') && !c.startsWith('dashboard_licitacoes')) {
+        groups['Dashboards'].push(permission);
+      } else if (c.startsWith('gestao_rh_') || c === 'acesso_sso_agendamento_exames') {
         groups['Gestão de RH'].push(permission);
-      } else if (permission.codigo.startsWith('gestao_maquinas_')) {
-        groups['Gestão de Máquinas/Equipamentos'].push(permission);
-      } else if (permission.codigo.startsWith('requisicoes_')) {
+      } else if (c.startsWith('gestao_maquinas_') || c === 'requisicoes_chamados_os_view' || c === 'requisicoes_gestao_os_view' || c === 'requisicoes_apontamento_caminhoes_view') {
+        groups['Gestão de Veículos/Equipamentos'].push(permission);
+      } else if (c.startsWith('requisicoes_') && !['requisicoes_chamados_os_view', 'requisicoes_gestao_os_view', 'requisicoes_apontamento_caminhoes_view'].includes(c)) {
         groups['Requisições e Logística'].push(permission);
-      } else if (permission.codigo.startsWith('acesso_sso_')) {
-        groups['SSO'].push(permission);
-      } else if (permission.codigo.startsWith('diarias_')) {
+      } else if (c.startsWith('diarias_') || c === 'acesso_gestao_aprovacoes') {
         groups['Diárias'].push(permission);
+      } else if ((c.startsWith('acesso_sso_') && c !== 'acesso_sso_agendamento_exames') || c === 'acesso_sso_ver_agir') {
+        groups['SSO - Segurança'].push(permission);
+      } else if (c === 'acesso_monitoramento_pncp' || c.startsWith('configuracoes_pncp') || c.startsWith('dashboard_licitacoes') || c.startsWith('relatorio_licitacoes')) {
+        groups['Licitações'].push(permission);
+      } else if (c.startsWith('admin_')) {
+        groups['Administração'].push(permission);
       } else {
         groups['Outros'].push(permission);
       }
@@ -117,6 +124,18 @@ const FuncaoPermissaoFormModal: React.FC<FuncaoPermissaoFormModalProps> = ({
 
     return groups;
   }, [permissoes]);
+
+  // Helper to toggle all permissions in a group
+  const toggleGroupPermissions = (perms: RBACPermission[], select: boolean) => {
+    const currentPerms = form.getValues('permissions');
+    const groupIds = perms.map(p => p.id);
+    if (select) {
+      const merged = Array.from(new Set([...currentPerms, ...groupIds]));
+      form.setValue('permissions', merged);
+    } else {
+      form.setValue('permissions', currentPerms.filter(id => !groupIds.includes(id)));
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -173,7 +192,29 @@ const FuncaoPermissaoFormModal: React.FC<FuncaoPermissaoFormModalProps> = ({
                         {Object.entries(groupedPermissions).map(([group, perms]) => (
                           perms.length > 0 && (
                             <div key={group} className="space-y-2">
-                              <h3 className="font-medium text-sm">{group}</h3>
+                              <div className="flex items-center justify-between">
+                                <h3 className="font-medium text-sm">{group}</h3>
+                                <div className="flex gap-1">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 text-xs px-2"
+                                    onClick={() => toggleGroupPermissions(perms, true)}
+                                  >
+                                    Todos
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 text-xs px-2"
+                                    onClick={() => toggleGroupPermissions(perms, false)}
+                                  >
+                                    Nenhum
+                                  </Button>
+                                </div>
+                              </div>
                               <div className="space-y-2 ml-2">
                                 {perms.map(permission => (
                                   <FormField

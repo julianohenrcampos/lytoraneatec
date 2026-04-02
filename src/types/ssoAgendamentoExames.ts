@@ -21,6 +21,9 @@ export interface LocalAtendimento {
   telefone: string | null;
   ativo: boolean;
   criado_em: string;
+  dias_atendimento: string[];
+  horario_inicio: string;
+  horario_fim: string;
 }
 
 export interface AgendamentoExame {

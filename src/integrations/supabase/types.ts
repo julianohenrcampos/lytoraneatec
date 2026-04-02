@@ -3315,7 +3315,10 @@ export type Database = {
           ativo: boolean
           cidade: string | null
           criado_em: string
+          dias_atendimento: string[] | null
           endereco: string
+          horario_fim: string | null
+          horario_inicio: string | null
           id: string
           nome_local: string
           telefone: string | null
@@ -3324,7 +3327,10 @@ export type Database = {
           ativo?: boolean
           cidade?: string | null
           criado_em?: string
+          dias_atendimento?: string[] | null
           endereco: string
+          horario_fim?: string | null
+          horario_inicio?: string | null
           id?: string
           nome_local: string
           telefone?: string | null
@@ -3333,7 +3339,10 @@ export type Database = {
           ativo?: boolean
           cidade?: string | null
           criado_em?: string
+          dias_atendimento?: string[] | null
           endereco?: string
+          horario_fim?: string | null
+          horario_inicio?: string | null
           id?: string
           nome_local?: string
           telefone?: string | null

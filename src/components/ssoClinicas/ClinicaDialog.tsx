@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useLocaisAtendimento } from '@/hooks/ssoAgendamentoExames';
 import { LocalAtendimentoFormData } from '@/services/ssoAgendamentoExames/locaisAtendimentoService';
 import { Loader2 } from 'lucide-react';
@@ -20,12 +21,17 @@ interface ClinicaDialogProps {
   clinicaId?: string;
 }
 
+const DIAS_SEMANA = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+
 const initialFormData: LocalAtendimentoFormData = {
   nome_local: '',
   endereco: '',
   cidade: '',
   telefone: '',
-  ativo: true
+  ativo: true,
+  dias_atendimento: ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'],
+  horario_inicio: '07:00',
+  horario_fim: '17:00'
 };
 
 export const ClinicaDialog: React.FC<ClinicaDialogProps> = ({
@@ -43,7 +49,10 @@ export const ClinicaDialog: React.FC<ClinicaDialogProps> = ({
         endereco: local.endereco,
         cidade: local.cidade || '',
         telefone: local.telefone || '',
-        ativo: local.ativo
+        ativo: local.ativo,
+        dias_atendimento: local.dias_atendimento || ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'],
+        horario_inicio: local.horario_inicio || '07:00',
+        horario_fim: local.horario_fim || '17:00'
       });
     } else if (!clinicaId) {
       setFormData(initialFormData);
@@ -54,6 +63,10 @@ export const ClinicaDialog: React.FC<ClinicaDialogProps> = ({
     e.preventDefault();
     if (!formData.nome_local || !formData.endereco || !formData.cidade) {
       toast.error('Preencha todos os campos obrigatórios');
+      return;
+    }
+    if (!formData.dias_atendimento || formData.dias_atendimento.length === 0) {
+      toast.error('Selecione ao menos um dia de atendimento');
       return;
     }
     try {
@@ -70,6 +83,15 @@ export const ClinicaDialog: React.FC<ClinicaDialogProps> = ({
 
   const handleChange = (field: keyof LocalAtendimentoFormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const toggleDia = (dia: string) => {
+    const current = formData.dias_atendimento || [];
+    if (current.includes(dia)) {
+      handleChange('dias_atendimento', current.filter(d => d !== dia));
+    } else {
+      handleChange('dias_atendimento', [...current, dia]);
+    }
   };
 
   if (isLoading && clinicaId) {
@@ -128,6 +150,45 @@ export const ClinicaDialog: React.FC<ClinicaDialogProps> = ({
               onChange={(e) => handleChange('telefone', e.target.value)}
               placeholder="(21) 9999-9999"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Dias de Atendimento *</Label>
+            <div className="flex flex-wrap gap-3">
+              {DIAS_SEMANA.map((dia) => (
+                <div key={dia} className="flex items-center space-x-1.5">
+                  <Checkbox
+                    id={`dia-${dia}`}
+                    checked={(formData.dias_atendimento || []).includes(dia)}
+                    onCheckedChange={() => toggleDia(dia)}
+                  />
+                  <Label htmlFor={`dia-${dia}`} className="text-xs cursor-pointer">
+                    {dia.substring(0, 3)}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Horário Início *</Label>
+              <Input
+                type="time"
+                value={formData.horario_inicio || '07:00'}
+                onChange={(e) => handleChange('horario_inicio', e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Horário Fim *</Label>
+              <Input
+                type="time"
+                value={formData.horario_fim || '17:00'}
+                onChange={(e) => handleChange('horario_fim', e.target.value)}
+                required
+              />
+            </div>
           </div>
           
           <div className="flex items-center justify-between">
