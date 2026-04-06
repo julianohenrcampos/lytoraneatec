@@ -47,9 +47,10 @@ export const checkFuncaoExists = async (
 
 // Create a new function
 export const createFuncao = async (data: FuncaoFormData): Promise<Funcao> => {
+  const normalizedData = { ...data, nome_funcao: data.nome_funcao.toUpperCase().trim() };
   const { data: newData, error } = await supabase
     .from("bd_funcoes")
-    .insert(data)
+    .insert(normalizedData)
     .select()
     .single();
   
@@ -63,9 +64,10 @@ export const createFuncao = async (data: FuncaoFormData): Promise<Funcao> => {
 
 // Update an existing function
 export const updateFuncao = async (id: string, data: FuncaoFormData): Promise<Funcao> => {
+  const normalizedData = { ...data, nome_funcao: data.nome_funcao.toUpperCase().trim() };
   const { data: updatedData, error } = await supabase
     .from("bd_funcoes")
-    .update(data)
+    .update(normalizedData)
     .eq("id", id)
     .select()
     .single();
@@ -174,7 +176,7 @@ export const processImportData = async (data: any[]): Promise<{
   
   for (const row of data) {
     try {
-      const funcaoNome = (row["Nome Função"] || row["Nome da Função"] || row["Função"] || "").toString().trim();
+      const funcaoNome = (row["Nome Função"] || row["Nome da Função"] || row["Função"] || "").toString().toUpperCase().trim();
       
       if (!funcaoNome) {
         results.errors.push(`Linha com dados incompletos: ${JSON.stringify(row)}`);

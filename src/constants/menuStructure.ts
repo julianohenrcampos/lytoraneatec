@@ -16,7 +16,7 @@ import {
   Gavel,
   Calendar,
   ClipboardCheck,
-  Layers,
+  
   Activity,
   Briefcase,
   FileSearch
@@ -163,6 +163,12 @@ export const menuStructure = [
         name: "Solicitações de Equipamento",
         href: "/gestao-maquinas/solicitacoes-equipamentos",
         icon: FileSearch,
+        requiredPermission: "gestao_maquinas_caminhoes_view"
+      },
+      {
+        name: "Central do Transporte",
+        href: "/gestao-maquinas/central-transporte",
+        icon: Truck,
         requiredPermission: "gestao_maquinas_caminhoes_view"
       }
     ]

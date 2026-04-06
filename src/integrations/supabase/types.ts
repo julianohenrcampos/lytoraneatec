@@ -201,6 +201,7 @@ export type Database = {
           id: string
           local_atendimento_id: string
           modificado_por: string | null
+          motivo_contratacao: string | null
           motivo_mudanca_risco: string | null
           nome_colaborador: string
           observacoes: string | null
@@ -248,6 +249,7 @@ export type Database = {
           id?: string
           local_atendimento_id: string
           modificado_por?: string | null
+          motivo_contratacao?: string | null
           motivo_mudanca_risco?: string | null
           nome_colaborador: string
           observacoes?: string | null
@@ -295,6 +297,7 @@ export type Database = {
           id?: string
           local_atendimento_id?: string
           modificado_por?: string | null
+          motivo_contratacao?: string | null
           motivo_mudanca_risco?: string | null
           nome_colaborador?: string
           observacoes?: string | null
@@ -928,6 +931,7 @@ export type Database = {
           aluguel: string | null
           ano_fabricacao: string | null
           capacidade: string | null
+          catalogo_equipamento_id: string | null
           categoria_ativo_id: string | null
           chassi: string | null
           cor: string | null
@@ -966,6 +970,7 @@ export type Database = {
           aluguel?: string | null
           ano_fabricacao?: string | null
           capacidade?: string | null
+          catalogo_equipamento_id?: string | null
           categoria_ativo_id?: string | null
           chassi?: string | null
           cor?: string | null
@@ -1004,6 +1009,7 @@ export type Database = {
           aluguel?: string | null
           ano_fabricacao?: string | null
           capacidade?: string | null
+          catalogo_equipamento_id?: string | null
           categoria_ativo_id?: string | null
           chassi?: string | null
           cor?: string | null
@@ -1039,6 +1045,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "bd_caminhoes_equipamentos_catalogo_equipamento_id_fkey"
+            columns: ["catalogo_equipamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_catalogo_equipamentos"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bd_caminhoes_equipamentos_categoria_ativo_id_fkey"
             columns: ["categoria_ativo_id"]
@@ -1175,6 +1188,143 @@ export type Database = {
           },
         ]
       }
+      bd_catalogo_equipamentos: {
+        Row: {
+          ano_fabricacao_padrao: number | null
+          ativo: boolean | null
+          capacidade: string | null
+          categoria_id: string | null
+          combustivel: string | null
+          cor_padrao: string | null
+          created_at: string | null
+          descricao_padrao: string | null
+          fabricante_id: string | null
+          id: string
+          imagem_url: string | null
+          modelo_id: string | null
+          motor_padrao: string | null
+          potencia: string | null
+          subcategoria_id: string | null
+          tipo_equipamento_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ano_fabricacao_padrao?: number | null
+          ativo?: boolean | null
+          capacidade?: string | null
+          categoria_id?: string | null
+          combustivel?: string | null
+          cor_padrao?: string | null
+          created_at?: string | null
+          descricao_padrao?: string | null
+          fabricante_id?: string | null
+          id?: string
+          imagem_url?: string | null
+          modelo_id?: string | null
+          motor_padrao?: string | null
+          potencia?: string | null
+          subcategoria_id?: string | null
+          tipo_equipamento_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ano_fabricacao_padrao?: number | null
+          ativo?: boolean | null
+          capacidade?: string | null
+          categoria_id?: string | null
+          combustivel?: string | null
+          cor_padrao?: string | null
+          created_at?: string | null
+          descricao_padrao?: string | null
+          fabricante_id?: string | null
+          id?: string
+          imagem_url?: string | null
+          modelo_id?: string | null
+          motor_padrao?: string | null
+          potencia?: string | null
+          subcategoria_id?: string | null
+          tipo_equipamento_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_catalogo_equipamentos_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "bd_categorias_ativos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_catalogo_equipamentos_fabricante_id_fkey"
+            columns: ["fabricante_id"]
+            isOneToOne: false
+            referencedRelation: "bd_fabricantes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_catalogo_equipamentos_modelo_id_fkey"
+            columns: ["modelo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_modelos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_catalogo_equipamentos_subcategoria_id_fkey"
+            columns: ["subcategoria_id"]
+            isOneToOne: false
+            referencedRelation: "bd_subcategorias_ativos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_catalogo_equipamentos_tipo_equipamento_id_fkey"
+            columns: ["tipo_equipamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_tipos_equipamento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_catalogo_variacoes: {
+        Row: {
+          capacidade_unidade: string | null
+          capacidade_valor: number | null
+          created_at: string | null
+          descricao_padrao: string | null
+          id: string
+          origem: string
+          subcategoria_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          capacidade_unidade?: string | null
+          capacidade_valor?: number | null
+          created_at?: string | null
+          descricao_padrao?: string | null
+          id?: string
+          origem?: string
+          subcategoria_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          capacidade_unidade?: string | null
+          capacidade_valor?: number | null
+          created_at?: string | null
+          descricao_padrao?: string | null
+          id?: string
+          origem?: string
+          subcategoria_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_catalogo_variacoes_subcategoria_id_fkey"
+            columns: ["subcategoria_id"]
+            isOneToOne: false
+            referencedRelation: "bd_subcategorias_ativos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_categorias_ativos: {
         Row: {
           ativo: boolean | null
@@ -1217,6 +1367,7 @@ export type Database = {
           cnpj_vinculado: string | null
           codigo_centro_custo: string
           created_at: string | null
+          departamento_id: string | null
           diretoria_id: string | null
           endereco_bairro: string | null
           endereco_cep: string | null
@@ -1242,6 +1393,7 @@ export type Database = {
           cnpj_vinculado?: string | null
           codigo_centro_custo: string
           created_at?: string | null
+          departamento_id?: string | null
           diretoria_id?: string | null
           endereco_bairro?: string | null
           endereco_cep?: string | null
@@ -1267,6 +1419,7 @@ export type Database = {
           cnpj_vinculado?: string | null
           codigo_centro_custo?: string
           created_at?: string | null
+          departamento_id?: string | null
           diretoria_id?: string | null
           endereco_bairro?: string | null
           endereco_cep?: string | null
@@ -1299,6 +1452,13 @@ export type Database = {
             columns: ["aprovador_diarias_id"]
             isOneToOne: false
             referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_departamento_id_fkey"
+            columns: ["departamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_departamentos"
             referencedColumns: ["id"]
           },
           {
@@ -3490,6 +3650,212 @@ export type Database = {
           },
         ]
       }
+      bd_movimentacao_saida: {
+        Row: {
+          checklist_json: Json | null
+          combustivel: string | null
+          created_at: string | null
+          data_hora: string | null
+          fotos_json: Json | null
+          horimetro: number | null
+          id: string
+          latitude: number | null
+          longitude: number | null
+          movimentacao_id: string
+          responsavel_id: string | null
+        }
+        Insert: {
+          checklist_json?: Json | null
+          combustivel?: string | null
+          created_at?: string | null
+          data_hora?: string | null
+          fotos_json?: Json | null
+          horimetro?: number | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          movimentacao_id: string
+          responsavel_id?: string | null
+        }
+        Update: {
+          checklist_json?: Json | null
+          combustivel?: string | null
+          created_at?: string | null
+          data_hora?: string | null
+          fotos_json?: Json | null
+          horimetro?: number | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          movimentacao_id?: string
+          responsavel_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_movimentacao_saida_movimentacao_id_fkey"
+            columns: ["movimentacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_movimentacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_movimentacao_saida_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_movimentacao_transporte: {
+        Row: {
+          caminhao_id: string | null
+          created_at: string | null
+          empresa_id: string | null
+          id: string
+          motorista_cpf: string | null
+          motorista_id: string | null
+          motorista_nome: string | null
+          movimentacao_id: string
+          observacoes: string | null
+          placa: string | null
+          tipo_transporte: string | null
+        }
+        Insert: {
+          caminhao_id?: string | null
+          created_at?: string | null
+          empresa_id?: string | null
+          id?: string
+          motorista_cpf?: string | null
+          motorista_id?: string | null
+          motorista_nome?: string | null
+          movimentacao_id: string
+          observacoes?: string | null
+          placa?: string | null
+          tipo_transporte?: string | null
+        }
+        Update: {
+          caminhao_id?: string | null
+          created_at?: string | null
+          empresa_id?: string | null
+          id?: string
+          motorista_cpf?: string | null
+          motorista_id?: string | null
+          motorista_nome?: string | null
+          movimentacao_id?: string
+          observacoes?: string | null
+          placa?: string | null
+          tipo_transporte?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_movimentacao_transporte_caminhao_id_fkey"
+            columns: ["caminhao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_caminhoes_equipamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_movimentacao_transporte_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "bd_empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_movimentacao_transporte_movimentacao_id_fkey"
+            columns: ["movimentacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_movimentacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_movimentacoes: {
+        Row: {
+          created_at: string | null
+          custo_total: number | null
+          destino_id: string | null
+          destino_tipo: string
+          distancia_km: number | null
+          equipamento_id: string | null
+          id: string
+          origem_id: string | null
+          origem_tipo: string
+          prazo_estimado_horas: number | null
+          responsavel_transporte: string | null
+          solicitacao_id: string
+          solicitacao_planejamento_id: string | null
+          status: string | null
+          tipo_atendimento: string | null
+          tipo_deslocamento: string | null
+          updated_at: string | null
+          valor_km: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          custo_total?: number | null
+          destino_id?: string | null
+          destino_tipo: string
+          distancia_km?: number | null
+          equipamento_id?: string | null
+          id?: string
+          origem_id?: string | null
+          origem_tipo: string
+          prazo_estimado_horas?: number | null
+          responsavel_transporte?: string | null
+          solicitacao_id: string
+          solicitacao_planejamento_id?: string | null
+          status?: string | null
+          tipo_atendimento?: string | null
+          tipo_deslocamento?: string | null
+          updated_at?: string | null
+          valor_km?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          custo_total?: number | null
+          destino_id?: string | null
+          destino_tipo?: string
+          distancia_km?: number | null
+          equipamento_id?: string | null
+          id?: string
+          origem_id?: string | null
+          origem_tipo?: string
+          prazo_estimado_horas?: number | null
+          responsavel_transporte?: string | null
+          solicitacao_id?: string
+          solicitacao_planejamento_id?: string | null
+          status?: string | null
+          tipo_atendimento?: string | null
+          tipo_deslocamento?: string | null
+          updated_at?: string | null
+          valor_km?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_movimentacoes_equipamento_id_fkey"
+            columns: ["equipamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_caminhoes_equipamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_movimentacoes_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_solicitacoes_equipamento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_movimentacoes_solicitacao_planejamento_id_fkey"
+            columns: ["solicitacao_planejamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_solicitacoes_planejamento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_notificacoes: {
         Row: {
           created_at: string | null
@@ -4385,6 +4751,8 @@ export type Database = {
       bd_portfolio_empresas: {
         Row: {
           ativo: boolean | null
+          catalogo_equipamento_id: string | null
+          catalogo_variacao_id: string | null
           created_at: string | null
           empresa_id: string
           fornece_com_operador: boolean | null
@@ -4392,11 +4760,15 @@ export type Database = {
           id: string
           observacoes: string | null
           quantidade_estimada: number | null
-          tipo_equipamento_id: string
+          tipo_equipamento_id: string | null
           updated_at: string | null
+          valor_ref_com_operador: number | null
+          valor_ref_sem_operador: number | null
         }
         Insert: {
           ativo?: boolean | null
+          catalogo_equipamento_id?: string | null
+          catalogo_variacao_id?: string | null
           created_at?: string | null
           empresa_id: string
           fornece_com_operador?: boolean | null
@@ -4404,11 +4776,15 @@ export type Database = {
           id?: string
           observacoes?: string | null
           quantidade_estimada?: number | null
-          tipo_equipamento_id: string
+          tipo_equipamento_id?: string | null
           updated_at?: string | null
+          valor_ref_com_operador?: number | null
+          valor_ref_sem_operador?: number | null
         }
         Update: {
           ativo?: boolean | null
+          catalogo_equipamento_id?: string | null
+          catalogo_variacao_id?: string | null
           created_at?: string | null
           empresa_id?: string
           fornece_com_operador?: boolean | null
@@ -4416,10 +4792,26 @@ export type Database = {
           id?: string
           observacoes?: string | null
           quantidade_estimada?: number | null
-          tipo_equipamento_id?: string
+          tipo_equipamento_id?: string | null
           updated_at?: string | null
+          valor_ref_com_operador?: number | null
+          valor_ref_sem_operador?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "bd_portfolio_empresas_catalogo_equipamento_id_fkey"
+            columns: ["catalogo_equipamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_catalogo_equipamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_portfolio_empresas_catalogo_variacao_id_fkey"
+            columns: ["catalogo_variacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_catalogo_variacoes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bd_portfolio_empresas_empresa_id_fkey"
             columns: ["empresa_id"]
@@ -5280,12 +5672,63 @@ export type Database = {
           },
         ]
       }
+      bd_solicitacoes_equip_aprovacoes: {
+        Row: {
+          aprovador_id: string | null
+          comentario: string | null
+          created_at: string | null
+          data_decisao: string | null
+          etapa_aprovacao: string
+          id: string
+          solicitacao_id: string
+          status: string | null
+        }
+        Insert: {
+          aprovador_id?: string | null
+          comentario?: string | null
+          created_at?: string | null
+          data_decisao?: string | null
+          etapa_aprovacao: string
+          id?: string
+          solicitacao_id: string
+          status?: string | null
+        }
+        Update: {
+          aprovador_id?: string | null
+          comentario?: string | null
+          created_at?: string | null
+          data_decisao?: string | null
+          etapa_aprovacao?: string
+          id?: string
+          solicitacao_id?: string
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_solicitacoes_equip_aprovacoes_aprovador_id_fkey"
+            columns: ["aprovador_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_equip_aprovacoes_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_solicitacoes_equipamento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_solicitacoes_equipamento: {
         Row: {
+          apontador_responsavel_id: string | null
+          aprovador_centro_custo_id: string | null
           centro_custo_id: string
           com_operador: boolean | null
           created_at: string | null
           data_inicio: string
+          engenheiro_solicitante_id: string | null
           id: string
           justificativa: string
           possui_disponibilidade_interna: boolean | null
@@ -5296,16 +5739,20 @@ export type Database = {
           resultado_matching: string | null
           solicitante_id: string | null
           status: Database["public"]["Enums"]["status_solicitacao_equip_enum"]
+          status_fluxo: string | null
           sugestao_acao: string | null
           tempo_previsto_dias: number | null
           tipo_equipamento_id: string | null
           updated_at: string | null
         }
         Insert: {
+          apontador_responsavel_id?: string | null
+          aprovador_centro_custo_id?: string | null
           centro_custo_id: string
           com_operador?: boolean | null
           created_at?: string | null
           data_inicio: string
+          engenheiro_solicitante_id?: string | null
           id?: string
           justificativa: string
           possui_disponibilidade_interna?: boolean | null
@@ -5316,16 +5763,20 @@ export type Database = {
           resultado_matching?: string | null
           solicitante_id?: string | null
           status?: Database["public"]["Enums"]["status_solicitacao_equip_enum"]
+          status_fluxo?: string | null
           sugestao_acao?: string | null
           tempo_previsto_dias?: number | null
           tipo_equipamento_id?: string | null
           updated_at?: string | null
         }
         Update: {
+          apontador_responsavel_id?: string | null
+          aprovador_centro_custo_id?: string | null
           centro_custo_id?: string
           com_operador?: boolean | null
           created_at?: string | null
           data_inicio?: string
+          engenheiro_solicitante_id?: string | null
           id?: string
           justificativa?: string
           possui_disponibilidade_interna?: boolean | null
@@ -5336,12 +5787,27 @@ export type Database = {
           resultado_matching?: string | null
           solicitante_id?: string | null
           status?: Database["public"]["Enums"]["status_solicitacao_equip_enum"]
+          status_fluxo?: string | null
           sugestao_acao?: string | null
           tempo_previsto_dias?: number | null
           tipo_equipamento_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "bd_solicitacoes_equipamento_apontador_responsavel_id_fkey"
+            columns: ["apontador_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_equipamento_aprovador_centro_custo_id_fkey"
+            columns: ["aprovador_centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bd_solicitacoes_equipamento_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
@@ -5357,10 +5823,176 @@ export type Database = {
             referencedColumns: ["centro_custo_id"]
           },
           {
+            foreignKeyName: "bd_solicitacoes_equipamento_engenheiro_solicitante_id_fkey"
+            columns: ["engenheiro_solicitante_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_solicitacoes_equipamento_tipo_equipamento_id_fkey"
             columns: ["tipo_equipamento_id"]
             isOneToOne: false
             referencedRelation: "bd_tipos_equipamento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_solicitacoes_itens: {
+        Row: {
+          capacidade_descricao: string | null
+          capacidade_unidade: string | null
+          capacidade_valor: number | null
+          catalogo_equipamento_id: string | null
+          catalogo_variacao_id: string | null
+          com_operador: boolean
+          created_at: string | null
+          descricao_livre: string | null
+          id: string
+          item_nao_catalogado: boolean
+          observacoes: string | null
+          quantidade: number
+          regime_personalizado: string | null
+          regime_trabalho: string | null
+          solicitacao_id: string
+          status_item: string
+          subcategoria_id: string | null
+          tempo_previsto_dias: number | null
+          tipo_item: string
+          updated_at: string | null
+        }
+        Insert: {
+          capacidade_descricao?: string | null
+          capacidade_unidade?: string | null
+          capacidade_valor?: number | null
+          catalogo_equipamento_id?: string | null
+          catalogo_variacao_id?: string | null
+          com_operador?: boolean
+          created_at?: string | null
+          descricao_livre?: string | null
+          id?: string
+          item_nao_catalogado?: boolean
+          observacoes?: string | null
+          quantidade?: number
+          regime_personalizado?: string | null
+          regime_trabalho?: string | null
+          solicitacao_id: string
+          status_item?: string
+          subcategoria_id?: string | null
+          tempo_previsto_dias?: number | null
+          tipo_item: string
+          updated_at?: string | null
+        }
+        Update: {
+          capacidade_descricao?: string | null
+          capacidade_unidade?: string | null
+          capacidade_valor?: number | null
+          catalogo_equipamento_id?: string | null
+          catalogo_variacao_id?: string | null
+          com_operador?: boolean
+          created_at?: string | null
+          descricao_livre?: string | null
+          id?: string
+          item_nao_catalogado?: boolean
+          observacoes?: string | null
+          quantidade?: number
+          regime_personalizado?: string | null
+          regime_trabalho?: string | null
+          solicitacao_id?: string
+          status_item?: string
+          subcategoria_id?: string | null
+          tempo_previsto_dias?: number | null
+          tipo_item?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_solicitacoes_itens_catalogo_equipamento_id_fkey"
+            columns: ["catalogo_equipamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_catalogo_equipamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_itens_catalogo_variacao_id_fkey"
+            columns: ["catalogo_variacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_catalogo_variacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_itens_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_solicitacoes_equipamento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_itens_subcategoria_id_fkey"
+            columns: ["subcategoria_id"]
+            isOneToOne: false
+            referencedRelation: "bd_subcategorias_ativos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_solicitacoes_planejamento: {
+        Row: {
+          created_at: string | null
+          data_prevista_entrega: string | null
+          decisao: string | null
+          id: string
+          observacoes: string | null
+          responsavel_transporte_id: string | null
+          solicitacao_id: string
+          status: string | null
+          updated_at: string | null
+          usuario_transporte_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          data_prevista_entrega?: string | null
+          decisao?: string | null
+          id?: string
+          observacoes?: string | null
+          responsavel_transporte_id?: string | null
+          solicitacao_id: string
+          status?: string | null
+          updated_at?: string | null
+          usuario_transporte_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          data_prevista_entrega?: string | null
+          decisao?: string | null
+          id?: string
+          observacoes?: string | null
+          responsavel_transporte_id?: string | null
+          solicitacao_id?: string
+          status?: string | null
+          updated_at?: string | null
+          usuario_transporte_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_solicitacoes_planejamento_responsavel_transporte_id_fkey"
+            columns: ["responsavel_transporte_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_planejamento_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_solicitacoes_equipamento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_planejamento_usuario_transporte_id_fkey"
+            columns: ["usuario_transporte_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]

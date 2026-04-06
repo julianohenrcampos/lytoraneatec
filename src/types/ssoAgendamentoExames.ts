@@ -7,6 +7,8 @@ export type StatusCarteira = 'Pendente' | 'Registrado' | 'Revisado';
 export type ModoAgendamento = 'novo' | 'funcionario_existente';
 export type MotivoMudancaRisco = 'Promoção' | 'Mudança de Setor';
 export const MOTIVOS_MUDANCA_RISCO: MotivoMudancaRisco[] = ['Promoção', 'Mudança de Setor'];
+export type MotivoContratacao = 'Nova Contratação' | 'Substituição';
+export const MOTIVOS_CONTRATACAO: MotivoContratacao[] = ['Nova Contratação', 'Substituição'];
 
 export const TIPOS_EXAME: TipoExame[] = ['Admissional', 'Periódico', 'Mudança de Risco', 'Demissional', 'Retorno ao Trabalho'];
 export const STATUS_AGENDAMENTO: StatusAgendamento[] = ['Pendente', 'Agendado', 'Apto', 'Apto com Restrição', 'Inapto', 'Não Compareceu'];
@@ -88,6 +90,9 @@ export interface AgendamentoExame {
   vr_solicitado_em: string | null;
   vr_entregue_em: string | null;
   
+  // Motivo da contratação
+  motivo_contratacao: MotivoContratacao | null;
+  
   // Relações
   bd_locais_atendimento?: LocalAtendimento;
   profiles?: {
@@ -134,6 +139,7 @@ export interface Etapa2FormData {
   status: StatusAgendamento;
   documentos_anexados: boolean;
   motivo_mudanca_risco: string;
+  motivo_contratacao: string;
 }
 
 // FormData completo (combinação das duas etapas)
@@ -175,6 +181,7 @@ export interface AgendamentoExameFormData {
   etapa_atual: number;
   etapa1_concluida: boolean;
   motivo_mudanca_risco: string;
+  motivo_contratacao: string;
 }
 
 export interface AgendamentoExameAnexo {

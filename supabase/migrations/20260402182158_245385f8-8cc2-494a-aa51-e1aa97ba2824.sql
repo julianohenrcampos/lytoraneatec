@@ -1,0 +1,2 @@
+ALTER TABLE bd_centros_custo ADD COLUMN IF NOT EXISTS departamento_id uuid REFERENCES bd_departamentos(id);
+CREATE INDEX IF NOT EXISTS idx_centro_custo_departamento ON bd_centros_custo(departamento_id);

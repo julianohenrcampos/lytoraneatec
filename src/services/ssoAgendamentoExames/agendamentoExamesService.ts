@@ -22,6 +22,7 @@ const sanitizeFormData = (formData: Partial<AgendamentoExameFormData>) => {
     data_registro_carteira: formData.data_registro_carteira || null,
     banco_agencia: formData.banco_agencia || null,
     banco_conta: formData.banco_conta || null,
+    motivo_contratacao: formData.motivo_contratacao || null,
   };
 };
 

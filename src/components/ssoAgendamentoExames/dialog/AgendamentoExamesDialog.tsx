@@ -75,7 +75,8 @@ const initialEtapa2Data: Etapa2FormData = {
   observacoes: '',
   status: 'Pendente',
   documentos_anexados: false,
-  motivo_mudanca_risco: ''
+  motivo_mudanca_risco: '',
+  motivo_contratacao: ''
 };
 
 const today = new Date().toISOString().split('T')[0];
@@ -209,7 +210,8 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
           observacoes: agendamento.observacoes || '',
           status: agendamento.status || 'Agendado',
           documentos_anexados: agendamento.documentos_anexados || false,
-          motivo_mudanca_risco: agendamento.motivo_mudanca_risco || ''
+          motivo_mudanca_risco: agendamento.motivo_mudanca_risco || '',
+          motivo_contratacao: agendamento.motivo_contratacao || ''
         });
         
         setTecnicoSeguranca(agendamento.tecnico_seguranca || '');

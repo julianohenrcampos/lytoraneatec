@@ -33,6 +33,7 @@ const formSchema = z.object({
   aprovador_diarias_id: z.string().optional(),
   adm_sede_funcionario_id: z.string().min(1, { message: "ADM SEDE é obrigatório" }),
   diretoria_id: z.string().optional(),
+  departamento_id: z.string().min(1, { message: "Departamento é obrigatório" }),
   // Address fields (hidden from user)
   endereco_completo: z.string().optional(),
   endereco_rua: z.string().optional(),
@@ -108,6 +109,18 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
     enabled: isOpen
   });
 
+  const { data: departamentos = [] } = useQuery({
+    queryKey: ['departamentos-dropdown'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("bd_departamentos")
+        .select("id, nome_departamento, empresa_id, empresa:bd_empresas(nome_empresa)")
+        .order("nome_departamento");
+      return (data || []) as any[];
+    },
+    enabled: isOpen
+  });
+
   const { data: admSedeCandidates = [] } = useQuery({
     queryKey: ['adm-sede-candidates'],
     queryFn: async () => {
@@ -138,6 +151,7 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
       aprovador_diarias_id: "",
       adm_sede_funcionario_id: "",
       diretoria_id: "",
+      departamento_id: "",
       endereco_completo: "",
       endereco_rua: "",
       endereco_numero: "",
@@ -162,6 +176,7 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
         aprovador_diarias_id: centroCusto.aprovador_diarias_id || "",
         adm_sede_funcionario_id: centroCusto.adm_sede_funcionario_id || "",
         diretoria_id: centroCusto.diretoria_id || "",
+        departamento_id: centroCusto.departamento_id || "",
         endereco_completo: centroCusto.endereco_completo || "",
         endereco_rua: centroCusto.endereco_rua || "",
         endereco_numero: centroCusto.endereco_numero || "",
@@ -183,6 +198,7 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
         aprovador_diarias_id: "",
         adm_sede_funcionario_id: "",
         diretoria_id: "",
+        departamento_id: "",
         endereco_completo: "",
         latitude: undefined,
         longitude: undefined,
@@ -239,6 +255,7 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
         aprovador_diarias_id: resolveFK(values.aprovador_diarias_id, centroCusto?.aprovador_diarias_id),
         adm_sede_funcionario_id: resolveFK(values.adm_sede_funcionario_id, centroCusto?.adm_sede_funcionario_id),
         diretoria_id: resolveFK(values.diretoria_id, centroCusto?.diretoria_id),
+        departamento_id: resolveFK(values.departamento_id, centroCusto?.departamento_id),
         endereco_completo: values.endereco_completo || undefined,
         endereco_rua: values.endereco_rua || undefined,
         endereco_numero: values.endereco_numero || undefined,
@@ -481,6 +498,35 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
                       {diretorias.map((dir: any) => (
                         <SelectItem key={dir.id} value={dir.id}>
                           {dir.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Campo Departamento */}
+            <FormField
+              control={form.control}
+              name="departamento_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Departamento *</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value || ""}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um departamento..." />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {departamentos.map((dep: any) => (
+                        <SelectItem key={dep.id} value={dep.id}>
+                          {dep.nome_departamento}{dep.empresa?.nome_empresa ? ` (${dep.empresa.nome_empresa})` : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>

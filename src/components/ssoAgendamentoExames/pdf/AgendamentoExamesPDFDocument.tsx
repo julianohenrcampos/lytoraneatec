@@ -8,8 +8,8 @@ interface Props {
   agendamentos: AgendamentoExame[];
   salarios: Record<string, number>;
   passagens: Record<string, number | null>;
-  filtrosTexto: string;
   centrosCustoMap: Record<string, string>; // nome_centro_custo → codigo_centro_custo
+  centrosCustoNomeMap: Record<string, string>; // codigo_centro_custo → nome_centro_custo
 }
 
 const formatCPF = (cpf: string | null) => {
@@ -45,6 +45,12 @@ const getPassagemDisplay = (ag: AgendamentoExame, passagens: Record<string, numb
   return 'Não necessita';
 };
 
+const getMotivoAbrev = (motivo: string | null): string => {
+  if (motivo === 'Nova Contratação') return 'NC';
+  if (motivo === 'Substituição') return 'SUB';
+  return '—';
+};
+
 const COLUMNS = [
   { label: 'NOME', style: 'colNome' },
   { label: 'CARGO', style: 'colCargo' },
@@ -52,9 +58,10 @@ const COLUMNS = [
   { label: 'CPF', style: 'colCpf' },
   { label: 'DATA', style: 'colData' },
   { label: 'SALÁRIO', style: 'colSalario' },
-  { label: 'EXAME ADMISSIONAL', style: 'colExame' },
+  { label: 'EX.ADM', style: 'colExame' },
   { label: 'PASSAGEM', style: 'colPassagem' },
   { label: 'VR', style: 'colVr' },
+  { label: 'MOTIVO', style: 'colMotivo' },
 ] as const;
 
 const HeaderRow = () => (
@@ -69,18 +76,20 @@ const HeaderRow = () => (
   </View>
 );
 
-const DataRow = ({ ag, salario, passagens, index, codigoCentro }: { ag: AgendamentoExame; salario: number | null; passagens: Record<string, number | null>; index: number; codigoCentro?: string }) => {
+const DataRow = ({ ag, salario, passagens, index, codigoCentro, centroNome }: { ag: AgendamentoExame; salario: number | null; passagens: Record<string, number | null>; index: number; codigoCentro?: string; centroNome?: string }) => {
   const rowStyle = index % 2 === 0 ? s.row : s.rowAlt;
+  const areaDisplay = codigoCentro && centroNome ? `${codigoCentro} - ${centroNome}` : codigoCentro || ag.contrato || '—';
   const values = [
     ag.nome_colaborador,
     ag.funcao,
-    codigoCentro || ag.contrato || '—',
+    areaDisplay,
     formatCPF(ag.cpf),
     '',
     formatCurrency(salario),
     ag.status,
     getPassagemDisplay(ag, passagens),
     getStatusVR(ag),
+    getMotivoAbrev(ag.motivo_contratacao),
   ];
 
   return (
@@ -148,81 +157,87 @@ const TotalValorTable = ({ total }: { total: number }) => (
   </View>
 );
 
-export const AgendamentoExamesPDFDocument: React.FC<Props> = ({ agendamentos, salarios, passagens, filtrosTexto, centrosCustoMap }) => {
-  // Group by centro de custo (contrato)
-  const grouped = agendamentos.reduce<Record<string, AgendamentoExame[]>>((acc, ag) => {
-    const key = ag.contrato || 'Sem Centro de Custo';
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(ag);
+export const AgendamentoExamesPDFDocument: React.FC<Props> = ({ agendamentos, salarios, passagens, centrosCustoMap, centrosCustoNomeMap }) => {
+  // Group by empresa first, then by centro de custo
+  const groupedByEmpresa = agendamentos.reduce<Record<string, Record<string, AgendamentoExame[]>>>((acc, ag) => {
+    const empresa = ag.empresa || 'Sem Empresa';
+    const cc = ag.contrato || 'Sem Centro de Custo';
+    if (!acc[empresa]) acc[empresa] = {};
+    if (!acc[empresa][cc]) acc[empresa][cc] = [];
+    acc[empresa][cc].push(ag);
     return acc;
   }, {});
 
-  const groups = Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
+  const empresas = Object.entries(groupedByEmpresa).sort(([a], [b]) => a.localeCompare(b));
 
   return (
     <Document>
-      {groups.map(([centroNome, items]) => {
-        const codigoCentro = centrosCustoMap[centroNome] || centroNome;
+      {empresas.map(([empresaNome, centros]) => {
+        const centroEntries = Object.entries(centros).sort(([a], [b]) => a.localeCompare(b));
 
-        // Per-group totals
-        const totalSalarios = items.reduce((sum, ag) => {
-          const sal = salarios[ag.funcao];
-          return sum + (sal || 0);
-        }, 0);
+        return centroEntries.map(([centroNome, items]) => {
+          const codigoCentro = centrosCustoMap[centroNome] || centroNome;
 
-        const funcoesCont: Record<string, number> = {};
-        items.forEach(ag => {
-          funcoesCont[ag.funcao] = (funcoesCont[ag.funcao] || 0) + 1;
+          // Per-group totals
+          const totalSalarios = items.reduce((sum, ag) => {
+            const sal = salarios[ag.funcao?.toUpperCase().trim()];
+            return sum + (sal || 0);
+          }, 0);
+
+          const funcoesCont: Record<string, number> = {};
+          items.forEach(ag => {
+            const fn = ag.funcao?.toUpperCase().trim() || ag.funcao;
+            funcoesCont[fn] = (funcoesCont[fn] || 0) + 1;
+          });
+
+          return (
+            <Page key={`${empresaNome}-${centroNome}`} size="A4" orientation="landscape" style={s.page}>
+              {/* Header */}
+              <Text style={s.title}>RELATÓRIO DE ADMISSÃO</Text>
+
+              {/* Group header */}
+              <View style={s.groupHeader}>
+                <Text style={s.groupHeaderText}>{empresaNome} ({items.length} colaboradores)</Text>
+              </View>
+
+              {/* Table */}
+              <HeaderRow />
+              {items.map((ag, idx) => (
+                <DataRow
+                  key={ag.id}
+                  ag={ag}
+                  salario={salarios[ag.funcao?.toUpperCase().trim()] ?? null}
+                  passagens={passagens}
+                  index={idx}
+                  codigoCentro={codigoCentro}
+                  centroNome={centroNome}
+                />
+              ))}
+
+              {/* Bottom section: Funções + Total Valor side by side */}
+              <View style={s.bottomRow}>
+                <FuncoesSummaryTable funcoesCont={funcoesCont} />
+                <TotalValorTable total={totalSalarios} />
+              </View>
+
+              {/* Assinaturas */}
+              <View style={s.signaturesRow}>
+                <View style={s.signatureBlock}>
+                  <View style={s.signatureLine} />
+                  <Text style={s.signatureLabel}>Gerente Regional</Text>
+                </View>
+                <View style={s.signatureBlock}>
+                  <View style={s.signatureLine} />
+                  <Text style={s.signatureLabel}>Diretor de Engenharia</Text>
+                </View>
+                <View style={s.signatureBlock}>
+                  <View style={s.signatureLine} />
+                  <Text style={s.signatureLabel}>Diretor Financeiro</Text>
+                </View>
+              </View>
+            </Page>
+          );
         });
-
-        return (
-          <Page key={centroNome} size="A4" orientation="landscape" style={s.page}>
-            {/* Header */}
-            <Text style={s.title}>RELATÓRIO DE ADMISSÃO</Text>
-            <Text style={s.subtitle}>Centro de Custo: {codigoCentro}</Text>
-            {filtrosTexto ? <Text style={s.subtitle}>{filtrosTexto}</Text> : null}
-
-            {/* Group header */}
-            <View style={s.groupHeader}>
-              <Text style={s.groupHeaderText}>{codigoCentro} ({items.length} colaboradores)</Text>
-            </View>
-
-            {/* Table */}
-            <HeaderRow />
-            {items.map((ag, idx) => (
-              <DataRow
-                key={ag.id}
-                ag={ag}
-                salario={salarios[ag.funcao] ?? null}
-                passagens={passagens}
-                index={idx}
-                codigoCentro={codigoCentro}
-              />
-            ))}
-
-            {/* Bottom section: Funções + Total Valor side by side */}
-            <View style={s.bottomRow}>
-              <FuncoesSummaryTable funcoesCont={funcoesCont} />
-              <TotalValorTable total={totalSalarios} />
-            </View>
-
-            {/* Assinaturas */}
-            <View style={s.signaturesRow}>
-              <View style={s.signatureBlock}>
-                <View style={s.signatureLine} />
-                <Text style={s.signatureLabel}>Gerente Regional</Text>
-              </View>
-              <View style={s.signatureBlock}>
-                <View style={s.signatureLine} />
-                <Text style={s.signatureLabel}>Diretor de Engenharia</Text>
-              </View>
-              <View style={s.signatureBlock}>
-                <View style={s.signatureLine} />
-                <Text style={s.signatureLabel}>Diretor Financeiro</Text>
-              </View>
-            </View>
-          </Page>
-        );
       })}
     </Document>
   );

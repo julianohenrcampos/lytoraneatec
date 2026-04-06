@@ -7,7 +7,7 @@ import * as XLSX from "xlsx";
 export const fetchCentrosCusto = async (filters: CentroCustoFilter = {}, isSuperAdmin: boolean = false): Promise<CentroCusto[]> => {
   let query = supabase
     .from("bd_centros_custo")
-    .select("*, adm_sede_funcionario:bd_funcionarios!adm_sede_funcionario_id(id, nome_completo)");
+    .select("*, adm_sede_funcionario:bd_funcionarios!adm_sede_funcionario_id(id, nome_completo), departamento:bd_departamentos!departamento_id(id, nome_departamento)");
   
   // Ocultar DIR001 para não-SuperAdmin
   query = excludeRestrictedCC(query, isSuperAdmin);
@@ -115,6 +115,9 @@ export const createCentroCusto = async (data: CentroCustoFormData): Promise<Cent
   if (data.adm_sede_funcionario_id && data.adm_sede_funcionario_id !== '__none__') {
     insertData.adm_sede_funcionario_id = data.adm_sede_funcionario_id;
   }
+  if (data.departamento_id && data.departamento_id !== '__none__') {
+    insertData.departamento_id = data.departamento_id;
+  }
 
   const { data: newData, error } = await supabase
     .from("bd_centros_custo")
@@ -164,6 +167,11 @@ export const updateCentroCusto = async (id: string, data: CentroCustoFormData): 
     updateData.adm_sede_funcionario_id = data.adm_sede_funcionario_id;
   } else {
     updateData.adm_sede_funcionario_id = null;
+  }
+  if (data.departamento_id && data.departamento_id !== '__none__') {
+    updateData.departamento_id = data.departamento_id;
+  } else {
+    updateData.departamento_id = null;
   }
 
   const { data: updatedData, error } = await supabase

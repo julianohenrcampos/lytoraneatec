@@ -20,6 +20,11 @@ export interface CentroCusto {
     id: string;
     nome: string;
   };
+  departamento_id: string | null;
+  departamento?: {
+    id: string;
+    nome_departamento: string;
+  };
   adm_sede_funcionario_id: string | null;
   adm_sede_funcionario?: {
     id: string;
@@ -47,6 +52,7 @@ export interface CentroCustoFormData {
   aprovador_diarias_id?: string;
   diretoria_id?: string;
   adm_sede_funcionario_id?: string;
+  departamento_id?: string;
   // Endereço e geolocalização
   endereco_rua?: string;
   endereco_numero?: string;

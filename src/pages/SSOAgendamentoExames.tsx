@@ -263,7 +263,7 @@ const SSOAgendamentoExames: React.FC = () => {
     setExportingPdf(true);
     try {
       // Fetch salarios from bd_funcoes (keyed by nome_funcao)
-      const funcNames = [...new Set(dataParaPdf.map(a => a.funcao).filter(Boolean))];
+      const funcNames = [...new Set(dataParaPdf.map(a => a.funcao?.toUpperCase().trim()).filter(Boolean))];
       const salarios: Record<string, number> = {};
       if (funcNames.length > 0) {
         const { data: funcoesData } = await (supabase
@@ -273,7 +273,7 @@ const SSOAgendamentoExames: React.FC = () => {
         if (funcoesData) {
           funcoesData.forEach((f: any) => {
             if (f.nome_funcao && f.salario_base != null) {
-              salarios[f.nome_funcao] = Number(f.salario_base);
+              salarios[f.nome_funcao.toUpperCase().trim()] = Number(f.salario_base);
             }
           });
         }
@@ -298,36 +298,26 @@ const SSOAgendamentoExames: React.FC = () => {
         }
       }
 
-      // Fetch centros de custo map (nome → codigo)
+      // Fetch centros de custo map (nome → codigo) and (codigo → nome)
       const centrosCustoMap: Record<string, string> = {};
+      const centrosCustoNomeMap: Record<string, string> = {};
       const { data: ccData } = await supabase
         .from('bd_centros_custo')
         .select('nome_centro_custo, codigo_centro_custo');
       if (ccData) {
         ccData.forEach((cc: any) => {
           centrosCustoMap[cc.nome_centro_custo] = cc.codigo_centro_custo;
+          centrosCustoNomeMap[cc.codigo_centro_custo] = cc.nome_centro_custo;
         });
       }
-
-      // Build filter description
-      const parts: string[] = [];
-      if (filters.contrato) parts.push(`Centro de Custo: ${filters.contrato}`);
-      if (filters.data_inicio || filters.data_fim) {
-        const di = filters.data_inicio ? format(new Date(filters.data_inicio + 'T12:00:00'), 'dd/MM/yyyy') : '—';
-        const df = filters.data_fim ? format(new Date(filters.data_fim + 'T12:00:00'), 'dd/MM/yyyy') : '—';
-        parts.push(`Período: ${di} a ${df}`);
-      }
-      if (filters.status && filters.status !== 'all') parts.push(`Status: ${filters.status}`);
-      if (filters.nome_colaborador) parts.push(`Colaborador: ${filters.nome_colaborador}`);
-      const filtrosTexto = parts.length > 0 ? `Filtros: ${parts.join(' | ')}` : `Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')}`;
 
       const blob = await pdf(
         <AgendamentoExamesPDFDocument
           agendamentos={dataParaPdf}
           salarios={salarios}
           passagens={passagens}
-          filtrosTexto={filtrosTexto}
           centrosCustoMap={centrosCustoMap}
+          centrosCustoNomeMap={centrosCustoNomeMap}
         />
       ).toBlob();
 

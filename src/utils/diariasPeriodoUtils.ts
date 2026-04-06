@@ -235,7 +235,8 @@ export function validarPeriodo(
   dataInicio: string,
   dataFim: string,
   maxDias: number = 30,
-  isSuperAdmin: boolean = false
+  isSuperAdmin: boolean = false,
+  isEditing: boolean = false
 ): { valido: boolean; erro?: string; isRetroativo?: boolean } {
   if (!dataInicio || !dataFim) {
     return { valido: false, erro: 'Selecione as datas de início e fim' };
@@ -270,7 +271,7 @@ export function validarPeriodo(
     if (dia === 0 || dia === 6) temFds = true;
     else temDiaUtil = true;
   }
-  if (temDiaUtil && temFds) {
+  if (temDiaUtil && temFds && !(isEditing && isSuperAdmin)) {
     return { 
       valido: false, 
       erro: 'O período não pode misturar dias de semana com finais de semana. Crie solicitações separadas.' 

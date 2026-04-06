@@ -116,6 +116,7 @@ const FuncaoFormModal: React.FC<FuncaoFormModalProps> = ({
   
   const onSubmit = async (data: FuncaoFormData) => {
     try {
+      data.nome_funcao = data.nome_funcao.toUpperCase().trim();
       const exists = await checkFuncaoExists(data.nome_funcao, funcao?.id);
       if (exists) {
         form.setError("nome_funcao", { 
@@ -157,7 +158,12 @@ const FuncaoFormModal: React.FC<FuncaoFormModalProps> = ({
                 <FormItem>
                   <FormLabel>Nome da Função</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="Ex: Motorista" />
+                    <Input 
+                      {...field} 
+                      placeholder="Ex: MOTORISTA" 
+                      style={{ textTransform: 'uppercase' }}
+                      onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

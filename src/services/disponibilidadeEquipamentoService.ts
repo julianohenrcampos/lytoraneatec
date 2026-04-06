@@ -19,6 +19,7 @@ export interface DisponibilidadeEquipamento {
   empresa_nome?: string;
   centro_custo_nome?: string;
   centro_custo_codigo?: string;
+  departamento_nome?: string;
 }
 
 export interface DisponibilidadeFilters {
@@ -26,6 +27,7 @@ export interface DisponibilidadeFilters {
   tipo_equipamento_id?: string;
   centro_custo_id?: string;
   empresa_id?: string;
+  departamento_id?: string;
 }
 
 export const fetchDisponibilidades = async (filters?: DisponibilidadeFilters): Promise<DisponibilidadeEquipamento[]> => {
@@ -38,7 +40,7 @@ export const fetchDisponibilidades = async (filters?: DisponibilidadeFilters): P
         tipo_equipamento:bd_tipos_equipamento(descricao_padronizada),
         empresa:bd_empresas(nome_empresa)
       ),
-      centro_custo:bd_centros_custo(nome_centro_custo, codigo_centro_custo)
+      centro_custo:bd_centros_custo(nome_centro_custo, codigo_centro_custo, departamento_id, departamento:bd_departamentos(id, nome_departamento))
     `)
     .order("updated_at", { ascending: false });
 
@@ -63,6 +65,7 @@ export const fetchDisponibilidades = async (filters?: DisponibilidadeFilters): P
     empresa_nome: item.equipamento?.empresa?.nome_empresa || null,
     centro_custo_nome: item.centro_custo?.nome_centro_custo || null,
     centro_custo_codigo: item.centro_custo?.codigo_centro_custo || null,
+    departamento_nome: item.centro_custo?.departamento?.nome_departamento || null,
   }));
 
   // Client-side filters for joined fields
@@ -71,6 +74,9 @@ export const fetchDisponibilidades = async (filters?: DisponibilidadeFilters): P
   }
   if (filters?.empresa_id) {
     results = results.filter((r: any) => r.equipamento?.empresa_id === filters.empresa_id);
+  }
+  if (filters?.departamento_id) {
+    results = results.filter((r: any) => r.centro_custo?.departamento_id === filters.departamento_id);
   }
 
   return results;

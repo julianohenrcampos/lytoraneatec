@@ -21,6 +21,8 @@ interface ConfirmDialogProps {
   cancelText?: string;
   variant?: 'danger' | 'warning' | 'info';
   isLoading?: boolean;
+  children?: React.ReactNode;
+  confirmDisabled?: boolean;
 }
 
 const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
@@ -32,7 +34,9 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   confirmText = "Confirmar",
   cancelText = "Cancelar",
   variant = 'danger',
-  isLoading = false
+  isLoading = false,
+  children,
+  confirmDisabled = false
 }) => {
   const [isConfirming, setIsConfirming] = useState(false);
 
@@ -71,6 +75,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             {description}
           </AlertDialogDescription>
         </AlertDialogHeader>
+        {children}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={loading}>
             {cancelText}
@@ -80,7 +85,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
               e.preventDefault();
               handleConfirm();
             }}
-            disabled={loading}
+            disabled={loading || confirmDisabled}
             className={buttonClass}
           >
             {loading ? (

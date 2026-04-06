@@ -1788,7 +1788,7 @@ export default function ApontamentoDiariasModal({
                                   <>
                                     <Badge variant="destructive" className="text-[10px] sm:text-xs">Falta</Badge>
                                     {!readOnly && (!colaborador.presencaId || isSuperAdmin) && (
-                                      <Button variant="ghost" size="xs" onClick={() => setReleaseConfirm({ funcionarioId: colaborador.funcionario_id, nomeFuncionario: colaborador.nome_funcionario, hasPresenca: !!colaborador.presencaId })} className="h-5 w-5 p-0 text-destructive hover:text-destructive" title="Liberar funcionário">
+                                      <Button variant="ghost" size="xs" onClick={() => setReleaseConfirm({ funcionarioId: colaborador.funcionario_id, nomeFuncionario: colaborador.nome_funcionario, hasPresenca: !!colaborador.presencaId && colaborador.presente === true && !!colaborador.hora_entrada })} className="h-5 w-5 p-0 text-destructive hover:text-destructive" title="Liberar funcionário">
                                         <X className="h-3.5 w-3.5" />
                                       </Button>
                                     )}
@@ -2089,10 +2089,6 @@ export default function ApontamentoDiariasModal({
         onConfirm={async () => {
           if (releaseConfirm) {
             const forcar = !!releaseConfirm.hasPresenca;
-            if (forcar && releaseJustificativa.trim().length < 5) {
-              toast.error('Justificativa obrigatória (mínimo 5 caracteres).');
-              return;
-            }
             await handleRemoverFuncionario(releaseConfirm.funcionarioId, releaseConfirm.nomeFuncionario, forcar);
             setReleaseConfirm(null);
             setReleaseJustificativa('');
@@ -2101,14 +2097,30 @@ export default function ApontamentoDiariasModal({
         title={releaseConfirm?.hasPresenca ? "Liberar funcionário (retroativo)" : "Liberar funcionário"}
         description={releaseConfirm
           ? releaseConfirm.hasPresenca
-            ? `⚠️ ${releaseConfirm.nomeFuncionario} já possui presença registrada. A liberação retroativa irá EXCLUIR os registros de presença existentes. Esta ação é irreversível. Informe a justificativa antes de confirmar.`
+            ? `⚠️ ${releaseConfirm.nomeFuncionario} já possui presença registrada com horários. A liberação retroativa irá EXCLUIR os registros de presença existentes. Esta ação é irreversível. Informe a justificativa antes de confirmar.`
             : `Deseja remover ${releaseConfirm.nomeFuncionario} da lista de convocados desta solicitação? Ele ficará disponível para ser alocado em outra.`
           : ''
         }
         confirmText={releaseConfirm?.hasPresenca ? "Confirmar liberação retroativa" : "Liberar"}
         cancelText="Cancelar"
         variant={releaseConfirm?.hasPresenca ? "danger" : "warning"}
-      />
+        confirmDisabled={!!releaseConfirm?.hasPresenca && releaseJustificativa.trim().length < 5}
+      >
+        {releaseConfirm?.hasPresenca && (
+          <div className="mt-3">
+            <label className="text-sm font-medium mb-1.5 block">Justificativa <span className="text-destructive">*</span></label>
+            <textarea
+              className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              placeholder="Informe o motivo da liberação retroativa (mínimo 5 caracteres)..."
+              value={releaseJustificativa}
+              onChange={(e) => setReleaseJustificativa(e.target.value)}
+            />
+            {releaseJustificativa.length > 0 && releaseJustificativa.trim().length < 5 && (
+              <p className="text-xs text-destructive mt-1">Mínimo de 5 caracteres</p>
+            )}
+          </div>
+        )}
+      </ConfirmDialog>
     </>
   );
 }

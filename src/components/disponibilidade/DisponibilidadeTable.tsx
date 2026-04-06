@@ -45,6 +45,7 @@ const DisponibilidadeTable: React.FC<Props> = ({ data, isLoading, isError, onEdi
               <TableHead>Tipo</TableHead>
               <TableHead>Empresa</TableHead>
               <TableHead>Centro de Custo</TableHead>
+              <TableHead>Departamento</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Previsão Liberação</TableHead>
               <TableHead>Confiabilidade</TableHead>
@@ -60,6 +61,7 @@ const DisponibilidadeTable: React.FC<Props> = ({ data, isLoading, isError, onEdi
                   <TableCell>{d.tipo_equipamento_descricao || "-"}</TableCell>
                   <TableCell>{d.empresa_nome || "-"}</TableCell>
                   <TableCell>{d.centro_custo_codigo ? `${d.centro_custo_codigo} - ${d.centro_custo_nome}` : d.centro_custo_nome || "-"}</TableCell>
+                  <TableCell>{d.departamento_nome || "-"}</TableCell>
                   <TableCell><Badge variant="outline" className={st.className}>{st.label}</Badge></TableCell>
                   <TableCell>{d.previsao_liberacao || "-"}</TableCell>
                   <TableCell>

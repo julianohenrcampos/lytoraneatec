@@ -1,0 +1,1 @@
+UPDATE bd_agendamentos_exames SET funcao = UPPER(TRIM(funcao)) WHERE funcao IS NOT NULL AND funcao != UPPER(TRIM(funcao));

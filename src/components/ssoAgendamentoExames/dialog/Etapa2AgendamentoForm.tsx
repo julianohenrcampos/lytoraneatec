@@ -22,6 +22,7 @@ import {
   TIPOS_EXAME, 
   STATUS_AGENDAMENTO,
   MOTIVOS_MUDANCA_RISCO,
+  MOTIVOS_CONTRATACAO,
   LocalAtendimento,
   calcularDataRegistroCarteira
 } from '@/types/ssoAgendamentoExames';
@@ -280,25 +281,23 @@ export const Etapa2AgendamentoForm: React.FC<Etapa2AgendamentoFormProps> = ({
             </Label>
           </div>
           
-          {canChangeStatus && (
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(v) => onChange('status', v)}
-                disabled={disabled}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_AGENDAMENTO.map((status) => (
-                    <SelectItem key={status} value={status}>{status}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label>Motivo *</Label>
+            <Select
+              value={formData.motivo_contratacao || ''}
+              onValueChange={(v) => onChange('motivo_contratacao', v)}
+              disabled={disabled}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o motivo..." />
+              </SelectTrigger>
+              <SelectContent>
+                {MOTIVOS_CONTRATACAO.map((motivo) => (
+                  <SelectItem key={motivo} value={motivo}>{motivo}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </Card>
     </div>

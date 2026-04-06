@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import { PortfolioFilters } from "@/services/portfolioEmpresaService";
 import { useQuery } from "@tanstack/react-query";
-import { getTiposEquipamentoDropdown } from "@/services/veiculo/dropdownsRelacional";
 import { getEmpresasFornecedorasDropdown } from "@/services/portfolioEmpresaService";
+import { getSubcategoriasDropdown } from "@/services/catalogoVariacoesService";
 
 interface Props {
   filters: PortfolioFilters;
@@ -13,7 +13,7 @@ interface Props {
 }
 
 const PortfolioFiltersBar: React.FC<Props> = ({ filters, onFiltersChange }) => {
-  const { data: tipos = [] } = useQuery({ queryKey: ["tipos-equip-dd"], queryFn: getTiposEquipamentoDropdown });
+  const { data: subcategorias = [] } = useQuery({ queryKey: ["subcategorias-dd"], queryFn: getSubcategoriasDropdown });
   const { data: empresas = [] } = useQuery({ queryKey: ["empresas-fornecedoras-dd"], queryFn: getEmpresasFornecedorasDropdown });
 
   const hasFilters = Object.values(filters).some(Boolean);
@@ -28,11 +28,11 @@ const PortfolioFiltersBar: React.FC<Props> = ({ filters, onFiltersChange }) => {
         </SelectContent>
       </Select>
 
-      <Select value={filters.tipo_equipamento_id || "_all"} onValueChange={(v) => onFiltersChange({ ...filters, tipo_equipamento_id: v === "_all" ? undefined : v })}>
-        <SelectTrigger className="w-[220px]"><SelectValue placeholder="Tipo Equipamento" /></SelectTrigger>
+      <Select value={filters.subcategoria_id || "_all"} onValueChange={(v) => onFiltersChange({ ...filters, subcategoria_id: v === "_all" ? undefined : v })}>
+        <SelectTrigger className="w-[220px]"><SelectValue placeholder="Subcategoria" /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="_all">Todos os Tipos</SelectItem>
-          {tipos.map((t) => <SelectItem key={t.id} value={t.id}>{t.descricao_padronizada}</SelectItem>)}
+          <SelectItem value="_all">Todas Subcategorias</SelectItem>
+          {subcategorias.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.nome_subcategoria}</SelectItem>)}
         </SelectContent>
       </Select>
 

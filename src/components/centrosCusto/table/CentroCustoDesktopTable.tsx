@@ -32,6 +32,7 @@ const CentroCustoDesktopTable: React.FC<CentroCustoDesktopTableProps> = ({
               <TableHead>Código</TableHead>
               <TableHead>Nome do Centro de Custo</TableHead>
               <TableHead>CNPJ Vinculado</TableHead>
+              <TableHead>Departamento</TableHead>
               <TableHead>Telefone</TableHead>
               <TableHead>Situação</TableHead>
               <TableHead className="text-right">Ações</TableHead>
@@ -52,6 +53,7 @@ const CentroCustoDesktopTable: React.FC<CentroCustoDesktopTableProps> = ({
                   {centroCusto.nome_centro_custo}
                 </TableCell>
                 <TableCell>{centroCusto.cnpj_vinculado || "Não informado"}</TableCell>
+                <TableCell>{centroCusto.departamento?.nome_departamento || "—"}</TableCell>
                 <TableCell>{centroCusto.telefone || "Não informado"}</TableCell>
                 <TableCell>
                   <Badge 

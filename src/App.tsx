@@ -41,6 +41,8 @@ import GestaoSolicitacoesEquipamento from "@/pages/GestaoSolicitacoesEquipamento
 import GestaoDisponibilidade from "@/pages/GestaoDisponibilidade";
 import GestaoPortfolio from "@/pages/GestaoPortfolio";
 import LinhasOperacionaisPage from "@/pages/LinhasOperacionaisPage";
+import CentralTransporte from "@/pages/CentralTransporte";
+import ChecklistSaida from "@/pages/ChecklistSaida";
 import Abastecimento from "@/pages/GestaoAbastecimento"; // Fixed casing
 
 // Dashboard CBUQ
@@ -275,6 +277,25 @@ const App = () => {
               <SimpleAuthGuard>
                 <SimplePermissionGuard>
                   <GestaoPortfolio />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+
+
+            {/* Central do Transporte */}
+            <Route path="/gestao-maquinas/central-transporte" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <CentralTransporte />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            
+            {/* Checklist de Saída */}
+            <Route path="/gestao-maquinas/checklist-saida/:movimentacaoId" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <ChecklistSaida />
                 </SimplePermissionGuard>
               </SimpleAuthGuard>
             } />

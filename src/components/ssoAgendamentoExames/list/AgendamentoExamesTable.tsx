@@ -164,7 +164,7 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
             </TableHead>
             <TableHead>Data Agend.</TableHead>
             <TableHead>Colaborador</TableHead>
-            
+            <TableHead>Motivo</TableHead>
             <TableHead>Tipo Exame</TableHead>
             <TableHead>Status Exame</TableHead>
             <TableHead>Integração</TableHead>
@@ -189,9 +189,15 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
                 {agendamento.nome_colaborador}
               </TableCell>
               <TableCell>
-                <Badge variant="outline" className="text-xs">
-                  {agendamento.tipo_exame}
-                </Badge>
+                {agendamento.motivo_contratacao ? (
+                  <Badge variant="outline" className="text-xs">
+                    {agendamento.motivo_contratacao === 'Nova Contratação' ? 'Nova Contr.' : 'Subst.'}
+                  </Badge>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </TableCell>
+              <TableCell>
               </TableCell>
               <TableCell>
                 {canChangeStatusExame ? (

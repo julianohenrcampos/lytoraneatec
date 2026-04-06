@@ -94,6 +94,7 @@ export function SolicitacaoFormModal({
   
   // Selection state for adding funcionarios
   const [selectedFuncionarioId, setSelectedFuncionarioId] = useState('');
+  const [attemptedNext, setAttemptedNext] = useState(false);
   
   // Buscar feriados do período
   const { data: feriados = [] } = useFeriadosPeriodo(dataInicio, dataFim);
@@ -115,11 +116,13 @@ export function SolicitacaoFormModal({
   
   // Validar período
   const periodoValidacao = useMemo(() => {
-    return validarPeriodo(dataInicio, dataFim, 30, isSuperAdmin);
-  }, [dataInicio, dataFim, isSuperAdmin]);
+    return validarPeriodo(dataInicio, dataFim, 30, isSuperAdmin, !!editingSolicitacao);
+  }, [dataInicio, dataFim, isSuperAdmin, editingSolicitacao]);
 
+  const isEditing = !!editingSolicitacao;
   const isRetroativo = periodoValidacao.isRetroativo === true;
-  const minJustificativa = isRetroativo ? 20 : 10;
+  // Edição não exige justificativa de "criação retroativa"
+  const minJustificativa = (isRetroativo && !isEditing) ? 20 : 10;
   
   // Centro de custos query com fallback
   const { data: centrosCusto = [] } = useQuery({
@@ -314,6 +317,7 @@ export function SolicitacaoFormModal({
       }
       setStep('dados');
       setSelectedFuncionarioId('');
+      setAttemptedNext(false);
     }
   }, [isOpen, editingSolicitacao]);
 
@@ -459,7 +463,7 @@ export function SolicitacaoFormModal({
   }, [convocadosPre, analise, consideraFdsFeriado]);
 
   // Validation
-  const canProceedToDados = dataInicio && dataFim && centroCustoId && periodoValidacao.valido;
+  const canProceedToDados = dataInicio && dataFim && centroCustoId && periodoValidacao.valido && responsavelCampoId && engenheiroSolicitanteId;
   const canProceedToFuncionarios = convocadosPre.length > 0 && justificativa.trim().length >= minJustificativa;
   const canSave = canProceedToDados && canProceedToFuncionarios;
 
@@ -560,6 +564,7 @@ export function SolicitacaoFormModal({
                       type="date"
                       value={dataInicio}
                       onChange={(e) => setDataInicio(e.target.value)}
+                      disabled={isEditing}
                     />
                   </div>
                   <div>
@@ -568,13 +573,20 @@ export function SolicitacaoFormModal({
                       type="date"
                       value={dataFim}
                       onChange={(e) => setDataFim(e.target.value)}
+                      disabled={isEditing}
                     />
                   </div>
                 </div>
+                {isEditing && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Lock className="h-3 w-3" />
+                    Período bloqueado na edição. Esta correção permite apenas ajustar responsáveis e dados da solicitação.
+                  </p>
+                )}
                {!periodoValidacao.valido && periodoValidacao.erro && (
                   <p className="text-sm text-destructive">{periodoValidacao.erro}</p>
                 )}
-                {isRetroativo && isSuperAdmin && (
+                {isRetroativo && isSuperAdmin && !isEditing && (
                   <Alert className="border-amber-300 bg-amber-50">
                     <Info className="h-4 w-4 text-amber-600" />
                     <AlertDescription className="text-amber-800 text-xs">
@@ -634,7 +646,7 @@ export function SolicitacaoFormModal({
                 <div>
                   <Label className="flex items-center gap-2">
                     <User className="h-3.5 w-3.5 text-muted-foreground" />
-                    Engenheiro Solicitante
+                    Engenheiro Solicitante <span className="text-destructive">*</span>
                   </Label>
                   <Combobox
                     options={engenheirosEGerentes.map((f: any) => ({
@@ -646,8 +658,11 @@ export function SolicitacaoFormModal({
                     placeholder="Selecione o engenheiro..."
                     searchPlaceholder="Buscar engenheiro..."
                     emptyText="Nenhum engenheiro encontrado"
-                    className="mt-1.5"
+                    className={`mt-1.5 ${attemptedNext && !engenheiroSolicitanteId ? 'border-destructive ring-destructive' : ''}`}
                   />
+                  {attemptedNext && !engenheiroSolicitanteId && (
+                    <p className="text-xs text-destructive mt-1">Campo obrigatório</p>
+                  )}
                 </div>
               </div>
 
@@ -680,7 +695,7 @@ export function SolicitacaoFormModal({
                 <div>
                   <Label className="flex items-center gap-2">
                     <ClipboardCheck className="h-3.5 w-3.5 text-muted-foreground" />
-                    Apontador (Resp. Campo)
+                    Apontador (Resp. Campo) <span className="text-destructive">*</span>
                   </Label>
                   <Combobox
                     options={funcionarios.map((f: any) => ({
@@ -692,11 +707,15 @@ export function SolicitacaoFormModal({
                     placeholder="Selecione o apontador..."
                     searchPlaceholder="Buscar funcionário..."
                     emptyText="Nenhum funcionário encontrado"
-                    className="mt-1.5"
+                    className={`mt-1.5 ${attemptedNext && !responsavelCampoId ? 'border-destructive ring-destructive' : ''}`}
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Responsável por registrar presença em campo
-                  </p>
+                  {attemptedNext && !responsavelCampoId ? (
+                    <p className="text-xs text-destructive mt-1">Campo obrigatório</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Responsável por registrar presença em campo
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label className="flex items-center gap-2">
@@ -827,14 +846,14 @@ export function SolicitacaoFormModal({
 
               <div className="pt-4 border-t">
                 <Label>
-                  {isRetroativo 
+                  {isRetroativo && !isEditing
                     ? 'Justificativa para criação retroativa * (mínimo 20 caracteres)' 
-                    : 'Justificativa * (mínimo 10 caracteres)'}
+                    : `Justificativa * (mínimo ${minJustificativa} caracteres)`}
                 </Label>
                 <Textarea
                   value={justificativa}
                   onChange={(e) => setJustificativa(e.target.value)}
-                  placeholder={isRetroativo 
+                  placeholder={isRetroativo && !isEditing
                     ? "Explique o motivo da criação retroativa desta solicitação..." 
                     : "Descreva o motivo da solicitação de diária..."}
                   rows={3}
@@ -996,8 +1015,10 @@ export function SolicitacaoFormModal({
           
           {step === 'dados' && (
             <Button 
-              onClick={() => setStep('funcionarios')}
-              disabled={!canProceedToDados}
+              onClick={() => {
+                setAttemptedNext(true);
+                if (canProceedToDados) setStep('funcionarios');
+              }}
             >
               Próximo
               <ChevronRight className="h-4 w-4 ml-1" />

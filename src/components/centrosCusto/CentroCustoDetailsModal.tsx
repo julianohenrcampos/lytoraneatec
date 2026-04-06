@@ -69,6 +69,15 @@ const CentroCustoDetailsModal: React.FC<CentroCustoDetailsModalProps> = ({
             </div>
           </div>
 
+          {centroCusto.departamento?.nome_departamento && (
+            <div>
+              <Label className="text-sm font-medium">Departamento</Label>
+              <div className="rounded-md border p-2 mt-1 bg-muted/50">
+                {centroCusto.departamento.nome_departamento}
+              </div>
+            </div>
+          )}
+
           {centroCusto.adm_sede_funcionario?.nome_completo && (
             <div>
               <Label className="text-sm font-medium">ADM SEDE Responsável</Label>
