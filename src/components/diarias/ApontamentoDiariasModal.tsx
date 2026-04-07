@@ -281,17 +281,16 @@ export default function ApontamentoDiariasModal({
     enabled: showAddFuncionario
   });
 
-  // Buscar funções para mapear
+  // Buscar funções para mapear (sempre ativo para cruzar valores atuais)
   const { data: funcoesCompletas = [] } = useQuery({
     queryKey: ['funcoes-completas'],
     queryFn: async () => {
       const { data } = await supabase
         .from('bd_funcoes')
-        .select('id, nome_funcao, valor_diaria, valor_diaria_exclusiva, valor_refeicao')
-        .eq('situacao', 'Ativo');
+        .select('id, nome_funcao, valor_diaria, valor_diaria_exclusiva, valor_refeicao');
       return data || [];
     },
-    enabled: showAddFuncionario
+    enabled: isOpen
   });
 
   // Gerar lista de datas do período: passadas e hoje habilitadas, futuras bloqueadas
@@ -467,8 +466,10 @@ export default function ApontamentoDiariasModal({
             const isFeriado = feriados.some(f => f.data === selectedDate);
             const usarExclusiva = conv.usar_diaria_exclusiva === true || isDomingo || isSabado || isFeriado;
 
-            const vNormal = conv.valor_diaria;
-            const vExclusiva = conv.valor_diaria_exclusiva || conv.valor_diaria;
+            // Cruzar com valores atuais de bd_funcoes
+            const funcaoAtual = funcoesCompletas.find(f => f.id === conv.funcao_id);
+            const vNormal = funcaoAtual?.valor_diaria ?? conv.valor_diaria;
+            const vExclusiva = funcaoAtual?.valor_diaria_exclusiva ?? conv.valor_diaria_exclusiva ?? vNormal;
             const existenteUsaExclusiva = existente
               ? (existente.valor_diaria_aplicada !== undefined && vExclusiva !== vNormal
                   ? Math.abs((existente.valor_diaria_aplicada || 0) - vExclusiva) < Math.abs((existente.valor_diaria_aplicada || 0) - vNormal)
@@ -483,7 +484,7 @@ export default function ApontamentoDiariasModal({
               funcao_id: conv.funcao_id,
               nome_funcao: conv.nome_funcao,
               valor_diaria_original: valorOriginal,
-              valor_diaria: existente?.valor_diaria_aplicada || valorOriginal,
+              valor_diaria: funcaoAtual ? valorOriginal : (existente?.valor_diaria_aplicada || valorOriginal),
               presente: existente?.presente || false,
               hora_entrada: existente?.hora_entrada || "",
               hora_saida: existente?.hora_saida || "",
@@ -534,7 +535,7 @@ export default function ApontamentoDiariasModal({
                 funcao_id: funcaoData?.id || existente.funcao_id || null,
                 nome_funcao: funcaoData?.nome_funcao || '',
                 valor_diaria_original: valorOriginal,
-                valor_diaria: existente.valor_diaria_aplicada || valorOriginal,
+                valor_diaria: funcaoData ? valorOriginal : (existente.valor_diaria_aplicada || valorOriginal),
                 presente: existente.presente || false,
                 hora_entrada: existente.hora_entrada || "",
                 hora_saida: existente.hora_saida || "",
@@ -564,8 +565,10 @@ export default function ApontamentoDiariasModal({
             // Respeitar flag usar_diaria_exclusiva do convocado_pre
             const usarExclusiva2 = conv.usar_diaria_exclusiva === true || isDomingo2 || isSabado2 || isFeriado2;
 
-            const vNormal = conv.valor_diaria;
-            const vExclusiva = conv.valor_diaria_exclusiva || conv.valor_diaria;
+            // Cruzar com valores atuais de bd_funcoes
+            const funcaoAtual2 = funcoesCompletas.find(f => f.id === conv.funcao_id);
+            const vNormal = funcaoAtual2?.valor_diaria ?? conv.valor_diaria;
+            const vExclusiva = funcaoAtual2?.valor_diaria_exclusiva ?? conv.valor_diaria_exclusiva ?? vNormal;
             const valorOriginal = usarExclusiva2 ? vExclusiva : vNormal;
             return {
               index,
@@ -601,8 +604,9 @@ export default function ApontamentoDiariasModal({
       } catch (error) {
         console.error("Erro ao carregar presenças:", error);
       const mapped: ColaboradorPresenca[] = convocadosPre.map((conv, index) => {
-          const vNormal = conv.valor_diaria;
-          const vExclusiva = conv.valor_diaria_exclusiva || conv.valor_diaria;
+          const funcaoAtualErr = funcoesCompletas.find(f => f.id === conv.funcao_id);
+          const vNormal = funcaoAtualErr?.valor_diaria ?? conv.valor_diaria;
+          const vExclusiva = funcaoAtualErr?.valor_diaria_exclusiva ?? conv.valor_diaria_exclusiva ?? vNormal;
           return {
             index,
             funcionario_id: conv.funcionario_id,
@@ -631,7 +635,7 @@ export default function ApontamentoDiariasModal({
     };
 
     initColaboradores();
-  }, [isOpen, selectedDate, convocadosPre, solicitacao?.id]);
+  }, [isOpen, selectedDate, convocadosPre, solicitacao?.id, funcoesCompletas]);
 
   // Resetar quando abrir/fechar
   useEffect(() => {

@@ -49,11 +49,12 @@ export const checkCentroCustoExists = async (
   nome: string,
   id?: string
 ): Promise<boolean> => {
+  const codigoNorm = codigo.trim().toUpperCase();
   // Check by codigo
   const { data: dataByCodigo, error: errorByCodigo } = await supabase
     .from("bd_centros_custo")
     .select("id")
-    .eq("codigo_centro_custo", codigo)
+    .eq("codigo_centro_custo", codigoNorm)
     .maybeSingle();
 
   if (errorByCodigo) {
@@ -89,7 +90,7 @@ export const checkCentroCustoExists = async (
 // Create a new centro de custo
 export const createCentroCusto = async (data: CentroCustoFormData): Promise<CentroCusto> => {
   const insertData: any = {
-    codigo_centro_custo: data.codigo_centro_custo,
+    codigo_centro_custo: data.codigo_centro_custo.trim().toUpperCase(),
     nome_centro_custo: data.nome_centro_custo,
     cnpj_vinculado: data.cnpj_vinculado || null,
     telefone: data.telefone || null,
@@ -136,7 +137,7 @@ export const createCentroCusto = async (data: CentroCustoFormData): Promise<Cent
 // Update an existing centro de custo
 export const updateCentroCusto = async (id: string, data: CentroCustoFormData): Promise<CentroCusto> => {
   const updateData: any = {
-    codigo_centro_custo: data.codigo_centro_custo,
+    codigo_centro_custo: data.codigo_centro_custo.trim().toUpperCase(),
     nome_centro_custo: data.nome_centro_custo,
     cnpj_vinculado: data.cnpj_vinculado || null,
     telefone: data.telefone || null,

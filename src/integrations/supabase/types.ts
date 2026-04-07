@@ -7232,6 +7232,8 @@ export type Database = {
         Args: { p_registro_aplicacao_id: string }
         Returns: undefined
       }
+      sync_convocados_pre_valores: { Args: never; Returns: number }
+      sync_presencas_valores_funcao: { Args: never; Returns: Json }
       sync_profile_funcao_sistema: {
         Args: { _profile_id: string }
         Returns: undefined

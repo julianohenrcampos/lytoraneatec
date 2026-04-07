@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { getCurrentBrazilianDate, getCurrentBrazilianTime } from '@/utils/timezoneUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,8 +46,8 @@ export const VerAgirDialog: React.FC<VerAgirDialogProps> = ({
   const [formData, setFormData] = useState<VerAgirFormData>({
     obra: '',
     centro_custo_id: '',
-    data_registro: new Date().toISOString().split('T')[0],
-    hora_registro: new Date().toTimeString().slice(0, 5),
+    data_registro: getCurrentBrazilianDate(),
+    hora_registro: getCurrentBrazilianTime(),
     tecnico_seguranca_id: '',
     tecnico_seguranca_nome: '',
     engenheiro_id: '',
@@ -131,8 +132,8 @@ export const VerAgirDialog: React.FC<VerAgirDialogProps> = ({
       setFormData({
         obra: '',
         centro_custo_id: '',
-        data_registro: new Date().toISOString().split('T')[0],
-        hora_registro: new Date().toTimeString().slice(0, 5),
+        data_registro: getCurrentBrazilianDate(),
+        hora_registro: getCurrentBrazilianTime(),
         tecnico_seguranca_id: '',
         tecnico_seguranca_nome: '',
         engenheiro_id: '',
