@@ -52,6 +52,26 @@ export const useDesligamentos = () => {
           .update({ status: 'Inativo', data_desligamento: hoje } as any)
           .eq('id', form.funcionario_id);
         if (errFunc) throw errFunc;
+
+        // Buscar dados do funcionário para arquivo morto
+        const { data: funcData } = await supabase
+          .from('bd_funcionarios')
+          .select('nome_completo, cpf')
+          .eq('id', form.funcionario_id)
+          .single();
+
+        if (funcData) {
+          await supabase.from('bd_arquivo_morto').insert({
+            funcionario_id: form.funcionario_id,
+            nome_completo: funcData.nome_completo,
+            cpf: funcData.cpf,
+            motivo_desligamento: form.motivo || null,
+            observacoes: form.observacoes || null,
+            data_desligamento: hoje,
+            tipo_desligamento: 'sem_aviso',
+            recontratavel: form.recontratavel,
+          } as any);
+        }
       } else {
         // Com aviso prévio
         const dataFim = new Date();

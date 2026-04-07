@@ -389,7 +389,7 @@ export function SolicitacaoFormModal({
 
   // Add all funcionarios from a Centro de Custo
   const handleAddByCentroCusto = (centroCustoIdSelected: string) => {
-    const funcsNoCc = funcionarios.filter((f: any) => f.centro_custo_id === centroCustoIdSelected && f.bd_funcoes);
+    const funcsNoCc = funcionarios.filter((f: any) => f.centro_custo_id === centroCustoIdSelected && f.bd_funcoes && (f.status_funcionario === 'Ativo' || f.status_funcionario === 'Ativo sem Registro'));
     const addedIds = new Set(convocadosPre.map(c => c.funcionario_id));
     
     const novos: FuncionarioPreConvocado[] = [];

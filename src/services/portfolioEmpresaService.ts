@@ -6,9 +6,10 @@ export interface PortfolioEmpresa {
   tipo_equipamento_id: string | null;
   catalogo_equipamento_id: string | null;
   catalogo_variacao_id: string | null;
+  fabricante: string | null;
+  modelo: string | null;
+  ano_fabricacao: string | null;
   quantidade_estimada: number | null;
-  fornece_com_operador: boolean | null;
-  fornece_sem_operador: boolean | null;
   valor_ref_com_operador: number | null;
   valor_ref_sem_operador: number | null;
   observacoes: string | null;
@@ -34,7 +35,8 @@ export interface PortfolioEmpresa {
 export interface PortfolioFilters {
   empresa_id?: string;
   subcategoria_id?: string;
-  ativo?: string;
+  capacidade_valor?: number;
+  capacidade_unidade?: string;
 }
 
 export const fetchPortfolios = async (filters?: PortfolioFilters): Promise<PortfolioEmpresa[]> => {
@@ -59,25 +61,33 @@ export const fetchPortfolios = async (filters?: PortfolioFilters): Promise<Portf
   if (filters?.empresa_id) {
     query = query.eq("empresa_id", filters.empresa_id);
   }
-  if (filters?.ativo === "true") {
-    query = query.eq("ativo", true);
-  } else if (filters?.ativo === "false") {
-    query = query.eq("ativo", false);
-  }
 
   const { data, error } = await query;
   if (error) throw error;
 
-  // Filter by subcategoria if needed (post-query since it's nested)
   let filtered = data || [];
+
+  // Filter by subcategoria (post-query since nested)
   if (filters?.subcategoria_id) {
-    filtered = filtered.filter((item: any) => 
+    filtered = filtered.filter((item: any) =>
       item.variacao?.subcategoria_id === filters.subcategoria_id
     );
   }
 
+  // Filter by capacidade
+  if (filters?.capacidade_valor) {
+    filtered = filtered.filter((item: any) =>
+      item.variacao?.capacidade_valor === filters.capacidade_valor
+    );
+  }
+  if (filters?.capacidade_unidade) {
+    filtered = filtered.filter((item: any) =>
+      item.variacao?.capacidade_unidade === filters.capacidade_unidade
+    );
+  }
+
   const portfolios = filtered.map((item: any) => {
-    const variacaoLabel = item.variacao 
+    const variacaoLabel = item.variacao
       ? buildLabel(item.variacao.subcategoria?.nome_subcategoria, item.variacao.capacidade_valor, item.variacao.capacidade_unidade)
       : null;
 
@@ -106,7 +116,7 @@ export const fetchPortfolios = async (filters?: PortfolioFilters): Promise<Portf
     portfolios.forEach((p: any) => {
       let cadastrada = 0;
       if (p.variacao_subcategoria_id) {
-        cadastrada = (equipamentos || []).filter((eq: any) => 
+        cadastrada = (equipamentos || []).filter((eq: any) =>
           eq.empresa_id === p.empresa_id && eq.subcategoria_ativo_id === p.variacao_subcategoria_id
         ).length;
       }
@@ -125,26 +135,69 @@ const buildLabel = (nome?: string, valor?: number | null, unidade?: string | nul
   return parts.join(" — ") || null;
 };
 
-export const upsertPortfolio = async (data: {
-  id?: string;
-  empresa_id: string;
-  tipo_equipamento_id?: string | null;
-  catalogo_equipamento_id?: string | null;
-  catalogo_variacao_id?: string | null;
+export interface PortfolioItemPayload {
+  subcategoria_id: string;
+  capacidade_valor: number;
+  capacidade_unidade: string;
+  fabricante?: string | null;
+  modelo?: string | null;
+  ano_fabricacao?: string | null;
   quantidade_estimada?: number | null;
-  fornece_com_operador?: boolean;
-  fornece_sem_operador?: boolean;
   valor_ref_com_operador?: number | null;
   valor_ref_sem_operador?: number | null;
   observacoes?: string | null;
-  ativo?: boolean;
+}
+
+export const bulkInsertPortfolios = async (empresa_id: string, items: PortfolioItemPayload[]) => {
+  const { findOrCreateVariacao } = await import("@/services/catalogoVariacoesService");
+
+  const rows = await Promise.all(items.map(async (item) => {
+    const variacaoId = await findOrCreateVariacao(
+      item.subcategoria_id,
+      item.capacidade_valor || null,
+      item.capacidade_unidade || null
+    );
+    return {
+      empresa_id,
+      catalogo_variacao_id: variacaoId,
+      fabricante: item.fabricante?.toUpperCase().trim() || null,
+      modelo: item.modelo?.toUpperCase().trim() || null,
+      ano_fabricacao: item.ano_fabricacao || null,
+      quantidade_estimada: item.quantidade_estimada || null,
+      valor_ref_com_operador: item.valor_ref_com_operador || null,
+      valor_ref_sem_operador: item.valor_ref_sem_operador || null,
+      observacoes: item.observacoes || null,
+    };
+  }));
+
+  const { error } = await supabase.from("bd_portfolio_empresas").insert(rows as any);
+  if (error) throw error;
+};
+
+export const upsertPortfolio = async (data: {
+  id?: string;
+  empresa_id: string;
+  catalogo_variacao_id?: string | null;
+  fabricante?: string | null;
+  modelo?: string | null;
+  ano_fabricacao?: string | null;
+  quantidade_estimada?: number | null;
+  valor_ref_com_operador?: number | null;
+  valor_ref_sem_operador?: number | null;
+  observacoes?: string | null;
 }) => {
-  if (data.id) {
-    const { id, ...updateData } = data;
+  const payload = {
+    ...data,
+    fabricante: data.fabricante?.toUpperCase().trim() || null,
+    modelo: data.modelo?.toUpperCase().trim() || null,
+  };
+
+  if (payload.id) {
+    const { id, ...updateData } = payload;
     const { error } = await supabase.from("bd_portfolio_empresas").update(updateData as any).eq("id", id);
     if (error) throw error;
   } else {
-    const { error } = await supabase.from("bd_portfolio_empresas").insert(data as any);
+    const { error } = await supabase.from("bd_portfolio_empresas").insert(payload as any);
     if (error) throw error;
   }
 };

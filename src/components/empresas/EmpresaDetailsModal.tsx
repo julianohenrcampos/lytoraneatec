@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Empresa } from "@/types/empresa";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Check, X } from "lucide-react";
+import { Check, X, ShieldCheck, Globe } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 interface EmpresaDetailsModalProps {
@@ -17,7 +17,7 @@ interface EmpresaDetailsModalProps {
 const EmpresaDetailsModal: React.FC<EmpresaDetailsModalProps> = ({ isOpen, onClose, empresa }) => {
   if (!empresa) return null;
 
-  const formatDate = (dateString?: string) => {
+  const formatDate = (dateString?: string | null) => {
     if (!dateString) return "N/A";
     try {
       return format(new Date(dateString), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
@@ -27,6 +27,7 @@ const EmpresaDetailsModal: React.FC<EmpresaDetailsModalProps> = ({ isOpen, onClo
   };
 
   const isPJ = (empresa.pessoa_tipo || "PJ") === "PJ";
+  const isSite = empresa.origem_cadastro === 'integracao_site';
 
   const Row = ({ label, value }: { label: string; value: React.ReactNode }) => (
     <div className="grid grid-cols-4 gap-4 py-2 border-b last:border-b-0">
@@ -65,6 +66,36 @@ const EmpresaDetailsModal: React.FC<EmpresaDetailsModalProps> = ({ isOpen, onClo
               )
             } />
           </div>
+
+          {isSite && (
+            <>
+              <Separator />
+              <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                <Globe className="h-4 w-4" />
+                Integração
+              </h3>
+              <div className="flex flex-col">
+                <Row label="Origem" value={
+                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 dark:bg-blue-900/30 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-300">
+                    <Globe className="h-3 w-3" />
+                    Portal de Fornecedores
+                  </span>
+                } />
+                <Row label="Compliance" value={
+                  empresa.aprovado_compliance ? (
+                    <span className="flex items-center gap-1 text-green-600">
+                      <ShieldCheck className="h-4 w-4" />
+                      Aprovado
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">Pendente</span>
+                  )
+                } />
+                <Row label="Data Integração" value={formatDate(empresa.data_integracao)} />
+                <Row label="Atualizada via Site" value={empresa.atualizado_via_integracao ? "Sim" : "Não"} />
+              </div>
+            </>
+          )}
 
           {(empresa.endereco_completo || empresa.endereco_cidade) && (
             <>

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
+import { UNIDADES_CAPACIDADE } from "@/services/catalogoVariacoesService";
 
 interface Props {
   form: UseFormReturn<any>;
@@ -86,12 +87,30 @@ const Step4Operacao: React.FC<Props> = ({ form, departamentos, empresas }) => {
             </FormItem>
           )} />
 
-          {/* Capacidade */}
-          <FormField control={form.control} name="capacidade" render={({ field }) => (
+          {/* Capacidade Valor */}
+          <FormField control={form.control} name="capacidade_valor" render={({ field }) => (
             <FormItem>
-              <FormLabel>Capacidade</FormLabel>
+              <FormLabel>Capacidade (valor)</FormLabel>
               <FormControl>
-                <Input placeholder="Capacidade máxima" {...field} value={field.value || ""} />
+                <Input type="number" step="0.01" min={0} placeholder="Ex: 14" {...field} value={field.value || ""} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+
+          {/* Capacidade Unidade */}
+          <FormField control={form.control} name="capacidade_unidade" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Unidade</FormLabel>
+              <FormControl>
+                <Select value={field.value || ""} onValueChange={field.onChange}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    {UNIDADES_CAPACIDADE.map((u) => (
+                      <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </FormControl>
               <FormMessage />
             </FormItem>

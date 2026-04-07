@@ -82,6 +82,12 @@ export const menuStructure = [
         requiredPermission: "gestao_rh_funcionarios_view"
       },
       {
+        name: "Arquivo Morto",
+        href: "/gestao-rh/arquivo-morto",
+        icon: Users,
+        requiredPermission: "gestao_rh_funcionarios_view"
+      },
+      {
         name: "Agendamento de Exames",
         href: "/sso/agendamento-exames",
         icon: Calendar,
@@ -154,7 +160,7 @@ export const menuStructure = [
         requiredPermission: "gestao_maquinas_caminhoes_view"
       },
       {
-        name: "Portfólio de Empresas",
+        name: "Portfólio de Empresas / Veic. e Equip.",
         href: "/gestao-maquinas/portfolio-empresas",
         icon: Briefcase,
         requiredPermission: "gestao_maquinas_caminhoes_view"

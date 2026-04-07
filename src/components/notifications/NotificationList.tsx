@@ -1,7 +1,7 @@
 import { useNotifications } from '@/hooks/useNotifications';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { CheckCheck, AlertTriangle, Info, Bell, FileText, CheckCircle, XCircle } from 'lucide-react';
+import { CheckCheck, AlertTriangle, Info, Bell, FileText, CheckCircle, XCircle, Building2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -44,6 +44,8 @@ export const NotificationList = () => {
         return <CheckCircle className="h-5 w-5 text-green-500" />;
       case 'diaria_reprovada':
         return <XCircle className="h-5 w-5 text-destructive" />;
+      case 'integracao_fornecedor':
+        return <Building2 className="h-5 w-5 text-blue-500" />;
       default:
         return <Info className="h-5 w-5 text-blue-500" />;
     }

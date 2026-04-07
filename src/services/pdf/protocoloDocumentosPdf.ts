@@ -97,7 +97,7 @@ export function prepareProtocoloData(
       ? item.nome_centro_custo
       : `${item.codigo_centro_custo} - ${item.nome_centro_custo}`;
     const numero = item.numero_solicitacao || '-';
-    const tipo = item.matricula_funcionario ? 'REMESSA' : 'SEM REMESSA';
+    const tipo = (item.matricula_funcionario && item.matricula_funcionario !== '---' && String(item.matricula_funcionario).trim() !== '') ? 'REMESSA' : 'SEM REMESSA';
 
     const key = `${empresa}|${ccDisplay}|${numero}|${tipo}`;
 

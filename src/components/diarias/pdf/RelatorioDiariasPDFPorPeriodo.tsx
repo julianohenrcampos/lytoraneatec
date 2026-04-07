@@ -214,7 +214,7 @@ function agruparEmBlocos(
     const gerenteNome = gerenteId !== 'sem-gerente' ? (gerentesMap[gerenteId] || 'Gerente não informado') : 'Gerente não informado';
     const diretoriaId = ccInfo?.diretoria_id;
     const diretorNome = diretoriaId ? (diretoresMap[diretoriaId] || '') : '';
-    const hasMatricula = !!item.matricula_funcionario;
+    const hasMatricula = !!item.matricula_funcionario && item.matricula_funcionario !== '---' && String(item.matricula_funcionario).trim() !== '';
     const tipoVinculo = hasMatricula ? 'remessa' : 'diarista';
     const tipoVinculoLabel = hasMatricula ? 'REMESSA' : 'SEM REMESSA';
 

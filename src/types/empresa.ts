@@ -25,6 +25,10 @@ export interface Empresa {
   conta?: string | null;
   tipo_conta?: string | null;
   pix?: string | null;
+  origem_cadastro?: string | null;
+  aprovado_compliance?: boolean | null;
+  data_integracao?: string | null;
+  atualizado_via_integracao?: boolean | null;
   created_at?: string;
   updated_at?: string;
 }

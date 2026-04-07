@@ -30,6 +30,7 @@ import GestaoFuncionarios from "@/pages/GestaoFuncionarios";
 import GestaoEquipes from "@/pages/GestaoEquipes";
 import GestaoDiretorias from "@/pages/GestaoDiretorias";
 import GestaoDesligamentos from "@/pages/GestaoDesligamentos";
+import ArquivoMorto from "@/pages/ArquivoMorto";
 
 // Gestão Máquinas - using correct file names
 import DashboardMaquinas from "@/pages/DashboardMaquinas";
@@ -217,6 +218,13 @@ const App = () => {
               <SimpleAuthGuard>
                 <SimplePermissionGuard>
                   <GestaoDesligamentos />
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/gestao-rh/arquivo-morto" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <ArquivoMorto />
                 </SimplePermissionGuard>
               </SimpleAuthGuard>
             } />

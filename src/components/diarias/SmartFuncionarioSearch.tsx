@@ -81,7 +81,8 @@ export function SmartFuncionarioSearch({
     if (!inputValue || inputValue.length < 2) return [];
     const search = inputValue.toLowerCase();
     return funcionarios.filter(f =>
-      f.nome_completo.toLowerCase().includes(search)
+      f.nome_completo.toLowerCase().includes(search) &&
+      (!f.status_funcionario || f.status_funcionario === 'Ativo' || f.status_funcionario === 'Ativo sem Registro')
     ).slice(0, 10);
   }, [funcionarios, inputValue]);
 

@@ -550,6 +550,53 @@ export type Database = {
           },
         ]
       }
+      bd_arquivo_morto: {
+        Row: {
+          cpf: string | null
+          created_at: string | null
+          data_desligamento: string | null
+          funcionario_id: string | null
+          id: string
+          motivo_desligamento: string | null
+          nome_completo: string
+          observacoes: string | null
+          recontratavel: boolean | null
+          tipo_desligamento: string | null
+        }
+        Insert: {
+          cpf?: string | null
+          created_at?: string | null
+          data_desligamento?: string | null
+          funcionario_id?: string | null
+          id?: string
+          motivo_desligamento?: string | null
+          nome_completo: string
+          observacoes?: string | null
+          recontratavel?: boolean | null
+          tipo_desligamento?: string | null
+        }
+        Update: {
+          cpf?: string | null
+          created_at?: string | null
+          data_desligamento?: string | null
+          funcionario_id?: string | null
+          id?: string
+          motivo_desligamento?: string | null
+          nome_completo?: string
+          observacoes?: string | null
+          recontratavel?: boolean | null
+          tipo_desligamento?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_arquivo_morto_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_assinaturas: {
         Row: {
           assinatura_png: string | null
@@ -931,6 +978,8 @@ export type Database = {
           aluguel: string | null
           ano_fabricacao: string | null
           capacidade: string | null
+          capacidade_unidade: string | null
+          capacidade_valor: number | null
           catalogo_equipamento_id: string | null
           categoria_ativo_id: string | null
           chassi: string | null
@@ -970,6 +1019,8 @@ export type Database = {
           aluguel?: string | null
           ano_fabricacao?: string | null
           capacidade?: string | null
+          capacidade_unidade?: string | null
+          capacidade_valor?: number | null
           catalogo_equipamento_id?: string | null
           categoria_ativo_id?: string | null
           chassi?: string | null
@@ -1009,6 +1060,8 @@ export type Database = {
           aluguel?: string | null
           ano_fabricacao?: string | null
           capacidade?: string | null
+          capacidade_unidade?: string | null
+          capacidade_valor?: number | null
           catalogo_equipamento_id?: string | null
           categoria_ativo_id?: string | null
           chassi?: string | null
@@ -2426,10 +2479,13 @@ export type Database = {
       bd_empresas: {
         Row: {
           agencia: string | null
+          aprovado_compliance: boolean | null
+          atualizado_via_integracao: boolean | null
           banco: string | null
           cnpj: string
           conta: string | null
           created_at: string | null
+          data_integracao: string | null
           endereco_cep: string | null
           endereco_cidade: string | null
           endereco_completo: string | null
@@ -2444,6 +2500,7 @@ export type Database = {
           modificado_por: string | null
           nome_contato: string | null
           nome_empresa: string
+          origem_cadastro: string | null
           pertence_ao_grupo: boolean | null
           pessoa_tipo: string | null
           pix: string | null
@@ -2456,10 +2513,13 @@ export type Database = {
         }
         Insert: {
           agencia?: string | null
+          aprovado_compliance?: boolean | null
+          atualizado_via_integracao?: boolean | null
           banco?: string | null
           cnpj: string
           conta?: string | null
           created_at?: string | null
+          data_integracao?: string | null
           endereco_cep?: string | null
           endereco_cidade?: string | null
           endereco_completo?: string | null
@@ -2474,6 +2534,7 @@ export type Database = {
           modificado_por?: string | null
           nome_contato?: string | null
           nome_empresa: string
+          origem_cadastro?: string | null
           pertence_ao_grupo?: boolean | null
           pessoa_tipo?: string | null
           pix?: string | null
@@ -2486,10 +2547,13 @@ export type Database = {
         }
         Update: {
           agencia?: string | null
+          aprovado_compliance?: boolean | null
+          atualizado_via_integracao?: boolean | null
           banco?: string | null
           cnpj?: string
           conta?: string | null
           created_at?: string | null
+          data_integracao?: string | null
           endereco_cep?: string | null
           endereco_cidade?: string | null
           endereco_completo?: string | null
@@ -2504,6 +2568,7 @@ export type Database = {
           modificado_por?: string | null
           nome_contato?: string | null
           nome_empresa?: string
+          origem_cadastro?: string | null
           pertence_ao_grupo?: boolean | null
           pessoa_tipo?: string | null
           pix?: string | null
@@ -3297,6 +3362,53 @@ export type Database = {
             columns: ["funcao_id"]
             isOneToOne: false
             referencedRelation: "bd_funcoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_integracao_fornecedores_log: {
+        Row: {
+          cnpj: string
+          created_at: string | null
+          empresa_id_gerada: string | null
+          fornecedor_externo_id: string | null
+          id: string
+          mensagem: string | null
+          origem: string | null
+          payload_json: Json
+          processed_at: string | null
+          status_processamento: string | null
+        }
+        Insert: {
+          cnpj: string
+          created_at?: string | null
+          empresa_id_gerada?: string | null
+          fornecedor_externo_id?: string | null
+          id?: string
+          mensagem?: string | null
+          origem?: string | null
+          payload_json: Json
+          processed_at?: string | null
+          status_processamento?: string | null
+        }
+        Update: {
+          cnpj?: string
+          created_at?: string | null
+          empresa_id_gerada?: string | null
+          fornecedor_externo_id?: string | null
+          id?: string
+          mensagem?: string | null
+          origem?: string | null
+          payload_json?: Json
+          processed_at?: string | null
+          status_processamento?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_integracao_fornecedores_log_empresa_id_gerada_fkey"
+            columns: ["empresa_id_gerada"]
+            isOneToOne: false
+            referencedRelation: "bd_empresas"
             referencedColumns: ["id"]
           },
         ]
@@ -4750,14 +4862,17 @@ export type Database = {
       }
       bd_portfolio_empresas: {
         Row: {
+          ano_fabricacao: string | null
           ativo: boolean | null
           catalogo_equipamento_id: string | null
           catalogo_variacao_id: string | null
           created_at: string | null
           empresa_id: string
+          fabricante: string | null
           fornece_com_operador: boolean | null
           fornece_sem_operador: boolean | null
           id: string
+          modelo: string | null
           observacoes: string | null
           quantidade_estimada: number | null
           tipo_equipamento_id: string | null
@@ -4766,14 +4881,17 @@ export type Database = {
           valor_ref_sem_operador: number | null
         }
         Insert: {
+          ano_fabricacao?: string | null
           ativo?: boolean | null
           catalogo_equipamento_id?: string | null
           catalogo_variacao_id?: string | null
           created_at?: string | null
           empresa_id: string
+          fabricante?: string | null
           fornece_com_operador?: boolean | null
           fornece_sem_operador?: boolean | null
           id?: string
+          modelo?: string | null
           observacoes?: string | null
           quantidade_estimada?: number | null
           tipo_equipamento_id?: string | null
@@ -4782,14 +4900,17 @@ export type Database = {
           valor_ref_sem_operador?: number | null
         }
         Update: {
+          ano_fabricacao?: string | null
           ativo?: boolean | null
           catalogo_equipamento_id?: string | null
           catalogo_variacao_id?: string | null
           created_at?: string | null
           empresa_id?: string
+          fabricante?: string | null
           fornece_com_operador?: boolean | null
           fornece_sem_operador?: boolean | null
           id?: string
+          modelo?: string | null
           observacoes?: string | null
           quantidade_estimada?: number | null
           tipo_equipamento_id?: string | null

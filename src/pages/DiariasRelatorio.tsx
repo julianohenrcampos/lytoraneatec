@@ -135,10 +135,11 @@ export default function DiariasRelatorio() {
     if (filters.empresa_id) {
       filtered = filtered.filter((r: any) => r.empresa_id === filters.empresa_id);
     }
+    const hasRealMatricula = (m: any) => !!m && m !== '---' && String(m).trim() !== '';
     if (filters.tipo_vinculo === 'diarista') {
-      filtered = filtered.filter((r: any) => !r.matricula_funcionario);
+      filtered = filtered.filter((r: any) => !hasRealMatricula(r.matricula_funcionario));
     } else if (filters.tipo_vinculo === 'remessa') {
-      filtered = filtered.filter((r: any) => !!r.matricula_funcionario);
+      filtered = filtered.filter((r: any) => hasRealMatricula(r.matricula_funcionario));
     }
     // Filtrar por solicitação (multi-select)
     if (solicitacaoFilter.length > 0) {
@@ -175,24 +176,32 @@ export default function DiariasRelatorio() {
   const { data: funcionariosApontados = [] } = useQuery({
     queryKey: ['funcionarios-apontados'],
     queryFn: async () => {
-      const { data: presencas } = await supabase.
-      from('bd_diaria_presencas').
-      select('funcionario_id, bd_funcionarios!inner(id, nome_completo)');
-
-      // Extrair funcionários únicos
       const funcionariosMap = new Map();
-      presencas?.forEach((p: any) => {
-        if (p.bd_funcionarios && !funcionariosMap.has(p.bd_funcionarios.id)) {
-          funcionariosMap.set(p.bd_funcionarios.id, {
-            id: p.bd_funcionarios.id,
-            nome_completo: p.bd_funcionarios.nome_completo
-          });
-        }
-      });
+      let from = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      // Ordenar por nome
+      while (hasMore) {
+        const { data: presencas } = await supabase
+          .from('bd_diaria_presencas')
+          .select('funcionario_id, bd_funcionarios!inner(id, nome_completo)')
+          .range(from, from + pageSize - 1);
+
+        presencas?.forEach((p: any) => {
+          if (p.bd_funcionarios && !funcionariosMap.has(p.bd_funcionarios.id)) {
+            funcionariosMap.set(p.bd_funcionarios.id, {
+              id: p.bd_funcionarios.id,
+              nome_completo: p.bd_funcionarios.nome_completo
+            });
+          }
+        });
+
+        hasMore = (presencas?.length || 0) === pageSize;
+        from += pageSize;
+      }
+
       return Array.from(funcionariosMap.values()).sort((a, b) =>
-      a.nome_completo.localeCompare(b.nome_completo)
+        a.nome_completo.localeCompare(b.nome_completo)
       );
     }
   });
