@@ -40,6 +40,7 @@ export interface Veiculo {
   nome_categoria?: string;
   nome_subcategoria?: string;
   nome_empresa_locadora?: string;
+  nome_centro_custo?: string;
 }
 
 export type VeiculoFormData = Omit<Veiculo, 'id' | 'created_at' | 'updated_at' | 'nome_departamento' | 'nome_empresa' | 'nome_categoria' | 'nome_subcategoria'>;
@@ -52,6 +53,8 @@ export interface VeiculoFilterParams {
   situacao?: string;
   empresa_id?: string;
   categoria_ativo_id?: string;
+  subcategoria_ativo_id?: string;
+  capacidade?: string;
 }
 
 export type VeiculoFilter = VeiculoFilterParams;

@@ -19,6 +19,7 @@ const TEMPLATE_COLUMNS = [
   "ano_fabricacao",
   "empresa",
   "tipo_empresa",
+  "departamento",
   "status_operacional",
   "capacidade",
   "aluguel",
@@ -41,6 +42,7 @@ export const downloadEquipamentoTemplate = () => {
     ano_fabricacao: "2022",
     empresa: "ACAM",
     tipo_empresa: "LOCADO",
+    departamento: "ASFALTO",
     status_operacional: "Operando",
     capacidade: "22T",
     aluguel: "",
@@ -58,6 +60,7 @@ export const downloadEquipamentoTemplate = () => {
     ["- categoria: nome da categoria do ativo (ex: EQUIPAMENTO, VEÍCULO). Deve existir no cadastro."],
     ["- subcategoria: nome da subcategoria (ex: ESCAVADEIRA, CAMINHÃO BASCULANTE). Deve existir no cadastro."],
     ["- frota_codigo: código da frota cadastrada (ex: LOC, LYE, LYC). Deve existir em bd_frotas."],
+    ["- departamento: nome do departamento (ex: ASFALTO, TERRAPLANAGEM). Deve existir no cadastro."],
     ["- Ao menos PLACA ou CHASSI é obrigatório para identificação do equipamento."],
     [""],
     ["CAMPOS OPCIONAIS MAS RECOMENDADOS:"],
@@ -99,15 +102,17 @@ export const downloadEquipamentoTemplate = () => {
 // ==================== EXPORT ====================
 
 export const exportVeiculos = async (veiculos: Veiculo[]) => {
-  const [frotasRes, fabricantesRes, linhasRes] = await Promise.all([
+  const [frotasRes, fabricantesRes, linhasRes, departamentosRes] = await Promise.all([
     supabase.from("bd_frotas").select("id, codigo"),
     supabase.from("bd_fabricantes").select("id, nome"),
     supabase.from("bd_linhas_operacionais").select("id, codigo, nome").eq("ativo", true),
+    supabase.from("bd_departamentos").select("id, nome_departamento"),
   ]);
 
   const frotasMap = new Map((frotasRes.data || []).map((f: any) => [f.id, f.codigo]));
   const fabricantesMap = new Map((fabricantesRes.data || []).map((f: any) => [f.id, f.nome]));
   const linhasMap = new Map((linhasRes.data || []).map((l: any) => [l.id, l.codigo]));
+  const departamentosMap = new Map((departamentosRes.data || []).map((d: any) => [d.id, d.nome_departamento]));
 
   const data = veiculos.map((v) => ({
     categoria: v.nome_categoria || "",
@@ -118,10 +123,11 @@ export const exportVeiculos = async (veiculos: Veiculo[]) => {
     placa: v.placa || "",
     chassi: v.chassi || "",
     fabricante: fabricantesMap.get((v as any).fabricante_id) || v.fabricante || "",
-    modelo: v.motor || "", // motor field stores modelo text
+    modelo: v.motor || "",
     ano_fabricacao: v.ano_fabricacao || "",
     empresa: v.nome_empresa || "",
     tipo_empresa: v.proprietario_tipo || "",
+    departamento: departamentosMap.get(v.departamento_id || "") || v.nome_departamento || "",
     status_operacional: v.situacao || "",
     capacidade: v.capacidade || "",
     aluguel: v.aluguel || "",
@@ -168,7 +174,7 @@ async function importFromFile(file: File): Promise<ImportResult> {
     return { success: [], errors: [{ message: "Arquivo vazio ou sem dados válidos." }] };
   }
 
-  const [frotasRes, fabricantesRes, empresasRes, categoriasRes, subcatsRes, linhasRes] =
+  const [frotasRes, fabricantesRes, empresasRes, categoriasRes, subcatsRes, linhasRes, departamentosRes] =
     await Promise.all([
       supabase.from("bd_frotas").select("id, codigo").eq("ativo", true),
       supabase.from("bd_fabricantes").select("id, nome").eq("ativo", true),
@@ -176,6 +182,7 @@ async function importFromFile(file: File): Promise<ImportResult> {
       supabase.from("bd_categorias_ativos").select("id, nome_categoria"),
       supabase.from("bd_subcategorias_ativos").select("id, nome_subcategoria, categoria_id"),
       supabase.from("bd_linhas_operacionais").select("id, codigo, nome").eq("ativo", true),
+      supabase.from("bd_departamentos").select("id, nome_departamento"),
     ]);
 
   const frotas = frotasRes.data || [];
@@ -184,7 +191,7 @@ async function importFromFile(file: File): Promise<ImportResult> {
   const categorias = categoriasRes.data || [];
   const subcats = subcatsRes.data || [];
   const linhas = linhasRes.data || [];
-
+  const departamentos = departamentosRes.data || [];
   const existingPlacas = new Set<string>();
   const existingChassis = new Set<string>();
 
@@ -321,7 +328,18 @@ async function importFromFile(file: File): Promise<ImportResult> {
       record.empresa_id = empresa.id;
     }
 
-    // 9. Campos simples
+    // 9. Departamento (lookup)
+    const depNome = (row.departamento || "").toString().trim();
+    if (depNome) {
+      const dep = departamentos.find(
+        (d: any) => (d.nome_departamento || "").toUpperCase() === depNome.toUpperCase()
+      );
+      if (dep) {
+        record.departamento_id = dep.id;
+      }
+    }
+
+    // 10. Campos simples
     record.numero_frota = (row.codigo_frota || "").toString().trim() || null;
     record.ano_fabricacao = (row.ano_fabricacao || "").toString().trim() || null;
     record.situacao = (row.status_operacional || "").toString().trim() || "Disponível";

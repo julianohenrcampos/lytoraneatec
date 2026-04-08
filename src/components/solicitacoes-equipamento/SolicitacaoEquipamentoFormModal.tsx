@@ -53,36 +53,45 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
     queryFn: getCentrosCustoDropdown,
   });
 
-  // Engenheiros: apenas funcionários com função de engenheiro ou gerente regional
-  const { data: engenheiros = [] } = useQuery({
-    queryKey: ["engenheiros-dropdown"],
+  // Funcionários via RPC (mesmo padrão do módulo de Diárias - SECURITY DEFINER)
+  const { data: allFuncionarios = [] } = useQuery({
+    queryKey: ['funcionarios-para-diarias'],
     queryFn: async () => {
-      const result = await (supabase
-        .from("bd_funcionarios")
-        .select("id, nome_completo, funcao:bd_funcoes(nome_funcao)") as any)
-        .eq("ativo", true)
-        .order("nome_completo");
-      const data = result.data || [];
-      if (!data) return [];
-      return data.filter((f: any) => {
-        const funcao = (f.funcao?.nome_funcao || "").toLowerCase();
-        return funcao.includes("engenheiro") || funcao.includes("gerente regional");
-      });
-    },
+      const PAGE_SIZE = 1000;
+      let allData: any[] = [];
+      let page = 0;
+      while (true) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+        const { data } = await supabase.rpc('get_funcionarios_para_diarias').range(from, to);
+        if (!data || data.length === 0) break;
+        allData = allData.concat(data);
+        if (data.length < PAGE_SIZE) break;
+        page++;
+      }
+      return allData.map((f: any) => ({
+        id: f.id,
+        nome_completo: f.nome_completo,
+        funcao_nome: f.funcao_nome || '',
+        status_funcionario: f.status_funcionario || null,
+      }));
+    }
   });
 
-  // Apontadores: todos os funcionários ativos
-  const { data: funcionarios = [] } = useQuery({
-    queryKey: ["funcionarios-dropdown"],
-    queryFn: async () => {
-      const { data } = await (supabase
-        .from("bd_funcionarios")
-        .select("id, nome_completo") as any)
-        .eq("ativo", true)
-        .order("nome_completo");
-      return data || [];
-    },
-  });
+  const engenheiros = useMemo(() =>
+    allFuncionarios.filter((f: any) => {
+      const funcao = (f.funcao_nome || '').toLowerCase();
+      return funcao.includes('engenheiro') || funcao.includes('gerente regional');
+    }),
+    [allFuncionarios]
+  );
+
+  const funcionarios = useMemo(() =>
+    allFuncionarios.filter((f: any) =>
+      ['Ativo', 'Ativo sem Registro'].includes(f.status_funcionario)
+    ),
+    [allFuncionarios]
+  );
 
   const [aprovadorNome, setAprovadorNome] = useState<string | null>(null);
   const [itens, setItens] = useState<ItemWithDisplay[]>([]);

@@ -9,6 +9,8 @@ export interface VeiculoFilter {
   situacao?: string;
   empresa_id?: string;
   categoria_ativo_id?: string;
+  subcategoria_ativo_id?: string;
+  capacidade?: string;
 }
 
 export interface ImportResult {

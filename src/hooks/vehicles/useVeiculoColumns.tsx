@@ -67,6 +67,11 @@ export const useVeiculoColumns = ({
       header: "Departamento",
     },
     {
+      id: "centro_custo",
+      header: "Centro de Custo",
+      cell: ({ row }) => row.original.nome_centro_custo || "-",
+    },
+    {
       accessorKey: "situacao",
       header: "Situação",
       cell: ({ row }) => {

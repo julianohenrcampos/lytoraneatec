@@ -19,8 +19,10 @@ interface Etapa1CadastroFormProps {
     nome_funcao: string;
   }>;
   centrosCusto: Array<{
+    codigo_centro_custo: string;
     nome_centro_custo: string;
   }>;
+
   disabled?: boolean;
   modoFuncionario?: boolean;
 }
@@ -44,7 +46,7 @@ export const Etapa1CadastroForm: React.FC<Etapa1CadastroFormProps> = ({
   })), [funcoes]);
   const centrosCustoOptions = useMemo(() => centrosCusto.map(c => ({
     value: c.nome_centro_custo,
-    label: c.nome_centro_custo
+    label: `${c.codigo_centro_custo} - ${c.nome_centro_custo}`
   })), [centrosCusto]);
 
   // Calcular data de registro da carteira automaticamente
