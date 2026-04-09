@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useDynamicPermissions } from './useDynamicPermissions';
+import { usePermission } from './usePermission';
 import { useEffect, useState } from 'react';
 
 export interface AdmSedeScope {
@@ -10,7 +10,7 @@ export interface AdmSedeScope {
 }
 
 export function useAdmSedeScope(): AdmSedeScope {
-  const { userId, isLoading: permLoading } = useDynamicPermissions();
+  const { userId, isLoading: permLoading } = usePermission();
   const [isAdmSede, setIsAdmSede] = useState(false);
   const [checkDone, setCheckDone] = useState(false);
 

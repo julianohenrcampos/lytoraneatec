@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Combobox } from '@/components/ui/combobox';
 import { useVerAgir } from '@/hooks/ssoVerAgir';
-import { useAuthPermissions } from '@/hooks/useAuthPermissions';
+import { usePermission } from '@/hooks/usePermission';
 import { VerAgirFormData } from '@/types/ssoVerAgir';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -31,7 +31,7 @@ export const VerAgirDialog: React.FC<VerAgirDialogProps> = ({
 }) => {
   const isEditing = !!registroId;
   const { registro, createRegistro, updateRegistro, setStatus, isCreating, isUpdating, isChangingStatus, getSignedUrl, centrosCusto, isLoadingCentrosCusto } = useVerAgir(registroId);
-  const { isSuperAdmin, userRole, userId } = useAuthPermissions();
+  const { isSuperAdmin, userRole, userId } = usePermission();
   const canManageGestao = isSuperAdmin || userRole === 'AdmSSO' || userRole === 'AdmOBRA';
 
   // Opções do Combobox de Centro de Custo

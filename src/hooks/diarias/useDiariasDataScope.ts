@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
+import { usePermission } from '@/hooks/usePermission';
 import type { DiariaSolicitacao, SolicitacaoFilters, RelatorioFilters, RelatorioFolhaItem } from '@/types/diarias';
 
 export type DiariasUserScope = 'superadmin' | 'admsso' | 'admsede' | 'engenheiro' | 'gerente' | 'apontador' | 'nenhum';
@@ -47,7 +47,7 @@ export interface DiariasDataScope {
 }
 
 export function useDiariasDataScope(): DiariasDataScope {
-  const { userId, isSuperAdmin, permissions, isLoading: isLoadingPermissions } = useDynamicPermissions();
+  const { userId, isSuperAdmin, permissions, isLoading: isLoadingPermissions } = usePermission();
   
   const [funcionarioId, setFuncionarioId] = useState<string | null>(null);
   const [centrosCustoGerenciados, setCentrosCustoGerenciados] = useState<string[]>([]);

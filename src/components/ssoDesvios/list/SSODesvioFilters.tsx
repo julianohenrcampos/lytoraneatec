@@ -9,7 +9,7 @@ import { SSODesvioFilters, STATUS_ACAO, CLASSIFICACAO_DESVIO, TIPOS_DESVIO } fro
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Filter, X } from 'lucide-react';
-import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
+import { usePermission } from '@/hooks/usePermission';
 import { RESTRICTED_CC_CODE } from '@/utils/centroCustoRestrictions';
 
 interface SSODesvioFiltersProps {
@@ -27,7 +27,7 @@ export const SSODesvioFiltersComponent: React.FC<SSODesvioFiltersProps> = ({
   const [tecnicoSeguranca, setTecnicoSeguranca] = useState('');
   const [classificacao, setClassificacao] = useState('');
   const [statusAcao, setStatusAcao] = useState('');
-  const { isSuperAdmin } = useDynamicPermissions();
+  const { isSuperAdmin } = usePermission();
 
   // Buscar obras
   const { data: obras = [] } = useQuery({

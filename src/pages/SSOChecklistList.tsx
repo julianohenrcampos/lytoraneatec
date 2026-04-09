@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import MainLayout from '@/components/layout/MainLayout';
 import { useSSOChecklist } from '@/hooks/sso/useSSOChecklist';
-import { useAuthPermissions } from '@/hooks/useAuthPermissions';
+import { usePermission } from '@/hooks/usePermission';
 import { Button } from '@/components/ui/button';
 import { Plus, BarChart3, Download } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -22,7 +22,7 @@ const SSOChecklistList = () => {
     isSuperAdmin,
     userRole,
     userId
-  } = useAuthPermissions();
+  } = usePermission();
   const [filters, setFilters] = useState<FilterType>({});
   const {
     checklists,

@@ -27,6 +27,15 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import { type RBACRole, type RBACRoleFormData } from "@/services/rbac/rolesCRUD";
 import { type RBACPermission } from "@/services/rbac/permissionsCRUD";
+import type { Acao } from "@/services/rbac/actionPermissionsCRUD";
+
+const ACOES: { key: Acao; label: string }[] = [
+  { key: 'visualizar', label: 'Ver' },
+  { key: 'criar', label: 'Criar' },
+  { key: 'editar', label: 'Editar' },
+  { key: 'excluir', label: 'Excluir' },
+  { key: 'aprovar', label: 'Aprovar' },
+];
 
 interface FuncaoPermissaoFormModalProps {
   isOpen: boolean;
@@ -41,7 +50,13 @@ const formSchema = z.object({
   nome: z.string().min(3, "Nome da função deve ter pelo menos 3 caracteres"),
   descricao: z.string().optional(),
   permissions: z.array(z.string()),
+  actions: z.array(z.object({
+    permissionId: z.string(),
+    acao: z.string(),
+  })),
 });
+
+type FormValues = z.infer<typeof formSchema>;
 
 const FuncaoPermissaoFormModal: React.FC<FuncaoPermissaoFormModalProps> = ({
   isOpen,
@@ -51,41 +66,76 @@ const FuncaoPermissaoFormModal: React.FC<FuncaoPermissaoFormModalProps> = ({
   onSubmit,
   isSubmitting,
 }) => {
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       nome: "",
       descricao: "",
       permissions: [],
+      actions: [],
     },
   });
 
   React.useEffect(() => {
     if (funcaoPermissao) {
+      // Build actions from role data
+      const actions = (funcaoPermissao.actions || []).map(a => ({
+        permissionId: a.permissionId,
+        acao: a.acao,
+      }));
+      // Derive permissions from actions (unique permission IDs)
+      const permIds = Array.from(new Set(actions.map(a => a.permissionId)));
+      // Also include legacy permissions that don't have actions yet
+      const allPermIds = Array.from(new Set([...permIds, ...(funcaoPermissao.permissions || [])]));
+      
       form.reset({
         nome: funcaoPermissao.nome,
         descricao: funcaoPermissao.descricao || "",
-        permissions: funcaoPermissao.permissions || [],
+        permissions: allPermIds,
+        actions,
       });
     } else {
       form.reset({
         nome: "",
         descricao: "",
         permissions: [],
+        actions: [],
       });
     }
   }, [funcaoPermissao, form]);
 
-  const handleFormSubmit = (data: z.infer<typeof formSchema>) => {
+  const hasAction = (permId: string, acao: Acao): boolean => {
+    const actions = form.getValues('actions');
+    return actions.some(a => a.permissionId === permId && a.acao === acao);
+  };
+
+  const toggleAction = (permId: string, acao: Acao) => {
+    const currentActions = form.getValues('actions') as { permissionId: string; acao: string }[];
+    const exists = currentActions.some(a => a.permissionId === permId && a.acao === acao);
+    let newActions: { permissionId: string; acao: string }[];
+    
+    if (exists) {
+      newActions = currentActions.filter(a => !(a.permissionId === permId && a.acao === acao));
+    } else {
+      newActions = [...currentActions, { permissionId: permId, acao }];
+    }
+    
+    form.setValue('actions', newActions);
+    const permIds = Array.from(new Set(newActions.map(a => a.permissionId)));
+    form.setValue('permissions', permIds);
+  };
+
+  const handleFormSubmit = (data: FormValues) => {
     const formData: RBACRoleFormData = {
       nome: data.nome,
       descricao: data.descricao || "",
       permissions: data.permissions,
+      actions: data.actions.map(a => ({ permissionId: a.permissionId, acao: a.acao as Acao })),
     };
     onSubmit(formData);
   };
 
-  // Group permissions by module matching sidebar menu structure
+  // Group permissions by module
   const groupedPermissions = React.useMemo(() => {
     const groups: Record<string, RBACPermission[]> = {
       'Dashboards': [],
@@ -125,21 +175,35 @@ const FuncaoPermissaoFormModal: React.FC<FuncaoPermissaoFormModalProps> = ({
     return groups;
   }, [permissoes]);
 
-  // Helper to toggle all permissions in a group
-  const toggleGroupPermissions = (perms: RBACPermission[], select: boolean) => {
-    const currentPerms = form.getValues('permissions');
-    const groupIds = perms.map(p => p.id);
+  const toggleGroupAll = (perms: RBACPermission[], select: boolean) => {
+    const actions = form.getValues('actions');
+    const groupIds = new Set(perms.map(p => p.id));
+    
     if (select) {
-      const merged = Array.from(new Set([...currentPerms, ...groupIds]));
-      form.setValue('permissions', merged);
+      // Add all 5 actions for each permission in group
+      const newActions = [...actions.filter(a => !groupIds.has(a.permissionId))];
+      perms.forEach(p => {
+        ACOES.forEach(ac => {
+          newActions.push({ permissionId: p.id, acao: ac.key });
+        });
+      });
+      form.setValue('actions', newActions);
+      const permIds = Array.from(new Set(newActions.map(a => a.permissionId)));
+      form.setValue('permissions', permIds);
     } else {
-      form.setValue('permissions', currentPerms.filter(id => !groupIds.includes(id)));
+      const newActions = actions.filter(a => !groupIds.has(a.permissionId));
+      form.setValue('actions', newActions);
+      const permIds = Array.from(new Set(newActions.map(a => a.permissionId)));
+      form.setValue('permissions', permIds);
     }
   };
 
+  // Force re-render on actions change
+  const watchedActions = form.watch('actions');
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[750px]">
         <DialogHeader>
           <DialogTitle>
             {funcaoPermissao ? "Editar Função" : "Nova Função"}
@@ -180,84 +244,74 @@ const FuncaoPermissaoFormModal: React.FC<FuncaoPermissaoFormModalProps> = ({
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="permissions"
-              render={() => (
-                <FormItem>
-                  <FormLabel>Permissões</FormLabel>
-                  <Card className="p-4">
-                    <ScrollArea className="h-[300px] pr-4">
-                      <div className="space-y-6">
-                        {Object.entries(groupedPermissions).map(([group, perms]) => (
-                          perms.length > 0 && (
-                            <div key={group} className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <h3 className="font-medium text-sm">{group}</h3>
-                                <div className="flex gap-1">
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 text-xs px-2"
-                                    onClick={() => toggleGroupPermissions(perms, true)}
-                                  >
-                                    Todos
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 text-xs px-2"
-                                    onClick={() => toggleGroupPermissions(perms, false)}
-                                  >
-                                    Nenhum
-                                  </Button>
-                                </div>
-                              </div>
-                              <div className="space-y-2 ml-2">
-                                {perms.map(permission => (
-                                  <FormField
-                                    key={permission.id}
-                                    control={form.control}
-                                    name="permissions"
-                                    render={({ field }) => (
-                                      <FormItem
-                                        key={permission.id}
-                                        className="flex flex-row items-start space-x-3 space-y-0"
-                                      >
-                                        <FormControl>
-                                          <Checkbox
-                                            checked={field.value?.includes(permission.id)}
-                                            onCheckedChange={(checked) => {
-                                              return checked
-                                                ? field.onChange([...field.value, permission.id])
-                                                : field.onChange(
-                                                    field.value?.filter(
-                                                      (value) => value !== permission.id
-                                                    )
-                                                  )
-                                            }}
-                                          />
-                                        </FormControl>
-                                        <FormLabel className="font-normal cursor-pointer text-sm">
-                                          {permission.descricao || permission.nome || permission.codigo}
-                                        </FormLabel>
-                                      </FormItem>
-                                    )}
-                                  />
+            <div>
+              <FormLabel>Permissões por Ação</FormLabel>
+              <Card className="p-4 mt-2">
+                <ScrollArea className="h-[350px] pr-4">
+                  <div className="space-y-6">
+                    {Object.entries(groupedPermissions).map(([group, perms]) => (
+                      perms.length > 0 && (
+                        <div key={group} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h3 className="font-medium text-sm">{group}</h3>
+                            <div className="flex gap-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-xs px-2"
+                                onClick={() => toggleGroupAll(perms, true)}
+                              >
+                                Todos
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-xs px-2"
+                                onClick={() => toggleGroupAll(perms, false)}
+                              >
+                                Nenhum
+                              </Button>
+                            </div>
+                          </div>
+                          
+                          {/* Header row */}
+                          <div className="grid grid-cols-[1fr_repeat(5,48px)] gap-1 ml-2 text-xs text-muted-foreground font-medium">
+                            <span>Permissão</span>
+                            {ACOES.map(ac => (
+                              <span key={ac.key} className="text-center">{ac.label}</span>
+                            ))}
+                          </div>
+                          
+                          {/* Permission rows */}
+                          <div className="space-y-1 ml-2">
+                            {perms.map(permission => (
+                              <div
+                                key={permission.id}
+                                className="grid grid-cols-[1fr_repeat(5,48px)] gap-1 items-center py-1 border-b border-border/50 last:border-0"
+                              >
+                                <span className="text-sm truncate" title={permission.descricao || permission.nome || permission.codigo}>
+                                  {permission.descricao || permission.nome || permission.codigo}
+                                </span>
+                                {ACOES.map(ac => (
+                                  <div key={ac.key} className="flex justify-center">
+                                    <Checkbox
+                                      checked={hasAction(permission.id, ac.key)}
+                                      onCheckedChange={() => toggleAction(permission.id, ac.key)}
+                                    />
+                                  </div>
                                 ))}
                               </div>
-                            </div>
-                          )
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  </Card>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    ))}
+                  </div>
+                </ScrollArea>
+              </Card>
+            </div>
 
             <DialogFooter>
               <Button

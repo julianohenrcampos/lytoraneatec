@@ -2,7 +2,7 @@
 import * as React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
+import { usePermission } from "@/hooks/usePermission";
 import { menuStructure } from "@/constants/menuStructure";
 import { useDiariasPendentes } from "@/hooks/diarias/useDiariasPendentes";
 import { ChevronRight } from "lucide-react";
@@ -34,7 +34,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const location = useLocation();
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
-  const { isSuperAdmin, userRole, permissions, isLoading } = useDynamicPermissions();
+  const { isSuperAdmin, userRole, permissions, isLoading } = usePermission();
   const { count: pendentesCount } = useDiariasPendentes();
 
   const canAccessItem = (item: any) => {

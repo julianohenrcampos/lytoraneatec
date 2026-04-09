@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { ssoDashboardService } from '@/services/sso/ssoDashboardService';
-import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
+import { usePermission } from '@/hooks/usePermission';
 
 export interface DashboardFilters {
   obra_id?: string;
@@ -10,7 +10,7 @@ export interface DashboardFilters {
 }
 
 export const useSSODashboard = (filters?: DashboardFilters) => {
-  const { isSuperAdmin } = useDynamicPermissions();
+  const { isSuperAdmin } = usePermission();
 
   const dashboardQuery = useQuery({
     queryKey: ['sso-dashboard', filters],

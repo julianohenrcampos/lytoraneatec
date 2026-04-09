@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { PortalLayout } from "@/components/portal/PortalLayout";
 import { PortalCard } from "@/components/portal/PortalCard";
-import { useAuthPermissions } from "@/hooks/useAuthPermissions";
+import { usePermission } from "@/hooks/usePermission";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Truck,
@@ -81,7 +81,7 @@ const portalModules = [
 
 
 export default function Portal() {
-  const { permissions, isSuperAdmin, isLoading } = useAuthPermissions();
+  const { permissions, isSuperAdmin, isLoading } = usePermission();
   const [userName, setUserName] = useState<string>("");
 
   useEffect(() => {

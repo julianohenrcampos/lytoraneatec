@@ -8,7 +8,7 @@ import {
   exportToExcel as exportService
 } from "@/services/centroCustoService";
 import { useToast } from "./use-toast";
-import { useDynamicPermissions } from "./useDynamicPermissions";
+import { usePermission } from "./usePermission";
 
 export function useCentroCustoActions() {
   const [filters, setFilters] = useState<CentroCustoFilter>({});
@@ -21,7 +21,7 @@ export function useCentroCustoActions() {
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { isSuperAdmin } = useDynamicPermissions();
+  const { isSuperAdmin } = usePermission();
 
   // Query para buscar centros de custo
   const { 

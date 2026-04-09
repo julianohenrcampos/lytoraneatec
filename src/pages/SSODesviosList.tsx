@@ -6,7 +6,7 @@ import { SSODesvioFiltersComponent, SSODesvioTable } from '@/components/ssoDesvi
 import { SSODesvioDialog, SSODesvioViewDialog } from '@/components/ssoDesvios/dialog';
 import { useSSODesvio } from '@/hooks/ssoDesvios/useSSODesvio';
 import { SSODesvioFilters } from '@/types/ssoDesvios';
-import { useAuthPermissions } from '@/hooks/useAuthPermissions';
+import { usePermission } from '@/hooks/usePermission';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Plus, BarChart3, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -22,7 +22,7 @@ export default function SSODesviosList() {
   const [desvioToDelete, setDesvioToDelete] = useState<string | null>(null);
 
   const { desvios, isLoading, deleteDesvio, isDeleting } = useSSODesvio(undefined, filters);
-  const { isSuperAdmin, userRole, userId } = useAuthPermissions();
+  const { isSuperAdmin, userRole, userId } = usePermission();
 
   const canEditAll = isSuperAdmin || ['AdmSSO', 'AdmOBRA', 'AdmtreinoSSO'].includes(userRole || '');
   const canDeleteAll = isSuperAdmin || ['AdmSSO', 'AdmOBRA', 'AdmtreinoSSO'].includes(userRole || '');

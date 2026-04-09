@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuthPermissions } from './useAuthPermissions';
+import { usePermission } from './usePermission';
 
 interface ProfileSecurityContext {
   hasGlobalAccess: boolean;
@@ -19,7 +19,7 @@ interface ProfileSecurityContext {
  * - AdmSSO/TecSSO/AdmLogistica/AdmEquipamentos veem apenas seu departamento
  */
 export const useProfileSecurity = (): ProfileSecurityContext => {
-  const { userId, isSuperAdmin, permissions, isLoading: isAuthLoading } = useAuthPermissions();
+  const { userId, isSuperAdmin, permissions, isLoading: isAuthLoading } = usePermission();
   const [departamentoId, setDepartamentoId] = useState<string | null>(null);
   const [departamentoNome, setDepartamentoNome] = useState<string | null>(null);
   const [isLoadingDepartamento, setIsLoadingDepartamento] = useState(true);

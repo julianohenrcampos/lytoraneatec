@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useDynamicPermissions } from './useDynamicPermissions';
+import { usePermission } from './usePermission';
 import { RESTRICTED_CC_CODE } from '@/utils/centroCustoRestrictions';
 
 interface CentroCustoOption {
@@ -19,7 +19,7 @@ export function useCentrosCustoQuery(options?: {
   onlyActive?: boolean;
   queryKey?: string;
 }) {
-  const { isSuperAdmin } = useDynamicPermissions();
+  const { isSuperAdmin } = usePermission();
   const { includeAprovador = false, onlyActive = true, queryKey = 'centros-custo' } = options || {};
 
   const selectFields = includeAprovador

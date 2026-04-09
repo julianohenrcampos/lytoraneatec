@@ -4,13 +4,13 @@ import { useConnectionStatus } from './useConnectionStatus';
 import { useToast } from './use-toast';
 import { salvarApontamentoOffline } from '@/utils/salvarOffline';
 import { createApontamento } from '@/services/apontamentoCaminhoesService';
-import { useDynamicPermissions } from './useDynamicPermissions';
+import { usePermission } from './usePermission';
 
 export const useApontamentoCaminhoesOffline = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { isSupabaseConnected } = useConnectionStatus();
   const { toast } = useToast();
-  const { userId, isSuperAdmin, permissions } = useDynamicPermissions();
+  const { userId, isSuperAdmin, permissions } = usePermission();
 
   const submitApontamento = async (
     formData: any,

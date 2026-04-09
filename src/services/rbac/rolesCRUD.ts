@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Acao } from "./actionPermissionsCRUD";
 
 export interface RBACRole {
   id: string;
@@ -7,14 +8,15 @@ export interface RBACRole {
   ativo: boolean;
   created_at?: string;
   updated_at?: string;
-  // Populated via join
-  permissions?: string[]; // permission IDs
+  permissions?: string[];
+  actions?: { permissionId: string; acao: Acao }[];
 }
 
 export interface RBACRoleFormData {
   nome: string;
   descricao?: string;
-  permissions: string[]; // permission IDs to link
+  permissions: string[];
+  actions?: { permissionId: string; acao: Acao }[];
 }
 
 export interface RBACRoleFilter {
@@ -31,7 +33,7 @@ export const fetchRoles = async (filters: RBACRoleFilter = {}): Promise<RBACRole
   const { data, error } = await query.order("nome");
   if (error) throw error;
 
-  return (data || []).map((role: any) => ({
+  const roles: RBACRole[] = (data || []).map((role: any) => ({
     id: role.id,
     nome: role.nome,
     descricao: role.descricao,
@@ -39,7 +41,29 @@ export const fetchRoles = async (filters: RBACRoleFilter = {}): Promise<RBACRole
     created_at: role.created_at,
     updated_at: role.updated_at,
     permissions: (role.bd_role_permissions || []).map((rp: any) => rp.permission_id),
+    actions: [],
   }));
+
+  // Load granular actions for all roles
+  const roleIds = roles.map(r => r.id);
+  if (roleIds.length > 0) {
+    const { data: actionsData } = await supabase
+      .from("bd_role_permission_actions")
+      .select("role_id, permission_id, acao")
+      .in("role_id", roleIds);
+
+    const actionsMap: Record<string, { permissionId: string; acao: Acao }[]> = {};
+    (actionsData || []).forEach((a: any) => {
+      if (!actionsMap[a.role_id]) actionsMap[a.role_id] = [];
+      actionsMap[a.role_id].push({ permissionId: a.permission_id, acao: a.acao });
+    });
+
+    roles.forEach(r => {
+      r.actions = actionsMap[r.id] || [];
+    });
+  }
+
+  return roles;
 };
 
 export const getRoleById = async (id: string): Promise<RBACRole> => {
@@ -50,6 +74,11 @@ export const getRoleById = async (id: string): Promise<RBACRole> => {
     .single();
   if (error) throw error;
 
+  const { data: actionsData } = await supabase
+    .from("bd_role_permission_actions")
+    .select("permission_id, acao")
+    .eq("role_id", id);
+
   return {
     id: data.id,
     nome: data.nome,
@@ -58,11 +87,11 @@ export const getRoleById = async (id: string): Promise<RBACRole> => {
     created_at: data.created_at,
     updated_at: data.updated_at,
     permissions: ((data as any).bd_role_permissions || []).map((rp: any) => rp.permission_id),
+    actions: (actionsData || []).map((a: any) => ({ permissionId: a.permission_id, acao: a.acao })),
   };
 };
 
 export const createRole = async (roleData: RBACRoleFormData): Promise<RBACRole> => {
-  // 1. Create the role
   const { data: role, error: roleError } = await supabase
     .from("bd_roles")
     .insert({ nome: roleData.nome, descricao: roleData.descricao || null })
@@ -70,7 +99,7 @@ export const createRole = async (roleData: RBACRoleFormData): Promise<RBACRole> 
     .single();
   if (roleError) throw roleError;
 
-  // 2. Link permissions
+  // Link permissions (legacy)
   if (roleData.permissions.length > 0) {
     const links = roleData.permissions.map(permId => ({
       role_id: role.id,
@@ -80,11 +109,21 @@ export const createRole = async (roleData: RBACRoleFormData): Promise<RBACRole> 
     if (linkError) throw linkError;
   }
 
-  return { ...role, permissions: roleData.permissions } as RBACRole;
+  // Save granular actions
+  if (roleData.actions && roleData.actions.length > 0) {
+    const actionRows = roleData.actions.map(a => ({
+      role_id: role.id,
+      permission_id: a.permissionId,
+      acao: a.acao,
+    }));
+    const { error: actError } = await supabase.from("bd_role_permission_actions").insert(actionRows);
+    if (actError) throw actError;
+  }
+
+  return { ...role, permissions: roleData.permissions, actions: roleData.actions || [] } as RBACRole;
 };
 
 export const updateRole = async (id: string, roleData: RBACRoleFormData): Promise<RBACRole> => {
-  // 1. Update role
   const { data: role, error: roleError } = await supabase
     .from("bd_roles")
     .update({ nome: roleData.nome, descricao: roleData.descricao || null })
@@ -93,14 +132,14 @@ export const updateRole = async (id: string, roleData: RBACRoleFormData): Promis
     .single();
   if (roleError) throw roleError;
 
-  // 2. Delete old permission links
+  // Delete old permission links
   const { error: deleteError } = await supabase
     .from("bd_role_permissions")
     .delete()
     .eq("role_id", id);
   if (deleteError) throw deleteError;
 
-  // 3. Insert new permission links
+  // Insert new permission links
   if (roleData.permissions.length > 0) {
     const links = roleData.permissions.map(permId => ({
       role_id: id,
@@ -110,15 +149,27 @@ export const updateRole = async (id: string, roleData: RBACRoleFormData): Promis
     if (linkError) throw linkError;
   }
 
-  return { ...role, permissions: roleData.permissions } as RBACRole;
+  // Delete old actions
+  await supabase.from("bd_role_permission_actions").delete().eq("role_id", id);
+
+  // Insert new actions
+  if (roleData.actions && roleData.actions.length > 0) {
+    const actionRows = roleData.actions.map(a => ({
+      role_id: id,
+      permission_id: a.permissionId,
+      acao: a.acao,
+    }));
+    const { error: actError } = await supabase.from("bd_role_permission_actions").insert(actionRows);
+    if (actError) throw actError;
+  }
+
+  return { ...role, permissions: roleData.permissions, actions: roleData.actions || [] } as RBACRole;
 };
 
 export const deleteRole = async (id: string): Promise<boolean> => {
-  // Remove role_permissions links first
+  await supabase.from("bd_role_permission_actions").delete().eq("role_id", id);
   await supabase.from("bd_role_permissions").delete().eq("role_id", id);
-  // Remove user_roles links
   await supabase.from("bd_user_roles").delete().eq("role_id", id);
-  // Delete role
   const { error } = await supabase.from("bd_roles").delete().eq("id", id);
   if (error) throw error;
   return true;

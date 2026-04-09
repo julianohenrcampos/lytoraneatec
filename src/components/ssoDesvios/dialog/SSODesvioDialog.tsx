@@ -26,7 +26,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2, Camera, Image as ImageIcon, X } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useAuthPermissions } from '@/hooks/useAuthPermissions';
+import { usePermission } from '@/hooks/usePermission';
 import { RESTRICTED_CC_CODE } from '@/utils/centroCustoRestrictions';
 
 interface SSODesvioDialogProps {
@@ -59,7 +59,7 @@ export const SSODesvioDialog: React.FC<SSODesvioDialogProps> = ({
   desvioId
 }) => {
   const isMobile = useIsMobile();
-  const { isSuperAdmin, userRole } = useAuthPermissions();
+  const { isSuperAdmin, userRole } = usePermission();
   const [formData, setFormData] = useState<SSODesvioFormData>(initialFormData);
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);

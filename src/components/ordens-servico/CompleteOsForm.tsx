@@ -34,7 +34,7 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { ptBR } from "date-fns/locale";
 import { useOsHeaderData } from "@/hooks/useOsHeaderData";
-import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
+import { usePermission } from "@/hooks/usePermission";
 import { getCurrentBrazilianDate, formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 import { toZonedTime } from "date-fns-tz";
 import { toDecimal } from "@/utils/number";
@@ -121,7 +121,7 @@ const CompleteOsForm: React.FC<CompleteOsFormProps> = ({
   const [isSaving, setIsSaving] = useState(false);
 
   const { header, isLoading: headerLoading, error: headerError } = useOsHeaderData(currentOs, chamadoId);
-  const { isSuperAdmin } = useDynamicPermissions();
+  const { isSuperAdmin } = usePermission();
 
   const getCurrentBrazilianTime = (): string => {
     const now = new Date();

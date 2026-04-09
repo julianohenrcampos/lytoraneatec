@@ -1,5 +1,5 @@
 
-import { useAuthPermissions } from './useAuthPermissions';
+import { usePermission } from './usePermission';
 
 // Mapeamento de rotas para permissões necessárias - CORRIGIDO
 const ROUTE_PERMISSIONS: Record<string, string[]> = {
@@ -63,7 +63,7 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
 };
 
 export const useRouteAccess = () => {
-  const { isSuperAdmin, permissions, isLoading } = useAuthPermissions();
+  const { isSuperAdmin, permissions, isLoading } = usePermission();
 
   const canAccessRoute = (route: string): boolean => {
     if (isLoading) return false;

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { UserCircle, UserPlus } from "lucide-react";
+import { UserCircle, UserPlus, Info } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { usePermissao } from "@/hooks/usePermissao";
@@ -22,10 +22,10 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useVincularFuncionario } from "@/hooks/useVincularFuncionario";
 import { useRemoverPermissoes } from "@/hooks/useRemoverPermissoes";
 import { useExcluirUsuario } from "@/hooks/useExcluirUsuario";
-import { useAccessControlHybrid } from "@/hooks/useAccessControlHybrid";
+import { usePermission } from "@/hooks/usePermission";
 
 const PermissaoPage: React.FC = () => {
-  const { userId, isSuperAdmin } = useAccessControlHybrid();
+  const { userId, isSuperAdmin } = usePermission();
   
   const [isCreateGestorOpen, setIsCreateGestorOpen] = useState(false);
   const [isUnlinkDialogOpen, setIsUnlinkDialogOpen] = useState(false);
@@ -135,7 +135,21 @@ const PermissaoPage: React.FC = () => {
           onNewFuncaoPermissao={() => openFuncaoPermissaoForm()}
         />
       </div>
-      
+
+      {isSuperAdmin && (
+        <div className="p-4 rounded-lg border bg-muted/30 flex items-start gap-3">
+          <Info className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+          <div className="text-sm space-y-1">
+            <p className="font-medium">Como gerenciar permissões (SuperAdm)</p>
+            <ol className="list-decimal ml-4 text-muted-foreground space-y-0.5">
+              <li>Aba <strong>"Permissões"</strong> → <em>Nova Permissão</em> → preencha código, nome e rota</li>
+              <li>Aba <strong>"Funções"</strong> → edite a função → marque ações (Ver/Criar/Editar/Excluir/Aprovar) por permissão</li>
+              <li>Aba <strong>"Usuários"</strong> → atribua a função ao usuário ou crie overrides individuais nos detalhes</li>
+            </ol>
+          </div>
+        </div>
+      )}
+
       <Tabs defaultValue="permissions" className="w-full">
         <TabsList>
           <TabsTrigger value="permissions">Permissões</TabsTrigger>

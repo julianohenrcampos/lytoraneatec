@@ -1,10 +1,10 @@
 import React from 'react';
-import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
+import { usePermission } from '@/hooks/usePermission';
 import { Badge } from '@/components/ui/badge';
 import { User, Crown, Shield } from 'lucide-react';
 
 const UserRoleIndicator: React.FC = () => {
-  const { userRole, isSuperAdmin, permissions, isLoading } = useDynamicPermissions();
+  const { userRole, isSuperAdmin, permissions, isLoading } = usePermission();
 
   if (isLoading) {
     return (

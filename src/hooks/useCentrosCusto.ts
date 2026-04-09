@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from './use-toast';
-import { useDynamicPermissions } from './useDynamicPermissions';
+import { usePermission } from './usePermission';
 import { excludeRestrictedCC } from '@/utils/centroCustoRestrictions';
 
 interface CentroCusto {
@@ -17,7 +17,7 @@ export const useCentrosCusto = () => {
   const { toast } = useToast();
   const [centrosCusto, setCentrosCusto] = useState<CentroCusto[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const { isSuperAdmin } = useDynamicPermissions();
+  const { isSuperAdmin } = usePermission();
 
   useEffect(() => {
     fetchCentrosCusto();

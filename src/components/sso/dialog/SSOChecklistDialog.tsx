@@ -16,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { ssoItemService, ssoStorageService } from '@/services/sso';
-import { useAuthPermissions } from '@/hooks/useAuthPermissions';
+import { usePermission } from '@/hooks/usePermission';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 interface SSOChecklistDialogProps {
@@ -28,7 +28,7 @@ interface SSOChecklistDialogProps {
 export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOChecklistDialogProps) => {
   const isEdit = !!checklistId;
   const { checklist, createChecklist, updateChecklist, isCreating, isUpdating } = useSSOChecklist(checklistId);
-  const { isSuperAdmin, userRole } = useAuthPermissions();
+  const { isSuperAdmin, userRole } = usePermission();
   const isMobile = useIsMobile();
   
   const [activeTab, setActiveTab] = useState('dados');

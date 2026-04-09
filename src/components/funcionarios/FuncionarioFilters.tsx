@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useIsSmallScreen, useIsMobile } from "@/hooks/use-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
+import { usePermission } from "@/hooks/usePermission";
 import { RESTRICTED_CC_CODE } from "@/utils/centroCustoRestrictions";
 
 interface FuncionarioFiltersProps {
@@ -27,7 +27,7 @@ const FuncionarioFilters: React.FC<FuncionarioFiltersProps> = ({
 }) => {
   const isSmallScreen = useIsSmallScreen();
   const isMobile = useIsMobile();
-  const { isSuperAdmin } = useDynamicPermissions();
+  const { isSuperAdmin } = usePermission();
 
   // Fetch funções
   const { data: funcoes = [] } = useQuery({

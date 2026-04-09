@@ -1,5 +1,5 @@
 
-import { useAuthPermissions } from './useAuthPermissions';
+import { usePermission } from './usePermission';
 import { useRouteAccess } from './useRouteAccess';
 
 /**
@@ -7,7 +7,7 @@ import { useRouteAccess } from './useRouteAccess';
  * Útil para diagnosticar problemas no mobile e desktop
  */
 export const usePermissionDebug = () => {
-  const authPermissions = useAuthPermissions();
+  const authPermissions = usePermission();
   const routeAccess = useRouteAccess();
 
   const runFullDiagnostic = () => {

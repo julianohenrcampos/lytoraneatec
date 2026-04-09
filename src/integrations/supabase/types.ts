@@ -4548,6 +4548,38 @@ export type Database = {
         }
         Relationships: []
       }
+      bd_permissoes_acoes: {
+        Row: {
+          acao: string
+          created_at: string | null
+          descricao: string | null
+          id: string
+          permission_id: string
+        }
+        Insert: {
+          acao: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          permission_id: string
+        }
+        Update: {
+          acao?: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          permission_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_permissoes_acoes_permission_id_fkey"
+            columns: ["permission_id"]
+            isOneToOne: false
+            referencedRelation: "bd_permissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_pncp_config_monitoramento: {
         Row: {
           ativo: boolean | null
@@ -5724,6 +5756,45 @@ export type Database = {
           },
         ]
       }
+      bd_role_permission_actions: {
+        Row: {
+          acao: string
+          created_at: string | null
+          id: string
+          permission_id: string
+          role_id: string
+        }
+        Insert: {
+          acao: string
+          created_at?: string | null
+          id?: string
+          permission_id: string
+          role_id: string
+        }
+        Update: {
+          acao?: string
+          created_at?: string | null
+          id?: string
+          permission_id?: string
+          role_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_role_permission_actions_permission_id_fkey"
+            columns: ["permission_id"]
+            isOneToOne: false
+            referencedRelation: "bd_permissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_role_permission_actions_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "bd_roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_role_permissions: {
         Row: {
           created_at: string
@@ -6568,6 +6639,44 @@ export type Database = {
             columns: ["subcategoria_id"]
             isOneToOne: false
             referencedRelation: "bd_subcategorias_ativos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_user_permission_overrides: {
+        Row: {
+          acao: string
+          created_at: string | null
+          id: string
+          permission_id: string
+          permitido: boolean
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          acao: string
+          created_at?: string | null
+          id?: string
+          permission_id: string
+          permitido?: boolean
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          acao?: string
+          created_at?: string | null
+          id?: string
+          permission_id?: string
+          permitido?: boolean
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_user_permission_overrides_permission_id_fkey"
+            columns: ["permission_id"]
+            isOneToOne: false
+            referencedRelation: "bd_permissions"
             referencedColumns: ["id"]
           },
         ]

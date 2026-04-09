@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuthPermissions } from '@/hooks/useAuthPermissions';
+import { usePermission } from '@/hooks/usePermission';
 
 interface UserDataAccess {
   allowedTeamIds: string[];
@@ -13,7 +13,7 @@ interface UserDataAccess {
 export const useUserDataAccess = (): UserDataAccess => {
   // Emails SuperAdmin automáticos
   const SUPER_ADMIN_EMAILS = ['julianohcampos@yahoo.com.br', 'ramonvalentevalente@gmail.com'];
-  const { userRole, isSuperAdmin, isLoading: authLoading } = useAuthPermissions();
+  const { userRole, isSuperAdmin, isLoading: authLoading } = usePermission();
   const [allowedTeamIds, setAllowedTeamIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 

@@ -4,7 +4,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { ClinicaDialog, ClinicasTable } from '@/components/ssoClinicas';
 import { useLocaisAtendimento } from '@/hooks/ssoAgendamentoExames';
-import { useAuthPermissions } from '@/hooks/useAuthPermissions';
+import { usePermission } from '@/hooks/usePermission';
 import { Plus, Loader2, Building2 } from 'lucide-react';
 import {
   AlertDialog,
@@ -24,7 +24,7 @@ const SSOClinicas: React.FC = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { locais, isLoading, delete: deleteClinica, toggleAtivo, isDeleting } = useLocaisAtendimento();
-  const { isSuperAdmin, userRole } = useAuthPermissions();
+  const { isSuperAdmin, userRole } = usePermission();
 
   const canCreate = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO', 'AdmtreinoSSO'].includes(userRole || '');
   const canEdit = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO', 'AdmtreinoSSO'].includes(userRole || '');

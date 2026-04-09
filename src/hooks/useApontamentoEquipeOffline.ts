@@ -5,13 +5,13 @@ import { useToast } from './use-toast';
 import { salvarApontamentoOffline } from '@/utils/salvarOffline';
 import { ApontamentoEquipeApiData } from '@/types/apontamentoEquipe';
 import { createApontamentoEquipe } from '@/services/apontamentoEquipeService';
-import { useDynamicPermissions } from './useDynamicPermissions';
+import { usePermission } from './usePermission';
 
 export const useApontamentoEquipeOffline = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { isSupabaseConnected } = useConnectionStatus();
   const { toast } = useToast();
-  const { userId, isSuperAdmin, permissions } = useDynamicPermissions();
+  const { userId, isSuperAdmin, permissions } = usePermission();
 
   const submitApontamento = async (
     formData: ApontamentoEquipeApiData,

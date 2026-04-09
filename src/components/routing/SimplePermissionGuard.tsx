@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
+import { usePermission } from '@/hooks/usePermission';
 import { Navigate } from 'react-router-dom';
 
 interface SimplePermissionGuardProps {
@@ -7,7 +7,7 @@ interface SimplePermissionGuardProps {
 }
 
 const SimplePermissionGuard: React.FC<SimplePermissionGuardProps> = ({ children }) => {
-  const { canAccessDashboard, isLoading, isSuperAdmin, userRole, permissions } = useDynamicPermissions();
+  const { canAccessDashboard, isLoading, isSuperAdmin, userRole, permissions } = usePermission();
   
   // Flag para evitar redirecionamento durante revalidação de permissões
   const [wasEverApproved, setWasEverApproved] = useState(false);

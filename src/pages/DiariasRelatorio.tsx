@@ -55,7 +55,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { MultiCombobox } from "@/components/ui/multi-combobox";
 import { buildCompiladoData } from "@/components/diarias/pdf/CompiladoDiariasPDF";
 
-import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
+import { usePermission } from "@/hooks/usePermission";
 import {
   useRelatorioFolha,
   useExportarExcel,
@@ -69,7 +69,7 @@ import { Badge } from "@/components/ui/badge";
 
 export default function DiariasRelatorio() {
   usePageTitle("Relatório de Diárias");
-  const { permissions, isSuperAdmin, isLoading: isLoadingPermissions } = useDynamicPermissions();
+  const { permissions, isSuperAdmin, isLoading: isLoadingPermissions } = usePermission();
   const hasPermission = (perm: string) => permissions.includes(perm);
 
   // Hook de escopo de dados - RBAC

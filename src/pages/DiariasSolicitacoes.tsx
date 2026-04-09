@@ -60,7 +60,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
+import { usePermission } from "@/hooks/usePermission";
 import DeleteSolicitacaoDialog from "@/components/diarias/DeleteSolicitacaoDialog";
 import { 
   useSolicitacoesDiaria, 
@@ -110,7 +110,7 @@ export default function DiariasSolicitacoes() {
   usePageTitle("Solicitações de Diária");
   const isMobile = useIsMobile();
   const navigate = useNavigate();
-  const { permissions, userId, isSuperAdmin, isLoading: isLoadingPermissions } = useDynamicPermissions();
+  const { permissions, userId, isSuperAdmin, isLoading: isLoadingPermissions } = usePermission();
   const hasPermission = (perm: string) => permissions.includes(perm);
   
   // Hook de escopo de dados - RBAC

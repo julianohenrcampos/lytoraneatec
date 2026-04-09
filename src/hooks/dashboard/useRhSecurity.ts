@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuthPermissions } from "@/hooks/useAuthPermissions";
+import { usePermission } from "@/hooks/usePermission";
 
 export interface RhSecurityContext {
   departamentoId?: string;
@@ -15,7 +15,7 @@ export interface RhSecurityContext {
 }
 
 export const useRhSecurity = (): RhSecurityContext => {
-  const { userId, isSuperAdmin, isLoading: authLoading } = useAuthPermissions();
+  const { userId, isSuperAdmin, isLoading: authLoading } = usePermission();
   const [securityContext, setSecurityContext] = useState<RhSecurityContext>({
     isLoading: true,
     canViewAllData: false,

@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Filter, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuthPermissions } from '@/hooks/useAuthPermissions';
+import { usePermission } from '@/hooks/usePermission';
 interface SSOChecklistFiltersProps {
   onFilterChange: (filters: {
     data_inspecao?: string;
@@ -56,7 +56,7 @@ export const SSOChecklistFilters = ({
   const [resultado, setResultado] = useState('');
   const [tecnico, setTecnico] = useState('');
 
-  const { userRole, isSuperAdmin } = useAuthPermissions();
+  const { userRole, isSuperAdmin } = usePermission();
   
   // Só AdmSSO e SuperAdm podem filtrar por técnico (TecSSO só vê seus próprios checklists)
   const canFilterByTecnico = isSuperAdmin || userRole === 'AdmSSO';

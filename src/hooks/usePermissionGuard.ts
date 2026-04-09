@@ -1,5 +1,5 @@
 
-import { useAuthPermissions } from './useAuthPermissions';
+import { usePermission } from './usePermission';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -25,7 +25,7 @@ export const usePermissionGuard = ({
   redirectTo = '/',
   showToast = true
 }: PermissionGuardOptions) => {
-  const { isSuperAdmin, permissions, isLoading, userId, userRole, userEmail } = useAuthPermissions();
+  const { isSuperAdmin, permissions, isLoading, userId, userRole, userEmail } = usePermission();
   const navigate = useNavigate();
   const { toast } = useToast();
 

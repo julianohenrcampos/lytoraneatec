@@ -33,7 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
-import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
+import { usePermission } from "@/hooks/usePermission";
 import { useApontamentosCampo, useToggleEdicaoLiberada } from "@/hooks/diarias/useApontamentosCampo";
 import { useDiariasDataScope } from "@/hooks/diarias";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -54,7 +54,7 @@ export default function DiariasApontamentoCampo() {
   usePageTitle("Apontamento de Campo - Diárias");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { permissions, isSuperAdmin, isLoading: isLoadingPermissions } = useDynamicPermissions();
+  const { permissions, isSuperAdmin, isLoading: isLoadingPermissions } = usePermission();
   const hasPermission = (perm: string) => permissions.includes(perm);
 
   // Hook de escopo de dados - RBAC

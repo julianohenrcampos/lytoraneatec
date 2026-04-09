@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
+import { usePermission } from '@/hooks/usePermission';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ShieldX } from 'lucide-react';
 
@@ -18,7 +18,7 @@ const SecureRouteGuard: React.FC<SecureRouteGuardProps> = ({
   fallbackRoute = '/dashboard'
 }) => {
   const location = useLocation();
-  const { isSuperAdmin, permissions, isLoading, userId } = useDynamicPermissions();
+  const { isSuperAdmin, permissions, isLoading, userId } = usePermission();
   
   // Estado para manter permissões válidas anteriores (evita perda durante revalidação)
   const [hasVerifiedOnce, setHasVerifiedOnce] = useState(false);

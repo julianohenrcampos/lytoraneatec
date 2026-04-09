@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Combobox } from "@/components/ui/combobox";
-import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
+import { usePermission } from "@/hooks/usePermission";
 
 export type PeriodFilter = "today" | "week" | "month" | "quarter" | "year" | "custom";
 
@@ -38,7 +38,7 @@ export default function DashboardDiariasFilters({
   onFilterChange, 
   onClearFilters 
 }: DashboardDiariasFiltersProps) {
-  const { isSuperAdmin } = useDynamicPermissions();
+  const { isSuperAdmin } = usePermission();
   // Centros de custo
   const { data: centrosCusto = [] } = useQuery({
     queryKey: ['centros-custo-diarias-dashboard', isSuperAdmin],

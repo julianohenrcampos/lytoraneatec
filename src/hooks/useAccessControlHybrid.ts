@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { getUserAccess, logPermissionCheck, type UserAccess } from '@/services/accessControl/accessControlService';
 import { autoMigrateUser } from '@/services/accessControl/autoMigrationService';
-import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
+import { usePermission } from '@/hooks/usePermission';
 
 export interface HybridAccessControl {
   roles: string[];
@@ -18,7 +18,7 @@ export interface HybridAccessControl {
 }
 
 export const useAccessControlHybrid = (): HybridAccessControl => {
-  const legacyPermissions = useDynamicPermissions();
+  const legacyPermissions = usePermission();
   const [newAccess, setNewAccess] = useState<UserAccess | null>(null);
   const [origem, setOrigem] = useState<'novo' | 'legado'>('legado');
   const [isLoading, setIsLoading] = useState(true);

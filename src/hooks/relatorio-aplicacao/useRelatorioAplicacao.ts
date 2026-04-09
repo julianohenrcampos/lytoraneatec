@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
+import { usePermission } from '@/hooks/usePermission';
 import { RESTRICTED_CC_CODE } from '@/utils/centroCustoRestrictions';
 
 interface CentroCusto {
@@ -72,7 +72,7 @@ export const useRelatorioAplicacao = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
-  const { isSuperAdmin } = useDynamicPermissions();
+  const { isSuperAdmin } = usePermission();
 
   // Carregar centros de custo na inicialização
   useEffect(() => {

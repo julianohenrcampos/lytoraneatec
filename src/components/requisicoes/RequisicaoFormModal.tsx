@@ -20,7 +20,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
+import { usePermission } from "@/hooks/usePermission";
 import { RESTRICTED_CC_CODE } from "@/utils/centroCustoRestrictions";
 
 interface RequisicaoFormModalProps {
@@ -41,7 +41,7 @@ const RequisicaoFormModal: React.FC<RequisicaoFormModalProps> = ({
   requisicao
 }) => {
   const modalIsOpen = open ?? isOpen ?? false;
-  const { isSuperAdmin } = useDynamicPermissions();
+  const { isSuperAdmin } = usePermission();
   const handleClose = () => {
     onOpenChange?.(false);
     onClose?.();

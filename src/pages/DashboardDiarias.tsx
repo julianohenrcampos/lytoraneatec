@@ -3,14 +3,14 @@ import MainLayout from "@/components/layout/MainLayout";
 import DashboardDiariasContent from "@/components/dashboard/diarias/DashboardDiariasContent";
 import DashboardDiariasFilters, { DiariasFilters, PeriodFilter } from "@/components/dashboard/diarias/DashboardDiariasFilters";
 import { startOfMonth, endOfMonth } from "date-fns";
-import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
+import { usePermission } from "@/hooks/usePermission";
 import { useDiariasDataScope } from "@/hooks/diarias";
 import { Loader2 } from "lucide-react";
 import { usePageTitle } from "@/contexts/PageTitleContext";
 
 export default function DashboardDiarias() {
   usePageTitle("Dashboard de Diárias");
-  const { isSuperAdmin, permissions, isLoading: isLoadingPermissions } = useDynamicPermissions();
+  const { isSuperAdmin, permissions, isLoading: isLoadingPermissions } = usePermission();
   const { userScope, isLoading: isLoadingScope } = useDiariasDataScope();
   
   const hasAccess = isSuperAdmin || userScope === 'admsso' || permissions.includes('diarias_dashboard_view') || permissions.includes('diarias_view');

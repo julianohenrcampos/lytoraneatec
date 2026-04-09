@@ -13,7 +13,7 @@ import { FuncionarioSelectorDialog } from '@/components/ssoAgendamentoExames/Fun
 import { ImportStatusCarteiraModal, ImportAlterdataModal } from '@/components/ssoAgendamentoExames/import';
 import { useAgendamentoExames } from '@/hooks/ssoAgendamentoExames';
 import { AgendamentoExameFilters, TipoExame, FuncionarioSelecionado } from '@/types/ssoAgendamentoExames';
-import { useAuthPermissions } from '@/hooks/useAuthPermissions';
+import { usePermission } from '@/hooks/usePermission';
 import { FileSpreadsheet, FileText, Loader2, Filter, Download, Upload, ChevronDown } from 'lucide-react';
 import {
   DropdownMenu,
@@ -75,7 +75,7 @@ const SSOAgendamentoExames: React.FC = () => {
     isDeleting,
     isUpdatingStatusBulk 
   } = useAgendamentoExames(undefined, filters);
-  const { isSuperAdmin, userRole } = useAuthPermissions();
+  const { isSuperAdmin, userRole } = usePermission();
 
   // Bloqueio de horário (6h-16h BRT)
   const dentroDoHorario = isWithinBrazilianBusinessHours(6, 16);

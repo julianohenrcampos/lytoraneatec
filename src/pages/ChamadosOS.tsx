@@ -12,14 +12,14 @@ import ChamadosDetailsModal from "@/components/chamados-os/ChamadosDetailsModal"
 import DeleteChamadosDialog from "@/components/chamados-os/DeleteChamadosDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
+import { usePermission } from "@/hooks/usePermission";
 
 const ChamadosOS: React.FC = () => {
   usePageTitle("Chamados para Ordem de Serviço");
   const [veiculosDropdown, setVeiculosDropdown] = useState<{ id: string; label: string }[]>([]);
   const [centrosCustoDropdown, setCentrosCustoDropdown] = useState<{ id: string; label: string, codigo_centro_custo?: string }[]>([]);
   const { toast } = useToast();
-  const { isSuperAdmin } = useDynamicPermissions();
+  const { isSuperAdmin } = usePermission();
   
   const {
     chamados,

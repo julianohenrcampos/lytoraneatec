@@ -8,7 +8,7 @@ import { Filter, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { DashboardFilters } from '@/hooks/sso/useSSODashboard';
-import { useAuthPermissions } from '@/hooks/useAuthPermissions';
+import { usePermission } from '@/hooks/usePermission';
 
 const RESULTADOS = [
   { value: 'Excelente', label: 'Excelente' },
@@ -28,7 +28,7 @@ export const SSODashboardFilters = ({ filters, onFilterChange }: SSODashboardFil
   const [resultado, setResultado] = useState(filters.resultado_avaliacao || '');
   const [tecnico, setTecnico] = useState(filters.tecnico_seguranca || '');
 
-  const { userRole, isSuperAdmin } = useAuthPermissions();
+  const { userRole, isSuperAdmin } = usePermission();
   
   // Só AdmSSO e SuperAdm podem filtrar por técnico (TecSSO só vê seus próprios checklists)
   const canFilterByTecnico = isSuperAdmin || userRole === 'AdmSSO' || userRole === 'AdmOBRA';

@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { fetchEntregasStable } from "@/services/registro-aplicacao/fetchEntregasStable";
 import { RegistroAplicacaoFilters as RegistroAplicacaoFiltersType } from "@/types/registroAplicacao";
 import { ListaProgramacaoEntrega } from "@/types/programacaoEntrega";
-import { useAuthPermissionsStable } from "@/hooks/useAuthPermissionsStable";
+import { usePermission } from "@/hooks/usePermission";
 import { useUserDataAccessStable } from "@/hooks/useUserDataAccessStable";
 import { fetchCentrosCustoFiltered } from "@/services/centrosCustoFilteredService";
 import { fetchCaminhoesWithCapacity } from "@/services/caminhoesFilteredService";
@@ -28,7 +28,7 @@ const RegistroAplicacaoStable: React.FC = () => {
   const [selectedEntrega, setSelectedEntrega] = useState<ListaProgramacaoEntrega | null>(null);
   
   // Hooks estabilizados em cascata
-  const authData = useAuthPermissionsStable();
+  const authData = usePermission();
   const teamAccess = useUserDataAccessStable(authData.userId, authData.userRole, authData.isSuperAdmin);
   
   // Estados derivados memoizados

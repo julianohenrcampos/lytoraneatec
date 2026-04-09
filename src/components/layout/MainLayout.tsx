@@ -10,7 +10,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { PWAUpdateNotification } from "@/components/pwa/PWAUpdateNotification";
 import { OfflinePermissionStatus } from "@/components/pwa/OfflinePermissionStatus";
 import { useOfflinePermissionsSync } from "@/hooks/useOfflinePermissionsSync";
-import { useAccessControlHybrid } from "@/hooks/useAccessControlHybrid";
+import { usePermission } from "@/hooks/usePermission";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -25,8 +25,8 @@ export default function MainLayout({ children }: MainLayoutProps) {
   // Sincronizar permissões com contexto offline
   useOfflinePermissionsSync();
 
-  // Ativar sistema híbrido RBAC em background (migração automática)
-  useAccessControlHybrid();
+  // RBAC unified hook (runs in background)
+  usePermission();
 
   // Update document title
   useEffect(() => {

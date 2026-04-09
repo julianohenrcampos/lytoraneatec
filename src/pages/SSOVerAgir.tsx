@@ -6,7 +6,7 @@ import { VerAgirFiltersComponent, VerAgirTable } from '@/components/ssoVerAgir/l
 import { VerAgirDialog, VerAgirViewDialog } from '@/components/ssoVerAgir/dialog';
 import { useVerAgir } from '@/hooks/ssoVerAgir';
 import { VerAgirFilters } from '@/types/ssoVerAgir';
-import { useAuthPermissions } from '@/hooks/useAuthPermissions';
+import { usePermission } from '@/hooks/usePermission';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Plus, BarChart3, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -25,7 +25,7 @@ export default function SSOVerAgir() {
   const [registroToConcluir, setRegistroToConcluir] = useState<string | null>(null);
 
   const { registros, isLoading, deleteRegistro, setStatus, isDeleting, isChangingStatus } = useVerAgir(undefined, filters);
-  const { isSuperAdmin, userRole, userId } = useAuthPermissions();
+  const { isSuperAdmin, userRole, userId } = usePermission();
 
   const canEditAll = isSuperAdmin || ['AdmSSO', 'AdmOBRA', 'AdmtreinoSSO'].includes(userRole || '');
   const canDeleteAll = isSuperAdmin || ['AdmSSO', 'AdmOBRA', 'AdmtreinoSSO'].includes(userRole || '');

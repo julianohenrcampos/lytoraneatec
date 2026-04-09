@@ -6,7 +6,7 @@ import { Plus, Trash2, Loader2, Users, FileText, Check, ChevronRight, ChevronLef
 import { SmartFuncionarioSearch } from "./SmartFuncionarioSearch";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
+import { usePermission } from "@/hooks/usePermission";
 import { RESTRICTED_CC_CODE } from "@/utils/centroCustoRestrictions";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
@@ -80,7 +80,7 @@ export function SolicitacaoFormModal({
 }: SolicitacaoFormModalProps) {
   const [step, setStep] = useState<Step>('dados');
   const { user } = useAuth();
-  const { isSuperAdmin } = useDynamicPermissions();
+  const { isSuperAdmin } = usePermission();
   
   // Form data - Período
   const [dataInicio, setDataInicio] = useState(format(new Date(), 'yyyy-MM-dd'));

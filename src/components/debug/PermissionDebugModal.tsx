@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
+import { usePermission } from '@/hooks/usePermission';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +14,7 @@ const PermissionDebugModal: React.FC = () => {
     isSuperAdmin,
     permissions,
     isLoading
-  } = useDynamicPermissions();
+  } = usePermission();
   const checkItemAccess = (item: any) => {
     if (isSuperAdmin) return true;
     if (!item.requiredPermission && !item.requiredPermissions?.length) return true;

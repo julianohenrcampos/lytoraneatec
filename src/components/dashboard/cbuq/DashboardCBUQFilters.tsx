@@ -7,7 +7,7 @@ import { Filter, RotateCcw } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { CBUQFilters, PeriodFilter } from "@/pages/DashboardRequisicoes";
-import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
+import { usePermission } from "@/hooks/usePermission";
 import { subDays, subMonths, subQuarters, subYears } from "date-fns";
 import { 
   normalizeDateToBrazilianNoon, 
@@ -21,7 +21,7 @@ interface DashboardCBUQFiltersProps {
 }
 
 export default function DashboardCBUQFilters({ filters, onFiltersChange }: DashboardCBUQFiltersProps) {
-  const { isSuperAdmin } = useDynamicPermissions();
+  const { isSuperAdmin } = usePermission();
   console.log("🎛️ DashboardCBUQFilters - Current filters:", filters);
 
   // Fetch centers de custo

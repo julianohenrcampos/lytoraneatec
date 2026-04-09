@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
+import { usePermission } from '@/hooks/usePermission';
 
 export type GestaoFluxoRole = 'superadmin' | 'gerente_adm' | 'diretor_operacional' | 'diretor_adm' | 'viewer';
 
@@ -55,7 +55,7 @@ const STATUS_FLUXO_ATIVOS = [
 ];
 
 export function useGestaoAprovacoesDiarias(filtros: GestaoAprovacoesFiltros) {
-  const { userId, isSuperAdmin, isLoading: isLoadingPerms } = useDynamicPermissions();
+  const { userId, isSuperAdmin, isLoading: isLoadingPerms } = usePermission();
   const [userFluxoRole, setUserFluxoRole] = useState<GestaoFluxoRole>('viewer');
   const [roleLoading, setRoleLoading] = useState(true);
 

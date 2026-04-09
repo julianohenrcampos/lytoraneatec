@@ -7,7 +7,7 @@ import { Combobox, ComboboxOption } from '@/components/ui/combobox';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { EtapaVistoria } from '@/types/sso';
-import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
+import { usePermission } from '@/hooks/usePermission';
 import { RESTRICTED_CC_CODE } from '@/utils/centroCustoRestrictions';
 
 interface SSOChecklistFormHeaderProps {
@@ -28,7 +28,7 @@ interface SSOChecklistFormHeaderProps {
 export const SSOChecklistFormHeader = ({ formData, onChange, checklistId }: SSOChecklistFormHeaderProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [etapasUtilizadas, setEtapasUtilizadas] = useState<string[]>([]);
-  const { isSuperAdmin } = useDynamicPermissions();
+  const { isSuperAdmin } = usePermission();
 
   const ETAPAS: EtapaVistoria[] = ['1ª Etapa', '2ª Etapa', '3ª Etapa', '4ª Etapa'];
 

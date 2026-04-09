@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useDynamicPermissions } from './useDynamicPermissions';
+import { usePermission } from './usePermission';
 import { updateUserOfflineContext } from '@/utils/offlinePermissions';
 import { useAuth } from './useAuth';
 
@@ -8,7 +8,7 @@ import { useAuth } from './useAuth';
  * Mantém o localStorage atualizado com as permissões do usuário
  */
 export const useOfflinePermissionsSync = () => {
-  const { userId, isSuperAdmin, permissions, userRole, isLoading } = useDynamicPermissions();
+  const { userId, isSuperAdmin, permissions, userRole, isLoading } = usePermission();
   const { user } = useAuth();
 
   // Sincronizar contexto offline quando permissões mudarem
