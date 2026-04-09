@@ -895,6 +895,10 @@ export default function DiariasRelatorio() {
         gerentesRegionais={gerentesRegionais as any}
         centrosCusto={centrosCusto as any}
         feriados={feriados}
+        defaultCentroCustoIds={centroCustoFilter.length > 0 ? centroCustoFilter : undefined}
+        defaultEmpresaId={filters.empresa_id || undefined}
+        defaultTipoVinculo={filters.tipo_vinculo || undefined}
+        defaultGerenteId={gerenteRegionalFilter.length === 1 ? gerenteRegionalFilter[0] : undefined}
       />
     </MainLayout>);
 

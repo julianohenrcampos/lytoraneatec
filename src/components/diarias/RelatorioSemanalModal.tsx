@@ -23,6 +23,11 @@ interface RelatorioSemanalModalProps {
   gerentesRegionais: { id: string; nome_completo: string }[];
   centrosCusto: { id: string; codigo_centro_custo: string; nome_centro_custo: string; aprovador_diarias_id: string | null }[];
   feriados: string[];
+  // Filtros herdados da página (opcionais)
+  defaultCentroCustoIds?: string[];
+  defaultEmpresaId?: string;
+  defaultTipoVinculo?: string;
+  defaultGerenteId?: string;
 }
 
 function calcularUltimaSemana() {
@@ -49,6 +54,10 @@ export function RelatorioSemanalModal({
   gerentesRegionais,
   centrosCusto,
   feriados,
+  defaultCentroCustoIds,
+  defaultEmpresaId,
+  defaultTipoVinculo,
+  defaultGerenteId,
 }: RelatorioSemanalModalProps) {
   const [gerenteSelecionado, setGerenteSelecionado] = useState<string>('todos');
   const [modoDownload, setModoDownload] = useState<'zip' | 'individual'>('zip');
@@ -58,8 +67,16 @@ export function RelatorioSemanalModal({
   const [dateRange, setDateRange] = useState<DateRange | undefined>(defaultRange);
 
   useMemo(() => {
-    if (open) setDateRange(calcularUltimaSemana());
-  }, [open]);
+    if (open) {
+      setDateRange(calcularUltimaSemana());
+      // Pre-selecionar gerente da página se disponível
+      if (defaultGerenteId && gerentesRegionais.some(g => g.id === defaultGerenteId)) {
+        setGerenteSelecionado(defaultGerenteId);
+      } else {
+        setGerenteSelecionado('todos');
+      }
+    }
+  }, [open, defaultGerenteId, gerentesRegionais]);
 
   const periodoLabel = dateRange?.from && dateRange?.to
     ? `${format(dateRange.from, 'dd/MM/yyyy')} a ${format(dateRange.to, 'dd/MM/yyyy')}`
@@ -90,8 +107,12 @@ export function RelatorioSemanalModal({
       const dataInicio = format(dateRange.from, 'yyyy-MM-dd');
       const dataFim = format(dateRange.to, 'yyyy-MM-dd');
 
+      // Determinar CCs: prioridade defaultCentroCustoIds > gerente selecionado
       let ccIds: string[] = [];
-      if (gerenteSelecionado !== 'todos') {
+      if (defaultCentroCustoIds && defaultCentroCustoIds.length > 0) {
+        // Filtro de CC da página tem prioridade
+        ccIds = defaultCentroCustoIds;
+      } else if (gerenteSelecionado !== 'todos') {
         ccIds = centrosCusto
           .filter(cc => cc.aprovador_diarias_id === gerenteSelecionado)
           .map(cc => cc.id);
@@ -123,8 +144,18 @@ export function RelatorioSemanalModal({
         from += pageSize;
       }
 
+      // Aplicar filtros de empresa e tipo vínculo da página (se definidos)
+      if (defaultEmpresaId) {
+        allData = allData.filter(r => r.empresa_id === defaultEmpresaId);
+      }
+      if (defaultTipoVinculo === 'diarista') {
+        allData = allData.filter(r => !r.matricula_funcionario || r.matricula_funcionario.trim() === '' || r.matricula_funcionario === '---');
+      } else if (defaultTipoVinculo === 'remessa') {
+        allData = allData.filter(r => r.matricula_funcionario && r.matricula_funcionario.trim() !== '' && r.matricula_funcionario !== '---');
+      }
+
       if (allData.length === 0) {
-        toast.error('Nenhum dado encontrado para o período selecionado.');
+        toast.error('Nenhum dado encontrado para o período e filtros selecionados.');
         return;
       }
 
