@@ -36,6 +36,31 @@ export interface FuncionarioParaCalculo {
   valor_refeicao?: number;
   nome_funcionario?: string;
   nome_funcao?: string;
+  matricula?: string | null;
+}
+
+/**
+ * Contexto do dia para regra de Remessa
+ */
+export interface ContextoDia {
+  isFeriado: boolean;
+  isFerias: boolean;  // usar_diaria_exclusiva
+  tipoSolicitacao: 'normal' | 'extraordinaria';
+}
+
+/**
+ * Verifica se funcionário com matrícula (Remessa) pode participar de dia útil.
+ * Remessa NÃO pode participar em dias úteis EXCETO se:
+ * - É feriado
+ * - Está de férias (D/Férias marcado)
+ * - Solicitação é extraordinária
+ */
+export function podeParticiparDiaUtil(
+  temMatricula: boolean,
+  contexto: ContextoDia
+): boolean {
+  if (!temMatricula) return true;
+  return contexto.isFeriado || contexto.isFerias || contexto.tipoSolicitacao === 'extraordinaria';
 }
 
 export interface SimulacaoValores {
@@ -54,6 +79,7 @@ export interface SimulacaoValores {
     valorDomFeriados: number;
     valorRefeicoes: number;
     valorTotal: number;
+    remessaBloqueado?: boolean;
   }[];
 }
 
@@ -161,7 +187,8 @@ export function analisarPeriodo(
 export function calcularEstimativaTotal(
   funcionarios: FuncionarioParaCalculo[],
   analise: PeriodoAnalise,
-  considerarFdsFeriado: boolean
+  considerarFdsFeriado: boolean,
+  tipoSolicitacao: 'normal' | 'extraordinaria' = 'normal'
 ): SimulacaoValores {
   // Se período é exclusivamente FDS/feriados (sem dias úteis), calcular sempre
   const periodoExclusivoFDS = analise.diasUteis === 0;
@@ -175,8 +202,13 @@ export function calcularEstimativaTotal(
     // Se usar_diaria_exclusiva === true, TODOS os dias usam diária exclusiva
     const forcarExclusiva = (func as any).usar_diaria_exclusiva === true;
     
-    const diasNormais = analise.diasUteis; // apenas dias úteis pagam diária normal
-    const diasExclusivos = analise.sabados + analise.domingos + analise.feriados; // sábados, domingos e feriados pagam exclusiva
+    // Regra de Remessa: funcionário com matrícula não participa de dias úteis
+    // exceto se: D/Férias marcado, solicitação extraordinária, ou feriado
+    const temMatricula = !!func.matricula;
+    const remessaBloqueadoDiasUteis = temMatricula && !forcarExclusiva && tipoSolicitacao !== 'extraordinaria';
+    
+    const diasNormais = remessaBloqueadoDiasUteis ? 0 : analise.diasUteis;
+    const diasExclusivos = analise.sabados + analise.domingos + analise.feriados;
     
     let valorDiasUteisESabados: number;
     let valorDomFeriados: number;
@@ -209,7 +241,8 @@ export function calcularEstimativaTotal(
       valorDiasUteisESabados,
       valorDomFeriados,
       valorRefeicoes,
-      valorTotal: valorDiasUteisESabados + valorDomFeriados + valorRefeicoes
+      valorTotal: valorDiasUteisESabados + valorDomFeriados + valorRefeicoes,
+      remessaBloqueado: remessaBloqueadoDiasUteis
     };
   });
 
@@ -262,21 +295,6 @@ export function validarPeriodo(
     return { valido: false, erro: `Período máximo é de ${maxDias} dias` };
   }
 
-  // Verificar mistura de dias úteis com FDS
-  const datas = gerarDatasNoPeriodo(dataInicio, dataFim);
-  let temDiaUtil = false;
-  let temFds = false;
-  for (const d of datas) {
-    const dia = parseISO(d).getDay();
-    if (dia === 0 || dia === 6) temFds = true;
-    else temDiaUtil = true;
-  }
-  if (temDiaUtil && temFds && !(isEditing && isSuperAdmin)) {
-    return { 
-      valido: false, 
-      erro: 'O período não pode misturar dias de semana com finais de semana. Crie solicitações separadas.' 
-    };
-  }
 
   return { valido: true, isRetroativo };
 }

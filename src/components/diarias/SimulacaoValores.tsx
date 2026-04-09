@@ -7,15 +7,15 @@ import { EstimativaAviso } from './EstimativaAviso';
 
 interface SimulacaoValoresProps {
   simulacao: SimulacaoValoresType;
-  diasUteisESabados: number;
-  diasDomFeriados: number;
+  diasUteis: number;
+  diasFds: number;
   diasParaRefeicao: number;
 }
 
 export function SimulacaoValores({ 
   simulacao, 
-  diasUteisESabados, 
-  diasDomFeriados,
+  diasUteis, 
+  diasFds,
   diasParaRefeicao
 }: SimulacaoValoresProps) {
   return (
@@ -30,7 +30,7 @@ export function SimulacaoValores({
         <div className="grid grid-cols-3 gap-3 text-sm">
           <div className="space-y-1">
             <p className="text-muted-foreground">
-              Úteis + Sáb ({diasUteisESabados}):
+              Dias Úteis ({diasUteis}):
             </p>
             <p className="font-semibold">
               {formatCurrency(simulacao.totalDiasUteisESabados)}
@@ -40,7 +40,7 @@ export function SimulacaoValores({
           
           <div className="space-y-1">
             <p className="text-muted-foreground">
-              Dom/Feriados ({diasDomFeriados}):
+              Sáb/Dom/Feriados ({diasFds}):
             </p>
             <p className="font-semibold">
               {formatCurrency(simulacao.totalDomFeriados)}

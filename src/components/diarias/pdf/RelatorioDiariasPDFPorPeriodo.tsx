@@ -279,7 +279,9 @@ function BlocoSection({
   const dataInicio = filtros.data_inicio || primeiroRegistro?.solicitacao_data_inicio;
   const dataFim = filtros.data_fim || primeiroRegistro?.solicitacao_data_fim;
   const periodoLabel = dataInicio && dataFim
-    ? dataInicio === dataFim ? formatDate(dataInicio) : `${formatDate(dataInicio)} à ${formatDate(dataFim)}`
+    ? dataInicio === dataFim 
+      ? formatDate(dataInicio) 
+      : `SEM ${format(new Date(dataInicio + 'T12:00:00'), 'dd/MM', { locale: ptBR })} à ${formatDate(dataFim)}`
     : 'Período não definido';
 
   const footerContent = (

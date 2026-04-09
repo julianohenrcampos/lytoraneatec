@@ -18,15 +18,15 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  Printer,
   Trash2 } from
 "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { generateCompiladoDiariasPDF, generateFolhaPontoPDF, generateRelatorioDiariasPDFPorPeriodo } from "@/services/pdfService";
+import { generateCompiladoDiariasPDF, generateRelatorioDiariasPDFPorPeriodo } from "@/services/pdfService";
 import { generateRelatorioFolhaPDF } from "@/services/pdf/relatorioFolhaPdf";
 import { generateProtocoloDocumentosPDF } from "@/services/pdf/protocoloDocumentosPdf";
 import { deletePresencaRegistro } from "@/services/diarias/presencasService";
-import type { FolhaPontoFuncionario } from "@/components/diarias/pdf/FolhaPontoPDF";
+
+import { RelatorioSemanalModal } from "@/components/diarias/RelatorioSemanalModal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
@@ -250,8 +250,9 @@ export default function DiariasRelatorio() {
   // Export mutation
   const exportMutation = useExportarExcel();
   const [isPDFLoading, setIsPDFLoading] = useState(false);
-  const [isGeneratingFolhaPonto, setIsGeneratingFolhaPonto] = useState(false);
+  // Folha de Ponto removida
   const [deleteTarget, setDeleteTarget] = useState<RelatorioFolhaItem | null>(null);
+  const [semanalModalOpen, setSemanalModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Verificar se o user pode ver a coluna de ações
@@ -300,126 +301,7 @@ export default function DiariasRelatorio() {
     }
   };
 
-  // Folha de Ponto
-  const canPrintFolhaPonto = !!filters.data_inicio && !!filters.data_fim && (centroCustoFilter.length > 0 || !!filters.centro_custo_id);
-
-  const handlePrintFolhaPonto = useCallback(async () => {
-    if (!filters.data_inicio || !filters.data_fim || (centroCustoFilter.length === 0 && !filters.centro_custo_id)) return;
-    if (relatorio.length === 0) {
-      toast.error('Não há dados para gerar a folha de ponto.');
-      return;
-    }
-
-    setIsGeneratingFolhaPonto(true);
-    try {
-      const dtInicio = new Date(filters.data_inicio + 'T12:00:00');
-      const dtFim = new Date(filters.data_fim + 'T12:00:00');
-      const allDays = eachDayOfInterval({ start: dtInicio, end: dtFim });
-
-      // Agrupar por funcionário
-      const funcMap = new Map<string, {
-        funcionario_id: string;
-        nome_completo: string;
-        matricula: string | null;
-        cpf: string;
-        nome_funcao: string;
-        banco: string | null;
-        agencia: string | null;
-        conta_corrente: string | null;
-        diasMap: Map<string, { hora_entrada: string; hora_saida: string }>;
-      }>();
-
-      for (const r of relatorio) {
-        if (!funcMap.has(r.funcionario_id)) {
-          funcMap.set(r.funcionario_id, {
-            funcionario_id: r.funcionario_id,
-            nome_completo: r.nome_funcionario,
-            matricula: r.matricula_funcionario || null,
-            cpf: r.cpf_funcionario || '',
-            nome_funcao: r.nome_funcao || '-',
-            banco: r.banco_funcionario || null,
-            agencia: r.agencia_funcionario || null,
-            conta_corrente: r.conta_funcionario || null,
-            diasMap: new Map(),
-          });
-        }
-        const entry = funcMap.get(r.funcionario_id)!;
-        if (String(r.presenca_status) === 'true' && r.hora_entrada && r.hora_saida) {
-          entry.diasMap.set(r.data, {
-            hora_entrada: r.hora_entrada,
-            hora_saida: r.hora_saida,
-          });
-        }
-      }
-
-      // Buscar data_admissao e matricula de bd_funcionarios
-      const funcIds = Array.from(funcMap.keys());
-      const { data: funcDBData } = await supabase
-        .from('bd_funcionarios')
-        .select('id, matricula, data_admissao')
-        .in('id', funcIds);
-      const funcDBMap = new Map((funcDBData || []).map((f: any) => [f.id, f]));
-
-      const cc = centrosCusto.find((c: any) => c.id === filters.centro_custo_id);
-      const codigoCC = cc ? (cc as any).codigo_centro_custo : '';
-      const nomeCC = cc ? (cc as any).nome_centro_custo : '';
-      const departamento = codigoCC ? `${codigoCC} - ${nomeCC}` : '';
-
-      const funcionarios: FolhaPontoFuncionario[] = Array.from(funcMap.values()).map((f) => {
-        const funcDB = funcDBMap.get(f.funcionario_id);
-        const dias = allDays
-          .filter((day) => {
-            const dateStr = format(day, 'yyyy-MM-dd');
-            if (isWeekend(day)) {
-              return f.diasMap.has(dateStr);
-            }
-            return true;
-          })
-          .map((day) => {
-            const dateStr = format(day, 'yyyy-MM-dd');
-            const registro = f.diasMap.get(dateStr);
-            return {
-              data: dateStr,
-              hora_entrada: registro?.hora_entrada || '',
-              intervalo_saida: '',
-              intervalo_entrada: '',
-              hora_saida: registro?.hora_saida || '',
-              centro_custo: registro ? codigoCC : '',
-            };
-          });
-
-        return {
-          nome_completo: f.nome_completo,
-          matricula: funcDB?.matricula || f.matricula,
-          cpf: f.cpf,
-          data_admissao: funcDB?.data_admissao || null,
-          funcao: f.nome_funcao,
-          departamento,
-          banco: f.banco,
-          agencia: f.agencia,
-          conta_corrente: f.conta_corrente,
-          dias,
-        };
-      });
-
-      funcionarios.sort((a, b) => a.nome_completo.localeCompare(b.nome_completo));
-
-      if (funcionarios.length === 0) {
-        toast.error("Nenhum funcionário encontrado para gerar a folha de ponto.");
-        return;
-      }
-
-      const fileName = `Folha_Ponto_${codigoCC}_${format(dtInicio, 'yyyyMMdd')}`;
-      await generateFolhaPontoPDF(filters.data_inicio!, filters.data_fim!, funcionarios, fileName);
-
-      toast.success('Folha de ponto gerada com sucesso!');
-    } catch (error) {
-      console.error('Erro ao gerar folha de ponto:', error);
-      toast.error('Erro ao gerar folha de ponto.');
-    } finally {
-      setIsGeneratingFolhaPonto(false);
-    }
-  }, [filters, relatorio, centrosCusto, centroCustoFilter]);
+  // Folha de Ponto — removido
 
   // Permissions
   const canExport = isSuperAdmin || hasPermission('diarias_exportar_excel');
@@ -627,13 +509,9 @@ export default function DiariasRelatorio() {
               </DropdownMenu>
               <Button
                 variant="outline"
-                onClick={handlePrintFolhaPonto}
-                disabled={!canPrintFolhaPonto || isGeneratingFolhaPonto || relatorio.length === 0}>
-                {isGeneratingFolhaPonto ?
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> :
-                  <Printer className="h-4 w-4 mr-2" />
-                }
-                Folha de Ponto
+                onClick={() => setSemanalModalOpen(true)}>
+                <CalendarIcon className="h-4 w-4 mr-2" />
+                Relatório Semanal
               </Button>
             </div>
           }
@@ -1010,6 +888,14 @@ export default function DiariasRelatorio() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <RelatorioSemanalModal
+        open={semanalModalOpen}
+        onOpenChange={setSemanalModalOpen}
+        gerentesRegionais={gerentesRegionais as any}
+        centrosCusto={centrosCusto as any}
+        feriados={feriados}
+      />
     </MainLayout>);
 
 }

@@ -2037,6 +2037,44 @@ export type Database = {
         }
         Relationships: []
       }
+      bd_diaria_logs: {
+        Row: {
+          created_at: string
+          dados_extras: Json | null
+          id: string
+          justificativa: string | null
+          solicitacao_id: string
+          tipo_evento: string
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string
+          dados_extras?: Json | null
+          id?: string
+          justificativa?: string | null
+          solicitacao_id: string
+          tipo_evento: string
+          usuario_id: string
+        }
+        Update: {
+          created_at?: string
+          dados_extras?: Json | null
+          id?: string
+          justificativa?: string | null
+          solicitacao_id?: string
+          tipo_evento?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_diaria_logs_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_diaria_presencas: {
         Row: {
           confirmado_em: string | null
@@ -2144,11 +2182,15 @@ export type Database = {
           created_at: string | null
           criado_por: string | null
           data_fim: string
+          data_fim_semana: string | null
           data_inicio: string
+          data_inicio_semana: string | null
           engenheiro_solicitante_id: string | null
           etapa_atual: number | null
+          flag_extraordinaria: boolean | null
           id: string
           justificativa: string
+          justificativa_extraordinaria: string | null
           modificado_por: string | null
           motor_aprovacao: string
           numero_solicitacao: string
@@ -2160,6 +2202,7 @@ export type Database = {
           status: string
           status_fluxo: string | null
           tipo_envio: string | null
+          tipo_solicitacao: string | null
           updated_at: string | null
           valor_estimado_total: number | null
         }
@@ -2172,11 +2215,15 @@ export type Database = {
           created_at?: string | null
           criado_por?: string | null
           data_fim: string
+          data_fim_semana?: string | null
           data_inicio: string
+          data_inicio_semana?: string | null
           engenheiro_solicitante_id?: string | null
           etapa_atual?: number | null
+          flag_extraordinaria?: boolean | null
           id?: string
           justificativa: string
+          justificativa_extraordinaria?: string | null
           modificado_por?: string | null
           motor_aprovacao?: string
           numero_solicitacao: string
@@ -2188,6 +2235,7 @@ export type Database = {
           status?: string
           status_fluxo?: string | null
           tipo_envio?: string | null
+          tipo_solicitacao?: string | null
           updated_at?: string | null
           valor_estimado_total?: number | null
         }
@@ -2200,11 +2248,15 @@ export type Database = {
           created_at?: string | null
           criado_por?: string | null
           data_fim?: string
+          data_fim_semana?: string | null
           data_inicio?: string
+          data_inicio_semana?: string | null
           engenheiro_solicitante_id?: string | null
           etapa_atual?: number | null
+          flag_extraordinaria?: boolean | null
           id?: string
           justificativa?: string
+          justificativa_extraordinaria?: string | null
           modificado_por?: string | null
           motor_aprovacao?: string
           numero_solicitacao?: string
@@ -2216,6 +2268,7 @@ export type Database = {
           status?: string
           status_fluxo?: string | null
           tipo_envio?: string | null
+          tipo_solicitacao?: string | null
           updated_at?: string | null
           valor_estimado_total?: number | null
         }

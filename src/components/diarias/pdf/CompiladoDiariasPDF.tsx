@@ -26,11 +26,20 @@ interface CentroCustoCompilado {
   totalValor: number;
 }
 
+interface EmpresaCompiladoGroup {
+  empresaNome: string;
+  centros: CentroCustoCompilado[];
+  totalQuantidade: number;
+  totalValor: number;
+}
+
 interface CompiladoDiariasPDFProps {
   centros: CentroCustoCompilado[];
+  empresaGroups?: EmpresaCompiladoGroup[];
   ano: number;
   sequencia: string;
   logoUrl?: string;
+  logoMap?: Record<string, string>;
   totalGeralQuantidade: number;
   totalGeralValor: number;
   assinaturas?: AssinaturaAprovacao[];
@@ -541,22 +550,23 @@ function CentroCustoBlock({ cc }: { cc: CentroCustoCompilado }) {
 
 export const CompiladoDiariasPDF = ({
   centros,
+  empresaGroups,
   ano,
   sequencia,
   logoUrl,
+  logoMap,
   totalGeralQuantidade,
   totalGeralValor,
   assinaturas,
 }: CompiladoDiariasPDFProps) => {
+  const groups = empresaGroups && empresaGroups.length > 0 ? empresaGroups : null;
+
   return (
     <Document>
       <Page size="A4" style={s.page}>
         {/* HEADER TABLE: 3 columns (20% | 60% | 20%) */}
         <View style={s.headerTable} fixed>
-          <View style={s.headerCol1}>
-            {logoUrl ? <Image src={logoUrl} style={s.logo} /> : <Text style={{ fontSize: 8 }}>LOGO</Text>}
-          </View>
-          <View style={s.headerCol2}>
+          <View style={[s.headerCol1, s.headerCol2, { width: '80%' }]}>
             <Text style={s.headerTitle}>{`RELATÓRIO DE DIÁRIAS ${ano}`}</Text>
           </View>
           <View style={s.headerCol3}>
@@ -571,10 +581,66 @@ export const CompiladoDiariasPDF = ({
           </View>
         </View>
 
-        {/* CC Blocks */}
-        {centros.map((cc, idx) => (
-          <CentroCustoBlock key={idx} cc={cc} />
-        ))}
+        {/* Render by empresa groups if available */}
+        {groups ? groups.map((eg, egIdx) => (
+          <View key={egIdx} style={{ marginBottom: 8 }}>
+            {/* Empresa header with logo */}
+            <View minPresenceAhead={120} style={{
+              padding: 6,
+              borderWidth: 1,
+              borderColor: '#000000',
+              borderStyle: 'solid' as const,
+              flexDirection: 'row' as const,
+              alignItems: 'center' as const,
+              marginTop: egIdx > 0 ? 16 : 4,
+            }}>
+              {(logoMap?.[eg.empresaNome] || logoUrl) && (
+                <Image
+                  src={logoMap?.[eg.empresaNome] || logoUrl!}
+                  style={{ height: 28, maxWidth: 60, marginRight: 8, objectFit: 'contain' as any }}
+                />
+              )}
+              <Text style={{ fontSize: 10, fontFamily: 'Roboto', fontWeight: 'bold' as const, color: '#000000', textTransform: 'uppercase' as const }}>
+                {eg.empresaNome}
+              </Text>
+            </View>
+
+            {/* CC Blocks inside this empresa */}
+            {eg.centros.map((cc, idx) => (
+              <CentroCustoBlock key={idx} cc={cc} />
+            ))}
+
+            {/* Subtotal empresa */}
+            <View wrap={false} style={{
+              borderWidth: 1.5,
+              borderColor: '#000000',
+              borderStyle: 'solid' as const,
+              marginTop: 4,
+              marginBottom: 4,
+            }}>
+              <View style={{
+                flexDirection: 'row' as const,
+                backgroundColor: '#e5e5e5',
+              }}>
+                <View style={{ width: '50%', padding: 6, borderRightWidth: 1, borderRightColor: '#000000' }}>
+                  <Text style={{ fontSize: 10, fontFamily: 'Roboto', fontWeight: 'bold' as const }}>
+                    SUBTOTAL — {eg.empresaNome} (Qtd: {eg.totalQuantidade})
+                  </Text>
+                </View>
+                <View style={{ width: '50%', padding: 6, alignItems: 'flex-end' as const }}>
+                  <Text style={{ fontSize: 10, fontFamily: 'Roboto', fontWeight: 'bold' as const, color: '#dc2626' }}>
+                    {formatBRL(eg.totalValor)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        )) : (
+          /* Fallback: render centros without empresa grouping */
+          centros.map((cc, idx) => (
+            <CentroCustoBlock key={idx} cc={cc} />
+          ))
+        )}
 
         {/* Total Geral */}
         <View wrap={false} style={s.totalBlock}>
@@ -614,20 +680,30 @@ export function buildCompiladoData(
   relatorio: RelatorioFolhaItem[],
   centrosCusto: { id: string; codigo_centro_custo: string; nome_centro_custo: string; aprovador_diarias_id: string | null }[],
   gerentesMap: Record<string, string>,
-  feriados: string[] = []
-): { dados: CompiladoGerencia[]; centros: CentroCustoCompilado[]; totalGeralQuantidade: number; totalGeralValor: number } {
-  const confirmados = relatorio.filter(
+  feriados: string[] = [],
+  tipoRemessa?: 'remessa' | 'sem_remessa'
+): { dados: CompiladoGerencia[]; centros: CentroCustoCompilado[]; empresaGroups: EmpresaCompiladoGroup[]; totalGeralQuantidade: number; totalGeralValor: number } {
+  let confirmados = relatorio.filter(
     (r) => String(r.presenca_status) === 'true' && r.hora_entrada && r.hora_saida
   );
 
+  // Filter by remessa type if specified
+  if (tipoRemessa) {
+    confirmados = confirmados.filter(item => {
+      const hasMatricula = !!item.matricula_funcionario && item.matricula_funcionario !== '---' && String(item.matricula_funcionario).trim() !== '';
+      return tipoRemessa === 'remessa' ? hasMatricula : !hasMatricula;
+    });
+  }
+
   const feriadosSet = new Set(feriados.map(f => f.substring(0, 10)));
 
-  // Group by CC
+  // Group by CC — also track empresa per CC
   const ccMap = new Map<string, {
     ccId: string;
     codigo: string;
     nome: string;
     gerencia: string;
+    empresaNome: string;
     weekendDates: Map<string, { qtd: number; valor: number }>;
     weekdayDates: Map<string, { qtd: number; valor: number }>;
     totalQtd: number;
@@ -640,6 +716,7 @@ export function buildCompiladoData(
     const gerencia = gerenteId !== 'sem_gerente' ? (gerentesMap[gerenteId] || 'Não definido') : 'Sem Gerente';
     const ccLabel = cc?.codigo_centro_custo || item.codigo_centro_custo || '';
     const ccNome = cc?.nome_centro_custo || item.nome_centro_custo || '';
+    const empresaNome = item.empresa_funcionario || 'Empresa não informada';
     const valorItem = Math.ceil(item.valor_diaria_aplicada || 0) + Math.ceil(item.valor_refeicao_aplicado || 0);
 
     const dataStr = item.data?.substring(0, 10) || '';
@@ -655,6 +732,7 @@ export function buildCompiladoData(
         codigo: ccLabel,
         nome: ccNome,
         gerencia,
+        empresaNome,
         weekendDates: new Map(),
         weekdayDates: new Map(),
         totalQtd: 0,
@@ -676,10 +754,12 @@ export function buildCompiladoData(
   let totalGeralValor = 0;
 
   const centros: CentroCustoCompilado[] = [];
+  const ccEmpresaMap = new Map<string, string>(); // ccId -> empresaNome
 
   ccMap.forEach((entry) => {
     totalGeralQuantidade += entry.totalQtd;
     totalGeralValor += entry.totalValor;
+    ccEmpresaMap.set(entry.ccId, entry.empresaNome);
 
     const weekendPeriods = groupDatesByPeriod(entry.weekendDates);
     const weekdayPeriods = groupDatesByPeriod(entry.weekdayDates);
@@ -697,6 +777,25 @@ export function buildCompiladoData(
   });
 
   centros.sort((a, b) => a.codigoCentroCusto.localeCompare(b.codigoCentroCusto));
+
+  // Build empresa groups
+  const empresaGroupMap = new Map<string, EmpresaCompiladoGroup>();
+  centros.forEach(cc => {
+    const empNome = ccEmpresaMap.get(cc.centroCustoId) || 'Empresa não informada';
+    if (!empresaGroupMap.has(empNome)) {
+      empresaGroupMap.set(empNome, {
+        empresaNome: empNome,
+        centros: [],
+        totalQuantidade: 0,
+        totalValor: 0,
+      });
+    }
+    const eg = empresaGroupMap.get(empNome)!;
+    eg.centros.push(cc);
+    eg.totalQuantidade += cc.totalQuantidade;
+    eg.totalValor += cc.totalValor;
+  });
+  const empresaGroups = Array.from(empresaGroupMap.values()).sort((a, b) => a.empresaNome.localeCompare(b.empresaNome));
 
   // Build legacy dados
   const gerenteGroupMap = new Map<string, CompiladoGerencia>();
@@ -732,7 +831,7 @@ export function buildCompiladoData(
   const dados = Array.from(gerenteGroupMap.values());
   dados.sort((a, b) => b.totalValor - a.totalValor);
 
-  return { dados, centros, totalGeralQuantidade, totalGeralValor };
+  return { dados, centros, empresaGroups, totalGeralQuantidade, totalGeralValor };
 }
 
 function groupDatesByPeriod(dateMap: Map<string, { qtd: number; valor: number }>): PeriodoAgrupado[] {

@@ -1631,7 +1631,8 @@ export default function ApontamentoDiariasModal({
                                 const dayOfWeek = dateSel.getDay();
                                 const isDiaUtil = dayOfWeek >= 1 && dayOfWeek <= 5;
                                 const isFeriadoHoje = feriados.some(f => f.data === selectedDate);
-                                return !!addSelectedFunc.matricula && isDiaUtil && !isFeriadoHoje && !addFerias;
+                                const isExtraordinaria = solicitacao?.tipo_solicitacao === 'extraordinaria' || solicitacao?.flag_extraordinaria === true;
+                                return !!addSelectedFunc.matricula && isDiaUtil && !isFeriadoHoje && !addFerias && !isExtraordinaria;
                               })()}
                               onClick={() => {
                                 handleAdicionarFuncionario(addSelectedFunc);
@@ -1649,10 +1650,11 @@ export default function ApontamentoDiariasModal({
                               const dayOfWeek = dateSel.getDay();
                               const isDiaUtil = dayOfWeek >= 1 && dayOfWeek <= 5;
                               const isFeriadoHoje = feriados.some(f => f.data === selectedDate);
-                              if (addSelectedFunc.matricula && isDiaUtil && !isFeriadoHoje && !addFerias) {
+                              const isExtraordinaria = solicitacao?.tipo_solicitacao === 'extraordinaria' || solicitacao?.flag_extraordinaria === true;
+                              if (addSelectedFunc.matricula && isDiaUtil && !isFeriadoHoje && !addFerias && !isExtraordinaria) {
                                 return (
                                   <p className="text-xs text-destructive">
-                                    Funcionários com matrícula só podem ser convocados em dias úteis quando estiverem de férias.
+                                    Funcionários com matrícula (Remessa) só podem ser convocados em dias úteis quando estiverem de férias ou em solicitação extraordinária.
                                   </p>
                                 );
                               }

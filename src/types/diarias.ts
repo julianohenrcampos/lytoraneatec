@@ -19,6 +19,11 @@ export interface DiariaSolicitacao {
   numero_solicitacao: string;
   data_inicio: string;
   data_fim: string;
+  data_inicio_semana: string | null;
+  data_fim_semana: string | null;
+  tipo_solicitacao: 'normal' | 'extraordinaria';
+  flag_extraordinaria: boolean;
+  justificativa_extraordinaria: string | null;
   centro_custo_id: string;
   justificativa: string;
   status: StatusSolicitacao;
@@ -156,6 +161,11 @@ export interface FuncionarioPreConvocado {
 export interface SolicitacaoFormData {
   data_inicio: string;
   data_fim: string;
+  data_inicio_semana?: string;
+  data_fim_semana?: string;
+  tipo_solicitacao?: 'normal' | 'extraordinaria';
+  flag_extraordinaria?: boolean;
+  justificativa_extraordinaria?: string;
   centro_custo_id: string;
   justificativa: string;
   considera_fds_feriado: boolean;

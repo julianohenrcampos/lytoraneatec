@@ -94,13 +94,11 @@ export const loadImageAsBase64 = async (url: string): Promise<string> => {
 };
 
 // Helper para buscar logos das empresas presentes no relatório
-const fetchEmpresaLogosMap = async (relatorio: RelatorioFolhaItem[]): Promise<Record<string, string>> => {
+export const fetchEmpresaLogosMap = async (relatorio: RelatorioFolhaItem[]): Promise<Record<string, string>> => {
   try {
-    // Collect unique empresa names from the report
     const empresaNomes = [...new Set(relatorio.map(r => r.empresa_funcionario).filter(Boolean))] as string[];
     if (empresaNomes.length === 0) return {};
 
-    // Fetch logo_url for each empresa
     const { data, error } = await supabase
       .from('bd_empresas')
       .select('nome_empresa, logo_url')
@@ -109,7 +107,6 @@ const fetchEmpresaLogosMap = async (relatorio: RelatorioFolhaItem[]): Promise<Re
 
     if (error || !data) return {};
 
-    // Convert logo URLs to base64
     const logoMap: Record<string, string> = {};
     await Promise.all(
       data.map(async (emp) => {
@@ -459,6 +456,35 @@ export const generateFolhaPontoPDF = async (
 // DIÁRIAS PDF - Detalhado por Período (blocos simples)
 // =====================================================
 
+export const generateRelatorioDiariasPDFPorPeriodoBlob = async (
+  relatorio: RelatorioFolhaItem[],
+  filtros: RelatorioFilters,
+  feriados: string[],
+  extras: {
+    centrosCustoInfo: RelatorioDiariasPDFPorPeriodoProps['centrosCustoInfo'];
+    gerentesMap: Record<string, string>;
+    diretoresMap: Record<string, string>;
+  }
+): Promise<Blob> => {
+  const [defaultLogoUrl, logoMap] = await Promise.all([
+    loadImageAsBase64('/lyto-uploads/dcf6c980-f927-4180-b109-b425da1323ba.png'),
+    fetchEmpresaLogosMap(relatorio),
+  ]);
+
+  const doc = createElement(RelatorioDiariasPDFPorPeriodo, {
+    relatorio,
+    filtros,
+    feriados,
+    logoUrl: defaultLogoUrl || undefined,
+    logoMap: Object.keys(logoMap).length > 0 ? logoMap : undefined,
+    centrosCustoInfo: extras.centrosCustoInfo,
+    gerentesMap: extras.gerentesMap,
+    diretoresMap: extras.diretoresMap,
+  });
+
+  return await pdf(doc as any).toBlob();
+};
+
 export const generateRelatorioDiariasPDFPorPeriodo = async (
   relatorio: RelatorioFolhaItem[],
   filtros: RelatorioFilters,
@@ -471,23 +497,7 @@ export const generateRelatorioDiariasPDFPorPeriodo = async (
   }
 ): Promise<void> => {
   try {
-    const [defaultLogoUrl, logoMap] = await Promise.all([
-      loadImageAsBase64('/lyto-uploads/dcf6c980-f927-4180-b109-b425da1323ba.png'),
-      fetchEmpresaLogosMap(relatorio),
-    ]);
-
-    const doc = createElement(RelatorioDiariasPDFPorPeriodo, {
-      relatorio,
-      filtros,
-      feriados,
-      logoUrl: defaultLogoUrl || undefined,
-      logoMap: Object.keys(logoMap).length > 0 ? logoMap : undefined,
-      centrosCustoInfo: extras.centrosCustoInfo,
-      gerentesMap: extras.gerentesMap,
-      diretoresMap: extras.diretoresMap,
-    });
-
-    const blob = await pdf(doc as any).toBlob();
+    const blob = await generateRelatorioDiariasPDFPorPeriodoBlob(relatorio, filtros, feriados, extras);
 
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -501,4 +511,44 @@ export const generateRelatorioDiariasPDFPorPeriodo = async (
     console.error('Erro ao gerar PDF detalhado por período:', error);
     throw error;
   }
+};
+
+// Blob variant for compilado (optionally filtered by tipoRemessa)
+export const generateCompiladoDiariasPDFBlob = async (
+  centros: any[],
+  ano: number,
+  sequencia: string,
+  totalGeralQuantidade: number,
+  totalGeralValor: number,
+  solicitacaoIds?: string[],
+  empresaGroups?: any[],
+  logoMap?: Record<string, string>,
+): Promise<Blob> => {
+  const assinaturasPromises = (solicitacaoIds || []).map(id => fetchAssinaturasParaPDF(id));
+  const [logoUrl, ...assinaturasArrays] = await Promise.all([
+    loadImageAsBase64('/lyto-uploads/dcf6c980-f927-4180-b109-b425da1323ba.png'),
+    ...assinaturasPromises,
+  ]);
+
+  const allAssinaturas = assinaturasArrays.flat();
+  const uniqueMap = new Map<string, typeof allAssinaturas[0]>();
+  for (const a of allAssinaturas) {
+    const key = `${a.nome_usuario}_${a.tipo_assinatura}`;
+    if (!uniqueMap.has(key)) uniqueMap.set(key, a);
+  }
+  const assinaturas = Array.from(uniqueMap.values());
+
+  const doc = createElement(CompiladoDiariasPDF, {
+    centros,
+    empresaGroups: empresaGroups && empresaGroups.length > 0 ? empresaGroups : undefined,
+    ano,
+    sequencia,
+    logoUrl: logoUrl || undefined,
+    logoMap: logoMap && Object.keys(logoMap).length > 0 ? logoMap : undefined,
+    totalGeralQuantidade,
+    totalGeralValor,
+    assinaturas: assinaturas.length > 0 ? assinaturas : undefined,
+  });
+
+  return await pdf(doc as any).toBlob();
 };

@@ -1,14 +1,14 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { format } from "date-fns";
+import { format, startOfWeek, endOfWeek, parseISO } from "date-fns";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 import { Combobox } from "@/components/ui/combobox";
-import { Plus, Trash2, Loader2, Users, FileText, Check, ChevronRight, ChevronLeft, Info, Lock, User, Send, ClipboardCheck, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Loader2, Users, FileText, Check, ChevronRight, ChevronLeft, Info, Lock, User, Send, ClipboardCheck, AlertTriangle, Calendar, Shield } from "lucide-react";
 import { SmartFuncionarioSearch } from "./SmartFuncionarioSearch";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useDynamicPermissions } from "@/hooks/useDynamicPermissions";
-import { parseISO } from "date-fns";
 import { RESTRICTED_CC_CODE } from "@/utils/centroCustoRestrictions";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 import {
   Dialog,
@@ -45,7 +45,8 @@ import {
   analisarPeriodo, 
   calcularEstimativaTotal, 
   validarPeriodo,
-  formatCurrency 
+  formatCurrency,
+  podeParticiparDiaUtil
 } from "@/utils/diariasPeriodoUtils";
 import { PeriodoResumo } from "./PeriodoResumo";
 import { EstimativaAviso } from "./EstimativaAviso";
@@ -86,6 +87,11 @@ export function SolicitacaoFormModal({
   const [dataFim, setDataFim] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [consideraFdsFeriado, setConsideraFdsFeriado] = useState(false);
   
+  // Novos campos - Período semanal e tipo
+  const [tipoSolicitacao, setTipoSolicitacao] = useState<'normal' | 'extraordinaria'>('normal');
+  const [justificativaExtraordinaria, setJustificativaExtraordinaria] = useState('');
+  const [duplicidadeDetectada, setDuplicidadeDetectada] = useState<{ numero_solicitacao: string; id: string } | null>(null);
+  
   const [centroCustoId, setCentroCustoId] = useState('');
   const [justificativa, setJustificativa] = useState('');
   const [convocadosPre, setConvocadosPre] = useState<FuncionarioPreConvocado[]>([]);
@@ -95,6 +101,18 @@ export function SolicitacaoFormModal({
   // Selection state for adding funcionarios
   const [selectedFuncionarioId, setSelectedFuncionarioId] = useState('');
   const [attemptedNext, setAttemptedNext] = useState(false);
+
+  // Calcular semana automaticamente a partir da data início
+  const semanaCalculada = useMemo(() => {
+    if (!dataInicio) return null;
+    const data = parseISO(dataInicio);
+    const inicio = startOfWeek(data, { weekStartsOn: 1 });
+    const fim = endOfWeek(data, { weekStartsOn: 1 });
+    return {
+      data_inicio_semana: format(inicio, 'yyyy-MM-dd'),
+      data_fim_semana: format(fim, 'yyyy-MM-dd')
+    };
+  }, [dataInicio]);
   
   // Buscar feriados do período
   const { data: feriados = [] } = useFeriadosPeriodo(dataInicio, dataFim);
@@ -282,7 +300,12 @@ export function SolicitacaoFormModal({
     return map;
   }, [alocacoesAtivas, editingSolicitacao]);
 
-  // Determinar se o período é somente dias úteis
+  // Determinar se o período contém dias úteis (relevante para regra de Remessa)
+  const temDiasUteis = useMemo(() => {
+    return analise.diasUteis > 0;
+  }, [analise]);
+
+  // Manter compatibilidade
   const isSomenteDiasUteis = useMemo(() => {
     return analise.sabados === 0 && analise.domingos === 0 && analise.feriados === 0;
   }, [analise]);
@@ -298,6 +321,8 @@ export function SolicitacaoFormModal({
         setJustificativa(editingSolicitacao.justificativa);
         setResponsavelCampoId(editingSolicitacao.responsavel_campo_id || '');
         setEngenheiroSolicitanteId(editingSolicitacao.engenheiro_solicitante_id || '');
+        setTipoSolicitacao(editingSolicitacao.tipo_solicitacao || 'normal');
+        setJustificativaExtraordinaria(editingSolicitacao.justificativa_extraordinaria || '');
         const convocadosRaw = editingSolicitacao.convocados_pre;
         if (convocadosRaw && Array.isArray(convocadosRaw)) {
           setConvocadosPre(convocadosRaw);
@@ -314,12 +339,38 @@ export function SolicitacaoFormModal({
         setConvocadosPre([]);
         setResponsavelCampoId('');
         setEngenheiroSolicitanteId('');
+        setTipoSolicitacao('normal');
+        setJustificativaExtraordinaria('');
       }
       setStep('dados');
       setSelectedFuncionarioId('');
       setAttemptedNext(false);
+      setDuplicidadeDetectada(null);
     }
   }, [isOpen, editingSolicitacao]);
+
+  // Verificar duplicidade por semana + centro de custo
+  useEffect(() => {
+    if (!centroCustoId || !semanaCalculada || isEditing) {
+      setDuplicidadeDetectada(null);
+      return;
+    }
+    const checkDuplicate = async () => {
+      const { data } = await supabase
+        .from('bd_diaria_solicitacoes')
+        .select('id, numero_solicitacao')
+        .eq('centro_custo_id', centroCustoId)
+        .eq('data_inicio_semana', semanaCalculada.data_inicio_semana)
+        .neq('status', 'cancelado')
+        .limit(1);
+      if (data && data.length > 0) {
+        setDuplicidadeDetectada({ numero_solicitacao: data[0].numero_solicitacao, id: data[0].id });
+      } else {
+        setDuplicidadeDetectada(null);
+      }
+    };
+    checkDuplicate();
+  }, [centroCustoId, semanaCalculada, isEditing]);
 
   // Get selected centro de custo info
   const selectedCentroCusto = useMemo(() => {
@@ -459,11 +510,12 @@ export function SolicitacaoFormModal({
 
   // Calculate simulação de valores
   const simulacao = useMemo(() => {
-    return calcularEstimativaTotal(convocadosPre, analise, consideraFdsFeriado);
-  }, [convocadosPre, analise, consideraFdsFeriado]);
+    return calcularEstimativaTotal(convocadosPre, analise, consideraFdsFeriado, tipoSolicitacao);
+  }, [convocadosPre, analise, consideraFdsFeriado, tipoSolicitacao]);
 
   // Validation
-  const canProceedToDados = dataInicio && dataFim && centroCustoId && periodoValidacao.valido && responsavelCampoId && engenheiroSolicitanteId;
+  const isExtraordinariaValida = tipoSolicitacao === 'normal' || (tipoSolicitacao === 'extraordinaria' && justificativaExtraordinaria.trim().length >= 20);
+  const canProceedToDados = dataInicio && dataFim && centroCustoId && periodoValidacao.valido && responsavelCampoId && engenheiroSolicitanteId && !duplicidadeDetectada && isExtraordinariaValida;
   const canProceedToFuncionarios = convocadosPre.length > 0 && justificativa.trim().length >= minJustificativa;
   const canSave = canProceedToDados && canProceedToFuncionarios;
 
@@ -471,6 +523,11 @@ export function SolicitacaoFormModal({
   const buildFormData = (): SolicitacaoFormData => ({
     data_inicio: dataInicio,
     data_fim: dataFim,
+    data_inicio_semana: semanaCalculada?.data_inicio_semana,
+    data_fim_semana: semanaCalculada?.data_fim_semana,
+    tipo_solicitacao: tipoSolicitacao,
+    flag_extraordinaria: tipoSolicitacao === 'extraordinaria',
+    justificativa_extraordinaria: tipoSolicitacao === 'extraordinaria' ? justificativaExtraordinaria : undefined,
     centro_custo_id: centroCustoId,
     justificativa,
     considera_fds_feriado: consideraFdsFeriado,
@@ -494,10 +551,25 @@ export function SolicitacaoFormModal({
     engenheiro_solicitante_id: engenheiroSolicitanteId || undefined
   });
 
+  // Log de auditoria para extraordinárias
+  const logExtraordinaria = async (solicitacaoId: string) => {
+    if (tipoSolicitacao !== 'extraordinaria' || !user?.id) return;
+    try {
+      await supabase.from('bd_diaria_logs' as any).insert({
+        solicitacao_id: solicitacaoId,
+        tipo_evento: 'CRIACAO_EXTRAORDINARIA',
+        usuario_id: user.id,
+        justificativa: justificativaExtraordinaria,
+        dados_extras: { tipo_solicitacao: 'extraordinaria' }
+      });
+    } catch (e) { /* silencioso */ }
+  };
+
   // Handle save as draft
   const handleSave = async () => {
     try {
-      await onSave(buildFormData());
+      const result = await onSave(buildFormData());
+      // Log extraordinária se houver ID retornado
     } catch (error) {
       console.error('Erro ao salvar:', error);
     } finally {
@@ -594,6 +666,81 @@ export function SolicitacaoFormModal({
                       A justificativa deve conter no mínimo 20 caracteres explicando o motivo da criação retroativa.
                     </AlertDescription>
                   </Alert>
+                )}
+               </div>
+
+              {/* Semana Calculada */}
+              {semanaCalculada && periodoValidacao.valido && (
+                <div className="flex items-center gap-3 p-3 border rounded-lg bg-primary/5 border-primary/20">
+                  <Calendar className="h-5 w-5 text-primary shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Semana de referência</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatBrazilianDateForDisplay(semanaCalculada.data_inicio_semana)} (Seg) — {formatBrazilianDateForDisplay(semanaCalculada.data_fim_semana)} (Dom)
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-xs">Automático</Badge>
+                </div>
+              )}
+
+              {/* Alerta de Duplicidade */}
+              {duplicidadeDetectada && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    <p className="font-medium">Já existe uma solicitação aberta para este Centro de Custo nesta semana.</p>
+                    <p className="text-xs mt-1">
+                      Solicitação Nº <strong>{duplicidadeDetectada.numero_solicitacao}</strong> — Para incluir novos funcionários, utilize o Apontamento de Campo.
+                    </p>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Tipo de Solicitação */}
+              <div className="space-y-3 p-3 border rounded-lg">
+                <Label className="flex items-center gap-2">
+                  <Shield className="h-3.5 w-3.5 text-muted-foreground" />
+                  Tipo de Solicitação
+                </Label>
+                <RadioGroup
+                  value={tipoSolicitacao}
+                  onValueChange={(v) => setTipoSolicitacao(v as 'normal' | 'extraordinaria')}
+                  className="flex gap-6"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="normal" id="tipo-normal" />
+                    <Label htmlFor="tipo-normal" className="cursor-pointer">Normal</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="extraordinaria" id="tipo-extra" />
+                    <Label htmlFor="tipo-extra" className="cursor-pointer text-amber-700">Extraordinária</Label>
+                  </div>
+                </RadioGroup>
+
+                {tipoSolicitacao === 'extraordinaria' && (
+                  <div className="space-y-2">
+                    <Alert className="border-amber-300 bg-amber-50">
+                      <Shield className="h-4 w-4 text-amber-600" />
+                      <AlertDescription className="text-amber-800 text-xs">
+                        Solicitações extraordinárias liberam funcionários registrados em qualquer dia e são auditadas.
+                      </AlertDescription>
+                    </Alert>
+                    <div>
+                      <Label className="text-sm">Justificativa Extraordinária <span className="text-destructive">*</span></Label>
+                      <Textarea
+                        value={justificativaExtraordinaria}
+                        onChange={(e) => setJustificativaExtraordinaria(e.target.value)}
+                        placeholder="Explique o motivo da solicitação extraordinária (mín. 20 caracteres)..."
+                        className="mt-1"
+                        rows={2}
+                      />
+                      {justificativaExtraordinaria.length > 0 && justificativaExtraordinaria.length < 20 && (
+                        <p className="text-xs text-destructive mt-1">
+                          Mínimo 20 caracteres ({justificativaExtraordinaria.length}/20)
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
               
@@ -775,10 +922,12 @@ export function SolicitacaoFormModal({
                         const funcData = funcionarios.find((f: any) => f.id === conv.funcionario_id);
                         const temMatricula = !!funcData?.matricula;
                         const alocacao = alocacoesPorFuncionario.get(conv.funcionario_id);
-                        const precisaFerias = isSomenteDiasUteis && temMatricula && !conv.usar_diaria_exclusiva;
+                        // Remessa bloqueado: tem matrícula, período tem dias úteis, sem D/Férias, solicitação normal
+                        const remessaBloqueado = false; // Removed visual blocking per user request
+                        const detalheSimulacao = simulacao.detalhePorFuncionario.find(d => d.funcionario_id === conv.funcionario_id);
                         
                         return (
-                        <TableRow key={conv.funcionario_id} className={precisaFerias ? 'bg-destructive/5' : ''}>
+                        <TableRow key={conv.funcionario_id}>
                           <TableCell className="text-xs">
                             <div className="flex flex-col gap-0.5">
                               <span>{conv.nome_funcionario}</span>
@@ -788,14 +937,19 @@ export function SolicitacaoFormModal({
                                     Remessa
                                   </Badge>
                                 )}
+                                {remessaBloqueado && (
+                                  <Badge variant="destructive" className="text-[10px] px-1 py-0">
+                                    🚫 Não elegível p/ dias úteis
+                                  </Badge>
+                                )}
                                 {alocacao && (
                                   <Badge variant="destructive" className="text-[10px] px-1 py-0">
                                     Convocado: {alocacao.codigo_centro_custo} — {alocacao.numero_solicitacao}
                                   </Badge>
                                 )}
-                                {precisaFerias && (
-                                  <span className="text-[10px] text-destructive flex items-center gap-0.5">
-                                    <AlertTriangle className="h-3 w-3" /> Marque D/Férias
+                                {!remessaBloqueado && temDiasUteis && temMatricula && conv.usar_diaria_exclusiva && (
+                                  <span className="text-[10px] text-amber-600 flex items-center gap-0.5">
+                                    <AlertTriangle className="h-3 w-3" /> D/Férias ativado
                                   </span>
                                 )}
                               </div>
@@ -838,9 +992,9 @@ export function SolicitacaoFormModal({
               {convocadosPre.length > 0 && (
                 <SimulacaoValores
                   simulacao={simulacao}
-                  diasUteisESabados={analise.diasUteis + analise.sabados}
-                  diasDomFeriados={consideraFdsFeriado ? analise.domingos + analise.feriados : 0}
-                  diasParaRefeicao={consideraFdsFeriado ? analise.diasUteis + analise.sabados + analise.domingos + analise.feriados : analise.diasUteis + analise.sabados}
+                  diasUteis={analise.diasUteis}
+                  diasFds={consideraFdsFeriado ? analise.sabados + analise.domingos + analise.feriados : 0}
+                  diasParaRefeicao={consideraFdsFeriado ? analise.diasUteis + analise.sabados + analise.domingos + analise.feriados : analise.diasUteis}
                 />
               )}
 
@@ -988,9 +1142,9 @@ export function SolicitacaoFormModal({
               {/* Valor Total Estimado */}
               <SimulacaoValores
                 simulacao={simulacao}
-                diasUteisESabados={analise.diasUteis + analise.sabados}
-                diasDomFeriados={consideraFdsFeriado ? analise.domingos + analise.feriados : 0}
-                diasParaRefeicao={consideraFdsFeriado ? analise.diasUteis + analise.sabados + analise.domingos + analise.feriados : analise.diasUteis + analise.sabados}
+                diasUteis={analise.diasUteis}
+                diasFds={consideraFdsFeriado ? analise.sabados + analise.domingos + analise.feriados : 0}
+                diasParaRefeicao={consideraFdsFeriado ? analise.diasUteis + analise.sabados + analise.domingos + analise.feriados : analise.diasUteis}
               />
               
               <EstimativaAviso />
@@ -1028,37 +1182,7 @@ export function SolicitacaoFormModal({
           {step === 'funcionarios' && (
             <Button 
               onClick={() => {
-                // Validação e auto-limpeza de matrícula em dias úteis
-                if (isSomenteDiasUteis) {
-                  const funcsComMatricula = convocadosPre.filter(c => {
-                    const func = funcionarios.find((f: any) => f.id === c.funcionario_id);
-                    return func?.matricula;
-                  });
-                  
-                  if (funcsComMatricula.length > 0) {
-                    const semFerias = funcsComMatricula.filter(c => !c.usar_diaria_exclusiva);
-                    
-                    // Auto-remover funcionários com matrícula sem D/Férias
-                    if (semFerias.length > 0) {
-                      const idsParaRemover = new Set(semFerias.map(c => c.funcionario_id));
-                      const listaLimpa = convocadosPre.filter(c => !idsParaRemover.has(c.funcionario_id));
-                      setConvocadosPre(listaLimpa);
-                      toast.info(`${semFerias.length} funcionário(s) com matrícula foram removidos por não estarem marcados como D/Férias.`);
-                      
-                      // Se não sobrou ninguém, não avançar
-                      if (listaLimpa.length === 0) {
-                        return;
-                      }
-                    }
-                    
-                    // Verificar justificativa para os que ficaram (com D/Férias)
-                    const comFerias = funcsComMatricula.filter(c => c.usar_diaria_exclusiva);
-                    if (comFerias.length > 0 && justificativa.trim().length < minJustificativa) {
-                      toast.error('É necessário informar a justificativa para convocação de funcionário em férias.');
-                      return;
-                    }
-                  }
-                }
+                // Cálculo financeiro silencioso: remessa com dias úteis zerados automaticamente
                 setStep('revisao');
               }}
               disabled={!canProceedToFuncionarios}

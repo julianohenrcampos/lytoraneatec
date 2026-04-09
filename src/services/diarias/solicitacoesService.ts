@@ -163,6 +163,11 @@ export async function createSolicitacao(formData: SolicitacaoFormData): Promise<
     numero_solicitacao,
     data_inicio: formData.data_inicio,
     data_fim: formData.data_fim,
+    data_inicio_semana: formData.data_inicio_semana || null,
+    data_fim_semana: formData.data_fim_semana || null,
+    tipo_solicitacao: formData.tipo_solicitacao || 'normal',
+    flag_extraordinaria: formData.flag_extraordinaria || false,
+    justificativa_extraordinaria: formData.justificativa_extraordinaria || null,
     centro_custo_id: formData.centro_custo_id,
     justificativa: formData.justificativa,
     considera_fds_feriado: formData.considera_fds_feriado ?? false,
@@ -214,6 +219,11 @@ export async function updateSolicitacao(id: string, formData: Partial<Solicitaca
   if (formData.convocados_pre !== undefined) updateData.convocados_pre = formData.convocados_pre;
   if (formData.responsavel_campo_id !== undefined) updateData.responsavel_campo_id = formData.responsavel_campo_id || null;
   if (formData.engenheiro_solicitante_id !== undefined) updateData.engenheiro_solicitante_id = formData.engenheiro_solicitante_id || null;
+  if (formData.data_inicio_semana !== undefined) updateData.data_inicio_semana = formData.data_inicio_semana || null;
+  if (formData.data_fim_semana !== undefined) updateData.data_fim_semana = formData.data_fim_semana || null;
+  if (formData.tipo_solicitacao !== undefined) updateData.tipo_solicitacao = formData.tipo_solicitacao;
+  if (formData.flag_extraordinaria !== undefined) updateData.flag_extraordinaria = formData.flag_extraordinaria;
+  if (formData.justificativa_extraordinaria !== undefined) updateData.justificativa_extraordinaria = formData.justificativa_extraordinaria || null;
 
   const { data, error } = await supabase
     .from('bd_diaria_solicitacoes')
