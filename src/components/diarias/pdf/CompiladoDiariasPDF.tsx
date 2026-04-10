@@ -561,38 +561,64 @@ export const CompiladoDiariasPDF = ({
 }: CompiladoDiariasPDFProps) => {
   const groups = empresaGroups && empresaGroups.length > 0 ? empresaGroups : null;
 
-  return (
-    <Document>
-      <Page size="A4" style={s.page}>
-        {/* HEADER TABLE: 3 columns (20% | 60% | 20%) */}
-        <View style={s.headerTable} fixed>
-          <View style={[s.headerCol1, s.headerCol2, { width: '80%' }]}>
-            <Text style={s.headerTitle}>{`RELATÓRIO DE DIÁRIAS ${ano}`}</Text>
+  const HeaderBlock = () => (
+    <View style={s.headerTable} fixed>
+      <View style={[s.headerCol1, s.headerCol2, { width: '80%' }]}>
+        <Text style={s.headerTitle}>{`RELATÓRIO DE DIÁRIAS ${ano}`}</Text>
+      </View>
+      <View style={s.headerCol3}>
+        <View style={s.seqSubTable}>
+          <View style={s.seqLabelRow}>
+            <Text style={s.seqLabel}>Nº SEQUÊNCIA</Text>
           </View>
-          <View style={s.headerCol3}>
-            <View style={s.seqSubTable}>
-              <View style={s.seqLabelRow}>
-                <Text style={s.seqLabel}>Nº SEQUÊNCIA</Text>
-              </View>
-              <View style={s.seqValueRow}>
-                <Text style={s.seqValue}>{sequencia}</Text>
-              </View>
-            </View>
+          <View style={s.seqValueRow}>
+            <Text style={s.seqValue}>{sequencia}</Text>
           </View>
         </View>
+      </View>
+    </View>
+  );
 
-        {/* Render by empresa groups if available */}
-        {groups ? groups.map((eg, egIdx) => (
-          <View key={egIdx} style={{ marginBottom: 8 }}>
+  const FooterBlock = () => (
+    <View style={s.footer} fixed>
+      <Text style={s.footerText}>Relatório de Diárias - {ano}</Text>
+      <Text style={s.footerText} render={({ pageNumber, totalPages }) => `Página ${pageNumber} de ${totalPages}`} />
+    </View>
+  );
+
+  const TotalGeralBlock = () => (
+    <View wrap={false} style={s.totalBlock}>
+      <View style={s.totalTitleRow}>
+        <Text style={s.totalTitleText}>TOTAL GERAL</Text>
+      </View>
+      <View style={s.totalHeaderRow}>
+        <View style={s.totalCellBorder}><Text style={s.textHeaderBold}>QUANTIDADE</Text></View>
+        <View style={s.totalCell}><Text style={s.textHeaderBold}>VALOR</Text></View>
+      </View>
+      <View style={s.totalDataRow}>
+        <View style={s.totalCellBorder}><Text style={s.totalValue}>{totalGeralQuantidade}</Text></View>
+        <View style={s.totalCell}><Text style={s.totalValue}>{formatBRL(totalGeralValor)}</Text></View>
+      </View>
+    </View>
+  );
+
+  // If we have empresa groups, render each empresa on its own page
+  if (groups) {
+    return (
+      <Document>
+        {groups.map((eg, egIdx) => (
+          <Page key={egIdx} size="A4" style={s.page}>
+            <HeaderBlock />
+
             {/* Empresa header with logo */}
-            <View minPresenceAhead={120} style={{
+            <View style={{
               padding: 6,
               borderWidth: 1,
               borderColor: '#000000',
               borderStyle: 'solid' as const,
               flexDirection: 'row' as const,
               alignItems: 'center' as const,
-              marginTop: egIdx > 0 ? 16 : 4,
+              marginTop: 4,
             }}>
               {(logoMap?.[eg.empresaNome] || logoUrl) && (
                 <Image
@@ -634,39 +660,35 @@ export const CompiladoDiariasPDF = ({
                 </View>
               </View>
             </View>
-          </View>
-        )) : (
-          /* Fallback: render centros without empresa grouping */
-          centros.map((cc, idx) => (
-            <CentroCustoBlock key={idx} cc={cc} />
-          ))
-        )}
 
-        {/* Total Geral */}
-        <View wrap={false} style={s.totalBlock}>
-          <View style={s.totalTitleRow}>
-            <Text style={s.totalTitleText}>TOTAL GERAL</Text>
-          </View>
-          <View style={s.totalHeaderRow}>
-            <View style={s.totalCellBorder}><Text style={s.textHeaderBold}>QUANTIDADE</Text></View>
-            <View style={s.totalCell}><Text style={s.textHeaderBold}>VALOR</Text></View>
-          </View>
-          <View style={s.totalDataRow}>
-            <View style={s.totalCellBorder}><Text style={s.totalValue}>{totalGeralQuantidade}</Text></View>
-            <View style={s.totalCell}><Text style={s.totalValue}>{formatBRL(totalGeralValor)}</Text></View>
-          </View>
-        </View>
+            {/* Total Geral and signatures on the last empresa page */}
+            {egIdx === groups.length - 1 && (
+              <>
+                {assinaturas && assinaturas.length > 0 && (
+                  <AssinaturaPDFBlock assinaturas={assinaturas} />
+                )}
+              </>
+            )}
 
-        {/* Assinaturas de Aprovação */}
+            <FooterBlock />
+          </Page>
+        ))}
+      </Document>
+    );
+  }
+
+  // Fallback: no empresa groups — single page
+  return (
+    <Document>
+      <Page size="A4" style={s.page}>
+        <HeaderBlock />
+        {centros.map((cc, idx) => (
+          <CentroCustoBlock key={idx} cc={cc} />
+        ))}
         {assinaturas && assinaturas.length > 0 && (
           <AssinaturaPDFBlock assinaturas={assinaturas} />
         )}
-
-        {/* Footer */}
-        <View style={s.footer} fixed>
-          <Text style={s.footerText}>Relatório de Diárias - {ano}</Text>
-          <Text style={s.footerText} render={({ pageNumber, totalPages }) => `Página ${pageNumber} de ${totalPages}`} />
-        </View>
+        <FooterBlock />
       </Page>
     </Document>
   );
