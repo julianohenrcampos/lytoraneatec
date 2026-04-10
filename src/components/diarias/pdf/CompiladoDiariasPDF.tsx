@@ -726,9 +726,11 @@ export function buildCompiladoData(
     const isFeriado = feriadosSet.has(dataStr);
     const isFS = isDomingo || isSabado || isFeriado;
 
-    if (!ccMap.has(item.centro_custo_id)) {
-      ccMap.set(item.centro_custo_id, {
-        ccId: item.centro_custo_id,
+    const compositeKey = `${item.centro_custo_id}::${empresaNome}`;
+
+    if (!ccMap.has(compositeKey)) {
+      ccMap.set(compositeKey, {
+        ccId: compositeKey,
         codigo: ccLabel,
         nome: ccNome,
         gerencia,
@@ -739,7 +741,7 @@ export function buildCompiladoData(
         totalValor: 0,
       });
     }
-    const entry = ccMap.get(item.centro_custo_id)!;
+    const entry = ccMap.get(compositeKey)!;
     entry.totalQtd += 1;
     entry.totalValor += valorItem;
 
@@ -754,7 +756,7 @@ export function buildCompiladoData(
   let totalGeralValor = 0;
 
   const centros: CentroCustoCompilado[] = [];
-  const ccEmpresaMap = new Map<string, string>(); // ccId -> empresaNome
+  const ccEmpresaMap = new Map<string, string>();
 
   ccMap.forEach((entry) => {
     totalGeralQuantidade += entry.totalQtd;
