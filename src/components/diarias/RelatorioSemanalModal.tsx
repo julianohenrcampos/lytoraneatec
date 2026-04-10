@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { format, startOfWeek, endOfWeek, subWeeks, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { Loader2, Calendar, Download, FileArchive, Files } from 'lucide-react';
+import { Loader2, Calendar, Download, FileArchive, Files, Info } from 'lucide-react';
 import JSZip from 'jszip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,7 @@ interface RelatorioSemanalModalProps {
   defaultEmpresaId?: string;
   defaultTipoVinculo?: string;
   defaultGerenteId?: string;
+  defaultSolicitacaoIds?: string[];
 }
 
 function calcularUltimaSemana() {
@@ -58,6 +59,7 @@ export function RelatorioSemanalModal({
   defaultEmpresaId,
   defaultTipoVinculo,
   defaultGerenteId,
+  defaultSolicitacaoIds,
 }: RelatorioSemanalModalProps) {
   const [gerenteSelecionado, setGerenteSelecionado] = useState<string>('todos');
   const [modoDownload, setModoDownload] = useState<'zip' | 'individual'>('zip');
@@ -66,17 +68,40 @@ export function RelatorioSemanalModal({
   const defaultRange = useMemo(() => calcularUltimaSemana(), [open]);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(defaultRange);
 
-  useMemo(() => {
-    if (open) {
+  const hasSolicitacaoFilter = defaultSolicitacaoIds && defaultSolicitacaoIds.length > 0;
+
+  // Quando o modal abre com filtro de solicitações, buscar datas automaticamente
+  useEffect(() => {
+    if (!open) return;
+
+    if (hasSolicitacaoFilter) {
+      // Buscar datas das solicitações selecionadas
+      (async () => {
+        const { data } = await supabase
+          .from('bd_diaria_solicitacoes')
+          .select('data_inicio, data_fim')
+          .in('id', defaultSolicitacaoIds!);
+        if (data && data.length > 0) {
+          const starts = data.map(d => new Date(d.data_inicio + 'T12:00:00'));
+          const ends = data.map(d => new Date(d.data_fim + 'T12:00:00'));
+          const minDate = new Date(Math.min(...starts.map(d => d.getTime())));
+          const maxDate = new Date(Math.max(...ends.map(d => d.getTime())));
+          setDateRange({ from: minDate, to: maxDate });
+        } else {
+          setDateRange(calcularUltimaSemana());
+        }
+      })();
+    } else {
       setDateRange(calcularUltimaSemana());
-      // Pre-selecionar gerente da página se disponível
-      if (defaultGerenteId && gerentesRegionais.some(g => g.id === defaultGerenteId)) {
-        setGerenteSelecionado(defaultGerenteId);
-      } else {
-        setGerenteSelecionado('todos');
-      }
     }
-  }, [open, defaultGerenteId, gerentesRegionais]);
+
+    // Pre-selecionar gerente da página se disponível
+    if (defaultGerenteId && gerentesRegionais.some(g => g.id === defaultGerenteId)) {
+      setGerenteSelecionado(defaultGerenteId);
+    } else {
+      setGerenteSelecionado('todos');
+    }
+  }, [open, defaultGerenteId, gerentesRegionais, hasSolicitacaoFilter]);
 
   const periodoLabel = dateRange?.from && dateRange?.to
     ? `${format(dateRange.from, 'dd/MM/yyyy')} a ${format(dateRange.to, 'dd/MM/yyyy')}`
@@ -124,9 +149,14 @@ export function RelatorioSemanalModal({
 
       let baseQuery = supabase
         .from('vw_relatorio_diarias_folha')
-        .select('*')
-        .gte('data', dataInicio)
-        .lte('data', dataFim);
+        .select('*');
+
+      // Filtrar por solicitação OU por período
+      if (hasSolicitacaoFilter) {
+        baseQuery = baseQuery.in('solicitacao_id', defaultSolicitacaoIds!);
+      } else {
+        baseQuery = baseQuery.gte('data', dataInicio).lte('data', dataFim);
+      }
 
       if (ccIds.length > 0) {
         baseQuery = baseQuery.in('centro_custo_id', ccIds);
@@ -268,7 +298,17 @@ export function RelatorioSemanalModal({
         <div className="space-y-4 py-2">
           {/* Período */}
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Período (padrão: última semana completa)</Label>
+            <Label className="text-xs text-muted-foreground">
+              {hasSolicitacaoFilter
+                ? `Período baseado em ${defaultSolicitacaoIds!.length} solicitação(ões)`
+                : 'Período (padrão: última semana completa)'}
+            </Label>
+            {hasSolicitacaoFilter && (
+              <div className="flex items-center gap-1.5 text-xs text-primary bg-primary/10 rounded px-2 py-1">
+                <Info className="h-3.5 w-3.5" />
+                Datas calculadas automaticamente a partir das solicitações filtradas
+              </div>
+            )}
             <DatePickerWithRange value={dateRange} onChange={setDateRange} />
           </div>
 

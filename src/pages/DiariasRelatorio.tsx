@@ -899,6 +899,7 @@ export default function DiariasRelatorio() {
         defaultEmpresaId={filters.empresa_id || undefined}
         defaultTipoVinculo={filters.tipo_vinculo || undefined}
         defaultGerenteId={gerenteRegionalFilter.length === 1 ? gerenteRegionalFilter[0] : undefined}
+        defaultSolicitacaoIds={solicitacaoFilter.length > 0 ? solicitacaoFilter : undefined}
       />
     </MainLayout>);
 
