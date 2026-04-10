@@ -271,10 +271,12 @@ export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promis
   // Build data rows
   const dataRows = relatorio.map((item, idx) => {
     const rowNum = idx + 2; // Excel row (1-indexed, header is row 1)
-    const vDiaria = item.tipo_diaria === 'completa' ? Math.ceil(item.valor_diaria_aplicada || 0) :
-                    item.tipo_diaria === 'uma_e_meia' ? Math.ceil((item.valor_diaria_aplicada || 0) * (2/3)) : 0;
-    const vMeiaDiaria = item.tipo_diaria === 'meia' ? Math.ceil(item.valor_diaria_aplicada || 0) :
-                        item.tipo_diaria === 'uma_e_meia' ? Math.ceil((item.valor_diaria_aplicada || 0) * (1/3)) : 0;
+    const valorBase = Math.ceil(item.valor_diaria_aplicada || 0);
+    const integralUmaEMeia = Math.round(valorBase * (2/3));
+    const vDiaria = item.tipo_diaria === 'completa' ? valorBase :
+                    item.tipo_diaria === 'uma_e_meia' ? integralUmaEMeia : 0;
+    const vMeiaDiaria = item.tipo_diaria === 'meia' ? valorBase :
+                        item.tipo_diaria === 'uma_e_meia' ? (valorBase - integralUmaEMeia) : 0;
     const vRefeicao = Math.ceil(item.valor_refeicao_aplicado || 0);
 
     return [

@@ -743,16 +743,12 @@ export default function DiariasRelatorio() {
                         </TableCell>
                         <TableCell className="text-right">
                           {formatCurrency(
-                        item.tipo_diaria === 'completa' ? Math.ceil(item.valor_diaria_aplicada || 0) :
-                        item.tipo_diaria === 'uma_e_meia' ? Math.ceil((item.valor_diaria_aplicada || 0) * (2 / 3)) :
-                        0
+                        (() => { const v = Math.ceil(item.valor_diaria_aplicada || 0); return item.tipo_diaria === 'completa' ? v : item.tipo_diaria === 'uma_e_meia' ? Math.round(v * (2/3)) : 0; })()
                       )}
                         </TableCell>
                         <TableCell className="text-right">
                           {formatCurrency(
-                        item.tipo_diaria === 'meia' ? Math.ceil(item.valor_diaria_aplicada || 0) :
-                        item.tipo_diaria === 'uma_e_meia' ? Math.ceil((item.valor_diaria_aplicada || 0) * (1 / 3)) :
-                        0
+                        (() => { const v = Math.ceil(item.valor_diaria_aplicada || 0); return item.tipo_diaria === 'meia' ? v : item.tipo_diaria === 'uma_e_meia' ? (v - Math.round(v * (2/3))) : 0; })()
                       )}
                         </TableCell>
                         <TableCell className="text-right">

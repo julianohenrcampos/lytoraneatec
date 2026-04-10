@@ -127,7 +127,7 @@ function consolidarFuncionarios(
     let meiaAdd = 0;
     if (tipo === 'completa') integralAdd = valor;
     else if (tipo === 'meia') meiaAdd = valor;
-    else if (tipo === 'uma_e_meia') { integralAdd = Math.ceil(valor * (2/3)); meiaAdd = Math.ceil(valor * (1/3)); }
+    else if (tipo === 'uma_e_meia') { integralAdd = Math.round(valor * (2/3)); meiaAdd = valor - integralAdd; }
 
     if (existing) {
       existing.total_dias += 1;
