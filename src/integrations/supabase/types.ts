@@ -197,6 +197,7 @@ export type Database = {
           etapa_atual: number | null
           etapa1_concluida: boolean | null
           funcao: string
+          funcao_nova_id: string | null
           horario_agendamento: string
           id: string
           local_atendimento_id: string
@@ -245,6 +246,7 @@ export type Database = {
           etapa_atual?: number | null
           etapa1_concluida?: boolean | null
           funcao: string
+          funcao_nova_id?: string | null
           horario_agendamento: string
           id?: string
           local_atendimento_id: string
@@ -293,6 +295,7 @@ export type Database = {
           etapa_atual?: number | null
           etapa1_concluida?: boolean | null
           funcao?: string
+          funcao_nova_id?: string | null
           horario_agendamento?: string
           id?: string
           local_atendimento_id?: string
@@ -321,6 +324,13 @@ export type Database = {
             columns: ["criado_por"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_agendamentos_exames_funcao_nova_id_fkey"
+            columns: ["funcao_nova_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcoes"
             referencedColumns: ["id"]
           },
           {
@@ -3326,6 +3336,59 @@ export type Database = {
             columns: ["categoria_id"]
             isOneToOne: false
             referencedRelation: "bd_categorias_ativos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_historico_funcional: {
+        Row: {
+          cargo_anterior: string | null
+          cargo_novo: string | null
+          centro_custo_anterior: string | null
+          centro_custo_novo: string | null
+          created_at: string
+          funcionario_id: string
+          id: string
+          motivo: string | null
+          percentual_aumento: number | null
+          salario_anterior: number | null
+          salario_novo: number | null
+          tipo_evento: string
+        }
+        Insert: {
+          cargo_anterior?: string | null
+          cargo_novo?: string | null
+          centro_custo_anterior?: string | null
+          centro_custo_novo?: string | null
+          created_at?: string
+          funcionario_id: string
+          id?: string
+          motivo?: string | null
+          percentual_aumento?: number | null
+          salario_anterior?: number | null
+          salario_novo?: number | null
+          tipo_evento: string
+        }
+        Update: {
+          cargo_anterior?: string | null
+          cargo_novo?: string | null
+          centro_custo_anterior?: string | null
+          centro_custo_novo?: string | null
+          created_at?: string
+          funcionario_id?: string
+          id?: string
+          motivo?: string | null
+          percentual_aumento?: number | null
+          salario_anterior?: number | null
+          salario_novo?: number | null
+          tipo_evento?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_historico_funcional_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
             referencedColumns: ["id"]
           },
         ]
@@ -6980,6 +7043,8 @@ export type Database = {
           data: string | null
           empresa_funcionario: string | null
           empresa_id: string | null
+          engenheiro_solicitante_id: string | null
+          engenheiro_solicitante_nome: string | null
           funcao_id: string | null
           funcionario_id: string | null
           hora_entrada: string | null
@@ -7035,6 +7100,13 @@ export type Database = {
             columns: ["solicitacao_id"]
             isOneToOne: false
             referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_engenheiro_solicitante_id_fkey"
+            columns: ["engenheiro_solicitante_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
             referencedColumns: ["id"]
           },
           {

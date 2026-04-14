@@ -710,13 +710,13 @@ export default function DiariasRelatorio() {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Building2 className="h-4 w-4 text-muted-foreground" />
-                            <span className="truncate max-w-[150px]">
-                              {item.codigo_centro_custo} - {item.nome_centro_custo}
-                            </span>
+                             <span className="truncate max-w-[150px]">
+                               {item.codigo_centro_custo}
+                             </span>
                           </div>
                         </TableCell>
                         <TableCell>
-                          {item.solicitante_nome || '-'}
+                          {item.engenheiro_solicitante_nome || item.solicitante_nome || '-'}
                         </TableCell>
                         <TableCell>
                           {item.apontador_nome || '-'}

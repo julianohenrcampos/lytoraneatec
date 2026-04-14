@@ -1,6 +1,6 @@
 
 import React from "react";
-import { Briefcase } from "lucide-react";
+
 import { useFuncaoActions } from "@/hooks/useFuncaoActions";
 import FuncaoFormModal from "./FuncaoFormModal";
 import FuncaoDetailsModal from "./FuncaoDetailsModal";
@@ -42,12 +42,7 @@ const FuncaoPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <Briefcase className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Cadastro de Funções</h1>
-        </div>
-        
+      <div className="flex justify-end">
         <FuncaoHeaderActions 
           onNewFuncao={() => openFormModal()}
           onExport={exportToExcel}

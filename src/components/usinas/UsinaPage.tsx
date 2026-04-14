@@ -1,6 +1,6 @@
 
 import React from "react";
-import { Factory } from "lucide-react";
+
 import { useUsinaActions } from "@/hooks/useUsinaActions";
 import UsinaFormModal from "./UsinaFormModal";
 import UsinaDetailsModal from "./UsinaDetailsModal";
@@ -76,12 +76,7 @@ const UsinaPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <Factory className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Cadastro de Usinas</h1>
-        </div>
-        
+      <div className="flex justify-end">
         <UsinaHeaderActions 
           onNewUsina={() => openFormModal()}
           onExport={exportToExcel}

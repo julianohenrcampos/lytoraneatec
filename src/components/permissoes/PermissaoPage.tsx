@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { UserCircle, UserPlus, Info } from "lucide-react";
+import { UserPlus, Info } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { usePermissao } from "@/hooks/usePermissao";
@@ -124,12 +124,7 @@ const PermissaoPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <UserCircle className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Gestão de Permissões</h1>
-        </div>
-        
+      <div className="flex justify-end">
         <PermissaoHeaderActions 
           onNewPermissao={() => openPermissaoForm()}
           onNewFuncaoPermissao={() => openFuncaoPermissaoForm()}

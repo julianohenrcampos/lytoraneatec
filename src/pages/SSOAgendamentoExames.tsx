@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import MainLayout from '@/components/layout/MainLayout';
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import { isWithinBrazilianBusinessHours, getCurrentBrazilianTime } from '@/utils/timezoneUtils';
 import { useConfiguracaoSistema, useUpdateConfiguracao } from '@/hooks/useConfiguracaoSistema';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -43,6 +44,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 const SSOAgendamentoExames: React.FC = () => {
+  usePageTitle("Agendamento de Exames");
   const [filters, setFilters] = useState<AgendamentoExameFilters>({});
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
@@ -335,10 +337,7 @@ const SSOAgendamentoExames: React.FC = () => {
     <MainLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Agendamento de Exames</h1>
-          </div>
+        <div className="flex justify-end gap-4">
           <div className="flex gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

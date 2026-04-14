@@ -6,8 +6,10 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Settings, Loader2 } from "lucide-react";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 
 const ConfiguracoesSistema: React.FC = () => {
+  usePageTitle("Configurações do Sistema");
   const { canAccess, isLoading: guardLoading } = usePermissionGuard({
     requiredPermission: "admin_permissoes_view",
   });
@@ -26,12 +28,8 @@ const ConfiguracoesSistema: React.FC = () => {
   return (
     <MainLayout>
       <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <Settings className="h-7 w-7 text-primary" />
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Configurações do Sistema</h1>
-          </div>
-        </div>
+
+
 
         {isLoading ? (
           <div className="flex items-center justify-center py-12">

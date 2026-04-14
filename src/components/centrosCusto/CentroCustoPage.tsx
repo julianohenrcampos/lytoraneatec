@@ -1,6 +1,6 @@
 
 import React from "react";
-import { FileHeart } from "lucide-react";
+
 import { useCentroCustoActions } from "@/hooks/useCentroCustoActions";
 import CentroCustoFormModal from "./CentroCustoFormModal";
 import CentroCustoDetailsModal from "./CentroCustoDetailsModal";
@@ -46,14 +46,7 @@ const CentroCustoPage: React.FC = () => {
 
   return (
     <div className={`space-y-2 ${isSmallScreen ? 'space-y-2' : isMobile ? 'space-y-3' : 'sm:space-y-6'}`}>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          <FileHeart className={`${isSmallScreen ? 'h-4 w-4' : 'h-5 w-5 sm:h-6 sm:w-6'} text-primary`} />
-          <h1 className={`${isSmallScreen ? 'text-base' : 'text-lg sm:text-2xl'} font-bold`}>
-            {isSmallScreen ? 'Centros de Custo' : 'Cadastro de Centros de Custo'}
-          </h1>
-        </div>
-        
+      <div className="flex justify-end">
         <CentroCustoHeaderActions 
           onNewCentroCusto={() => openFormModal()}
           onExport={exportToExcel}

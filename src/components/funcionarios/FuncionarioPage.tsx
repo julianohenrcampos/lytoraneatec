@@ -62,12 +62,7 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <Users className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Funcionários</h1>
-        </div>
-        
+      <div className="flex justify-end">
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"

@@ -17,6 +17,8 @@ interface FuncionarioRemessa {
   conta: string;
   chave_pix: string;
   matricula: string;
+  codigo_centro_custo: string;
+  nome_centro_custo: string;
   total_dias: number;
   valor_diaria_total: number;
   valor_refeicao_total: number;
@@ -140,10 +142,11 @@ const cell = (width: string) => ({
 
 // Column widths — COM REMESSA
 const COLS_REMESSA = {
-  matricula: '10%',
-  nome: '30%',
-  cpf: '15%',
-  banco: '10%',
+  matricula: '9%',
+  cc: '7%',
+  nome: '27%',
+  cpf: '13%',
+  banco: '9%',
   agencia: '8%',
   conta: '12%',
   dias: '5%',
@@ -152,13 +155,14 @@ const COLS_REMESSA = {
 
 // Column widths — SEM REMESSA
 const COLS_SEM_REMESSA = {
-  matricula: '8%',
-  nome: '22%',
-  cpf: '12%',
-  banco: '9%',
-  agencia: '7%',
+  matricula: '7%',
+  cc: '7%',
+  nome: '20%',
+  cpf: '11%',
+  banco: '8%',
+  agencia: '6%',
   conta: '10%',
-  pix: '12%',
+  pix: '11%',
   dias: '5%',
   total: '15%',
 };
@@ -220,6 +224,8 @@ export function buildEmpresaGroups(
         conta: item.conta_funcionario || '-',
         chave_pix: item.pix_funcionario || '-',
         matricula: item.matricula_funcionario || '-',
+        codigo_centro_custo: item.codigo_centro_custo || '-',
+        nome_centro_custo: item.nome_centro_custo || '-',
         total_dias: 1,
         valor_diaria_total: valorDiaria,
         valor_refeicao_total: valorRefeicao,
@@ -257,6 +263,7 @@ function EmpresaSection({ grupo, showPix, logoBase64, isFirst }: { grupo: Empres
         {/* Header */}
         <View style={s.tableHeader} fixed>
           <View style={cell(cols.matricula)}><Text style={s.textHeader}>MATRÍCULA</Text></View>
+          <View style={cell(cols.cc)}><Text style={s.textHeader}>C.C</Text></View>
           <View style={cell(cols.nome)}><Text style={s.textHeader}>FUNCIONÁRIO</Text></View>
           <View style={cell(cols.cpf)}><Text style={s.textHeader}>CPF</Text></View>
           <View style={cell(cols.banco)}><Text style={s.textHeader}>BANCO</Text></View>
@@ -271,6 +278,7 @@ function EmpresaSection({ grupo, showPix, logoBase64, isFirst }: { grupo: Empres
         {grupo.funcionarios.map((func, idx) => (
           <View key={func.funcionario_id} style={idx % 2 === 0 ? s.tableRow : s.tableRowAlt} wrap={false}>
             <View style={cell(cols.matricula)}><Text style={[s.textSmall, { textAlign: 'center' }]}>{func.matricula || '-'}</Text></View>
+            <View style={cell(cols.cc)}><Text style={[s.textSmall, { textAlign: 'center' }]}>{func.codigo_centro_custo}</Text></View>
             <View style={cell(cols.nome)}><Text style={[s.textNormal, { textTransform: 'uppercase' as const }]}>{func.nome}</Text></View>
             <View style={cell(cols.cpf)}><Text style={s.textSmall}>{func.cpf}</Text></View>
             <View style={cell(cols.banco)}><Text style={s.textSmall}>{func.banco}</Text></View>
@@ -296,6 +304,23 @@ function EmpresaSection({ grupo, showPix, logoBase64, isFirst }: { grupo: Empres
   );
 }
 
+function buildCCSummary(grupos: EmpresaGroup[]): { codigo: string; nome: string; total: number }[] {
+  const ccMap = new Map<string, { nome: string; total: number }>();
+  grupos.forEach(g => {
+    g.funcionarios.forEach(f => {
+      const key = f.codigo_centro_custo || '-';
+      if (ccMap.has(key)) {
+        ccMap.get(key)!.total += f.valor_total;
+      } else {
+        ccMap.set(key, { nome: f.nome_centro_custo || '-', total: f.valor_total });
+      }
+    });
+  });
+  return Array.from(ccMap.entries())
+    .map(([codigo, v]) => ({ codigo, nome: v.nome, total: v.total }))
+    .sort((a, b) => a.codigo.localeCompare(b.codigo));
+}
+
 export function RelatorioRemessaPDFDocument({ relatorio, periodoLabel, logoUrl, logoMap, tipoRemessa }: RelatorioRemessaPDFProps) {
   const grupos = buildEmpresaGroups(relatorio, tipoRemessa);
   const totalGeral = grupos.reduce((acc, g) => acc + g.total_geral, 0);
@@ -314,6 +339,8 @@ export function RelatorioRemessaPDFDocument({ relatorio, periodoLabel, logoUrl, 
       </Document>
     );
   }
+
+  const ccSummary = buildCCSummary(grupos);
 
   return (
     <Document>
@@ -347,6 +374,32 @@ export function RelatorioRemessaPDFDocument({ relatorio, periodoLabel, logoUrl, 
           </View>
           <View style={{ width: '20%', justifyContent: 'center', paddingRight: 6 }}>
             <Text style={s.grandTotalValue}>{formatCurrency(totalGeral)}</Text>
+          </View>
+        </View>
+
+        {/* Resumo por Centro de Custo */}
+        <View style={{ marginTop: 14 }} wrap={false}>
+          <Text style={{ fontSize: 10, fontFamily: 'Roboto', fontWeight: 'bold', marginBottom: 4 }}>RESUMO POR CENTRO DE CUSTO</Text>
+          <View style={{ ...BORDER }}>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', minHeight: 20, backgroundColor: '#f2f2f2' }}>
+              <View style={cell('15%')}><Text style={s.textHeader}>C.C</Text></View>
+              <View style={cell('60%')}><Text style={s.textHeader}>CENTRO DE CUSTO</Text></View>
+              <View style={cell('25%')}><Text style={[s.textHeader, { textAlign: 'right' }]}>TOTAL (R$)</Text></View>
+            </View>
+            {/* Rows */}
+            {ccSummary.map((cc, idx) => (
+              <View key={cc.codigo} style={{ flexDirection: 'row', minHeight: 16, backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
+                <View style={cell('15%')}><Text style={[s.textNormal, { textAlign: 'center', fontWeight: 'bold' }]}>{cc.codigo}</Text></View>
+                <View style={cell('60%')}><Text style={s.textNormal}>{cc.nome}</Text></View>
+                <View style={cell('25%')}><Text style={[s.textRight, { fontWeight: 'bold' }]}>{formatCurrency(cc.total)}</Text></View>
+              </View>
+            ))}
+            {/* Total */}
+            <View style={{ flexDirection: 'row', minHeight: 20, backgroundColor: '#f2f2f2', borderTopWidth: 1, borderTopColor: '#000000' }}>
+              <View style={cell('75%')}><Text style={[s.textBold, { textAlign: 'right', paddingRight: 4 }]}>TOTAL</Text></View>
+              <View style={cell('25%')}><Text style={[s.totalValue, { fontSize: 9 }]}>{formatCurrency(totalGeral)}</Text></View>
+            </View>
           </View>
         </View>
 

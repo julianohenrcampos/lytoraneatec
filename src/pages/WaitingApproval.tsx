@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button";
 import { logoutUser } from "@/lib/auth";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 
 const WaitingApproval: React.FC = () => {
+  usePageTitle("Aguardando Aprovação");
   const navigate = useNavigate();
   const { toast } = useToast();
 

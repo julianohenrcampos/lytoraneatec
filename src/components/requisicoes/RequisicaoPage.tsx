@@ -1,6 +1,6 @@
 
 import React from "react";
-import { FileText, Plus, Download } from "lucide-react";
+import { Plus, Download } from "lucide-react";
 import { useRequisicaoActions } from "@/hooks/useRequisicaoActions";
 import RequisicaoFilters from "./RequisicaoFilters";
 import RequisicaoTable from "./RequisicaoTable";
@@ -45,12 +45,7 @@ const RequisicaoPage: React.FC = () => {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <FileText className="h-6 w-6 text-primary" />
-          <h1 className="text-xl md:text-2xl font-bold">Cadastro de Requisições</h1>
-        </div>
-        
+      <div className="flex justify-end">
         <div className="flex flex-wrap gap-2 sm:flex-nowrap">
           <Button 
             onClick={() => openFormModal()}

@@ -140,6 +140,7 @@ export interface Etapa2FormData {
   documentos_anexados: boolean;
   motivo_mudanca_risco: string;
   motivo_contratacao: string;
+  funcao_nova_id: string;
 }
 
 // FormData completo (combinação das duas etapas)
@@ -182,6 +183,7 @@ export interface AgendamentoExameFormData {
   etapa1_concluida: boolean;
   motivo_mudanca_risco: string;
   motivo_contratacao: string;
+  funcao_nova_id: string;
 }
 
 export interface AgendamentoExameAnexo {
@@ -233,6 +235,7 @@ export interface FuncionarioSelecionado {
   endereco_cidade: string | null;
   endereco_estado: string | null;
   endereco_cep: string | null;
+  data_admissao: string | null;
 }
 
 // Helper functions para badges de status

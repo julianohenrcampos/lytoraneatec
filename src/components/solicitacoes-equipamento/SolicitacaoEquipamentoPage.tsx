@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Settings2, CheckCircle, XCircle } from "lucide-react";
+import { CheckCircle, XCircle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   fetchSolicitacoesEquipamento,
@@ -105,11 +105,7 @@ const SolicitacaoEquipamentoPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <Settings2 className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Solicitações de Equipamento</h1>
-        </div>
+      <div className="flex justify-end">
         <Button onClick={() => setIsFormOpen(true)} className="text-white">
           <Plus className="mr-2 h-4 w-4" />
           Nova Solicitação

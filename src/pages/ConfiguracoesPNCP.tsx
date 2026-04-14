@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import MainLayout from "@/components/layout/MainLayout";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Save, RotateCcw, Settings, Clock, Plus, Pencil, Trash2, ChevronDown, ChevronUp, FolderSearch, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ const DEFAULT_PALAVRAS_EXCLUIR = [
 ];
 
 export default function ConfiguracoesPNCP() {
+  usePageTitle("Configurações PNCP");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   
@@ -325,10 +327,6 @@ const [perfilForm, setPerfilForm] = useState<Partial<PNCPPerfilBusca>>({
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
           <div className="flex-1">
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Settings className="h-6 w-6" />
-              Configurações do Monitoramento PNCP
-            </h1>
             <p className="text-muted-foreground text-sm">
               Configure os parâmetros de busca e perfis para captura de licitações
             </p>

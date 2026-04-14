@@ -15,6 +15,7 @@ import RelatorioAplicacaoTabela from "@/components/relatorio-aplicacao/Relatorio
 import RelatorioAplicacaoObservacoes from "@/components/relatorio-aplicacao/RelatorioAplicacaoObservacoes";
 import RelatorioAplicacaoAnexos from "@/components/relatorio-aplicacao/RelatorioAplicacaoAnexos";
 import RelatorioAplicacaoAssinaturas from "@/components/relatorio-aplicacao/RelatorioAplicacaoAssinaturas";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 
 interface FiltrosFormData {
   centro_custo_id: string;
@@ -23,6 +24,7 @@ interface FiltrosFormData {
 }
 
 const RelatorioAplicacaoDiaria: React.FC = () => {
+  usePageTitle("Relatório de Aplicação Diária");
   // 🔒 PROTEÇÃO DE PÁGINA: Apenas SuperAdm pode acessar
   const { canAccess, isLoading: permissionLoading } = usePermissionGuard({
     requiredPermission: "relatorio_aplicacao_view"

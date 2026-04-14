@@ -60,9 +60,8 @@ export default function DashboardDiarias() {
   return (
     <MainLayout>
       <div className="space-y-6">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-bold text-foreground">Dashboard de Diárias</h1>
-        </div>
+
+
 
         <DashboardDiariasFilters 
           filters={filters} 

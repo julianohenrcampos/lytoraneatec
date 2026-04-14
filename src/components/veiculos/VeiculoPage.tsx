@@ -1,6 +1,6 @@
 
 import React, { useState } from "react";
-import { Truck } from "lucide-react";
+
 import { useVeiculoActions } from "@/hooks/useVeiculoActions";
 import VeiculoFilters from "./VeiculoFilters";
 import VeiculoTable from "./VeiculoTable";
@@ -78,12 +78,7 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <Truck className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Veículos e Equipamentos</h1>
-        </div>
-        
+      <div className="flex justify-end">
         <VeiculoHeaderActions 
           onExport={exportToExcel}
           onImport={() => setIsImportModalOpen(true)}

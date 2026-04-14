@@ -29,8 +29,10 @@ import {
   canCreateAvaliacaoForColaborador,
   checkAvaliacaoObrigatoria
 } from "@/services/apontamentoEquipeService";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 
 const ApontamentoEquipe: React.FC = () => {
+  usePageTitle("Apontamento de Equipe");
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isAvaliacaoModalOpen, setIsAvaliacaoModalOpen] = useState(false);
@@ -240,12 +242,9 @@ const ApontamentoEquipe: React.FC = () => {
     <MainLayout>
       <div className="container mx-auto py-6 space-y-6 px-4 md:px-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Apontamento de Equipe</h1>
-            <p className="text-muted-foreground">
-              Registre a presença e o desempenho dos colaboradores por equipe.
-            </p>
-          </div>
+          <p className="text-muted-foreground">
+            Registre a presença e o desempenho dos colaboradores por equipe.
+          </p>
           <div className="flex gap-2 w-full sm:w-auto flex-row justify-end">
             {canCreateApontamento && equipes.length > 0 && (
               <Button 

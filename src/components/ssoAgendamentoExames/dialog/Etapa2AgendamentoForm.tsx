@@ -26,8 +26,11 @@ import {
   LocalAtendimento,
   calcularDataRegistroCarteira
 } from '@/types/ssoAgendamentoExames';
+import { Funcao } from '@/types/funcao';
 import { formatBrazilianDateForDisplay } from '@/utils/timezoneUtils';
 import { Building2, User, Calendar, Briefcase, AlertTriangle, MessageCircle } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Etapa2AgendamentoFormProps {
   etapa1Data: Etapa1FormData;
@@ -48,6 +51,11 @@ const DIAS_SEMANA_MAP: Record<number, string> = {
   6: 'Sábado'
 };
 
+// Types that should NOT show "Motivo" (contratação) select
+const HIDE_MOTIVO_TIPOS = ['Demissional', 'Retorno ao Trabalho', 'Mudança de Risco'];
+// Types that should NOT show "Documentos Anexos" checkbox
+const HIDE_DOCS_TIPOS = ['Demissional', 'Mudança de Risco'];
+
 export const Etapa2AgendamentoForm: React.FC<Etapa2AgendamentoFormProps> = ({
   etapa1Data,
   formData,
@@ -62,6 +70,23 @@ export const Etapa2AgendamentoForm: React.FC<Etapa2AgendamentoFormProps> = ({
   const dataRegistroCarteira = etapa1Data.data_inicio_prevista 
     ? calcularDataRegistroCarteira(etapa1Data.data_inicio_prevista)
     : '';
+
+  // Fetch funcoes for "Nova Função" select (Mudança de Risco)
+  const { data: funcoesLista } = useQuery({
+    queryKey: ['funcoes-lista-etapa2'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('bd_funcoes')
+        .select('id, nome_funcao, salario_base')
+        .order('nome_funcao');
+      if (error) throw error;
+      return data as Funcao[];
+    },
+    enabled: formData.tipo_exame === 'Mudança de Risco'
+  });
+
+  const showMotivo = !HIDE_MOTIVO_TIPOS.includes(formData.tipo_exame);
+  const showDocsCheckbox = !HIDE_DOCS_TIPOS.includes(formData.tipo_exame);
 
   // Validação de disponibilidade da clínica
   useEffect(() => {
@@ -197,23 +222,45 @@ export const Etapa2AgendamentoForm: React.FC<Etapa2AgendamentoFormProps> = ({
           </div>
           
           {formData.tipo_exame === 'Mudança de Risco' && (
-            <div className="space-y-2">
-              <Label>Motivo da Mudança *</Label>
-              <Select
-                value={formData.motivo_mudanca_risco || ''}
-                onValueChange={(v) => onChange('motivo_mudanca_risco', v)}
-                disabled={disabled}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o motivo..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {MOTIVOS_MUDANCA_RISCO.map((motivo) => (
-                    <SelectItem key={motivo} value={motivo}>{motivo}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <>
+              <div className="space-y-2">
+                <Label>Motivo da Mudança *</Label>
+                <Select
+                  value={formData.motivo_mudanca_risco || ''}
+                  onValueChange={(v) => onChange('motivo_mudanca_risco', v)}
+                  disabled={disabled}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o motivo..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MOTIVOS_MUDANCA_RISCO.map((motivo) => (
+                      <SelectItem key={motivo} value={motivo}>{motivo}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Nova Função *</Label>
+                <Select
+                  value={formData.funcao_nova_id || ''}
+                  onValueChange={(v) => onChange('funcao_nova_id', v)}
+                  disabled={disabled}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a nova função..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {funcoesLista?.map((funcao) => (
+                      <SelectItem key={funcao.id} value={funcao.id}>
+                        {funcao.nome_funcao} {funcao.salario_base ? `(R$ ${funcao.salario_base.toFixed(2)})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
           )}
           
           <div className="space-y-2">
@@ -269,35 +316,39 @@ export const Etapa2AgendamentoForm: React.FC<Etapa2AgendamentoFormProps> = ({
             />
           </div>
           
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="documentos_anexados"
-              checked={formData.documentos_anexados}
-              onCheckedChange={(v) => onChange('documentos_anexados', v)}
-              disabled={disabled}
-            />
-            <Label htmlFor="documentos_anexados" className="cursor-pointer">
-              Possui documentos anexos
-            </Label>
-          </div>
+          {showDocsCheckbox && (
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="documentos_anexados"
+                checked={formData.documentos_anexados}
+                onCheckedChange={(v) => onChange('documentos_anexados', v)}
+                disabled={disabled}
+              />
+              <Label htmlFor="documentos_anexados" className="cursor-pointer">
+                Possui documentos anexos
+              </Label>
+            </div>
+          )}
           
-          <div className="space-y-2">
-            <Label>Motivo *</Label>
-            <Select
-              value={formData.motivo_contratacao || ''}
-              onValueChange={(v) => onChange('motivo_contratacao', v)}
-              disabled={disabled}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o motivo..." />
-              </SelectTrigger>
-              <SelectContent>
-                {MOTIVOS_CONTRATACAO.map((motivo) => (
-                  <SelectItem key={motivo} value={motivo}>{motivo}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {showMotivo && (
+            <div className="space-y-2">
+              <Label>Motivo *</Label>
+              <Select
+                value={formData.motivo_contratacao || ''}
+                onValueChange={(v) => onChange('motivo_contratacao', v)}
+                disabled={disabled}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o motivo..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {MOTIVOS_CONTRATACAO.map((motivo) => (
+                    <SelectItem key={motivo} value={motivo}>{motivo}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
       </Card>
     </div>

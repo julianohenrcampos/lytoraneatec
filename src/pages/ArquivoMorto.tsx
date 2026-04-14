@@ -4,10 +4,12 @@ import { supabase } from '@/integrations/supabase/client';
 import MainLayout from '@/components/layout/MainLayout';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Search, Archive, CheckCircle, XCircle } from 'lucide-react';
+import { Search, CheckCircle, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
+import { usePageTitle } from "@/contexts/PageTitleContext";
 
 const ArquivoMorto = () => {
+  usePageTitle("Arquivo Morto");
   const [busca, setBusca] = useState('');
 
   const { data: registros = [], isLoading } = useQuery({
@@ -34,15 +36,9 @@ const ArquivoMorto = () => {
   return (
     <MainLayout>
       <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <Archive className="h-6 w-6 text-muted-foreground" />
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Arquivo Morto</h1>
-            <p className="text-sm text-muted-foreground">
-              Funcionários desligados — {filtrados.length} registro{filtrados.length !== 1 ? 's' : ''}
-            </p>
-          </div>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          Funcionários desligados — {filtrados.length} registro{filtrados.length !== 1 ? 's' : ''}
+        </p>
 
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

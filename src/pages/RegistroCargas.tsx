@@ -18,8 +18,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar, Download } from "lucide-react";
 import * as XLSX from "xlsx";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 
 const RegistroCargas: React.FC = () => {
+  usePageTitle("Registro de Cargas");
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -193,12 +195,9 @@ const RegistroCargas: React.FC = () => {
     <MainLayout>
       <div className="container mx-auto py-6 space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Registro de Cargas</h1>
-            <p className="text-muted-foreground">
-              Visualize e gerencie as entregas programadas.
-            </p>
-          </div>
+          <p className="text-muted-foreground">
+            Visualize e gerencie as entregas programadas.
+          </p>
           <div className="flex gap-2">
             <Button variant="outline" onClick={handleExport}>
               <Download className="mr-2 h-4 w-4" />

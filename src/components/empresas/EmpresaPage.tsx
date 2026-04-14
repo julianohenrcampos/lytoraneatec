@@ -1,6 +1,6 @@
 
 import React from "react";
-import { Building2 } from "lucide-react";
+
 import { useEmpresaActions } from "@/hooks/useEmpresaActions";
 import { useEmpresaAdmin } from "@/hooks/useEmpresaAdmin";
 import EmpresaFormModal from "./EmpresaFormModal";
@@ -46,12 +46,7 @@ const EmpresaPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <Building2 className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Cadastro de Empresas</h1>
-        </div>
-        
+      <div className="flex justify-end">
         <EmpresaHeaderActions 
           onNewEmpresa={() => openFormModal()}
           onExport={exportToExcel}

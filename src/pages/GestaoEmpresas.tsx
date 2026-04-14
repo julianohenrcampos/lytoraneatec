@@ -4,8 +4,10 @@ import MainLayout from "@/components/layout/MainLayout";
 import EmpresaPage from "@/components/empresas/EmpresaPage";
 import { usePermissionGuard } from "@/hooks/usePermissionGuard";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 
 const GestaoEmpresas: React.FC = () => {
+  usePageTitle("Cadastro de Empresas");
   const { isSuperAdmin } = useUserPermissions();
   const { canAccess, isLoading } = usePermissionGuard({
     requiredPermission: "gestao_rh_empresas_view"

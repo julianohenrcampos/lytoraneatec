@@ -1,6 +1,6 @@
 
 import React, { useState } from "react";
-import { Users } from "lucide-react";
+
 import { useEquipeActions } from "@/hooks/useEquipeActions";
 import EquipeFormModal from "./EquipeFormModal";
 import EquipeDetailsModal from "./EquipeDetailsModal";
@@ -71,12 +71,7 @@ const EquipePage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <Users className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Cadastro de Equipes</h1>
-        </div>
-        
+      <div className="flex justify-end">
         <EquipeHeaderActions 
           onNewEquipe={() => openFormModal()}
           onExport={() => exportToExcel(equipes)}

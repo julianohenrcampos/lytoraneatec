@@ -10,13 +10,13 @@ import EquipamentosPorCentroCusto from "@/components/dashboard/maquinas/Equipame
 import UtilizacaoEficienciaRosca from "@/components/dashboard/maquinas/UtilizacaoEficienciaRosca";
 import SaudeFrota from "@/components/dashboard/maquinas/SaudeFrota";
 import ResumoCustos from "@/components/dashboard/maquinas/ResumoCustos";
-import UpdateEquipmentStatusButton from "@/components/dashboard/maquinas/UpdateEquipmentStatusButton";
+
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePageTitle } from "@/contexts/PageTitleContext";
 
 export default function DashboardMaquinas() {
-  usePageTitle("Gestão de Máquinas");
+  usePageTitle("Dashboard Máquinas");
   const isMobile = useIsMobile();
   
   // Estado dos filtros
@@ -114,13 +114,8 @@ export default function DashboardMaquinas() {
     return (
       <MainLayout>
         <div className="flex flex-col gap-4 p-2">
-          {/* Header compacto com botão de atualização */}
-          <div className="flex flex-col gap-2">
-            <div className="flex justify-between items-start">
-              <div></div>
-              <UpdateEquipmentStatusButton onStatusUpdated={handleStatusUpdated} />
-            </div>
-          </div>
+
+
 
           {/* Filtros compactos */}
           <MaquinasFiltros
@@ -207,12 +202,8 @@ export default function DashboardMaquinas() {
   return (
     <MainLayout>
       <div className="flex flex-col gap-6 p-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div></div>
-          
-          {/* Botão de atualização de status */}
-          <UpdateEquipmentStatusButton onStatusUpdated={handleStatusUpdated} />
-        </div>
+
+
 
         <MaquinasFiltros
           filters={filters}

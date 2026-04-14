@@ -2,14 +2,18 @@ import { useState, useMemo, useEffect } from 'react';
 import { format, startOfWeek, endOfWeek, subWeeks, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { Loader2, Calendar, Download, FileArchive, Files, Info } from 'lucide-react';
+import { Loader2, Calendar, Download, FileArchive, Files, Info, Search, Users, CheckSquare, Square } from 'lucide-react';
 import JSZip from 'jszip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DatePickerWithRange } from '@/components/ui/date-picker-range';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { generateRelatorioDiariasPDFPorPeriodoBlob, generateCompiladoDiariasPDFBlob, fetchEmpresaLogosMap, loadImageAsBase64 } from '@/services/pdfService';
 import { generateRelatorioRemessaBlob } from '@/services/pdf/relatorioRemessaPdf';
@@ -23,12 +27,17 @@ interface RelatorioSemanalModalProps {
   gerentesRegionais: { id: string; nome_completo: string }[];
   centrosCusto: { id: string; codigo_centro_custo: string; nome_centro_custo: string; aprovador_diarias_id: string | null }[];
   feriados: string[];
-  // Filtros herdados da página (opcionais)
   defaultCentroCustoIds?: string[];
   defaultEmpresaId?: string;
   defaultTipoVinculo?: string;
   defaultGerenteId?: string;
   defaultSolicitacaoIds?: string[];
+}
+
+interface FuncionarioOption {
+  id: string;
+  nome: string;
+  ativo: boolean;
 }
 
 function calcularUltimaSemana() {
@@ -68,14 +77,26 @@ export function RelatorioSemanalModal({
   const defaultRange = useMemo(() => calcularUltimaSemana(), [open]);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(defaultRange);
 
+  // Employee filter state
+  const [funcionarios, setFuncionarios] = useState<FuncionarioOption[]>([]);
+  const [selectedFuncionarios, setSelectedFuncionarios] = useState<Set<string>>(new Set());
+  const [searchFuncionario, setSearchFuncionario] = useState('');
+  const [isLoadingFuncionarios, setIsLoadingFuncionarios] = useState(false);
+  const [showFuncionarioFilter, setShowFuncionarioFilter] = useState(false);
+
   const hasSolicitacaoFilter = defaultSolicitacaoIds && defaultSolicitacaoIds.length > 0;
 
-  // Quando o modal abre com filtro de solicitações, buscar datas automaticamente
+  // Quando o modal abre com filtro de solicitações, buscar datas e funcionários automaticamente
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setShowFuncionarioFilter(false);
+      setFuncionarios([]);
+      setSelectedFuncionarios(new Set());
+      setSearchFuncionario('');
+      return;
+    }
 
     if (hasSolicitacaoFilter) {
-      // Buscar datas das solicitações selecionadas
       (async () => {
         const { data } = await supabase
           .from('bd_diaria_solicitacoes')
@@ -91,17 +112,96 @@ export function RelatorioSemanalModal({
           setDateRange(calcularUltimaSemana());
         }
       })();
+
+      // Fetch distinct employees from selected solicitations
+      fetchFuncionariosFromSolicitacoes(defaultSolicitacaoIds!);
     } else {
       setDateRange(calcularUltimaSemana());
     }
 
-    // Pre-selecionar gerente da página se disponível
     if (defaultGerenteId && gerentesRegionais.some(g => g.id === defaultGerenteId)) {
       setGerenteSelecionado(defaultGerenteId);
     } else {
       setGerenteSelecionado('todos');
     }
   }, [open, defaultGerenteId, gerentesRegionais, hasSolicitacaoFilter]);
+
+  const fetchFuncionariosFromSolicitacoes = async (solicitacaoIds: string[]) => {
+    setIsLoadingFuncionarios(true);
+    try {
+      // Fetch distinct employees from the view
+      let allRecords: any[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('vw_relatorio_diarias_folha')
+          .select('funcionario_id, nome_funcionario')
+          .in('solicitacao_id', solicitacaoIds)
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        allRecords = allRecords.concat(data || []);
+        hasMore = (data?.length || 0) === pageSize;
+        from += pageSize;
+      }
+
+      // Deduplicate by funcionario_id
+      const uniqueMap = new Map<string, string>();
+      allRecords.forEach(r => {
+        if (r.funcionario_id && !uniqueMap.has(r.funcionario_id)) {
+          uniqueMap.set(r.funcionario_id, r.nome_funcionario || 'Sem nome');
+        }
+      });
+
+      const funcionarioIds = [...uniqueMap.keys()];
+
+      // Fetch status from bd_funcionarios
+      let statusMap: Record<string, string> = {};
+      if (funcionarioIds.length > 0) {
+        const { data: funcData } = await supabase
+          .from('bd_funcionarios')
+          .select('id, situacao')
+          .in('id', funcionarioIds);
+        funcData?.forEach((f: any) => {
+          statusMap[f.id] = f.situacao || 'ativo';
+        });
+      }
+
+      const list: FuncionarioOption[] = funcionarioIds.map(id => ({
+        id,
+        nome: uniqueMap.get(id) || 'Sem nome',
+        ativo: (statusMap[id] || 'ativo').toLowerCase() === 'ativo',
+      })).sort((a, b) => a.nome.localeCompare(b.nome));
+
+      setFuncionarios(list);
+      setSelectedFuncionarios(new Set(list.map(f => f.id)));
+      setShowFuncionarioFilter(true);
+    } catch (err) {
+      console.error('Erro ao buscar funcionários:', err);
+    } finally {
+      setIsLoadingFuncionarios(false);
+    }
+  };
+
+  const filteredFuncionarios = useMemo(() => {
+    if (!searchFuncionario.trim()) return funcionarios;
+    const term = searchFuncionario.toLowerCase();
+    return funcionarios.filter(f => f.nome.toLowerCase().includes(term));
+  }, [funcionarios, searchFuncionario]);
+
+  const toggleFuncionario = (id: string) => {
+    setSelectedFuncionarios(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => setSelectedFuncionarios(new Set(funcionarios.map(f => f.id)));
+  const deselectAll = () => setSelectedFuncionarios(new Set());
 
   const periodoLabel = dateRange?.from && dateRange?.to
     ? `${format(dateRange.from, 'dd/MM/yyyy')} a ${format(dateRange.to, 'dd/MM/yyyy')}`
@@ -127,15 +227,18 @@ export function RelatorioSemanalModal({
       return;
     }
 
+    if (showFuncionarioFilter && selectedFuncionarios.size === 0) {
+      toast.error('Selecione ao menos um funcionário.');
+      return;
+    }
+
     setIsLoading(true);
     try {
       const dataInicio = format(dateRange.from, 'yyyy-MM-dd');
       const dataFim = format(dateRange.to, 'yyyy-MM-dd');
 
-      // Determinar CCs: prioridade defaultCentroCustoIds > gerente selecionado
       let ccIds: string[] = [];
       if (defaultCentroCustoIds && defaultCentroCustoIds.length > 0) {
-        // Filtro de CC da página tem prioridade
         ccIds = defaultCentroCustoIds;
       } else if (gerenteSelecionado !== 'todos') {
         ccIds = centrosCusto
@@ -151,7 +254,6 @@ export function RelatorioSemanalModal({
         .from('vw_relatorio_diarias_folha')
         .select('*');
 
-      // Filtrar por solicitação OU por período
       if (hasSolicitacaoFilter) {
         baseQuery = baseQuery.in('solicitacao_id', defaultSolicitacaoIds!);
       } else {
@@ -174,7 +276,6 @@ export function RelatorioSemanalModal({
         from += pageSize;
       }
 
-      // Aplicar filtros de empresa e tipo vínculo da página (se definidos)
       if (defaultEmpresaId) {
         allData = allData.filter(r => r.empresa_id === defaultEmpresaId);
       }
@@ -184,6 +285,11 @@ export function RelatorioSemanalModal({
         allData = allData.filter(r => r.matricula_funcionario && r.matricula_funcionario.trim() !== '' && r.matricula_funcionario !== '---');
       }
 
+      // Apply employee filter
+      if (showFuncionarioFilter && selectedFuncionarios.size < funcionarios.length) {
+        allData = allData.filter(r => selectedFuncionarios.has(r.funcionario_id));
+      }
+
       if (allData.length === 0) {
         toast.error('Nenhum dado encontrado para o período e filtros selecionados.');
         return;
@@ -191,7 +297,6 @@ export function RelatorioSemanalModal({
 
       const filtros = { data_inicio: dataInicio, data_fim: dataFim };
 
-      // Fetch CC info
       const uniqueCCIds = [...new Set(allData.map(r => r.centro_custo_id).filter(Boolean))];
       const { data: ccsData } = await supabase
         .from('bd_centros_custo')
@@ -225,7 +330,6 @@ export function RelatorioSemanalModal({
         });
       }
 
-      // Compilado data for both types
       const gerentesMapCompilado: Record<string, string> = {};
       gerentesRegionais.forEach(g => { gerentesMapCompilado[g.id] = g.nome_completo; });
 
@@ -239,7 +343,6 @@ export function RelatorioSemanalModal({
         allData, centrosCusto as any, gerentesMapCompilado, feriados, 'sem_remessa'
       );
 
-      // Fetch empresa logos for compilado
       const logoMap = await fetchEmpresaLogosMap(allData);
 
       toast.info('Gerando 5 relatórios, aguarde...');
@@ -268,7 +371,6 @@ export function RelatorioSemanalModal({
         const zipBlob = await zip.generateAsync({ type: 'blob' });
         downloadBlob(zipBlob, `relatorios_diarias_${periodoFileLabel}.zip`);
       } else {
-        // Individual downloads with small delay between each
         for (let i = 0; i < files.length; i++) {
           downloadBlob(files[i].blob, files[i].name);
           if (i < files.length - 1) await new Promise(r => setTimeout(r, 500));
@@ -287,7 +389,7 @@ export function RelatorioSemanalModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
@@ -295,7 +397,7 @@ export function RelatorioSemanalModal({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="space-y-4 py-2 overflow-y-auto flex-1">
           {/* Período */}
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">
@@ -327,6 +429,72 @@ export function RelatorioSemanalModal({
               </SelectContent>
             </Select>
           </div>
+
+          {/* Employee Filter */}
+          {showFuncionarioFilter && (
+            <div className="space-y-2 border rounded-md p-3 bg-muted/30">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-1.5 text-sm">
+                  <Users className="h-4 w-4" />
+                  Funcionários ({selectedFuncionarios.size}/{funcionarios.length})
+                </Label>
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={selectAll}>
+                    <CheckSquare className="h-3.5 w-3.5 mr-1" />
+                    Todos
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={deselectAll}>
+                    <Square className="h-3.5 w-3.5 mr-1" />
+                    Nenhum
+                  </Button>
+                </div>
+              </div>
+
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar funcionário..."
+                  value={searchFuncionario}
+                  onChange={e => setSearchFuncionario(e.target.value)}
+                  className="pl-8 h-8 text-sm"
+                />
+              </div>
+
+              {isLoadingFuncionarios ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-xs text-muted-foreground">Carregando funcionários...</span>
+                </div>
+              ) : (
+                <ScrollArea className="h-[200px]">
+                  <div className="space-y-0.5 pr-3">
+                    {filteredFuncionarios.map(f => (
+                      <label
+                        key={f.id}
+                        className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-muted/50 cursor-pointer text-sm"
+                      >
+                        <Checkbox
+                          checked={selectedFuncionarios.has(f.id)}
+                          onCheckedChange={() => toggleFuncionario(f.id)}
+                        />
+                        <span className={!f.ativo ? 'text-muted-foreground' : ''}>{f.nome}</span>
+                        {!f.ativo && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-destructive border-destructive/30">
+                            Inativo
+                          </Badge>
+                        )}
+                      </label>
+                    ))}
+                    {filteredFuncionarios.length === 0 && (
+                      <p className="text-xs text-muted-foreground text-center py-4">
+                        Nenhum funcionário encontrado.
+                      </p>
+                    )}
+                  </div>
+                </ScrollArea>
+              )}
+            </div>
+          )}
 
           {/* Modo de Download */}
           <div className="space-y-1.5">

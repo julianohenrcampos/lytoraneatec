@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ApexCharts from 'apexcharts';
+import { usePageTitle } from "@/contexts/PageTitleContext";
 
 interface Abastecimento {
   identificador: string;
@@ -70,6 +71,7 @@ function formatDate(date: Date): string {
 }
 
 const App: React.FC = () => {
+  usePageTitle("Reabastecimentos");
   const [username, setUsername] = useState('testekorth@lytoranea');
   const [password, setPassword] = useState('0123456789');
   const [message, setMessage] = useState('');

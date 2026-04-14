@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Building2, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { fetchDiretorias, deleteDiretoria } from "@/services/diretoriaService";
@@ -58,11 +58,7 @@ const DiretoriaPage: React.FC = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <Building2 className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
-          <h1 className="text-lg sm:text-2xl font-bold">Gestão de Diretorias</h1>
-        </div>
+      <div className="flex justify-end">
         <Button onClick={handleNew} size="sm">
           <Plus className="h-4 w-4 mr-1" /> Nova Diretoria
         </Button>

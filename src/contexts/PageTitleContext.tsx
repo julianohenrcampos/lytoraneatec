@@ -30,7 +30,7 @@ export function PageTitleProvider({ children }: { children: React.ReactNode }) {
 export function usePageTitle(title?: string) {
   const context = useContext(PageTitleContext);
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     if (title) {
       context.setPageTitle(title);
     }

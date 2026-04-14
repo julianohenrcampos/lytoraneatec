@@ -50,8 +50,7 @@ const ProgramacaoEntregaPage: React.FC = () => {
 
   return (
     <div className="container py-6 space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Programação de Entrega</h1>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-end">
         <ProgramacaoEntregaHeaderActions 
           onNewClick={() => openFormModal()} 
           onExport={exportToExcel}

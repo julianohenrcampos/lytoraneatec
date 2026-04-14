@@ -35,7 +35,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { usePageTitle } from "@/contexts/PageTitleContext";
+import { useCurrentPageHeader } from "@/hooks/useCurrentPageHeader";
 
 interface AppHeaderProps {
   user: any;
@@ -55,7 +55,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const { count: onlineCount, users: onlineUsers } = useOnlineUsers();
-  const { pageTitle } = usePageTitle();
+  const { title: pageTitle, icon: PageIcon } = useCurrentPageHeader();
 
   const displayUser = user || {
     nome_completo: "Usuário",
@@ -145,7 +145,10 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         <div className="flex items-center gap-2">
           <SidebarTrigger />
           {pageTitle && (
-            <span className="font-semibold text-lg hidden sm:block truncate max-w-xs lg:max-w-md">{pageTitle}</span>
+            <div className="hidden sm:flex items-center gap-2">
+              {PageIcon && <PageIcon className="h-5 w-5 text-primary" />}
+              <span className="font-semibold text-lg truncate max-w-xs lg:max-w-md">{pageTitle}</span>
+            </div>
           )}
         </div>
         

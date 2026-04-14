@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Truck } from "lucide-react";
+
 import { fetchSolicitacoesTransporte, SolicitacaoTransporte } from "@/services/centralTransporteService";
 import { SolicitacaoItem } from "@/services/solicitacaoItensService";
 import CentralTransporteFilters from "./CentralTransporteFilters";
@@ -22,10 +22,8 @@ const CentralTransportePage: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <Truck className="h-6 w-6 text-primary" />
-        <h1 className="text-2xl font-bold">Central do Transporte</h1>
-      </div>
+
+
 
       <CentralTransporteFilters filters={filters} onChange={setFilters} />
 

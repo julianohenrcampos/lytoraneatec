@@ -9,6 +9,7 @@ interface FuncionarioRaw {
   email: string | null;
   cpf: string;
   data_nascimento: string | null;
+  data_admissao: string | null;
   agencia: string | null;
   conta_corrente: string | null;
   endereco_rua: string | null;
@@ -22,11 +23,13 @@ interface FuncionarioRaw {
   bd_centros_custo: { nome_centro_custo: string } | null;
 }
 
-export const useFuncionarioSearch = () => {
+export const useFuncionarioSearch = (statusFilter?: string) => {
   const [searchTerm, setSearchTerm] = useState('');
 
+  const statusToFilter = statusFilter || 'Ativo';
+
   const { data: funcionariosRaw, isLoading, error, refetch } = useQuery({
-    queryKey: ['funcionarios-ativos-search'],
+    queryKey: ['funcionarios-search', statusToFilter],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('bd_funcionarios')
@@ -36,6 +39,7 @@ export const useFuncionarioSearch = () => {
           email, 
           cpf, 
           data_nascimento,
+          data_admissao,
           agencia,
           conta_corrente,
           endereco_rua,
@@ -48,7 +52,7 @@ export const useFuncionarioSearch = () => {
           bd_empresas(nome_empresa),
           bd_centros_custo!bd_funcionarios_centro_custo_id_fkey(nome_centro_custo)
         `)
-        .eq('status', 'Ativo')
+        .eq('status', statusToFilter)
         .order('nome_completo');
       if (error) throw error;
       return data as FuncionarioRaw[];
@@ -65,6 +69,7 @@ export const useFuncionarioSearch = () => {
       email: func.email,
       cpf: func.cpf,
       data_nascimento: func.data_nascimento,
+      data_admissao: func.data_admissao,
       telefone_celular: null,
       funcao: func.bd_funcoes?.nome_funcao || '',
       empresa: func.bd_empresas?.nome_empresa || '',

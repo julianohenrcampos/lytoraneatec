@@ -3,9 +3,10 @@ import React, { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import MainLayout from "@/components/layout/MainLayout";
 import VeiculoPage from "@/components/veiculos/VeiculoPage";
-// Storage já configurado via migration
+import { usePageTitle } from "@/contexts/PageTitleContext";
 
 const GestaoCaminhoes: React.FC = () => {
+  usePageTitle("Veículos e Equipamentos");
   const [searchParams] = useSearchParams();
   const situacaoFilter = searchParams.get('situacao');
 

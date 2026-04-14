@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import MainLayout from '@/components/layout/MainLayout';
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import { useSSOChecklist } from '@/hooks/sso/useSSOChecklist';
 import { usePermission } from '@/hooks/usePermission';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ import { generateSSOExcelFormatted } from '@/lib/ssoExcelExport';
 import { toast } from 'sonner';
 
 const SSOChecklistList = () => {
+  usePageTitle("CHECK LIST - AUTOS DE INFRAÇÃO MTE_TAC");
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const {
@@ -99,16 +101,8 @@ const SSOChecklistList = () => {
   };
   return <MainLayout>
       <div className="container mx-auto py-6 space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-bold">CHECK LIST - AUTOS DE INFRAÇÃO MTE_TAC</h1>
-            <p className="text-muted-foreground">
-              Inspeções de Saúde e Segurança Ocupacional
-            </p>
-          </div>
-          
-          <div className="flex flex-wrap gap-2">
+        {/* Actions */}
+        <div className="flex justify-end gap-2">
             {canExportExcel && (
               <Button 
                 variant="outline" 
@@ -129,7 +123,6 @@ const SSOChecklistList = () => {
               <Plus className="mr-2 h-4 w-4" />
               Novo Checklist
             </Button>
-          </div>
         </div>
 
         {/* Filtros */}

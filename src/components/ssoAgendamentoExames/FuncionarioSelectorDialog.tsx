@@ -40,7 +40,8 @@ export const FuncionarioSelectorDialog: React.FC<FuncionarioSelectorDialogProps>
   tipoExame,
   onSelect
 }) => {
-  const { funcionarios, isLoading, error, refetch, searchTerm, setSearchTerm } = useFuncionarioSearch();
+  const statusFilter = tipoExame === 'Retorno ao Trabalho' ? 'INSS' : undefined;
+  const { funcionarios, isLoading, error, refetch, searchTerm, setSearchTerm } = useFuncionarioSearch(statusFilter);
   const [selectedFuncionario, setSelectedFuncionario] = useState<FuncionarioSelecionado | null>(null);
 
   const handleContinue = () => {

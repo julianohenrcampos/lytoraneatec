@@ -299,6 +299,8 @@ export interface RelatorioFolhaItem {
   status_solicitacao: StatusSolicitacao;
   solicitante_id: string | null;
   solicitante_nome: string | null;
+  engenheiro_solicitante_id: string | null;
+  engenheiro_solicitante_nome: string | null;
   apontador_id: string | null;
   apontador_nome: string | null;
   observacoes: string | null;

@@ -76,7 +76,8 @@ const initialEtapa2Data: Etapa2FormData = {
   status: 'Pendente',
   documentos_anexados: false,
   motivo_mudanca_risco: '',
-  motivo_contratacao: ''
+  motivo_contratacao: '',
+  funcao_nova_id: ''
 };
 
 const today = new Date().toISOString().split('T')[0];
@@ -211,7 +212,8 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
           status: agendamento.status || 'Agendado',
           documentos_anexados: agendamento.documentos_anexados || false,
           motivo_mudanca_risco: agendamento.motivo_mudanca_risco || '',
-          motivo_contratacao: agendamento.motivo_contratacao || ''
+          motivo_contratacao: agendamento.motivo_contratacao || '',
+          funcao_nova_id: (agendamento as any).funcao_nova_id || ''
         });
         
         setTecnicoSeguranca(agendamento.tecnico_seguranca || '');
@@ -322,7 +324,7 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
       etapa2Data.horario_agendamento
     );
     if (etapa2Data.tipo_exame === 'Mudança de Risco') {
-      return baseValid && !!etapa2Data.motivo_mudanca_risco;
+      return baseValid && !!etapa2Data.motivo_mudanca_risco && !!etapa2Data.funcao_nova_id;
     }
     if (etapa2Data.tipo_exame === 'Demissional') {
       return baseValid && !!demissionalData.motivo;
@@ -376,14 +378,17 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
   };
 
   const isDemissional = etapa2Data.tipo_exame === 'Demissional';
+  const isRetorno = etapa2Data.tipo_exame === 'Retorno ao Trabalho';
+  const isMudancaRisco = etapa2Data.tipo_exame === 'Mudança de Risco';
+  const skipVT = isDemissional || isRetorno || isMudancaRisco;
 
   const handleNextStep = () => {
     if (currentStep === 1 && !isEtapa1Valid) {
       toast.error('Preencha todos os campos obrigatórios da Etapa 1');
       return;
     }
-    if (currentStep === 2 && isDemissional) {
-      // Pular step 3 (VT) para Demissional, ir direto para Finalizar
+    if (currentStep === 2 && skipVT) {
+      // Pular step 3 (VT) para Demissional, Retorno ao Trabalho e Mudança de Risco
       setVtData(prev => ({ ...prev, skipped: true }));
       setCurrentStep(4);
       return;
@@ -406,7 +411,7 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
   };
 
   const handlePreviousStep = () => {
-    if (currentStep === 4 && isDemissional) {
+    if (currentStep === 4 && skipVT) {
       // Voltar do Finalizar direto para step 2 (pula VT)
       setCurrentStep(2);
       return;
@@ -436,7 +441,8 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
         status_carteira: 'Pendente',
         status_integracao: 'Sem integração',
         etapa_atual: 2,
-        etapa1_concluida: true
+        etapa1_concluida: true,
+        funcao_nova_id: etapa2Data.funcao_nova_id || ''
       };
       
       let savedAgendamentoId = agendamentoId;
@@ -507,7 +513,7 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
     telefone: etapa1Data.telefone_celular,
   }), [etapa1Data]);
 
-  const steps = isDemissional
+  const steps = skipVT
     ? [
         { number: 1, title: 'Cadastro', completed: isEtapa1Valid && currentStep > 1, current: currentStep === 1 },
         { number: 2, title: 'Agendamento', completed: isEtapa2Valid && currentStep > 2, current: currentStep === 2 },
@@ -551,7 +557,7 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
         <StepIndicator 
           steps={steps} 
           onStepClick={(step) => {
-            if (isDemissional) {
+            if (skipVT) {
               if (step === 1) setCurrentStep(1);
               else if (step === 2 && isEtapa1Valid) setCurrentStep(2);
               else if (step === 3 && isEtapa1Valid && isEtapa2Valid) setCurrentStep(4);

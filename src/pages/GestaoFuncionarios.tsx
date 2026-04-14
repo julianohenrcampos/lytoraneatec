@@ -4,8 +4,10 @@ import MainLayout from "@/components/layout/MainLayout";
 import FuncionarioPage from "@/components/funcionarios/FuncionarioPage";
 import FuncionarioImageUploadModal from "@/components/funcionarios/FuncionarioImageUploadModal";
 import { useFuncionarioImageUpload } from "@/hooks/useFuncionarioImageUpload";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 
 const GestaoFuncionarios: React.FC = () => {
+  usePageTitle("Funcionários");
   const { 
     isImageModalOpen, 
     selectedFuncionario, 
