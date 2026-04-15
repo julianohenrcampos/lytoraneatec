@@ -23,3 +23,15 @@ verify_jwt = false
 
 [functions.onboard-fornecedor]
 verify_jwt = false
+
+[functions.registrar-ponto]
+verify_jwt = false
+
+[functions.registrar-ponto-totem]
+verify_jwt = false
+
+[functions.sync-ponto-offline]
+verify_jwt = false
+
+[functions.heartbeat-dispositivo]
+verify_jwt = false

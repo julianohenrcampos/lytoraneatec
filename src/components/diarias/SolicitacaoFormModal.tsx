@@ -4,6 +4,7 @@ import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 import { Combobox } from "@/components/ui/combobox";
 import { Plus, Trash2, Loader2, Users, FileText, Check, ChevronRight, ChevronLeft, Info, Lock, User, Send, ClipboardCheck, AlertTriangle, Calendar, Shield } from "lucide-react";
 import { SmartFuncionarioSearch } from "./SmartFuncionarioSearch";
+import { StatusFuncionarioAlert } from "./StatusFuncionarioAlert";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermission } from "@/hooks/usePermission";
@@ -41,6 +42,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { SolicitacaoFormData, FuncionarioPreConvocado, DiariaSolicitacao } from "@/types/diarias";
 import { useFeriadosPeriodo } from "@/hooks/diarias/useFeriados";
+import { validarStatusFuncionario, validarInconsistencia30Dias, validarStatusPorDia } from "@/services/diarias/antiFraudeService";
 import { 
   analisarPeriodo, 
   calcularEstimativaTotal, 
@@ -98,6 +100,16 @@ export function SolicitacaoFormModal({
   const [responsavelCampoId, setResponsavelCampoId] = useState('');
   const [engenheiroSolicitanteId, setEngenheiroSolicitanteId] = useState('');
   
+  // Anti-fraude states
+  const [antiFraudeAlert, setAntiFraudeAlert] = useState<{
+    isOpen: boolean;
+    tipo: 'ferias' | 'afastado' | 'inativo' | 'inconsistencia';
+    funcionarioNome: string;
+    motivo: string;
+    diasSemApontamento?: number;
+    pendingFuncId?: string;
+  }>({ isOpen: false, tipo: 'ferias', funcionarioNome: '', motivo: '' });
+
   // Selection state for adding funcionarios
   const [selectedFuncionarioId, setSelectedFuncionarioId] = useState('');
   const [attemptedNext, setAttemptedNext] = useState(false);
@@ -408,7 +420,7 @@ export function SolicitacaoFormModal({
   }, [funcionarios]);
 
   // Add funcionario by ID (used by SmartSearch)
-  const handleAddFuncionarioById = (funcId: string) => {
+  const handleAddFuncionarioById = async (funcId: string) => {
     const func = funcionarios.find((f: any) => f.id === funcId);
     if (!func) return;
     
@@ -420,6 +432,41 @@ export function SolicitacaoFormModal({
     if (!func.bd_funcoes) {
       toast.warning(`${func.nome_completo} não possui função cadastrada.`);
       return;
+    }
+
+    // Anti-fraude: validar status na data de início
+    if (dataInicio) {
+      try {
+        const statusResult = await validarStatusFuncionario(funcId, dataInicio);
+        if (statusResult.bloqueado && statusResult.tipo) {
+          setAntiFraudeAlert({
+            isOpen: true,
+            tipo: statusResult.tipo,
+            funcionarioNome: func.nome_completo,
+            motivo: statusResult.motivo || 'Status bloqueado.',
+            pendingFuncId: funcId
+          });
+          return;
+        }
+
+        // Validar inconsistência de 30 dias
+        const inconsistencia = await validarInconsistencia30Dias(funcId, dataInicio);
+        if (inconsistencia.inconsistente) {
+          setAntiFraudeAlert({
+            isOpen: true,
+            tipo: 'inconsistencia',
+            funcionarioNome: func.nome_completo,
+            motivo: inconsistencia.motivo || 'Funcionário com status inconsistente.',
+            diasSemApontamento: inconsistencia.diasSemApontamento
+          });
+          return;
+        }
+      } catch (err: any) {
+        // STATUS_HISTORICO_NAO_ENCONTRADO: permitir, pois o funcionário pode não ter histórico cadastrado ainda
+        if (!err?.message?.includes('STATUS_HISTORICO_NAO_ENCONTRADO')) {
+          console.error('Erro na validação anti-fraude:', err);
+        }
+      }
     }
 
     const novoConvocado: FuncionarioPreConvocado = {
@@ -591,6 +638,7 @@ export function SolicitacaoFormModal({
   };
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[850px] max-h-[92vh]">
         <DialogHeader>
@@ -1217,5 +1265,40 @@ export function SolicitacaoFormModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <StatusFuncionarioAlert
+      isOpen={antiFraudeAlert.isOpen}
+      onClose={() => setAntiFraudeAlert(prev => ({ ...prev, isOpen: false }))}
+      tipo={antiFraudeAlert.tipo}
+      funcionarioNome={antiFraudeAlert.funcionarioNome}
+      motivo={antiFraudeAlert.motivo}
+      diasSemApontamento={antiFraudeAlert.diasSemApontamento}
+      onSolicitarExtraordinario={
+        antiFraudeAlert.tipo === 'ferias'
+          ? () => {
+              setTipoSolicitacao('extraordinaria');
+              setAntiFraudeAlert(prev => ({ ...prev, isOpen: false }));
+              if (antiFraudeAlert.pendingFuncId) {
+                const func = funcionarios.find((f: any) => f.id === antiFraudeAlert.pendingFuncId);
+                if (func?.bd_funcoes) {
+                  setConvocadosPre(prev => [...prev, {
+                    funcionario_id: func.id,
+                    funcao_id: func.funcao_id,
+                    valor_diaria: func.bd_funcoes.valor_diaria || 0,
+                    valor_diaria_exclusiva: func.bd_funcoes.valor_diaria_exclusiva || undefined,
+                    valor_refeicao: func.bd_funcoes.valor_refeicao || 0,
+                    nome_funcionario: func.nome_completo,
+                    nome_funcao: func.bd_funcoes.nome_funcao,
+                    cpf: func.cpf || '',
+                    matricula: func.matricula || ''
+                  }]);
+                  toast.success(`${func.nome_completo} adicionado como extraordinário.`);
+                }
+              }
+            }
+          : undefined
+      }
+    />
+    </>
   );
 }

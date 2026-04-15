@@ -71,14 +71,14 @@ const SecureApontamentoEquipe: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="container mx-auto py-6 space-y-6 px-4 md:px-6">
+      <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div></div>
           <div className="flex gap-2 w-full sm:w-auto flex-row justify-end">
             {canCreateApontamento && allowedTeamIds.length > 0 && (
               <Button 
                 onClick={() => openFormModal()} 
-                className="bg-blue-600 hover:bg-blue-700 text-white h-8 sm:h-10 px-2 sm:px-4 text-sm"
+                className="h-8 sm:h-10 px-2 sm:px-4 text-sm"
                 size="xs"
               >
                 <Plus className="mr-2 h-4 w-4" />

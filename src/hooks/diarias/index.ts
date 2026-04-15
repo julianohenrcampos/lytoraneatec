@@ -62,3 +62,25 @@ export {
 // Gestão de Aprovações
 export { useGestaoAprovacoesDiarias } from './useGestaoAprovacoesDiarias';
 export type { GestaoFluxoRole, GestaoAprovacoesFiltros, GestaoKpis, SolicitacaoGestao } from './useGestaoAprovacoesDiarias';
+
+// Anti-Fraude
+export {
+  useValidarStatusFuncionario,
+  useValidarStatusPorDia,
+  useValidarInconsistencia,
+  useVerificarDuplicidade,
+  useHistoricoStatusFuncionario,
+  useRegistrarStatus,
+  useRegistrarLogComunicacao,
+  useValidacaoCompletaFuncionario
+} from './useAntiFraude';
+
+// Inclusão de Funcionário
+export {
+  useInclusoesPendentes,
+  useContarInclusoesPendentes,
+  useSolicitarInclusao,
+  useAprovarInclusao,
+  useRecusarInclusao,
+  useNotificarAprovadorInclusao
+} from './useInclusaoFuncionario';

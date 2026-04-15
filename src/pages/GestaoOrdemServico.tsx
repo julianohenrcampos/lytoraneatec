@@ -113,13 +113,12 @@ const GestaoOrdemServico: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="container mx-auto py-6">
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between items-center">
           <div className="flex space-x-2">
             <Button 
               onClick={handleExportToExcel}
               variant="outline" 
-              className="border-green-200 text-green-700 hover:bg-green-50"
             >
               <FileDown className="h-4 w-4 mr-2" />
               Exportar

@@ -4,6 +4,8 @@ import { pt } from "date-fns/locale";
 import { 
   Card,
   CardContent,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -21,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarIcon, FilterX } from "lucide-react";
+import { CalendarIcon, Filter } from "lucide-react";
 import { OsFilterParams } from "@/types/ordemServico";
 
 interface OsFiltersProps {
@@ -47,53 +49,30 @@ const OsFilters: React.FC<OsFiltersProps> = ({
   const [dataFim, setDataFim] = useState<Date | undefined>(undefined);
   const [prioridade, setPrioridade] = useState("");
   const [status, setStatus] = useState("");
-  
-  const handleFilter = () => {
+
+  useEffect(() => {
     const filters: OsFilterParams = {};
-    
-    if (numeroOs) {
-      filters.numero_os = numeroOs;
-    }
-    
-    if (caminhaoEquipamentoId && caminhaoEquipamentoId !== "todos") {
-      filters.caminhao_equipamento_id = caminhaoEquipamentoId;
-    }
-    
-    if (dataInicio) {
-      filters.data_inicio = format(dataInicio, "yyyy-MM-dd");
-    }
-    
-    if (dataFim) {
-      filters.data_fim = format(dataFim, "yyyy-MM-dd");
-    }
-    
-    // Priority filter removed for OS - not applicable to OS table
-    
-    if (status && status !== "todos") {
-      filters.status = status;
-    }
-    
+    if (numeroOs) filters.numero_os = numeroOs;
+    if (caminhaoEquipamentoId && caminhaoEquipamentoId !== "todos") filters.caminhao_equipamento_id = caminhaoEquipamentoId;
+    if (dataInicio) filters.data_inicio = format(dataInicio, "yyyy-MM-dd");
+    if (dataFim) filters.data_fim = format(dataFim, "yyyy-MM-dd");
+    if (status && status !== "todos") filters.status = status;
     onApplyFilters(filters);
-  };
-  
-  const handleClear = () => {
-    setNumeroOs("");
-    setCaminhaoEquipamentoId("");
-    setDataInicio(undefined);
-    setDataFim(undefined);
-    setPrioridade("");
-    setStatus("");
-    onClearFilters();
-  };
+  }, [numeroOs, caminhaoEquipamentoId, dataInicio, dataFim, prioridade, status]);
   
   return (
     <Card className="mb-6">
-      <CardContent className="p-4">
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6">
-          <div className="space-y-2">
-            <Label htmlFor="numero-os">Número OS</Label>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Filter className="h-4 w-4" />
+          Filtros
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-4 md:grid-cols-4">
+          <div className="space-y-1.5">
+            <Label>Número OS</Label>
             <Input
-              id="numero-os"
               placeholder="Buscar por número"
               value={numeroOs}
               onChange={(e) => setNumeroOs(e.target.value)}
@@ -101,14 +80,14 @@ const OsFilters: React.FC<OsFiltersProps> = ({
             />
           </div>
           
-          <div className="space-y-2">
-            <Label htmlFor="caminhao">Caminhão/Equipamento</Label>
+          <div className="space-y-1.5">
+            <Label>Caminhão/Equipamento</Label>
             <Select
               value={caminhaoEquipamentoId}
               onValueChange={setCaminhaoEquipamentoId}
               disabled={isLoading}
             >
-              <SelectTrigger id="caminhao" className="bg-white">
+              <SelectTrigger>
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
@@ -122,13 +101,13 @@ const OsFilters: React.FC<OsFiltersProps> = ({
             </Select>
           </div>
           
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label>Data Inicial</Label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
-                  variant={"outline"}
-                  className={`w-full justify-start text-left font-normal bg-white ${
+                  variant="outline"
+                  className={`w-full justify-start text-left font-normal ${
                     !dataInicio && "text-muted-foreground"
                   }`}
                   disabled={isLoading}
@@ -153,13 +132,13 @@ const OsFilters: React.FC<OsFiltersProps> = ({
             </Popover>
           </div>
           
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label>Data Final</Label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
-                  variant={"outline"}
-                  className={`w-full justify-start text-left font-normal bg-white ${
+                  variant="outline"
+                  className={`w-full justify-start text-left font-normal ${
                     !dataFim && "text-muted-foreground"
                   }`}
                   disabled={isLoading}
@@ -185,14 +164,14 @@ const OsFilters: React.FC<OsFiltersProps> = ({
           </div>
           
           {showPriorityFilter && (
-            <div className="space-y-2">
-              <Label htmlFor="prioridade">Prioridade</Label>
+            <div className="space-y-1.5">
+              <Label>Prioridade</Label>
               <Select
                 value={prioridade}
                 onValueChange={setPrioridade}
                 disabled={isLoading}
               >
-                <SelectTrigger id="prioridade" className="bg-white">
+                <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
@@ -207,14 +186,14 @@ const OsFilters: React.FC<OsFiltersProps> = ({
           )}
           
           {showStatusFilter && (
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
+            <div className="space-y-1.5">
+              <Label>Status</Label>
               <Select
                 value={status}
                 onValueChange={setStatus}
                 disabled={isLoading}
               >
-                <SelectTrigger id="status" className="bg-white">
+                <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
@@ -227,21 +206,6 @@ const OsFilters: React.FC<OsFiltersProps> = ({
               </Select>
             </div>
           )}
-          
-          <div className="flex space-x-2 items-end">
-            <Button onClick={handleFilter} disabled={isLoading} className="flex-1">
-              Filtrar
-            </Button>
-            <Button
-              onClick={handleClear}
-              variant="outline"
-              disabled={isLoading}
-              className="flex-1"
-            >
-              <FilterX className="h-4 w-4 mr-1" />
-              Limpar
-            </Button>
-          </div>
         </div>
       </CardContent>
     </Card>

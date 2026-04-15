@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { usePageTitle } from "@/contexts/PageTitleContext";
 import MainLayout from "@/components/layout/MainLayout";
@@ -61,17 +60,14 @@ const ChamadosOS: React.FC = () => {
           setVeiculosDropdown(
             veiculos.map((veiculo: any) => {
               let identificador = "";
-              
               if (veiculo.frota && veiculo.numero_frota) {
                 identificador = `${veiculo.frota}${veiculo.numero_frota}`;
               }
-              
               if (veiculo.placa) {
                 identificador += identificador 
                   ? ` - ${veiculo.placa}` 
                   : veiculo.placa;
               }
-              
               return {
                 id: veiculo.id,
                 label: identificador || `${veiculo.fabricante || ''} ${veiculo.subcategoria?.nome_subcategoria || ''}`.trim() || 'Sem identificação'
@@ -105,8 +101,7 @@ const ChamadosOS: React.FC = () => {
     loadDropdownOptions();
   }, []);
 
-  // Handle conversion to OS from this screen
-  const handleConvertChamadoToOS = (chamado) => {
+  const handleConvertChamadoToOS = (chamado: any) => {
     if (!currentUser) {
       toast({
         title: "Erro",
@@ -116,7 +111,6 @@ const ChamadosOS: React.FC = () => {
       return;
     }
     
-    // Check if the chamado has already been converted
     if (chamado.status !== 'Aberto') {
       toast({
         title: "Aviso",
@@ -145,12 +139,11 @@ const ChamadosOS: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="container mx-auto py-6">
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between items-center">
           <div className="flex space-x-2">
             <Button 
               onClick={() => handleOpenFormModal()}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               <Plus className="h-4 w-4 mr-2" />
               Novo Chamado
@@ -159,7 +152,6 @@ const ChamadosOS: React.FC = () => {
             <Button 
               onClick={handleExportToExcel}
               variant="outline" 
-              className="border-green-200 text-green-700 hover:bg-green-50"
             >
               <FileDown className="h-4 w-4 mr-2" />
               Exportar

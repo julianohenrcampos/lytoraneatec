@@ -51,12 +51,12 @@ const ApontamentoCaminhoes: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="container mx-auto py-6 px-2 md:px-6">
+      <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
           <div className="flex space-x-2 w-full sm:w-auto">
             <Button 
               onClick={() => handleOpenFormModal()}
-              className="bg-blue-600 hover:bg-blue-700 text-white flex-1 sm:flex-none"
+              className="flex-1 sm:flex-none"
             >
               <Plus className="h-4 w-4 mr-2" />
               Novo Apontamento
@@ -65,8 +65,7 @@ const ApontamentoCaminhoes: React.FC = () => {
             {!isMobile && (
               <Button 
                 onClick={handleExportToExcel}
-                variant="outline" 
-                className="border-green-200 text-green-700 hover:bg-green-50"
+                variant="outline"
               >
                 <FileDown className="h-4 w-4 mr-2" />
                 Exportar
@@ -98,7 +97,7 @@ const ApontamentoCaminhoes: React.FC = () => {
               onClick={handleExportToExcel}
               variant="outline" 
               size="sm"
-              className="rounded-full shadow-lg border border-green-300 bg-white text-green-700"
+              className="rounded-full shadow-lg"
             >
               <FileDown className="h-4 w-4 mr-1" />
               Exportar

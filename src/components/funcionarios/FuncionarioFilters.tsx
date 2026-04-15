@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Combobox, ComboboxOption } from "@/components/ui/combobox";
 import { FuncionarioFilter } from "@/types/funcionario";
 import React, { useMemo } from "react";
-import { FilterX, Search } from "lucide-react";
+import { FilterX, Search, Filter } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useIsSmallScreen, useIsMobile } from "@/hooks/use-mobile";
 import { useQuery } from "@tanstack/react-query";
@@ -137,8 +137,11 @@ const FuncionarioFilters: React.FC<FuncionarioFiltersProps> = ({
 
   return (
     <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg font-medium">Filtros</CardTitle>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Filter className="h-4 w-4" />
+          Filtros
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Row 1: Text inputs + Status */}

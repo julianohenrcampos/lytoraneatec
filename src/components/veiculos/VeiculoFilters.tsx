@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useRef } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { VeiculoFilterParams } from "@/types/veiculo";
-import { FilterX, Search } from "lucide-react";
+import { FilterX, Search, Filter } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface VeiculoFiltersProps {
@@ -41,7 +41,7 @@ const SearchDropdown: React.FC<{
   );
 
   return (
-    <div className="space-y-2 relative" ref={ref}>
+    <div className="space-y-1.5 relative" ref={ref}>
       <Label className="text-sm font-medium">{label}</Label>
       <div className="relative">
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -111,37 +111,29 @@ const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
       if (subRes.data) {
         setSubcategorias(subRes.data.map((s) => ({ label: s.nome_subcategoria, value: s.id })));
       }
-
       if (frotaRes.data) {
         const unique = new Map<string, string>();
         frotaRes.data.forEach((item) => {
           const label = [item.frota, item.numero_frota].filter(Boolean).join(" - ");
-          if (label && !unique.has(label)) {
-            unique.set(label, label);
-          }
+          if (label && !unique.has(label)) unique.set(label, label);
         });
         setFrotas(Array.from(unique.keys()).map((l) => ({ label: l, value: l })));
       }
-
       if (placaRes.data) {
         const unique = [...new Set(placaRes.data.map((p) => p.placa).filter(Boolean))];
         setPlacas(unique.map((p) => ({ label: p!, value: p! })));
       }
-
       if (capRes.data) {
         const unique = [...new Set(capRes.data.map((c) => c.capacidade).filter(Boolean))];
         setCapacidades(unique.map((c) => ({ label: c!, value: c! })));
       }
-
       if (empRes.data) {
         setEmpresas(empRes.data.map((e) => ({ label: e.nome_empresa, value: e.id })));
       }
     };
-
     fetchAll();
   }, []);
 
-  // Resolve display values for ID-based filters
   const getSubcategoriaDisplay = () => {
     if (!filters.subcategoria_ativo_id) return "";
     const found = subcategorias.find((s) => s.value === filters.subcategoria_ativo_id);
@@ -156,8 +148,14 @@ const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
 
   return (
     <Card>
-      <CardContent className="pt-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Filter className="h-4 w-4" />
+          Filtros
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-4 md:grid-cols-4">
           <SearchDropdown
             label="Subcategoria"
             placeholder="Buscar subcategoria..."
@@ -168,7 +166,6 @@ const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
               onFilterChange("subcategoria_ativo_id", match ? match.value : "");
             }}
           />
-
           <SearchDropdown
             label="Frota"
             placeholder="Buscar frota..."
@@ -176,7 +173,6 @@ const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
             value={filters.frota || ""}
             onChange={(val) => onFilterChange("frota", val)}
           />
-
           <SearchDropdown
             label="Placa"
             placeholder="Buscar placa..."
@@ -184,7 +180,6 @@ const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
             value={filters.placa || ""}
             onChange={(val) => onFilterChange("placa", val)}
           />
-
           <SearchDropdown
             label="Capacidade"
             placeholder="Buscar capacidade..."
@@ -192,7 +187,6 @@ const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
             value={filters.capacidade || ""}
             onChange={(val) => onFilterChange("capacidade", val)}
           />
-
           <SearchDropdown
             label="Empresa"
             placeholder="Buscar empresa..."
@@ -203,7 +197,6 @@ const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
               onFilterChange("empresa_id", match ? match.value : "");
             }}
           />
-
           <SearchDropdown
             label="Situação"
             placeholder="Buscar situação..."
@@ -217,12 +210,10 @@ const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
           <span className="text-sm text-muted-foreground">
             {isLoading ? "Carregando..." : `${totalVeiculos} registro(s) encontrado(s)`}
           </span>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={onResetFilters}>
-              <FilterX className="h-4 w-4 mr-2" />
-              Limpar filtros
-            </Button>
-          </div>
+          <Button variant="outline" onClick={onResetFilters}>
+            <FilterX className="h-4 w-4 mr-2" />
+            Limpar filtros
+          </Button>
         </div>
       </CardContent>
     </Card>

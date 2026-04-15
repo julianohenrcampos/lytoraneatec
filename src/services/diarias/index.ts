@@ -73,3 +73,27 @@ export {
   notificarApontador,
   getCountPendentesPorAprovador
 } from './diariaNotificationService';
+
+// Anti-Fraude
+export {
+  getStatusFuncionarioNaData,
+  validarStatusFuncionario,
+  validarStatusPorDia,
+  validarInconsistencia30Dias,
+  verificarDuplicidadeSolicitacao,
+  getHistoricoStatusFuncionario,
+  registrarStatusFuncionario,
+  registrarLogComunicacao
+} from './antiFraudeService';
+
+export type { StatusFuncionarioResult } from './antiFraudeService';
+
+// Inclusão de Funcionário (aprovação)
+export {
+  solicitarInclusaoFuncionario,
+  aprovarInclusaoFuncionario,
+  recusarInclusaoFuncionario,
+  listarInclusoesPendentes,
+  contarInclusoesPendentes,
+  notificarAprovadorInclusao
+} from './inclusaoFuncionarioService';

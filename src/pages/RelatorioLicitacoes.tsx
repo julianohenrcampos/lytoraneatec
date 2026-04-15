@@ -18,6 +18,7 @@ import { DonutChart } from "@/components/charts/DonutChart";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell 
@@ -231,69 +232,77 @@ export default function RelatorioLicitacoes() {
           </Button>
         </div>
 
-        {/* Filtros Globais */}
-        <div className="flex flex-wrap items-center gap-3 p-3 bg-muted/50 rounded-lg border">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground font-medium">Filtros:</span>
-
-          <Input
-            type="date"
-            value={filtroPeriodoInicio}
-            onChange={e => setFiltroPeriodoInicio(e.target.value)}
-            className="w-[140px] h-9"
-            placeholder="Data início"
-          />
-          <Input
-            type="date"
-            value={filtroPeriodoFim}
-            onChange={e => setFiltroPeriodoFim(e.target.value)}
-            className="w-[140px] h-9"
-            placeholder="Data fim"
-          />
-
-          <Select value={filtroOrgao} onValueChange={setFiltroOrgao}>
-            <SelectTrigger className="w-[150px] h-9 border-dashed">
-              <SelectValue placeholder="Todos Órgãos" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos Órgãos</SelectItem>
-              {orgaosSigla.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-            </SelectContent>
-          </Select>
-
-          <Select value={filtroArea} onValueChange={setFiltroArea}>
-            <SelectTrigger className="w-[160px] h-9 border-dashed">
-              <SelectValue placeholder="Todas Áreas" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todas Áreas</SelectItem>
-              {areasDisponiveis.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-            </SelectContent>
-          </Select>
-
-          <Select value={filtroPrioridade} onValueChange={setFiltroPrioridade}>
-            <SelectTrigger className="w-[150px] h-9 border-dashed">
-              <SelectValue placeholder="Prioridade" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todas Prioridades</SelectItem>
-              {[1, 2, 3, 4, 5].map(p => (
-                <SelectItem key={p} value={String(p)}>{PRIORIDADE_LABELS[p]}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {temFiltroAtivo && (
-            <>
-              <Button variant="ghost" size="sm" onClick={limparFiltros} className="h-9">
-                Limpar filtros
-              </Button>
-              <span className="text-xs text-muted-foreground ml-auto">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Filter className="h-4 w-4" />
+              Filtros
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-4">
+              <div className="space-y-1.5">
+                <Label>Data Início</Label>
+                <Input
+                  type="date"
+                  value={filtroPeriodoInicio}
+                  onChange={e => setFiltroPeriodoInicio(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Data Fim</Label>
+                <Input
+                  type="date"
+                  value={filtroPeriodoFim}
+                  onChange={e => setFiltroPeriodoFim(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Órgão</Label>
+                <Select value={filtroOrgao} onValueChange={setFiltroOrgao}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos Órgãos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos Órgãos</SelectItem>
+                    {orgaosSigla.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Área</Label>
+                <Select value={filtroArea} onValueChange={setFiltroArea}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todas Áreas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todas Áreas</SelectItem>
+                    {areasDisponiveis.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Prioridade</Label>
+                <Select value={filtroPrioridade} onValueChange={setFiltroPrioridade}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Prioridade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todas Prioridades</SelectItem>
+                    {[1, 2, 3, 4, 5].map(p => (
+                      <SelectItem key={p} value={String(p)}>{PRIORIDADE_LABELS[p]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {temFiltroAtivo && (
+              <div className="flex items-center justify-end mt-4 text-xs text-muted-foreground">
                 {dadosFiltrados.length} de {contratacoes.length} registros
-              </span>
-            </>
-          )}
-        </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {isLoading ? (
           <div className="flex items-center justify-center py-12">

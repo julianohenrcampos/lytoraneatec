@@ -100,7 +100,7 @@ const SSOChecklistList = () => {
     }
   };
   return <MainLayout>
-      <div className="container mx-auto py-6 space-y-6">
+      <div className="space-y-6">
         {/* Actions */}
         <div className="flex justify-end gap-2">
             {canExportExcel && (

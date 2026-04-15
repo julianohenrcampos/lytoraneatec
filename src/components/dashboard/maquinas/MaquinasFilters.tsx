@@ -1,11 +1,11 @@
 
 import React from "react";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Filter, RefreshCw, Calendar } from "lucide-react";
+import { Filter } from "lucide-react";
 import { MaquinasFilters } from "@/types/maquinas";
 
 interface MaquinasFiltrosProps {
@@ -136,39 +136,24 @@ export default function MaquinasFiltros({
   };
 
   return (
-    <Card className="p-4 mb-6">
-      <div className="space-y-4">
-        {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Filtros</span>
-            {filtrosAtivos > 0 && (
-              <Badge variant="outline" className="text-xs">
-                {filtrosAtivos} filtro{filtrosAtivos > 1 ? 's' : ''} ativo{filtrosAtivos > 1 ? 's' : ''}
-              </Badge>
-            )}
-          </div>
-          
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={onResetFilters}
-            className="text-xs h-8 px-3 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors"
-            title="Limpar todos os filtros"
-          >
-            <RefreshCw className="h-3 w-3 mr-1" />
-            Limpar Filtros
-          </Button>
-        </div>
-
-        {/* Filtros Unificados */}
-        <div className="flex flex-wrap items-end gap-4">
-          {/* Período */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">Período</label>
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Filter className="h-4 w-4" />
+          Filtros
+          {filtrosAtivos > 0 && (
+            <Badge variant="outline" className="text-xs ml-2">
+              {filtrosAtivos} ativo{filtrosAtivos > 1 ? 's' : ''}
+            </Badge>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-4 md:grid-cols-4">
+          <div className="space-y-1.5">
+            <Label>Período</Label>
             <Select onValueChange={handlePeriodoChange}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger>
                 <SelectValue placeholder="Selecione o período" />
               </SelectTrigger>
               <SelectContent>
@@ -181,14 +166,13 @@ export default function MaquinasFiltros({
             </Select>
           </div>
 
-          {/* Tipo de Veículo */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">Tipo de Veículo</label>
+          <div className="space-y-1.5">
+            <Label>Tipo de Veículo</Label>
             <Select 
               value={filters.tipoVeiculo && filters.tipoVeiculo.length > 0 ? filters.tipoVeiculo[0] : "_all"} 
               onValueChange={handleTipoVeiculoChange}
             >
-              <SelectTrigger className="w-48">
+              <SelectTrigger>
                 <SelectValue placeholder="Todos os tipos" />
               </SelectTrigger>
               <SelectContent>
@@ -202,14 +186,13 @@ export default function MaquinasFiltros({
             </Select>
           </div>
 
-          {/* Empresa */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">Empresa</label>
+          <div className="space-y-1.5">
+            <Label>Empresa</Label>
             <Select 
               value={filters.empresaId || "_all"} 
               onValueChange={handleEmpresaChange}
             >
-              <SelectTrigger className="w-48">
+              <SelectTrigger>
                 <SelectValue placeholder="Todas as empresas" />
               </SelectTrigger>
               <SelectContent>
@@ -221,11 +204,10 @@ export default function MaquinasFiltros({
             </Select>
           </div>
 
-          {/* Período Rápido (Caminhões) */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">Período Rápido</label>
+          <div className="space-y-1.5">
+            <Label>Período Rápido</Label>
             <Select onValueChange={handlePeriodoPlanejamentoChange}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger>
                 <SelectValue placeholder="Próximos 7 dias" />
               </SelectTrigger>
               <SelectContent>
@@ -238,35 +220,25 @@ export default function MaquinasFiltros({
             </Select>
           </div>
 
-          {/* Data Início */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">Data Início</label>
-            <div className="relative">
-              <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground z-10" />
-              <Input
-                type="date"
-                value={filters.dataInicioPlanejamanento || ""}
-                onChange={(e) => onFilterChange({ dataInicioPlanejamanento: e.target.value })}
-                className="pl-8 w-48"
-              />
-            </div>
+          <div className="space-y-1.5">
+            <Label>Data Início</Label>
+            <Input
+              type="date"
+              value={filters.dataInicioPlanejamanento || ""}
+              onChange={(e) => onFilterChange({ dataInicioPlanejamanento: e.target.value })}
+            />
           </div>
 
-          {/* Data Fim */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">Data Fim</label>
-            <div className="relative">
-              <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground z-10" />
-              <Input
-                type="date"
-                value={filters.dataFimPlanejamento || ""}
-                onChange={(e) => onFilterChange({ dataFimPlanejamento: e.target.value })}
-                className="pl-8 w-48"
-              />
-            </div>
+          <div className="space-y-1.5">
+            <Label>Data Fim</Label>
+            <Input
+              type="date"
+              value={filters.dataFimPlanejamento || ""}
+              onChange={(e) => onFilterChange({ dataFimPlanejamento: e.target.value })}
+            />
           </div>
         </div>
-      </div>
+      </CardContent>
     </Card>
   );
 }

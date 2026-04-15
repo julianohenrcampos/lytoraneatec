@@ -719,13 +719,13 @@ export function buildCompiladoData(
 
   const feriadosSet = new Set(feriados.map(f => f.substring(0, 10)));
 
-  // Group by CC — also track empresa per CC
+  // Group by CC only — consolidate all solicitations for the same CC
   const ccMap = new Map<string, {
     ccId: string;
     codigo: string;
     nome: string;
     gerencia: string;
-    empresaNome: string;
+    empresaContagem: Map<string, number>;
     weekendDates: Map<string, { qtd: number; valor: number }>;
     weekdayDates: Map<string, { qtd: number; valor: number }>;
     totalQtd: number;
@@ -748,24 +748,27 @@ export function buildCompiladoData(
     const isFeriado = feriadosSet.has(dataStr);
     const isFS = isDomingo || isSabado || isFeriado;
 
-    const compositeKey = `${item.centro_custo_id}::${empresaNome}`;
+    const groupKey = item.centro_custo_id;
 
-    if (!ccMap.has(compositeKey)) {
-      ccMap.set(compositeKey, {
-        ccId: compositeKey,
+    if (!ccMap.has(groupKey)) {
+      ccMap.set(groupKey, {
+        ccId: groupKey,
         codigo: ccLabel,
         nome: ccNome,
         gerencia,
-        empresaNome,
+        empresaContagem: new Map(),
         weekendDates: new Map(),
         weekdayDates: new Map(),
         totalQtd: 0,
         totalValor: 0,
       });
     }
-    const entry = ccMap.get(compositeKey)!;
+    const entry = ccMap.get(groupKey)!;
     entry.totalQtd += 1;
     entry.totalValor += valorItem;
+
+    // Track empresa counts to determine predominant empresa per CC
+    entry.empresaContagem.set(empresaNome, (entry.empresaContagem.get(empresaNome) || 0) + 1);
 
     const targetMap = isFS ? entry.weekendDates : entry.weekdayDates;
     const existing = targetMap.get(dataStr) || { qtd: 0, valor: 0 };
@@ -783,7 +786,17 @@ export function buildCompiladoData(
   ccMap.forEach((entry) => {
     totalGeralQuantidade += entry.totalQtd;
     totalGeralValor += entry.totalValor;
-    ccEmpresaMap.set(entry.ccId, entry.empresaNome);
+
+    // Determine predominant empresa for this CC
+    let empresaPredominante = 'Empresa não informada';
+    let maxCount = 0;
+    entry.empresaContagem.forEach((count, emp) => {
+      if (count > maxCount) {
+        maxCount = count;
+        empresaPredominante = emp;
+      }
+    });
+    ccEmpresaMap.set(entry.ccId, empresaPredominante);
 
     const weekendPeriods = groupDatesByPeriod(entry.weekendDates);
     const weekdayPeriods = groupDatesByPeriod(entry.weekdayDates);

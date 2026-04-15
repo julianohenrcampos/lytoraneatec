@@ -19,7 +19,7 @@ const SSODashboard = () => {
   if (isLoading) {
     return (
       <MainLayout>
-        <div className="container mx-auto py-6 space-y-6">
+        <div className="space-y-6">
           <div></div>
 
           <Skeleton className="h-24 w-full" />
@@ -38,7 +38,7 @@ const SSODashboard = () => {
   if (!dashboardData || dashboardData.total_checklists === 0) {
     return (
       <MainLayout>
-        <div className="container mx-auto py-6 space-y-6">
+        <div className="space-y-6">
           <div></div>
           <SSODashboardEmptyState />
         </div>
@@ -48,7 +48,7 @@ const SSODashboard = () => {
 
   return (
     <MainLayout>
-      <div className="container mx-auto py-6 space-y-6">
+      <div className="space-y-6">
         <div></div>
 
         {/* Filtros */}

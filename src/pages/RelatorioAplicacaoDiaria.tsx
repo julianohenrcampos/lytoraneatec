@@ -155,7 +155,7 @@ const RelatorioAplicacaoDiaria: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="container mx-auto p-6 space-y-6 bg-background min-h-screen">
+      <div className="space-y-6">
         {/* Header */}
         <RelatorioAplicacaoHeader />
 

@@ -560,6 +560,60 @@ export type Database = {
           },
         ]
       }
+      bd_aprovacoes_inclusao_funcionario: {
+        Row: {
+          aprovado_por: string | null
+          created_at: string | null
+          data_resposta: string | null
+          data_solicitacao: string | null
+          funcionario_id: string
+          id: string
+          justificativa: string | null
+          solicitacao_id: string
+          solicitado_por: string | null
+          status: string
+        }
+        Insert: {
+          aprovado_por?: string | null
+          created_at?: string | null
+          data_resposta?: string | null
+          data_solicitacao?: string | null
+          funcionario_id: string
+          id?: string
+          justificativa?: string | null
+          solicitacao_id: string
+          solicitado_por?: string | null
+          status?: string
+        }
+        Update: {
+          aprovado_por?: string | null
+          created_at?: string | null
+          data_resposta?: string | null
+          data_solicitacao?: string | null
+          funcionario_id?: string
+          id?: string
+          justificativa?: string | null
+          solicitacao_id?: string
+          solicitado_por?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_aprovacoes_inclusao_funcionario_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_aprovacoes_inclusao_funcionario_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_arquivo_morto: {
         Row: {
           cpf: string | null
@@ -1446,6 +1500,7 @@ export type Database = {
           modificado_por: string | null
           nome_alterdata: string | null
           nome_centro_custo: string
+          raio_ponto_metros: number | null
           situacao: string | null
           telefone: string | null
           updated_at: string | null
@@ -1472,6 +1527,7 @@ export type Database = {
           modificado_por?: string | null
           nome_alterdata?: string | null
           nome_centro_custo: string
+          raio_ponto_metros?: number | null
           situacao?: string | null
           telefone?: string | null
           updated_at?: string | null
@@ -1498,6 +1554,7 @@ export type Database = {
           modificado_por?: string | null
           nome_alterdata?: string | null
           nome_centro_custo?: string
+          raio_ponto_metros?: number | null
           situacao?: string | null
           telefone?: string | null
           updated_at?: string | null
@@ -2103,6 +2160,7 @@ export type Database = {
           presente: boolean | null
           recebe_refeicao: boolean | null
           solicitacao_id: string
+          tipo_apontamento: string | null
           tipo_diaria: string | null
           turno: string
           updated_at: string | null
@@ -2127,6 +2185,7 @@ export type Database = {
           presente?: boolean | null
           recebe_refeicao?: boolean | null
           solicitacao_id: string
+          tipo_apontamento?: string | null
           tipo_diaria?: string | null
           turno?: string
           updated_at?: string | null
@@ -2151,6 +2210,7 @@ export type Database = {
           presente?: boolean | null
           recebe_refeicao?: boolean | null
           solicitacao_id?: string
+          tipo_apontamento?: string | null
           tipo_diaria?: string | null
           turno?: string
           updated_at?: string | null
@@ -3052,6 +3112,47 @@ export type Database = {
           },
         ]
       }
+      bd_funcionario_status_historico: {
+        Row: {
+          created_at: string | null
+          data_fim: string | null
+          data_inicio: string
+          funcionario_id: string
+          id: string
+          motivo: string | null
+          registrado_por: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string | null
+          data_fim?: string | null
+          data_inicio: string
+          funcionario_id: string
+          id?: string
+          motivo?: string | null
+          registrado_por?: string | null
+          status: string
+        }
+        Update: {
+          created_at?: string | null
+          data_fim?: string | null
+          data_inicio?: string
+          funcionario_id?: string
+          id?: string
+          motivo?: string | null
+          registrado_por?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_funcionario_status_historico_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_funcionarios: {
         Row: {
           adicional_noturno: number | null
@@ -3789,6 +3890,47 @@ export type Database = {
           },
         ]
       }
+      bd_log_comunicacao: {
+        Row: {
+          created_at: string | null
+          destinatario: string | null
+          enviado_por: string | null
+          funcionario_id: string | null
+          id: string
+          mensagem: string | null
+          metadata: Json | null
+          tipo: string
+        }
+        Insert: {
+          created_at?: string | null
+          destinatario?: string | null
+          enviado_por?: string | null
+          funcionario_id?: string | null
+          id?: string
+          mensagem?: string | null
+          metadata?: Json | null
+          tipo?: string
+        }
+        Update: {
+          created_at?: string | null
+          destinatario?: string | null
+          enviado_por?: string | null
+          funcionario_id?: string | null
+          id?: string
+          mensagem?: string | null
+          metadata?: Json | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_log_comunicacao_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_matching_config: {
         Row: {
           ativo: boolean
@@ -4086,6 +4228,7 @@ export type Database = {
       }
       bd_notificacoes: {
         Row: {
+          acao_realizada: boolean | null
           created_at: string | null
           created_by: string | null
           id: string
@@ -4096,6 +4239,7 @@ export type Database = {
           titulo: string
         }
         Insert: {
+          acao_realizada?: boolean | null
           created_at?: string | null
           created_by?: string | null
           id?: string
@@ -4106,6 +4250,7 @@ export type Database = {
           titulo: string
         }
         Update: {
+          acao_realizada?: boolean | null
           created_at?: string | null
           created_by?: string | null
           id?: string
@@ -5004,6 +5149,468 @@ export type Database = {
             columns: ["sync_id"]
             isOneToOne: false
             referencedRelation: "bd_pncp_sync_log"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_ponto_ajustes: {
+        Row: {
+          aprovado_em: string | null
+          aprovado_por: string | null
+          batida_original_id: string | null
+          campo_alterado: string | null
+          created_at: string | null
+          funcionario_id: string
+          id: string
+          motivo: string
+          solicitado_por: string
+          status: string | null
+          tipo_ajuste: string
+          valor_anterior: string | null
+          valor_novo: string | null
+        }
+        Insert: {
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          batida_original_id?: string | null
+          campo_alterado?: string | null
+          created_at?: string | null
+          funcionario_id: string
+          id?: string
+          motivo: string
+          solicitado_por: string
+          status?: string | null
+          tipo_ajuste: string
+          valor_anterior?: string | null
+          valor_novo?: string | null
+        }
+        Update: {
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          batida_original_id?: string | null
+          campo_alterado?: string | null
+          created_at?: string | null
+          funcionario_id?: string
+          id?: string
+          motivo?: string
+          solicitado_por?: string
+          status?: string | null
+          tipo_ajuste?: string
+          valor_anterior?: string | null
+          valor_novo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_ponto_ajustes_aprovado_por_fkey"
+            columns: ["aprovado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_ajustes_batida_original_id_fkey"
+            columns: ["batida_original_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ponto_batidas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_ajustes_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_ajustes_solicitado_por_fkey"
+            columns: ["solicitado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_ponto_audit_log: {
+        Row: {
+          acao: string
+          created_at: string | null
+          dados_anteriores: Json | null
+          dados_novos: Json | null
+          id: string
+          ip: string | null
+          registro_id: string | null
+          tabela: string
+          usuario_id: string | null
+        }
+        Insert: {
+          acao: string
+          created_at?: string | null
+          dados_anteriores?: Json | null
+          dados_novos?: Json | null
+          id?: string
+          ip?: string | null
+          registro_id?: string | null
+          tabela: string
+          usuario_id?: string | null
+        }
+        Update: {
+          acao?: string
+          created_at?: string | null
+          dados_anteriores?: Json | null
+          dados_novos?: Json | null
+          id?: string
+          ip?: string | null
+          registro_id?: string | null
+          tabela?: string
+          usuario_id?: string | null
+        }
+        Relationships: []
+      }
+      bd_ponto_batidas: {
+        Row: {
+          centro_custo_id: string | null
+          created_at: string | null
+          data_hora_considerada: string | null
+          data_hora_dispositivo: string
+          data_hora_servidor: string | null
+          data_operacional: string | null
+          dentro_raio: boolean | null
+          device_fingerprint: string | null
+          dispositivo_id: string | null
+          distancia_centro_metros: number | null
+          foto_url: string | null
+          funcionario_id: string
+          id: string
+          ip_address: string | null
+          justificativa: string | null
+          latitude: number | null
+          longitude: number | null
+          modificado_por: string | null
+          modo_registro: Database["public"]["Enums"]["ponto_modo_registro"]
+          offline_uuid: string | null
+          origem_dados: string | null
+          precisao_gps_metros: number | null
+          status_sync: Database["public"]["Enums"]["ponto_status_sync"] | null
+          status_validacao:
+            | Database["public"]["Enums"]["ponto_status_validacao"]
+            | null
+          tipo_batida: Database["public"]["Enums"]["ponto_tipo_batida"]
+          updated_at: string | null
+          user_agent: string | null
+          validado_em: string | null
+          validado_por: string | null
+        }
+        Insert: {
+          centro_custo_id?: string | null
+          created_at?: string | null
+          data_hora_considerada?: string | null
+          data_hora_dispositivo: string
+          data_hora_servidor?: string | null
+          data_operacional?: string | null
+          dentro_raio?: boolean | null
+          device_fingerprint?: string | null
+          dispositivo_id?: string | null
+          distancia_centro_metros?: number | null
+          foto_url?: string | null
+          funcionario_id: string
+          id?: string
+          ip_address?: string | null
+          justificativa?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          modificado_por?: string | null
+          modo_registro: Database["public"]["Enums"]["ponto_modo_registro"]
+          offline_uuid?: string | null
+          origem_dados?: string | null
+          precisao_gps_metros?: number | null
+          status_sync?: Database["public"]["Enums"]["ponto_status_sync"] | null
+          status_validacao?:
+            | Database["public"]["Enums"]["ponto_status_validacao"]
+            | null
+          tipo_batida: Database["public"]["Enums"]["ponto_tipo_batida"]
+          updated_at?: string | null
+          user_agent?: string | null
+          validado_em?: string | null
+          validado_por?: string | null
+        }
+        Update: {
+          centro_custo_id?: string | null
+          created_at?: string | null
+          data_hora_considerada?: string | null
+          data_hora_dispositivo?: string
+          data_hora_servidor?: string | null
+          data_operacional?: string | null
+          dentro_raio?: boolean | null
+          device_fingerprint?: string | null
+          dispositivo_id?: string | null
+          distancia_centro_metros?: number | null
+          foto_url?: string | null
+          funcionario_id?: string
+          id?: string
+          ip_address?: string | null
+          justificativa?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          modificado_por?: string | null
+          modo_registro?: Database["public"]["Enums"]["ponto_modo_registro"]
+          offline_uuid?: string | null
+          origem_dados?: string | null
+          precisao_gps_metros?: number | null
+          status_sync?: Database["public"]["Enums"]["ponto_status_sync"] | null
+          status_validacao?:
+            | Database["public"]["Enums"]["ponto_status_validacao"]
+            | null
+          tipo_batida?: Database["public"]["Enums"]["ponto_tipo_batida"]
+          updated_at?: string | null
+          user_agent?: string | null
+          validado_em?: string | null
+          validado_por?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_ponto_batidas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_batidas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_batidas_dispositivo_id_fkey"
+            columns: ["dispositivo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ponto_dispositivos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_batidas_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_batidas_validado_por_fkey"
+            columns: ["validado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_ponto_config: {
+        Row: {
+          centro_custo_id: string
+          created_at: string | null
+          exige_foto: boolean | null
+          exige_gps: boolean | null
+          horario_entrada_padrao: string | null
+          horario_saida_padrao: string | null
+          id: string
+          intervalo_minimo_min: number | null
+          jornada_padrao_horas: number | null
+          permite_ponto_fora_raio: boolean | null
+          retencao_fotos_dias: number | null
+          tolerancia_minutos: number | null
+          updated_at: string | null
+          vigente_desde: string | null
+        }
+        Insert: {
+          centro_custo_id: string
+          created_at?: string | null
+          exige_foto?: boolean | null
+          exige_gps?: boolean | null
+          horario_entrada_padrao?: string | null
+          horario_saida_padrao?: string | null
+          id?: string
+          intervalo_minimo_min?: number | null
+          jornada_padrao_horas?: number | null
+          permite_ponto_fora_raio?: boolean | null
+          retencao_fotos_dias?: number | null
+          tolerancia_minutos?: number | null
+          updated_at?: string | null
+          vigente_desde?: string | null
+        }
+        Update: {
+          centro_custo_id?: string
+          created_at?: string | null
+          exige_foto?: boolean | null
+          exige_gps?: boolean | null
+          horario_entrada_padrao?: string | null
+          horario_saida_padrao?: string | null
+          id?: string
+          intervalo_minimo_min?: number | null
+          jornada_padrao_horas?: number | null
+          permite_ponto_fora_raio?: boolean | null
+          retencao_fotos_dias?: number | null
+          tolerancia_minutos?: number | null
+          updated_at?: string | null
+          vigente_desde?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_ponto_config_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: true
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_config_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: true
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+        ]
+      }
+      bd_ponto_dispositivos: {
+        Row: {
+          ativo: boolean | null
+          centro_custo_id: string
+          codigo_dispositivo: string
+          created_at: string | null
+          device_secret_hash: string | null
+          id: string
+          latitude_fixa: number | null
+          longitude_fixa: number | null
+          nome: string
+          registrado_por: string | null
+          ultimo_heartbeat: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          centro_custo_id: string
+          codigo_dispositivo: string
+          created_at?: string | null
+          device_secret_hash?: string | null
+          id?: string
+          latitude_fixa?: number | null
+          longitude_fixa?: number | null
+          nome: string
+          registrado_por?: string | null
+          ultimo_heartbeat?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          centro_custo_id?: string
+          codigo_dispositivo?: string
+          created_at?: string | null
+          device_secret_hash?: string | null
+          id?: string
+          latitude_fixa?: number | null
+          longitude_fixa?: number | null
+          nome?: string
+          registrado_por?: string | null
+          ultimo_heartbeat?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_ponto_dispositivos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_dispositivos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_dispositivos_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_ponto_vinculos_operacionais: {
+        Row: {
+          ativo: boolean | null
+          centro_custo_id: string
+          created_at: string | null
+          criado_por: string | null
+          data_fim: string | null
+          data_inicio: string
+          equipe_id: string | null
+          funcionario_id: string
+          id: string
+          tipo_vinculo: Database["public"]["Enums"]["ponto_tipo_vinculo"]
+          updated_at: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          centro_custo_id: string
+          created_at?: string | null
+          criado_por?: string | null
+          data_fim?: string | null
+          data_inicio: string
+          equipe_id?: string | null
+          funcionario_id: string
+          id?: string
+          tipo_vinculo: Database["public"]["Enums"]["ponto_tipo_vinculo"]
+          updated_at?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          centro_custo_id?: string
+          created_at?: string | null
+          criado_por?: string | null
+          data_fim?: string | null
+          data_inicio?: string
+          equipe_id?: string | null
+          funcionario_id?: string
+          id?: string
+          tipo_vinculo?: Database["public"]["Enums"]["ponto_tipo_vinculo"]
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_ponto_vinculos_operacionais_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_vinculos_operacionais_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_vinculos_operacionais_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_vinculos_operacionais_equipe_id_fkey"
+            columns: ["equipe_id"]
+            isOneToOne: false
+            referencedRelation: "bd_equipes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_vinculos_operacionais_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
             referencedColumns: ["id"]
           },
         ]
@@ -7283,6 +7890,10 @@ export type Database = {
         Returns: Json
       }
       finalizar_carga_manual: { Args: { carga_id: string }; Returns: Json }
+      fn_calcular_distancia_haversine: {
+        Args: { lat1: number; lat2: number; lon1: number; lon2: number }
+        Returns: number
+      }
       fn_calcular_nota_checklist: {
         Args: { p_checklist_id: string }
         Returns: Json
@@ -7326,6 +7937,7 @@ export type Database = {
         Args: { p_checklist_id?: string; p_obra_id: string }
         Returns: string[]
       }
+      get_funcionario_id_for_auth: { Args: never; Returns: string }
       get_funcionarios_para_diarias: {
         Args: never
         Returns: {
@@ -7352,6 +7964,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_status_funcionario_na_data: {
+        Args: { p_data: string; p_funcionario_id: string }
+        Returns: string
+      }
       get_ultimo_horimetro_privilegiado: {
         Args: { caminhao_id: string }
         Returns: number
@@ -7363,6 +7979,7 @@ export type Database = {
         Returns: boolean
       }
       has_pncp_access: { Args: { p_user_id?: string }; Returns: boolean }
+      has_ponto_permission: { Args: { _permission: string }; Returns: boolean }
       has_sso_full_access: { Args: { p_user_id?: string }; Returns: boolean }
       has_sso_permission: { Args: { p_user_id?: string }; Returns: boolean }
       iniciar_fluxo_dinamico: {
@@ -7374,6 +7991,7 @@ export type Database = {
         Returns: boolean
       }
       is_departmental_super_admin: { Args: never; Returns: boolean }
+      is_ponto_superadmin: { Args: never; Returns: boolean }
       is_super_admin: { Args: { p_user_id: string }; Returns: boolean }
       liberar_proxima_etapa_dinamica: {
         Args: { p_solicitacao_id: string }
@@ -7510,6 +8128,19 @@ export type Database = {
     Enums: {
       confiabilidade_previsao_enum: "ALTA" | "MEDIA" | "BAIXA"
       origem_localizacao_enum: "CENTRO_CUSTO" | "MANUAL" | "TELEMETRIA"
+      ponto_modo_registro: "pwa_pessoal" | "totem"
+      ponto_status_sync: "sincronizado" | "pendente_sync" | "erro_sync"
+      ponto_status_validacao:
+        | "valida"
+        | "pendente_revisao"
+        | "invalidada"
+        | "ajuste_manual"
+      ponto_tipo_batida:
+        | "entrada"
+        | "intervalo_inicio"
+        | "intervalo_fim"
+        | "saida"
+      ponto_tipo_vinculo: "fixo" | "temporario" | "mobilizado" | "compartilhado"
       prioridade_solicitacao_enum: "NORMAL" | "ALTA" | "URGENTE"
       status_operacional_enum:
         | "DISPONIVEL"
@@ -7650,6 +8281,21 @@ export const Constants = {
     Enums: {
       confiabilidade_previsao_enum: ["ALTA", "MEDIA", "BAIXA"],
       origem_localizacao_enum: ["CENTRO_CUSTO", "MANUAL", "TELEMETRIA"],
+      ponto_modo_registro: ["pwa_pessoal", "totem"],
+      ponto_status_sync: ["sincronizado", "pendente_sync", "erro_sync"],
+      ponto_status_validacao: [
+        "valida",
+        "pendente_revisao",
+        "invalidada",
+        "ajuste_manual",
+      ],
+      ponto_tipo_batida: [
+        "entrada",
+        "intervalo_inicio",
+        "intervalo_fim",
+        "saida",
+      ],
+      ponto_tipo_vinculo: ["fixo", "temporario", "mobilizado", "compartilhado"],
       prioridade_solicitacao_enum: ["NORMAL", "ALTA", "URGENTE"],
       status_operacional_enum: [
         "DISPONIVEL",

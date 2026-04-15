@@ -125,19 +125,18 @@ export default function Dashboard1() {
   if (authLoading) {
     return (
       <MainLayout>
-        <ResponsiveContainer className="pt-6 pb-10">
+        <div className="space-y-6">
           <div className="flex justify-center items-center h-[70vh]">
             <p className="text-lg text-muted-foreground">Carregando...</p>
           </div>
-        </ResponsiveContainer>
+        </div>
       </MainLayout>
     );
   }
 
   return (
     <MainLayout>
-      <ResponsiveContainer className="pt-6 pb-10">
-        <div className="flex flex-col space-y-6">
+        <div className="space-y-6">
            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div></div>
             
@@ -173,7 +172,6 @@ export default function Dashboard1() {
             getDateRange={getDateRange}
           />
         </div>
-      </ResponsiveContainer>
     </MainLayout>
   );
 }

@@ -113,7 +113,7 @@ export default function DashboardMaquinas() {
   if (isMobile) {
     return (
       <MainLayout>
-        <div className="flex flex-col gap-4 p-2">
+        <div className="space-y-6">
 
 
 
@@ -201,7 +201,7 @@ export default function DashboardMaquinas() {
   // Layout desktop (mantém o original)
   return (
     <MainLayout>
-      <div className="flex flex-col gap-6 p-6">
+      <div className="space-y-6">
 
 
 

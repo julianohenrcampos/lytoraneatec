@@ -1,11 +1,11 @@
 
 import React from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarIcon, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { CalendarIcon, Filter } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
@@ -32,7 +32,6 @@ const RequisicaoFilters: React.FC<RequisicaoFiltersProps> = ({
   const isMobile = useIsMobile();
   const { isSuperAdmin } = usePermission();
   
-  // Fetch centros de custo for dropdown
   const {
     data: centrosCusto = []
   } = useQuery({
@@ -46,16 +45,12 @@ const RequisicaoFilters: React.FC<RequisicaoFiltersProps> = ({
     }
   });
 
-  // Fetch engenheiros for dropdown
   const {
     data: engenheiros = []
   } = useQuery({
     queryKey: ['engenheiros'],
     queryFn: async () => {
-      const {
-        data,
-        error
-      } = await supabase.from('bd_funcionarios').select('id, nome_completo').order('nome_completo');
+      const { data, error } = await supabase.from('bd_funcionarios').select('id, nome_completo').order('nome_completo');
       if (error) throw error;
       return data;
     }
@@ -63,16 +58,20 @@ const RequisicaoFilters: React.FC<RequisicaoFiltersProps> = ({
 
   return (
     <Card>
-      <CardContent className="pt-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Número da Requisição */}
-          <div className="space-y-1">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Filter className="h-4 w-4" />
+          Filtros
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-4 md:grid-cols-4">
+          <div className="space-y-1.5">
             <Label htmlFor="numero">Número da Requisição</Label>
             <Input id="numero" placeholder="Buscar por número" value={filters.numero || ""} onChange={e => onFilterChange("numero", e.target.value)} />
           </div>
           
-          {/* Centro de Custo */}
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <Label htmlFor="centro_custo">Centro de Custo</Label>
             <Select value={filters.centro_custo_id || ""} onValueChange={value => onFilterChange("centro_custo_id", value)}>
               <SelectTrigger id="centro_custo">
@@ -87,8 +86,7 @@ const RequisicaoFilters: React.FC<RequisicaoFiltersProps> = ({
             </Select>
           </div>
           
-          {/* Engenheiro Responsável */}
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <Label htmlFor="engenheiro">Engenheiro Responsável</Label>
             <Select value={filters.engenheiro_id || ""} onValueChange={value => onFilterChange("engenheiro_id", value)}>
               <SelectTrigger id="engenheiro">
@@ -103,8 +101,7 @@ const RequisicaoFilters: React.FC<RequisicaoFiltersProps> = ({
             </Select>
           </div>
           
-          {/* Data da Requisição (Início) */}
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <Label>Data Inicial</Label>
             <Popover>
               <PopoverTrigger asChild>
@@ -120,18 +117,6 @@ const RequisicaoFilters: React.FC<RequisicaoFiltersProps> = ({
               </PopoverContent>
             </Popover>
           </div>
-        </div>
-        
-        <div className="mt-4 flex justify-end">
-          <Button 
-            variant="outline" 
-            onClick={onResetFilters} 
-            className="flex items-center px-4 py-2 h-auto"
-            size={isMobile ? "lg" : "default"}
-          >
-            <X className="mr-2 h-4 w-4" />
-            Limpar Filtros
-          </Button>
         </div>
       </CardContent>
     </Card>
