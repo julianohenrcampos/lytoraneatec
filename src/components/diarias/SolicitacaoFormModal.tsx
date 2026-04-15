@@ -361,9 +361,9 @@ export function SolicitacaoFormModal({
     }
   }, [isOpen, editingSolicitacao]);
 
-  // Verificar duplicidade por semana + centro de custo
+  // Verificar duplicidade por sobreposição de datas + centro de custo
   useEffect(() => {
-    if (!centroCustoId || !semanaCalculada || isEditing) {
+    if (!centroCustoId || !dataInicio || !dataFim || isEditing) {
       setDuplicidadeDetectada(null);
       return;
     }
@@ -372,7 +372,8 @@ export function SolicitacaoFormModal({
         .from('bd_diaria_solicitacoes')
         .select('id, numero_solicitacao')
         .eq('centro_custo_id', centroCustoId)
-        .eq('data_inicio_semana', semanaCalculada.data_inicio_semana)
+        .lte('data_inicio', dataFim)
+        .gte('data_fim', dataInicio)
         .neq('status', 'cancelado')
         .limit(1);
       if (data && data.length > 0) {
@@ -382,7 +383,7 @@ export function SolicitacaoFormModal({
       }
     };
     checkDuplicate();
-  }, [centroCustoId, semanaCalculada, isEditing]);
+  }, [centroCustoId, dataInicio, dataFim, isEditing]);
 
   // Get selected centro de custo info
   const selectedCentroCusto = useMemo(() => {
@@ -736,7 +737,7 @@ export function SolicitacaoFormModal({
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription>
-                    <p className="font-medium">Já existe uma solicitação aberta para este Centro de Custo nesta semana.</p>
+                    <p className="font-medium">Já existe uma solicitação aberta para este Centro de Custo neste período.</p>
                     <p className="text-xs mt-1">
                       Solicitação Nº <strong>{duplicidadeDetectada.numero_solicitacao}</strong> — Para incluir novos funcionários, utilize o Apontamento de Campo.
                     </p>
