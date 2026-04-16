@@ -42,7 +42,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { SolicitacaoFormData, FuncionarioPreConvocado, DiariaSolicitacao } from "@/types/diarias";
 import { useFeriadosPeriodo } from "@/hooks/diarias/useFeriados";
-import { validarStatusFuncionario, validarInconsistencia30Dias, validarStatusPorDia } from "@/services/diarias/antiFraudeService";
+import { validarStatusFuncionario, validarStatusPorDia } from "@/services/diarias/antiFraudeService";
 import { 
   analisarPeriodo, 
   calcularEstimativaTotal, 
@@ -450,18 +450,6 @@ export function SolicitacaoFormModal({
           return;
         }
 
-        // Validar inconsistência de 30 dias
-        const inconsistencia = await validarInconsistencia30Dias(funcId, dataInicio);
-        if (inconsistencia.inconsistente) {
-          setAntiFraudeAlert({
-            isOpen: true,
-            tipo: 'inconsistencia',
-            funcionarioNome: func.nome_completo,
-            motivo: inconsistencia.motivo || 'Funcionário com status inconsistente.',
-            diasSemApontamento: inconsistencia.diasSemApontamento
-          });
-          return;
-        }
       } catch (err: any) {
         // STATUS_HISTORICO_NAO_ENCONTRADO: permitir, pois o funcionário pode não ter histórico cadastrado ainda
         if (!err?.message?.includes('STATUS_HISTORICO_NAO_ENCONTRADO')) {
@@ -1291,7 +1279,8 @@ export function SolicitacaoFormModal({
                     nome_funcionario: func.nome_completo,
                     nome_funcao: func.bd_funcoes.nome_funcao,
                     cpf: func.cpf || '',
-                    matricula: func.matricula || ''
+                    matricula: func.matricula || '',
+                    usar_diaria_exclusiva: true
                   }]);
                   toast.success(`${func.nome_completo} adicionado como extraordinário.`);
                 }

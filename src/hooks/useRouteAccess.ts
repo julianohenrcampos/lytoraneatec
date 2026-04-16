@@ -60,6 +60,7 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   // Rotas adicionais
   '/gestao-rh/diretorias': ['gestao_rh_diretorias_view'],
   '/sso/ver-e-agir': ['acesso_sso_ver_agir'],
+  '/ponto': ['ponto_registrar'],
 };
 
 export const useRouteAccess = () => {

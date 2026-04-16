@@ -3196,6 +3196,7 @@ export type Database = {
           refeicao: number | null
           salario_base: number | null
           status: string | null
+          tipo_escala: string
           updated_at: string | null
         }
         Insert: {
@@ -3240,6 +3241,7 @@ export type Database = {
           refeicao?: number | null
           salario_base?: number | null
           status?: string | null
+          tipo_escala?: string
           updated_at?: string | null
         }
         Update: {
@@ -3284,6 +3286,7 @@ export type Database = {
           refeicao?: number | null
           salario_base?: number | null
           status?: string | null
+          tipo_escala?: string
           updated_at?: string | null
         }
         Relationships: [
@@ -5230,6 +5233,49 @@ export type Database = {
           },
         ]
       }
+      bd_ponto_apontamento_integracao: {
+        Row: {
+          apontamento_id: string
+          batida_id: string
+          created_at: string | null
+          id: string
+        }
+        Insert: {
+          apontamento_id: string
+          batida_id: string
+          created_at?: string | null
+          id?: string
+        }
+        Update: {
+          apontamento_id?: string
+          batida_id?: string
+          created_at?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_ponto_apontamento_integracao_apontamento_id_fkey"
+            columns: ["apontamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_apontamento_equipe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_apontamento_integracao_apontamento_id_fkey"
+            columns: ["apontamento_id"]
+            isOneToOne: false
+            referencedRelation: "vw_apontamento_equipe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_apontamento_integracao_batida_id_fkey"
+            columns: ["batida_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ponto_batidas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_ponto_audit_log: {
         Row: {
           acao: string
@@ -5290,11 +5336,13 @@ export type Database = {
           offline_uuid: string | null
           origem_dados: string | null
           precisao_gps_metros: number | null
+          score_risco: number | null
           status_sync: Database["public"]["Enums"]["ponto_status_sync"] | null
           status_validacao:
             | Database["public"]["Enums"]["ponto_status_validacao"]
             | null
           tipo_batida: Database["public"]["Enums"]["ponto_tipo_batida"]
+          tipo_registro: string | null
           updated_at: string | null
           user_agent: string | null
           validado_em: string | null
@@ -5323,11 +5371,13 @@ export type Database = {
           offline_uuid?: string | null
           origem_dados?: string | null
           precisao_gps_metros?: number | null
+          score_risco?: number | null
           status_sync?: Database["public"]["Enums"]["ponto_status_sync"] | null
           status_validacao?:
             | Database["public"]["Enums"]["ponto_status_validacao"]
             | null
           tipo_batida: Database["public"]["Enums"]["ponto_tipo_batida"]
+          tipo_registro?: string | null
           updated_at?: string | null
           user_agent?: string | null
           validado_em?: string | null
@@ -5356,11 +5406,13 @@ export type Database = {
           offline_uuid?: string | null
           origem_dados?: string | null
           precisao_gps_metros?: number | null
+          score_risco?: number | null
           status_sync?: Database["public"]["Enums"]["ponto_status_sync"] | null
           status_validacao?:
             | Database["public"]["Enums"]["ponto_status_validacao"]
             | null
           tipo_batida?: Database["public"]["Enums"]["ponto_tipo_batida"]
+          tipo_registro?: string | null
           updated_at?: string | null
           user_agent?: string | null
           validado_em?: string | null
@@ -5414,7 +5466,10 @@ export type Database = {
           horario_saida_padrao: string | null
           id: string
           intervalo_minimo_min: number | null
+          intervalo_obrigatorio: boolean | null
           jornada_padrao_horas: number | null
+          modo_geofence: string | null
+          permite_offline_pwa: boolean | null
           permite_ponto_fora_raio: boolean | null
           retencao_fotos_dias: number | null
           tolerancia_minutos: number | null
@@ -5430,7 +5485,10 @@ export type Database = {
           horario_saida_padrao?: string | null
           id?: string
           intervalo_minimo_min?: number | null
+          intervalo_obrigatorio?: boolean | null
           jornada_padrao_horas?: number | null
+          modo_geofence?: string | null
+          permite_offline_pwa?: boolean | null
           permite_ponto_fora_raio?: boolean | null
           retencao_fotos_dias?: number | null
           tolerancia_minutos?: number | null
@@ -5446,7 +5504,10 @@ export type Database = {
           horario_saida_padrao?: string | null
           id?: string
           intervalo_minimo_min?: number | null
+          intervalo_obrigatorio?: boolean | null
           jornada_padrao_horas?: number | null
+          modo_geofence?: string | null
+          permite_offline_pwa?: boolean | null
           permite_ponto_fora_raio?: boolean | null
           retencao_fotos_dias?: number | null
           tolerancia_minutos?: number | null
@@ -5467,6 +5528,59 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
+          },
+        ]
+      }
+      bd_ponto_diaria_integracao: {
+        Row: {
+          batida_id: string
+          created_at: string | null
+          id: string
+          presenca_diaria_id: string
+          solicitacao_id: string
+        }
+        Insert: {
+          batida_id: string
+          created_at?: string | null
+          id?: string
+          presenca_diaria_id: string
+          solicitacao_id: string
+        }
+        Update: {
+          batida_id?: string
+          created_at?: string | null
+          id?: string
+          presenca_diaria_id?: string
+          solicitacao_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_ponto_diaria_integracao_batida_id_fkey"
+            columns: ["batida_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ponto_batidas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_diaria_integracao_presenca_diaria_id_fkey"
+            columns: ["presenca_diaria_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_presencas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_diaria_integracao_presenca_diaria_id_fkey"
+            columns: ["presenca_diaria_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["presenca_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_diaria_integracao_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
           },
         ]
       }

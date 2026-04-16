@@ -19,7 +19,8 @@ import {
   
   Activity,
   Briefcase,
-  FileSearch
+  FileSearch,
+  Clock
 } from "lucide-react";
 
 export const menuStructure = [
@@ -338,6 +339,18 @@ export const menuStructure = [
         href: "/admin/configuracoes-sistema",
         icon: Settings,
         requiredPermission: "admin_permissoes_view"
+      }
+    ]
+  },
+  {
+    groupIcon: Clock,
+    title: "Ponto Eletrônico",
+    items: [
+      {
+        name: "Registrar Ponto",
+        href: "/ponto",
+        icon: Clock,
+        requiredPermission: "ponto_registrar"
       }
     ]
   }

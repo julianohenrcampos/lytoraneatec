@@ -5,6 +5,7 @@ import {
   calcularDataOperacional,
   verificarDivergenciaRelogio,
   resolverCentroCusto,
+  validarVinculoCC,
   carregarConfigCC,
   validarSequenciaBatidas,
   verificarDuplicataTemporal,
@@ -16,6 +17,16 @@ import {
   registrarAuditoria,
   verificarDeduplicacao,
   extrairIp,
+  calcularScoreRisco,
+  verificarTipoDia,
+  verificarTurnoNoturno,
+  verificarIntervaloAusente,
+  integrarApontamentoEquipe,
+  integrarDiariaPresenca,
+  verificarFeatureToggle,
+  verificarModoTeste,
+  respostaErro,
+  type ScoreRiscoFlags,
 } from "../_shared/ponto-helpers.ts";
 import { validarPayloadSyncOffline, type PayloadBatidaOffline } from "../_shared/ponto-validators.ts";
 
@@ -33,9 +44,7 @@ Deno.serve(async (req) => {
   }
 
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Método não permitido" }), {
-      status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return respostaErro(405, "metodo_nao_permitido", "Método não permitido");
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -47,9 +56,7 @@ Deno.serve(async (req) => {
     // Auth JWT
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Token não fornecido" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respostaErro(401, "token_ausente", "Token não fornecido");
     }
 
     const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
@@ -58,12 +65,21 @@ Deno.serve(async (req) => {
 
     const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Token inválido ou expirado" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respostaErro(401, "token_invalido", "Token inválido ou expirado");
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Feature Toggle
+    const pontoAtivo = await verificarFeatureToggle(supabaseAdmin, "ponto_eletronico_ativo");
+    if (!pontoAtivo) {
+      const modoTeste = await verificarModoTeste(supabaseAdmin, user.id);
+      if (!modoTeste) {
+        console.log(`[sync-ponto-offline] Toggle OFF | userId=${user.id}`);
+        return respostaErro(503, "toggle_desativado", "Módulo de ponto eletrônico ainda não está ativo");
+      }
+      console.log(`[sync-ponto-offline] Toggle OFF mas modo teste ativo | userId=${user.id}`);
+    }
 
     // Identificar funcionário
     const { data: profile } = await supabaseAdmin
@@ -73,18 +89,14 @@ Deno.serve(async (req) => {
       .single();
 
     if (!profile?.funcionario_id) {
-      return new Response(JSON.stringify({ error: "Usuário sem vínculo de funcionário" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respostaErro(403, "funcionario_sem_vinculo", "Usuário sem vínculo de funcionário");
     }
     const funcionarioId = profile.funcionario_id;
 
     // Permissão
     const temPermissao = await validarPermissao(supabaseAdmin, user.id, "ponto_registrar");
     if (!temPermissao) {
-      return new Response(JSON.stringify({ error: "Sem permissão para registrar ponto" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respostaErro(403, "sem_permissao", "Sem permissão para registrar ponto");
     }
 
     // Status funcionário
@@ -95,18 +107,14 @@ Deno.serve(async (req) => {
       .single();
 
     if (!func || !["Ativo", "Ativo sem Registro"].includes(func.status)) {
-      return new Response(JSON.stringify({ error: "Funcionário inativo" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respostaErro(403, "funcionario_inativo", "Funcionário inativo");
     }
 
     // Validar payload
     const body = await req.json();
     const validacao = validarPayloadSyncOffline(body);
     if (!validacao.valido || !validacao.dados) {
-      return new Response(JSON.stringify({ error: validacao.erro }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respostaErro(400, "payload_invalido", validacao.erro || "Payload inválido");
     }
 
     // Ordenar cronologicamente
@@ -115,7 +123,7 @@ Deno.serve(async (req) => {
     );
 
     const resultados: ResultadoBatida[] = [];
-    const batidasInseridas: string[] = []; // tipo_batida das já inseridas neste lote
+    const batidasInseridas: string[] = [];
     let sincronizados = 0;
     let duplicados = 0;
 
@@ -138,7 +146,7 @@ Deno.serve(async (req) => {
           offline_uuid: batida.offline_uuid,
           status: "erro",
           erro: "Erro interno ao processar batida",
-          codigo: "ERRO_INTERNO",
+          codigo: "erro_interno",
         });
       }
     }
@@ -149,6 +157,7 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({
+        success: true,
         total: batidasOrdenadas.length,
         sincronizados,
         duplicados,
@@ -158,10 +167,8 @@ Deno.serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
-    console.error("[sync-offline] Erro geral:", e);
-    return new Response(JSON.stringify({ error: "Erro interno do servidor" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("[sync-offline] Erro geral:", e?.message || e);
+    return respostaErro(500, "erro_interno", "Erro interno do servidor");
   }
 });
 
@@ -182,53 +189,123 @@ async function processarBatidaOffline(
 
   // Resolver CC
   const ccId = await resolverCentroCusto(supabaseAdmin, funcionarioId, batida.centro_custo_id);
-  if (!ccId) {
-    return { offline_uuid: batida.offline_uuid, status: "erro", erro: "CC não identificado", codigo: "SEM_CC" };
+
+  console.log("[PONTO][CHECKPOINT_CC]", { funcionarioId, ccId });
+
+  if (!ccId || typeof ccId !== "string" || ccId.trim() === "") {
+    console.log("[PONTO][BLOQUEIO_CRITICO]", {
+      funcionarioId,
+      motivo: "cc_invalido",
+      ccId,
+      latitude: batida.latitude,
+      longitude: batida.longitude,
+    });
+    return { offline_uuid: batida.offline_uuid, status: "erro",
+      erro: "Centro de custo não identificado",
+      codigo: "centro_custo_nao_resolvido" };
+  }
+
+  console.log("[PONTO][DEBUG_CC]", {
+    funcionarioId,
+    ccId_recebido: batida.centro_custo_id,
+    ccId_resolvido: ccId,
+  });
+
+  // Validar vínculo com CC
+  const temVinculo = await validarVinculoCC(supabaseAdmin, funcionarioId, ccId);
+  if (!temVinculo) {
+    console.log("[PONTO][BLOQUEIO]", {
+      funcionarioId, motivo: "sem_vinculo", ccId,
+      latitude: batida.latitude, longitude: batida.longitude,
+    });
+    return {
+      offline_uuid: batida.offline_uuid, status: "erro",
+      erro: "Sem vínculo com este centro de custo", codigo: "funcionario_sem_vinculo_obra",
+    };
   }
 
   const config = await carregarConfigCC(supabaseAdmin, ccId);
+
+  // Bloqueio offline PWA
+  if (!config.permite_offline_pwa) {
+    return {
+      offline_uuid: batida.offline_uuid,
+      status: "erro",
+      erro: "Registro offline não permitido. Utilize conexão ou totem",
+      codigo: "offline_nao_permitido",
+    };
+  }
 
   // Divergência de relógio
   const { dataHoraConsiderada, flagDivergencia } = verificarDivergenciaRelogio(batida.data_hora_dispositivo);
   const dataOperacional = calcularDataOperacional(dataHoraConsiderada);
 
-  // Validar sequência (considera batidas já inseridas neste lote)
+  // Tipo de dia + turno noturno
+  const tipoRegistro = await verificarTipoDia(supabaseAdmin, dataOperacional, ccId);
+  const turnoNoturno = await verificarTurnoNoturno(supabaseAdmin, funcionarioId, ccId);
+
+  // Validar sequência
   const seq = await validarSequenciaBatidas(
     supabaseAdmin, funcionarioId, dataOperacional, batida.tipo_batida, batidasJaInseridas
   );
   if (!seq.valido) {
-    return { offline_uuid: batida.offline_uuid, status: "erro", erro: seq.erro!, codigo: "SEQUENCIA_INVALIDA" };
+    return { offline_uuid: batida.offline_uuid, status: "erro", erro: seq.erro!, codigo: seq.motivo || "sequencia_invalida" };
   }
 
   // Duplicata temporal
   const isDup = await verificarDuplicataTemporal(supabaseAdmin, funcionarioId, batida.tipo_batida, dataHoraConsiderada);
   if (isDup) {
-    return { offline_uuid: batida.offline_uuid, status: "erro", erro: "Duplicata temporal", codigo: "DUPLICATA_TEMPORAL" };
+    return { offline_uuid: batida.offline_uuid, status: "erro", erro: "Duplicata temporal", codigo: "duplicata_temporal" };
   }
 
-  let statusValidacao = "valida";
-  const justificativas: string[] = [];
+  let statusValidacao = "pendente_revisao";
+  const justificativas: string[] = ["Sincronização offline"];
+
+  const scoreFlags: ScoreRiscoFlags = {
+    foraRaio: false,
+    semFoto: false,
+    gpsImpreciso: false,
+    divergenciaRelogio: flagDivergencia,
+    offline: true,
+  };
 
   // Idade > 48h
   const idadeMs = Math.abs(Date.now() - new Date(batida.data_hora_dispositivo).getTime());
   if (idadeMs > 48 * 60 * 60 * 1000) {
-    statusValidacao = "pendente_revisao";
     justificativas.push("Sincronização após 48h");
   }
 
   // Tentativa >= 3
   if (batida.tentativa_sync >= 3) {
-    statusValidacao = "pendente_revisao";
     justificativas.push(`Tentativa de sync #${batida.tentativa_sync}`);
   }
 
-  // GPS
+  // GPS (presença)
   if (config.exige_gps && (batida.latitude == null || batida.longitude == null)) {
-    statusValidacao = "pendente_revisao";
-    justificativas.push("GPS não disponível");
-  } else if (batida.precisao_gps_metros && batida.precisao_gps_metros > 100) {
-    statusValidacao = "pendente_revisao";
-    justificativas.push("Precisão GPS > 100m");
+    justificativas.push("GPS não informado");
+    scoreFlags.gpsImpreciso = true;
+  }
+
+  // VALIDAÇÃO DE PRECISÃO (SEMPRE, independente de exige_gps)
+  if (batida.precisao_gps_metros != null) {
+    if (batida.precisao_gps_metros > 150) {
+      console.log("[SYNC][BLOQUEIO]", {
+        funcionarioId,
+        motivo: "gps_impreciso_bloqueante",
+        precisao: batida.precisao_gps_metros,
+        latitude: batida.latitude,
+        longitude: batida.longitude,
+      });
+      return {
+        offline_uuid: batida.offline_uuid,
+        status: "erro",
+        erro: "Precisão do GPS insuficiente para registrar o ponto",
+        codigo: "gps_impreciso_bloqueante",
+      };
+    } else if (batida.precisao_gps_metros > 80) {
+      justificativas.push(`Precisão GPS intermediária: ${batida.precisao_gps_metros}m`);
+      scoreFlags.gpsImpreciso = true;
+    }
   }
 
   // Geofence
@@ -239,10 +316,12 @@ async function processarBatidaOffline(
     dentroRaio = geofence.dentroRaio;
     distanciaMetros = geofence.distanciaMetros;
     if (!geofence.dentroRaio) {
-      if (!config.permite_ponto_fora_raio) {
-        return { offline_uuid: batida.offline_uuid, status: "erro", erro: "Fora do raio permitido", codigo: "FORA_RAIO" };
+      scoreFlags.foraRaio = true;
+
+      if (config.modo_geofence === "restritivo") {
+        return { offline_uuid: batida.offline_uuid, status: "erro", erro: "Fora do raio permitido", codigo: "fora_do_raio" };
       }
-      statusValidacao = "pendente_revisao";
+
       justificativas.push(`Fora do raio: ${geofence.distanciaMetros}m`);
     }
   }
@@ -252,28 +331,42 @@ async function processarBatidaOffline(
     supabaseAdmin, funcionarioId, batida.latitude, batida.longitude, dataHoraConsiderada
   );
   if (velImpossivel) {
-    statusValidacao = "pendente_revisao";
     justificativas.push("Velocidade de deslocamento impossível");
   }
 
   // Horário suspeito
-  if (verificarHorarioSuspeito(dataHoraConsiderada)) {
-    statusValidacao = "pendente_revisao";
+  if (verificarHorarioSuspeito(dataHoraConsiderada, turnoNoturno)) {
     justificativas.push("Horário suspeito (00-04h)");
   }
 
-  // Foto
-  let fotoUrl: string | null = null;
-  if (batida.foto_base64) {
-    fotoUrl = await uploadFotoPonto(supabaseAdmin, funcionarioId, dataOperacional, batida.foto_base64);
-    if (!fotoUrl && config.exige_foto) {
-      statusValidacao = "pendente_revisao";
-      justificativas.push("Upload de foto falhou");
-    }
-  } else if (config.exige_foto) {
-    statusValidacao = "pendente_revisao";
-    justificativas.push("Foto não fornecida");
+  // Intervalo ausente
+  if (verificarIntervaloAusente(batida.tipo_batida, seq.batidasDia, config.intervalo_obrigatorio)) {
+    justificativas.push("Saída sem intervalo registrado");
   }
+
+  // Foto (obrigatória)
+  if (!batida.foto_base64) {
+    return {
+      offline_uuid: batida.offline_uuid,
+      status: "erro",
+      erro: "Foto obrigatória para registro de ponto",
+      codigo: "foto_obrigatoria",
+    };
+  }
+
+  let fotoUrl: string | null = null;
+  fotoUrl = await uploadFotoPonto(supabaseAdmin, funcionarioId, dataOperacional, batida.foto_base64);
+  if (!fotoUrl) {
+    return {
+      offline_uuid: batida.offline_uuid,
+      status: "erro",
+      erro: "Falha no upload da foto de evidência",
+      codigo: "foto_upload_falha",
+    };
+  }
+
+  // Score de risco
+  const scoreRisco = calcularScoreRisco(scoreFlags);
 
   // INSERT
   const batidaRow = {
@@ -300,6 +393,8 @@ async function processarBatidaOffline(
     ip_address: ip,
     user_agent: batida.user_agent || req.headers.get("user-agent"),
     device_fingerprint: batida.device_fingerprint,
+    tipo_registro: tipoRegistro,
+    score_risco: scoreRisco,
   };
 
   const { data: inserted, error: insertError } = await supabaseAdmin
@@ -314,11 +409,25 @@ async function processarBatidaOffline(
       return { offline_uuid: batida.offline_uuid, status: "duplicado", batida_id: existente || undefined };
     }
     if (fotoUrl) await limparFotoOrfa(supabaseAdmin, fotoUrl);
-    return { offline_uuid: batida.offline_uuid, status: "erro", erro: "Erro ao inserir", codigo: "INSERT_FALHOU" };
+    return { offline_uuid: batida.offline_uuid, status: "erro", erro: "Erro ao inserir", codigo: "erro_inserir_batida" };
   }
 
   // Auditoria
   await registrarAuditoria(supabaseAdmin, "bd_ponto_batidas", inserted.id, "INSERT", batidaRow, userId, ip);
+
+  // Integração apontamento (entrada)
+  if (batida.tipo_batida === "entrada") {
+    await integrarApontamentoEquipe(
+      supabaseAdmin, funcionarioId, ccId, dataOperacional, inserted.id, dataHoraConsiderada
+    );
+  }
+
+  // Integração diárias (presença_diaria + entrada)
+  if (tipoRegistro === "presenca_diaria" && batida.tipo_batida === "entrada") {
+    await integrarDiariaPresenca(
+      supabaseAdmin, funcionarioId, ccId, dataOperacional, inserted.id, dataHoraConsiderada
+    );
+  }
 
   return { offline_uuid: batida.offline_uuid, status: "sincronizado", batida_id: inserted.id };
 }

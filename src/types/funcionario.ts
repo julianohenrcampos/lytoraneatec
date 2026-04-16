@@ -21,6 +21,7 @@ export interface Funcionario {
   data_ferias?: string;
   data_demissao?: string;
   status?: 'Ativo' | 'Ativo sem Registro' | 'Aviso Prévio' | 'Inativo' | 'INSS';
+  tipo_escala?: 'normal' | '12x36';
   salario_base?: number;
   insalubridade?: number;
   periculosidade?: number;

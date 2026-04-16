@@ -54,6 +54,9 @@ import ConfiguracoesSistema from "@/pages/admin/ConfiguracoesSistema";
 // Diárias
 import GestaoAprovacoesDiarias from "@/pages/diarias/GestaoAprovacoesDiarias";
 
+// Dev
+import TestePonto from "@/pages/dev/TestePonto";
+
 // Security Components
 import SecureRouteGuard from "@/components/routing/SecureRouteGuard";
 
@@ -290,6 +293,12 @@ const App = () => {
                     <ConfiguracoesSistema />
                   </SecureRouteGuard>
                 </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            {/* Dev / Teste */}
+            <Route path="/dev/teste-ponto" element={
+              <SimpleAuthGuard>
+                <TestePonto />
               </SimpleAuthGuard>
             } />
               </Routes>

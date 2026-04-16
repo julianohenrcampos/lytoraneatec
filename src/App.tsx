@@ -46,6 +46,10 @@ import CentralTransporte from "@/pages/CentralTransporte";
 import ChecklistSaida from "@/pages/ChecklistSaida";
 import Abastecimento from "@/pages/GestaoAbastecimento"; // Fixed casing
 
+// Dev
+import TestePonto from "@/pages/dev/TestePonto";
+import PontoDireto from "@/pages/PontoDireto";
+
 // Dashboard CBUQ
 import DashboardRequisicoes from "@/pages/DashboardRequisicoes";
 
@@ -561,6 +565,18 @@ const App = () => {
                     <ConfiguracoesSistema />
                   </SecureRouteGuard>
                 </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            {/* Dev / Teste */}
+            <Route path="/dev/teste-ponto" element={
+              <SimpleAuthGuard>
+                <TestePonto />
+              </SimpleAuthGuard>
+            } />
+            {/* Ponto Operacional */}
+            <Route path="/ponto" element={
+              <SimpleAuthGuard>
+                <PontoDireto />
               </SimpleAuthGuard>
             } />
             {/* Catch-all route para 404 */}

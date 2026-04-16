@@ -23,6 +23,8 @@ export interface ConfigCC {
   permite_banco_horas: boolean;
   intervalo_obrigatorio: boolean;
   intervalo_minutos: number;
+  modo_geofence: "restritivo" | "flexivel";
+  permite_offline_pwa: boolean;
 }
 
 export interface ResultadoDivergencia {
@@ -40,6 +42,15 @@ export interface AlertaPonto {
   mensagem: string;
 }
 
+export interface ScoreRiscoFlags {
+  foraRaio: boolean;
+  semFoto: boolean;
+  gpsImpreciso: boolean;
+  divergenciaRelogio: boolean;
+  offline: boolean;
+  dispositivoDiferente?: boolean;
+}
+
 const CONFIG_DEFAULTS: ConfigCC = {
   raio_metros: 200,
   tolerancia_minutos: 10,
@@ -51,6 +62,8 @@ const CONFIG_DEFAULTS: ConfigCC = {
   permite_banco_horas: false,
   intervalo_obrigatorio: true,
   intervalo_minutos: 60,
+  modo_geofence: "flexivel",
+  permite_offline_pwa: false,
 };
 
 // ========================
@@ -61,7 +74,6 @@ export async function validarPermissao(
   authUserId: string,
   codigoPermissao: string
 ): Promise<boolean> {
-  // Primeiro verifica SuperAdmin
   const { data: roles } = await supabaseAdmin
     .from("bd_user_roles")
     .select("role_id, bd_roles!inner(nome)")
@@ -71,7 +83,6 @@ export async function validarPermissao(
     return true;
   }
 
-  // Verifica permissão específica via role_permissions
   const roleIds = roles?.map((r: any) => r.role_id) || [];
   if (roleIds.length === 0) return false;
 
@@ -85,7 +96,6 @@ export async function validarPermissao(
 
   if (perms && perms.length > 0) return true;
 
-  // Verifica override de usuário
   const { data: overrides } = await supabaseAdmin
     .from("bd_user_permission_overrides")
     .select("permitido")
@@ -104,7 +114,6 @@ export async function validarPermissao(
 // Data operacional (TZ São Paulo)
 // ========================
 export function calcularDataOperacional(dataHoraConsiderada: string): string {
-  // Converte para fuso de São Paulo e extrai a data
   const dt = new Date(dataHoraConsiderada);
   const spFormatter = new Intl.DateTimeFormat("sv-SE", {
     timeZone: "America/Sao_Paulo",
@@ -147,33 +156,64 @@ export async function resolverCentroCusto(
   funcionarioId: string,
   ccIdInformado?: string | null
 ): Promise<string | null> {
-  if (ccIdInformado) return ccIdInformado;
+  void funcionarioId;
 
-  // Buscar vínculo operacional ativo
-  const hoje = new Date().toISOString().split("T")[0];
-  const { data: vinculo } = await supabaseAdmin
-    .from("bd_ponto_vinculos_operacionais")
-    .select("centro_custo_id")
-    .eq("funcionario_id", funcionarioId)
-    .eq("ativo", true)
-    .lte("data_inicio", hoje)
-    .or(`data_fim.is.null,data_fim.gte.${hoje}`)
-    .order("tipo_vinculo", { ascending: true }) // 'fixo' vem primeiro
-    .order("data_inicio", { ascending: false })
-    .limit(1);
+  const ccIdCandidate =
+    typeof ccIdInformado === "string" && ccIdInformado.trim() !== ""
+      ? ccIdInformado.trim()
+      : null;
 
-  if (vinculo && vinculo.length > 0) {
-    return vinculo[0].centro_custo_id;
+  // Validação final: CC deve existir no banco
+  if (!ccIdCandidate || typeof ccIdCandidate !== "string" || ccIdCandidate.trim() === "") {
+    return null;
   }
 
-  // Fallback: bd_funcionarios.centro_custo_id
+  const { data: cc } = await supabaseAdmin
+    .from("bd_centros_custo")
+    .select("id")
+    .eq("id", ccIdCandidate)
+    .single();
+
+  return cc ? ccIdCandidate : null;
+}
+
+// ========================
+// Validar vínculo com CC
+// ========================
+export async function validarVinculoCC(
+  supabaseAdmin: SupabaseClient,
+  funcionarioId: string,
+  ccId: string
+): Promise<boolean> {
+  // 1. Vínculo operacional ativo
+  const { data: vinculo } = await supabaseAdmin
+    .from("bd_ponto_vinculos_operacionais")
+    .select("id")
+    .eq("funcionario_id", funcionarioId)
+    .eq("centro_custo_id", ccId)
+    .eq("ativo", true)
+    .limit(1);
+  if (vinculo && vinculo.length > 0) return true;
+
+  // 2. CC do cadastro do funcionário
   const { data: func } = await supabaseAdmin
     .from("bd_funcionarios")
     .select("centro_custo_id")
     .eq("id", funcionarioId)
     .single();
+  if (func?.centro_custo_id === ccId) return true;
 
-  return func?.centro_custo_id || null;
+  // 3. Diária ativa (presença em solicitação aprovada/enviada)
+  const { data: diaria } = await supabaseAdmin
+    .from("bd_diaria_presencas")
+    .select("id, solicitacao_id!inner(centro_custo_id, status)")
+    .eq("funcionario_id", funcionarioId)
+    .eq("solicitacao_id.centro_custo_id", ccId)
+    .in("solicitacao_id.status", ["aprovada", "enviada"])
+    .limit(1);
+  if (diaria && diaria.length > 0) return true;
+
+  return false;
 }
 
 // ========================
@@ -203,26 +243,21 @@ export async function carregarConfigCC(
     permite_banco_horas: data.permite_banco_horas ?? CONFIG_DEFAULTS.permite_banco_horas,
     intervalo_obrigatorio: data.intervalo_obrigatorio ?? CONFIG_DEFAULTS.intervalo_obrigatorio,
     intervalo_minutos: data.intervalo_minutos ?? CONFIG_DEFAULTS.intervalo_minutos,
+    modo_geofence: data.modo_geofence ?? CONFIG_DEFAULTS.modo_geofence,
+    permite_offline_pwa: data.permite_offline_pwa ?? CONFIG_DEFAULTS.permite_offline_pwa,
   };
 }
 
 // ========================
 // Validar sequência de batidas
 // ========================
-const SEQUENCIA_VALIDA: Record<string, string[]> = {
-  entrada: [], // nenhuma batida antes no dia
-  intervalo_inicio: ["entrada"],
-  intervalo_fim: ["entrada", "intervalo_inicio"],
-  saida: ["entrada"], // pode ter intervalo ou não
-};
-
 export async function validarSequenciaBatidas(
   supabaseAdmin: SupabaseClient,
   funcionarioId: string,
   dataOperacional: string,
   tipoBatida: string,
   batidasJaInseridas: string[] = []
-): Promise<{ valido: boolean; erro?: string; batidasDia: string[] }> {
+): Promise<{ valido: boolean; erro?: string; motivo?: string; batidasDia: string[] }> {
   const { data } = await supabaseAdmin
     .from("bd_ponto_batidas")
     .select("tipo_batida")
@@ -236,20 +271,20 @@ export async function validarSequenciaBatidas(
     ...batidasJaInseridas,
   ];
 
-  // Verificar duplicata de tipo
-  if (tipoBatida === "entrada" && batidasDia.includes("entrada")) {
-    return { valido: false, erro: "Já existe entrada registrada para este dia", batidasDia };
+  const temEntrada = batidasDia.includes("entrada");
+  const temSaida = batidasDia.includes("saida");
+
+  if (tipoBatida === "entrada" && temEntrada && !temSaida) {
+    return { valido: false, erro: "Já existe uma jornada em andamento para este funcionário", motivo: "jornada_ja_iniciada", batidasDia };
   }
   if (tipoBatida === "saida" && batidasDia.includes("saida")) {
     return { valido: false, erro: "Já existe saída registrada para este dia", batidasDia };
   }
 
-  // Verificar pré-requisitos
   if (tipoBatida === "intervalo_inicio") {
     if (!batidasDia.includes("entrada")) {
       return { valido: false, erro: "Necessário registrar entrada antes do intervalo", batidasDia };
     }
-    // Não pode ter intervalo_inicio pendente (sem intervalo_fim)
     const qtdInicio = batidasDia.filter((b) => b === "intervalo_inicio").length;
     const qtdFim = batidasDia.filter((b) => b === "intervalo_fim").length;
     if (qtdInicio > qtdFim) {
@@ -269,7 +304,6 @@ export async function validarSequenciaBatidas(
     if (!batidasDia.includes("entrada")) {
       return { valido: false, erro: "Necessário registrar entrada antes da saída", batidasDia };
     }
-    // Se tem intervalo_inicio sem intervalo_fim, bloqueia
     const qtdInicio = batidasDia.filter((b) => b === "intervalo_inicio").length;
     const qtdFim = batidasDia.filter((b) => b === "intervalo_fim").length;
     if (qtdInicio > qtdFim) {
@@ -384,7 +418,7 @@ export async function verificarVelocidadeImpossivel(
   const dtAnterior = new Date(ultima.data_hora_considerada).getTime();
   const deltaHoras = Math.abs(dtAtual - dtAnterior) / 3600000;
 
-  if (deltaHoras < 0.01) return distKm > 2; // < 36s e > 2km
+  if (deltaHoras < 0.01) return distKm > 2;
   const velocidade = distKm / deltaHoras;
   return velocidade > 120 && deltaHoras < 0.5;
 }
@@ -392,7 +426,9 @@ export async function verificarVelocidadeImpossivel(
 // ========================
 // Horário suspeito (00-04h BRT)
 // ========================
-export function verificarHorarioSuspeito(dataHora: string): boolean {
+export function verificarHorarioSuspeito(dataHora: string, turnoNoturno: boolean = false): boolean {
+  if (turnoNoturno) return false;
+
   const dt = new Date(dataHora);
   const horaFormatter = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Sao_Paulo",
@@ -413,12 +449,10 @@ export async function uploadFotoPonto(
   fotoBase64: string
 ): Promise<string | null> {
   try {
-    // Remover prefix data:image/...;base64,
     const base64Data = fotoBase64.includes(",")
       ? fotoBase64.split(",")[1]
       : fotoBase64;
 
-    // Validar tamanho (max 2MB decodificado)
     const estimatedSize = (base64Data.length * 3) / 4;
     if (estimatedSize > 2 * 1024 * 1024) {
       console.error("[ponto-foto] Foto excede 2MB");
@@ -517,7 +551,6 @@ export async function validarDispositivoTotem(
     return { valido: false, erro: "Dispositivo desativado", status: 403 };
   }
 
-  // Validar segredo do dispositivo (se configurado)
   if (dispositivo.device_secret_hash) {
     if (!deviceSecret) {
       return { valido: false, erro: "Segredo do dispositivo não fornecido", status: 401 };
@@ -564,4 +597,347 @@ export async function verificarDeduplicacao(
     .limit(1);
 
   return data && data.length > 0 ? data[0].id : null;
+}
+
+// ========================
+// Feature Toggle — verificar configuração do sistema
+// ========================
+export async function verificarFeatureToggle(
+  supabaseAdmin: SupabaseClient,
+  chave: string
+): Promise<boolean> {
+  const { data } = await supabaseAdmin
+    .from("bd_configuracoes_sistema")
+    .select("valor")
+    .eq("chave", chave)
+    .eq("ativo", true)
+    .maybeSingle();
+
+  return data?.valor === "true";
+}
+
+// ========================
+// Modo teste — verificar permissão ponto_teste
+// ========================
+export async function verificarModoTeste(
+  supabaseAdmin: SupabaseClient,
+  userId: string | null
+): Promise<boolean> {
+  if (!userId) return false;
+
+  // Usa o sistema RBAC existente (validarPermissao)
+  return await validarPermissao(supabaseAdmin, userId, "ponto_teste");
+}
+
+// ========================
+// FASE 3 — Score de risco
+// ========================
+export function calcularScoreRisco(flags: ScoreRiscoFlags): number {
+  let score = 0;
+  if (flags.foraRaio) score++;
+  if (flags.semFoto) score++;
+  if (flags.gpsImpreciso) score++;
+  if (flags.divergenciaRelogio) score++;
+  if (flags.offline) score++;
+  if (flags.dispositivoDiferente) score++;
+  return score;
+}
+
+// ========================
+// FASE 3 — Verificar tipo de dia (feriado/fim de semana)
+// ========================
+export async function verificarTipoDia(
+  supabaseAdmin: SupabaseClient,
+  dataOperacional: string,
+  ccId: string
+): Promise<"controle_jornada" | "presenca_diaria"> {
+  // Verificar dia da semana (0=dom, 6=sáb)
+  // dataOperacional é YYYY-MM-DD, precisamos criar um Date correto
+  const [ano, mes, dia] = dataOperacional.split("-").map(Number);
+  const dt = new Date(ano, mes - 1, dia);
+  const diaSemana = dt.getDay();
+
+  if (diaSemana === 0 || diaSemana === 6) {
+    return "presenca_diaria";
+  }
+
+  // Verificar feriados — buscar pelo data exata
+  const { data: feriados } = await supabaseAdmin
+    .from("bd_feriados")
+    .select("id")
+    .eq("data", dataOperacional)
+    .limit(1);
+
+  if (feriados && feriados.length > 0) {
+    return "presenca_diaria";
+  }
+
+  return "controle_jornada";
+}
+
+// ========================
+// FASE 3 — Verificar turno noturno
+// ========================
+export async function verificarTurnoNoturno(
+  supabaseAdmin: SupabaseClient,
+  funcionarioId: string,
+  ccId: string
+): Promise<boolean> {
+  // Verifica horários padrão no config do CC
+  const { data } = await supabaseAdmin
+    .from("bd_ponto_config")
+    .select("jornada_inicio, jornada_fim")
+    .eq("centro_custo_id", ccId)
+    .limit(1)
+    .single();
+
+  if (!data) return false;
+
+  const inicio = data.jornada_inicio || "07:00";
+  const fim = data.jornada_fim || "17:00";
+
+  // Turno noturno: entrada >= 19:00 ou saída <= 07:00
+  const horaInicio = parseInt(inicio.split(":")[0], 10);
+  const horaFim = parseInt(fim.split(":")[0], 10);
+
+  return horaInicio >= 19 || horaFim <= 7;
+}
+
+// ========================
+// FASE 3 — Verificar intervalo ausente na saída
+// ========================
+export function verificarIntervaloAusente(
+  tipoBatida: string,
+  batidasDia: string[],
+  intervaloObrigatorio: boolean
+): boolean {
+  if (tipoBatida !== "saida") return false;
+  if (!intervaloObrigatorio) return false;
+
+  const temIntervalo = batidasDia.includes("intervalo_inicio") && batidasDia.includes("intervalo_fim");
+  return !temIntervalo;
+}
+
+// ========================
+// FASE 3 — Integrar com apontamento de equipe
+// ========================
+export async function integrarApontamentoEquipe(
+  supabaseAdmin: SupabaseClient,
+  funcionarioId: string,
+  ccId: string,
+  dataOperacional: string,
+  batidaId: string,
+  horaEntrada: string
+): Promise<void> {
+  try {
+    // Buscar equipe do funcionário via vínculo operacional ativo
+    const hoje = new Date().toISOString().split("T")[0];
+    const { data: vinculo } = await supabaseAdmin
+      .from("bd_ponto_vinculos_operacionais")
+      .select("equipe_id")
+      .eq("funcionario_id", funcionarioId)
+      .eq("ativo", true)
+      .not("equipe_id", "is", null)
+      .lte("data_inicio", hoje)
+      .or(`data_fim.is.null,data_fim.gte.${hoje}`)
+      .limit(1)
+      .single();
+
+    if (!vinculo?.equipe_id) {
+      console.log(`[ponto-integracao] Sem equipe vinculada para func=${funcionarioId}, ignorando apontamento`);
+      return;
+    }
+
+    const equipeId = vinculo.equipe_id;
+
+    // Verificar duplicidade: colaborador_id + data_registro + equipe_id
+    const { data: existente } = await supabaseAdmin
+      .from("bd_apontamento_equipe")
+      .select("id")
+      .eq("colaborador_id", funcionarioId)
+      .eq("data_registro", dataOperacional)
+      .eq("equipe_id", equipeId)
+      .limit(1);
+
+    if (existente && existente.length > 0) {
+      console.log(`[ponto-integracao] Apontamento já existe para func=${funcionarioId} data=${dataOperacional}`);
+      return;
+    }
+
+    // Buscar nome do funcionário
+    const { data: funcData } = await supabaseAdmin
+      .from("bd_funcionarios")
+      .select("nome_completo")
+      .eq("id", funcionarioId)
+      .single();
+
+    // Extrair hora HH:MM da data_hora_considerada
+    const horaFormatted = new Date(horaEntrada).toLocaleTimeString("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+
+    // INSERT em bd_apontamento_equipe
+    const { data: apontamento, error: insertError } = await supabaseAdmin
+      .from("bd_apontamento_equipe")
+      .insert({
+        equipe_id: equipeId,
+        colaborador_id: funcionarioId,
+        nome_colaborador: funcData?.nome_completo || "Desconhecido",
+        data_registro: dataOperacional,
+        presente: true,
+        hora_inicio: horaFormatted,
+      })
+      .select("id")
+      .single();
+
+    if (insertError) {
+      console.error("[ponto-integracao] Erro ao inserir apontamento:", insertError.message);
+      return;
+    }
+
+    // Registrar vínculo na tabela de integração
+    await supabaseAdmin.from("bd_ponto_apontamento_integracao").insert({
+      batida_id: batidaId,
+      apontamento_id: apontamento.id,
+    });
+
+    console.log(`[ponto-integracao] Apontamento criado: func=${funcionarioId} equipe=${equipeId} data=${dataOperacional}`);
+  } catch (e) {
+    console.error("[ponto-integracao] Erro na integração com apontamento:", e);
+  }
+}
+
+// ========================
+// FASE 3 — Integrar com diárias (presença)
+// ========================
+export async function integrarDiariaPresenca(
+  supabaseAdmin: SupabaseClient,
+  funcionarioId: string,
+  ccId: string,
+  dataOperacional: string,
+  batidaId: string,
+  horaEntrada: string
+): Promise<void> {
+  try {
+    // Buscar solicitação de diária ativa para este CC + data
+    const { data: solicitacoes } = await supabaseAdmin
+      .from("bd_diaria_solicitacoes")
+      .select("id, convocados_pre, centro_custo_id")
+      .eq("centro_custo_id", ccId)
+      .in("status", ["aprovada", "em_andamento"])
+      .lte("data_inicio", dataOperacional)
+      .gte("data_fim", dataOperacional)
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    if (!solicitacoes || solicitacoes.length === 0) {
+      console.log(`[ponto-diaria] Sem solicitação ativa para CC=${ccId} data=${dataOperacional}`);
+      return;
+    }
+
+    // Encontrar solicitação onde o funcionário está no convocados_pre
+    let solicitacaoAlvo: any = null;
+    let convocadoData: any = null;
+
+    for (const sol of solicitacoes) {
+      const convocados = sol.convocados_pre as any[];
+      if (!convocados || !Array.isArray(convocados)) continue;
+
+      const found = convocados.find(
+        (c: any) => c.funcionario_id === funcionarioId
+      );
+      if (found) {
+        solicitacaoAlvo = sol;
+        convocadoData = found;
+        break;
+      }
+    }
+
+    if (!solicitacaoAlvo || !convocadoData) {
+      console.log(`[ponto-diaria] Funcionário ${funcionarioId} não está nos convocados de nenhuma solicitação ativa`);
+      return;
+    }
+
+    // Verificar duplicidade: funcionario_id + data + solicitacao_id
+    const { data: existente } = await supabaseAdmin
+      .from("bd_diaria_presencas")
+      .select("id")
+      .eq("funcionario_id", funcionarioId)
+      .eq("data", dataOperacional)
+      .eq("solicitacao_id", solicitacaoAlvo.id)
+      .limit(1);
+
+    if (existente && existente.length > 0) {
+      console.log(`[ponto-diaria] Presença já existe para func=${funcionarioId} data=${dataOperacional} sol=${solicitacaoAlvo.id}`);
+      return;
+    }
+
+    // Extrair hora
+    const horaFormatted = new Date(horaEntrada).toLocaleTimeString("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+
+    // INSERT em bd_diaria_presencas
+    const { data: presenca, error: insertError } = await supabaseAdmin
+      .from("bd_diaria_presencas")
+      .insert({
+        solicitacao_id: solicitacaoAlvo.id,
+        funcionario_id: funcionarioId,
+        data: dataOperacional,
+        presente: true,
+        hora_entrada: horaFormatted,
+        valor_diaria_aplicada: convocadoData.valor_diaria || null,
+        funcao_id: convocadoData.funcao_id || null,
+        tipo_diaria: convocadoData.tipo_diaria || "completa",
+        turno: convocadoData.turno || "diurno",
+      })
+      .select("id")
+      .single();
+
+    if (insertError) {
+      console.error("[ponto-diaria] Erro ao inserir presença:", insertError.message);
+      return;
+    }
+
+    // Registrar vínculo na tabela de integração
+    await supabaseAdmin.from("bd_ponto_diaria_integracao").insert({
+      batida_id: batidaId,
+      presenca_diaria_id: presenca.id,
+      solicitacao_id: solicitacaoAlvo.id,
+    });
+
+    console.log(`[ponto-diaria] Presença criada: func=${funcionarioId} sol=${solicitacaoAlvo.id} data=${dataOperacional}`);
+  } catch (e) {
+    console.error("[ponto-diaria] Erro na integração com diárias:", e);
+  }
+}
+
+// ========================
+// Resposta de erro padronizada
+// ========================
+export function respostaErro(
+  status: number,
+  motivo: string,
+  message: string,
+  extras?: Record<string, any>
+): Response {
+  return new Response(
+    JSON.stringify({
+      success: false,
+      status_validacao: "rejeitado",
+      motivo,
+      message,
+      ...extras,
+    }),
+    {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    }
+  );
 }

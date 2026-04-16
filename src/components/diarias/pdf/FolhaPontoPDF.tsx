@@ -15,6 +15,13 @@ export interface FolhaPontoDia {
   intervalo_entrada: string;
   hora_saida: string;
   centro_custo: string;
+  // Campos do motor de cálculo de jornada (opcionais)
+  intervalo_inicio?: string;
+  intervalo_fim?: string;
+  tempo_bruto_min?: number;
+  tempo_intervalo_min?: number;
+  tempo_liquido_min?: number;
+  tipo_calculo?: string;
 }
 
 export interface FolhaPontoFuncionario {
