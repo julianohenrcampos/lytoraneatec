@@ -76,8 +76,28 @@ export const useAgendamentoExames = (agendamentoId?: string, filters?: Agendamen
   // Mutation: Criar agendamento
   const createMutation = useMutation({
     mutationFn: (formData: AgendamentoExameFormData) => agendamentoExamesService.create(formData),
-    onSuccess: () => {
+    onSuccess: async (created: any) => {
       queryClient.invalidateQueries({ queryKey: ['agendamentos-exames'] });
+      // Vincular histórico pendente de classificação (se houver)
+      try {
+        const raw = sessionStorage.getItem('lyto:pendingClassificacao');
+        if (raw && created?.id) {
+          const pending = JSON.parse(raw);
+          if (
+            pending?.historico_id &&
+            (!pending.funcionario_id || pending.funcionario_id === created.funcionario_id || true)
+          ) {
+            await supabase
+              .from('bd_historico_funcional')
+              .update({ agendamento_exame_id: created.id })
+              .eq('id', pending.historico_id);
+            sessionStorage.removeItem('lyto:pendingClassificacao');
+            toast.success('Agendamento vinculado à classificação pendente.');
+          }
+        }
+      } catch (e) {
+        console.warn('Falha ao vincular histórico pendente:', e);
+      }
       toast.success('Agendamento criado com sucesso!');
     },
     onError: (error: any) => {

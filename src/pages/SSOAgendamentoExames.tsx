@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import MainLayout from '@/components/layout/MainLayout';
 import { usePageTitle } from "@/contexts/PageTitleContext";
 import { isWithinBrazilianBusinessHours, getCurrentBrazilianTime } from '@/utils/timezoneUtils';
@@ -64,6 +65,8 @@ const SSOAgendamentoExames: React.FC = () => {
   const [importAlterdataOpen, setImportAlterdataOpen] = useState(false);
   const [docsDialogOpen, setDocsDialogOpen] = useState(false);
   const [docsAgendamentoId, setDocsAgendamentoId] = useState<string | undefined>();
+  const [prefillEtapa2, setPrefillEtapa2] = useState<{ motivo_mudanca_risco?: string; funcao_nova_id?: string } | undefined>();
+  const [classificacaoHandled, setClassificacaoHandled] = useState(false);
 
   const { 
     agendamentos, 
@@ -102,6 +105,29 @@ const SSOAgendamentoExames: React.FC = () => {
   useEffect(() => {
     setSelectedIds([]);
   }, [filters]);
+
+  // Consumir state vindo de "Baixar Classificação"
+  const location = useLocation();
+  const navigateRoute = useNavigate();
+  useEffect(() => {
+    if (classificacaoHandled) return;
+    const st: any = location.state;
+    if (st?.origem !== 'classificacao') return;
+    if (!st.funcionario_payload?.nome) return; // payload incompleto → ignora silenciosamente
+
+    setTipoExameSelecionado('Mudança de Risco');
+    setFuncionarioSelecionado(st.funcionario_payload as FuncionarioSelecionado);
+    setModoFuncionario(true);
+    setPrefillEtapa2({
+      motivo_mudanca_risco: st.motivo_mudanca_risco,
+      funcao_nova_id: st.funcao_nova_id,
+    });
+    setEditingId(undefined);
+    setDialogOpen(true);
+    setClassificacaoHandled(true);
+    navigateRoute(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state, classificacaoHandled]);
 
   // Filter agendamentos by carteira status
   const agendamentosFiltrados = filterSemPendencia
@@ -153,6 +179,7 @@ const SSOAgendamentoExames: React.FC = () => {
       setTipoExameSelecionado(null);
       setModoFuncionario(false);
       setEditingId(undefined);
+      setPrefillEtapa2(undefined);
     }
   };
 
@@ -491,6 +518,7 @@ const SSOAgendamentoExames: React.FC = () => {
           modoFuncionario={modoFuncionario}
           tipoExamePreSelecionado={tipoExameSelecionado || undefined}
           funcionarioData={funcionarioSelecionado || undefined}
+          prefillEtapa2={prefillEtapa2}
         />
 
         {/* View Dialog */}

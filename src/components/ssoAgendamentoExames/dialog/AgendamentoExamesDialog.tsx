@@ -1,5 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,7 +33,7 @@ import { agendamentoExamesStorageService } from '@/services/ssoAgendamentoExames
 import { valeTransporteService } from '@/services/valeTransporte/valeTransporteService';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, Paperclip, Trash2, Download, ArrowLeft, ArrowRight, User } from 'lucide-react';
+import { Loader2, Paperclip, Trash2, Download, ArrowLeft, ArrowRight } from 'lucide-react';
 import { StepIndicator } from './StepIndicator';
 import { Etapa1CadastroForm } from './Etapa1CadastroForm';
 import { Etapa2AgendamentoForm } from './Etapa2AgendamentoForm';
@@ -29,6 +41,8 @@ import { DemissionalFields, DemissionalFormData, initialDemissionalData } from '
 import { Badge } from '@/components/ui/badge';
 import { ValeTransporteStep, ValeTransporteStepData } from '@/components/agendamento-exames/vale-transporte';
 import { LinhaTransporte } from '@/components/agendamento-exames/vale-transporte/LinhaTransporteItem';
+import { PENDING_HISTORICO_KEY } from '@/hooks/useBaixarClassificacao';
+import { gerarPdfClassificacao } from '@/utils/pdf/gerarPdfClassificacao';
 
 interface AgendamentoExamesDialogProps {
   open: boolean;
@@ -38,6 +52,10 @@ interface AgendamentoExamesDialogProps {
   modoFuncionario?: boolean;
   tipoExamePreSelecionado?: TipoExame;
   funcionarioData?: FuncionarioSelecionado;
+  prefillEtapa2?: {
+    motivo_mudanca_risco?: string;
+    funcao_nova_id?: string;
+  };
 }
 
 // Estado inicial da Etapa 1
@@ -108,7 +126,8 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
   canChangeStatus = true,
   modoFuncionario = false,
   tipoExamePreSelecionado,
-  funcionarioData
+  funcionarioData,
+  prefillEtapa2
 }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [etapa1Data, setEtapa1Data] = useState<Etapa1FormData>(initialEtapa1Data);
@@ -121,10 +140,53 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
   
   const { createDesligamento } = useDesligamentos();
 
+  const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
+
   const { 
     agendamento, locais, funcoes, empresas, centrosCusto, isLoading, create, update, isCreating, isUpdating,
     anexos, uploadAnexo, deleteAnexo, isUploadingAnexo, isDeletingAnexo
   } = useAgendamentoExames(agendamentoId);
+
+  // Detecta se origem é classificação (presença do pending no sessionStorage)
+  const isFromClassificacao = useMemo(() => {
+    try {
+      return !!sessionStorage.getItem(PENDING_HISTORICO_KEY);
+    } catch {
+      return false;
+    }
+  }, [open]);
+
+  const requestClose = () => {
+    if (isFromClassificacao) {
+      setConfirmCloseOpen(true);
+    } else {
+      onOpenChange(false);
+    }
+  };
+
+  const confirmCancelar = async () => {
+    try {
+      const raw = sessionStorage.getItem(PENDING_HISTORICO_KEY);
+      if (raw) {
+        const pending = JSON.parse(raw);
+        if (pending?.historico_id) {
+          await supabase
+            .from('bd_historico_funcional')
+            .delete()
+            .eq('id', pending.historico_id)
+            .eq('tipo_evento', 'PROMOCAO_PENDENTE');
+        }
+        sessionStorage.removeItem(PENDING_HISTORICO_KEY);
+      }
+      toast.success('Cancelado. Histórico revertido.');
+    } catch (err) {
+      console.error('Erro ao cancelar:', err);
+      toast.error('Erro ao reverter histórico.');
+    } finally {
+      setConfirmCloseOpen(false);
+      onOpenChange(false);
+    }
+  };
 
   // Pré-preencher dados quando for modo funcionário existente
   useEffect(() => {
@@ -133,7 +195,16 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
       setEtapa1Data(prev => ({ ...prev, ...mappedData }));
       
       if (tipoExamePreSelecionado) {
-        setEtapa2Data(prev => ({ ...prev, tipo_exame: tipoExamePreSelecionado }));
+        setEtapa2Data(prev => ({
+          ...prev,
+          tipo_exame: tipoExamePreSelecionado,
+          ...(prefillEtapa2?.motivo_mudanca_risco
+            ? { motivo_mudanca_risco: prefillEtapa2.motivo_mudanca_risco }
+            : {}),
+          ...(prefillEtapa2?.funcao_nova_id
+            ? { funcao_nova_id: prefillEtapa2.funcao_nova_id }
+            : {}),
+        }));
       }
 
       // Auto-preencher endereço no VT a partir do funcionário
@@ -151,7 +222,7 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
       
       setCurrentStep(2);
     }
-  }, [modoFuncionario, funcionarioData, tipoExamePreSelecionado, agendamentoId, open]);
+  }, [modoFuncionario, funcionarioData, tipoExamePreSelecionado, prefillEtapa2, agendamentoId, open]);
 
   // Buscar nome do usuário logado
   useEffect(() => {
@@ -489,6 +560,61 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
       }
       
       setPendingFiles([]);
+
+      // Gerar PDF de Classificação se origem = classificação
+      if (isFromClassificacao && !agendamentoId && funcionarioData?.id && etapa2Data.funcao_nova_id) {
+        try {
+          const [{ data: f }, { data: novaFn }, { data: ultimo }] = await Promise.all([
+            supabase
+              .from('bd_funcionarios')
+              .select('nome_completo, salario_base, data_admissao, bd_funcoes(nome_funcao), bd_centros_custo(nome_centro_custo)')
+              .eq('id', funcionarioData.id)
+              .single(),
+            supabase
+              .from('bd_funcoes')
+              .select('nome_funcao, salario_base')
+              .eq('id', etapa2Data.funcao_nova_id)
+              .single(),
+            supabase
+              .from('bd_historico_funcional')
+              .select('created_at')
+              .eq('funcionario_id', funcionarioData.id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle(),
+          ]);
+
+          if (f && novaFn) {
+            const salarioAtual = Number(f.salario_base ?? 0);
+            const novoSalario = Number(novaFn.salario_base ?? 0);
+            const diff = novoSalario - salarioAtual;
+            const pct = salarioAtual > 0 ? (diff / salarioAtual) * 100 : 0;
+            const ultimaStr = ultimo?.created_at
+              ? new Date(ultimo.created_at).toLocaleDateString('pt-BR')
+              : '';
+
+            gerarPdfClassificacao({
+              nome: f.nome_completo,
+              centro_custo: (f as any).bd_centros_custo?.nome_centro_custo || '-',
+              data_admissao: f.data_admissao
+                ? new Date(f.data_admissao).toLocaleDateString('pt-BR')
+                : '-',
+              ultima_classificacao: ultimaStr,
+              cargo_atual: (f as any).bd_funcoes?.nome_funcao || '-',
+              salario_atual: salarioAtual,
+              novo_cargo: novaFn.nome_funcao,
+              novo_salario: novoSalario,
+              diferenca_valor: diff,
+              diferenca_percentual: pct,
+              data: new Date().toLocaleDateString('pt-BR'),
+            });
+          }
+        } catch (pdfErr) {
+          console.error('Erro ao gerar PDF de classificação:', pdfErr);
+        }
+        sessionStorage.removeItem(PENDING_HISTORICO_KEY);
+      }
+
       onOpenChange(false);
     } catch (error) {
       setIsUploadingFiles(false);
@@ -529,8 +655,14 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
   const isLastStep = currentStep === 4;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh]">
+    <>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) requestClose(); else onOpenChange(true); }}>
+      <DialogContent
+        className="max-w-3xl max-h-[90vh]"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {getDialogTitle()}
@@ -541,18 +673,6 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
             )}
           </DialogTitle>
         </DialogHeader>
-
-        {modoFuncionario && funcionarioData && (
-          <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg border">
-            <User className="h-5 w-5 text-muted-foreground" />
-            <div className="flex-1">
-              <p className="font-medium">{funcionarioData.nome_completo}</p>
-              <p className="text-sm text-muted-foreground">
-                {funcionarioData.funcao} • {funcionarioData.empresa}
-              </p>
-            </div>
-          </div>
-        )}
         
         <StepIndicator 
           steps={steps} 
@@ -591,6 +711,7 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
                   onChange={handleEtapa2Change}
                   locais={locais}
                   canChangeStatus={canChangeStatus}
+                  motivoMudancaReadOnly={!!prefillEtapa2?.motivo_mudanca_risco}
                 />
                 
                 {etapa2Data.tipo_exame === 'Demissional' && (
@@ -678,8 +799,14 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
                     <p><span className="text-muted-foreground">Nome:</span> {etapa1Data.nome_colaborador}</p>
                     <p><span className="text-muted-foreground">CPF:</span> {etapa1Data.cpf}</p>
                     <p><span className="text-muted-foreground">Tipo Exame:</span> {etapa2Data.tipo_exame}</p>
-                    <p><span className="text-muted-foreground">Data:</span> {etapa2Data.data_agendamento}</p>
-                    <p><span className="text-muted-foreground">VT:</span> {vtData.skipped ? 'Não preenchido' : vtData.isNaoBeneficiario ? 'Não beneficiário' : 'Solicitado'}</p>
+                    <p><span className="text-muted-foreground">Data:</span> {
+                      etapa2Data.data_agendamento
+                        ? format(new Date(etapa2Data.data_agendamento + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR })
+                        : '-'
+                    }</p>
+                    {!skipVT && (
+                      <p><span className="text-muted-foreground">VT:</span> {vtData.skipped ? 'Não preenchido' : vtData.isNaoBeneficiario ? 'Não beneficiário' : 'Solicitado'}</p>
+                    )}
                   </div>
                 </div>
               </>
@@ -687,8 +814,8 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
           </form>
         </ScrollArea>
         
-        {/* Botões de navegação */}
-        <div className="flex justify-between gap-2 pt-4 border-t">
+        {/* Footer padrão do modal */}
+        <DialogFooter className="flex-row justify-between sm:justify-between gap-2 pt-4 border-t">
           <div>
             {currentStep > 1 && (
               <Button type="button" variant="outline" size="sm" onClick={handlePreviousStep}>
@@ -697,15 +824,15 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
               </Button>
             )}
           </div>
-          
+
           <div className="flex gap-1.5">
-            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" size="sm" onClick={requestClose}>
               Cancelar
             </Button>
-            
+
             {!isLastStep ? (
-              <Button 
-                type="button" 
+              <Button
+                type="button"
                 onClick={handleNextStep}
                 disabled={currentStep === 1 && !isEtapa1Valid}
               >
@@ -713,7 +840,7 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
                 <ArrowRight className="h-4 w-4 ml-2" />
               </Button>
             ) : (
-              <Button 
+              <Button
                 type="button"
                 onClick={handleSubmit}
                 disabled={isCreating || isUpdating || isUploadingFiles || !isEtapa2Valid}
@@ -725,8 +852,27 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
               </Button>
             )}
           </div>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <AlertDialog open={confirmCloseOpen} onOpenChange={setConfirmCloseOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Cancelar agendamento?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Esta ação cancelará o agendamento e excluirá o histórico pendente de classificação.
+            Não será possível recuperar os dados.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Continuar editando</AlertDialogCancel>
+          <AlertDialogAction onClick={confirmCancelar} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            Sim, cancelar
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 };

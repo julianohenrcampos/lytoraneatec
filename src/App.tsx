@@ -67,6 +67,7 @@ import RelatorioAplicacaoDiaria from "@/pages/RelatorioAplicacaoDiaria";
 import GestaoPermissoes from "@/pages/GestaoPermissoes";
 import GestaoFluxos from "@/pages/admin/GestaoFluxos";
 import ConfiguracoesSistema from "@/pages/admin/ConfiguracoesSistema";
+import PontoDispositivos from "@/pages/admin/PontoDispositivos";
 
 // Diárias (Fim de Semana/Feriado)
 import DashboardDiarias from "@/pages/DashboardDiarias";
@@ -565,6 +566,12 @@ const App = () => {
                     <ConfiguracoesSistema />
                   </SecureRouteGuard>
                 </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
+            {/* Admin - Dispositivos de Ponto (SuperAdm) */}
+            <Route path="/admin/ponto-dispositivos" element={
+              <SimpleAuthGuard>
+                <PontoDispositivos />
               </SimpleAuthGuard>
             } />
             {/* Dev / Teste */}

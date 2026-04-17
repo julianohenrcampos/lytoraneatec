@@ -73,25 +73,23 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
   const { data: aprovadores = [] } = useQuery({
     queryKey: ['gerentes-regionais-aprovadores'],
     queryFn: async () => {
-      const PAGE_SIZE = 1000;
-      let allData: any[] = [];
-      let page = 0;
-      while (true) {
-        const from = page * PAGE_SIZE;
-        const to = from + PAGE_SIZE - 1;
-        const { data } = await supabase.rpc('get_funcionarios_para_diarias').range(from, to);
-        if (!data || data.length === 0) break;
-        allData = allData.concat(data);
-        if (data.length < PAGE_SIZE) break;
-        page++;
-      }
-      return allData
-        .filter((f: any) => f.funcao_nome?.toLowerCase() === 'gerente regional')
-        .map((f: any) => ({
-          id: f.id,
-          nome_completo: f.nome_completo,
-          email: null
-        }));
+      const { data: funcao } = await supabase
+        .from('bd_funcoes')
+        .select('id')
+        .ilike('nome_funcao', 'gerente regional')
+        .maybeSingle();
+      if (!funcao?.id) return [];
+      const { data } = await supabase
+        .from('bd_funcionarios')
+        .select('id, nome_completo')
+        .eq('funcao_id', funcao.id)
+        .in('status', ['Ativo', 'Ativo sem Registro'])
+        .order('nome_completo');
+      return (data || []).map((f: any) => ({
+        id: f.id,
+        nome_completo: f.nome_completo,
+        email: null,
+      }));
     },
     enabled: isOpen
   });

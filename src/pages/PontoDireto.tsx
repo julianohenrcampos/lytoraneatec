@@ -7,8 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, LogOut, MapPin, Camera, Clock, CheckCircle2, AlertTriangle } from "lucide-react";
-
-type TipoBatida = "entrada" | "intervalo_inicio" | "intervalo_fim" | "saida";
+import { getEstadoJornada, type TipoBatida } from "@/lib/ponto/estadoJornada";
 
 interface GPSData {
   latitude: number;
@@ -26,6 +25,7 @@ interface BatidaDia {
   tipo_batida: string;
   data_hora_considerada: string;
   status_validacao: string;
+  data_operacional: string;
 }
 
 const BOTOES: { tipo: TipoBatida; label: string; icon: string; cor: string }[] = [
@@ -73,8 +73,25 @@ export default function PontoDireto() {
   const [cc, setCC] = useState<CCDetectado>({ id: null, nome: null, distancia: null });
   const [batidasDia, setBatidasDia] = useState<BatidaDia[]>([]);
   const [fotoBase64, setFotoBase64] = useState<string | null>(null);
+  const [dataOperacional, setDataOperacional] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const watchIdRef = useRef<number | null>(null);
+
+  // Data operacional vem 100% do backend (RPC UTC-3)
+  useEffect(() => {
+    let cancelled = false;
+    const fetchData = async () => {
+      const { data, error } = await supabase.rpc("get_data_operacional_atual");
+      if (cancelled) return;
+      if (error || !data) {
+        toast.error("Falha ao obter data do servidor. Tente recarregar a página.");
+        return;
+      }
+      setDataOperacional(data as unknown as string);
+    };
+    fetchData();
+    return () => { cancelled = true; };
+  }, []);
 
   // Load profile
   useEffect(() => {
@@ -147,56 +164,59 @@ export default function PontoDireto() {
     });
   }, [gps]);
 
-  // Load day's punches
+  // Load day's punches (filtrado por data_operacional do servidor)
   const carregarBatidas = useCallback(async () => {
-    if (!funcionarioId) return;
-    const hoje = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+    if (!funcionarioId || !dataOperacional) return;
     const { data } = await supabase
       .from("bd_ponto_batidas")
-      .select("tipo_batida, data_hora_considerada, status_validacao")
+      .select("tipo_batida, data_hora_considerada, status_validacao, data_operacional")
       .eq("funcionario_id", funcionarioId)
-      .eq("data_operacional", hoje)
+      .eq("data_operacional", dataOperacional)
       .neq("status_validacao", "invalidada")
       .order("data_hora_considerada", { ascending: true });
     setBatidasDia((data as BatidaDia[]) || []);
-  }, [funcionarioId]);
+  }, [funcionarioId, dataOperacional]);
 
   useEffect(() => { carregarBatidas(); }, [carregarBatidas]);
 
-  // Determine which buttons are enabled
-  const tiposBatidos = batidasDia.map(b => b.tipo_batida);
-  const temEntrada = tiposBatidos.includes("entrada");
-  const temSaida = tiposBatidos.includes("saida");
-  const qtdIntInicio = tiposBatidos.filter(t => t === "intervalo_inicio").length;
-  const qtdIntFim = tiposBatidos.filter(t => t === "intervalo_fim").length;
-  const intervaloAberto = qtdIntInicio > qtdIntFim;
+  // Estado central derivado pela função única
+  const estado = getEstadoJornada(batidasDia, dataOperacional);
+  const { temEntrada, temSaida, intervaloAberto } = estado;
 
   const botaoHabilitado = (tipo: TipoBatida): boolean => {
-    if (gpsLoading || !gps || registrando || !fotoBase64) return false;
+    if (gpsLoading || !gps || registrando || !fotoBase64 || !dataOperacional) return false;
     switch (tipo) {
-      case "entrada": return !temEntrada || temSaida; // allows new journey after complete one
-      case "intervalo_inicio": return temEntrada && !temSaida && !intervaloAberto;
-      case "intervalo_fim": return temEntrada && !temSaida && intervaloAberto;
-      case "saida": return temEntrada && !temSaida && !intervaloAberto;
+      case "entrada": return estado.podeEntrada;
+      case "intervalo_inicio": return estado.podeIntervaloInicio;
+      case "intervalo_fim": return estado.podeIntervaloFim;
+      case "saida": return estado.podeSaida;
       default: return false;
     }
   };
 
-  // Handle photo
+  // Handle photo — resiliente: limpa estado e input em caso de erro
   const handleFoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) {
-      toast.error("Foto deve ter no máximo 2MB");
+      toast.error("Imagem maior que 2MB. Tire outra foto.");
+      setFotoBase64(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
     const reader = new FileReader();
     reader.onload = () => setFotoBase64(reader.result as string);
+    reader.onerror = () => {
+      toast.error("Falha ao ler a imagem. Tente novamente.");
+      setFotoBase64(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    };
     reader.readAsDataURL(file);
   };
 
   // Register punch
   const registrarPonto = async (tipo: TipoBatida) => {
+    if (registrando) return; // anti-duplo-clique
     if (!gps || !fotoBase64 || !cc.id) {
       toast.error("GPS e foto são obrigatórios");
       return;
@@ -247,9 +267,11 @@ export default function PontoDireto() {
           });
         }
 
+        // Atualiza data operacional vinda do servidor (caso tenha virado o dia)
+        if (data.data_operacional) setDataOperacional(data.data_operacional);
+
         setFotoBase64(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
-        await carregarBatidas();
       } else {
         const motivo = data?.motivo || "erro_desconhecido";
         const message = data?.message || "Erro ao registrar ponto";
@@ -262,6 +284,8 @@ export default function PontoDireto() {
       toast.error("Erro inesperado ao registrar ponto");
       console.error("[PontoDireto]", err);
     } finally {
+      // Refetch garantido (backend = fonte de verdade)
+      await carregarBatidas();
       setRegistrando(false);
     }
   };

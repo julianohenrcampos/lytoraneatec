@@ -339,6 +339,12 @@ export const menuStructure = [
         href: "/admin/configuracoes-sistema",
         icon: Settings,
         requiredPermission: "admin_permissoes_view"
+      },
+      {
+        name: "Dispositivos de Ponto",
+        href: "/admin/ponto-dispositivos",
+        icon: Settings,
+        requiredPermission: "admin_permissoes_view"
       }
     ]
   },

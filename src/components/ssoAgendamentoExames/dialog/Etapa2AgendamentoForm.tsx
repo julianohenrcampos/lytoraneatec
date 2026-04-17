@@ -39,6 +39,7 @@ interface Etapa2AgendamentoFormProps {
   locais: LocalAtendimento[];
   canChangeStatus?: boolean;
   disabled?: boolean;
+  motivoMudancaReadOnly?: boolean;
 }
 
 const DIAS_SEMANA_MAP: Record<number, string> = {
@@ -62,7 +63,8 @@ export const Etapa2AgendamentoForm: React.FC<Etapa2AgendamentoFormProps> = ({
   onChange,
   locais,
   canChangeStatus = true,
-  disabled = false
+  disabled = false,
+  motivoMudancaReadOnly = false
 }) => {
   const [showIndisponivel, setShowIndisponivel] = useState(false);
   const [motivoIndisponivel, setMotivoIndisponivel] = useState('');
@@ -225,20 +227,28 @@ export const Etapa2AgendamentoForm: React.FC<Etapa2AgendamentoFormProps> = ({
             <>
               <div className="space-y-2">
                 <Label>Motivo da Mudança *</Label>
-                <Select
-                  value={formData.motivo_mudanca_risco || ''}
-                  onValueChange={(v) => onChange('motivo_mudanca_risco', v)}
-                  disabled={disabled}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o motivo..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MOTIVOS_MUDANCA_RISCO.map((motivo) => (
-                      <SelectItem key={motivo} value={motivo}>{motivo}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {motivoMudancaReadOnly ? (
+                  <Input
+                    value={formData.motivo_mudanca_risco || ''}
+                    readOnly
+                    className="bg-muted"
+                  />
+                ) : (
+                  <Select
+                    value={formData.motivo_mudanca_risco || ''}
+                    onValueChange={(v) => onChange('motivo_mudanca_risco', v)}
+                    disabled={disabled}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o motivo..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MOTIVOS_MUDANCA_RISCO.map((motivo) => (
+                        <SelectItem key={motivo} value={motivo}>{motivo}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               
               <div className="space-y-2">

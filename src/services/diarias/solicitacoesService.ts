@@ -196,10 +196,22 @@ export async function createSolicitacao(formData: SolicitacaoFormData): Promise<
 
   if (error) {
     console.error('Erro ao criar solicitação:', error);
-    throw new Error(error.message);
+    throw new Error(traduzirErroPeriodoSobreposto(error));
   }
 
   return data as unknown as DiariaSolicitacao;
+}
+
+// Traduz erros de constraint de sobreposição em mensagem amigável
+function traduzirErroPeriodoSobreposto(error: any): string {
+  const msg = error?.message || '';
+  if (error?.code === '23P01' || msg.includes('PERIODO_SOBREPOSTO')) {
+    // Extrai trecho útil após "PERIODO_SOBREPOSTO:"
+    const match = msg.match(/PERIODO_SOBREPOSTO:\s*(.+)/);
+    if (match?.[1]) return match[1].trim();
+    return 'Já existe uma solicitação ativa cobrindo dias deste período para o mesmo Centro de Custo. Ajuste as datas para não sobrepor.';
+  }
+  return msg;
 }
 
 export async function updateSolicitacao(id: string, formData: Partial<SolicitacaoFormData>): Promise<DiariaSolicitacao> {
@@ -241,7 +253,7 @@ export async function updateSolicitacao(id: string, formData: Partial<Solicitaca
 
   if (error) {
     console.error('Erro ao atualizar solicitação:', error);
-    throw new Error(error.message);
+    throw new Error(traduzirErroPeriodoSobreposto(error));
   }
 
   return data as unknown as DiariaSolicitacao;

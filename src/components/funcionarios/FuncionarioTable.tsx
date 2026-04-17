@@ -1,14 +1,33 @@
 
-import React from "react";
+import React, { useState } from "react";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Eye, Pencil, Trash2, Upload } from "lucide-react";
+import { Eye, Pencil, Trash2, ArrowUpCircle, MoreVertical, Printer, FileX2 } from "lucide-react";
 import { Funcionario } from "@/types/funcionario";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDate } from "@/lib/utils";
 import { usePagination } from "@/hooks/usePagination";
 import TablePagination from "@/components/ui/table-pagination";
 import { formatCPF } from "@/utils/textTransform";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useReimprimirClassificacao } from "@/hooks/useReimprimirClassificacao";
+import { useExcluirUltimaClassificacao } from "@/hooks/useExcluirUltimaClassificacao";
 
 interface FuncionarioTableProps {
   funcionarios: Funcionario[];
@@ -20,6 +39,7 @@ interface FuncionarioTableProps {
   onDelete: (funcionario: Funcionario) => void;
   onRefetch: () => void;
   openImageModal?: (funcionario: Funcionario) => void;
+  onBaixarClassificacao?: (funcionario: Funcionario) => void;
 }
 
 const FuncionarioTable: React.FC<FuncionarioTableProps> = ({
@@ -31,9 +51,13 @@ const FuncionarioTable: React.FC<FuncionarioTableProps> = ({
   onViewDetails,
   onDelete,
   onRefetch,
-  openImageModal
+  openImageModal,
+  onBaixarClassificacao,
 }) => {
   const pagination = usePagination(funcionarios, { pageSize: 10 });
+  const { reimprimir, isLoading: reimprimindo } = useReimprimirClassificacao();
+  const { excluir, isLoading: excluindo } = useExcluirUltimaClassificacao();
+  const [confirmExcluirId, setConfirmExcluirId] = useState<string | null>(null);
 
   if (isLoading) {
     return <div className="text-center p-4">Carregando funcionários...</div>;
@@ -118,19 +142,43 @@ const FuncionarioTable: React.FC<FuncionarioTableProps> = ({
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => openImageModal && openImageModal(funcionario)}
-                      title="Alterar imagem"
+                      onClick={() => onBaixarClassificacao && onBaixarClassificacao(funcionario)}
+                      title="Baixar Classificação"
                     >
-                      <Upload className="h-4 w-4" />
+                      <ArrowUpCircle className="h-4 w-4" />
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => onDelete(funcionario)}
-                      title="Excluir"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="icon" title="Mais ações">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => reimprimir(funcionario.id)}
+                          disabled={reimprimindo}
+                        >
+                          <Printer className="h-4 w-4 mr-2" />
+                          Reimprimir Classificação
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setConfirmExcluirId(funcionario.id)}
+                          disabled={excluindo}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <FileX2 className="h-4 w-4 mr-2" />
+                          Excluir Classificação
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => onDelete(funcionario)}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Excluir Funcionário
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </TableCell>
               </TableRow>
@@ -142,6 +190,36 @@ const FuncionarioTable: React.FC<FuncionarioTableProps> = ({
       {funcionarios.length > 0 && (
         <TablePagination pagination={pagination} />
       )}
+
+      <AlertDialog
+        open={!!confirmExcluirId}
+        onOpenChange={(o) => !o && setConfirmExcluirId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir última classificação?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação remove o último registro de classificação do funcionário.
+              Se a classificação já estava efetivada, o cargo e salário serão revertidos
+              para os valores anteriores. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (confirmExcluirId) {
+                  await excluir(confirmExcluirId);
+                  setConfirmExcluirId(null);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Sim, excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

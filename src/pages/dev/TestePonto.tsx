@@ -2,6 +2,8 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getConfiguracaoSistema } from "@/services/configService";
 import { detectarCentroCustoPorGPS, DeteccaoCCResult } from "@/services/ponto";
+import { toast } from "sonner";
+import { getEstadoJornada, type TipoBatida } from "@/lib/ponto/estadoJornada";
 
 const SUPABASE_URL = "https://eexzgpmrousuxlkvqwkm.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVleHpncG1yb3VzdXhsa3Zxd2ttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMyMDA1MDAsImV4cCI6MjA2ODc3NjUwMH0.6OFYvcfdH5iTPLbV8OkFdApWY6JHUAfzuJ5ikfx1tMU";
@@ -65,6 +67,11 @@ export default function TestePonto() {
   const [fotoPreview, setFotoPreview] = useState<string | null>(null);
   const fotoInputRef = useRef<HTMLInputElement>(null);
 
+  // Data operacional do servidor + batidas do dia
+  const [dataOperacional, setDataOperacional] = useState<string | null>(null);
+  const [funcionarioId, setFuncionarioId] = useState<string | null>(null);
+  const [batidasDia, setBatidasDia] = useState<Array<{ tipo_batida: string; data_operacional: string; status_validacao: string }>>([]);
+
   useEffect(() => {
     const fetchCC = async () => {
       setCcLoading(true);
@@ -78,6 +85,49 @@ export default function TestePonto() {
     };
     fetchCC();
   }, []);
+
+  // Data operacional 100% do backend
+  useEffect(() => {
+    let cancelled = false;
+    supabase.rpc("get_data_operacional_atual").then(({ data, error }) => {
+      if (cancelled) return;
+      if (error || !data) {
+        toast.error("Falha ao obter data do servidor.");
+        return;
+      }
+      setDataOperacional(data as unknown as string);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  // funcionario_id do usuário logado
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("funcionario_id")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (profile?.funcionario_id) setFuncionarioId(profile.funcionario_id);
+    })();
+  }, []);
+
+  // Carregar batidas do dia operacional
+  const carregarBatidas = useCallback(async () => {
+    if (!funcionarioId || !dataOperacional) return;
+    const { data } = await supabase
+      .from("bd_ponto_batidas")
+      .select("tipo_batida, data_operacional, status_validacao")
+      .eq("funcionario_id", funcionarioId)
+      .eq("data_operacional", dataOperacional)
+      .neq("status_validacao", "invalidada")
+      .order("data_hora_considerada", { ascending: true });
+    setBatidasDia((data as any[]) || []);
+  }, [funcionarioId, dataOperacional]);
+
+  useEffect(() => { carregarBatidas(); }, [carregarBatidas]);
 
   const executarDeteccaoCC = useCallback(async (lat: number, lng: number) => {
     setAutoCCLoading(true);
@@ -154,7 +204,9 @@ export default function TestePonto() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > MAX_FOTO_SIZE) {
-      alert("Foto muito grande. Máximo: 2MB.");
+      toast.error("Imagem maior que 2MB. Tire outra foto.");
+      setFotoBase64(null);
+      setFotoPreview(null);
       if (fotoInputRef.current) fotoInputRef.current.value = "";
       return;
     }
@@ -163,6 +215,12 @@ export default function TestePonto() {
       const result = reader.result as string;
       setFotoBase64(result);
       setFotoPreview(result);
+    };
+    reader.onerror = () => {
+      toast.error("Falha ao ler a imagem. Tente novamente.");
+      setFotoBase64(null);
+      setFotoPreview(null);
+      if (fotoInputRef.current) fotoInputRef.current.value = "";
     };
     reader.readAsDataURL(file);
   };
@@ -174,6 +232,7 @@ export default function TestePonto() {
   };
 
   const registrarPonto = async (tipo: string) => {
+    if (loading) return; // anti-duplo-clique
     setLoading(tipo);
     const payload = {
       tipo_batida: tipo,
@@ -216,6 +275,9 @@ export default function TestePonto() {
       setUltimoRetorno(data);
       setUltimoHttpStatus(httpStatus);
 
+      // Atualiza data operacional do servidor (caso tenha virado o dia)
+      if (data?.data_operacional) setDataOperacional(data.data_operacional);
+
       const entry: LogEntry = {
         horario: new Date().toLocaleTimeString("pt-BR"),
         tipo,
@@ -230,8 +292,24 @@ export default function TestePonto() {
       setUltimoRetorno(resultado);
       setUltimoHttpStatus("exception");
       setLogs(prev => [{ horario: new Date().toLocaleTimeString("pt-BR"), tipo, httpStatus: "exception", resultado: "erro", resumo: e.message }, ...prev]);
+    } finally {
+      // Refetch garantido (backend = fonte de verdade)
+      await carregarBatidas();
+      setLoading(null);
     }
-    setLoading(null);
+  };
+
+  // Estado central da jornada (mesma função usada em /ponto)
+  const estado = getEstadoJornada(batidasDia, dataOperacional);
+  const podeRegistrar = (tipo: string): boolean => {
+    if (!gpsOk || !fotoBase64 || loading !== null || !dataOperacional) return false;
+    switch (tipo) {
+      case "entrada": return estado.podeEntrada;
+      case "intervalo_inicio": return estado.podeIntervaloInicio;
+      case "intervalo_fim": return estado.podeIntervaloFim;
+      case "saida": return estado.podeSaida;
+      default: return false;
+    }
   };
 
   const gpsOk = gps.status === "sucesso" && gps.latitude !== null;
@@ -363,17 +441,28 @@ export default function TestePonto() {
         <h2 className="font-semibold">⏱️ Ações de Ponto</h2>
         {!gpsOk && <p className="text-sm text-muted-foreground">Capture o GPS antes de bater ponto.</p>}
         {!fotoBase64 && gpsOk && <p className="text-sm text-yellow-500">📸 Foto obrigatória para registrar ponto.</p>}
+        {!dataOperacional && <p className="text-sm text-yellow-500">⏳ Aguardando data do servidor...</p>}
+        {dataOperacional && (
+          <p className="text-xs text-muted-foreground">
+            Data operacional (servidor): <strong>{dataOperacional}</strong> · Batidas hoje: {batidasDia.length}
+            {estado.temSaida && " · Jornada encerrada"}
+            {estado.intervaloAberto && " · Em intervalo"}
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-3">
-          {TIPOS_BATIDA.map(({ tipo, label, color }) => (
-            <Button
-              key={tipo}
-              className={`${color} text-white h-14 text-base`}
-              disabled={!gpsOk || !fotoBase64 || loading !== null}
-              onClick={() => registrarPonto(tipo)}
-            >
-              {loading === tipo ? "Enviando..." : label}
-            </Button>
-          ))}
+          {TIPOS_BATIDA.map(({ tipo, label, color }) => {
+            const habilitado = podeRegistrar(tipo);
+            return (
+              <Button
+                key={tipo}
+                className={`${color} text-white h-14 text-base`}
+                disabled={!habilitado}
+                onClick={() => registrarPonto(tipo)}
+              >
+                {loading === tipo ? "Enviando..." : label}
+              </Button>
+            );
+          })}
         </div>
       </section>
 

@@ -17,6 +17,8 @@ import FuncionarioImportModal from "./FuncionarioImportModal";
 import DeleteFuncionarioDialog from "./DeleteFuncionarioDialog";
 import EmailConfirmationModal from "./EmailConfirmationModal";
 import CenterAlert from "@/components/ui/CenterAlert";
+import BaixarClassificacaoModal from "./classificacao/BaixarClassificacaoModal";
+import { Funcionario } from "@/types/funcionario";
 
 interface FuncionarioPageProps {
   openImageModal?: (funcionario: any) => void;
@@ -24,6 +26,13 @@ interface FuncionarioPageProps {
 
 const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => {
   const [isEmailConfirmationOpen, setIsEmailConfirmationOpen] = useState(false);
+  const [classificacaoOpen, setClassificacaoOpen] = useState(false);
+  const [funcionarioClassificacao, setFuncionarioClassificacao] = useState<Funcionario | null>(null);
+
+  const handleBaixarClassificacao = (f: Funcionario) => {
+    setFuncionarioClassificacao(f);
+    setClassificacaoOpen(true);
+  };
   
   const {
     filters,
@@ -127,6 +136,7 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
         onViewDetails={openDetailsModal}
         onRefetch={refetch}
         openImageModal={openImageModal}
+        onBaixarClassificacao={handleBaixarClassificacao}
       />
 
       <FuncionarioFormModal
@@ -170,6 +180,12 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
         message={centerAlert.message}
         type={centerAlert.type}
         onClose={closeCenterAlert}
+      />
+
+      <BaixarClassificacaoModal
+        open={classificacaoOpen}
+        onOpenChange={setClassificacaoOpen}
+        funcionario={funcionarioClassificacao}
       />
     </div>
   );
