@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -69,11 +70,13 @@ export function DispositivoFormDialog({ open, onOpenChange, dispositivo }: Props
   });
 
   const hasResetRef = useRef(false);
+  const editResetForIdRef = useRef<string | null>(null);
 
   // Modo criação: reset único ao abrir
   useEffect(() => {
     if (!open) {
       hasResetRef.current = false;
+      editResetForIdRef.current = null;
       return;
     }
     if (!dispositivo && !hasResetRef.current) {
@@ -88,9 +91,10 @@ export function DispositivoFormDialog({ open, onOpenChange, dispositivo }: Props
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, dispositivo]);
 
-  // Modo edição: reset controlado por dispositivo.id (não depende de vinculos)
+  // Modo edição: reset apenas UMA vez por dispositivo.id (após carregar vínculos)
   useEffect(() => {
-    if (!open || !dispositivo) return;
+    if (!open || !dispositivo || loadingVinculos) return;
+    if (editResetForIdRef.current === dispositivo.id) return;
     form.reset({
       nome: dispositivo.nome ?? "",
       codigo_dispositivo: dispositivo.codigo_dispositivo ?? "",
@@ -99,7 +103,9 @@ export function DispositivoFormDialog({ open, onOpenChange, dispositivo }: Props
         .filter((v) => v.ativo)
         .map((v) => v.centro_custo_id),
     });
-  }, [open, dispositivo?.id, vinculos, form]);
+    editResetForIdRef.current = dispositivo.id;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, dispositivo?.id, loadingVinculos, vinculos]);
 
   const ccOptions = useMemo(
     () =>
@@ -111,16 +117,28 @@ export function DispositivoFormDialog({ open, onOpenChange, dispositivo }: Props
   );
 
   const onSubmit = async (values: FormValues) => {
-    await salvar.mutateAsync({
-      input: {
-        id: dispositivo?.id,
-        nome: values.nome,
-        codigo_dispositivo: values.codigo_dispositivo,
-        ativo: values.ativo,
-      },
-      centro_custo_ids: values.centros_custo_ids,
-    });
-    onOpenChange(false);
+    console.log("[DispositivoForm] submit", values);
+    try {
+      await salvar.mutateAsync({
+        input: {
+          id: dispositivo?.id,
+          nome: values.nome,
+          codigo_dispositivo: values.codigo_dispositivo,
+          ativo: values.ativo,
+        },
+        centro_custo_ids: values.centros_custo_ids,
+      });
+      toast.success(isEdit ? "Dispositivo atualizado" : "Dispositivo criado");
+      onOpenChange(false);
+    } catch (e: any) {
+      console.error("[DispositivoForm] erro ao salvar", e);
+      toast.error(e?.message ?? "Falha ao salvar dispositivo");
+    }
+  };
+
+  const onInvalid = (errors: any) => {
+    console.warn("[DispositivoForm] formState.errors", errors);
+    toast.error("Verifique os campos obrigatórios");
   };
 
   return (
@@ -147,7 +165,7 @@ export function DispositivoFormDialog({ open, onOpenChange, dispositivo }: Props
           </div>
         ) : (
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-4">
               <FormField
                 control={form.control}
                 name="nome"

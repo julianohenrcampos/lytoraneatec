@@ -2,7 +2,7 @@
 // Requer JWT humano + role SuperAdm. Nunca expor publicamente.
 // Define/reseta a senha (bcrypt) de um dispositivo de ponto. Apenas SuperAdm.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
+import { hash as bcryptHash } from "https://esm.sh/bcrypt-ts@5.0.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -88,7 +88,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    const hash = await bcrypt.hash(senha, await bcrypt.genSalt(10));
+    // bcrypt-ts: pure TS, no Worker dependency (compatível com runtime atual das Edge Functions)
+    const hash = await bcryptHash(senha, 10);
 
     const { error: updErr } = await admin
       .from("bd_ponto_dispositivos")
@@ -97,10 +98,11 @@ Deno.serve(async (req) => {
       .eq("tipo", "dispositivo_obra");
     if (updErr) return json({ error: updErr.message }, 500);
 
+    console.log("[PONTO] Senha definida para dispositivo:", dispositivo_id);
     return json({ success: true });
   } catch (e) {
     console.error("definir-senha-dispositivo erro:", e);
-    return json({ error: "Erro interno" }, 500);
+    return json({ error: (e as Error)?.message ?? "Erro interno" }, 500);
   }
 });
 

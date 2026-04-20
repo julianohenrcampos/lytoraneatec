@@ -299,6 +299,9 @@ export default function TestePonto() {
     }
   };
 
+  // GPS OK precisa ser declarado ANTES de podeRegistrar (TDZ fix)
+  const gpsOk = gps.status === "sucesso" && gps.latitude !== null;
+
   // Estado central da jornada (mesma função usada em /ponto)
   const estado = getEstadoJornada(batidasDia, dataOperacional);
   const podeRegistrar = (tipo: string): boolean => {
@@ -311,8 +314,6 @@ export default function TestePonto() {
       default: return false;
     }
   };
-
-  const gpsOk = gps.status === "sucesso" && gps.latitude !== null;
 
   return (
     <div className="min-h-screen bg-muted p-4 space-y-6 max-w-3xl mx-auto">

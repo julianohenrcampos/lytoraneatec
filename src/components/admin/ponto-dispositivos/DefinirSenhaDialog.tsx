@@ -10,7 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { useDefinirSenha } from "@/hooks/usePontoDispositivos";
 
 interface Props {
@@ -28,12 +28,14 @@ export function DefinirSenhaDialog({
 }: Props) {
   const [senha, setSenha] = useState("");
   const [confirma, setConfirma] = useState("");
+  const [mostrar, setMostrar] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const definir = useDefinirSenha();
 
   const reset = () => {
     setSenha("");
     setConfirma("");
+    setMostrar(false);
     setErro(null);
   };
 
@@ -58,6 +60,8 @@ export function DefinirSenhaDialog({
     }
   };
 
+  const inputType = mostrar ? "text" : "password";
+
   return (
     <Dialog
       open={open}
@@ -80,28 +84,60 @@ export function DefinirSenhaDialog({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="senha">Nova senha</Label>
-            <Input
-              id="senha"
-              type="password"
-              autoComplete="new-password"
-              value={senha}
-              onChange={(e) => setSenha(e.target.value)}
-              minLength={8}
-              maxLength={128}
-            />
+            <div className="relative">
+              <Input
+                id="senha"
+                type={inputType}
+                autoComplete="new-password"
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                minLength={8}
+                maxLength={128}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setMostrar((v) => !v)}
+                aria-label={mostrar ? "Ocultar senha" : "Mostrar senha"}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground focus:outline-none"
+              >
+                {mostrar ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="confirma">Confirmar senha</Label>
-            <Input
-              id="confirma"
-              type="password"
-              autoComplete="new-password"
-              value={confirma}
-              onChange={(e) => setConfirma(e.target.value)}
-              minLength={8}
-              maxLength={128}
-            />
+            <div className="relative">
+              <Input
+                id="confirma"
+                type={inputType}
+                autoComplete="new-password"
+                value={confirma}
+                onChange={(e) => setConfirma(e.target.value)}
+                minLength={8}
+                maxLength={128}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setMostrar((v) => !v)}
+                aria-label={mostrar ? "Ocultar senha" : "Mostrar senha"}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground focus:outline-none"
+              >
+                {mostrar ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
           </div>
 
           {erro && (

@@ -90,7 +90,7 @@ export function Combobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent 
-        className="w-[var(--radix-popover-trigger-width)] p-0 z-[10000] bg-white shadow-xl border border-gray-200 pointer-events-auto" 
+        className="w-[var(--radix-popover-trigger-width)] p-0 z-[10000] bg-popover text-popover-foreground shadow-xl border pointer-events-auto" 
         align="start"
         side="bottom"
         avoidCollisions={false}

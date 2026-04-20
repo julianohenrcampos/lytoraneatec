@@ -104,35 +104,49 @@ export function MultiCombobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-[var(--radix-popover-trigger-width)] p-0 bg-popover shadow-xl border"
+        className="w-[var(--radix-popover-trigger-width)] p-0 z-[10000] bg-popover shadow-xl border pointer-events-auto"
         align="start"
         side="bottom"
+        avoidCollisions={false}
         sideOffset={4}
+        style={{ minWidth: '300px' }}
         portalContainer={portalContainer}
       >
-        <Command shouldFilter={false}>
+        <Command shouldFilter={false} className="pointer-events-auto">
           <CommandInput
             placeholder={searchPlaceholder}
             value={inputValue}
             onValueChange={setInputValue}
           />
-          <CommandList className="max-h-[300px] overflow-y-auto">
+          <CommandList
+            className="max-h-[300px] overflow-y-auto"
+            style={{ pointerEvents: 'auto' }}
+          >
             <CommandEmpty>{emptyText}</CommandEmpty>
             <CommandGroup>
               {filteredOptions.map((option) => (
                 <CommandItem
                   key={option.value}
-                  value={`${option.value}-${option.label}`.toLowerCase()}
+                  value={option.value}
                   onSelect={() => toggleValue(option.value)}
-                  className="cursor-pointer"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleValue(option.value);
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                  }}
+                  className="cursor-pointer hover:bg-accent hover:text-accent-foreground py-2.5 px-3 select-none"
+                  style={{ pointerEvents: 'auto' }}
                 >
                   <Check
                     className={cn(
-                      "mr-2 h-4 w-4 shrink-0",
+                      "mr-2 h-4 w-4 shrink-0 pointer-events-none",
                       value.includes(option.value) ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  <span className="flex-1">{option.label}</span>
+                  <span className="flex-1 pointer-events-none">{option.label}</span>
                 </CommandItem>
               ))}
             </CommandGroup>
