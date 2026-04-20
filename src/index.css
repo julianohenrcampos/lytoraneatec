@@ -96,6 +96,11 @@
   }
 }
 
+/* Defesa contra bug do Radix Dialog + Popover aninhado deixando body travado */
+body[data-scroll-locked] {
+  pointer-events: auto !important;
+}
+
 @layer components {
   .auth-card {
     @apply relative overflow-hidden bg-white/80 backdrop-blur-md border rounded-xl p-8 shadow-lg transition-all duration-300 animate-scale-in;

@@ -470,11 +470,9 @@ export default function ApontamentoDiariasModal({
             const funcaoAtual = funcoesCompletas.find(f => f.id === conv.funcao_id);
             const vNormal = funcaoAtual?.valor_diaria ?? conv.valor_diaria;
             const vExclusiva = funcaoAtual?.valor_diaria_exclusiva ?? conv.valor_diaria_exclusiva ?? vNormal;
-            const existenteUsaExclusiva = existente
-              ? (existente.valor_diaria_aplicada !== undefined && vExclusiva !== vNormal
-                  ? Math.abs((existente.valor_diaria_aplicada || 0) - vExclusiva) < Math.abs((existente.valor_diaria_aplicada || 0) - vNormal)
-                  : usarExclusiva)
-              : usarExclusiva;
+            // REGRA AUTORITATIVA POR DATA: sábado/domingo/feriado ou flag do convocado => exclusiva.
+            // Não usar heurística de "valor mais próximo" do existente, para não perpetuar erros históricos.
+            const existenteUsaExclusiva = usarExclusiva;
             const valorOriginal = existenteUsaExclusiva ? vExclusiva : vNormal;
 
             return {
@@ -523,9 +521,8 @@ export default function ApontamentoDiariasModal({
               const vNormal = funcaoData?.valor_diaria || 0;
               const vExclusiva = funcaoData?.valor_diaria_exclusiva || vNormal;
               const usarExclusiva = isDomingo || isSabado || isFeriadoFlag;
-              const existenteUsaExclusiva = existente.valor_diaria_aplicada !== undefined && vExclusiva !== vNormal
-                ? Math.abs((existente.valor_diaria_aplicada || 0) - vExclusiva) < Math.abs((existente.valor_diaria_aplicada || 0) - vNormal)
-                : usarExclusiva;
+              // REGRA AUTORITATIVA POR DATA: não reinterpretar valor histórico.
+              const existenteUsaExclusiva = usarExclusiva;
               const valorOriginal = existenteUsaExclusiva ? vExclusiva : vNormal;
 
               mapped.push({
@@ -635,7 +632,7 @@ export default function ApontamentoDiariasModal({
     };
 
     initColaboradores();
-  }, [isOpen, selectedDate, convocadosPre, solicitacao?.id, funcoesCompletas]);
+  }, [isOpen, selectedDate, convocadosPre, solicitacao?.id, funcoesCompletas, feriados]);
 
   // Resetar quando abrir/fechar
   useEffect(() => {

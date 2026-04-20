@@ -1017,23 +1017,44 @@ export type Database = {
         Row: {
           created_at: string | null
           endereco: string
+          endereco_normalizado: string | null
+          endereco_original: string | null
+          geocoding_status: string | null
           id: string
           latitude: number
           longitude: number
+          place_name: string | null
+          place_type: string | null
+          relevance: number | null
+          updated_at: string | null
         }
         Insert: {
           created_at?: string | null
           endereco: string
+          endereco_normalizado?: string | null
+          endereco_original?: string | null
+          geocoding_status?: string | null
           id?: string
           latitude: number
           longitude: number
+          place_name?: string | null
+          place_type?: string | null
+          relevance?: number | null
+          updated_at?: string | null
         }
         Update: {
           created_at?: string | null
           endereco?: string
+          endereco_normalizado?: string | null
+          endereco_original?: string | null
+          geocoding_status?: string | null
           id?: string
           latitude?: number
           longitude?: number
+          place_name?: string | null
+          place_type?: string | null
+          relevance?: number | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -1491,12 +1512,17 @@ export type Database = {
           endereco_cidade: string | null
           endereco_completo: string | null
           endereco_estado: string | null
+          endereco_normalizado: string | null
           endereco_numero: string | null
           endereco_rua: string | null
+          geocoding_relevance: number | null
+          geocoding_source: string | null
           geocoding_status: string | null
+          geocoding_updated_at: string | null
           id: string
           latitude: number | null
           longitude: number | null
+          mapbox_place_name: string | null
           modificado_por: string | null
           nome_alterdata: string | null
           nome_centro_custo: string
@@ -1518,12 +1544,17 @@ export type Database = {
           endereco_cidade?: string | null
           endereco_completo?: string | null
           endereco_estado?: string | null
+          endereco_normalizado?: string | null
           endereco_numero?: string | null
           endereco_rua?: string | null
+          geocoding_relevance?: number | null
+          geocoding_source?: string | null
           geocoding_status?: string | null
+          geocoding_updated_at?: string | null
           id?: string
           latitude?: number | null
           longitude?: number | null
+          mapbox_place_name?: string | null
           modificado_por?: string | null
           nome_alterdata?: string | null
           nome_centro_custo: string
@@ -1545,12 +1576,17 @@ export type Database = {
           endereco_cidade?: string | null
           endereco_completo?: string | null
           endereco_estado?: string | null
+          endereco_normalizado?: string | null
           endereco_numero?: string | null
           endereco_rua?: string | null
+          geocoding_relevance?: number | null
+          geocoding_source?: string | null
           geocoding_status?: string | null
+          geocoding_updated_at?: string | null
           id?: string
           latitude?: number | null
           longitude?: number | null
+          mapbox_place_name?: string | null
           modificado_por?: string | null
           nome_alterdata?: string | null
           nome_centro_custo?: string
@@ -2615,11 +2651,17 @@ export type Database = {
           endereco_estado: string | null
           endereco_latitude: number | null
           endereco_longitude: number | null
+          endereco_normalizado: string | null
           fornece_equipamento: boolean | null
+          geocoding_relevance: number | null
+          geocoding_source: string | null
+          geocoding_status: string | null
+          geocoding_updated_at: string | null
           id: string
           inscricao_estadual: string | null
           inscricao_municipal: string | null
           logo_url: string | null
+          mapbox_place_name: string | null
           modificado_por: string | null
           nome_contato: string | null
           nome_empresa: string
@@ -2649,11 +2691,17 @@ export type Database = {
           endereco_estado?: string | null
           endereco_latitude?: number | null
           endereco_longitude?: number | null
+          endereco_normalizado?: string | null
           fornece_equipamento?: boolean | null
+          geocoding_relevance?: number | null
+          geocoding_source?: string | null
+          geocoding_status?: string | null
+          geocoding_updated_at?: string | null
           id?: string
           inscricao_estadual?: string | null
           inscricao_municipal?: string | null
           logo_url?: string | null
+          mapbox_place_name?: string | null
           modificado_por?: string | null
           nome_contato?: string | null
           nome_empresa: string
@@ -2683,11 +2731,17 @@ export type Database = {
           endereco_estado?: string | null
           endereco_latitude?: number | null
           endereco_longitude?: number | null
+          endereco_normalizado?: string | null
           fornece_equipamento?: boolean | null
+          geocoding_relevance?: number | null
+          geocoding_source?: string | null
+          geocoding_status?: string | null
+          geocoding_updated_at?: string | null
           id?: string
           inscricao_estadual?: string | null
           inscricao_municipal?: string | null
           logo_url?: string | null
+          mapbox_place_name?: string | null
           modificado_por?: string | null
           nome_contato?: string | null
           nome_empresa?: string
@@ -3178,16 +3232,24 @@ export type Database = {
           endereco_cidade: string | null
           endereco_completo: string | null
           endereco_estado: string | null
+          endereco_normalizado: string | null
           endereco_numero: string | null
           endereco_rua: string | null
           equipe_id: string | null
           escolaridade: string | null
           funcao_id: string | null
           genero: string | null
+          geocoding_relevance: number | null
+          geocoding_source: string | null
+          geocoding_status: string | null
+          geocoding_updated_at: string | null
           gratificacao: number | null
           id: string
           imagem: string | null
           insalubridade: number | null
+          latitude: number | null
+          longitude: number | null
+          mapbox_place_name: string | null
           matricula: string | null
           modificado_por: string | null
           nome_completo: string
@@ -3223,16 +3285,24 @@ export type Database = {
           endereco_cidade?: string | null
           endereco_completo?: string | null
           endereco_estado?: string | null
+          endereco_normalizado?: string | null
           endereco_numero?: string | null
           endereco_rua?: string | null
           equipe_id?: string | null
           escolaridade?: string | null
           funcao_id?: string | null
           genero?: string | null
+          geocoding_relevance?: number | null
+          geocoding_source?: string | null
+          geocoding_status?: string | null
+          geocoding_updated_at?: string | null
           gratificacao?: number | null
           id?: string
           imagem?: string | null
           insalubridade?: number | null
+          latitude?: number | null
+          longitude?: number | null
+          mapbox_place_name?: string | null
           matricula?: string | null
           modificado_por?: string | null
           nome_completo: string
@@ -3268,16 +3338,24 @@ export type Database = {
           endereco_cidade?: string | null
           endereco_completo?: string | null
           endereco_estado?: string | null
+          endereco_normalizado?: string | null
           endereco_numero?: string | null
           endereco_rua?: string | null
           equipe_id?: string | null
           escolaridade?: string | null
           funcao_id?: string | null
           genero?: string | null
+          geocoding_relevance?: number | null
+          geocoding_source?: string | null
+          geocoding_status?: string | null
+          geocoding_updated_at?: string | null
           gratificacao?: number | null
           id?: string
           imagem?: string | null
           insalubridade?: number | null
+          latitude?: number | null
+          longitude?: number | null
+          mapbox_place_name?: string | null
           matricula?: string | null
           modificado_por?: string | null
           nome_completo?: string
@@ -3403,6 +3481,39 @@ export type Database = {
           nome_funcao?: string
           permissoes?: string[] | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      bd_geocoding_falhas: {
+        Row: {
+          contexto: string | null
+          created_at: string
+          detalhes: Json | null
+          endereco_normalizado: string | null
+          endereco_original: string | null
+          id: string
+          motivo: string
+          user_id: string | null
+        }
+        Insert: {
+          contexto?: string | null
+          created_at?: string
+          detalhes?: Json | null
+          endereco_normalizado?: string | null
+          endereco_original?: string | null
+          id?: string
+          motivo: string
+          user_id?: string | null
+        }
+        Update: {
+          contexto?: string | null
+          created_at?: string
+          detalhes?: Json | null
+          endereco_normalizado?: string | null
+          endereco_original?: string | null
+          id?: string
+          motivo?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -3841,9 +3952,18 @@ export type Database = {
           criado_em: string
           dias_atendimento: string[] | null
           endereco: string
+          endereco_completo: string | null
+          endereco_normalizado: string | null
+          geocoding_relevance: number | null
+          geocoding_source: string | null
+          geocoding_status: string | null
+          geocoding_updated_at: string | null
           horario_fim: string | null
           horario_inicio: string | null
           id: string
+          latitude: number | null
+          longitude: number | null
+          mapbox_place_name: string | null
           nome_local: string
           telefone: string | null
         }
@@ -3853,9 +3973,18 @@ export type Database = {
           criado_em?: string
           dias_atendimento?: string[] | null
           endereco: string
+          endereco_completo?: string | null
+          endereco_normalizado?: string | null
+          geocoding_relevance?: number | null
+          geocoding_source?: string | null
+          geocoding_status?: string | null
+          geocoding_updated_at?: string | null
           horario_fim?: string | null
           horario_inicio?: string | null
           id?: string
+          latitude?: number | null
+          longitude?: number | null
+          mapbox_place_name?: string | null
           nome_local: string
           telefone?: string | null
         }
@@ -3865,9 +3994,18 @@ export type Database = {
           criado_em?: string
           dias_atendimento?: string[] | null
           endereco?: string
+          endereco_completo?: string | null
+          endereco_normalizado?: string | null
+          geocoding_relevance?: number | null
+          geocoding_source?: string | null
+          geocoding_status?: string | null
+          geocoding_updated_at?: string | null
           horario_fim?: string | null
           horario_inicio?: string | null
           id?: string
+          latitude?: number | null
+          longitude?: number | null
+          mapbox_place_name?: string | null
           nome_local?: string
           telefone?: string | null
         }

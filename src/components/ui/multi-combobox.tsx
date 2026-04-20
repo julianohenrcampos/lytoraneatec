@@ -30,6 +30,7 @@ interface MultiComboboxProps {
   searchPlaceholder?: string;
   emptyText?: string;
   className?: string;
+  portalContainer?: HTMLElement | null;
 }
 
 export function MultiCombobox({
@@ -40,10 +41,10 @@ export function MultiCombobox({
   searchPlaceholder = "Buscar...",
   emptyText = "Nenhum item encontrado.",
   className,
+  portalContainer,
 }: MultiComboboxProps) {
   const [open, setOpen] = React.useState(false);
   const [inputValue, setInputValue] = React.useState("");
-  const interactionGuardRef = React.useRef<{ value: string; time: number } | null>(null);
 
   const filteredOptions = React.useMemo(() => {
     if (!inputValue) return options;
@@ -52,23 +53,16 @@ export function MultiCombobox({
     );
   }, [options, inputValue]);
 
-  const toggleValue = React.useCallback((val: string) => {
-    if (value.includes(val)) {
-      onChange(value.filter((v) => v !== val));
-      return;
-    }
-    onChange([...value, val]);
-  }, [onChange, value]);
-
-  const safeToggleValue = React.useCallback((val: string) => {
-    const now = Date.now();
-    const lastInteraction = interactionGuardRef.current;
-    if (lastInteraction && lastInteraction.value === val && now - lastInteraction.time < 150) {
-      return;
-    }
-    interactionGuardRef.current = { value: val, time: now };
-    toggleValue(val);
-  }, [toggleValue]);
+  const toggleValue = React.useCallback(
+    (val: string) => {
+      if (value.includes(val)) {
+        onChange(value.filter((v) => v !== val));
+        return;
+      }
+      onChange([...value, val]);
+    },
+    [onChange, value],
+  );
 
   const selectedLabels = value
     .map((v) => options.find((o) => o.value === v)?.label)
@@ -110,45 +104,35 @@ export function MultiCombobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-full p-0 z-[10000] bg-white shadow-xl border pointer-events-auto"
+        className="w-[var(--radix-popover-trigger-width)] p-0 bg-popover shadow-xl border"
         align="start"
         side="bottom"
-        avoidCollisions={false}
         sideOffset={4}
+        portalContainer={portalContainer}
       >
-        <Command shouldFilter={false} className="pointer-events-auto">
+        <Command shouldFilter={false}>
           <CommandInput
             placeholder={searchPlaceholder}
             value={inputValue}
             onValueChange={setInputValue}
           />
-          <CommandList
-            className="max-h-[300px] overflow-y-auto pointer-events-auto"
-            style={{ pointerEvents: 'auto' }}
-          >
+          <CommandList className="max-h-[300px] overflow-y-auto">
             <CommandEmpty>{emptyText}</CommandEmpty>
             <CommandGroup>
               {filteredOptions.map((option) => (
                 <CommandItem
                   key={option.value}
-                  value={option.value}
-                  onSelect={() => safeToggleValue(option.value)}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    safeToggleValue(option.value);
-                  }}
-                  onMouseDown={(e) => e.preventDefault()}
-                  className="cursor-pointer pointer-events-auto"
-                  style={{ pointerEvents: 'auto' }}
+                  value={`${option.value}-${option.label}`.toLowerCase()}
+                  onSelect={() => toggleValue(option.value)}
+                  className="cursor-pointer"
                 >
                   <Check
                     className={cn(
-                      "mr-2 h-4 w-4 shrink-0 pointer-events-none",
+                      "mr-2 h-4 w-4 shrink-0",
                       value.includes(option.value) ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  <span className="flex-1 pointer-events-none">{option.label}</span>
+                  <span className="flex-1">{option.label}</span>
                 </CommandItem>
               ))}
             </CommandGroup>

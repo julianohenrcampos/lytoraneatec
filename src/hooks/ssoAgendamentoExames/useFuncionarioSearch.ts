@@ -23,15 +23,35 @@ interface FuncionarioRaw {
   bd_centros_custo: { nome_centro_custo: string } | null;
 }
 
-export const useFuncionarioSearch = (statusFilter?: string) => {
+const RESULT_LIMIT = 100;
+
+/**
+ * Busca funcionários para seleção no SSO/Desligamento.
+ *
+ * - Server-side: filtra por nome/CPF direto na query (ilike), evitando o limite de 1000 linhas do Supabase.
+ * - Status:
+ *    - 'Retorno ao Trabalho' (statusFilter='INSS') -> apenas INSS
+ *    - demais (Periódico, Demissional, Desligamento, Mudança de Risco) -> Ativo + Ativo sem Registro
+ * - Gating: só consulta quando `enabled` (geralmente o modal aberto).
+ */
+export const useFuncionarioSearch = (statusFilter?: string, enabled: boolean = true) => {
   const [searchTerm, setSearchTerm] = useState('');
 
-  const statusToFilter = statusFilter || 'Ativo';
+  // Define lista de status aceitos
+  const statusList = useMemo<string[]>(() => {
+    if (statusFilter === 'INSS') return ['INSS'];
+    if (statusFilter && statusFilter !== 'Ativo') return [statusFilter];
+    // padrão operacional: ativos com e sem registro
+    return ['Ativo', 'Ativo sem Registro'];
+  }, [statusFilter]);
+
+  const trimmedSearch = searchTerm.trim();
 
   const { data: funcionariosRaw, isLoading, error, refetch } = useQuery({
-    queryKey: ['funcionarios-search', statusToFilter],
+    queryKey: ['funcionarios-search', statusList, trimmedSearch],
+    enabled,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('bd_funcionarios')
         .select(`
           id, 
@@ -52,17 +72,29 @@ export const useFuncionarioSearch = (statusFilter?: string) => {
           bd_empresas(nome_empresa),
           bd_centros_custo!bd_funcionarios_centro_custo_id_fkey(nome_centro_custo)
         `)
-        .eq('status', statusToFilter)
-        .order('nome_completo');
+        .in('status', statusList)
+        .order('nome_completo')
+        .limit(RESULT_LIMIT);
+
+      if (trimmedSearch) {
+        // busca por nome OU CPF (apenas dígitos do termo)
+        const onlyDigits = trimmedSearch.replace(/\D/g, '');
+        if (onlyDigits.length >= 3) {
+          query = query.or(`nome_completo.ilike.%${trimmedSearch}%,cpf.ilike.%${onlyDigits}%`);
+        } else {
+          query = query.ilike('nome_completo', `%${trimmedSearch}%`);
+        }
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
-      return data as FuncionarioRaw[];
+      return (data || []) as FuncionarioRaw[];
     }
   });
 
-  // Mapear dados raw para FuncionarioSelecionado
   const funcionarios: FuncionarioSelecionado[] = useMemo(() => {
     if (!funcionariosRaw) return [];
-    
+
     return funcionariosRaw.map(func => ({
       id: func.id,
       nome_completo: func.nome_completo,
@@ -85,23 +117,15 @@ export const useFuncionarioSearch = (statusFilter?: string) => {
     }));
   }, [funcionariosRaw]);
 
-  // Filtrar funcionários baseado no termo de busca (apenas por nome)
-  const filteredFuncionarios = useMemo(() => {
-    if (!searchTerm.trim()) return funcionarios;
-    
-    const term = searchTerm.toLowerCase();
-    return funcionarios.filter(func => 
-      func.nome_completo.toLowerCase().includes(term)
-    );
-  }, [funcionarios, searchTerm]);
-
-  return { 
-    funcionarios: filteredFuncionarios, 
+  return {
+    funcionarios,
     allFuncionarios: funcionarios,
-    isLoading, 
+    isLoading,
     error,
     refetch,
-    searchTerm, 
-    setSearchTerm 
+    searchTerm,
+    setSearchTerm,
+    hasSearchTerm: trimmedSearch.length > 0,
+    resultLimit: RESULT_LIMIT,
   };
 };

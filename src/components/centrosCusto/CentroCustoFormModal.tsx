@@ -16,6 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Info } from "lucide-react";
 import AddressAutocomplete, { AddressResult } from "./AddressAutocomplete";
+import { validateAddressForSave } from "@/lib/geocoding/validateForSave";
 
 interface CentroCustoFormModalProps {
   isOpen: boolean;
@@ -215,14 +216,34 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
     form.setValue("endereco_cidade", result.endereco_cidade || "");
     form.setValue("endereco_estado", result.endereco_estado || "");
     form.setValue("endereco_cep", result.endereco_cep || "");
-    form.setValue("geocoding_status", "success");
+    form.setValue("geocoding_status", result.geocoding_status);
     form.clearErrors("endereco_completo");
   };
 
   const onSubmit = async (values: FormValues) => {
     try {
       setIsSubmitting(true);
-      
+
+      // Validação de geocoding (espelha a trigger do banco)
+      const geoCheck = validateAddressForSave({
+        latitude: values.latitude ?? null,
+        longitude: values.longitude ?? null,
+        geocoding_status: values.geocoding_status as any,
+        endereco_completo: values.endereco_completo ?? null,
+      });
+      if (!geoCheck.ok) {
+        form.setError("endereco_completo", {
+          type: "manual",
+          message: geoCheck.message || "Endereço requer ajuste no mapa",
+        });
+        toast({
+          title: "Endereço pendente",
+          description: geoCheck.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
       const exists = await checkCentroCustoExists(
         values.codigo_centro_custo, 
         values.nome_centro_custo,
@@ -375,7 +396,9 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
                   <FormControl>
                     <AddressAutocomplete
                       value={watchEnderecoCompleto || ""}
-                      isValidated={isAddressValidated}
+                      initialLatitude={form.watch("latitude") ?? null}
+                      initialLongitude={form.watch("longitude") ?? null}
+                      initialStatus={(form.watch("geocoding_status") as any) ?? null}
                       onAddressSelected={handleAddressSelected}
                       disabled={isSubmitting}
                     />

@@ -75,6 +75,20 @@ Deno.serve(async (req) => {
       solicitacoesMap.set(s.id, convocados);
     });
 
+    // Fallback: buscar valores oficiais de bd_funcoes (por função) para garantir valor exclusivo em FDS/feriado
+    const funcaoIds = [...new Set(pendentes.map(p => p.funcao_id).filter(Boolean))] as string[];
+    const funcoesMap = new Map<string, { valor_diaria: number; valor_diaria_exclusiva: number | null }>();
+    if (funcaoIds.length > 0) {
+      const { data: funcoes } = await supabase
+        .from('bd_funcoes')
+        .select('id, valor_diaria, valor_diaria_exclusiva')
+        .in('id', funcaoIds);
+      (funcoes || []).forEach(f => funcoesMap.set(f.id, {
+        valor_diaria: Number(f.valor_diaria) || 0,
+        valor_diaria_exclusiva: f.valor_diaria_exclusiva != null ? Number(f.valor_diaria_exclusiva) : null,
+      }));
+    }
+
     // Calculate jornada for each record and update
     let updated = 0
     for (const p of pendentes) {
@@ -102,13 +116,18 @@ Deno.serve(async (req) => {
       // Look up convocados_pre to find valor_diaria_exclusiva
       const convocados = solicitacoesMap.get(p.solicitacao_id) || [];
       const convocado = convocados.find((c: any) => c.funcionario_id === p.funcionario_id);
-      
+      const funcaoInfo = p.funcao_id ? funcoesMap.get(p.funcao_id) : undefined;
+
       let baseValor: number;
-      if (isDiaExclusivo && convocado) {
-        // Use exclusive value if available, otherwise use normal value
-        baseValor = convocado.valor_diaria_exclusiva || convocado.valor_diaria || p.valor_diaria_aplicada || 0;
+      if (isDiaExclusivo) {
+        // Prioridade: bd_funcoes.valor_diaria_exclusiva > convocado.valor_diaria_exclusiva > convocado.valor_diaria > valor_diaria_aplicada
+        baseValor = (funcaoInfo?.valor_diaria_exclusiva
+          ?? convocado?.valor_diaria_exclusiva
+          ?? convocado?.valor_diaria
+          ?? p.valor_diaria_aplicada
+          ?? 0) as number;
       } else {
-        baseValor = p.valor_diaria_aplicada || 0;
+        baseValor = (funcaoInfo?.valor_diaria ?? p.valor_diaria_aplicada ?? 0) as number;
       }
       
       const valorFinal = baseValor * multiplier

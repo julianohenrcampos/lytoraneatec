@@ -22,7 +22,7 @@ interface Props {
 }
 
 export const DesligamentoDialog: React.FC<Props> = ({ open, onOpenChange, onSubmit, isSubmitting }) => {
-  const { funcionarios, isLoading: loadingFunc, error: errorFunc, refetch, searchTerm: search, setSearchTerm: setSearch } = useFuncionarioSearch();
+  const { funcionarios, isLoading: loadingFunc, error: errorFunc, refetch, searchTerm: search, setSearchTerm: setSearch, hasSearchTerm, resultLimit } = useFuncionarioSearch(undefined, open);
   const [selectedFunc, setSelectedFunc] = useState<FuncionarioSelecionado | null>(null);
   const [tipoDesligamento, setTipoDesligamento] = useState<'com_aviso' | 'sem_aviso'>('sem_aviso');
   const [diasAviso, setDiasAviso] = useState(30);
@@ -92,10 +92,10 @@ export const DesligamentoDialog: React.FC<Props> = ({ open, onOpenChange, onSubm
 
     if (funcionarios.length === 0) {
       return (
-        <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
+        <div className="flex flex-col items-center justify-center h-32 text-muted-foreground px-4 text-center">
           <User className="h-8 w-8 mb-2" />
           <p className="text-sm">
-            {search ? 'Nenhum funcionário ativo encontrado com esse nome' : 'Nenhum funcionário ativo disponível'}
+            {hasSearchTerm ? 'Nenhum funcionário encontrado com esse nome ou CPF' : 'Digite o nome ou CPF do funcionário para buscar'}
           </p>
         </div>
       );
@@ -103,6 +103,11 @@ export const DesligamentoDialog: React.FC<Props> = ({ open, onOpenChange, onSubm
 
     return (
       <div className="p-2 space-y-1">
+        {funcionarios.length >= resultLimit && (
+          <p className="text-xs text-muted-foreground px-2 py-1">
+            Mostrando os primeiros {resultLimit} resultados. Refine a busca para encontrar mais.
+          </p>
+        )}
         {funcionarios.map(f => (
           <div key={f.id} onClick={() => setSelectedFunc(f)}
             className="p-3 rounded-lg cursor-pointer border bg-background hover:bg-muted transition-colors">
@@ -128,7 +133,7 @@ export const DesligamentoDialog: React.FC<Props> = ({ open, onOpenChange, onSubm
             <>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Buscar funcionário pelo nome..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+                <Input placeholder="Buscar por nome ou CPF..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
               </div>
               <ScrollArea className="h-[300px] border rounded-lg">
                 {renderFuncionarioList()}

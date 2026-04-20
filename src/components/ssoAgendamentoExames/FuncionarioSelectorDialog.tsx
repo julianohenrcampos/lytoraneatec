@@ -41,7 +41,7 @@ export const FuncionarioSelectorDialog: React.FC<FuncionarioSelectorDialogProps>
   onSelect
 }) => {
   const statusFilter = tipoExame === 'Retorno ao Trabalho' ? 'INSS' : undefined;
-  const { funcionarios, isLoading, error, refetch, searchTerm, setSearchTerm } = useFuncionarioSearch(statusFilter);
+  const { funcionarios, isLoading, error, refetch, searchTerm, setSearchTerm, hasSearchTerm, resultLimit } = useFuncionarioSearch(statusFilter, open);
   const [selectedFuncionario, setSelectedFuncionario] = useState<FuncionarioSelecionado | null>(null);
 
   const handleContinue = () => {
@@ -91,12 +91,12 @@ export const FuncionarioSelectorDialog: React.FC<FuncionarioSelectorDialogProps>
     // Estado 3: Sem resultados
     if (funcionarios.length === 0) {
       return (
-        <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
+        <div className="flex flex-col items-center justify-center h-32 text-muted-foreground px-4 text-center">
           <User className="h-8 w-8 mb-2" />
           <p className="text-sm">
-            {searchTerm
-              ? 'Nenhum funcionário ativo encontrado com esse nome'
-              : 'Nenhum funcionário ativo disponível'}
+            {hasSearchTerm
+              ? 'Nenhum funcionário encontrado com esse nome ou CPF'
+              : 'Digite o nome ou CPF do funcionário para buscar'}
           </p>
         </div>
       );
@@ -105,6 +105,11 @@ export const FuncionarioSelectorDialog: React.FC<FuncionarioSelectorDialogProps>
     // Estado 4: Lista carregada
     return (
       <div className="p-2 space-y-1">
+        {funcionarios.length >= resultLimit && (
+          <p className="text-xs text-muted-foreground px-2 py-1">
+            Mostrando os primeiros {resultLimit} resultados. Refine a busca para encontrar mais.
+          </p>
+        )}
         {funcionarios.map((func) => (
           <div
             key={func.id}

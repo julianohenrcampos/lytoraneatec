@@ -67,6 +67,7 @@ export interface CentroCustoFormData {
 }
 
 export interface CentroCustoFilter {
+  busca?: string;
   codigo_centro_custo?: string;
   nome_centro_custo?: string;
   cnpj_vinculado?: string;

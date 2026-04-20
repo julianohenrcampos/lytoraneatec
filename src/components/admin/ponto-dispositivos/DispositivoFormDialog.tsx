@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -51,6 +51,8 @@ interface Props {
 
 export function DispositivoFormDialog({ open, onOpenChange, dispositivo }: Props) {
   const isEdit = !!dispositivo;
+  const dialogContentRef = useRef<HTMLDivElement>(null);
+  const [portalContainer, setPortalContainer] = React.useState<HTMLElement | null>(null);
   const { data: ccs = [] } = useCentrosCustoQuery();
   const { data: vinculos = [], isLoading: loadingVinculos } =
     useVinculosDispositivo(isEdit ? dispositivo?.id : undefined);
@@ -66,24 +68,38 @@ export function DispositivoFormDialog({ open, onOpenChange, dispositivo }: Props
     },
   });
 
+  const hasResetRef = useRef(false);
+
+  // Modo criação: reset único ao abrir
   useEffect(() => {
-    if (!open) return;
-    if (dispositivo) {
-      form.reset({
-        nome: dispositivo.nome ?? "",
-        codigo_dispositivo: dispositivo.codigo_dispositivo ?? "",
-        ativo: dispositivo.ativo ?? true,
-        centros_custo_ids: vinculos.filter((v) => v.ativo).map((v) => v.centro_custo_id),
-      });
-    } else {
+    if (!open) {
+      hasResetRef.current = false;
+      return;
+    }
+    if (!dispositivo && !hasResetRef.current) {
       form.reset({
         nome: "",
         codigo_dispositivo: "",
         ativo: true,
         centros_custo_ids: [],
       });
+      hasResetRef.current = true;
     }
-  }, [open, dispositivo, vinculos]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, dispositivo]);
+
+  // Modo edição: reset controlado por dispositivo.id (não depende de vinculos)
+  useEffect(() => {
+    if (!open || !dispositivo) return;
+    form.reset({
+      nome: dispositivo.nome ?? "",
+      codigo_dispositivo: dispositivo.codigo_dispositivo ?? "",
+      ativo: dispositivo.ativo ?? true,
+      centros_custo_ids: (vinculos ?? [])
+        .filter((v) => v.ativo)
+        .map((v) => v.centro_custo_id),
+    });
+  }, [open, dispositivo?.id, vinculos, form]);
 
   const ccOptions = useMemo(
     () =>
@@ -109,7 +125,13 @@ export function DispositivoFormDialog({ open, onOpenChange, dispositivo }: Props
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent
+        className="max-w-lg"
+        ref={(node) => {
+          dialogContentRef.current = node;
+          setPortalContainer(node);
+        }}
+      >
         <DialogHeader>
           <DialogTitle>
             {isEdit ? "Editar Dispositivo" : "Novo Dispositivo"}
@@ -173,6 +195,7 @@ export function DispositivoFormDialog({ open, onOpenChange, dispositivo }: Props
                         value={field.value}
                         onChange={field.onChange}
                         placeholder="Selecione os centros de custo..."
+                        portalContainer={portalContainer}
                       />
                     </FormControl>
                     <FormMessage />

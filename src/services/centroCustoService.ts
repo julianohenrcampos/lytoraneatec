@@ -13,6 +13,13 @@ export const fetchCentrosCusto = async (filters: CentroCustoFilter = {}, isSuper
   query = excludeRestrictedCC(query, isSuperAdmin);
   
   // Apply filters if provided
+  if (filters.busca) {
+    const termo = filters.busca.replace(/[%,]/g, "").trim();
+    if (termo) {
+      query = query.or(`codigo_centro_custo.ilike.%${termo}%,nome_centro_custo.ilike.%${termo}%`);
+    }
+  }
+
   if (filters.codigo_centro_custo) {
     query = query.ilike("codigo_centro_custo", `%${filters.codigo_centro_custo}%`);
   }

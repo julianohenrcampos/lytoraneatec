@@ -18,13 +18,13 @@ const CentroCustoFilters: React.FC<CentroCustoFiltersProps> = ({
   onFilterChange,
   onResetFilters
 }) => {
-  const [codigoCentroCusto, setCodigoCentroCusto] = useState(filters.codigo_centro_custo || "");
+  const [busca, setBusca] = useState(filters.busca || "");
   const isMobile = useIsMobile();
   const isSmallScreen = useIsSmallScreen();
 
   // Atualizar campos de filtro quando os filtros externos mudarem
   useEffect(() => {
-    setCodigoCentroCusto(filters.codigo_centro_custo || "");
+    setBusca(filters.busca || "");
   }, [filters]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, field: string, value: string) => {
@@ -40,17 +40,19 @@ const CentroCustoFilters: React.FC<CentroCustoFiltersProps> = ({
         
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-4">
           <div className="space-y-1">
-            <label htmlFor="codigo" className="text-xs sm:text-sm font-medium">Código</label>
+            <label htmlFor="busca" className="text-xs sm:text-sm font-medium">Código ou Nome</label>
             <div className="relative">
               <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input 
-                id="codigo" 
-                placeholder="Buscar por código" 
+                id="busca" 
+                placeholder="Buscar por código ou nome" 
                 className={`pl-7 ${isSmallScreen ? 'h-8 text-xs' : isMobile ? 'h-9 text-sm' : 'h-10 text-sm'}`}
-                value={codigoCentroCusto} 
-                onChange={e => setCodigoCentroCusto(e.target.value)} 
-                onKeyDown={e => handleKeyDown(e, "codigo_centro_custo", codigoCentroCusto)} 
-                onBlur={() => onFilterChange("codigo_centro_custo", codigoCentroCusto)} 
+                value={busca} 
+                onChange={e => {
+                  setBusca(e.target.value);
+                  onFilterChange("busca", e.target.value);
+                }} 
+                onKeyDown={e => handleKeyDown(e, "busca", busca)} 
               />
             </div>
           </div>
