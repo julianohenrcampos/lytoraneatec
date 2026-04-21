@@ -121,36 +121,73 @@ Deno.serve(async (req) => {
       );
     }
 
-    // PASSO 8 — Resolver centro de custo
-    console.log("[PONTO][CHECKPOINT_1] antes_resolver_cc", {
-      funcionarioId,
-      centro_custo_id_payload: payload.centro_custo_id,
-    });
-    const ccId = await (async () => {
-      const resolvedCcId = await resolverCentroCusto(supabaseAdmin, funcionarioId, payload.centro_custo_id);
-      console.log("[PONTO][CHECKPOINT_2] depois_resolver_cc", { funcionarioId, ccId: resolvedCcId });
-      return resolvedCcId;
-    })();
-    if (!ccId || typeof ccId !== "string" || ccId.trim() === "") {
-      console.log("[PONTO][BLOQUEIO_CRITICO]", {
-        funcionarioId,
-        motivo: "cc_invalido",
-        ccId,
-        latitude: payload.latitude,
-        longitude: payload.longitude,
-      });
-      return respostaErro(400, "centro_custo_nao_resolvido",
-        "Centro de custo não identificado");
+    // PASSO 8 — Resolver centro de custo (HIERARQUIA DETERMINÍSTICA)
+    // Prioridade: 1) CC formal do funcionário  2) Vínculo operacional ativo  3) GPS/payload (fallback)
+    const ccPayload =
+      typeof payload.centro_custo_id === "string" && payload.centro_custo_id.trim() !== ""
+        ? payload.centro_custo_id.trim()
+        : null;
+    const ccGpsRef =
+      typeof (payload as any).cc_gps_referencia_id === "string" &&
+      (payload as any).cc_gps_referencia_id.trim() !== ""
+        ? (payload as any).cc_gps_referencia_id.trim()
+        : null;
+
+    const { data: funcCC } = await supabaseAdmin
+      .from("bd_funcionarios")
+      .select("centro_custo_id")
+      .eq("id", funcionarioId)
+      .single();
+    const ccFuncionario =
+      typeof funcCC?.centro_custo_id === "string" && funcCC.centro_custo_id.trim() !== ""
+        ? funcCC.centro_custo_id.trim()
+        : null;
+
+    const { data: vinculoAtivo } = await supabaseAdmin
+      .from("bd_ponto_vinculos_operacionais")
+      .select("centro_custo_id")
+      .eq("funcionario_id", funcionarioId)
+      .eq("ativo", true)
+      .limit(1)
+      .maybeSingle();
+    const ccVinculo =
+      typeof vinculoAtivo?.centro_custo_id === "string" && vinculoAtivo.centro_custo_id.trim() !== ""
+        ? vinculoAtivo.centro_custo_id.trim()
+        : null;
+
+    let ccId: string | null = null;
+    let motivoCC = "nenhum";
+    if (ccFuncionario) { ccId = ccFuncionario; motivoCC = "cc_funcionario"; }
+    else if (ccVinculo) { ccId = ccVinculo; motivoCC = "vinculo_operacional"; }
+    else if (ccPayload) {
+      // fallback: payload (geralmente do totem ou modo legado)
+      ccId = await resolverCentroCusto(supabaseAdmin, funcionarioId, ccPayload);
+      motivoCC = ccId ? "payload_fallback" : "nenhum";
+    } else if (ccGpsRef) {
+      ccId = await resolverCentroCusto(supabaseAdmin, funcionarioId, ccGpsRef);
+      motivoCC = ccId ? "gps_fallback" : "nenhum";
     }
 
-    console.log("[PONTO][DEBUG_CC]", {
+    console.log("[PONTO][CC_DECISAO]", {
       funcionarioId,
-      ccId_recebido: payload.centro_custo_id,
-      ccId_resolvido: ccId,
+      cc_funcionario: ccFuncionario,
+      cc_vinculo: ccVinculo,
+      cc_payload: ccPayload,
+      cc_gps: ccGpsRef,
+      ccFinal: ccId,
+      motivo: motivoCC,
     });
 
-    // PASSO 8.5 — Validar vínculo com CC
-    console.log("[PONTO][CHECKPOINT_3] antes_validar_vinculo", { funcionarioId, ccId });
+    if (!ccId) {
+      console.log("[PONTO][BLOQUEIO_CRITICO]", {
+        funcionarioId, motivo: "cc_nao_resolvido",
+        latitude: payload.latitude, longitude: payload.longitude,
+      });
+      return respostaErro(400, "centro_custo_nao_resolvido",
+        "Funcionário sem centro de custo formal. Solicite vínculo ao RH.");
+    }
+
+    // PASSO 8.5 — Validar vínculo com CC final
     const temVinculo = await validarVinculoCC(supabaseAdmin, funcionarioId, ccId);
     if (!temVinculo) {
       console.log("[PONTO][BLOQUEIO]", {
@@ -269,6 +306,17 @@ Deno.serve(async (req) => {
         justificativas.push(`Fora do raio: ${geofence.distanciaMetros}m`);
         alertas.push({ tipo: "fora_raio", mensagem: `Distância: ${geofence.distanciaMetros}m` });
       }
+    }
+
+    // PASSO 14.5 — Divergência entre CC do GPS e CC formal (sem bloqueio, só alerta/auditoria)
+    if (ccGpsRef && ccGpsRef !== ccId) {
+      console.log("[PONTO][CC_DIVERGENCIA_GPS]", {
+        funcionarioId, ccFinal: ccId, cc_gps: ccGpsRef,
+      });
+      alertas.push({
+        tipo: "divergencia_cc_gps",
+        mensagem: "GPS sugeriu obra diferente do vínculo formal",
+      });
     }
 
     // PASSO 15 — Velocidade impossível
@@ -443,8 +491,16 @@ Deno.serve(async (req) => {
       }),
       { status: 201, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (e) {
-    console.error("[registrar-ponto] Erro geral:", e?.message || e);
-    return respostaErro(500, "erro_interno", "Erro interno do servidor");
+  } catch (e: any) {
+    console.error("[PONTO][FATAL]", { message: e?.message, stack: e?.stack, name: e?.name });
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: "erro_interno",
+        message: e?.message || "Erro interno do servidor",
+        stage: "catch_global",
+      }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 });

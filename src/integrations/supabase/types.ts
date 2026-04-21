@@ -3412,6 +3412,76 @@ export type Database = {
           },
         ]
       }
+      bd_funcionarios_biometria_facial: {
+        Row: {
+          ativo: boolean
+          cadastrado_por_user_id: string | null
+          created_at: string
+          descriptor: string
+          dispositivo_origem_id: string | null
+          foto_url: string | null
+          funcionario_id: string
+          id: string
+          origem: string
+          status_validacao: string
+          updated_at: string
+          validado_em: string | null
+          validado_por_user_id: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          cadastrado_por_user_id?: string | null
+          created_at?: string
+          descriptor: string
+          dispositivo_origem_id?: string | null
+          foto_url?: string | null
+          funcionario_id: string
+          id?: string
+          origem: string
+          status_validacao?: string
+          updated_at?: string
+          validado_em?: string | null
+          validado_por_user_id?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          cadastrado_por_user_id?: string | null
+          created_at?: string
+          descriptor?: string
+          dispositivo_origem_id?: string | null
+          foto_url?: string | null
+          funcionario_id?: string
+          id?: string
+          origem?: string
+          status_validacao?: string
+          updated_at?: string
+          validado_em?: string | null
+          validado_por_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_funcionarios_biometria_facial_dispositivo_origem_id_fkey"
+            columns: ["dispositivo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ponto_dispositivos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_biometria_facial_dispositivo_origem_id_fkey"
+            columns: ["dispositivo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_ponto_dispositivos_admin"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_biometria_facial_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_funcoes: {
         Row: {
           created_at: string | null
@@ -5675,11 +5745,20 @@ export type Database = {
           id: string
           intervalo_minimo_min: number | null
           intervalo_obrigatorio: boolean | null
+          intervalo_padrao_inicio: string
+          intervalo_padrao_min: number
           jornada_padrao_horas: number | null
+          jornada_para_intervalo_min: number
+          match_min_confidence: number
+          match_min_delta: number
+          match_strong_confidence: number
           modo_geofence: string | null
+          modo_reconhecimento_estrito: boolean
           permite_offline_pwa: boolean | null
           permite_ponto_fora_raio: boolean | null
           retencao_fotos_dias: number | null
+          tempo_min_entre_batidas_min: number
+          tempo_min_para_intervalo_min: number
           tolerancia_minutos: number | null
           updated_at: string | null
           vigente_desde: string | null
@@ -5695,11 +5774,20 @@ export type Database = {
           id?: string
           intervalo_minimo_min?: number | null
           intervalo_obrigatorio?: boolean | null
+          intervalo_padrao_inicio?: string
+          intervalo_padrao_min?: number
           jornada_padrao_horas?: number | null
+          jornada_para_intervalo_min?: number
+          match_min_confidence?: number
+          match_min_delta?: number
+          match_strong_confidence?: number
           modo_geofence?: string | null
+          modo_reconhecimento_estrito?: boolean
           permite_offline_pwa?: boolean | null
           permite_ponto_fora_raio?: boolean | null
           retencao_fotos_dias?: number | null
+          tempo_min_entre_batidas_min?: number
+          tempo_min_para_intervalo_min?: number
           tolerancia_minutos?: number | null
           updated_at?: string | null
           vigente_desde?: string | null
@@ -5715,11 +5803,20 @@ export type Database = {
           id?: string
           intervalo_minimo_min?: number | null
           intervalo_obrigatorio?: boolean | null
+          intervalo_padrao_inicio?: string
+          intervalo_padrao_min?: number
           jornada_padrao_horas?: number | null
+          jornada_para_intervalo_min?: number
+          match_min_confidence?: number
+          match_min_delta?: number
+          match_strong_confidence?: number
           modo_geofence?: string | null
+          modo_reconhecimento_estrito?: boolean
           permite_offline_pwa?: boolean | null
           permite_ponto_fora_raio?: boolean | null
           retencao_fotos_dias?: number | null
+          tempo_min_entre_batidas_min?: number
+          tempo_min_para_intervalo_min?: number
           tolerancia_minutos?: number | null
           updated_at?: string | null
           vigente_desde?: string | null
@@ -5918,6 +6015,8 @@ export type Database = {
           created_at: string | null
           device_fingerprint: string | null
           device_secret_hash: string | null
+          device_session_expires_at: string | null
+          device_session_token: string | null
           id: string
           latitude_fixa: number | null
           longitude_fixa: number | null
@@ -5939,6 +6038,8 @@ export type Database = {
           created_at?: string | null
           device_fingerprint?: string | null
           device_secret_hash?: string | null
+          device_session_expires_at?: string | null
+          device_session_token?: string | null
           id?: string
           latitude_fixa?: number | null
           longitude_fixa?: number | null
@@ -5960,6 +6061,8 @@ export type Database = {
           created_at?: string | null
           device_fingerprint?: string | null
           device_secret_hash?: string | null
+          device_session_expires_at?: string | null
+          device_session_token?: string | null
           id?: string
           latitude_fixa?: number | null
           longitude_fixa?: number | null
@@ -6004,6 +6107,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      bd_ponto_match_log: {
+        Row: {
+          confirmado_em: string | null
+          criado_em: string
+          decisao: string
+          dispositivo_id: string | null
+          funcionario_confirmado_id: string | null
+          id: string
+          margem: number | null
+          margem_min_aplicada: number | null
+          motivo: string | null
+          threshold_aplicado: number | null
+          top1_distancia: number | null
+          top1_funcionario_id: string | null
+          top2_distancia: number | null
+          top2_funcionario_id: string | null
+        }
+        Insert: {
+          confirmado_em?: string | null
+          criado_em?: string
+          decisao: string
+          dispositivo_id?: string | null
+          funcionario_confirmado_id?: string | null
+          id?: string
+          margem?: number | null
+          margem_min_aplicada?: number | null
+          motivo?: string | null
+          threshold_aplicado?: number | null
+          top1_distancia?: number | null
+          top1_funcionario_id?: string | null
+          top2_distancia?: number | null
+          top2_funcionario_id?: string | null
+        }
+        Update: {
+          confirmado_em?: string | null
+          criado_em?: string
+          decisao?: string
+          dispositivo_id?: string | null
+          funcionario_confirmado_id?: string | null
+          id?: string
+          margem?: number | null
+          margem_min_aplicada?: number | null
+          motivo?: string | null
+          threshold_aplicado?: number | null
+          top1_distancia?: number | null
+          top1_funcionario_id?: string | null
+          top2_distancia?: number | null
+          top2_funcionario_id?: string | null
+        }
+        Relationships: []
       }
       bd_ponto_vinculos_operacionais: {
         Row: {
@@ -8527,6 +8681,42 @@ export type Database = {
       has_ponto_permission: { Args: { _permission: string }; Returns: boolean }
       has_sso_full_access: { Args: { p_user_id?: string }; Returns: boolean }
       has_sso_permission: { Args: { p_user_id?: string }; Returns: boolean }
+      identificar_funcionario_por_descriptor: {
+        Args: {
+          p_descriptor: string
+          p_dispositivo_id: string
+          p_threshold?: number
+        }
+        Returns: {
+          centro_custo: string
+          confianca: number
+          cpf: string
+          foto_url: string
+          funcao: string
+          funcionario_id: string
+          matricula: string
+          nome: string
+        }[]
+      }
+      identificar_funcionario_por_descriptor_v2: {
+        Args: { p_descriptor: string; p_dispositivo_id: string }
+        Returns: {
+          centro_custo: string
+          cpf: string
+          delta_confidence: number
+          foto_url: string
+          funcao: string
+          margem_euclid: number
+          matricula: string
+          nome: string
+          top1_confidence: number
+          top1_distancia_euclid: number
+          top1_funcionario_id: string
+          top2_confidence: number
+          top2_distancia_euclid: number
+          top2_funcionario_id: string
+        }[]
+      }
       iniciar_fluxo_dinamico: {
         Args: { p_solicitacao_id: string }
         Returns: undefined
@@ -8538,6 +8728,7 @@ export type Database = {
       is_departmental_super_admin: { Args: never; Returns: boolean }
       is_ponto_superadmin: { Args: never; Returns: boolean }
       is_super_admin: { Args: { p_user_id: string }; Returns: boolean }
+      is_superadm_or_rh: { Args: { _user_id: string }; Returns: boolean }
       liberar_proxima_etapa_dinamica: {
         Args: { p_solicitacao_id: string }
         Returns: undefined

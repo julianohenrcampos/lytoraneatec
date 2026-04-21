@@ -20,7 +20,8 @@ import {
   Activity,
   Briefcase,
   FileSearch,
-  Clock
+  Clock,
+  ScanFace
 } from "lucide-react";
 
 export const menuStructure = [
@@ -345,6 +346,12 @@ export const menuStructure = [
         href: "/admin/ponto-dispositivos",
         icon: Settings,
         requiredPermission: "admin_permissoes_view"
+      },
+      {
+        name: "Biometria Facial",
+        href: "/admin/biometria-facial",
+        icon: ScanFace,
+        requiredPermission: "biometria_facial_gerenciar"
       }
     ]
   },
@@ -357,6 +364,12 @@ export const menuStructure = [
         href: "/ponto",
         icon: Clock,
         requiredPermission: "ponto_registrar"
+      },
+      {
+        name: "Gestão de Ponto",
+        href: "/admin/gestao-ponto",
+        icon: ClipboardList,
+        requiredPermission: "biometria_facial_gerenciar"
       }
     ]
   }

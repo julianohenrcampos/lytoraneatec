@@ -49,6 +49,10 @@ import Abastecimento from "@/pages/GestaoAbastecimento"; // Fixed casing
 // Dev
 import TestePonto from "@/pages/dev/TestePonto";
 import PontoDireto from "@/pages/PontoDireto";
+import PontoTotemLogin from "@/pages/PontoTotemLogin";
+import PontoTotem from "@/pages/PontoTotem";
+import BiometriaFacial from "@/pages/admin/BiometriaFacial";
+import GestaoPonto from "@/pages/admin/GestaoPonto";
 
 // Dashboard CBUQ
 import DashboardRequisicoes from "@/pages/DashboardRequisicoes";
@@ -584,6 +588,21 @@ const App = () => {
             <Route path="/ponto" element={
               <SimpleAuthGuard>
                 <PontoDireto />
+              </SimpleAuthGuard>
+            } />
+            {/* Login de Dispositivo (Tablet/Totem da Obra) — público, sem auth de usuário */}
+            <Route path="/ponto-totem-login" element={<PontoTotemLogin />} />
+            {/* Kiosk operacional do tablet/totem — protegido por device_secret no client */}
+            <Route path="/ponto-totem" element={<PontoTotem />} />
+            {/* Admin: cadastro de biometria facial */}
+            <Route path="/admin/biometria-facial" element={
+              <SimpleAuthGuard>
+                <BiometriaFacial />
+              </SimpleAuthGuard>
+            } />
+            <Route path="/admin/gestao-ponto" element={
+              <SimpleAuthGuard>
+                <GestaoPonto />
               </SimpleAuthGuard>
             } />
             {/* Catch-all route para 404 */}

@@ -59,6 +59,7 @@
     "date-fns": "^3.6.0",
     "date-fns-tz": "^3.2.0",
     "embla-carousel-react": "^8.3.0",
+    "face-api.js": "^0.22.2",
     "file-saver": "^2.0.5",
     "html2canvas": "^1.4.1",
     "input-otp": "^1.2.4",
@@ -96,6 +97,7 @@
     "workbox-precaching": "^7.4.0",
     "workbox-routing": "^7.4.0",
     "workbox-strategies": "^7.4.0",
+    "workbox-window": "^7.1.0",
     "xlsx": "^0.18.5",
     "zod": "^3.23.8"
   },

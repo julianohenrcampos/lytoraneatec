@@ -41,3 +41,15 @@ verify_jwt = false
 
 [functions.vincular-ccs-dispositivo]
 verify_jwt = false
+
+[functions.identificar-funcionario-por-face]
+verify_jwt = false
+
+[functions.cadastrar-biometria-facial]
+verify_jwt = false
+
+[functions.login-dispositivo-totem]
+verify_jwt = false
+
+[functions.confirmar-match-totem]
+verify_jwt = false

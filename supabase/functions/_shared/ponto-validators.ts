@@ -21,6 +21,9 @@ export interface PayloadRegistrarPontoTotem {
   data_hora_dispositivo: string;
   foto_base64: string | null;
   offline_uuid: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  precisao_gps_metros: number | null;
 }
 
 export interface PayloadBatidaOffline {
@@ -132,6 +135,12 @@ export function validarPayloadTotem(body: any): { valido: boolean; erro?: string
       data_hora_dispositivo: body.data_hora_dispositivo,
       foto_base64: typeof body.foto_base64 === "string" ? body.foto_base64 : null,
       offline_uuid: body.offline_uuid && isUuid(body.offline_uuid) ? body.offline_uuid : null,
+      latitude: typeof body.latitude === "number" && isFinite(body.latitude) ? body.latitude : null,
+      longitude: typeof body.longitude === "number" && isFinite(body.longitude) ? body.longitude : null,
+      precisao_gps_metros:
+        typeof body.precisao_gps_metros === "number" && isFinite(body.precisao_gps_metros)
+          ? body.precisao_gps_metros
+          : null,
     },
   };
 }

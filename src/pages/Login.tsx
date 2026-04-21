@@ -13,8 +13,11 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertTriangle, CheckCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle, Tablet } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+
+const isTabletViewport = () =>
+  typeof window !== "undefined" && window.innerWidth <= 1024;
 
 const loginSchema = z.object({
   email: z.string().email("Email inválido").min(1, "Email é obrigatório"),
@@ -242,6 +245,27 @@ const Login: React.FC = () => {
               "Entrar"
             )}
           </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => navigate("/ponto-totem-login")}
+            className={
+              "w-full border-2 transition-all hover:bg-primary hover:text-primary-foreground hover:border-primary " +
+              (isTabletViewport()
+                ? "border-primary text-primary ring-2 ring-primary/30 animate-pulse"
+                : "")
+            }
+          >
+            <Tablet className="h-4 w-4 mr-2" />
+            📟 Acessar Ponto de Obra / Tablet
+          </Button>
+
+          {isTabletViewport() && (
+            <p className="text-xs text-center text-muted-foreground">
+              Detectamos um dispositivo móvel — recomendamos o modo Ponto de Obra.
+            </p>
+          )}
         </form>
       </Form>
       <div className="mt-4 text-center text-sm">

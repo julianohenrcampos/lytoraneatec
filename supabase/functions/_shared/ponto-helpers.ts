@@ -1,6 +1,23 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ========================
+// Haversine
+// ========================
+export function haversineMetros(
+  lat1: number, lng1: number,
+  lat2: number, lng2: number
+): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// ========================
 // CORS Headers
 // ========================
 export const corsHeaders = {
@@ -25,6 +42,12 @@ export interface ConfigCC {
   intervalo_minutos: number;
   modo_geofence: "restritivo" | "flexivel";
   permite_offline_pwa: boolean;
+  // CLT / antifraude
+  tempo_min_entre_batidas_min: number;
+  tempo_min_para_intervalo_min: number;
+  jornada_para_intervalo_min: number;
+  intervalo_padrao_min: number;
+  intervalo_padrao_inicio: string; // "HH:MM"
 }
 
 export interface ResultadoDivergencia {
@@ -64,6 +87,11 @@ const CONFIG_DEFAULTS: ConfigCC = {
   intervalo_minutos: 60,
   modo_geofence: "flexivel",
   permite_offline_pwa: false,
+  tempo_min_entre_batidas_min: 10,
+  tempo_min_para_intervalo_min: 240,
+  jornada_para_intervalo_min: 360,
+  intervalo_padrao_min: 60,
+  intervalo_padrao_inicio: "12:00",
 };
 
 // ========================
@@ -232,6 +260,10 @@ export async function carregarConfigCC(
 
   if (!data) return { ...CONFIG_DEFAULTS };
 
+  // intervalo_padrao_inicio pode vir como "HH:MM:SS"; normalizamos
+  const inicioRaw = (data as any).intervalo_padrao_inicio ?? CONFIG_DEFAULTS.intervalo_padrao_inicio;
+  const inicioNorm = typeof inicioRaw === "string" ? inicioRaw.slice(0, 5) : CONFIG_DEFAULTS.intervalo_padrao_inicio;
+
   return {
     raio_metros: data.raio_metros ?? CONFIG_DEFAULTS.raio_metros,
     tolerancia_minutos: data.tolerancia_minutos ?? CONFIG_DEFAULTS.tolerancia_minutos,
@@ -245,7 +277,225 @@ export async function carregarConfigCC(
     intervalo_minutos: data.intervalo_minutos ?? CONFIG_DEFAULTS.intervalo_minutos,
     modo_geofence: data.modo_geofence ?? CONFIG_DEFAULTS.modo_geofence,
     permite_offline_pwa: data.permite_offline_pwa ?? CONFIG_DEFAULTS.permite_offline_pwa,
+    tempo_min_entre_batidas_min:
+      (data as any).tempo_min_entre_batidas_min ?? CONFIG_DEFAULTS.tempo_min_entre_batidas_min,
+    tempo_min_para_intervalo_min:
+      (data as any).tempo_min_para_intervalo_min ?? CONFIG_DEFAULTS.tempo_min_para_intervalo_min,
+    jornada_para_intervalo_min:
+      (data as any).jornada_para_intervalo_min ?? CONFIG_DEFAULTS.jornada_para_intervalo_min,
+    intervalo_padrao_min:
+      (data as any).intervalo_padrao_min ?? CONFIG_DEFAULTS.intervalo_padrao_min,
+    intervalo_padrao_inicio: inicioNorm,
   };
+}
+
+// ========================
+// CLT — Tempo mínimo entre batidas (qualquer tipo)
+// ========================
+export async function verificarTempoMinimoEntreBatidas(
+  supabaseAdmin: SupabaseClient,
+  funcionarioId: string,
+  dataOperacional: string,
+  dataHora: string,
+  minutos: number
+): Promise<{ ok: boolean; ultimaIso?: string; deltaMin?: number }> {
+  if (!minutos || minutos <= 0) return { ok: true };
+  const { data } = await supabaseAdmin
+    .from("bd_ponto_batidas")
+    .select("data_hora_considerada")
+    .eq("funcionario_id", funcionarioId)
+    .eq("data_operacional", dataOperacional)
+    .neq("status_validacao", "invalidada")
+    .order("data_hora_considerada", { ascending: false })
+    .limit(1);
+
+  if (!data || data.length === 0) return { ok: true };
+  const ultimaIso = data[0].data_hora_considerada as string;
+  const delta = (new Date(dataHora).getTime() - new Date(ultimaIso).getTime()) / 60000;
+  if (delta < minutos) {
+    return { ok: false, ultimaIso, deltaMin: Math.round(delta) };
+  }
+  return { ok: true, ultimaIso, deltaMin: Math.round(delta) };
+}
+
+// ========================
+// CLT — Mínimo trabalhado para iniciar intervalo
+// ========================
+export async function verificarMinimoParaIntervalo(
+  supabaseAdmin: SupabaseClient,
+  funcionarioId: string,
+  dataOperacional: string,
+  dataHora: string,
+  minutosMinimo: number
+): Promise<{ ok: boolean; minutosTrabalhados?: number }> {
+  const { data } = await supabaseAdmin
+    .from("bd_ponto_batidas")
+    .select("data_hora_considerada")
+    .eq("funcionario_id", funcionarioId)
+    .eq("data_operacional", dataOperacional)
+    .eq("tipo_batida", "entrada")
+    .neq("status_validacao", "invalidada")
+    .order("data_hora_considerada", { ascending: true })
+    .limit(1);
+
+  if (!data || data.length === 0) {
+    // sem entrada — outra validação cobre isso
+    return { ok: true };
+  }
+  const entradaIso = data[0].data_hora_considerada as string;
+  const minutos = (new Date(dataHora).getTime() - new Date(entradaIso).getTime()) / 60000;
+  if (minutos < minutosMinimo) {
+    return { ok: false, minutosTrabalhados: Math.round(minutos) };
+  }
+  return { ok: true, minutosTrabalhados: Math.round(minutos) };
+}
+
+// ========================
+// CLT — Saída antecipada (informativo, não bloqueia)
+// ========================
+export async function verificarSaidaAntecipada(
+  supabaseAdmin: SupabaseClient,
+  funcionarioId: string,
+  dataOperacional: string,
+  dataHora: string,
+  minutosMinimo: number
+): Promise<{ antecipada: boolean; minutosTrabalhados?: number }> {
+  const { data } = await supabaseAdmin
+    .from("bd_ponto_batidas")
+    .select("data_hora_considerada")
+    .eq("funcionario_id", funcionarioId)
+    .eq("data_operacional", dataOperacional)
+    .eq("tipo_batida", "entrada")
+    .neq("status_validacao", "invalidada")
+    .order("data_hora_considerada", { ascending: true })
+    .limit(1);
+
+  if (!data || data.length === 0) return { antecipada: false };
+  const entradaIso = data[0].data_hora_considerada as string;
+  const minutos = (new Date(dataHora).getTime() - new Date(entradaIso).getTime()) / 60000;
+  return { antecipada: minutos < minutosMinimo, minutosTrabalhados: Math.round(minutos) };
+}
+
+// ========================
+// CLT — Gerar intervalo automático (entrada->saida sem intervalo)
+// Insere 2 batidas sintéticas (intervalo_inicio/intervalo_fim) ANTES da saída.
+// ========================
+export async function gerarIntervaloAutomatico(
+  supabaseAdmin: SupabaseClient,
+  params: {
+    funcionarioId: string;
+    centroCustoId: string;
+    dispositivoId: string;
+    dataOperacional: string;
+    dataHoraSaida: string; // ISO
+    intervaloInicioHHMM: string; // "12:00"
+    intervaloMinutos: number; // 60
+    tipoRegistro: "controle_jornada" | "presenca_diaria";
+  }
+): Promise<{ criadas: number; entradaIso?: string; iniIso?: string; fimIso?: string }> {
+  const {
+    funcionarioId,
+    centroCustoId,
+    dispositivoId,
+    dataOperacional,
+    dataHoraSaida,
+    intervaloInicioHHMM,
+    intervaloMinutos,
+    tipoRegistro,
+  } = params;
+
+  // Verifica intervalo já existente
+  const { data: batidasDia } = await supabaseAdmin
+    .from("bd_ponto_batidas")
+    .select("tipo_batida, data_hora_considerada")
+    .eq("funcionario_id", funcionarioId)
+    .eq("data_operacional", dataOperacional)
+    .neq("status_validacao", "invalidada")
+    .order("data_hora_considerada", { ascending: true });
+
+  const tipos = (batidasDia ?? []).map((b: any) => b.tipo_batida);
+  if (tipos.includes("intervalo_inicio") || tipos.includes("intervalo_fim")) {
+    return { criadas: 0 };
+  }
+  const entrada = (batidasDia ?? []).find((b: any) => b.tipo_batida === "entrada");
+  if (!entrada) return { criadas: 0 };
+
+  const entradaMs = new Date(entrada.data_hora_considerada).getTime();
+  const saidaMs = new Date(dataHoraSaida).getTime();
+  const duracaoIntervaloMs = intervaloMinutos * 60 * 1000;
+
+  // Tenta usar horário padrão (12:00 do dia operacional, em horário de SP)
+  // Construímos ISO assumindo o offset do servidor — isso é "best effort".
+  // Como a comparação é apenas por janela [entrada, saida], se não couber, usamos o meio.
+  const [hh, mm] = intervaloInicioHHMM.split(":").map((n) => parseInt(n, 10));
+  // Cria timestamp baseado em America/Sao_Paulo (UTC-3 fixo aproximado).
+  const padraoLocal = new Date(`${dataOperacional}T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00-03:00`);
+  let inicioMs = padraoLocal.getTime();
+  let fimMs = inicioMs + duracaoIntervaloMs;
+
+  const cabe = inicioMs > entradaMs && fimMs < saidaMs;
+  if (!cabe) {
+    const meio = entradaMs + (saidaMs - entradaMs - duracaoIntervaloMs) / 2;
+    inicioMs = meio;
+    fimMs = meio + duracaoIntervaloMs;
+  }
+
+  const iniIso = new Date(inicioMs).toISOString();
+  const fimIso = new Date(fimMs).toISOString();
+
+  const baseRow = {
+    funcionario_id: funcionarioId,
+    centro_custo_id: centroCustoId,
+    dispositivo_id: dispositivoId,
+    modo_registro: "automatico",
+    data_operacional: dataOperacional,
+    latitude: null,
+    longitude: null,
+    precisao_gps_metros: null,
+    dentro_raio: true,
+    distancia_centro_metros: 0,
+    foto_url: null,
+    origem_dados: "online",
+    status_validacao: "pendente_revisao",
+    status_sync: "sincronizado",
+    justificativa: "Intervalo automático CLT (gerado pelo sistema)",
+    ip_address: null,
+    user_agent: null,
+    device_fingerprint: null,
+    tipo_registro: tipoRegistro,
+    score_risco: 0,
+  };
+
+  const inicioRow = {
+    ...baseRow,
+    tipo_batida: "intervalo_inicio",
+    data_hora_dispositivo: iniIso,
+    data_hora_servidor: new Date().toISOString(),
+    data_hora_considerada: iniIso,
+    offline_uuid: crypto.randomUUID(),
+  };
+  const fimRow = {
+    ...baseRow,
+    tipo_batida: "intervalo_fim",
+    data_hora_dispositivo: fimIso,
+    data_hora_servidor: new Date().toISOString(),
+    data_hora_considerada: fimIso,
+    offline_uuid: crypto.randomUUID(),
+  };
+
+  const { error: e1 } = await supabaseAdmin.from("bd_ponto_batidas").insert(inicioRow);
+  if (e1) {
+    console.error("[ponto-clt] Falha ao inserir intervalo_inicio automático:", e1.message);
+    return { criadas: 0 };
+  }
+  const { error: e2 } = await supabaseAdmin.from("bd_ponto_batidas").insert(fimRow);
+  if (e2) {
+    console.error("[ponto-clt] Falha ao inserir intervalo_fim automático:", e2.message);
+    return { criadas: 1, iniIso };
+  }
+
+  console.log("[ponto-clt][INTERVALO_AUTO]", { funcionarioId, iniIso, fimIso, intervaloMinutos });
+  return { criadas: 2, entradaIso: entrada.data_hora_considerada, iniIso, fimIso };
 }
 
 // ========================
@@ -542,6 +792,14 @@ export async function validarDispositivoTotem(
     .select("id, centro_custo_id, latitude_fixa, longitude_fixa, ativo, device_secret_hash")
     .eq("codigo_dispositivo", codigoDispositivo)
     .single();
+
+  console.log("[PONTO][DEVICE_CHECK]", {
+    codigo: codigoDispositivo,
+    encontrado: !!dispositivo,
+    ativo: dispositivo?.ativo,
+    temHash: !!dispositivo?.device_secret_hash,
+    temSecret: !!deviceSecret,
+  });
 
   if (!dispositivo) {
     return { valido: false, erro: "Dispositivo não cadastrado", status: 404 };
@@ -925,15 +1183,27 @@ export function respostaErro(
   status: number,
   motivo: string,
   message: string,
+  extrasOrStage?: Record<string, any> | string,
   extras?: Record<string, any>
 ): Response {
+  let stage: string | undefined;
+  let extrasFinal: Record<string, any> | undefined;
+  if (typeof extrasOrStage === "string") {
+    stage = extrasOrStage;
+    extrasFinal = extras;
+  } else {
+    extrasFinal = extrasOrStage;
+  }
+  console.log("[PONTO][ERROR]", { status, motivo, message, stage });
   return new Response(
     JSON.stringify({
       success: false,
       status_validacao: "rejeitado",
       motivo,
+      error: motivo,
       message,
-      ...extras,
+      stage,
+      ...extrasFinal,
     }),
     {
       status,
