@@ -11,6 +11,13 @@ import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { isRelatorioItemConfirmado } from '@/services/diarias/relatorioMetrics';
+import {
+  auditRelatorioAccess,
+  getCurrentDiariasReportContext,
+  getRelatorioViewForContext,
+  sanitizeFiltersForAudit,
+} from '@/services/diarias/secureRelatorioAccess';
+import type { RelatorioFolhaSecureOptions } from '@/types/diarias';
 
 // =====================================================
 // RELATÓRIO DETALHADO (VIEW)
@@ -24,11 +31,28 @@ interface RelatorioScopeFilters {
 
 export async function getRelatorioFolha(
   filters?: RelatorioFilters,
-  scope?: RelatorioScopeFilters
+  scope?: RelatorioScopeFilters,
+  options?: RelatorioFolhaSecureOptions,
 ): Promise<RelatorioFolhaItem[]> {
-  let query = supabase
-    .from('vw_relatorio_diarias_folha')
-    .select('*')
+  const context = options?.context || await getCurrentDiariasReportContext();
+  const viewName = getRelatorioViewForContext(context);
+  let query: any;
+
+  if (viewName === 'vw_diarias_financeiro_dp') {
+    query = supabase
+      .from('vw_diarias_financeiro_dp')
+      .select('*');
+  } else if (viewName === 'vw_diarias_aprovacao_gerencial') {
+    query = supabase
+      .from('vw_diarias_aprovacao_gerencial')
+      .select('*');
+  } else {
+    query = supabase
+      .from('vw_diarias_operacional_campo')
+      .select('*');
+  }
+
+  query = query
     .not('hora_saida', 'is', null)
     .order('data', { ascending: false })
     .order('nome_funcionario', { ascending: true });
@@ -106,11 +130,12 @@ export async function getRelatorioFolha(
 
   // Suplementar dados faltantes via RPC SECURITY DEFINER
   // Detectar registros com qualquer metadado crítico ausente
-  const needsSupplement = allData.filter(r => r.funcionario_id && (
+  const canSupplementSensitive = context === 'financeiro_dp';
+  const needsSupplement = canSupplementSensitive ? allData.filter(r => r.funcionario_id && (
     !r.nome_funcionario || !r.cpf_funcionario || !r.matricula_funcionario ||
     !r.nome_funcao || !r.banco_funcionario || !r.agencia_funcionario ||
     !r.conta_funcionario || !r.pix_funcionario
-  ));
+  )) : [];
   if (needsSupplement.length > 0) {
     let rpcAll: any[] = [];
     let page = 0;
@@ -141,6 +166,16 @@ export async function getRelatorioFolha(
         conta_funcionario: item.conta_funcionario || f.conta_corrente,
         pix_funcionario: item.pix_funcionario || f.chave_pix,
       };
+    });
+  }
+
+  if (options?.audit !== false) {
+    await auditRelatorioAccess({
+      context,
+      format: options?.auditFormat || 'screen',
+      fileName: options?.fileName,
+      filters: sanitizeFiltersForAudit({ ...filters, ...scope }),
+      quantidadeRegistros: allData.length,
     });
   }
 
@@ -255,8 +290,15 @@ export async function getPresencaResumo(filters?: RelatorioFilters): Promise<Pre
 // EXPORTAÇÃO EXCEL
 // =====================================================
 
-export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promise<Blob> {
-  const relatorio = await getRelatorioFolha(filters);
+export async function exportarRelatorioExcel(
+  filters?: RelatorioFilters,
+  scope?: RelatorioScopeFilters,
+  options?: RelatorioFolhaSecureOptions,
+): Promise<Blob> {
+  const relatorio = await getRelatorioFolha(filters, scope, {
+    ...options,
+    audit: false,
+  });
 
   const wb = XLSX.utils.book_new();
 
@@ -383,6 +425,14 @@ export async function exportarRelatorioExcel(filters?: RelatorioFilters): Promis
   };
 
   XLSX.utils.book_append_sheet(wb, ws, 'Folha de Pagamento');
+
+  await auditRelatorioAccess({
+    context: options?.context || await getCurrentDiariasReportContext(),
+    format: 'excel',
+    fileName: options?.fileName,
+    filters: sanitizeFiltersForAudit({ ...filters, ...scope }),
+    quantidadeRegistros: relatorio.length,
+  });
 
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   return new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });

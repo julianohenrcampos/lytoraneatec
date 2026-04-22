@@ -31,8 +31,16 @@ import {
   useJornadasDiarias,
 } from "@/hooks/admin/useJornadasDiarias";
 import { useCentrosCustoQuery } from "@/hooks/useCentrosCustoQuery";
+import { usePermission } from "@/hooks/usePermission";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  auditPontoAccess,
+  canSeeSensitivePontoData,
+  getCurrentPontoReportContext,
+  getPontoBatidasViewForContext,
+  sanitizePontoFilters,
+} from "@/services/ponto/secureAccess";
 import {
   gerarPdfPontoEletronico,
   type PontoEletronicoReportData,
@@ -76,6 +84,7 @@ const GestaoPonto: React.FC = () => {
   });
   const [detalhe, setDetalhe] = useState<JornadaDiariaRow | null>(null);
   const { user } = useUserProfile();
+  const { permissions, isSuperAdmin } = usePermission();
 
   const { data: funcionarios } = useQuery({
     queryKey: ["funcionarios-ativos-gestao-ponto"],
@@ -92,6 +101,7 @@ const GestaoPonto: React.FC = () => {
 
   const { data: centrosCusto } = useCentrosCustoQuery();
   const { data: jornadas, isLoading, refetch } = useJornadasDiarias(aplicado);
+  const canExport = isSuperAdmin || permissions.includes("ponto_relatorios");
 
   const funcionarioOptions = useMemo(
     () => [
@@ -135,27 +145,41 @@ const GestaoPonto: React.FC = () => {
   };
 
   const exportarPdf = async () => {
+    if (!canExport) {
+      toast.error("Você não tem permissão para exportar relatórios de ponto.");
+      return;
+    }
+
     if (!jornadas?.length) {
       toast.error("Não há jornadas para exportar.");
       return;
     }
 
     try {
+      const context = await getCurrentPontoReportContext();
+      const batidasView = getPontoBatidasViewForContext(context);
+      const canSeeSensitive = canSeeSensitivePontoData(context);
       const funcionarioIds = Array.from(new Set(jornadas.map((j) => j.funcionarioId)));
       const datas = Array.from(new Set(jornadas.map((j) => j.dataOperacional)));
 
-      const { data: batidas, error } = await supabase
-        .from("bd_ponto_batidas")
+      const { data: batidasRaw, error } = await (supabase
+        .from(batidasView as any)
         .select("funcionario_id, data_operacional, tipo_batida, data_hora_considerada, status_validacao")
         .in("funcionario_id", funcionarioIds)
         .in("data_operacional", datas)
         .neq("status_validacao", "invalidada")
-        .order("data_hora_considerada", { ascending: true });
+        .order("data_hora_considerada", { ascending: true }) as any);
 
       if (error) throw error;
+      const batidas = (batidasRaw || []) as Array<{
+        funcionario_id: string;
+        data_operacional: string;
+        tipo_batida: string | null;
+        data_hora_considerada: string;
+      }>;
 
       const batidasMap = new Map<string, Array<{ tipo_batida: string | null; data_hora_considerada: string }>>();
-      for (const batida of batidas || []) {
+      for (const batida of batidas) {
         const key = `${batida.funcionario_id}|${batida.data_operacional}`;
         const items = batidasMap.get(key) || [];
         items.push({
@@ -223,7 +247,7 @@ const GestaoPonto: React.FC = () => {
             empresa: employee.empresa_nome || "—",
             cnpj: employee.empresa_cnpj || "—",
             colaborador: employee.funcionario_nome,
-            cpf: employee.funcionario_cpf || "—",
+            cpf: canSeeSensitive ? employee.funcionario_cpf || "—" : "***.***.***-**",
             cargo: employee.funcao || "—",
             admissao: employee.data_admissao
               ? format(parse(employee.data_admissao, "yyyy-MM-dd", new Date()), "dd/MM/yyyy")
@@ -302,12 +326,38 @@ const GestaoPonto: React.FC = () => {
       });
 
       await gerarPdfPontoEletronico(reports);
+      await auditPontoAccess({
+        context,
+        tipoAcesso: "exportacao_pdf",
+        recurso: "relatorio_ponto_eletronico",
+        filtros: sanitizePontoFilters(aplicado),
+        quantidadeRegistros: jornadas.length,
+        origem: "gestao_ponto",
+        funcionarioId: aplicado.funcionarioId,
+        detalhes: { visao: batidasView, exportado_por: user?.id ?? null },
+      });
       toast.success("Relatório gerado com sucesso.");
     } catch (err) {
       console.error(err);
       toast.error("Erro ao exportar o relatório.");
     }
   };
+
+  React.useEffect(() => {
+    if (!jornadas) return;
+    void (async () => {
+      const context = await getCurrentPontoReportContext();
+      await auditPontoAccess({
+        context,
+        tipoAcesso: "consulta",
+        recurso: "gestao_ponto_jornadas",
+        filtros: sanitizePontoFilters(aplicado),
+        quantidadeRegistros: jornadas.length,
+        origem: "gestao_ponto",
+        funcionarioId: aplicado.funcionarioId,
+      });
+    })();
+  }, [jornadas, aplicado]);
 
   return (
     <MainLayout>
@@ -318,7 +368,7 @@ const GestaoPonto: React.FC = () => {
               Auditoria completa de jornada, inconsistências e exportação corporativa.
             </p>
           </div>
-          <Button onClick={exportarPdf} disabled={!jornadas?.length || isLoading} className="gap-2">
+          <Button onClick={exportarPdf} disabled={!jornadas?.length || isLoading || !canExport} className="gap-2" title={canExport ? "" : "Sem permissão para exportar"}>
             <Download className="h-4 w-4" />
             Exportar PDF
           </Button>

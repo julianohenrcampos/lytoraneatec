@@ -1,11 +1,58 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  auditBackendEvent,
+  authenticateEdgeRequest,
+  authorizeBackendInvocation,
+  corsHeaders,
+  createServiceClient,
+  getClientIp,
+  getRequestId,
+  jsonResponse,
+} from "../_shared/backend-security.ts";
 
-serve(async () => {
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  const requestId = getRequestId(req);
+  const ip = getClientIp(req);
+  const supabase = createServiceClient();
+  const auth = await authenticateEdgeRequest(req, { allowApiKey: true, apiKeySecretNames: ["LYTOTEC_API_KEY"] });
+
+  if (!auth) {
+    await auditBackendEvent(supabase, {
+      auth: null,
+      recurso: "process-desligamentos",
+      contexto: "rh_desligamentos",
+      nivelRisco: "critico",
+      permitido: false,
+      sucesso: false,
+      statusHttp: 401,
+      ip,
+      requestId,
+      erroResumo: "nao_autenticado",
+    });
+    return jsonResponse({ error: "Não autorizado" }, 401);
+  }
+
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const allowed = await authorizeBackendInvocation(supabase, auth, "process-desligamentos", "rh_desligamentos");
+    if (!allowed) {
+      await auditBackendEvent(supabase, {
+        auth,
+        recurso: "process-desligamentos",
+        contexto: "rh_desligamentos",
+        nivelRisco: "critico",
+        permitido: false,
+        sucesso: false,
+        statusHttp: 403,
+        ip,
+        requestId,
+        erroResumo: "sem_permissao",
+      });
+      return jsonResponse({ error: "Sem permissão para processar desligamentos" }, 403);
+    }
 
     const hoje = new Date().toISOString().split("T")[0];
 
@@ -18,9 +65,19 @@ serve(async () => {
 
     if (errSelect) throw errSelect;
     if (!pendentes || pendentes.length === 0) {
-      return new Response(JSON.stringify({ message: "Nenhum desligamento para processar" }), {
-        headers: { "Content-Type": "application/json" },
+      await auditBackendEvent(supabase, {
+        auth,
+        recurso: "process-desligamentos",
+        contexto: "rh_desligamentos",
+        nivelRisco: "critico",
+        permitido: true,
+        sucesso: true,
+        statusHttp: 200,
+        ip,
+        requestId,
+        resultadoResumo: { processados: 0 },
       });
+      return jsonResponse({ message: "Nenhum desligamento para processar" });
     }
 
     let processados = 0;
@@ -40,14 +97,34 @@ serve(async () => {
       processados++;
     }
 
-    return new Response(
-      JSON.stringify({ message: `Processados: ${processados} desligamentos` }),
-      { headers: { "Content-Type": "application/json" } }
-    );
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
+    await auditBackendEvent(supabase, {
+      auth,
+      recurso: "process-desligamentos",
+      contexto: "rh_desligamentos",
+      nivelRisco: "critico",
+      permitido: true,
+      sucesso: true,
+      statusHttp: 200,
+      ip,
+      requestId,
+      resultadoResumo: { processados },
     });
+
+    return jsonResponse({ message: `Processados: ${processados} desligamentos` });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Erro interno";
+    await auditBackendEvent(supabase, {
+      auth,
+      recurso: "process-desligamentos",
+      contexto: "rh_desligamentos",
+      nivelRisco: "critico",
+      permitido: true,
+      sucesso: false,
+      statusHttp: 500,
+      ip,
+      requestId,
+      erroResumo: message,
+    });
+    return jsonResponse({ error: message }, 500);
   }
 });

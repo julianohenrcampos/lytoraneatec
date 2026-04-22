@@ -40,6 +40,7 @@ export interface RelatorioRemessaPDFProps {
   logoUrl?: string;
   logoMap?: Record<string, string>;
   tipoRemessa: 'remessa' | 'sem_remessa';
+  hideSensitiveFields?: boolean;
 }
 
 // =====================================================
@@ -250,7 +251,7 @@ export function buildEmpresaGroups(
 // Component
 // =====================================================
 
-function EmpresaSection({ grupo, showPix, logoBase64, isFirst }: { grupo: EmpresaGroup; showPix: boolean; logoBase64?: string; isFirst?: boolean }) {
+function EmpresaSection({ grupo, showPix, logoBase64, isFirst, hideSensitiveFields }: { grupo: EmpresaGroup; showPix: boolean; logoBase64?: string; isFirst?: boolean; hideSensitiveFields?: boolean }) {
   const cols = showPix ? COLS_SEM_REMESSA : COLS_REMESSA;
 
   return (
@@ -265,11 +266,11 @@ function EmpresaSection({ grupo, showPix, logoBase64, isFirst }: { grupo: Empres
           <View style={cell(cols.matricula)}><Text style={s.textHeader}>MATRÍCULA</Text></View>
           <View style={cell(cols.cc)}><Text style={s.textHeader}>C.C</Text></View>
           <View style={cell(cols.nome)}><Text style={s.textHeader}>FUNCIONÁRIO</Text></View>
-          <View style={cell(cols.cpf)}><Text style={s.textHeader}>CPF</Text></View>
-          <View style={cell(cols.banco)}><Text style={s.textHeader}>BANCO</Text></View>
-          <View style={cell(cols.agencia)}><Text style={s.textHeader}>AGÊNCIA</Text></View>
-          <View style={cell(cols.conta)}><Text style={s.textHeader}>CONTA</Text></View>
-          {showPix && 'pix' in cols && <View style={cell((cols as any).pix)}><Text style={s.textHeader}>CHAVE PIX</Text></View>}
+          <View style={cell(cols.cpf)}><Text style={s.textHeader}>{hideSensitiveFields ? 'CPF' : 'CPF'}</Text></View>
+          <View style={cell(cols.banco)}><Text style={s.textHeader}>{hideSensitiveFields ? 'BANCO' : 'BANCO'}</Text></View>
+          <View style={cell(cols.agencia)}><Text style={s.textHeader}>{hideSensitiveFields ? 'AGÊNCIA' : 'AGÊNCIA'}</Text></View>
+          <View style={cell(cols.conta)}><Text style={s.textHeader}>{hideSensitiveFields ? 'CONTA' : 'CONTA'}</Text></View>
+          {showPix && 'pix' in cols && <View style={cell((cols as any).pix)}><Text style={s.textHeader}>{hideSensitiveFields ? 'CHAVE PIX' : 'CHAVE PIX'}</Text></View>}
           <View style={cell(cols.dias)}><Text style={s.textHeader}>DIAS</Text></View>
           <View style={cell(cols.total)}><Text style={[s.textHeader, { textAlign: 'right' }]}>TOTAL (R$)</Text></View>
         </View>
@@ -280,11 +281,11 @@ function EmpresaSection({ grupo, showPix, logoBase64, isFirst }: { grupo: Empres
             <View style={cell(cols.matricula)}><Text style={[s.textSmall, { textAlign: 'center' }]}>{func.matricula || '-'}</Text></View>
             <View style={cell(cols.cc)}><Text style={[s.textSmall, { textAlign: 'center' }]}>{func.codigo_centro_custo}</Text></View>
             <View style={cell(cols.nome)}><Text style={[s.textNormal, { textTransform: 'uppercase' as const }]}>{func.nome}</Text></View>
-            <View style={cell(cols.cpf)}><Text style={s.textSmall}>{func.cpf}</Text></View>
-            <View style={cell(cols.banco)}><Text style={s.textSmall}>{func.banco}</Text></View>
-            <View style={cell(cols.agencia)}><Text style={[s.textSmall, { textAlign: 'center' }]}>{func.agencia}</Text></View>
-            <View style={cell(cols.conta)}><Text style={s.textSmall}>{func.conta}</Text></View>
-            {showPix && 'pix' in cols && <View style={cell((cols as any).pix)}><Text style={s.textSmall}>{func.chave_pix}</Text></View>}
+            <View style={cell(cols.cpf)}><Text style={s.textSmall}>{hideSensitiveFields ? '***' : func.cpf}</Text></View>
+            <View style={cell(cols.banco)}><Text style={s.textSmall}>{hideSensitiveFields ? '***' : func.banco}</Text></View>
+            <View style={cell(cols.agencia)}><Text style={[s.textSmall, { textAlign: 'center' }]}>{hideSensitiveFields ? '***' : func.agencia}</Text></View>
+            <View style={cell(cols.conta)}><Text style={s.textSmall}>{hideSensitiveFields ? '***' : func.conta}</Text></View>
+            {showPix && 'pix' in cols && <View style={cell((cols as any).pix)}><Text style={s.textSmall}>{hideSensitiveFields ? '***' : func.chave_pix}</Text></View>}
             <View style={cell(cols.dias)}><Text style={[s.textNormal, { textAlign: 'center' }]}>{func.total_dias}</Text></View>
             <View style={cell(cols.total)}><Text style={s.textRight}>{formatCurrency(func.valor_total)}</Text></View>
           </View>
@@ -321,7 +322,7 @@ function buildCCSummary(grupos: EmpresaGroup[]): { codigo: string; nome: string;
     .sort((a, b) => a.codigo.localeCompare(b.codigo));
 }
 
-export function RelatorioRemessaPDFDocument({ relatorio, periodoLabel, logoUrl, logoMap, tipoRemessa }: RelatorioRemessaPDFProps) {
+export function RelatorioRemessaPDFDocument({ relatorio, periodoLabel, logoUrl, logoMap, tipoRemessa, hideSensitiveFields }: RelatorioRemessaPDFProps) {
   const grupos = buildEmpresaGroups(relatorio, tipoRemessa);
   const totalGeral = grupos.reduce((acc, g) => acc + g.total_geral, 0);
   const showPix = tipoRemessa === 'sem_remessa';
@@ -364,6 +365,7 @@ export function RelatorioRemessaPDFDocument({ relatorio, periodoLabel, logoUrl, 
             showPix={showPix}
             logoBase64={logoMap?.[grupo.empresa_nome] || logoUrl}
             isFirst={idx === 0}
+            hideSensitiveFields={hideSensitiveFields}
           />
         ))}
 

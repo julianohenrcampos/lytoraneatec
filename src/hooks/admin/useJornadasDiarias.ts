@@ -2,6 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { calcularJornadaBatch, type JornadaBatchResult } from "@/services/ponto";
 import { format } from "date-fns";
+import {
+  getCurrentPontoReportContext,
+  getPontoBatidasViewForContext,
+} from "@/services/ponto/secureAccess";
 
 export interface JornadaDiariaRow extends JornadaBatchResult {
   funcionario_nome: string;
@@ -18,6 +22,7 @@ export interface JornadaDiariaRow extends JornadaBatchResult {
   jornada_padrao_min: number;
   horas_extras_min: number;
   atraso_min: number;
+  report_context: "pessoal" | "gestao" | "rh";
 }
 
 interface FiltersInput {
@@ -38,10 +43,12 @@ export function useJornadasDiarias(filters: FiltersInput | null) {
     enabled: !!filters,
     queryFn: async () => {
       if (!filters) return [];
+      const context = await getCurrentPontoReportContext();
+      const batidasView = getPontoBatidasViewForContext(context);
 
       // 1) buscar batidas no período
       let query = supabase
-        .from("bd_ponto_batidas")
+        .from(batidasView as any)
         .select("funcionario_id, data_operacional")
         .gte("data_operacional", filters.dataInicio)
         .lte("data_operacional", filters.dataFim)
@@ -54,13 +61,14 @@ export function useJornadasDiarias(filters: FiltersInput | null) {
         query = query.in("centro_custo_id", filters.centroCustoIds);
       }
 
-      const { data: batidas, error } = await query.limit(5000);
+      const { data: batidasRaw, error } = await (query.limit(5000) as any);
       if (error) throw error;
+      const batidas = (batidasRaw || []) as Array<{ funcionario_id: string; data_operacional: string }>;
 
       // 2) gerar combinações únicas funcionario × dia
       const seen = new Set<string>();
       const inputs: { funcionarioId: string; dataOperacional: string }[] = [];
-      for (const b of batidas || []) {
+      for (const b of batidas) {
         const key = `${b.funcionario_id}|${b.data_operacional}`;
         if (!seen.has(key)) {
           seen.add(key);
@@ -136,6 +144,7 @@ export function useJornadasDiarias(filters: FiltersInput | null) {
           jornada_padrao_min: padrao,
           horas_extras_min: extras,
           atraso_min: atraso,
+          report_context: context,
         };
       });
 

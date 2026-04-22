@@ -1,19 +1,57 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import {
+  auditBackendEvent,
+  authenticateEdgeRequest,
+  authorizeBackendInvocation,
+  corsHeaders,
+  createServiceClient,
+  getClientIp,
+  getRequestId,
+  jsonResponse,
+} from '../_shared/backend-security.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
+  const requestId = getRequestId(req)
+  const ip = getClientIp(req)
+  const supabase = createServiceClient()
+  const auth = await authenticateEdgeRequest(req, { allowApiKey: true, apiKeySecretNames: ['LYTOTEC_API_KEY'] })
+
+  if (!auth) {
+    await auditBackendEvent(supabase, {
+      auth: null,
+      recurso: 'auto-finalizar-diarias',
+      contexto: 'diarias',
+      nivelRisco: 'alto',
+      permitido: false,
+      sucesso: false,
+      statusHttp: 401,
+      ip,
+      requestId,
+      erroResumo: 'nao_autenticado',
+    })
+    return jsonResponse({ error: 'Não autorizado' }, 401)
+  }
+
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const allowed = await authorizeBackendInvocation(supabase, auth, 'auto-finalizar-diarias', 'diarias')
+    if (!allowed) {
+      await auditBackendEvent(supabase, {
+        auth,
+        recurso: 'auto-finalizar-diarias',
+        contexto: 'diarias',
+        nivelRisco: 'alto',
+        permitido: false,
+        sucesso: false,
+        statusHttp: 403,
+        ip,
+        requestId,
+        erroResumo: 'sem_permissao',
+      })
+      return jsonResponse({ error: 'Sem permissão para executar a rotina' }, 403)
+    }
 
     // Get today's date in Brazil timezone
     const now = new Date()
@@ -36,10 +74,7 @@ Deno.serve(async (req) => {
     const isDiaExclusivo = isWeekend || isHoliday
 
     if (!isWeekend && !isHoliday) {
-      return new Response(
-        JSON.stringify({ message: 'Hoje não é FDS nem feriado. Nenhuma ação.', date: brDate }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      return jsonResponse({ message: 'Hoje não é FDS nem feriado. Nenhuma ação.', date: brDate })
     }
 
     // Find presences with hora_entrada but no hora_saida for today
@@ -56,10 +91,7 @@ Deno.serve(async (req) => {
     }
 
     if (!pendentes || pendentes.length === 0) {
-      return new Response(
-        JSON.stringify({ message: 'Nenhuma presença pendente para finalizar.', date: brDate }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      return jsonResponse({ message: 'Nenhuma presença pendente para finalizar.', date: brDate })
     }
 
     // For exclusive days, fetch convocados_pre from solicitações to get correct exclusive values
@@ -168,23 +200,43 @@ Deno.serve(async (req) => {
       if (!updateError) updated++
     }
 
-    return new Response(
-      JSON.stringify({ 
-        message: `Auto-finalização concluída. ${updated}/${pendentes.length} registros atualizados.`,
-        date: brDate,
-        isWeekend,
-        isHoliday,
-        isDiaExclusivo,
-        total: pendentes.length,
-        updated
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    await auditBackendEvent(supabase, {
+      auth,
+      recurso: 'auto-finalizar-diarias',
+      contexto: 'diarias',
+      nivelRisco: 'alto',
+      permitido: true,
+      sucesso: true,
+      statusHttp: 200,
+      ip,
+      requestId,
+      resultadoResumo: { total: pendentes.length, updated, isDiaExclusivo },
+    })
+
+    return jsonResponse({ 
+      message: `Auto-finalização concluída. ${updated}/${pendentes.length} registros atualizados.`,
+      date: brDate,
+      isWeekend,
+      isHoliday,
+      isDiaExclusivo,
+      total: pendentes.length,
+      updated
+    })
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Erro interno'
     console.error('Erro na auto-finalização:', error)
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    await auditBackendEvent(supabase, {
+      auth,
+      recurso: 'auto-finalizar-diarias',
+      contexto: 'diarias',
+      nivelRisco: 'alto',
+      permitido: true,
+      sucesso: false,
+      statusHttp: 500,
+      ip,
+      requestId,
+      erroResumo: message,
+    })
+    return jsonResponse({ error: message }, 500)
   }
 })

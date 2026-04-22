@@ -1,23 +1,58 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+import {
+  auditBackendEvent,
+  authenticateEdgeRequest,
+  authorizeBackendInvocation,
+  corsHeaders,
+  createServiceClient,
+  getClientIp,
+  getRequestId,
+  jsonResponse,
+} from "../_shared/backend-security.ts";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  const requestId = getRequestId(req);
+  const ip = getClientIp(req);
+  const supabaseAdmin = createServiceClient();
+  const auth = await authenticateEdgeRequest(req, { allowApiKey: true, apiKeySecretNames: ["LYTOTEC_API_KEY"] });
+
+  if (!auth) {
+    await auditBackendEvent(supabaseAdmin, {
+      auth: null,
+      recurso: "sync-subcategorias-site",
+      contexto: "catalogo_ativos",
+      nivelRisco: "alto",
+      permitido: false,
+      sucesso: false,
+      statusHttp: 401,
+      ip,
+      requestId,
+      erroResumo: "nao_autenticado",
+    });
+    return jsonResponse({ error: "Unauthorized" }, 401);
+  }
+
   try {
-    // Fetch subcategorias from local DB using service role
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const allowed = await authorizeBackendInvocation(supabaseAdmin, auth, "sync-subcategorias-site", "catalogo_ativos");
+    if (!allowed) {
+      await auditBackendEvent(supabaseAdmin, {
+        auth,
+        recurso: "sync-subcategorias-site",
+        contexto: "catalogo_ativos",
+        nivelRisco: "alto",
+        permitido: false,
+        sucesso: false,
+        statusHttp: 403,
+        ip,
+        requestId,
+        erroResumo: "sem_permissao",
+      });
+      return jsonResponse({ error: "Sem permissão para sincronizar subcategorias" }, 403);
+    }
 
     const { data: subcategorias, error: dbError } = await supabaseAdmin
       .from("bd_subcategorias_ativos")
@@ -25,17 +60,11 @@ serve(async (req) => {
       .eq("ativo", true);
 
     if (dbError) {
-      return new Response(
-        JSON.stringify({ error: `Erro ao buscar subcategorias: ${dbError.message}` }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ error: `Erro ao buscar subcategorias: ${dbError.message}` }, 500);
     }
 
     if (!subcategorias || subcategorias.length === 0) {
-      return new Response(
-        JSON.stringify({ processados: 0, total: 0 }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ processados: 0, total: 0 });
     }
 
     const payload = subcategorias.map((s: any) => ({
@@ -46,10 +75,7 @@ serve(async (req) => {
     // Call SITE API
     const apiKey = Deno.env.get("LYTOTEC_API_KEY");
     if (!apiKey) {
-      return new Response(
-        JSON.stringify({ error: "LYTOTEC_API_KEY não configurada" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ error: "LYTOTEC_API_KEY não configurada" }, 500);
     }
 
     const siteResponse = await fetch(
@@ -73,20 +99,50 @@ serve(async (req) => {
     }
 
     if (!siteResponse.ok) {
-      return new Response(JSON.stringify(result), {
-        status: siteResponse.status,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      await auditBackendEvent(supabaseAdmin, {
+        auth,
+        recurso: "sync-subcategorias-site",
+        contexto: "catalogo_ativos",
+        nivelRisco: "alto",
+        permitido: true,
+        sucesso: false,
+        statusHttp: siteResponse.status,
+        ip,
+        requestId,
+        payloadResumo: { total: payload.length },
+        erroResumo: typeof result?.error === "string" ? result.error : "erro_sync_destino",
       });
+      return jsonResponse(result, siteResponse.status);
     }
 
-    return new Response(JSON.stringify(result), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    await auditBackendEvent(supabaseAdmin, {
+      auth,
+      recurso: "sync-subcategorias-site",
+      contexto: "catalogo_ativos",
+      nivelRisco: "alto",
+      permitido: true,
+      sucesso: true,
+      statusHttp: 200,
+      ip,
+      requestId,
+      payloadResumo: { total: payload.length },
+      resultadoResumo: { total: payload.length },
     });
+    return jsonResponse(result, 200);
   } catch (error) {
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    const message = error instanceof Error ? error.message : "Erro interno";
+    await auditBackendEvent(supabaseAdmin, {
+      auth,
+      recurso: "sync-subcategorias-site",
+      contexto: "catalogo_ativos",
+      nivelRisco: "alto",
+      permitido: true,
+      sucesso: false,
+      statusHttp: 500,
+      ip,
+      requestId,
+      erroResumo: message,
+    });
+    return jsonResponse({ error: message }, 500);
   }
 });

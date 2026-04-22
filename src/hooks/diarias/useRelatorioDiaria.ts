@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import type { RelatorioFilters } from '@/types/diarias';
+import type { DiariasReportContext, RelatorioFilters } from '@/types/diarias';
 import {
   getRelatorioFolha,
   getResumoDiarias,
@@ -50,10 +50,10 @@ export function usePresencaResumo(filters?: RelatorioFilters) {
   });
 }
 
-export function useExportarExcel() {
+export function useExportarExcel(scope?: RelatorioScopeFilters, context?: DiariasReportContext) {
   return useMutation({
     mutationFn: async (filters?: RelatorioFilters) => {
-      const blob = await exportarRelatorioExcel(filters);
+      const blob = await exportarRelatorioExcel(filters, scope, { context, auditFormat: 'excel' });
       downloadExcel(blob);
       return blob;
     },

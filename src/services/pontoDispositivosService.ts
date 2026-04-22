@@ -31,7 +31,7 @@ export interface DispositivoCcVinculo {
 
 export async function listarDispositivos(): Promise<PontoDispositivoAdmin[]> {
   const { data, error } = await supabase
-    .from("vw_ponto_dispositivos_admin" as any)
+    .from("vw_ponto_dispositivos_seguro" as any)
     .select("*")
     .order("codigo_dispositivo", { ascending: true });
   if (error) throw error;

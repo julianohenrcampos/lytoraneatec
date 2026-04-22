@@ -1,11 +1,15 @@
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import {
+  auditBackendEvent,
+  authenticateEdgeRequest,
+  authorizeBackendInvocation,
+  corsHeaders,
+  createServiceClient,
+  getClientIp,
+  getRequestId,
+  jsonResponse,
+} from "../_shared/backend-security.ts";
 
 interface ConfirmEmailRequest {
   email: string;
@@ -17,28 +21,62 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const requestId = getRequestId(req);
+  const ip = getClientIp(req);
+  const supabaseAdmin = createServiceClient();
+  const auth = await authenticateEdgeRequest(req);
+
+  if (!auth) {
+    await auditBackendEvent(supabaseAdmin, {
+      auth: null,
+      recurso: "admin-confirm-email",
+      contexto: "auth_admin",
+      nivelRisco: "critico",
+      permitido: false,
+      sucesso: false,
+      statusHttp: 401,
+      ip,
+      requestId,
+      erroResumo: "nao_autenticado",
+    });
+    return jsonResponse({ error: "Não autorizado" }, 401);
+  }
+
   try {
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    );
+    const allowed = await authorizeBackendInvocation(supabaseAdmin, auth, "admin-confirm-email", "auth_admin");
+    if (!allowed) {
+      await auditBackendEvent(supabaseAdmin, {
+        auth,
+        recurso: "admin-confirm-email",
+        contexto: "auth_admin",
+        nivelRisco: "critico",
+        permitido: false,
+        sucesso: false,
+        statusHttp: 403,
+        ip,
+        requestId,
+        erroResumo: "sem_permissao",
+      });
+      return jsonResponse({ error: "Sem permissão para confirmar emails" }, 403);
+    }
 
     const { email, setTemporaryPassword = false }: ConfirmEmailRequest = await req.json();
 
     if (!email) {
-      return new Response(
-        JSON.stringify({ error: "Email é obrigatório" }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
+      await auditBackendEvent(supabaseAdmin, {
+        auth,
+        recurso: "admin-confirm-email",
+        contexto: "auth_admin",
+        nivelRisco: "critico",
+        permitido: true,
+        sucesso: false,
+        statusHttp: 400,
+        ip,
+        requestId,
+        payloadResumo: { setTemporaryPassword },
+        erroResumo: "email_obrigatorio",
+      });
+      return jsonResponse({ error: "Email é obrigatório" }, 400);
     }
 
     console.log(`🔧 [ADMIN-CONFIRM-EMAIL] Processando: ${email}`);
@@ -48,25 +86,26 @@ const handler = async (req: Request): Promise<Response> => {
     
     if (getUserError) {
       console.error("❌ Erro ao buscar usuários:", getUserError);
-      return new Response(
-        JSON.stringify({ error: "Erro ao buscar usuário" }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
+      return jsonResponse({ error: "Erro ao buscar usuário" }, 500);
     }
 
     const user = users.users.find(u => u.email === email);
     
     if (!user) {
-      return new Response(
-        JSON.stringify({ error: "Usuário não encontrado no Auth" }),
-        {
-          status: 404,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
+      await auditBackendEvent(supabaseAdmin, {
+        auth,
+        recurso: "admin-confirm-email",
+        contexto: "auth_admin",
+        nivelRisco: "critico",
+        permitido: true,
+        sucesso: false,
+        statusHttp: 404,
+        ip,
+        requestId,
+        payloadResumo: { email, setTemporaryPassword },
+        erroResumo: "usuario_nao_encontrado",
+      });
+      return jsonResponse({ error: "Usuário não encontrado no Auth" }, 404);
     }
 
     console.log(`✅ [ADMIN-CONFIRM-EMAIL] Usuário encontrado: ${user.id}`);
@@ -79,13 +118,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (updateError) {
       console.error("❌ Erro ao confirmar email:", updateError);
-      return new Response(
-        JSON.stringify({ error: "Erro ao confirmar email" }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
+      return jsonResponse({ error: "Erro ao confirmar email" }, 500);
     }
 
     console.log(`✅ [ADMIN-CONFIRM-EMAIL] Email confirmado para: ${email}`);
@@ -110,29 +143,43 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: `Email ${email} confirmado com sucesso`,
-        user_id: user.id,
-        temporary_password: temporaryPassword,
-        has_password: temporaryPassword ? true : false
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
-    );
+    await auditBackendEvent(supabaseAdmin, {
+      auth,
+      recurso: "admin-confirm-email",
+      contexto: "auth_admin",
+      nivelRisco: "critico",
+      permitido: true,
+      sucesso: true,
+      statusHttp: 200,
+      ip,
+      requestId,
+      payloadResumo: { email, setTemporaryPassword },
+      resultadoResumo: { user_id: user.id, has_password: !!temporaryPassword },
+    });
+
+    return jsonResponse({ 
+      success: true, 
+      message: `Email ${email} confirmado com sucesso`,
+      user_id: user.id,
+      temporary_password: temporaryPassword,
+      has_password: temporaryPassword ? true : false
+    });
 
   } catch (error: any) {
     console.error("❌ Erro na função admin-confirm-email:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
-    );
+    await auditBackendEvent(supabaseAdmin, {
+      auth,
+      recurso: "admin-confirm-email",
+      contexto: "auth_admin",
+      nivelRisco: "critico",
+      permitido: true,
+      sucesso: false,
+      statusHttp: 500,
+      ip,
+      requestId,
+      erroResumo: error?.message ?? "erro_interno",
+    });
+    return jsonResponse({ error: error.message }, 500);
   }
 };
 

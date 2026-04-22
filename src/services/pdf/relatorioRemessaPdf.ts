@@ -4,6 +4,7 @@ import { RelatorioRemessaPDFDocument } from '@/components/diarias/pdf/RelatorioR
 import { loadImageAsBase64 } from '@/services/pdfService';
 import { supabase } from '@/integrations/supabase/client';
 import type { RelatorioFolhaItem } from '@/types/diarias';
+import type { DiariasReportContext } from '@/types/diarias';
 
 export async function fetchEmpresaLogosMap(relatorio: RelatorioFolhaItem[]): Promise<Record<string, string>> {
   try {
@@ -38,7 +39,8 @@ export async function fetchEmpresaLogosMap(relatorio: RelatorioFolhaItem[]): Pro
 export async function generateRelatorioRemessaBlob(
   relatorio: RelatorioFolhaItem[],
   periodoLabel: string,
-  tipoRemessa: 'remessa' | 'sem_remessa'
+  tipoRemessa: 'remessa' | 'sem_remessa',
+  options?: { context?: DiariasReportContext; hideSensitiveFields?: boolean },
 ): Promise<Blob> {
   const [defaultLogo, logoMap] = await Promise.all([
     loadImageAsBase64('/lyto-uploads/dcf6c980-f927-4180-b109-b425da1323ba.png'),
@@ -51,6 +53,7 @@ export async function generateRelatorioRemessaBlob(
     logoUrl: defaultLogo || undefined,
     logoMap: Object.keys(logoMap).length > 0 ? logoMap : undefined,
     tipoRemessa,
+    hideSensitiveFields: options?.hideSensitiveFields,
   });
 
   return await pdf(doc as any).toBlob();

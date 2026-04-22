@@ -1,9 +1,13 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import {
+  auditBackendEvent,
+  authenticateEdgeRequest,
+  authorizeBackendInvocation,
+  corsHeaders,
+  createServiceClient,
+  getClientIp,
+  getRequestId,
+  jsonResponse,
+} from "../_shared/backend-security.ts";
 
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
@@ -11,85 +15,56 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
-    // Create admin client with service role key
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
+  const requestId = getRequestId(req);
+  const ip = getClientIp(req);
+  const supabaseAdmin = createServiceClient();
+  const auth = await authenticateEdgeRequest(req);
+
+  if (!auth) {
+    await auditBackendEvent(supabaseAdmin, {
+      auth: null,
+      recurso: 'delete-user',
+      contexto: 'auth_admin',
+      nivelRisco: 'critico',
+      permitido: false,
+      sucesso: false,
+      statusHttp: 401,
+      ip,
+      requestId,
+      erroResumo: 'nao_autenticado',
     });
+    return jsonResponse({ error: 'Não autorizado' }, 401);
+  }
 
-    // Get the authorization header to verify the caller
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      console.error('No authorization header provided');
-      return new Response(
-        JSON.stringify({ error: 'Não autorizado' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Verify the caller's JWT
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user: caller }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    
-    if (authError || !caller) {
-      console.error('Auth error:', authError);
-      return new Response(
-        JSON.stringify({ error: 'Token inválido' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log('Caller verified:', caller.id, caller.email);
-
-    // Check if caller is SuperAdmin
-    const { data: callerProfile, error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .select('funcoes, funcao_sistema')
-      .eq('id', caller.id)
-      .single();
-
-    if (profileError) {
-      console.error('Error fetching caller profile:', profileError);
-      return new Response(
-        JSON.stringify({ error: 'Erro ao verificar permissões' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const isSuperAdmin = 
-      callerProfile?.funcoes?.includes('SuperAdm') || 
-      callerProfile?.funcao_sistema === 'SuperAdm';
-
-    if (!isSuperAdmin) {
-      console.error('Caller is not SuperAdmin:', caller.email);
-      return new Response(
-        JSON.stringify({ error: 'Apenas SuperAdmins podem excluir usuários' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+  try {
+    const allowed = await authorizeBackendInvocation(supabaseAdmin, auth, 'delete-user', 'auth_admin');
+    if (!allowed) {
+      console.error('Caller is not allowed:', auth.email);
+      await auditBackendEvent(supabaseAdmin, {
+        auth,
+        recurso: 'delete-user',
+        contexto: 'auth_admin',
+        nivelRisco: 'critico',
+        permitido: false,
+        sucesso: false,
+        statusHttp: 403,
+        ip,
+        requestId,
+        erroResumo: 'sem_permissao',
+      });
+      return jsonResponse({ error: 'Apenas usuários autorizados podem excluir usuários' }, 403);
     }
 
     // Get the user ID to delete
     const { userId } = await req.json();
 
     if (!userId) {
-      return new Response(
-        JSON.stringify({ error: 'userId é obrigatório' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ error: 'userId é obrigatório' }, 400);
     }
 
     // Prevent self-deletion
-    if (userId === caller.id) {
-      return new Response(
-        JSON.stringify({ error: 'Não é possível excluir sua própria conta' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (userId === auth.userId) {
+      return jsonResponse({ error: 'Não é possível excluir sua própria conta' }, 400);
     }
 
     console.log('Attempting to delete user:', userId);
@@ -111,10 +86,7 @@ Deno.serve(async (req) => {
 
     if (deleteProfileError) {
       console.error('Error deleting profile:', deleteProfileError);
-      return new Response(
-        JSON.stringify({ error: 'Erro ao excluir perfil do usuário', details: deleteProfileError.message }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ error: 'Erro ao excluir perfil do usuário', details: deleteProfileError.message }, 500);
     }
 
     console.log('Profile deleted successfully');
@@ -125,36 +97,54 @@ Deno.serve(async (req) => {
     if (deleteAuthError) {
       console.error('Error deleting auth user:', deleteAuthError);
       // Profile was already deleted, but auth deletion failed
-      return new Response(
-        JSON.stringify({ 
-          error: 'Perfil excluído, mas erro ao remover autenticação', 
-          details: deleteAuthError.message,
-          partial: true
-        }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ 
+        error: 'Perfil excluído, mas erro ao remover autenticação', 
+        details: deleteAuthError.message,
+        partial: true
+      }, 500);
     }
 
     console.log('Auth user deleted successfully');
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: `Usuário ${userToDelete?.email || userId} excluído com sucesso`,
-        deletedUser: {
-          id: userId,
-          email: userToDelete?.email,
-          nome: userToDelete?.nome_completo
-        }
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    await auditBackendEvent(supabaseAdmin, {
+      auth,
+      recurso: 'delete-user',
+      contexto: 'auth_admin',
+      nivelRisco: 'critico',
+      permitido: true,
+      sucesso: true,
+      statusHttp: 200,
+      ip,
+      requestId,
+      payloadResumo: { userId },
+      resultadoResumo: { deletedUserId: userId },
+    });
+
+    return jsonResponse({ 
+      success: true, 
+      message: `Usuário ${userToDelete?.email || userId} excluído com sucesso`,
+      deletedUser: {
+        id: userId,
+        email: userToDelete?.email,
+        nome: userToDelete?.nome_completo
+      }
+    }, 200);
 
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Erro interno';
     console.error('Unexpected error:', error);
-    return new Response(
-      JSON.stringify({ error: 'Erro interno do servidor', details: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    await auditBackendEvent(supabaseAdmin, {
+      auth,
+      recurso: 'delete-user',
+      contexto: 'auth_admin',
+      nivelRisco: 'critico',
+      permitido: true,
+      sucesso: false,
+      statusHttp: 500,
+      ip,
+      requestId,
+      erroResumo: message,
+    });
+    return jsonResponse({ error: 'Erro interno do servidor', details: message }, 500);
   }
 });

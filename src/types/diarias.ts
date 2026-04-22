@@ -307,6 +307,15 @@ export interface RelatorioFolhaItem {
   created_at: string;
 }
 
+export type DiariasReportContext = 'operacional_campo' | 'aprovacao_gerencial' | 'financeiro_dp';
+
+export interface RelatorioFolhaSecureOptions {
+  context?: DiariasReportContext;
+  audit?: boolean;
+  auditFormat?: 'screen' | 'pdf' | 'excel' | 'zip';
+  fileName?: string;
+}
+
 // Tipos para exportação Excel com dados bancários
 export interface ExcelDetalhadoComBanco {
   data: string;
