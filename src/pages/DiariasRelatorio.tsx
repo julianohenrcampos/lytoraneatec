@@ -25,6 +25,7 @@ import { generateCompiladoDiariasPDF, generateRelatorioDiariasPDFPorPeriodo } fr
 import { generateRelatorioFolhaPDF } from "@/services/pdf/relatorioFolhaPdf";
 import { generateProtocoloDocumentosPDF } from "@/services/pdf/protocoloDocumentosPdf";
 import { deletePresencaRegistro } from "@/services/diarias/presencasService";
+import { isRelatorioItemConfirmado } from '@/services/diarias/relatorioMetrics';
 
 import { RelatorioSemanalModal } from "@/components/diarias/RelatorioSemanalModal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -317,9 +318,7 @@ export default function DiariasRelatorio() {
   // Calcular totais (somente presentes com entrada e saída)
   // A view retorna presenca_status como string "true"/"false"
   const resumo = useMemo(() => {
-    const diariasCompletas = relatorio.filter(
-      (r) => String(r.presenca_status) === 'true' && r.hora_entrada && r.hora_saida
-    );
+    const diariasCompletas = relatorio.filter(isRelatorioItemConfirmado);
     return {
       total_diarias: diariasCompletas.length,
       valor_total: diariasCompletas.reduce((acc, r) => acc + Math.ceil(r.valor_diaria_aplicada || 0) + Math.ceil(r.valor_refeicao_aplicado || 0), 0)

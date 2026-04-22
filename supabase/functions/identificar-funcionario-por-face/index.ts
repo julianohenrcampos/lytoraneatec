@@ -14,9 +14,9 @@ function json(body: unknown, status = 200) {
 }
 
 // Defaults (sobrescritos pela bd_ponto_config se presentes)
-const DEFAULT_MIN_CONFIDENCE = 0.55;     // abaixo disso = outra pessoa
-const DEFAULT_STRONG_CONFIDENCE = 0.70;  // acima disso = match forte
-const DEFAULT_MIN_DELTA = 0.08;          // diferença mínima top1 vs top2
+const DEFAULT_MIN_CONFIDENCE = 0.68;     // abaixo disso = outra pessoa
+const DEFAULT_STRONG_CONFIDENCE = 0.92;  // acima disso = match forte
+const DEFAULT_MIN_DELTA = 0.12;          // diferença mínima top1 vs top2
 const LOG_SAMPLE = 3;
 
 let _logCounter = 0;

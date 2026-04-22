@@ -11,8 +11,6 @@ interface UserDataAccess {
 }
 
 export const useUserDataAccess = (): UserDataAccess => {
-  // Emails SuperAdmin automáticos
-  const SUPER_ADMIN_EMAILS = ['julianohcampos@yahoo.com.br', 'ramonvalentevalente@gmail.com'];
   const { userRole, isSuperAdmin, isLoading: authLoading } = usePermission();
   const [allowedTeamIds, setAllowedTeamIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -35,34 +33,32 @@ export const useUserDataAccess = (): UserDataAccess => {
           return;
         }
 
-        // Para outros usuários, buscar equipes onde são apontador ou encarregado
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('email')
-          .eq('id', (await supabase.auth.getUser()).data.user?.id)
-          .single();
+        const { data: currentUser } = await supabase.auth.getUser();
+        const userId = currentUser.user?.id;
 
-        if (!profile?.email) {
+        if (!userId) {
           setAllowedTeamIds([]);
           return;
         }
 
-        // Fallback: se email é SuperAdmin, dar acesso total
-        if (SUPER_ADMIN_EMAILS.includes(profile.email)) {
-          const { data: allTeams, error } = await supabase
-            .from('bd_equipes')
-            .select('id');
-          
-          if (error) throw error;
-          setAllowedTeamIds(allTeams?.map(team => team.id) || []);
+        // Buscar funcionário vinculado ao profile do usuário
+        const { data: profile } = await supabase
+          .from('vw_profile_self_safe')
+          .select('funcionario_id')
+          .eq('id', userId)
+          .single();
+
+        const funcionarioId = profile?.funcionario_id;
+
+        if (!funcionarioId) {
+          setAllowedTeamIds([]);
           return;
         }
 
-        // Buscar funcionário pelo email
         const { data: funcionario } = await supabase
           .from('bd_funcionarios')
           .select('id')
-          .eq('email', profile.email)
+          .eq('id', funcionarioId)
           .single();
 
         if (!funcionario) {
@@ -90,29 +86,10 @@ export const useUserDataAccess = (): UserDataAccess => {
     fetchAllowedTeams();
   }, [userRole, isSuperAdmin, authLoading]);
 
-  // Verificar se email é SuperAdmin para canAccessAllTeams
-  const checkEmailSuperAdmin = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user?.email && SUPER_ADMIN_EMAILS.includes(user.email)) {
-        return true;
-      }
-    } catch (error) {
-      console.error('Error checking email SuperAdmin:', error);
-    }
-    return false;
-  };
-
-  const [emailIsSuperAdmin, setEmailIsSuperAdmin] = useState(false);
-
-  useEffect(() => {
-    checkEmailSuperAdmin().then(setEmailIsSuperAdmin);
-  }, []);
-
   return {
     allowedTeamIds,
     userRole,
-    canAccessAllTeams: isSuperAdmin || emailIsSuperAdmin || userRole === 'AdmRH' || userRole === 'Administrador',
+    canAccessAllTeams: isSuperAdmin || userRole === 'AdmRH' || userRole === 'Administrador',
     isLoading: isLoading || authLoading
   };
 };

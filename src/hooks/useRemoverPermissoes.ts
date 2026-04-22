@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { cleanFunctionArray } from '@/utils/permissionValidation';
+import { clearUserAdminRolesSecure, removeUserRole } from '@/services/rbac';
 
 export const useRemoverPermissoes = () => {
   const [isRemoving, setIsRemoving] = useState(false);
@@ -9,29 +9,21 @@ export const useRemoverPermissoes = () => {
   const removerFuncaoIndividual = async (
     profileId: string,
     funcaoToRemove: string,
-    currentFunctions: string[]
+    currentFunctions: string[],
+    roleId?: string
   ) => {
     setIsRemoving(true);
     try {
-      // Remover a função do array
-      const updatedFunctions = currentFunctions.filter(f => f !== funcaoToRemove);
-      const cleanedFunctions = cleanFunctionArray(updatedFunctions);
+      if (!roleId) {
+        throw new Error('Função RBAC não identificada para remoção segura.');
+      }
 
-      // Atualizar no banco
-      const { error } = await supabase
-        .from('profiles')
-        .update({ 
-          funcoes: cleanedFunctions,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', profileId);
-
-      if (error) throw error;
+      await removeUserRole(profileId, roleId);
 
       console.log('Função removida:', {
         profileId,
         funcaoRemovida: funcaoToRemove,
-        funcoesRestantes: cleanedFunctions,
+        funcoesRestantes: currentFunctions.filter(f => f !== funcaoToRemove),
         timestamp: new Date().toISOString()
       });
 
@@ -40,7 +32,7 @@ export const useRemoverPermissoes = () => {
         description: `A função "${funcaoToRemove}" foi removida com sucesso.`,
       });
 
-      return { success: true, updatedFunctions: cleanedFunctions };
+      return { success: true, updatedFunctions: currentFunctions.filter(f => f !== funcaoToRemove) };
     } catch (error) {
       console.error('Erro ao remover função:', error);
       toast({
@@ -61,18 +53,7 @@ export const useRemoverPermissoes = () => {
   ) => {
     setIsRemoving(true);
     try {
-      // Remover todas as funções (deixar apenas 'user' como padrão)
-      const { error } = await supabase
-        .from('profiles')
-        .update({ 
-          funcoes: ['user'],
-          funcao_permissao: null,
-          funcao_sistema: 'Usuário',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', profileId);
-
-      if (error) throw error;
+      await clearUserAdminRolesSecure(profileId);
 
       console.log('Todas as permissões removidas:', {
         profileId,

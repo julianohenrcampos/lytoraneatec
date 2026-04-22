@@ -3,6 +3,7 @@ import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/render
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { RelatorioFolhaItem } from '@/types/diarias';
+import { isRelatorioItemConfirmado, isRelatorioItemRemessa } from '@/services/diarias/relatorioMetrics';
 
 // =====================================================
 // Types
@@ -188,10 +189,9 @@ export function buildEmpresaGroups(
   const empresaMap = new Map<string, { nome: string; funcMap: Map<string, FuncionarioRemessa> }>();
 
   relatorio.forEach(item => {
-    if (String(item.presenca_status) !== 'true' || !item.hora_entrada || !item.hora_saida) return;
+    if (!isRelatorioItemConfirmado(item)) return;
 
-    const hasMatricula = !!item.matricula_funcionario && item.matricula_funcionario !== '---' && String(item.matricula_funcionario).trim() !== '';
-    const isRemessa = hasMatricula;
+    const isRemessa = isRelatorioItemRemessa(item);
 
     if (tipoRemessa === 'remessa' && !isRemessa) return;
     if (tipoRemessa === 'sem_remessa' && isRemessa) return;

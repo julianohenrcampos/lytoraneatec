@@ -58,6 +58,60 @@ export interface PresencaFormData {
   turno?: TurnoDiaria;
 }
 
+export interface ResultadoInsercaoIdempotente {
+  totalSolicitado: number;
+  inseridos: number;
+  ignorados: number;
+}
+
+type PresencaInsertPayload = {
+  solicitacao_id: string;
+  funcionario_id: string;
+  data: string;
+} & Record<string, unknown>;
+
+function deduplicarPresencas<T extends PresencaInsertPayload>(rows: T[]): T[] {
+  const seen = new Set<string>();
+
+  return rows.filter((row) => {
+    const key = `${row.solicitacao_id}:${row.funcionario_id}:${row.data}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function inserirPresencasIdempotente<T extends PresencaInsertPayload>(
+  rows: T[]
+): Promise<ResultadoInsercaoIdempotente> {
+  const registrosUnicos = deduplicarPresencas(rows);
+
+  if (registrosUnicos.length === 0) {
+    return { totalSolicitado: 0, inseridos: 0, ignorados: 0 };
+  }
+
+  const { data, error } = await supabase
+    .from('bd_diaria_presencas')
+    .upsert(registrosUnicos, {
+      onConflict: 'solicitacao_id,funcionario_id,data',
+      ignoreDuplicates: true,
+    })
+    .select('id');
+
+  if (error) {
+    console.error('Erro ao inserir presenças com idempotência:', error);
+    throw new Error(error.message);
+  }
+
+  const inseridos = data?.length ?? 0;
+
+  return {
+    totalSolicitado: registrosUnicos.length,
+    inseridos,
+    ignorados: Math.max(registrosUnicos.length - inseridos, 0),
+  };
+}
+
 // Buscar presenças por solicitação e data
 export async function getPresencasPorSolicitacao(
   solicitacaoId: string,
@@ -100,7 +154,7 @@ export async function salvarPresencas(
   solicitacaoId: string,
   data: string,
   presencas: PresencaFormData[]
-): Promise<void> {
+): Promise<ResultadoInsercaoIdempotente> {
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData?.user?.id;
 
@@ -123,17 +177,7 @@ export async function salvarPresencas(
     updated_at: new Date().toISOString()
   }));
 
-  const { error } = await supabase
-    .from('bd_diaria_presencas')
-    .upsert(presencasData, {
-      onConflict: 'solicitacao_id,funcionario_id,data',
-      ignoreDuplicates: false
-    });
-
-  if (error) {
-    console.error('Erro ao salvar presenças:', error);
-    throw new Error(error.message);
-  }
+  return inserirPresencasIdempotente(presencasData);
 }
 
 // =====================================================
@@ -166,7 +210,7 @@ export async function salvarInicio(
   solicitacaoId: string,
   data: string,
   registros: InicioFormData[]
-): Promise<void> {
+): Promise<ResultadoInsercaoIdempotente> {
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData?.user?.id;
 
@@ -188,14 +232,7 @@ export async function salvarInicio(
     confirmado_em: new Date().toISOString(),
   }));
 
-  const { error } = await supabase
-    .from('bd_diaria_presencas')
-    .insert(rows);
-
-  if (error) {
-    console.error('Erro ao salvar início:', error);
-    throw new Error(error.message);
-  }
+  return inserirPresencasIdempotente(rows);
 }
 
 // Salvar INÍCIO PARCIAL — INSERT apenas para atrasados (durante fase de finalização)
@@ -203,7 +240,7 @@ export async function salvarInicioParcial(
   solicitacaoId: string,
   data: string,
   registros: InicioFormData[]
-): Promise<void> {
+): Promise<ResultadoInsercaoIdempotente> {
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData?.user?.id;
 
@@ -225,14 +262,7 @@ export async function salvarInicioParcial(
     confirmado_em: new Date().toISOString(),
   }));
 
-  const { error } = await supabase
-    .from('bd_diaria_presencas')
-    .insert(rows);
-
-  if (error) {
-    console.error('Erro ao salvar início parcial (atrasados):', error);
-    throw new Error(error.message);
-  }
+  return inserirPresencasIdempotente(rows);
 }
 
 // Salvar FINALIZAÇÃO — UPDATE only, não toca hora_entrada
@@ -339,7 +369,7 @@ export async function inserirPresencasCompletas(
   data: string,
   registros: CorrecaoFormData[],
   observacao: string
-): Promise<void> {
+): Promise<ResultadoInsercaoIdempotente> {
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData?.user?.id;
 
@@ -364,24 +394,21 @@ export async function inserirPresencasCompletas(
     confirmado_em: new Date().toISOString(),
   }));
 
-  const { error } = await supabase
-    .from('bd_diaria_presencas')
-    .insert(rows);
-
-  if (error) {
-    console.error('Erro ao inserir presenças completas (retroativos):', error);
-    throw new Error(error.message);
-  }
+  const resultado = await inserirPresencasIdempotente(rows);
 
   // Registrar auditoria
-  await supabase
-    .from('bd_diaria_aprovacoes')
-    .insert({
-      entidade: 'relatorio',
-      entidade_id: solicitacaoId,
-      acao: 'adicao_retroativa',
-      comentario: justificativa
-    });
+  if (resultado.inseridos > 0) {
+    await supabase
+      .from('bd_diaria_aprovacoes')
+      .insert({
+        entidade: 'relatorio',
+        entidade_id: solicitacaoId,
+        acao: 'adicao_retroativa',
+        comentario: justificativa
+      });
+  }
+
+  return resultado;
 }
 
 // Buscar resumo de presenças de uma solicitação

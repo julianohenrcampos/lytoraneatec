@@ -20,8 +20,10 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { loadFaceApiModels, faceapi } from "@/lib/faceapi/loader";
+import { loadFaceApiModels } from "@/lib/faceapi/loader";
 import { getEstadoJornada, type TipoBatida } from "@/lib/ponto/estadoJornada";
+import { useBiometriaSegura } from "@/hooks/ponto/useBiometriaSegura";
+import { verificarCooldownBatida } from "@/lib/ponto/verificarCooldownBatida";
 
 type Status =
   | "carregando"
@@ -69,8 +71,7 @@ const TIPOS: { value: TipoBatida; label: string; icon: string }[] = [
 ];
 
 const TICK_MS = 600;
-const CONFIRM_FRAMES = 3;
-const THRESHOLD = 0.55; // 1×1, mais rigoroso
+const THRESHOLD = 0.45;
 const MAX_TENTATIVAS = 3;
 
 function getDeviceFingerprint(): string {
@@ -135,9 +136,9 @@ export default function PontoDireto() {
   const streamRef = useRef<MediaStream | null>(null);
   const tickRef = useRef<number | null>(null);
   const inflightRef = useRef(false);
-  const repsRef = useRef(0);
   const watchIdRef = useRef<number | null>(null);
   const statusRef = useRef<Status>("carregando");
+  const { validarRostoSeguro, resetBiometriaSegura } = useBiometriaSegura();
   useEffect(() => { statusRef.current = status; }, [status]);
 
   // Relógio + online/offline
@@ -387,22 +388,24 @@ export default function PontoDireto() {
       if (!v || v.videoWidth === 0) return;
       inflightRef.current = true;
       try {
-        const det = await faceapi
-          .detectSingleFace(v, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.3 }))
-          .withFaceLandmarks()
-          .withFaceDescriptor();
-        if (!det || statusRef.current !== "escaneando") return;
-        const dist = distEuclid(Float32Array.from(det.descriptor), perfil.descriptor!);
+        const resultado = await validarRostoSeguro(v, "mobile");
+        if (statusRef.current !== "escaneando") return;
+        if (!resultado.valido || !resultado.descriptor) {
+          setErrMsg(resultado.motivo || null);
+          if (resultado.motivo === "Possível uso de imagem/foto") {
+            setTentativasSemMatch((x) => x + 1);
+          }
+          return;
+        }
+
+        const dist = distEuclid(resultado.descriptor, perfil.descriptor!);
         console.log("[PONTO_DIRETO][MATCH]", { dist, threshold: THRESHOLD });
         if (dist < THRESHOLD) {
-          repsRef.current += 1;
-          if (repsRef.current >= CONFIRM_FRAMES) {
-            repsRef.current = 0;
-            setTentativasSemMatch(0);
-            setStatus("reconhecido");
-          }
+          setErrMsg(null);
+          setTentativasSemMatch(0);
+          setStatus("reconhecido");
         } else {
-          repsRef.current = 0;
+          setErrMsg("Identidade não confirmada");
           setTentativasSemMatch((x) => x + 1);
         }
       } catch (e) {
@@ -417,20 +420,29 @@ export default function PontoDireto() {
       if (tickRef.current) window.clearInterval(tickRef.current);
       tickRef.current = null;
     };
-  }, [status, cameraReady, perfil?.descriptor]);
+  }, [status, cameraReady, perfil?.descriptor, validarRostoSeguro]);
 
   // Reset para scanner
   const reset = useCallback(() => {
-    repsRef.current = 0;
+    resetBiometriaSegura();
     setTentativasSemMatch(0);
     setErrMsg(null);
     setStatus("escaneando");
-  }, []);
+  }, [resetBiometriaSegura]);
 
   // Confirmação e registro de ponto
   const confirmarBatida = useCallback(async (tipo: TipoBatida) => {
     if (!perfil) return;
     if (!gps) { toast.error("Aguardando GPS"); return; }
+    const cooldown = await verificarCooldownBatida(perfil.funcionario_id);
+    if (cooldown.bloqueado) {
+      const msg = cooldown.minutosRestantes > 1
+        ? `Aguarde ${cooldown.minutosRestantes} minutos antes de registrar novo ponto`
+        : "Aguarde antes de registrar novo ponto";
+      setErrMsg(msg);
+      toast.error(msg);
+      return;
+    }
     const foto = capturarFotoBase64();
     if (!foto) { toast.error("Falha ao capturar foto da câmera"); return; }
 
@@ -610,7 +622,7 @@ export default function PontoDireto() {
             estado={status}
             overlayLabel={
               status === "escaneando"
-                ? (tentativasSemMatch === 0 ? "Procurando rosto..." : repsRef.current > 0 ? "Identificando..." : "Procurando rosto...")
+                  ? (errMsg === "Confirmando identidade..." ? "Confirmando identidade..." : "Procurando rosto...")
                 : status === "reconhecido" ? "Identificação confirmada"
                 : status === "registrando" ? "Registrando..."
                 : status === "sucesso" ? "Registrado ✓"

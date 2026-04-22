@@ -25,6 +25,7 @@ import {
   integrarDiariaPresenca,
   verificarFeatureToggle,
   verificarModoTeste,
+  verificarTempoMinimoEntreBatidas,
   respostaErro,
   type AlertaPonto,
   type ScoreRiscoFlags,
@@ -232,6 +233,22 @@ Deno.serve(async (req) => {
     );
     if (isDuplicata) {
       return respostaErro(429, "duplicata_temporal", "Batida duplicada. Aguarde 5 minutos.");
+    }
+
+    const minBatidas = await verificarTempoMinimoEntreBatidas(
+      supabaseAdmin,
+      funcionarioId,
+      dataOperacional,
+      dataHoraConsiderada,
+      Math.max(config.tempo_min_entre_batidas_min ?? 10, 10),
+    );
+    if (!minBatidas.ok) {
+      return respostaErro(
+        429,
+        "tempo_minimo_entre_batidas",
+        "Aguarde antes de registrar novo ponto",
+        { minutos_desde_ultima: minBatidas.deltaMin, minimo_min: Math.max(config.tempo_min_entre_batidas_min ?? 10, 10) }
+      );
     }
 
     // Coletar alertas e status

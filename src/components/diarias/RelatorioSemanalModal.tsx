@@ -20,6 +20,7 @@ import { generateRelatorioRemessaBlob } from '@/services/pdf/relatorioRemessaPdf
 import { buildCompiladoData } from '@/components/diarias/pdf/CompiladoDiariasPDF';
 import type { RelatorioFolhaItem } from '@/types/diarias';
 import type { DateRange } from 'react-day-picker';
+import { buildRelatorioConferenciaResumo, type RelatorioConferenciaResumo } from '@/services/diarias/relatorioMetrics';
 
 interface RelatorioSemanalModalProps {
   open: boolean;
@@ -38,6 +39,19 @@ interface FuncionarioOption {
   id: string;
   nome: string;
   ativo: boolean;
+}
+
+interface RelatorioConferenciaFonte {
+  funcionario_id: string;
+  nome_funcionario: string | null;
+  empresa_id?: string | null;
+  empresa_funcionario?: string | null;
+  solicitacao_id?: string | null;
+  numero_solicitacao?: string | null;
+  matricula_funcionario?: string | null;
+  presenca_status?: string | boolean | null;
+  hora_entrada?: string | null;
+  hora_saida?: string | null;
 }
 
 function calcularUltimaSemana() {
@@ -83,6 +97,8 @@ export function RelatorioSemanalModal({
   const [searchFuncionario, setSearchFuncionario] = useState('');
   const [isLoadingFuncionarios, setIsLoadingFuncionarios] = useState(false);
   const [showFuncionarioFilter, setShowFuncionarioFilter] = useState(false);
+  const [conferenciaPreview, setConferenciaPreview] = useState<RelatorioConferenciaResumo | null>(null);
+  const [conferenciaSource, setConferenciaSource] = useState<RelatorioConferenciaFonte[]>([]);
 
   const hasSolicitacaoFilter = defaultSolicitacaoIds && defaultSolicitacaoIds.length > 0;
 
@@ -93,6 +109,8 @@ export function RelatorioSemanalModal({
       setFuncionarios([]);
       setSelectedFuncionarios(new Set());
       setSearchFuncionario('');
+      setConferenciaPreview(null);
+      setConferenciaSource([]);
       return;
     }
 
@@ -129,7 +147,7 @@ export function RelatorioSemanalModal({
   const fetchFuncionariosFromSolicitacoes = async (solicitacaoIds: string[]) => {
     setIsLoadingFuncionarios(true);
     try {
-      // Fetch distinct employees from the view
+      // Fetch records from the view para montar a conferência real e a lista de funcionários
       let allRecords: any[] = [];
       let from = 0;
       const pageSize = 1000;
@@ -138,7 +156,7 @@ export function RelatorioSemanalModal({
       while (hasMore) {
         const { data, error } = await supabase
           .from('vw_relatorio_diarias_folha')
-          .select('funcionario_id, nome_funcionario')
+          .select('funcionario_id, nome_funcionario, empresa_id, empresa_funcionario, solicitacao_id, numero_solicitacao, matricula_funcionario, presenca_status, hora_entrada, hora_saida')
           .in('solicitacao_id', solicitacaoIds)
           .range(from, from + pageSize - 1);
         if (error) throw error;
@@ -178,6 +196,8 @@ export function RelatorioSemanalModal({
       setFuncionarios(list);
       setSelectedFuncionarios(new Set(list.map(f => f.id)));
       setShowFuncionarioFilter(true);
+      setConferenciaSource(allRecords as RelatorioConferenciaFonte[]);
+      setConferenciaPreview(buildRelatorioConferenciaResumo(allRecords as RelatorioFolhaItem[]));
     } catch (err) {
       console.error('Erro ao buscar funcionários:', err);
     } finally {
@@ -190,6 +210,13 @@ export function RelatorioSemanalModal({
     const term = searchFuncionario.toLowerCase();
     return funcionarios.filter(f => f.nome.toLowerCase().includes(term));
   }, [funcionarios, searchFuncionario]);
+
+  const conferenciaPreviewFiltrada = useMemo(() => {
+    if (!conferenciaSource.length) return conferenciaPreview;
+    if (selectedFuncionarios.size === 0) return buildRelatorioConferenciaResumo([]);
+    const filtrado = conferenciaSource.filter(item => selectedFuncionarios.has(item.funcionario_id));
+    return buildRelatorioConferenciaResumo(filtrado as RelatorioFolhaItem[]);
+  }, [conferenciaPreview, conferenciaSource, selectedFuncionarios]);
 
   const toggleFuncionario = (id: string) => {
     setSelectedFuncionarios(prev => {
@@ -294,6 +321,11 @@ export function RelatorioSemanalModal({
         toast.error('Nenhum dado encontrado para o período e filtros selecionados.');
         return;
       }
+
+      const conferencia = buildRelatorioConferenciaResumo(allData);
+      console.table(conferencia.porEmpresa.map(item => ({ empresa: item.label, confirmados: item.totalConfirmados, registros: item.totalRegistros })));
+      console.table(conferencia.porVinculo.map(item => ({ vinculo: item.label, confirmados: item.totalConfirmados, registros: item.totalRegistros })));
+      console.table(conferencia.porSolicitacao.map(item => ({ solicitacao: item.label, confirmados: item.totalConfirmados, registros: item.totalRegistros })));
 
       const filtros = { data_inicio: dataInicio, data_fim: dataFim };
 
@@ -531,6 +563,53 @@ export function RelatorioSemanalModal({
                 : 'Os 5 PDFs serão baixados individualmente.'}
             </p>
           </div>
+
+          {conferenciaPreviewFiltrada && (
+            <div className="rounded-md border p-3 bg-muted/30 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-sm">Pré-conferência</Label>
+                <Badge variant="outline">{conferenciaPreviewFiltrada.totalConfirmados} confirmadas</Badge>
+              </div>
+
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Por empresa</p>
+                  <div className="space-y-1">
+                    {conferenciaPreviewFiltrada.porEmpresa.slice(0, 4).map(item => (
+                      <div key={item.chave} className="flex items-center justify-between text-xs">
+                        <span className="truncate pr-2">{item.label}</span>
+                        <span>{item.totalConfirmados}/{item.totalRegistros}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Por vínculo</p>
+                  <div className="space-y-1">
+                    {conferenciaPreviewFiltrada.porVinculo.map(item => (
+                      <div key={item.chave} className="flex items-center justify-between text-xs">
+                        <span>{item.label}</span>
+                        <span>{item.totalConfirmados}/{item.totalRegistros}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Por solicitação</p>
+                  <div className="space-y-1">
+                    {conferenciaPreviewFiltrada.porSolicitacao.slice(0, 6).map(item => (
+                      <div key={item.chave} className="flex items-center justify-between text-xs">
+                        <span>{item.label}</span>
+                        <span>{item.totalConfirmados}/{item.totalRegistros}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter>

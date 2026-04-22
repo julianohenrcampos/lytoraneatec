@@ -12,12 +12,6 @@ interface PermissionGuardOptions {
   showToast?: boolean;
 }
 
-// 🔧 BYPASS TEMPORÁRIO - Remover após correção completa
-const TEMPORARY_BYPASS_EMAILS = [
-  'paulalohara2015@gmail.com',
-  'julianohcampos@yahoo.com.br' // SuperAdmin
-];
-
 export const usePermissionGuard = ({
   requiredPermission,
   requiredPermissions = [],
@@ -25,13 +19,12 @@ export const usePermissionGuard = ({
   redirectTo = '/',
   showToast = true
 }: PermissionGuardOptions) => {
-  const { isSuperAdmin, permissions, isLoading, userId, userRole, userEmail } = usePermission();
+  const { isSuperAdmin, permissions, isLoading, userId, userRole } = usePermission();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   console.log('🔐 [PermissionGuard] Estado completo:', {
     userId,
-    userEmail,
     userRole,
     isSuperAdmin,
     permissions,
@@ -50,12 +43,6 @@ export const usePermissionGuard = ({
       return false;
     }
 
-    // 🔧 BYPASS TEMPORÁRIO
-    if (userEmail && TEMPORARY_BYPASS_EMAILS.includes(userEmail)) {
-      console.log('✅ [BYPASS TEMPORÁRIO] Acesso liberado para:', userEmail);
-      return true;
-    }
-    
     if (isSuperAdmin) {
       console.log('🚀 PermissionGuard - SuperAdmin detectado - acesso total');
       return true;

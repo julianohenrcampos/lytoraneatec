@@ -228,15 +228,15 @@ Deno.serve(async (req) => {
 
     // PASSO 12.1 — CLT: tempo mínimo entre quaisquer batidas
     const minBatidas = await verificarTempoMinimoEntreBatidas(
-      supabaseAdmin, funcionarioId, dataOperacional, dataHoraConsiderada, config.tempo_min_entre_batidas_min
+      supabaseAdmin, funcionarioId, dataOperacional, dataHoraConsiderada, Math.max(config.tempo_min_entre_batidas_min ?? 10, 10)
     );
     if (!minBatidas.ok) {
       return respostaErro(
         429,
         "tempo_minimo_entre_batidas",
-        "Aguarde alguns minutos antes de registrar novamente",
+        "Aguarde antes de registrar novo ponto",
         "intervalo_minimo",
-        { minutos_desde_ultima: minBatidas.deltaMin, minimo_min: config.tempo_min_entre_batidas_min }
+        { minutos_desde_ultima: minBatidas.deltaMin, minimo_min: Math.max(config.tempo_min_entre_batidas_min ?? 10, 10) }
       );
     }
 

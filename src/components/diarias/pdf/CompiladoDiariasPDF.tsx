@@ -4,6 +4,7 @@ import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/render
 import type { RelatorioFolhaItem, AssinaturaAprovacao } from '@/types/diarias';
 import { parseISO, format, differenceInDays } from 'date-fns';
 import { AssinaturaPDFBlock } from '@/components/assinatura/AssinaturaPDFBlock';
+import { isRelatorioItemConfirmado, isRelatorioItemRemessa } from '@/services/diarias/relatorioMetrics';
 
 // =====================================================
 // TYPES
@@ -61,6 +62,11 @@ export interface CompiladoGerencia {
   }[];
   totalQuantidade: number;
   totalValor: number;
+}
+
+interface CentroCompiladoEntry {
+  empresaNome: string;
+  centro: CentroCustoCompilado;
 }
 
 // =====================================================
@@ -705,27 +711,25 @@ export function buildCompiladoData(
   feriados: string[] = [],
   tipoRemessa?: 'remessa' | 'sem_remessa'
 ): { dados: CompiladoGerencia[]; centros: CentroCustoCompilado[]; empresaGroups: EmpresaCompiladoGroup[]; totalGeralQuantidade: number; totalGeralValor: number } {
-  let confirmados = relatorio.filter(
-    (r) => String(r.presenca_status) === 'true' && r.hora_entrada && r.hora_saida
-  );
+  let confirmados = relatorio.filter(isRelatorioItemConfirmado);
 
   // Filter by remessa type if specified
   if (tipoRemessa) {
     confirmados = confirmados.filter(item => {
-      const hasMatricula = !!item.matricula_funcionario && item.matricula_funcionario !== '---' && String(item.matricula_funcionario).trim() !== '';
-      return tipoRemessa === 'remessa' ? hasMatricula : !hasMatricula;
+      const isRemessa = isRelatorioItemRemessa(item);
+      return tipoRemessa === 'remessa' ? isRemessa : !isRemessa;
     });
   }
 
   const feriadosSet = new Set(feriados.map(f => f.substring(0, 10)));
 
-  // Group by CC only — consolidate all solicitations for the same CC
+  // Group by empresa + CC para evitar esconder empresas minoritárias no mesmo centro de custo
   const ccMap = new Map<string, {
     ccId: string;
     codigo: string;
     nome: string;
     gerencia: string;
-    empresaContagem: Map<string, number>;
+    empresaNome: string;
     weekendDates: Map<string, { qtd: number; valor: number }>;
     weekdayDates: Map<string, { qtd: number; valor: number }>;
     totalQtd: number;
@@ -748,15 +752,15 @@ export function buildCompiladoData(
     const isFeriado = feriadosSet.has(dataStr);
     const isFS = isDomingo || isSabado || isFeriado;
 
-    const groupKey = item.centro_custo_id;
+    const groupKey = `${empresaNome}::${item.centro_custo_id || 'sem-cc'}`;
 
     if (!ccMap.has(groupKey)) {
       ccMap.set(groupKey, {
-        ccId: groupKey,
+        ccId: item.centro_custo_id || 'sem-cc',
         codigo: ccLabel,
         nome: ccNome,
         gerencia,
-        empresaContagem: new Map(),
+        empresaNome,
         weekendDates: new Map(),
         weekdayDates: new Map(),
         totalQtd: 0,
@@ -766,9 +770,6 @@ export function buildCompiladoData(
     const entry = ccMap.get(groupKey)!;
     entry.totalQtd += 1;
     entry.totalValor += valorItem;
-
-    // Track empresa counts to determine predominant empresa per CC
-    entry.empresaContagem.set(empresaNome, (entry.empresaContagem.get(empresaNome) || 0) + 1);
 
     const targetMap = isFS ? entry.weekendDates : entry.weekdayDates;
     const existing = targetMap.get(dataStr) || { qtd: 0, valor: 0 };
@@ -781,27 +782,16 @@ export function buildCompiladoData(
   let totalGeralValor = 0;
 
   const centros: CentroCustoCompilado[] = [];
-  const ccEmpresaMap = new Map<string, string>();
+  const centroEntries: CentroCompiladoEntry[] = [];
 
   ccMap.forEach((entry) => {
     totalGeralQuantidade += entry.totalQtd;
     totalGeralValor += entry.totalValor;
 
-    // Determine predominant empresa for this CC
-    let empresaPredominante = 'Empresa não informada';
-    let maxCount = 0;
-    entry.empresaContagem.forEach((count, emp) => {
-      if (count > maxCount) {
-        maxCount = count;
-        empresaPredominante = emp;
-      }
-    });
-    ccEmpresaMap.set(entry.ccId, empresaPredominante);
-
     const weekendPeriods = groupDatesByPeriod(entry.weekendDates);
     const weekdayPeriods = groupDatesByPeriod(entry.weekdayDates);
 
-    centros.push({
+    const centro = {
       centroCustoId: entry.ccId,
       codigoCentroCusto: entry.codigo,
       nomeCentroCusto: entry.nome,
@@ -810,15 +800,18 @@ export function buildCompiladoData(
       periodsWeekday: weekdayPeriods,
       totalQuantidade: entry.totalQtd,
       totalValor: entry.totalValor,
-    });
+    };
+
+    centros.push(centro);
+    centroEntries.push({ empresaNome: entry.empresaNome, centro });
   });
 
   centros.sort((a, b) => a.codigoCentroCusto.localeCompare(b.codigoCentroCusto));
 
   // Build empresa groups
   const empresaGroupMap = new Map<string, EmpresaCompiladoGroup>();
-  centros.forEach(cc => {
-    const empNome = ccEmpresaMap.get(cc.centroCustoId) || 'Empresa não informada';
+  centroEntries.forEach(({ empresaNome, centro }) => {
+    const empNome = empresaNome || 'Empresa não informada';
     if (!empresaGroupMap.has(empNome)) {
       empresaGroupMap.set(empNome, {
         empresaNome: empNome,
@@ -828,9 +821,12 @@ export function buildCompiladoData(
       });
     }
     const eg = empresaGroupMap.get(empNome)!;
-    eg.centros.push(cc);
-    eg.totalQuantidade += cc.totalQuantidade;
-    eg.totalValor += cc.totalValor;
+    eg.centros.push(centro);
+    eg.totalQuantidade += centro.totalQuantidade;
+    eg.totalValor += centro.totalValor;
+  });
+  empresaGroupMap.forEach(group => {
+    group.centros.sort((a, b) => a.codigoCentroCusto.localeCompare(b.codigoCentroCusto));
   });
   const empresaGroups = Array.from(empresaGroupMap.values()).sort((a, b) => a.empresaNome.localeCompare(b.empresaNome));
 

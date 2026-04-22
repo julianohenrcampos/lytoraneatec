@@ -6,8 +6,14 @@ import { format } from "date-fns";
 export interface JornadaDiariaRow extends JornadaBatchResult {
   funcionario_nome: string;
   funcionario_matricula: string | null;
+  funcionario_cpf: string | null;
   funcao: string | null;
   centro_custo_nome: string | null;
+  centro_custo_codigo: string | null;
+  empresa_nome: string | null;
+  empresa_cnpj: string | null;
+  departamento_nome: string | null;
+  data_admissao: string | null;
   tipo_escala: string | null;
   jornada_padrao_min: number;
   horas_extras_min: number;
@@ -71,25 +77,35 @@ export function useJornadasDiarias(filters: FiltersInput | null) {
       const funcIds = Array.from(new Set(inputs.map(i => i.funcionarioId)));
       const { data: funcs } = await supabase
         .from("bd_funcionarios")
-        .select("id, nome_completo, matricula, tipo_escala, funcao_id, centro_custo_id")
+        .select("id, nome_completo, matricula, cpf, data_admissao, tipo_escala, funcao_id, centro_custo_id, empresa_id, departamento_id")
         .in("id", funcIds);
 
       const funcMap = new Map<string, any>((funcs || []).map(f => [f.id, f]));
 
       const funcaoIds = Array.from(new Set((funcs || []).map(f => f.funcao_id).filter(Boolean))) as string[];
       const ccIds = Array.from(new Set((funcs || []).map(f => f.centro_custo_id).filter(Boolean))) as string[];
+      const empresaIds = Array.from(new Set((funcs || []).map(f => f.empresa_id).filter(Boolean))) as string[];
+      const departamentoIds = Array.from(new Set((funcs || []).map(f => f.departamento_id).filter(Boolean))) as string[];
 
-      const [{ data: funcoes }, { data: ccs }] = await Promise.all([
+      const [{ data: funcoes }, { data: ccs }, { data: empresas }, { data: departamentos }] = await Promise.all([
         funcaoIds.length
           ? supabase.from("bd_funcoes").select("id, nome_funcao").in("id", funcaoIds)
           : Promise.resolve({ data: [] as any[] }),
         ccIds.length
-          ? supabase.from("bd_centros_custo").select("id, nome_centro_custo").in("id", ccIds)
+          ? supabase.from("bd_centros_custo").select("id, nome_centro_custo, codigo_centro_custo").in("id", ccIds)
+          : Promise.resolve({ data: [] as any[] }),
+        empresaIds.length
+          ? supabase.from("bd_empresas").select("id, nome_empresa, cnpj").in("id", empresaIds)
+          : Promise.resolve({ data: [] as any[] }),
+        departamentoIds.length
+          ? supabase.from("bd_departamentos").select("id, nome_departamento").in("id", departamentoIds)
           : Promise.resolve({ data: [] as any[] }),
       ]);
 
       const funcaoMap = new Map<string, string>((funcoes || []).map((f: any) => [f.id, f.nome_funcao]));
-      const ccMap = new Map<string, string>((ccs || []).map((c: any) => [c.id, c.nome_centro_custo]));
+      const ccMap = new Map<string, { nome: string; codigo: string | null }>((ccs || []).map((c: any) => [c.id, { nome: c.nome_centro_custo, codigo: c.codigo_centro_custo ?? null }]));
+      const empresaMap = new Map<string, { nome: string | null; cnpj: string | null }>((empresas || []).map((e: any) => [e.id, { nome: e.nome_empresa ?? null, cnpj: e.cnpj ?? null }]));
+      const departamentoMap = new Map<string, string>((departamentos || []).map((d: any) => [d.id, d.nome_departamento]));
 
       // 4) calcular jornadas
       const jornadas = await calcularJornadaBatch(inputs);
@@ -108,8 +124,14 @@ export function useJornadasDiarias(filters: FiltersInput | null) {
           ...j,
           funcionario_nome: f?.nome_completo ?? "—",
           funcionario_matricula: f?.matricula ?? null,
+          funcionario_cpf: f?.cpf ?? null,
           funcao: f?.funcao_id ? funcaoMap.get(f.funcao_id) ?? null : null,
-          centro_custo_nome: f?.centro_custo_id ? ccMap.get(f.centro_custo_id) ?? null : null,
+          centro_custo_nome: f?.centro_custo_id ? ccMap.get(f.centro_custo_id)?.nome ?? null : null,
+          centro_custo_codigo: f?.centro_custo_id ? ccMap.get(f.centro_custo_id)?.codigo ?? null : null,
+          empresa_nome: f?.empresa_id ? empresaMap.get(f.empresa_id)?.nome ?? null : null,
+          empresa_cnpj: f?.empresa_id ? empresaMap.get(f.empresa_id)?.cnpj ?? null : null,
+          departamento_nome: f?.departamento_id ? departamentoMap.get(f.departamento_id) ?? null : null,
+          data_admissao: f?.data_admissao ?? null,
           tipo_escala: tipoEscala,
           jornada_padrao_min: padrao,
           horas_extras_min: extras,

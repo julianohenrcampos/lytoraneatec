@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { usePermission } from './usePermission';
+import { fetchManageablePermissionProfiles } from '@/services/rbac/permissionAdminSecure';
 
 interface ProfileSecurityContext {
   hasGlobalAccess: boolean;
@@ -24,12 +25,14 @@ export const useProfileSecurity = (): ProfileSecurityContext => {
   const [departamentoNome, setDepartamentoNome] = useState<string | null>(null);
   const [isLoadingDepartamento, setIsLoadingDepartamento] = useState(true);
 
-  // SuperAdm e AdmRH veem todos os usuários
-  const hasGlobalAccess = isSuperAdmin || permissions.includes('AdmRH') || permissions.some(p => p === 'AdmRH');
+  const [profileScope, setProfileScope] = useState<{ acesso_global?: boolean; primary_role?: string | null; departamento_id?: string | null; departamento_nome?: string | null } | null>(null);
 
-  // AdmSSO, TecSSO, AdmLogistica, AdmEquipamentos veem apenas seu departamento
-  const departmentalRoles = ['AdmSSO', 'TecSSO', 'AdmLogistica', 'AdmEquipamentos'];
-  const isDepartmentalAdmin = departmentalRoles.some(role => permissions.includes(role));
+  // SuperAdm e admins válidos com acesso global continuam vendo todos os usuários
+  const hasGlobalAccess = isSuperAdmin || !!profileScope?.acesso_global || profileScope?.primary_role === 'AdmRH' || profileScope?.primary_role === 'Administrador';
+
+  // Admins operacionais continuam restritos ao departamento quando aplicável
+  const departmentalRoles = ['AdmSSO', 'TecSSO', 'AdmLogistica', 'AdmEquipamentos', 'AdmOBRA', 'AdmSede'];
+  const isDepartmentalAdmin = departmentalRoles.includes(profileScope?.primary_role || '');
 
   useEffect(() => {
     const fetchDepartamento = async () => {
@@ -39,6 +42,22 @@ export const useProfileSecurity = (): ProfileSecurityContext => {
       }
 
       try {
+        try {
+          const manageableProfiles = await fetchManageablePermissionProfiles();
+          const currentManagedProfile = manageableProfiles.find(profile => profile.id === userId);
+
+          if (currentManagedProfile) {
+            setProfileScope({
+              acesso_global: currentManagedProfile.acesso_global,
+              primary_role: (currentManagedProfile as any).primary_role || currentManagedProfile.funcao_sistema || currentManagedProfile.funcoes?.[0] || null,
+              departamento_id: (currentManagedProfile as any).departamento_id || null,
+              departamento_nome: (currentManagedProfile as any).departamento_nome || null,
+            });
+          }
+        } catch (scopeError) {
+          console.warn('⚠️ Não foi possível carregar escopo seguro de perfis:', scopeError);
+        }
+
         // Buscar departamento do usuário logado através do funcionario_id
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
@@ -89,9 +108,9 @@ export const useProfileSecurity = (): ProfileSecurityContext => {
   return {
     hasGlobalAccess,
     isDepartmentalAdmin,
-    departamentoId,
-    departamentoNome,
-    shouldFilterByDepartment,
+    departamentoId: profileScope?.departamento_id || departamentoId,
+    departamentoNome: profileScope?.departamento_nome || departamentoNome,
+    shouldFilterByDepartment: isDepartmentalAdmin && !hasGlobalAccess && !!(profileScope?.departamento_id || departamentoId),
     isLoading: isAuthLoading || isLoadingDepartamento
   };
 };

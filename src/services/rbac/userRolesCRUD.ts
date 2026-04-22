@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { assignUserRoleSecure, clearUserAdminRolesSecure, removeUserRoleSecure } from "./permissionAdminSecure";
 
 export interface UserRole {
   id: string;
@@ -14,7 +15,7 @@ export interface UserRole {
 export const getUserRoles = async (userId: string): Promise<UserRole[]> => {
   const { data, error } = await supabase
     .from("bd_user_roles")
-    .select("*, bd_roles(nome)")
+    .select("id, user_id, role_id, created_at, bd_roles(nome)")
     .eq("user_id", userId);
   if (error) throw error;
 
@@ -31,25 +32,18 @@ export const getUserRoles = async (userId: string): Promise<UserRole[]> => {
  * Assign a role to a user (replaces all existing roles)
  */
 export const assignUserRole = async (userId: string, roleId: string): Promise<void> => {
-  // Remove existing roles
-  await supabase.from("bd_user_roles").delete().eq("user_id", userId);
-
-  // Insert new role
-  const { error } = await supabase
-    .from("bd_user_roles")
-    .insert({ user_id: userId, role_id: roleId });
-  if (error) throw error;
+  await assignUserRoleSecure(userId, roleId);
 };
 
 /**
  * Remove all roles from a user
  */
 export const removeAllUserRoles = async (userId: string): Promise<void> => {
-  const { error } = await supabase
-    .from("bd_user_roles")
-    .delete()
-    .eq("user_id", userId);
-  if (error) throw error;
+  await clearUserAdminRolesSecure(userId);
+};
+
+export const removeUserRole = async (userId: string, roleId: string): Promise<void> => {
+  await removeUserRoleSecure(userId, roleId);
 };
 
 /**

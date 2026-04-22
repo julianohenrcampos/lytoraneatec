@@ -327,6 +327,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_agendamentos_exames_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_agendamentos_exames_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_agendamentos_exames_funcao_nova_id_fkey"
             columns: ["funcao_nova_id"]
             isOneToOne: false
@@ -383,6 +397,20 @@ export type Database = {
             columns: ["criado_por"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_agendamentos_exames_anexos_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_agendamentos_exames_anexos_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -442,6 +470,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_apontamento_equipe_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_apontamento_equipe_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_apontamento_equipe_equipe_id_fkey"
             columns: ["equipe_id"]
             isOneToOne: false
@@ -453,6 +495,20 @@ export type Database = {
             columns: ["registrado_por"]
             isOneToOne: false
             referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_apontamento_equipe_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_apontamento_equipe_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
             referencedColumns: ["id"]
           },
         ]
@@ -606,6 +662,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_aprovacoes_inclusao_funcionario_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_aprovacoes_inclusao_funcionario_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_aprovacoes_inclusao_funcionario_solicitacao_id_fkey"
             columns: ["solicitacao_id"]
             isOneToOne: false
@@ -657,6 +727,20 @@ export type Database = {
             columns: ["funcionario_id"]
             isOneToOne: false
             referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_arquivo_morto_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_arquivo_morto_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
             referencedColumns: ["id"]
           },
         ]
@@ -848,6 +932,58 @@ export type Database = {
         }
         Relationships: []
       }
+      bd_auditoria_leitura_funcionario_sensivel: {
+        Row: {
+          campos: string[]
+          created_at: string
+          funcionario_id: string
+          id: string
+          metadata: Json
+          origem: string
+          viewer_user_id: string
+        }
+        Insert: {
+          campos?: string[]
+          created_at?: string
+          funcionario_id: string
+          id?: string
+          metadata?: Json
+          origem: string
+          viewer_user_id: string
+        }
+        Update: {
+          campos?: string[]
+          created_at?: string
+          funcionario_id?: string
+          id?: string
+          metadata?: Json
+          origem?: string
+          viewer_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_auditoria_leitura_funcionario_sensivel_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_auditoria_leitura_funcionario_sensivel_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_auditoria_leitura_funcionario_sensivel_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_auditoria_log: {
         Row: {
           campos_alterados: string[] | null
@@ -1002,6 +1138,20 @@ export type Database = {
             columns: ["colaborador_id"]
             isOneToOne: false
             referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_avaliacao_equipe_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_avaliacao_equipe_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
             referencedColumns: ["id"]
           },
           {
@@ -1311,6 +1461,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_carga_status_historico_alterado_por_fkey"
+            columns: ["alterado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_carga_status_historico_alterado_por_fkey"
+            columns: ["alterado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_carga_status_historico_lista_entrega_id_fkey"
             columns: ["lista_entrega_id"]
             isOneToOne: false
@@ -1604,10 +1768,38 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_centros_custo_adm_sede_funcionario_id_fkey"
+            columns: ["adm_sede_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_adm_sede_funcionario_id_fkey"
+            columns: ["adm_sede_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_centros_custo_aprovador_diarias_id_fkey"
             columns: ["aprovador_diarias_id"]
             isOneToOne: false
             referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_aprovador_diarias_id_fkey"
+            columns: ["aprovador_diarias_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_aprovador_diarias_id_fkey"
+            columns: ["aprovador_diarias_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
             referencedColumns: ["id"]
           },
           {
@@ -1705,6 +1897,20 @@ export type Database = {
             columns: ["solicitante_id"]
             isOneToOne: false
             referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_chamados_os_solicitante_id_fkey"
+            columns: ["solicitante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_chamados_os_solicitante_id_fkey"
+            columns: ["solicitante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
             referencedColumns: ["id"]
           },
         ]
@@ -2048,6 +2254,20 @@ export type Database = {
             referencedRelation: "bd_funcionarios"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bd_desligamentos_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_desligamentos_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
         ]
       }
       bd_diaria_apontamentos: {
@@ -2099,6 +2319,20 @@ export type Database = {
             columns: ["responsavel_campo_id"]
             isOneToOne: false
             referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_apontamentos_responsavel_campo_id_fkey"
+            columns: ["responsavel_campo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_apontamentos_responsavel_campo_id_fkey"
+            columns: ["responsavel_campo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
             referencedColumns: ["id"]
           },
           {
@@ -2270,6 +2504,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_diaria_presencas_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_presencas_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_diaria_presencas_solicitacao_id_fkey"
             columns: ["solicitacao_id"]
             isOneToOne: false
@@ -2401,10 +2649,38 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_diaria_solicitacoes_engenheiro_solicitante_id_fkey"
+            columns: ["engenheiro_solicitante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_engenheiro_solicitante_id_fkey"
+            columns: ["engenheiro_solicitante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_diaria_solicitacoes_responsavel_campo_id_fkey"
             columns: ["responsavel_campo_id"]
             isOneToOne: false
             referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_responsavel_campo_id_fkey"
+            columns: ["responsavel_campo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_responsavel_campo_id_fkey"
+            columns: ["responsavel_campo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
             referencedColumns: ["id"]
           },
         ]
@@ -2487,6 +2763,20 @@ export type Database = {
             columns: ["diretor_id"]
             isOneToOne: false
             referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diretorias_diretor_id_fkey"
+            columns: ["diretor_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diretorias_diretor_id_fkey"
+            columns: ["diretor_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
             referencedColumns: ["id"]
           },
         ]
@@ -2876,10 +3166,38 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_equipes_apontador_id_fkey"
+            columns: ["apontador_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_equipes_apontador_id_fkey"
+            columns: ["apontador_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_equipes_encarregado_id_fkey"
             columns: ["encarregado_id"]
             isOneToOne: false
             referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_equipes_encarregado_id_fkey"
+            columns: ["encarregado_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_equipes_encarregado_id_fkey"
+            columns: ["encarregado_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
             referencedColumns: ["id"]
           },
           {
@@ -2890,10 +3208,38 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "fk_equipes_apontador"
+            columns: ["apontador_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_equipes_apontador"
+            columns: ["apontador_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "fk_equipes_encarregado"
             columns: ["encarregado_id"]
             isOneToOne: false
             referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_equipes_encarregado"
+            columns: ["encarregado_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_equipes_encarregado"
+            columns: ["encarregado_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
             referencedColumns: ["id"]
           },
         ]
@@ -3205,6 +3551,20 @@ export type Database = {
             referencedRelation: "bd_funcionarios"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bd_funcionario_status_historico_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionario_status_historico_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
         ]
       }
       bd_funcionarios: {
@@ -3480,6 +3840,171 @@ export type Database = {
             referencedRelation: "bd_funcionarios"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bd_funcionarios_biometria_facial_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_biometria_facial_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_funcionarios_sensivel: {
+        Row: {
+          adicional_noturno: number | null
+          agencia: string | null
+          banco: string | null
+          chave_pix: string | null
+          conta_corrente: string | null
+          cpf: string | null
+          cpf_hash: string | null
+          created_at: string
+          custo_passagem: number | null
+          data_nascimento: string | null
+          diarias: number | null
+          email: string | null
+          email_hash: string | null
+          endereco_bairro: string | null
+          endereco_cep: string | null
+          endereco_cidade: string | null
+          endereco_completo: string | null
+          endereco_estado: string | null
+          endereco_normalizado: string | null
+          endereco_numero: string | null
+          endereco_rua: string | null
+          funcionario_id: string
+          geocoding_relevance: number | null
+          geocoding_source: string | null
+          geocoding_status: string | null
+          geocoding_updated_at: string | null
+          gratificacao: number | null
+          id: string
+          imagem: string | null
+          insalubridade: number | null
+          latitude: number | null
+          longitude: number | null
+          mapbox_place_name: string | null
+          modificado_por: string | null
+          observacoes: string | null
+          periculosidade: number | null
+          pix_hash: string | null
+          refeicao: number | null
+          salario_base: number | null
+          updated_at: string
+        }
+        Insert: {
+          adicional_noturno?: number | null
+          agencia?: string | null
+          banco?: string | null
+          chave_pix?: string | null
+          conta_corrente?: string | null
+          cpf?: string | null
+          cpf_hash?: string | null
+          created_at?: string
+          custo_passagem?: number | null
+          data_nascimento?: string | null
+          diarias?: number | null
+          email?: string | null
+          email_hash?: string | null
+          endereco_bairro?: string | null
+          endereco_cep?: string | null
+          endereco_cidade?: string | null
+          endereco_completo?: string | null
+          endereco_estado?: string | null
+          endereco_normalizado?: string | null
+          endereco_numero?: string | null
+          endereco_rua?: string | null
+          funcionario_id: string
+          geocoding_relevance?: number | null
+          geocoding_source?: string | null
+          geocoding_status?: string | null
+          geocoding_updated_at?: string | null
+          gratificacao?: number | null
+          id?: string
+          imagem?: string | null
+          insalubridade?: number | null
+          latitude?: number | null
+          longitude?: number | null
+          mapbox_place_name?: string | null
+          modificado_por?: string | null
+          observacoes?: string | null
+          periculosidade?: number | null
+          pix_hash?: string | null
+          refeicao?: number | null
+          salario_base?: number | null
+          updated_at?: string
+        }
+        Update: {
+          adicional_noturno?: number | null
+          agencia?: string | null
+          banco?: string | null
+          chave_pix?: string | null
+          conta_corrente?: string | null
+          cpf?: string | null
+          cpf_hash?: string | null
+          created_at?: string
+          custo_passagem?: number | null
+          data_nascimento?: string | null
+          diarias?: number | null
+          email?: string | null
+          email_hash?: string | null
+          endereco_bairro?: string | null
+          endereco_cep?: string | null
+          endereco_cidade?: string | null
+          endereco_completo?: string | null
+          endereco_estado?: string | null
+          endereco_normalizado?: string | null
+          endereco_numero?: string | null
+          endereco_rua?: string | null
+          funcionario_id?: string
+          geocoding_relevance?: number | null
+          geocoding_source?: string | null
+          geocoding_status?: string | null
+          geocoding_updated_at?: string | null
+          gratificacao?: number | null
+          id?: string
+          imagem?: string | null
+          insalubridade?: number | null
+          latitude?: number | null
+          longitude?: number | null
+          mapbox_place_name?: string | null
+          modificado_por?: string | null
+          observacoes?: string | null
+          periculosidade?: number | null
+          pix_hash?: string | null
+          refeicao?: number | null
+          salario_base?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_funcionarios_sensivel_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: true
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_sensivel_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: true
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_sensivel_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: true
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
         ]
       }
       bd_funcoes: {
@@ -3692,6 +4217,20 @@ export type Database = {
             columns: ["funcionario_id"]
             isOneToOne: false
             referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_historico_funcional_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_historico_funcional_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
             referencedColumns: ["id"]
           },
           {
@@ -3979,6 +4518,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_lista_programacao_entrega_apontador_id_fkey"
+            columns: ["apontador_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_lista_programacao_entrega_apontador_id_fkey"
+            columns: ["apontador_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_lista_programacao_entrega_caminhao_id_fkey"
             columns: ["caminhao_id"]
             isOneToOne: false
@@ -4172,6 +4725,20 @@ export type Database = {
             referencedRelation: "bd_funcionarios"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bd_log_comunicacao_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_log_comunicacao_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
         ]
       }
       bd_matching_config: {
@@ -4316,6 +4883,20 @@ export type Database = {
             columns: ["responsavel_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_movimentacao_saida_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_movimentacao_saida_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -4653,6 +5234,20 @@ export type Database = {
             referencedRelation: "bd_funcionarios"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bd_ordens_servico_mecanico_id_fkey"
+            columns: ["mecanico_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_servico_mecanico_id_fkey"
+            columns: ["mecanico_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
         ]
       }
       bd_orgaos_alias: {
@@ -4927,6 +5522,45 @@ export type Database = {
           permitido?: boolean | null
           rota?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      bd_permission_change_audit_logs: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          created_at: string
+          entity_id: string | null
+          entity_type: string
+          id: string
+          metadata: Json
+          new_data: Json | null
+          old_data: Json | null
+          target_user_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          metadata?: Json
+          new_data?: Json | null
+          old_data?: Json | null
+          target_user_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          metadata?: Json
+          new_data?: Json | null
+          old_data?: Json | null
+          target_user_id?: string | null
         }
         Relationships: []
       }
@@ -5451,6 +6085,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_ponto_ajustes_aprovado_por_fkey"
+            columns: ["aprovado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_ajustes_aprovado_por_fkey"
+            columns: ["aprovado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_ponto_ajustes_batida_original_id_fkey"
             columns: ["batida_original_id"]
             isOneToOne: false
@@ -5465,10 +6113,38 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_ponto_ajustes_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_ajustes_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_ponto_ajustes_solicitado_por_fkey"
             columns: ["solicitado_por"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_ajustes_solicitado_por_fkey"
+            columns: ["solicitado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_ajustes_solicitado_por_fkey"
+            columns: ["solicitado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -5718,8 +6394,43 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_ponto_batidas_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_batidas_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_ponto_batidas_operador_id_fkey"
             columns: ["operador_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_batidas_operador_id_fkey"
+            columns: ["operador_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_batidas_operador_id_fkey"
+            columns: ["operador_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_batidas_validado_por_fkey"
+            columns: ["validado_por"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -5728,7 +6439,14 @@ export type Database = {
             foreignKeyName: "bd_ponto_batidas_validado_por_fkey"
             columns: ["validado_por"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_batidas_validado_por_fkey"
+            columns: ["validado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -6100,10 +6818,38 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_ponto_dispositivos_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_dispositivos_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_ponto_dispositivos_usuario_responsavel_id_fkey"
             columns: ["usuario_responsavel_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_dispositivos_usuario_responsavel_id_fkey"
+            columns: ["usuario_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_dispositivos_usuario_responsavel_id_fkey"
+            columns: ["usuario_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -6222,6 +6968,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_ponto_vinculos_operacionais_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_vinculos_operacionais_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_ponto_vinculos_operacionais_equipe_id_fkey"
             columns: ["equipe_id"]
             isOneToOne: false
@@ -6233,6 +6993,20 @@ export type Database = {
             columns: ["funcionario_id"]
             isOneToOne: false
             referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_vinculos_operacionais_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_vinculos_operacionais_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
             referencedColumns: ["id"]
           },
         ]
@@ -6719,6 +7493,20 @@ export type Database = {
             referencedRelation: "bd_funcionarios"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bd_registro_apontamento_cam_equipa_operador_id_fkey"
+            columns: ["operador_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_registro_apontamento_cam_equipa_operador_id_fkey"
+            columns: ["operador_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
         ]
       }
       bd_registro_apontamento_inspecao: {
@@ -6972,6 +7760,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_registro_desvios_sso_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_registro_desvios_sso_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_registro_desvios_sso_obra_id_fkey"
             columns: ["obra_id"]
             isOneToOne: false
@@ -7046,6 +7848,20 @@ export type Database = {
             referencedRelation: "bd_funcionarios"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bd_requisicoes_engenheiro_id_fkey"
+            columns: ["engenheiro_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_requisicoes_engenheiro_id_fkey"
+            columns: ["engenheiro_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
         ]
       }
       bd_role_permission_actions: {
@@ -7085,6 +7901,13 @@ export type Database = {
             referencedRelation: "bd_roles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bd_role_permission_actions_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rbac_roles_safe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       bd_role_permissions: {
@@ -7119,6 +7942,13 @@ export type Database = {
             columns: ["role_id"]
             isOneToOne: false
             referencedRelation: "bd_roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_role_permissions_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rbac_roles_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -7209,6 +8039,48 @@ export type Database = {
           },
         ]
       }
+      bd_security_audit_log: {
+        Row: {
+          contexto: Json
+          created_at: string
+          event_type: string
+          id: string
+          ip: string | null
+          rpc_name: string | null
+          table_name: string | null
+          target_id: string | null
+          user_agent: string | null
+          user_id: string | null
+          view_name: string | null
+        }
+        Insert: {
+          contexto?: Json
+          created_at?: string
+          event_type: string
+          id?: string
+          ip?: string | null
+          rpc_name?: string | null
+          table_name?: string | null
+          target_id?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+          view_name?: string | null
+        }
+        Update: {
+          contexto?: Json
+          created_at?: string
+          event_type?: string
+          id?: string
+          ip?: string | null
+          rpc_name?: string | null
+          table_name?: string | null
+          target_id?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+          view_name?: string | null
+        }
+        Relationships: []
+      }
       bd_solicitacoes_equip_aprovacoes: {
         Row: {
           aprovador_id: string | null
@@ -7246,6 +8118,20 @@ export type Database = {
             columns: ["aprovador_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_equip_aprovacoes_aprovador_id_fkey"
+            columns: ["aprovador_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_equip_aprovacoes_aprovador_id_fkey"
+            columns: ["aprovador_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
             referencedColumns: ["id"]
           },
           {
@@ -7339,10 +8225,38 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_solicitacoes_equipamento_apontador_responsavel_id_fkey"
+            columns: ["apontador_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_equipamento_apontador_responsavel_id_fkey"
+            columns: ["apontador_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_solicitacoes_equipamento_aprovador_centro_custo_id_fkey"
             columns: ["aprovador_centro_custo_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_equipamento_aprovador_centro_custo_id_fkey"
+            columns: ["aprovador_centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_equipamento_aprovador_centro_custo_id_fkey"
+            columns: ["aprovador_centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
             referencedColumns: ["id"]
           },
           {
@@ -7364,6 +8278,20 @@ export type Database = {
             columns: ["engenheiro_solicitante_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_equipamento_engenheiro_solicitante_id_fkey"
+            columns: ["engenheiro_solicitante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_equipamento_engenheiro_solicitante_id_fkey"
+            columns: ["engenheiro_solicitante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
             referencedColumns: ["id"]
           },
           {
@@ -7519,6 +8447,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_solicitacoes_planejamento_responsavel_transporte_id_fkey"
+            columns: ["responsavel_transporte_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_planejamento_responsavel_transporte_id_fkey"
+            columns: ["responsavel_transporte_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_solicitacoes_planejamento_solicitacao_id_fkey"
             columns: ["solicitacao_id"]
             isOneToOne: false
@@ -7530,6 +8472,20 @@ export type Database = {
             columns: ["usuario_transporte_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_planejamento_usuario_transporte_id_fkey"
+            columns: ["usuario_transporte_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_planejamento_usuario_transporte_id_fkey"
+            columns: ["usuario_transporte_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -7801,10 +8757,38 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_sso_ver_agir_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_sso_ver_agir_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_sso_ver_agir_engenheiro_id_fkey"
             columns: ["engenheiro_id"]
             isOneToOne: false
             referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_sso_ver_agir_engenheiro_id_fkey"
+            columns: ["engenheiro_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_sso_ver_agir_engenheiro_id_fkey"
+            columns: ["engenheiro_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
             referencedColumns: ["id"]
           },
           {
@@ -7815,10 +8799,38 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_sso_ver_agir_tecnico_seguranca_id_fkey"
+            columns: ["tecnico_seguranca_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_sso_ver_agir_tecnico_seguranca_id_fkey"
+            columns: ["tecnico_seguranca_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_sso_ver_agir_visto_gestao_por_fkey"
             columns: ["visto_gestao_por"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_sso_ver_agir_visto_gestao_por_fkey"
+            columns: ["visto_gestao_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_sso_ver_agir_visto_gestao_por_fkey"
+            columns: ["visto_gestao_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -8001,10 +9013,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_user_roles_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rbac_roles_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_user_roles_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -8201,6 +9234,20 @@ export type Database = {
             referencedRelation: "bd_funcionarios"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "profiles_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
@@ -8232,6 +9279,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_apontamento_equipe_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_apontamento_equipe_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_apontamento_equipe_equipe_id_fkey"
             columns: ["equipe_id"]
             isOneToOne: false
@@ -8243,6 +9304,181 @@ export type Database = {
             columns: ["registrado_por"]
             isOneToOne: false
             referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_apontamento_equipe_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_apontamento_equipe_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vw_funcionarios_operacional: {
+        Row: {
+          centro_custo_id: string | null
+          cpf: string | null
+          data_admissao: string | null
+          departamento_id: string | null
+          email: string | null
+          empresa_id: string | null
+          equipe_id: string | null
+          funcao_id: string | null
+          id: string | null
+          imagem: string | null
+          matricula: string | null
+          nome_centro_custo: string | null
+          nome_completo: string | null
+          nome_departamento: string | null
+          nome_empresa: string | null
+          nome_funcao: string | null
+          status: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_funcionarios_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_departamento_id_fkey"
+            columns: ["departamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_departamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "bd_empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_equipe_id_fkey"
+            columns: ["equipe_id"]
+            isOneToOne: false
+            referencedRelation: "bd_equipes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vw_funcionarios_rh: {
+        Row: {
+          adicional_noturno: number | null
+          agencia: string | null
+          banco: string | null
+          centro_custo_id: string | null
+          chave_pix: string | null
+          codigo_centro_custo: string | null
+          conta_corrente: string | null
+          cpf: string | null
+          created_at: string | null
+          custo_passagem: number | null
+          data_admissao: string | null
+          data_demissao: string | null
+          data_desligamento: string | null
+          data_ferias: string | null
+          data_nascimento: string | null
+          departamento_id: string | null
+          diarias: number | null
+          email: string | null
+          empresa_id: string | null
+          endereco_bairro: string | null
+          endereco_cep: string | null
+          endereco_cidade: string | null
+          endereco_completo: string | null
+          endereco_estado: string | null
+          endereco_numero: string | null
+          endereco_rua: string | null
+          equipe_id: string | null
+          escolaridade: string | null
+          funcao_id: string | null
+          genero: string | null
+          gratificacao: number | null
+          id: string | null
+          imagem: string | null
+          insalubridade: number | null
+          matricula: string | null
+          nome_centro_custo: string | null
+          nome_completo: string | null
+          nome_departamento: string | null
+          nome_empresa: string | null
+          nome_equipe: string | null
+          nome_funcao: string | null
+          observacoes: string | null
+          periculosidade: number | null
+          refeicao: number | null
+          salario_base: number | null
+          status: string | null
+          tipo_escala: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_funcionarios_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_departamento_id_fkey"
+            columns: ["departamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_departamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "bd_empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_equipe_id_fkey"
+            columns: ["equipe_id"]
+            isOneToOne: false
+            referencedRelation: "bd_equipes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcoes"
             referencedColumns: ["id"]
           },
         ]
@@ -8322,6 +9558,173 @@ export type Database = {
           },
         ]
       }
+      vw_profile_self_safe: {
+        Row: {
+          acesso_global: boolean | null
+          email: string | null
+          funcao_sistema: string | null
+          funcionario_id: string | null
+          id: string | null
+          imagem_url: string | null
+          nome_completo: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          acesso_global?: boolean | null
+          email?: string | null
+          funcao_sistema?: string | null
+          funcionario_id?: string | null
+          id?: string | null
+          imagem_url?: string | null
+          nome_completo?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          acesso_global?: boolean | null
+          email?: string | null
+          funcao_sistema?: string | null
+          funcionario_id?: string | null
+          id?: string | null
+          imagem_url?: string | null
+          nome_completo?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vw_profiles_admin_safe: {
+        Row: {
+          acesso_global: boolean | null
+          created_at: string | null
+          email: string | null
+          funcao_sistema: string | null
+          funcionario_id: string | null
+          id: string | null
+          imagem_url: string | null
+          nome_completo: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          acesso_global?: boolean | null
+          created_at?: string | null
+          email?: string | null
+          funcao_sistema?: string | null
+          funcionario_id?: string | null
+          id?: string | null
+          imagem_url?: string | null
+          nome_completo?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          acesso_global?: boolean | null
+          created_at?: string | null
+          email?: string | null
+          funcao_sistema?: string | null
+          funcionario_id?: string | null
+          id?: string | null
+          imagem_url?: string | null
+          nome_completo?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vw_rbac_permissions_safe: {
+        Row: {
+          created_at: string | null
+          descricao: string | null
+          id: string | null
+          nome_permissao: string | null
+          rota: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          descricao?: string | null
+          id?: string | null
+          nome_permissao?: string | null
+          rota?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          descricao?: string | null
+          id?: string | null
+          nome_permissao?: string | null
+          rota?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      vw_rbac_roles_safe: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          descricao: string | null
+          id: string | null
+          nome: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: string | null
+          nome?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: string | null
+          nome?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       vw_relatorio_diarias_folha: {
         Row: {
           agencia_funcionario: string | null
@@ -8377,6 +9780,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_diaria_apontamentos_responsavel_campo_id_fkey"
+            columns: ["apontador_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_apontamentos_responsavel_campo_id_fkey"
+            columns: ["apontador_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_diaria_presencas_funcao_id_fkey"
             columns: ["funcao_id"]
             isOneToOne: false
@@ -8391,6 +9808,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_diaria_presencas_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_presencas_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_diaria_presencas_solicitacao_id_fkey"
             columns: ["solicitacao_id"]
             isOneToOne: false
@@ -8402,6 +9833,20 @@ export type Database = {
             columns: ["engenheiro_solicitante_id"]
             isOneToOne: false
             referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_engenheiro_solicitante_id_fkey"
+            columns: ["engenheiro_solicitante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_engenheiro_solicitante_id_fkey"
+            columns: ["engenheiro_solicitante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
             referencedColumns: ["id"]
           },
           {
@@ -8545,6 +9990,11 @@ export type Database = {
       }
       check_is_admsso: { Args: { user_id?: string }; Returns: boolean }
       check_is_super_admin: { Args: { user_id?: string }; Returns: boolean }
+      check_is_super_admin_hybrid: {
+        Args: { user_id?: string }
+        Returns: boolean
+      }
+      check_is_super_admin_new: { Args: { user_id?: string }; Returns: boolean }
       check_vistorias_sso_pendentes: { Args: never; Returns: undefined }
       classificar_orgao_pendente: {
         Args: {
@@ -8588,6 +10038,40 @@ export type Database = {
         Returns: Json
       }
       finalizar_carga_manual: { Args: { carga_id: string }; Returns: Json }
+      fn_actor_can_assign_role: {
+        Args: {
+          p_actor_user_id: string
+          p_role_id: string
+          p_target_user_id: string
+        }
+        Returns: boolean
+      }
+      fn_actor_can_manage_user_target: {
+        Args: { p_actor_user_id: string; p_target_user_id: string }
+        Returns: boolean
+      }
+      fn_actor_can_override_permission: {
+        Args: {
+          p_actor_user_id: string
+          p_permission_id: string
+          p_target_user_id: string
+        }
+        Returns: boolean
+      }
+      fn_assign_user_role_secure: {
+        Args: { p_role_id: string; p_target_user_id: string }
+        Returns: undefined
+      }
+      fn_audit_sensitive_read: {
+        Args: {
+          p_campos?: string[]
+          p_funcionario_id: string
+          p_metadata?: Json
+          p_origem: string
+        }
+        Returns: boolean
+      }
+      fn_auth_user_id: { Args: never; Returns: string }
       fn_calcular_distancia_haversine: {
         Args: { lat1: number; lat2: number; lon1: number; lon2: number }
         Returns: number
@@ -8596,7 +10080,122 @@ export type Database = {
         Args: { p_checklist_id: string }
         Returns: Json
       }
+      fn_can_access_funcionario_operacional: {
+        Args: {
+          p_centro_custo_id: string
+          p_departamento_id: string
+          p_funcionario_id: string
+        }
+        Returns: boolean
+      }
+      fn_can_access_funcionario_sensitive: {
+        Args: { p_funcionario_id?: string }
+        Returns: boolean
+      }
+      fn_can_manage_permission_catalog: {
+        Args: { p_user_id?: string }
+        Returns: boolean
+      }
+      fn_can_manage_user_access: {
+        Args: { p_user_id?: string }
+        Returns: boolean
+      }
+      fn_can_read_permission_row: {
+        Args: { p_permission_id: string; p_user_id?: string }
+        Returns: boolean
+      }
+      fn_can_view_permission_admin: {
+        Args: { p_user_id?: string }
+        Returns: boolean
+      }
+      fn_check_funcionario_email_status: {
+        Args: { p_email: string }
+        Returns: {
+          exists_in_funcionarios: boolean
+          funcionario_id: string
+          nome_completo: string
+          status: string
+        }[]
+      }
+      fn_clear_user_admin_roles_secure: {
+        Args: { p_target_user_id: string }
+        Returns: undefined
+      }
+      fn_get_funcionario_sensitive: {
+        Args: { p_funcionario_id: string; p_origem?: string }
+        Returns: Json
+      }
+      fn_get_manageable_permission_profiles: {
+        Args: never
+        Returns: {
+          acesso_global: boolean
+          created_at: string
+          departamento_id: string
+          departamento_nome: string
+          email: string
+          funcao_sistema: string
+          funcionario_id: string
+          funcoes: string[]
+          id: string
+          imagem_url: string
+          nome_completo: string
+          primary_role: string
+          role_names: string[]
+          updated_at: string
+        }[]
+      }
+      fn_get_my_permission_snapshot: {
+        Args: never
+        Returns: {
+          allowed_routes: string[]
+          is_super_admin: boolean
+          permission_codes: string[]
+          permission_names: string[]
+          role_names: string[]
+          user_id: string
+        }[]
+      }
+      fn_has_permission: {
+        Args: { p_nome_permissao: string; p_user_id?: string }
+        Returns: boolean
+      }
+      fn_has_role: {
+        Args: { p_role: string; p_user_id?: string }
+        Returns: boolean
+      }
+      fn_hash_sensitive_value: { Args: { p_value: string }; Returns: string }
+      fn_is_super_admin: { Args: { p_user_id?: string }; Returns: boolean }
+      fn_log_sensitive_read: {
+        Args: {
+          p_contexto?: Json
+          p_event_type: string
+          p_ip?: string
+          p_rpc_name?: string
+          p_table_name?: string
+          p_target_id?: string
+          p_user_agent?: string
+          p_view_name?: string
+        }
+        Returns: undefined
+      }
+      fn_permission_is_protected: {
+        Args: { p_permission_id: string }
+        Returns: boolean
+      }
       fn_recalcula_total_os: { Args: { p_os_id: string }; Returns: undefined }
+      fn_remove_user_role_secure: {
+        Args: { p_role_id: string; p_target_user_id: string }
+        Returns: undefined
+      }
+      fn_role_is_protected: { Args: { p_role_id: string }; Returns: boolean }
+      fn_target_user_has_protected_access: {
+        Args: { p_target_user_id: string }
+        Returns: boolean
+      }
+      fn_update_managed_profile_access_scope: {
+        Args: { p_acesso_global: boolean; p_target_user_id: string }
+        Returns: undefined
+      }
       force_update_all_delivery_statuses: {
         Args: never
         Returns: {
@@ -8679,6 +10278,10 @@ export type Database = {
       }
       has_pncp_access: { Args: { p_user_id?: string }; Returns: boolean }
       has_ponto_permission: { Args: { _permission: string }; Returns: boolean }
+      has_role: {
+        Args: { p_role: string; p_user_id?: string }
+        Returns: boolean
+      }
       has_sso_full_access: { Args: { p_user_id?: string }; Returns: boolean }
       has_sso_permission: { Args: { p_user_id?: string }; Returns: boolean }
       identificar_funcionario_por_descriptor: {
@@ -8834,6 +10437,10 @@ export type Database = {
       update_profile_funcionario_id: {
         Args: { _funcionario_id: string; _profile_id: string }
         Returns: undefined
+      }
+      user_has_permission: {
+        Args: { permission_name: string; user_id: string }
+        Returns: boolean
       }
       usuario_acessa_equipe: {
         Args: { p_equipe_id: string; p_user_id: string }

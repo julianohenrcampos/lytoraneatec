@@ -1,29 +1,66 @@
 import React, { useMemo, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Combobox } from "@/components/ui/combobox";
-import { MultiCombobox } from "@/components/ui/multi-combobox";
-import { DatePickerWithRange } from "@/components/ui/date-picker-range";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { ClipboardList, Filter, RotateCcw } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useCentrosCustoQuery } from "@/hooks/useCentrosCustoQuery";
-import {
-  useJornadasDiarias,
-  formatMinutos,
-  formatData,
-  defaultFiltersThisMonth,
-  type JornadaDiariaRow,
-} from "@/hooks/admin/useJornadasDiarias";
-import ModalDetalheJornada from "@/components/admin/gestao-ponto/ModalDetalheJornada";
 import { format, parse } from "date-fns";
 import type { DateRange } from "react-day-picker";
+import { Download, FileText, Filter, RotateCcw } from "lucide-react";
+import { toast } from "sonner";
+
+import MainLayout from "@/components/layout/MainLayout";
+import ModalDetalheJornada from "@/components/admin/gestao-ponto/ModalDetalheJornada";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Combobox } from "@/components/ui/combobox";
+import { DatePickerWithRange } from "@/components/ui/date-picker-range";
+import { Label } from "@/components/ui/label";
+import { MultiCombobox } from "@/components/ui/multi-combobox";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { usePageTitle } from "@/contexts/PageTitleContext";
+import {
+  defaultFiltersThisMonth,
+  formatData,
+  formatMinutos,
+  type JornadaDiariaRow,
+  useJornadasDiarias,
+} from "@/hooks/admin/useJornadasDiarias";
+import { useCentrosCustoQuery } from "@/hooks/useCentrosCustoQuery";
+import { useUserProfile } from "@/hooks/useUserProfile";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  gerarPdfPontoEletronico,
+  type PontoEletronicoReportData,
+} from "@/utils/pdf/gerarPdfPontoEletronico";
+
+const statusConfig = {
+  real: { label: "OK", variant: "default" as const, className: "bg-primary text-primary-foreground" },
+  automatico: { label: "Auto", variant: "secondary" as const, className: "" },
+  sem_intervalo: { label: "S/ Int.", variant: "outline" as const, className: "" },
+  incompleto: { label: "Incompleto", variant: "destructive" as const, className: "" },
+  inconsistente: { label: "Inconsist.", variant: "destructive" as const, className: "" },
+};
+
+const fmtHHMM = (minutes: number) => {
+  if (!minutes || minutes <= 0) return "00:00";
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+};
+
+const weekdayLabel = (date: string) =>
+  new Intl.DateTimeFormat("pt-BR", { weekday: "short" }).format(
+    parse(date, "yyyy-MM-dd", new Date())
+  );
 
 const GestaoPonto: React.FC = () => {
+  usePageTitle("Gestão de Ponto");
+
   const defaults = useMemo(() => defaultFiltersThisMonth(), []);
   const [funcionarioId, setFuncionarioId] = useState<string>("");
   const [ccIds, setCcIds] = useState<string[]>([]);
@@ -38,6 +75,7 @@ const GestaoPonto: React.FC = () => {
     dataFim: defaults.dataFim,
   });
   const [detalhe, setDetalhe] = useState<JornadaDiariaRow | null>(null);
+  const { user } = useUserProfile();
 
   const { data: funcionarios } = useQuery({
     queryKey: ["funcionarios-ativos-gestao-ponto"],
@@ -53,8 +91,27 @@ const GestaoPonto: React.FC = () => {
   });
 
   const { data: centrosCusto } = useCentrosCustoQuery();
-
   const { data: jornadas, isLoading, refetch } = useJornadasDiarias(aplicado);
+
+  const funcionarioOptions = useMemo(
+    () => [
+      { value: "", label: "Todos" },
+      ...((funcionarios || []).map((f: any) => ({
+        value: f.id,
+        label: `${f.nome_completo}${f.matricula ? ` (${f.matricula})` : ""}`,
+      }))),
+    ],
+    [funcionarios]
+  );
+
+  const centroCustoOptions = useMemo(
+    () =>
+      (centrosCusto || []).map((c) => ({
+        value: c.id,
+        label: `${c.codigo_centro_custo ?? "—"} - ${c.nome_centro_custo}`,
+      })),
+    [centrosCusto]
+  );
 
   const aplicarFiltros = () => {
     if (!dateRange?.from || !dateRange?.to) return;
@@ -77,140 +134,328 @@ const GestaoPonto: React.FC = () => {
     setAplicado({ funcionarioId: null, ccIds: [], dataInicio: d.dataInicio, dataFim: d.dataFim });
   };
 
+  const exportarPdf = async () => {
+    if (!jornadas?.length) {
+      toast.error("Não há jornadas para exportar.");
+      return;
+    }
+
+    try {
+      const funcionarioIds = Array.from(new Set(jornadas.map((j) => j.funcionarioId)));
+      const datas = Array.from(new Set(jornadas.map((j) => j.dataOperacional)));
+
+      const { data: batidas, error } = await supabase
+        .from("bd_ponto_batidas")
+        .select("funcionario_id, data_operacional, tipo_batida, data_hora_considerada, status_validacao")
+        .in("funcionario_id", funcionarioIds)
+        .in("data_operacional", datas)
+        .neq("status_validacao", "invalidada")
+        .order("data_hora_considerada", { ascending: true });
+
+      if (error) throw error;
+
+      const batidasMap = new Map<string, Array<{ tipo_batida: string | null; data_hora_considerada: string }>>();
+      for (const batida of batidas || []) {
+        const key = `${batida.funcionario_id}|${batida.data_operacional}`;
+        const items = batidasMap.get(key) || [];
+        items.push({
+          tipo_batida: batida.tipo_batida,
+          data_hora_considerada: batida.data_hora_considerada,
+        });
+        batidasMap.set(key, items);
+      }
+
+      const byEmployee = new Map<string, JornadaDiariaRow[]>();
+      for (const jornada of jornadas) {
+        const items = byEmployee.get(jornada.funcionarioId) || [];
+        items.push(jornada);
+        byEmployee.set(jornada.funcionarioId, items);
+      }
+
+        const reports: PontoEletronicoReportData[] = Array.from(byEmployee.values()).map((rows) => {
+        const employee = rows[0];
+          const totalHorasDiurnasMin = rows.reduce((acc, row) => {
+            const horasNoturnasMin = row.tipo_escala === "12x36" ? Math.min(row.tempo_liquido_min, 120) : 0;
+            return acc + Math.max(0, row.tempo_liquido_min - horasNoturnasMin);
+          }, 0);
+          const totalHorasNoturnasMin = rows.reduce(
+            (acc, row) => acc + (row.tipo_escala === "12x36" ? Math.min(row.tempo_liquido_min, 120) : 0),
+            0
+          );
+          const totalHeNoturnasMin = rows.reduce(
+            (acc, row) => acc + (row.tipo_escala === "12x36" ? Math.min(row.horas_extras_min, 60) : 0),
+            0
+          );
+          const totalHeDiurnasMin = rows.reduce((acc, row) => {
+            const heNoturnasMin = row.tipo_escala === "12x36" ? Math.min(row.horas_extras_min, 60) : 0;
+            return acc + Math.max(0, row.horas_extras_min - heNoturnasMin);
+          }, 0);
+          const totalHorasMin = rows.reduce((acc, row) => acc + row.tempo_liquido_min, 0);
+          const totalExtrasMin = rows.reduce((acc, row) => acc + row.horas_extras_min, 0);
+          const totalAtrasosMin = rows.reduce((acc, row) => acc + row.atraso_min, 0);
+
+        const horasPorEscala = rows.reduce<Record<string, number>>((acc, row) => {
+          const key = row.tipo_escala || "Não informada";
+          acc[key] = (acc[key] || 0) + row.tempo_liquido_min;
+          return acc;
+        }, {});
+
+        const horasPorDiaSemana = rows.reduce<Record<string, number>>((acc, row) => {
+          const key = weekdayLabel(row.dataOperacional);
+          acc[key] = (acc[key] || 0) + row.tempo_liquido_min;
+          return acc;
+        }, {});
+
+        const ocorrencias = rows.reduce<Record<string, number>>((acc, row) => {
+          const key = row.tipo_calculo === "inconsistente" || row.tipo_calculo === "incompleto"
+            ? "Inconsistências"
+            : row.tipo_calculo === "automatico"
+              ? "Intervalo automático"
+              : row.tempo_liquido_min <= 0
+                ? "Folgas"
+                : "Registros OK";
+          acc[key] = (acc[key] || 0) + 1;
+          return acc;
+        }, {});
+
+        return {
+          employee: {
+            empresa: employee.empresa_nome || "—",
+            cnpj: employee.empresa_cnpj || "—",
+            colaborador: employee.funcionario_nome,
+            cpf: employee.funcionario_cpf || "—",
+            cargo: employee.funcao || "—",
+            admissao: employee.data_admissao
+              ? format(parse(employee.data_admissao, "yyyy-MM-dd", new Date()), "dd/MM/yyyy")
+              : "—",
+            departamento: employee.departamento_nome || "—",
+            periodo: `${format(parse(aplicado.dataInicio, "yyyy-MM-dd", new Date()), "dd/MM/yyyy")} a ${format(parse(aplicado.dataFim, "yyyy-MM-dd", new Date()), "dd/MM/yyyy")}`,
+          },
+          generatedAt: new Date().toLocaleString("pt-BR"),
+          generatedBy: user?.nome_completo || user?.email || "Usuário do sistema",
+          rows: rows.map((row) => {
+            const key = `${row.funcionarioId}|${row.dataOperacional}`;
+            const dayBatidas = batidasMap.get(key) || [];
+            const getIso = (tipo: string) => dayBatidas.find((b) => b.tipo_batida === tipo)?.data_hora_considerada;
+            const hora = (iso?: string) => (iso ? format(new Date(iso), "HH:mm") : null);
+            const entrada = hora(getIso("entrada"));
+            const intInicio = hora(getIso("intervalo_inicio"));
+            const intFim = hora(getIso("intervalo_fim"));
+            const saida = hora(getIso("saida"));
+            const jornada1 = entrada && (intInicio || saida) ? `${entrada}–${intInicio || saida}` : null;
+            const jornada2 = intFim && saida ? `${intFim}–${saida}` : null;
+            const realizado = [jornada1, jornada2].filter(Boolean).join(" / ") || [entrada, saida].filter(Boolean).join("–") || "Folga";
+            const horasNoturnasMin = row.tipo_escala === "12x36" ? Math.min(row.tempo_liquido_min, 120) : 0;
+            const heNoturnasMin = row.tipo_escala === "12x36" ? Math.min(row.horas_extras_min, 60) : 0;
+
+            return {
+              data: formatData(row.dataOperacional),
+              previsto: row.tipo_escala === "12x36" ? "12:00" : "08:00",
+              interjornada: row.tipo_escala === "12x36" ? "36:00" : "16:00",
+              realizado,
+              intrajornada: row.intervalo_inicio && row.intervalo_fim
+                ? `${row.intervalo_inicio}–${row.intervalo_fim}`
+                : row.tipo_calculo === "automatico"
+                  ? "12:00–13:00"
+                  : "—",
+              horasDiurnas: fmtHHMM(Math.max(0, row.tempo_liquido_min - horasNoturnasMin)),
+              horasNoturnas: fmtHHMM(horasNoturnasMin),
+              horasTotais: formatMinutos(row.tempo_liquido_min),
+              heDiurnas: fmtHHMM(Math.max(0, row.horas_extras_min - heNoturnasMin)),
+              heNoturnas: fmtHHMM(heNoturnasMin),
+              heTotais: formatMinutos(row.horas_extras_min),
+              horasTrabalhadas: formatMinutos(row.tempo_liquido_min),
+              atraso: formatMinutos(row.atraso_min),
+              isFolga: row.tempo_liquido_min <= 0 && row.batidas_count === 0,
+              ocorrencia: statusConfig[row.tipo_calculo].label,
+            };
+          }),
+            totals: {
+              horasDiurnas: fmtHHMM(totalHorasDiurnasMin),
+              horasNoturnas: fmtHHMM(totalHorasNoturnasMin),
+              horasTotais: formatMinutos(totalHorasMin),
+              heDiurnas: fmtHHMM(totalHeDiurnasMin),
+              heNoturnas: fmtHHMM(totalHeNoturnasMin),
+              heTotais: formatMinutos(totalExtrasMin),
+              horasTrabalhadas: formatMinutos(totalHorasMin),
+              atraso: formatMinutos(totalAtrasosMin),
+            },
+          summaries: {
+              highlights: [
+                { label: "Total atrasos", value: formatMinutos(totalAtrasosMin) },
+                { label: "Total horas noturnas", value: fmtHHMM(totalHorasNoturnasMin) },
+                { label: "Total escala", value: formatMinutos(totalHorasMin) },
+                { label: "Horas extras acumuladas", value: formatMinutos(totalExtrasMin) },
+                { label: "Banco de horas", value: fmtHHMM(rows.reduce((acc, row) => acc + row.horas_extras_min - row.atraso_min, 0)) },
+              ],
+            horasPorEscala: Object.entries(horasPorEscala).map(([label, total]) => ({ label, value: formatMinutos(total) })),
+            horasPorDiaSemana: Object.entries(horasPorDiaSemana).map(([label, total]) => ({ label, value: formatMinutos(total) })),
+            ocorrencias: Object.entries(ocorrencias).map(([label, total]) => ({ label, value: String(total) })),
+          },
+            signatures: {
+              employee: employee.funcionario_nome,
+              company: employee.empresa_nome || "LYTOTEC",
+            },
+            legend:
+              "Legenda: (M) Marcação (A) Ajuste Manual (AB) Abono Parcial (AT) Atestado Parcial (HE) Horas extras (BH) Banco de horas (JH) Jornada híbrida",
+        };
+      });
+
+      await gerarPdfPontoEletronico(reports);
+      toast.success("Relatório gerado com sucesso.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao exportar o relatório.");
+    }
+  };
+
   return (
-    <div className="container mx-auto p-4 space-y-6">
-      <div className="flex items-center gap-3">
-        <ClipboardList className="h-7 w-7 text-primary" />
-        <div>
-          <h1 className="text-2xl font-bold">Gestão de Ponto</h1>
-          <p className="text-sm text-muted-foreground">
-            Auditoria completa de jornada de trabalho
-          </p>
+    <MainLayout>
+      <div className="space-y-6">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-1">
+            <p className="text-sm text-muted-foreground">
+              Auditoria completa de jornada, inconsistências e exportação corporativa.
+            </p>
+          </div>
+          <Button onClick={exportarPdf} disabled={!jornadas?.length || isLoading} className="gap-2">
+            <Download className="h-4 w-4" />
+            Exportar PDF
+          </Button>
         </div>
-      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Filter className="h-4 w-4" /> Filtros
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="text-sm font-medium mb-1 block">Funcionário</label>
-            <Combobox
-              options={[
-                { value: "", label: "Todos" },
-                ...((funcionarios || []).map((f: any) => ({
-                  value: f.id,
-                  label: `${f.nome_completo}${f.matricula ? ` (${f.matricula})` : ""}`,
-                }))),
-              ]}
-              value={funcionarioId}
-              onChange={setFuncionarioId}
-              placeholder="Selecione"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium mb-1 block">Centros de Custo</label>
-            <MultiCombobox
-              options={(centrosCusto || []).map((c) => ({
-                value: c.id,
-                label: c.nome_centro_custo,
-              }))}
-              value={ccIds}
-              onChange={setCcIds}
-              placeholder="Todos"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium mb-1 block">Período</label>
-            <DatePickerWithRange value={dateRange} onChange={setDateRange} />
-          </div>
-          <div className="flex items-end gap-2">
-            <Button onClick={aplicarFiltros} className="flex-1">Aplicar</Button>
-            <Button variant="outline" onClick={limparFiltros}>
-              <RotateCcw className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Filter className="h-4 w-4" />
+              Filtros
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+              <div className="space-y-1.5">
+                <Label>Funcionário</Label>
+                <Combobox
+                  options={funcionarioOptions}
+                  value={funcionarioId}
+                  onChange={setFuncionarioId}
+                  placeholder="Todos"
+                  searchPlaceholder="Buscar funcionário..."
+                  emptyText="Nenhum funcionário encontrado"
+                />
+              </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            Jornadas {jornadas ? `(${jornadas.length})` : ""}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Data</TableHead>
-                <TableHead>Funcionário</TableHead>
-                <TableHead>Entrada</TableHead>
-                <TableHead>Início Int.</TableHead>
-                <TableHead>Fim Int.</TableHead>
-                <TableHead>Saída</TableHead>
-                <TableHead>Hrs Trab.</TableHead>
-                <TableHead>Hrs Extras</TableHead>
-                <TableHead>Atrasos</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading && (
-                <TableRow><TableCell colSpan={10} className="text-center py-8">Carregando...</TableCell></TableRow>
-              )}
-              {!isLoading && (jornadas || []).length === 0 && (
-                <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
-                  Nenhuma jornada encontrada para os filtros selecionados
-                </TableCell></TableRow>
-              )}
-              {(jornadas || []).map((j) => {
-                const inconsistente = j.tipo_calculo === "inconsistente" || j.tipo_calculo === "incompleto";
-                return (
-                  <TableRow
-                    key={`${j.funcionarioId}-${j.dataOperacional}`}
-                    className={`cursor-pointer hover:bg-muted/50 ${inconsistente ? "bg-amber-50 dark:bg-amber-950/20" : ""}`}
-                    onClick={() => setDetalhe(j)}
-                  >
-                    <TableCell className="font-mono">{formatData(j.dataOperacional)}</TableCell>
-                    <TableCell>
-                      <div className="font-medium">{j.funcionario_nome}</div>
-                      {j.centro_custo_nome && (
-                        <div className="text-xs text-muted-foreground">{j.centro_custo_nome}</div>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-mono">{j.entrada ?? "—"}</TableCell>
-                    <TableCell className="font-mono">{j.intervalo_inicio ?? "—"}</TableCell>
-                    <TableCell className="font-mono">{j.intervalo_fim ?? "—"}</TableCell>
-                    <TableCell className="font-mono">{j.saida ?? "—"}</TableCell>
-                    <TableCell className="font-mono font-semibold">{formatMinutos(j.tempo_liquido_min)}</TableCell>
-                    <TableCell className="font-mono text-green-700 dark:text-green-400">{formatMinutos(j.horas_extras_min)}</TableCell>
-                    <TableCell className="font-mono text-destructive">{formatMinutos(j.atraso_min)}</TableCell>
-                    <TableCell>
-                      {j.tipo_calculo === "real" && <Badge className="bg-green-600">OK</Badge>}
-                      {j.tipo_calculo === "automatico" && <Badge variant="secondary">Auto</Badge>}
-                      {j.tipo_calculo === "sem_intervalo" && <Badge variant="outline">S/ Int.</Badge>}
-                      {j.tipo_calculo === "incompleto" && <Badge variant="destructive">Incompleto</Badge>}
-                      {j.tipo_calculo === "inconsistente" && <Badge variant="destructive">Inconsist.</Badge>}
+              <div className="space-y-1.5 md:col-span-2">
+                <Label>Centro de Custo</Label>
+                <MultiCombobox
+                  options={centroCustoOptions}
+                  value={ccIds}
+                  onChange={setCcIds}
+                  placeholder="Todos"
+                  searchPlaceholder="Buscar centro de custo..."
+                  emptyText="Nenhum centro de custo encontrado"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Período</Label>
+                <DatePickerWithRange value={dateRange} onChange={setDateRange} />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button onClick={aplicarFiltros} className="gap-2">
+                <FileText className="h-4 w-4" />
+                Aplicar filtros
+              </Button>
+              <Button variant="outline" onClick={limparFiltros} className="gap-2">
+                <RotateCcw className="h-4 w-4" />
+                Limpar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              Jornadas {jornadas ? `(${jornadas.length})` : ""}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Funcionário</TableHead>
+                  <TableHead className="text-center">Entrada</TableHead>
+                  <TableHead className="text-center">Início Int.</TableHead>
+                  <TableHead className="text-center">Fim Int.</TableHead>
+                  <TableHead className="text-center">Saída</TableHead>
+                  <TableHead className="text-center">Hrs Trab.</TableHead>
+                  <TableHead className="text-center">Hrs Extras</TableHead>
+                  <TableHead className="text-center">Atrasos</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading && (
+                  <TableRow>
+                    <TableCell colSpan={10} className="py-8 text-center">Carregando...</TableCell>
+                  </TableRow>
+                )}
+
+                {!isLoading && (jornadas || []).length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">
+                      Nenhuma jornada encontrada para os filtros selecionados
                     </TableCell>
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                )}
 
-      <ModalDetalheJornada
-        isOpen={!!detalhe}
-        onClose={() => setDetalhe(null)}
-        jornada={detalhe}
-        onChanged={() => refetch()}
-      />
-    </div>
+                {(jornadas || []).map((j) => {
+                  const inconsistente = j.tipo_calculo === "inconsistente" || j.tipo_calculo === "incompleto";
+                  const status = statusConfig[j.tipo_calculo];
+
+                  return (
+                    <TableRow
+                      key={`${j.funcionarioId}-${j.dataOperacional}`}
+                      className={`cursor-pointer hover:bg-muted/50 ${inconsistente ? "bg-amber-50/70 dark:bg-amber-950/20" : ""}`}
+                      onClick={() => setDetalhe(j)}
+                    >
+                      <TableCell className="font-mono text-xs">{formatData(j.dataOperacional)}</TableCell>
+                      <TableCell>
+                        <div className="font-medium leading-tight">{j.funcionario_nome}</div>
+                        <div className="text-xs text-muted-foreground leading-tight">
+                          {[j.centro_custo_codigo, j.centro_custo_nome].filter(Boolean).join(" - ") || "Sem centro de custo"}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center font-mono">{j.entrada ?? "—"}</TableCell>
+                      <TableCell className="text-center font-mono">{j.intervalo_inicio ?? "—"}</TableCell>
+                      <TableCell className="text-center font-mono">{j.intervalo_fim ?? "—"}</TableCell>
+                      <TableCell className="text-center font-mono">{j.saida ?? "—"}</TableCell>
+                      <TableCell className="text-center font-mono font-semibold">{formatMinutos(j.tempo_liquido_min)}</TableCell>
+                      <TableCell className="text-center font-mono text-primary">{formatMinutos(j.horas_extras_min)}</TableCell>
+                      <TableCell className="text-center font-mono text-destructive">{formatMinutos(j.atraso_min)}</TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant={status.variant} className={status.className}>{status.label}</Badge>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <ModalDetalheJornada
+          isOpen={!!detalhe}
+          onClose={() => setDetalhe(null)}
+          jornada={detalhe}
+          onChanged={() => refetch()}
+        />
+      </div>
+    </MainLayout>
   );
 };
 

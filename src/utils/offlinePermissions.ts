@@ -10,9 +10,6 @@ export const PERMISSIONS_MAP: Record<TipoApontamento, string[]> = {
   ordens_servico: ['ordens_servico_view', 'ordens_servico_create']
 };
 
-// Lista de super admins por email (fallback para modo offline)
-const SUPER_ADMIN_EMAILS = ['julianohcampos@yahoo.com.br', 'ramonvalentevalente@gmail.com'];
-
 export interface UserOfflineContext {
   userId: string | null;
   email: string | null;
@@ -78,12 +75,6 @@ export const canAccessOfflineModule = (tipo: TipoApontamento): boolean => {
   // SuperAdmin sempre pode acessar tudo
   if (context.isSuperAdmin) {
     console.log('✅ SuperAdmin: acesso total offline');
-    return true;
-  }
-  
-  // Verificar por email se é SuperAdmin (fallback)
-  if (context.email && SUPER_ADMIN_EMAILS.includes(context.email.toLowerCase())) {
-    console.log('✅ SuperAdmin por email: acesso total offline');
     return true;
   }
   

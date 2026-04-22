@@ -5,6 +5,19 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Mail, User, Calendar, Building } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
+const SAFE_PROFILE_SELECT = 'id, email, nome_completo, imagem_url, funcionario_id, funcao_sistema, acesso_global';
+const SAFE_FUNCIONARIO_SELECT = `
+  id,
+  nome_completo,
+  email,
+  imagem,
+  data_admissao,
+  empresa:bd_empresas(id, nome_empresa),
+  departamento:bd_departamentos(id, nome_departamento),
+  funcao:bd_funcoes(id, nome_funcao),
+  centro_custo:bd_centros_custo(id, nome_centro_custo)
+`;
+
 interface UserProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -31,8 +44,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
       try {
         // First try to get the profiles entry
         const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
+          .from('vw_profile_self_safe')
+          .select(SAFE_PROFILE_SELECT)
           .eq('id', user.id)
           .maybeSingle();
           
@@ -43,13 +56,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         if (user.email) {
           const { data: funcData, error: funcError } = await supabase
             .from('bd_funcionarios')
-            .select(`
-              *,
-              empresa:bd_empresas(id, nome_empresa),
-              departamento:bd_departamentos(id, nome_departamento),
-              funcao:bd_funcoes(id, nome_funcao),
-              centro_custo:bd_centros_custo(id, nome_centro_custo)
-            `)
+            .select(SAFE_FUNCIONARIO_SELECT)
             .eq('email', user.email)
             .maybeSingle();
             
@@ -59,13 +66,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             // Try a case-insensitive search
             const { data: insensitiveData, error: insensitiveError } = await supabase
               .from('bd_funcionarios')
-              .select(`
-                *,
-                empresa:bd_empresas(id, nome_empresa),
-                departamento:bd_departamentos(id, nome_departamento),
-                funcao:bd_funcoes(id, nome_funcao),
-                centro_custo:bd_centros_custo(id, nome_centro_custo)
-              `)
+              .select(SAFE_FUNCIONARIO_SELECT)
               .ilike('email', `%${user.email}%`)
               .maybeSingle();
               

@@ -10,6 +10,7 @@ import type {
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { isRelatorioItemConfirmado } from '@/services/diarias/relatorioMetrics';
 
 // =====================================================
 // RELATÓRIO DETALHADO (VIEW)
@@ -234,10 +235,10 @@ export async function getResumoDiarias(filters?: RelatorioFilters): Promise<Resu
 export async function getPresencaResumo(filters?: RelatorioFilters): Promise<PresencaResumo> {
   const relatorio = await getRelatorioFolha(filters);
   
-  const presentes = relatorio.filter(r => r.presenca_status === 'presente');
-  const ausentes = relatorio.filter(r => r.presenca_status === 'ausente');
-  const pendentes = relatorio.filter(r => r.presenca_status === 'pendente');
-  const substituidos = relatorio.filter(r => r.presenca_status === 'substituido');
+  const presentes = relatorio.filter(isRelatorioItemConfirmado);
+  const ausentes = relatorio.filter(r => !isRelatorioItemConfirmado(r) && String(r.presenca_status) === 'false');
+  const pendentes = relatorio.filter(r => !isRelatorioItemConfirmado(r) && (r.presenca_status === null || r.presenca_status === undefined));
+  const substituidos = relatorio.filter(r => !isRelatorioItemConfirmado(r) && String(r.presenca_status).toLowerCase() === 'substituido');
 
   return {
     total: relatorio.length,

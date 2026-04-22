@@ -1,11 +1,10 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Building2, Globe, Users, Shield, Eye } from "lucide-react";
+import { Building2, Globe, Users, Eye } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { userHasAnyPermission } from "@/utils/hybridPermissions";
 import { useProfileSecurity } from "@/hooks/useProfileSecurity";
+import { fetchManageablePermissionProfiles } from "@/services/rbac/permissionAdminSecure";
 
 const DepartamentoStatusCard: React.FC = () => {
   // Contexto de segurança do usuário logado
@@ -22,34 +21,7 @@ const DepartamentoStatusCard: React.FC = () => {
   } = useQuery({
     queryKey: ['departamento-status-summary'],
     queryFn: async () => {
-      // Buscar todos os profiles com suas funções e departamentos
-      const {
-        data: profiles,
-        error
-      } = await supabase.from('profiles').select(`
-          id,
-          nome_completo,
-          funcao_sistema,
-          funcoes,
-          funcionario_id,
-          acesso_global,
-          bd_funcionarios(
-            id,
-            nome_completo,
-            departamento_id,
-            bd_departamentos(
-              id,
-              nome_departamento
-            )
-          )
-        `).order('nome_completo');
-      if (error) {
-        console.error('❌ Erro ao buscar status departamental:', error);
-        throw error;
-      }
-
-      // Filtrar apenas usuários que têm permissões administrativas REAIS
-      const adminProfiles = (profiles || []).filter(profile => userHasAnyPermission(profile));
+      const adminProfiles = await fetchManageablePermissionProfiles();
 
       // Processar dados
       const acessoGlobal: Array<{
@@ -58,7 +30,7 @@ const DepartamentoStatusCard: React.FC = () => {
       }> = [];
       const porDepartamento: Record<string, string[]> = {};
       adminProfiles.forEach(profile => {
-        const departamento = profile.bd_funcionarios?.bd_departamentos?.nome_departamento;
+        const departamento = profile.departamento_nome;
         const nomeUsuario = profile.nome_completo || profile.id;
 
         // Se tem acesso_global=true, vai para lista de acesso global

@@ -4,6 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from '@/hooks/use-toast';
 
+const SAFE_PROFILE_SELECT = 'id, email, nome_completo, imagem_url, funcionario_id, funcao_sistema, acesso_global';
+
 export const useUserProfile = () => {
   const [user, setUser] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -23,8 +25,8 @@ export const useUserProfile = () => {
         
         // Buscar perfil do usuário com fallback robusto
         const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('*')
+          .from('vw_profile_self_safe')
+          .select(SAFE_PROFILE_SELECT)
           .eq('id', userId)
           .single();
 

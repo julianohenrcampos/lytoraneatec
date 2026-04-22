@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Calendar,
   Building2,
@@ -45,7 +46,11 @@ import {
   Pencil,
   Save,
   X,
-  Moon
+  Moon,
+  Send,
+  RefreshCcw,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -66,7 +71,8 @@ import {
   type TurnoDiaria,
   type InicioFormData,
   type FinalizacaoFormData,
-  type CorrecaoFormData
+  type CorrecaoFormData,
+  type ResultadoInsercaoIdempotente
 } from "@/services/diarias/presencasService";
 import {
   adicionarFuncionarioConvocado,
@@ -78,6 +84,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { generateListaPresencaPDF } from "@/services/pdfService";
 import type { ListaPresencaItem } from "@/components/diarias/pdf/ListaPresencaPDF";
+import {
+  resolverRegraOperacional,
+  type CalendarioOperacionalResolvido,
+} from "@/services/diarias/calendarioOperacionalService";
+import { solicitarInclusaoFuncionario, listarInclusoesPendentes } from "@/services/diarias/inclusaoFuncionarioService";
 
 interface ApontamentoDiariasModalProps {
   isOpen: boolean;
@@ -97,6 +108,30 @@ interface ColaboradorPresenca extends PresencaFormData {
   valor_diaria_normal: number; // Valor diária normal (seg-sáb)
   valor_diaria_exclusiva_valor: number; // Valor diária exclusiva (dom/feriado)
   turno: TurnoDiaria; // Turno: diurno ou noturno
+  statusExcecao?: 'pendente_aprovacao' | null;
+  remessaLiberada?: boolean;
+  diariaExclusivaOperacional?: boolean;
+  observacaoOperacional?: string | null;
+  tipoDiaOperacional?: string | null;
+  pendenciaInclusaoId?: string;
+}
+
+interface FuncionarioBuscaItem {
+  id: string;
+  nome_completo: string;
+  cpf?: string | null;
+  matricula?: string | null;
+  funcao_id?: string | null;
+  funcao_nome?: string | null;
+  valor_diaria?: number | null;
+  valor_refeicao?: number | null;
+  bd_funcoes?: {
+    id: string;
+    nome_funcao?: string | null;
+    valor_diaria?: number | null;
+    valor_diaria_exclusiva?: number | null;
+    valor_refeicao?: number | null;
+  } | null;
 }
 
 type FaseApontamento = 'inicio' | 'finalizacao' | 'concluido';
@@ -129,6 +164,43 @@ function calcularValorDiaria(valorOriginal: number, tipo: TipoDiaria): number {
     case 'meia': return valorOriginal * 0.5;
     case 'nenhuma': return 0;
   }
+}
+
+function montarMensagemInsercao(
+  resultado: ResultadoInsercaoIdempotente,
+  labels?: {
+    singularInserido?: string;
+    pluralInserido?: string;
+    nenhumInserido?: string;
+    singularIgnorado?: string;
+    pluralIgnorado?: string;
+  }
+): string {
+  const {
+    singularInserido = 'funcionário adicionado com sucesso',
+    pluralInserido = 'funcionários adicionados com sucesso',
+    nenhumInserido = 'Nenhum novo funcionário foi adicionado',
+    singularIgnorado = 'já estava apontado e foi ignorado',
+    pluralIgnorado = 'já estavam apontados e foram ignorados',
+  } = labels ?? {};
+
+  const linhas: string[] = [];
+
+  if (resultado.inseridos > 0) {
+    linhas.push(
+      `${resultado.inseridos} ${resultado.inseridos === 1 ? singularInserido : pluralInserido}`
+    );
+  } else if (resultado.ignorados > 0) {
+    linhas.push(nenhumInserido);
+  }
+
+  if (resultado.ignorados > 0) {
+    linhas.push(
+      `${resultado.ignorados} ${resultado.ignorados === 1 ? singularIgnorado : pluralIgnorado}`
+    );
+  }
+
+  return linhas.join('\n');
 }
 
 function getBadgeJornada(tipo: TipoDiaria, horas: number) {
@@ -182,7 +254,14 @@ export default function ApontamentoDiariasModal({
   // Estado para adicionar funcionário avulso
   const [showAddFuncionario, setShowAddFuncionario] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [isAddingFuncionario, setIsAddingFuncionario] = useState(false);
+  const [selectedFuncionariosIds, setSelectedFuncionariosIds] = useState<Set<string>>(new Set());
+  const [searchPage, setSearchPage] = useState(0);
+  const [searchPageSize] = useState(20);
+  const [isAddingAllCentroCusto, setIsAddingAllCentroCusto] = useState(false);
+  const [isSendingApproval, setIsSendingApproval] = useState(false);
+  const [regrasOperacionaisPorData, setRegrasOperacionaisPorData] = useState<Record<string, CalendarioOperacionalResolvido>>({});
   
   // Estado para confirmação de adição com justificativa + férias
   const [addSelectedFunc, setAddSelectedFunc] = useState<any>(null);
@@ -231,6 +310,19 @@ export default function ApontamentoDiariasModal({
   // Extrair dados da solicitação
   const solicitacao = apontamento?.bd_diaria_solicitacoes;
   const centroCusto = solicitacao?.bd_centros_custo;
+  const diretoriaId = (centroCusto as any)?.diretoria_id ?? null;
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm.trim());
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    setSearchPage(0);
+  }, [debouncedSearchTerm]);
 
   // Buscar feriados para o período
   const { data: feriados = [] } = useQuery({
@@ -281,6 +373,50 @@ export default function ApontamentoDiariasModal({
     enabled: showAddFuncionario
   });
 
+  const { data: pendenciasInclusao = [] } = useQuery({
+    queryKey: ['inclusoes-pendentes-apontamento', solicitacao?.id],
+    queryFn: () => listarInclusoesPendentes(solicitacao?.id),
+    enabled: isOpen && !!solicitacao?.id,
+  });
+
+  const universoBusca = funcionariosAtivos as FuncionarioBuscaItem[];
+  const usarBuscaServerSide = universoBusca.length > 200;
+  const idsJaPresentes = useMemo(() => new Set(colaboradores.map(c => c.funcionario_id)), [colaboradores]);
+
+  const { data: buscaFuncionariosServer, isFetching: isSearchingFuncionarios } = useQuery({
+    queryKey: ['funcionarios-busca-server-diarias', debouncedSearchTerm, searchPage, searchPageSize, centroCusto?.id, showAddFuncionario],
+    enabled: showAddFuncionario && usarBuscaServerSide && debouncedSearchTerm.length > 0,
+    queryFn: async () => {
+      const term = debouncedSearchTerm;
+      const from = searchPage * searchPageSize;
+      const to = from + searchPageSize - 1;
+
+      let query = supabase
+        .from('bd_funcionarios')
+        .select('id, nome_completo, cpf, matricula, funcao_id, centro_custo_id, status, bd_funcoes(id, nome_funcao, valor_diaria, valor_diaria_exclusiva, valor_refeicao)', { count: 'exact' })
+        .in('status', ['Ativo', 'Ativo sem Registro'])
+        .order('nome_completo', { ascending: true })
+        .or(`nome_completo.ilike.%${term}%,cpf.ilike.%${term}%,matricula.ilike.%${term}%`)
+        .range(from, to);
+
+      if (centroCusto?.id) {
+        query = query.eq('centro_custo_id', centroCusto.id);
+      }
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+      return {
+        items: ((data || []) as any[]).map((item) => ({
+          ...item,
+          funcao_nome: item.bd_funcoes?.nome_funcao,
+          valor_diaria: item.bd_funcoes?.valor_diaria ?? 0,
+          valor_refeicao: item.bd_funcoes?.valor_refeicao ?? 0,
+        })) as FuncionarioBuscaItem[],
+        total: count || 0,
+      };
+    },
+  });
+
   // Buscar funções para mapear (sempre ativo para cruzar valores atuais)
   const { data: funcoesCompletas = [] } = useQuery({
     queryKey: ['funcoes-completas'],
@@ -327,8 +463,13 @@ export default function ApontamentoDiariasModal({
 
   // Data selecionada info
   const dataSelecionadaInfo = useMemo(() => {
-    return datasDisponiveis.find(d => d.value === selectedDate) || null;
-  }, [datasDisponiveis, selectedDate]);
+    const info = datasDisponiveis.find(d => d.value === selectedDate) || null;
+    if (!info) return null;
+    return {
+      ...info,
+      regraOperacional: regrasOperacionaisPorData[selectedDate] || null,
+    };
+  }, [datasDisponiveis, selectedDate, regrasOperacionaisPorData]);
 
   // Parsear convocados_pre
   const convocadosPre = useMemo((): FuncionarioPreConvocado[] => {
@@ -338,8 +479,106 @@ export default function ApontamentoDiariasModal({
     }
     return [];
   }, [solicitacao?.convocados_pre]);
+  const idsJaConvocados = useMemo(() => new Set(convocadosPre.map(c => c.funcionario_id)), [convocadosPre]);
 
   const [isPrinting, setIsPrinting] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || datasDisponiveis.length === 0) return;
+
+    let cancelled = false;
+    const carregarRegras = async () => {
+      const entries = await Promise.all(
+        datasDisponiveis
+          .filter((d) => !d.disabled)
+          .map(async (dataItem) => [
+            dataItem.value,
+            await resolverRegraOperacional({
+              data: dataItem.value,
+              centroCustoId: centroCusto?.id,
+              diretoriaId,
+            }),
+          ] as const)
+      );
+
+      if (cancelled) return;
+      setRegrasOperacionaisPorData(Object.fromEntries(entries));
+    };
+
+    carregarRegras();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, datasDisponiveis, centroCusto?.id, diretoriaId]);
+
+  const buildColaboradorFromFuncionario = useCallback((funcionario: FuncionarioBuscaItem, overrides?: Partial<ColaboradorPresenca>): ColaboradorPresenca => {
+    const funcao = funcoesCompletas.find(f => f.id === funcionario.funcao_id) as any;
+    const valorDiaria = funcao?.valor_diaria ?? funcionario.valor_diaria ?? 0;
+    const valorDiariaExclusiva = funcao?.valor_diaria_exclusiva ?? funcionario.bd_funcoes?.valor_diaria_exclusiva ?? valorDiaria;
+    const regra = regrasOperacionaisPorData[selectedDate];
+    const dateSel = parseBrazilianDate(selectedDate);
+    const usarExclusivaPorData = dateSel.getDay() === 0 || dateSel.getDay() === 6 || feriados.some(f => f.data === selectedDate);
+    const usarExclusiva = regra?.usaDiariaExclusiva || usarExclusivaPorData || !!overrides?.usarDiariaExclusiva;
+    const nomeFuncao = funcionario.funcao_nome || funcionario.bd_funcoes?.nome_funcao || 'Sem função';
+
+    return {
+      index: colaboradores.length,
+      funcionario_id: funcionario.id,
+      nome_funcionario: funcionario.nome_completo,
+      funcao_id: funcionario.funcao_id || '',
+      nome_funcao: nomeFuncao,
+      valor_diaria_original: usarExclusiva ? valorDiariaExclusiva : valorDiaria,
+      valor_diaria: usarExclusiva ? valorDiariaExclusiva : valorDiaria,
+      presente: false,
+      hora_entrada: '',
+      hora_saida: '',
+      tipo_diaria: 'completa',
+      recebe_refeicao: true,
+      valor_refeicao_aplicado: 0,
+      usarDiariaExclusiva: usarExclusiva,
+      valor_diaria_normal: valorDiaria,
+      valor_diaria_exclusiva_valor: valorDiariaExclusiva,
+      turno: 'diurno',
+      remessaLiberada: regra?.permiteRemessaMatriculados ?? false,
+      diariaExclusivaOperacional: regra?.usaDiariaExclusiva ?? false,
+      tipoDiaOperacional: regra?.tipoDiaOperacional ?? null,
+      observacaoOperacional: regra?.descricao ?? null,
+      ...overrides,
+    };
+  }, [funcoesCompletas, regrasOperacionaisPorData, selectedDate, feriados, colaboradores.length]);
+
+  const resultadosBusca = useMemo(() => {
+    if (!debouncedSearchTerm) return [] as FuncionarioBuscaItem[];
+
+    const filtrarElegiveis = (items: FuncionarioBuscaItem[]) => items.filter((func) => {
+      const jaEstaNaTela = idsJaPresentes.has(func.id);
+      const jaConvocado = idsJaConvocados.has(func.id);
+      return !jaEstaNaTela && !jaConvocado;
+    });
+
+    if (usarBuscaServerSide) {
+      return filtrarElegiveis(buscaFuncionariosServer?.items || []);
+    }
+
+    const term = debouncedSearchTerm.toLowerCase();
+    return filtrarElegiveis(universoBusca)
+      .filter((func) =>
+        func.nome_completo?.toLowerCase().includes(term) ||
+        func.cpf?.includes(term) ||
+        func.matricula?.toLowerCase().includes(term)
+      )
+      .sort((a, b) => a.nome_completo.localeCompare(b.nome_completo, 'pt-BR'))
+      .slice(0, searchPageSize);
+  }, [debouncedSearchTerm, idsJaConvocados, idsJaPresentes, usarBuscaServerSide, buscaFuncionariosServer, universoBusca, searchPageSize]);
+
+  const totalResultadosBusca = usarBuscaServerSide
+    ? (buscaFuncionariosServer?.total || 0)
+    : resultadosBusca.length;
+
+  const pendentesLocais = useMemo(
+    () => colaboradores.filter((col) => col.statusExcecao === 'pendente_aprovacao' && !col.pendenciaInclusaoId),
+    [colaboradores]
+  );
 
   // Normalizar nome para comparação (sem acento, lowercase, espaços únicos)
   const normalizeName = (name: string): string => {
@@ -1135,7 +1374,7 @@ export default function ApontamentoDiariasModal({
         valor_refeicao_aplicado: (col.recebe_refeicao ?? true) ? (funcoesMap[col.funcao_id] || 0) : 0,
       }));
 
-      await salvarInicio(solicitacao.id, selectedDate, registros);
+      const resultado = await salvarInicio(solicitacao.id, selectedDate, registros);
       
       // Persistir motivo da edição quando edicaoLiberada
       if (edicaoLiberada && isSuperAdmin && observacaoCorrecao.trim() && apontamento?.id) {
@@ -1148,7 +1387,12 @@ export default function ApontamentoDiariasModal({
       setHasSaved(true);
       setFase('finalizacao');
       setHasExistingData(true);
-      toast.success('Início do apontamento salvo com sucesso!');
+      const mensagem = montarMensagemInsercao(resultado);
+      if (resultado.inseridos > 0) {
+        toast.success(mensagem);
+      } else {
+        toast.info(mensagem || 'Nenhum novo funcionário foi adicionado.');
+      }
       onSaveSuccess?.();
       onClose();
     } catch (error: any) {
@@ -1172,6 +1416,12 @@ export default function ApontamentoDiariasModal({
 
     setIsSaving(true);
     try {
+      let resultadoInsercao: ResultadoInsercaoIdempotente = {
+        totalSolicitado: 0,
+        inseridos: 0,
+        ignorados: 0,
+      };
+
       // INSERT para avulsos sem registro
       if (atrasadosSemId.length > 0) {
         const registros: InicioFormData[] = atrasadosSemId.map(col => ({
@@ -1183,7 +1433,7 @@ export default function ApontamentoDiariasModal({
           usar_diaria_exclusiva: col.usarDiariaExclusiva,
           turno: col.turno
         }));
-        await salvarInicioParcial(solicitacao.id, selectedDate, registros);
+        resultadoInsercao = await salvarInicioParcial(solicitacao.id, selectedDate, registros);
       }
 
       // UPDATE para quem era falta e agora é presente
@@ -1211,8 +1461,28 @@ export default function ApontamentoDiariasModal({
       // Limpar o set de conversões
       setFaltaConvertida(new Set());
 
-      const totalAtrasados = atrasadosSemId.length + atrasadosConvertidos.length;
-      toast.success(`Entrada de ${totalAtrasados} atrasado(s) registrada!`);
+      const linhasMensagem: string[] = [];
+      const mensagemInsercao = montarMensagemInsercao(resultadoInsercao, {
+        singularInserido: 'atrasado adicionado com sucesso',
+        pluralInserido: 'atrasados adicionados com sucesso',
+        nenhumInserido: 'Nenhum novo atrasado foi adicionado',
+        singularIgnorado: 'já estava apontado e foi ignorado',
+        pluralIgnorado: 'já estavam apontados e foram ignorados',
+      });
+
+      if (mensagemInsercao) linhasMensagem.push(mensagemInsercao);
+
+      if (atrasadosConvertidos.length > 0) {
+        linhasMensagem.push(
+          `${atrasadosConvertidos.length} ${atrasadosConvertidos.length === 1 ? 'registro foi atualizado com entrada' : 'registros foram atualizados com entrada'}`
+        );
+      }
+
+      if (resultadoInsercao.inseridos > 0 || atrasadosConvertidos.length > 0) {
+        toast.success(linhasMensagem.join('\n'));
+      } else {
+        toast.info(linhasMensagem.join('\n') || 'Nenhum novo atrasado foi adicionado.');
+      }
       onSaveSuccess?.();
     } catch (error: any) {
       console.error("Erro ao salvar início dos atrasados:", error);
@@ -1273,6 +1543,12 @@ export default function ApontamentoDiariasModal({
 
     setIsSaving(true);
     try {
+      let resultadoInsercao: ResultadoInsercaoIdempotente = {
+        totalSolicitado: 0,
+        inseridos: 0,
+        ignorados: 0,
+      };
+
       // Separar: com presencaId → UPDATE, sem presencaId → INSERT
       const comPresenca = colaboradores.filter(c => c.presencaId);
       const semPresenca = colaboradores.filter(c => c.presente && !c.presencaId);
@@ -1316,10 +1592,23 @@ export default function ApontamentoDiariasModal({
             funcao_id: col.funcao_id || undefined
           };
         });
-        await inserirPresencasCompletas(solicitacao.id, selectedDate, registrosInsert, observacaoCorrecao);
+        resultadoInsercao = await inserirPresencasCompletas(solicitacao.id, selectedDate, registrosInsert, observacaoCorrecao);
       }
 
-      toast.success('Correção salva com sucesso!');
+      const linhasMensagem: string[] = [];
+      const mensagemInsercao = montarMensagemInsercao(resultadoInsercao);
+      if (comPresenca.length > 0) {
+        linhasMensagem.push(
+          `${comPresenca.length} ${comPresenca.length === 1 ? 'registro foi atualizado' : 'registros foram atualizados'}`
+        );
+      }
+      if (mensagemInsercao) linhasMensagem.push(mensagemInsercao);
+
+      if (resultadoInsercao.inseridos > 0 || comPresenca.length > 0) {
+        toast.success(linhasMensagem.join('\n') || 'Correção salva com sucesso!');
+      } else {
+        toast.info(linhasMensagem.join('\n') || 'Nenhum novo funcionário foi adicionado.');
+      }
       setObservacaoCorrecao("");
       onSaveSuccess?.();
     } catch (error: any) {

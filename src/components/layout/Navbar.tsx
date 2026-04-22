@@ -11,6 +11,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
+const SAFE_PROFILE_SELECT = "id, email, nome_completo, imagem_url, funcionario_id, funcao_sistema, acesso_global";
+
 interface NavbarProps {
   toggleSidebar: () => void;
 }
@@ -34,8 +36,8 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
         if (user) {
           // Get user profile from profiles table
           const { data: profile, error } = await supabase
-            .from('profiles')
-            .select('*')
+            .from('vw_profile_self_safe')
+            .select(SAFE_PROFILE_SELECT)
             .eq('id', user.id)
             .single();
           

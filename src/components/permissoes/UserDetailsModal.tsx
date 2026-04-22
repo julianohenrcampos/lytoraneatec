@@ -27,6 +27,7 @@ import {
   removeUserOverride,
   type Acao,
 } from "@/services/rbac/actionPermissionsCRUD";
+import { removeUserRoleSecure, updateManagedProfileAccessScope } from "@/services/rbac/permissionAdminSecure";
 
 const ACOES: { key: Acao; label: string }[] = [
   { key: 'visualizar', label: 'Ver' },
@@ -151,6 +152,7 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
   if (!profile) return null;
 
   const currentFunctions = profile.funcoes || [];
+  const currentRoleNames = ((profile as any).role_names as string[] | undefined) || [];
   const hasPermissions = currentFunctions.length > 0 && 
     (currentFunctions.length > 1 || (currentFunctions.length === 1 && currentFunctions[0] !== 'user'));
   const deptDisplay = getDepartmentDisplay(profile);
@@ -191,11 +193,7 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
   const handleToggleAcessoGlobal = async (enabled: boolean) => {
     setIsTogglingAccess(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ acesso_global: enabled })
-        .eq('id', profile.id);
-      if (error) throw error;
+      await updateManagedProfileAccessScope(profile.id, enabled);
       toast({
         title: enabled ? "Acesso global ativado" : "Acesso departamental ativado",
         description: enabled 
@@ -219,13 +217,20 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
         toast({ title: "Erro de validação", description: validation.message, variant: "destructive" });
         return;
       }
-      const newFuncoes = currentFunctions.filter(f => f !== funcaoToRemove);
-      const finalFuncoes = cleanFunctionArray(newFuncoes);
-      const { error } = await supabase
-        .from('profiles')
-        .update({ funcoes: finalFuncoes })
-        .eq('id', profile.id);
-      if (error) throw error;
+      const roleIndex = currentRoleNames.findIndex(role => role === funcaoToRemove);
+      const roleId = roleIndex >= 0 ? (roleActions as any[])?.find(action => action?.bd_roles?.nome === funcaoToRemove)?.role_id : undefined;
+
+      if (!roleId) {
+        const { data: roleData, error: roleError } = await supabase
+          .from('bd_roles')
+          .select('id')
+          .eq('nome', funcaoToRemove)
+          .maybeSingle();
+        if (roleError || !roleData?.id) throw roleError || new Error('Função não encontrada');
+        await removeUserRoleSecure(profile.id, roleData.id);
+      } else {
+        await removeUserRoleSecure(profile.id, roleId);
+      }
       toast({ title: "Função removida com sucesso", description: `A função "${funcaoToRemove}" foi removida do usuário.` });
       queryClient.invalidateQueries({ queryKey: ['all-profiles-corrected'] });
       queryClient.invalidateQueries({ queryKey: ['profiles'] });
@@ -336,8 +341,7 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
                 <div className="space-y-3">
                   <h4 className="font-medium">Funções Atribuídas</h4>
                   <div className="space-y-2">
-                    {currentFunctions
-                      .filter(funcao => funcao !== 'user')
+                    {currentRoleNames.length > 0 ? currentRoleNames : currentFunctions.filter(funcao => funcao !== 'user')
                       .map((funcao, index) => (
                         <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-lg">
                           <Badge variant="outline" className="font-medium">

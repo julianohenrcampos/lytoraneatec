@@ -1,6 +1,8 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
+const SAFE_PROFILE_SELECT = "id, email, nome_completo, imagem_url, funcionario_id, funcao_sistema, acesso_global";
+
 interface AuthResult {
   success: boolean;
   error?: {
@@ -32,8 +34,8 @@ export const getCurrentUser = async () => {
     
     // Buscar perfil do usuário
     const { data: profileData, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
+      .from('vw_profile_self_safe')
+      .select(SAFE_PROFILE_SELECT)
       .eq('id', userId)
       .single();
       

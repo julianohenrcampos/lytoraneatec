@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissionCacheInvalidation } from "@/hooks/usePermissionCacheInvalidation";
-import { safeProfilesQuery } from "@/hooks/useSimpleTypeWorkaround";
 import { userHasAnyPermission } from "@/utils/hybridPermissions";
 import { useProfileSecurity } from "@/hooks/useProfileSecurity";
 import { ProfileType } from "@/types/permissao";
@@ -28,6 +27,7 @@ import {
   assignUserRole,
   getRoleByName,
 } from "@/services/rbac/userRolesCRUD";
+import { fetchManageablePermissionProfiles } from "@/services/rbac/permissionAdminSecure";
 import { supabase } from "@/integrations/supabase/client";
 
 export const usePermissao = () => {
@@ -109,11 +109,7 @@ export const usePermissao = () => {
     error: profilesError
   } = useQuery({
     queryKey: ['all-profiles-corrected'],
-    queryFn: async () => {
-      const { data: users, error } = await safeProfilesQuery(supabase);
-      if (error) throw error;
-      return users as ProfileType[] || [];
-    },
+    queryFn: fetchManageablePermissionProfiles,
     staleTime: 30000,
     refetchOnMount: true,
     refetchOnWindowFocus: false,
@@ -127,10 +123,7 @@ export const usePermissao = () => {
     let filteredData = [...allProfiles];
     
     if (shouldFilterByDepartment && departamentoId) {
-      filteredData = filteredData.filter(profile => {
-        const profileDeptId = profile.bd_funcionarios?.departamento_id;
-        return profileDeptId === departamentoId;
-      });
+      filteredData = filteredData.filter(profile => profile.departamento_id === departamentoId);
     }
     
     if (profileFilter.nome && profileFilter.nome.trim() !== '') {
@@ -255,14 +248,8 @@ export const usePermissao = () => {
         throw new Error(`Role "${funcaoString}" não encontrada em bd_roles`);
       }
       
-      // Assign via bd_user_roles
+      // Assign via secure RPC / bd_user_roles
       await assignUserRole(profileId, roleId);
-      
-      // Also update profiles.funcoes for backward compatibility during transition
-      await supabase
-        .from('profiles')
-        .update({ funcoes: [funcaoString] })
-        .eq('id', profileId);
       
       console.log('✅ [RBAC] Role atribuída com sucesso');
       return { profileId, funcaoString };

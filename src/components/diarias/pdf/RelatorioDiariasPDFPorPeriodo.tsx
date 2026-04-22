@@ -4,6 +4,7 @@ import { diariaStyles as styles } from './DiariaReportStyles';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { RelatorioFolhaItem, RelatorioFilters } from '@/types/diarias';
+import { isRelatorioItemConfirmado, isRelatorioItemRemessa } from '@/services/diarias/relatorioMetrics';
 
 
 // =====================================================
@@ -113,7 +114,7 @@ function consolidarFuncionarios(
   const funcionariosMap = new Map<string, FuncionarioConsolidado>();
 
   relatorio.forEach(item => {
-    if (String(item.presenca_status) !== 'true' || !item.hora_entrada || !item.hora_saida) return;
+    if (!isRelatorioItemConfirmado(item)) return;
 
     const existing = funcionariosMap.get(item.funcionario_id);
     const data = new Date(item.data + 'T12:00:00');
@@ -175,7 +176,7 @@ function calcularTotaisDias(
   let diasUteis = 0, diasFds = 0, diasFeriados = 0;
 
   relatorio.forEach(item => {
-    if (String(item.presenca_status) !== 'true' || !item.hora_entrada || !item.hora_saida) return;
+    if (!isRelatorioItemConfirmado(item)) return;
     if (!datasUnicas.has(item.data)) {
       datasUnicas.add(item.data);
       const data = new Date(item.data + 'T12:00:00');
@@ -214,7 +215,7 @@ function agruparEmBlocos(
     const gerenteNome = gerenteId !== 'sem-gerente' ? (gerentesMap[gerenteId] || 'Gerente não informado') : 'Gerente não informado';
     const diretoriaId = ccInfo?.diretoria_id;
     const diretorNome = diretoriaId ? (diretoresMap[diretoriaId] || '') : '';
-    const hasMatricula = !!item.matricula_funcionario && item.matricula_funcionario !== '---' && String(item.matricula_funcionario).trim() !== '';
+    const hasMatricula = isRelatorioItemRemessa(item);
     const tipoVinculo = hasMatricula ? 'remessa' : 'diarista';
     const tipoVinculoLabel = hasMatricula ? 'REMESSA' : 'SEM REMESSA';
 

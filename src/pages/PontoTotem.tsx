@@ -21,7 +21,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { loadFaceApiModels, faceapi } from "@/lib/faceapi/loader";
+import { loadFaceApiModels } from "@/lib/faceapi/loader";
+import { useBiometriaSegura } from "@/hooks/ponto/useBiometriaSegura";
+import { verificarCooldownBatida } from "@/lib/ponto/verificarCooldownBatida";
 
 type TipoBatida = "entrada" | "intervalo_inicio" | "intervalo_fim" | "saida";
 type Status =
@@ -72,14 +74,8 @@ const TIPOS: { value: TipoBatida; label: string }[] = [
 
 // Modo conservador (espelha backend)
 const TICK_MS = 500;
-const CONFIRM_FRAMES = 6;     // janela de frames recentes
-const MIN_FRAMES_OK = 4;      // dos últimos 6, pelo menos 4 com mesmo id válido
 const DIST_MAX_TOP1 = 0.50;   // distância euclidiana
 const MARGEM_MIN = 0.08;
-const FACE_SCORE_MIN = 0.7;
-const FACE_AREA_MIN = 0.18;   // 18% da largura do vídeo
-const FACE_AREA_MAX = 0.80;   // 80%
-const YAW_MAX_DEG = 20;
 
 const PontoTotem: React.FC = () => {
   const navigate = useNavigate();
@@ -132,10 +128,7 @@ const PontoTotem: React.FC = () => {
   const tickRef = useRef<number | null>(null);
   const resetTimerRef = useRef<number | null>(null);
   const inflightRef = useRef(false);
-  const ultimoIdRef = useRef<string | null>(null);
-  const repsRef = useRef(0);
-  // Buffer circular de frames recentes para consenso
-  const framesRef = useRef<Array<{ id: string; dist: number; margem: number; logId: string | null }>>([]);
+  const { validarRostoSeguro, resetBiometriaSegura } = useBiometriaSegura();
   const statusRef = useRef<Status>("carregando_modelos");
   useEffect(() => {
     statusRef.current = status;
@@ -258,12 +251,10 @@ const PontoTotem: React.FC = () => {
       window.clearTimeout(resetTimerRef.current);
       resetTimerRef.current = null;
     }
+    resetBiometriaSegura();
     setFuncionario(null);
     setTipoBatida("entrada");
     setConfiancaAtual(null);
-    ultimoIdRef.current = null;
-    repsRef.current = 0;
-    framesRef.current = [];
     setMatchDebug({
       top1_distancia: null,
       top2_distancia: null,
@@ -279,7 +270,7 @@ const PontoTotem: React.FC = () => {
     setLastReason(null);
     setTentativasSemMatch(0);
     setStatus("escaneando");
-  }, []);
+  }, [resetBiometriaSegura]);
 
   const capturarFotoBase64 = useCallback((): string | null => {
     const v = videoRef.current;
@@ -303,64 +294,23 @@ const PontoTotem: React.FC = () => {
       if (!v || v.videoWidth === 0 || v.videoHeight === 0) return;
       inflightRef.current = true;
       try {
-        const det = await faceapi
-          .detectSingleFace(
-            v,
-            new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 }),
-          )
-          .withFaceLandmarks()
-          .withFaceDescriptor();
-
-        if (!det || statusRef.current !== "escaneando") {
-          setQualidadeMsg(null);
-          return;
-        }
-        setUltimaDeteccaoEm(Date.now());
-
-        // ===== Filtros de qualidade (anti óculos/boné/ângulo) =====
-        const score = det.detection.score ?? 0;
-        if (score < FACE_SCORE_MIN) {
-          setQualidadeMsg("Aproxime-se e olhe direto para a câmera");
-          framesRef.current = [];
-          ultimoIdRef.current = null;
-          return;
-        }
-        const box = det.detection.box;
-        const ratioLargura = box.width / v.videoWidth;
-        if (ratioLargura < FACE_AREA_MIN) {
-          setQualidadeMsg("Aproxime-se da câmera");
-          framesRef.current = [];
-          return;
-        }
-        if (ratioLargura > FACE_AREA_MAX) {
-          setQualidadeMsg("Afaste-se um pouco da câmera");
-          framesRef.current = [];
-          return;
-        }
-        // Yaw aproximado via posição do nariz entre os olhos
-        try {
-          const lm = det.landmarks;
-          const olhoEsq = lm.getLeftEye();
-          const olhoDir = lm.getRightEye();
-          const nariz = lm.getNose();
-          const cxEsq = olhoEsq.reduce((a, p) => a + p.x, 0) / olhoEsq.length;
-          const cxDir = olhoDir.reduce((a, p) => a + p.x, 0) / olhoDir.length;
-          const cxNariz = nariz.reduce((a, p) => a + p.x, 0) / nariz.length;
-          const meioOlhos = (cxEsq + cxDir) / 2;
-          const larguraOlhos = Math.abs(cxDir - cxEsq) || 1;
-          const desvio = (cxNariz - meioOlhos) / larguraOlhos; // 0 = frontal
-          // ~0.35 corresponde a ~20° de yaw
-          if (Math.abs(desvio) > 0.35) {
-            setQualidadeMsg("Olhe direto para a câmera");
-            framesRef.current = [];
-            return;
+        const resultado = await validarRostoSeguro(v, "totem");
+        if (statusRef.current !== "escaneando") return;
+        if (!resultado.valido || !resultado.descriptor) {
+          setQualidadeMsg(resultado.motivo ?? null);
+          setConfiancaAtual(resultado.confidence ?? null);
+          if (resultado.motivo === "Nenhum rosto detectado") {
+            setQualidadeMsg(null);
+          } else if (resultado.motivo && resultado.motivo !== "Confirmando identidade...") {
+            setTentativasSemMatch((x) => x + 1);
           }
-        } catch {
-          /* ignora se landmarks falharem */
+          return;
         }
+
+        setUltimaDeteccaoEm(Date.now());
         setQualidadeMsg(null);
 
-        const descriptor = Array.from(det.descriptor);
+        const descriptor = Array.from(resultado.descriptor);
         setEdgeStatus("consultando");
         setEdgeErroMsg(null);
 
@@ -393,15 +343,12 @@ const PontoTotem: React.FC = () => {
             setEdgeErroMsg("Erro ao identificar funcionário");
           }
           setConfiancaAtual(null);
-          ultimoIdRef.current = null;
-          framesRef.current = [];
           return;
         }
         if (!data || data.error) {
           setEdgeStatus("erro");
           setEdgeErroMsg(data?.error ? `Erro: ${data.error}` : "Erro ao identificar funcionário");
           setConfiancaAtual(null);
-          framesRef.current = [];
           return;
         }
         setEdgeStatus("idle");
@@ -421,8 +368,6 @@ const PontoTotem: React.FC = () => {
         }));
 
         if (!data.found || data.decisao === "rejeitado") {
-          framesRef.current = [];
-          ultimoIdRef.current = null;
           setConfiancaAtual(null);
           setLastReason((data.reason as any) ?? "sem_candidato");
           setTentativasSemMatch((x) => x + 1);
@@ -433,42 +378,17 @@ const PontoTotem: React.FC = () => {
         const margem = Number(data.margem);
         // Pré-filtro adicional no front (defesa em profundidade)
         if (top1d > DIST_MAX_TOP1 || margem < MARGEM_MIN) {
-          framesRef.current = [];
-          ultimoIdRef.current = null;
           setConfiancaAtual(null);
           return;
         }
         // Score interno apenas para debug — não exibir na UI
         setConfiancaAtual(Number(data.top1_confidence ?? data.confianca ?? 0));
         setLastReason(null);
-
-        // Buffer circular de frames recentes
-        framesRef.current.push({
-          id: data.funcionario_id,
-          dist: top1d,
-          margem,
-          logId: data.log_id ?? null,
-        });
-        if (framesRef.current.length > CONFIRM_FRAMES) {
-          framesRef.current.shift();
-        }
-
-        const recentes = framesRef.current;
-        const idMaisFrequente = recentes.reduce<Record<string, number>>((acc, f) => {
-          acc[f.id] = (acc[f.id] || 0) + 1;
-          return acc;
-        }, {});
-        const [topId, topCount] = Object.entries(idMaisFrequente).sort((a, b) => b[1] - a[1])[0] || ["", 0];
-
-        setMatchDebug((prev) => ({ ...prev, frames_ok: topCount }));
-
-        if (topId === data.funcionario_id && topCount >= MIN_FRAMES_OK && recentes.length >= MIN_FRAMES_OK) {
-          // Promove para "reconhecido_provisorio" — exige confirmação humana
-          setFuncionario(data as FuncionarioReconhecido);
-          setStatus("reconhecido_provisorio");
-          setTentativasSemMatch(0);
-          resetTimerRef.current = window.setTimeout(reset, 20000);
-        }
+        setMatchDebug((prev) => ({ ...prev, frames_ok: resultado.framesConfirmados ?? prev.frames_ok }));
+        setFuncionario(data as FuncionarioReconhecido);
+        setStatus("reconhecido_provisorio");
+        setTentativasSemMatch(0);
+        resetTimerRef.current = window.setTimeout(reset, 20000);
       } catch (e) {
         console.error("[TOTEM][EXCEPTION]", e);
         setEdgeStatus("erro");
@@ -483,7 +403,7 @@ const PontoTotem: React.FC = () => {
       if (tickRef.current) window.clearInterval(tickRef.current);
       tickRef.current = null;
     };
-  }, [status, cameraReady, dispositivo, deviceSecret, reset]);
+  }, [status, cameraReady, dispositivo, deviceSecret, reset, validarRostoSeguro]);
 
   // Captura GPS com timeout de 4s e high accuracy
   const capturarGPS = useCallback((): Promise<{ latitude: number; longitude: number; precisao_gps_metros: number } | null> => {
@@ -540,6 +460,17 @@ const PontoTotem: React.FC = () => {
     if (!dispositivo || !deviceSecret || !funcionario) return;
     if (!cameraReady) {
       toast.error("Câmera necessária");
+      return;
+    }
+    const cooldown = await verificarCooldownBatida(funcionario.funcionario_id);
+    if (cooldown.bloqueado) {
+      const msg = cooldown.minutosRestantes > 1
+        ? `Aguarde ${cooldown.minutosRestantes} minutos antes de registrar novo ponto`
+        : "Aguarde antes de registrar novo ponto";
+      toast.error(msg);
+      setStatus("falha");
+      setEdgeErroMsg(msg);
+      resetTimerRef.current = window.setTimeout(reset, 3500);
       return;
     }
     const foto = capturarFotoBase64();
@@ -940,6 +871,9 @@ const PontoTotem: React.FC = () => {
                   {lastReason === "not_strong_enough" && "Aproxime o rosto / melhore iluminação"}
                   {lastReason === "sem_candidato" && "Procurando rosto..."}
                 </p>
+              )}
+              {status === "escaneando" && qualidadeMsg && (
+                <p className="text-sm mt-1 font-medium text-amber-300">{qualidadeMsg}</p>
               )}
               {status === "escaneando" && tentativasSemMatch >= 8 && edgeStatus === "idle" && (
                 <p className="text-rose-300 text-base font-semibold mt-2">
