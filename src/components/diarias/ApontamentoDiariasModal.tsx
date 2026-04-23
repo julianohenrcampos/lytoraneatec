@@ -77,7 +77,8 @@ import {
 import {
   adicionarFuncionarioConvocado,
   removerFuncionarioConvocado,
-  verificarFuncionarioEmOutraSolicitacao
+  verificarFuncionarioEmOutraSolicitacao,
+  updateSolicitacao
 } from "@/services/diarias/solicitacoesService";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -93,6 +94,7 @@ import {
 } from "@/services/diarias/calendarioOperacionalService";
 import { solicitarInclusaoFuncionario, listarInclusoesPendentes } from "@/services/diarias/inclusaoFuncionarioService";
 import { useAuth } from "@/hooks/useAuth";
+import type { RegrasOperacionaisSnapshot, RegraOperacionalSnapshotItem } from "@/types/diarias";
 
 interface ApontamentoDiariasModalProps {
   isOpen: boolean;
@@ -163,6 +165,13 @@ type ClassificacaoOperacional =
     };
 
 type FaseApontamento = 'inicio' | 'finalizacao' | 'concluido';
+type TipoDiaManual = 'normal' | 'feriado' | 'ponte';
+
+const TIPO_DIA_LABEL: Record<TipoDiaManual, string> = {
+  normal: 'Normal',
+  feriado: 'Feriado',
+  ponte: 'Ponte',
+};
 
 // Calcula horas trabalhadas e tipo de diária
 function calcularJornada(entrada: string | undefined, saida: string | undefined): { horas: number; tipo: TipoDiaria; excede12h: boolean } {
@@ -272,6 +281,7 @@ export default function ApontamentoDiariasModal({
   isSuperAdmin = false
 }: ApontamentoDiariasModalProps) {
   const [selectedDate, setSelectedDate] = useState<string>("");
+  const [hasValidatedDateStructure, setHasValidatedDateStructure] = useState(false);
   const [colaboradores, setColaboradores] = useState<ColaboradorPresenca[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [hasExistingData, setHasExistingData] = useState(false);
@@ -290,6 +300,7 @@ export default function ApontamentoDiariasModal({
   const [isAddingAllCentroCusto, setIsAddingAllCentroCusto] = useState(false);
   const [isSendingApproval, setIsSendingApproval] = useState(false);
   const [regrasOperacionaisPorData, setRegrasOperacionaisPorData] = useState<Record<string, CalendarioOperacionalResolvido>>({});
+  const [tiposDiaSaving, setTiposDiaSaving] = useState<Record<string, boolean>>({});
   const [regraPopoverData, setRegraPopoverData] = useState<string | null>(null);
   const [descricaoRegraOperacional, setDescricaoRegraOperacional] = useState("");
   const [regraExigeAprovacao, setRegraExigeAprovacao] = useState(false);
@@ -393,24 +404,37 @@ export default function ApontamentoDiariasModal({
   });
 
   // Buscar funcionários ativos para adicionar avulso
-  const { data: funcionariosAtivos = [] } = useQuery({
-    queryKey: ['funcionarios-ativos-diarias'],
+  const { data: funcionariosAtivos = [], isFetching: isSearchingFuncionarios } = useQuery({
+    queryKey: ['funcionarios-ativos-diarias', centroCusto?.id, userId, showAddFuncionario],
     queryFn: async () => {
+      if (!userId) return [];
+
       const PAGE_SIZE = 1000;
       let allData: any[] = [];
       let page = 0;
+
       while (true) {
         const from = page * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
-        const { data } = await supabase.rpc('get_funcionarios_para_diarias').range(from, to);
+        const { data, error } = await supabase
+          .rpc('get_funcionarios_para_diarias', {
+            p_centro_custo_id: centroCusto?.id ?? null,
+            p_user_id: userId,
+          })
+          .range(from, to);
+
+        if (error) throw error;
         if (!data || data.length === 0) break;
+
         allData = allData.concat(data);
+
         if (data.length < PAGE_SIZE) break;
         page++;
       }
-      return allData;
+
+      return allData as FuncionarioBuscaItem[];
     },
-    enabled: showAddFuncionario
+    enabled: showAddFuncionario && !!userId
   });
 
   const { data: pendenciasInclusao = [] } = useQuery({
@@ -420,7 +444,6 @@ export default function ApontamentoDiariasModal({
   });
 
   const universoBusca = funcionariosAtivos as FuncionarioBuscaItem[];
-  const usarBuscaServerSide = universoBusca.length > 200;
   const idsJaPresentes = useMemo(() => new Set(colaboradores.map(c => c.funcionario_id)), [colaboradores]);
   const termoBuscaNormalizado = debouncedSearchTerm.trim().toLowerCase();
   const buscaPorCentroCustoAtual = useMemo(() => {
@@ -429,48 +452,6 @@ export default function ApontamentoDiariasModal({
     const nome = centroCusto?.nome_centro_custo?.toLowerCase() || '';
     return termoBuscaNormalizado === codigo || nome.includes(termoBuscaNormalizado);
   }, [termoBuscaNormalizado, centroCusto?.codigo_centro_custo, centroCusto?.nome_centro_custo]);
-
-  const { data: buscaFuncionariosServer, isFetching: isSearchingFuncionarios } = useQuery({
-    queryKey: ['funcionarios-busca-server-diarias', debouncedSearchTerm, searchPage, searchPageSize, centroCusto?.id, showAddFuncionario],
-    enabled: showAddFuncionario && usarBuscaServerSide && debouncedSearchTerm.length > 0,
-    queryFn: async () => {
-      const term = debouncedSearchTerm;
-      const from = searchPage * searchPageSize;
-      const to = from + searchPageSize - 1;
-
-      let query = supabase
-        .from('bd_funcionarios')
-        .select('id, nome_completo, cpf, matricula, funcao_id, centro_custo_id, status, bd_funcoes(id, nome_funcao, valor_diaria, valor_diaria_exclusiva, valor_refeicao), bd_centros_custo(codigo_centro_custo, nome_centro_custo)', { count: 'exact' })
-        .in('status', ['Ativo', 'Ativo sem Registro'])
-        .order('nome_completo', { ascending: true })
-        .range(from, to);
-
-      if (centroCusto?.id) {
-        query = query.eq('centro_custo_id', centroCusto.id);
-      }
-
-      if (!buscaPorCentroCustoAtual) {
-        query = query.or(`nome_completo.ilike.%${term}%,cpf.ilike.%${term}%,matricula.ilike.%${term}%,bd_centros_custo.codigo_centro_custo.ilike.%${term}%,bd_centros_custo.nome_centro_custo.ilike.%${term}%`);
-      }
-
-      const { data, error, count } = await query;
-      if (error) throw error;
-      const items = ((data || []) as any[])
-        .map((item) => ({
-          ...item,
-          funcao_nome: item.bd_funcoes?.nome_funcao,
-          valor_diaria: item.bd_funcoes?.valor_diaria ?? 0,
-          valor_refeicao: item.bd_funcoes?.valor_refeicao ?? 0,
-          centro_custo_codigo: item.bd_centros_custo?.codigo_centro_custo ?? null,
-          centro_custo_nome: item.bd_centros_custo?.nome_centro_custo ?? null,
-        })) as FuncionarioBuscaItem[];
-
-      return {
-        items,
-        total: count || 0,
-      };
-    },
-  });
 
   // Buscar funções para mapear (sempre ativo para cruzar valores atuais)
   const { data: funcoesCompletas = [] } = useQuery({
@@ -526,6 +507,135 @@ export default function ApontamentoDiariasModal({
     };
   }, [datasDisponiveis, selectedDate, regrasOperacionaisPorData]);
 
+  const datasSelecionaveis = useMemo(
+    () => datasDisponiveis.filter((d) => !d.disabled),
+    [datasDisponiveis]
+  );
+
+  const possuiSnapshotEstruturado = useMemo(() => {
+    const snapshotDatas = (solicitacao as any)?.regras_operacionais_snapshot?.datas;
+    return !!snapshotDatas && typeof snapshotDatas === 'object' && Object.keys(snapshotDatas).length > 0;
+  }, [solicitacao]);
+
+  const possuiEstruturaDatas = datasSelecionaveis.length > 0 || possuiSnapshotEstruturado;
+  const datasEstruturadasCarregadas = !!solicitacao?.id && hasValidatedDateStructure;
+  const legacyMode = useMemo(
+    () => Boolean(isOpen && datasEstruturadasCarregadas && !possuiEstruturaDatas && !selectedDate),
+    [isOpen, datasEstruturadasCarregadas, possuiEstruturaDatas, selectedDate]
+  );
+  const legacyPresenceActionsDisabled = legacyMode;
+
+  const regraOperacionalFallback = useMemo<CalendarioOperacionalResolvido>(() => ({
+    encontrada: false,
+    disponivel: false,
+    regra: null,
+    permiteRemessaMatriculados: true,
+    usaDiariaExclusiva: false,
+    exigeAprovacaoAdicao: false,
+    tipoDiaOperacional: null,
+    descricao: 'Solicitação legada sem controle diário.',
+  }), []);
+
+  const snapshotOperacionalBase = useMemo<RegrasOperacionaisSnapshot>(() => {
+    const raw = (solicitacao as any)?.regras_operacionais_snapshot;
+    return {
+      datas: raw?.datas && typeof raw.datas === 'object' ? raw.datas : {},
+      observacao: raw?.observacao ?? '',
+      classificacao: 'feriado_ponte_operacional',
+    };
+  }, [solicitacao]);
+
+  const [regrasOperacionaisSnapshotLocal, setRegrasOperacionaisSnapshotLocal] = useState<RegrasOperacionaisSnapshot>(snapshotOperacionalBase);
+
+  useEffect(() => {
+    setRegrasOperacionaisSnapshotLocal(snapshotOperacionalBase);
+  }, [snapshotOperacionalBase]);
+
+  const getSnapshotTipoDia = useCallback((data: string): RegraOperacionalSnapshotItem | null => {
+    return regrasOperacionaisSnapshotLocal.datas?.[data] ?? null;
+  }, [regrasOperacionaisSnapshotLocal]);
+
+  const resolveTipoDiaManual = useCallback((data: string): TipoDiaManual | null => {
+    const item = getSnapshotTipoDia(data);
+    return item?.tipo_dia ?? null;
+  }, [getSnapshotTipoDia]);
+
+  const aplicarOverrideSolicitacaoNaRegra = useCallback((data: string, regraBase?: CalendarioOperacionalResolvido | null): CalendarioOperacionalResolvido => {
+    const snapshotItem = getSnapshotTipoDia(data);
+    const base = regraBase ?? regrasOperacionaisPorData[data] ?? {
+      encontrada: false,
+      disponivel: true,
+      regra: null,
+      permiteRemessaMatriculados: false,
+      usaDiariaExclusiva: false,
+      exigeAprovacaoAdicao: false,
+      tipoDiaOperacional: null,
+      descricao: null,
+    };
+
+    if (!snapshotItem?.ativa || !snapshotItem.tipo_dia) return base;
+
+    if (snapshotItem.tipo_dia === 'normal') {
+      return {
+        ...base,
+        encontrada: true,
+        tipoDiaOperacional: 'normal',
+        permiteRemessaMatriculados: false,
+        usaDiariaExclusiva: false,
+        exigeAprovacaoAdicao: false,
+        descricao: snapshotItem.descricao || 'Tipo do dia definido manualmente na solicitação: normal.',
+      };
+    }
+
+    if (snapshotItem.tipo_dia === 'feriado') {
+      return {
+        ...base,
+        encontrada: true,
+        tipoDiaOperacional: 'feriado_estrategico',
+        permiteRemessaMatriculados: true,
+        usaDiariaExclusiva: true,
+        exigeAprovacaoAdicao: false,
+        descricao: snapshotItem.descricao || 'Tipo do dia definido manualmente na solicitação: feriado.',
+      };
+    }
+
+    return {
+      ...base,
+      encontrada: true,
+      tipoDiaOperacional: 'operacional',
+      permiteRemessaMatriculados: false,
+      usaDiariaExclusiva: true,
+      exigeAprovacaoAdicao: false,
+      descricao: snapshotItem.descricao || 'Tipo do dia definido manualmente na solicitação: ponte.',
+    };
+  }, [getSnapshotTipoDia, regrasOperacionaisPorData]);
+
+  const getTipoDiaBadge = useCallback((data: string, info?: { isFeriado?: boolean; isWeekend?: boolean; nomeFeriado?: string | null }) => {
+    const manual = resolveTipoDiaManual(data);
+    if (manual) {
+      return {
+        label: TIPO_DIA_LABEL[manual],
+        variant: manual === 'normal' ? 'secondary' : manual === 'feriado' ? 'outline' : 'info',
+        descricao: manual === 'feriado'
+          ? 'Feriado manual salvo na solicitação'
+          : manual === 'ponte'
+            ? 'Ponte manual salva na solicitação'
+            : 'Normal manual salvo na solicitação',
+        manual: true,
+      } as const;
+    }
+
+    if (info?.isFeriado) {
+      return { label: info.nomeFeriado || 'Feriado', variant: 'outline', descricao: 'Feriado do calendário', manual: false } as const;
+    }
+
+    if (info?.isWeekend) {
+      return { label: 'FDS', variant: 'secondary', descricao: 'Final de semana', manual: false } as const;
+    }
+
+    return { label: 'Normal', variant: 'secondary', descricao: 'Dia normal', manual: false } as const;
+  }, [resolveTipoDiaManual]);
+
   // Parsear convocados_pre
   const convocadosPre = useMemo((): FuncionarioPreConvocado[] => {
     if (!solicitacao?.convocados_pre) return [];
@@ -557,22 +667,24 @@ export default function ApontamentoDiariasModal({
       );
 
       if (cancelled) return;
-      setRegrasOperacionaisPorData(Object.fromEntries(entries));
+      setRegrasOperacionaisPorData(
+        Object.fromEntries(entries.map(([data, regra]) => [data, aplicarOverrideSolicitacaoNaRegra(data, regra)]))
+      );
     };
 
     carregarRegras();
     return () => {
       cancelled = true;
     };
-  }, [isOpen, datasDisponiveis, centroCusto?.id, diretoriaId]);
+  }, [isOpen, datasDisponiveis, centroCusto?.id, diretoriaId, aplicarOverrideSolicitacaoNaRegra]);
 
   const buildColaboradorFromFuncionario = useCallback((funcionario: FuncionarioBuscaItem, overrides?: Partial<ColaboradorPresenca>): ColaboradorPresenca => {
     const funcao = funcoesCompletas.find(f => f.id === funcionario.funcao_id) as any;
     const valorDiaria = funcao?.valor_diaria ?? funcionario.valor_diaria ?? 0;
     const valorDiariaExclusiva = funcao?.valor_diaria_exclusiva ?? funcionario.bd_funcoes?.valor_diaria_exclusiva ?? valorDiaria;
-    const regra = regrasOperacionaisPorData[selectedDate];
-    const dateSel = parseBrazilianDate(selectedDate);
-    const usarExclusivaPorData = dateSel.getDay() === 0 || dateSel.getDay() === 6 || feriados.some(f => f.data === selectedDate);
+    const regra = selectedDate ? aplicarOverrideSolicitacaoNaRegra(selectedDate) : undefined;
+    const dateSel = selectedDate ? parseBrazilianDate(selectedDate) : null;
+    const usarExclusivaPorData = !!dateSel && (dateSel.getDay() === 0 || dateSel.getDay() === 6 || feriados.some(f => f.data === selectedDate));
     const usarExclusiva = regra?.usaDiariaExclusiva || usarExclusivaPorData || !!overrides?.usarDiariaExclusiva;
     const nomeFuncao = funcionario.funcao_nome || funcionario.bd_funcoes?.nome_funcao || 'Sem função';
 
@@ -600,7 +712,7 @@ export default function ApontamentoDiariasModal({
       observacaoOperacional: regra?.descricao ?? null,
       ...overrides,
     };
-  }, [funcoesCompletas, regrasOperacionaisPorData, selectedDate, feriados, colaboradores.length]);
+  }, [funcoesCompletas, aplicarOverrideSolicitacaoNaRegra, selectedDate, feriados, colaboradores.length]);
 
   const resultadosBusca = useMemo(() => {
     if (!debouncedSearchTerm) return [] as FuncionarioBuscaItem[];
@@ -610,10 +722,6 @@ export default function ApontamentoDiariasModal({
       const jaConvocado = idsJaConvocados.has(func.id);
       return !jaEstaNaTela && !jaConvocado;
     });
-
-    if (usarBuscaServerSide) {
-      return filtrarElegiveis(buscaFuncionariosServer?.items || []);
-    }
 
     const term = termoBuscaNormalizado;
     return filtrarElegiveis(universoBusca)
@@ -627,13 +735,17 @@ export default function ApontamentoDiariasModal({
           func.centro_custo_nome?.toLowerCase().includes(term)
         );
       })
-      .sort((a, b) => a.nome_completo.localeCompare(b.nome_completo, 'pt-BR'))
-      .slice(0, searchPageSize);
-  }, [debouncedSearchTerm, idsJaConvocados, idsJaPresentes, usarBuscaServerSide, buscaFuncionariosServer, universoBusca, searchPageSize, termoBuscaNormalizado, buscaPorCentroCustoAtual]);
+      .sort((a, b) => a.nome_completo.localeCompare(b.nome_completo, 'pt-BR'));
+  }, [debouncedSearchTerm, idsJaConvocados, idsJaPresentes, universoBusca, termoBuscaNormalizado, buscaPorCentroCustoAtual]);
 
-  const totalResultadosBusca = usarBuscaServerSide
-    ? (buscaFuncionariosServer?.total || 0)
-    : resultadosBusca.length;
+  const totalResultadosBusca = resultadosBusca.length;
+  const resultadosBuscaPaginados = useMemo(() => {
+    const from = searchPage * searchPageSize;
+    const to = from + searchPageSize;
+    return resultadosBusca.slice(from, to);
+  }, [resultadosBusca, searchPage, searchPageSize]);
+
+  const modalReady = legacyMode || (!!selectedDate && datasDisponiveis.length > 0);
 
   const pendentesLocais = useMemo(
     () => colaboradores.filter((col) => col.statusExcecao === 'pendente_aprovacao' && !col.pendenciaInclusaoId),
@@ -641,7 +753,7 @@ export default function ApontamentoDiariasModal({
   );
 
   const getPreviewOperacional = useCallback((funcionario: FuncionarioBuscaItem) => {
-    const regra = regrasOperacionaisPorData[selectedDate];
+    const regra = selectedDate ? aplicarOverrideSolicitacaoNaRegra(selectedDate) : regraOperacionalFallback;
     const temMatricula = !!funcionario.matricula;
     const exigeAprovacao = !!regra?.exigeAprovacaoAdicao;
     const remessaPermitida = !!regra?.permiteRemessaMatriculados;
@@ -653,7 +765,7 @@ export default function ApontamentoDiariasModal({
       excecaoOperacional,
       regra,
     };
-  }, [regrasOperacionaisPorData, selectedDate]);
+  }, [aplicarOverrideSolicitacaoNaRegra, selectedDate, regraOperacionalFallback]);
 
   const sincronizarRegraOperacionalData = useCallback(async (data: string) => {
     const resolvida = await resolverRegraOperacional({
@@ -664,11 +776,11 @@ export default function ApontamentoDiariasModal({
 
     setRegrasOperacionaisPorData((prev) => ({
       ...prev,
-      [data]: resolvida,
+      [data]: aplicarOverrideSolicitacaoNaRegra(data, resolvida),
     }));
 
-    return resolvida;
-  }, [centroCusto?.id, diretoriaId]);
+    return aplicarOverrideSolicitacaoNaRegra(data, resolvida);
+  }, [centroCusto?.id, diretoriaId, aplicarOverrideSolicitacaoNaRegra]);
 
   const abrirPopoverRegraOperacional = useCallback((data: string) => {
     const regraAtual = regrasOperacionaisPorData[data];
@@ -676,6 +788,71 @@ export default function ApontamentoDiariasModal({
     setDescricaoRegraOperacional(regraAtual?.descricao ?? '');
     setRegraExigeAprovacao(!!regraAtual?.exigeAprovacaoAdicao);
   }, [regrasOperacionaisPorData]);
+
+  const persistirTipoDiaSolicitacao = useCallback(async (data: string, tipoDia: TipoDiaManual) => {
+    if (!solicitacao?.id) return;
+
+    const snapshotAnterior = regrasOperacionaisSnapshotLocal;
+    const regraAnterior = regrasOperacionaisPorData[data];
+    const itemAnterior = snapshotAnterior.datas?.[data] ?? null;
+    const proximoItem: RegraOperacionalSnapshotItem = {
+      ativa: true,
+      descricao: `Tipo do dia definido manualmente: ${TIPO_DIA_LABEL[tipoDia]}`,
+      tipo: 'feriado_ponte_operacional',
+      tipo_dia: tipoDia,
+      exige_aprovacao_adicao: false,
+    };
+    const proximoSnapshot: RegrasOperacionaisSnapshot = {
+      ...snapshotAnterior,
+      datas: {
+        ...snapshotAnterior.datas,
+        [data]: proximoItem,
+      },
+    };
+    const regraOtimista = aplicarOverrideSolicitacaoNaRegra(data, regraAnterior);
+
+    setTiposDiaSaving((prev) => ({ ...prev, [data]: true }));
+    setRegrasOperacionaisSnapshotLocal(proximoSnapshot);
+    setRegrasOperacionaisPorData((prev) => ({
+      ...prev,
+      [data]: regraOtimista,
+    }));
+
+    try {
+      const solicitacaoAtualizada = await updateSolicitacao(solicitacao.id, {
+        regras_operacionais_por_data: proximoSnapshot,
+      });
+
+      const snapshotPersistido = (solicitacaoAtualizada.regras_operacionais_snapshot ?? proximoSnapshot) as RegrasOperacionaisSnapshot;
+      setRegrasOperacionaisSnapshotLocal(snapshotPersistido);
+      setRegrasOperacionaisPorData((prev) => ({
+        ...prev,
+        [data]: aplicarOverrideSolicitacaoNaRegra(data, prev[data]),
+      }));
+      queryClient.invalidateQueries({ queryKey: ['solicitacao-detalhes'] });
+      queryClient.invalidateQueries({ queryKey: ['diarias-solicitacoes'] });
+      toast.success(`Tipo do dia salvo: ${TIPO_DIA_LABEL[tipoDia]}.`);
+    } catch (error: any) {
+      const snapshotRevertido: RegrasOperacionaisSnapshot = {
+        ...snapshotAnterior,
+        datas: {
+          ...snapshotAnterior.datas,
+        },
+      };
+
+      if (itemAnterior) snapshotRevertido.datas[data] = itemAnterior;
+      else delete snapshotRevertido.datas[data];
+
+      setRegrasOperacionaisSnapshotLocal(snapshotRevertido);
+      setRegrasOperacionaisPorData((prev) => ({
+        ...prev,
+        [data]: regraAnterior ?? aplicarOverrideSolicitacaoNaRegra(data, null),
+      }));
+      toast.error(error?.message || 'Não foi possível salvar o tipo do dia. Alteração desfeita.');
+    } finally {
+      setTiposDiaSaving((prev) => ({ ...prev, [data]: false }));
+    }
+  }, [solicitacao?.id, regrasOperacionaisSnapshotLocal, regrasOperacionaisPorData, aplicarOverrideSolicitacaoNaRegra, queryClient]);
 
   const salvarOverrideOperacional = useCallback(async (data: string) => {
     const descricao = descricaoRegraOperacional.trim();
@@ -836,28 +1013,45 @@ export default function ApontamentoDiariasModal({
 
   // Inicializar colaboradores quando mudar a data ou abrir o modal
   useEffect(() => {
-    if (!isOpen || !selectedDate || convocadosPre.length === 0) return;
+    if (!isOpen || !solicitacao?.id) {
+      setHasValidatedDateStructure(false);
+      return;
+    }
+
+    setHasValidatedDateStructure(false);
+    const frame = window.requestAnimationFrame(() => {
+      setHasValidatedDateStructure(true);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [isOpen, solicitacao?.id, solicitacao?.data_inicio, solicitacao?.data_fim, possuiSnapshotEstruturado, datasSelecionaveis.length]);
+
+  useEffect(() => {
+    if (!isOpen || (!selectedDate && !legacyMode) || convocadosPre.length === 0) return;
 
     const initColaboradores = async () => {
       setIsLoadingExisting(true);
 
       try {
-        const existentes = await getPresencasPorSolicitacao(
-          solicitacao?.id || "",
-          selectedDate
-        );
+        const existentes = selectedDate
+          ? await getPresencasPorSolicitacao(
+              solicitacao?.id || "",
+              selectedDate
+            )
+          : [];
 
         if (existentes.length > 0) {
           setHasExistingData(true);
-          const mapped: ColaboradorPresenca[] = convocadosPre.map((conv, index) => {
+            const mapped: ColaboradorPresenca[] = convocadosPre.map((conv, index) => {
             const existente = existentes.find(
               (e) => e.funcionario_id === conv.funcionario_id
             );
-            const dateSel = parseBrazilianDate(selectedDate);
-            const isDomingo = dateSel.getDay() === 0;
-            const isSabado = dateSel.getDay() === 6;
-            const isFeriado = feriados.some(f => f.data === selectedDate);
-            const usarExclusiva = conv.usar_diaria_exclusiva === true || isDomingo || isSabado || isFeriado;
+              const dateSel = parseBrazilianDate(selectedDate);
+              const isDomingo = dateSel.getDay() === 0;
+              const isSabado = dateSel.getDay() === 6;
+              const isFeriado = feriados.some(f => f.data === selectedDate);
+              const regraDia = aplicarOverrideSolicitacaoNaRegra(selectedDate);
+              const usarExclusiva = conv.usar_diaria_exclusiva === true || regraDia.usaDiariaExclusiva || isDomingo || isSabado || isFeriado;
 
             // Cruzar com valores atuais de bd_funcoes
             const funcaoAtual = funcoesCompletas.find(f => f.id === conv.funcao_id);
@@ -868,7 +1062,7 @@ export default function ApontamentoDiariasModal({
             const existenteUsaExclusiva = usarExclusiva;
             const valorOriginal = existenteUsaExclusiva ? vExclusiva : vNormal;
 
-            return {
+              return {
               index,
               funcionario_id: conv.funcionario_id,
               nome_funcionario: conv.nome_funcionario || "",
@@ -886,7 +1080,11 @@ export default function ApontamentoDiariasModal({
               usarDiariaExclusiva: existenteUsaExclusiva,
               valor_diaria_normal: vNormal,
               valor_diaria_exclusiva_valor: vExclusiva,
-              turno: (existente?.turno as TurnoDiaria) || 'diurno'
+                turno: (existente?.turno as TurnoDiaria) || 'diurno',
+                remessaLiberada: regraDia.permiteRemessaMatriculados,
+                diariaExclusivaOperacional: regraDia.usaDiariaExclusiva,
+                tipoDiaOperacional: regraDia.tipoDiaOperacional,
+                observacaoOperacional: regraDia.descricao,
             };
           });
 
@@ -948,10 +1146,10 @@ export default function ApontamentoDiariasModal({
         } else {
           setHasExistingData(false);
           const mapped: ColaboradorPresenca[] = convocadosPre.map((conv, index) => {
-            const dateSel2 = parseBrazilianDate(selectedDate);
-            const isDomingo2 = dateSel2.getDay() === 0;
-            const isSabado2 = dateSel2.getDay() === 6;
-            const isFeriado2 = feriados.some(f => f.data === selectedDate);
+            const dateSel2 = selectedDate ? parseBrazilianDate(selectedDate) : null;
+            const isDomingo2 = dateSel2 ? dateSel2.getDay() === 0 : false;
+            const isSabado2 = dateSel2 ? dateSel2.getDay() === 6 : false;
+            const isFeriado2 = !!selectedDate && feriados.some(f => f.data === selectedDate);
             // Respeitar flag usar_diaria_exclusiva do convocado_pre
             const usarExclusiva2 = conv.usar_diaria_exclusiva === true || isDomingo2 || isSabado2 || isFeriado2;
 
@@ -983,9 +1181,9 @@ export default function ApontamentoDiariasModal({
           setColaboradores(mapped);
           
           // Se a data é passada e não há registros, marcar como concluído (falta) e bloquear
-          const hojeStr = getCurrentBrazilianDate();
-          const isDataPassada = selectedDate < hojeStr;
-          if (isDataPassada && !(edicaoLiberada && isSuperAdmin)) {
+            const hojeStr = getCurrentBrazilianDate();
+            const isDataPassada = !!selectedDate && selectedDate < hojeStr;
+            if (isDataPassada && !(edicaoLiberada && isSuperAdmin)) {
             setFase('concluido');
           } else {
             setFase('inicio');
@@ -997,21 +1195,22 @@ export default function ApontamentoDiariasModal({
           const funcaoAtualErr = funcoesCompletas.find(f => f.id === conv.funcao_id);
           const vNormal = funcaoAtualErr?.valor_diaria ?? conv.valor_diaria;
           const vExclusiva = funcaoAtualErr?.valor_diaria_exclusiva ?? conv.valor_diaria_exclusiva ?? vNormal;
+          const usarExclusivaFallback = !!conv.usar_diaria_exclusiva;
           return {
             index,
             funcionario_id: conv.funcionario_id,
             nome_funcionario: conv.nome_funcionario || "",
             funcao_id: conv.funcao_id,
             nome_funcao: conv.nome_funcao,
-            valor_diaria_original: vExclusiva,
-            valor_diaria: vExclusiva,
+            valor_diaria_original: usarExclusivaFallback ? vExclusiva : vNormal,
+            valor_diaria: usarExclusivaFallback ? vExclusiva : vNormal,
             presente: false,
             hora_entrada: "",
             hora_saida: "",
             tipo_diaria: 'completa',
             recebe_refeicao: true,
             valor_refeicao_aplicado: 0,
-            usarDiariaExclusiva: true,
+            usarDiariaExclusiva: usarExclusivaFallback,
             valor_diaria_normal: vNormal,
             valor_diaria_exclusiva_valor: vExclusiva,
             turno: 'diurno' as TurnoDiaria
@@ -1025,7 +1224,7 @@ export default function ApontamentoDiariasModal({
     };
 
     initColaboradores();
-  }, [isOpen, selectedDate, convocadosPre, solicitacao?.id, funcoesCompletas, feriados]);
+  }, [isOpen, selectedDate, convocadosPre, solicitacao?.id, funcoesCompletas, feriados, legacyMode]);
 
   // Resetar quando abrir/fechar
   useEffect(() => {
@@ -1045,8 +1244,11 @@ export default function ApontamentoDiariasModal({
           }
         }
       }
+    } else if (isOpen && legacyMode) {
+      setSelectedDate("");
     } else if (!isOpen) {
       setSelectedDate("");
+      setHasValidatedDateStructure(false);
       setColaboradores([]);
       setHasExistingData(false);
       setHasSaved(false);
@@ -1060,7 +1262,7 @@ export default function ApontamentoDiariasModal({
       setFaltaConvertida(new Set());
       autoFinalizadoRef.current.clear();
     }
-  }, [isOpen, datasDisponiveis, initialDate]);
+  }, [isOpen, datasDisponiveis, initialDate, legacyMode]);
 
   // Recalcular jornada ao mudar horários
   const recalcularJornada = useCallback((col: ColaboradorPresenca): ColaboradorPresenca => {
@@ -1072,11 +1274,19 @@ export default function ApontamentoDiariasModal({
     return { ...col, tipo_diaria: tipo, valor_diaria: novoValor };
   }, []);
 
+  const informarAcaoIndisponivelLegado = useCallback(() => {
+    toast.info('No formato antigo, apenas a inclusão e remoção de convocados ficam disponíveis.');
+  }, []);
+
   // Auto-finalização removida do frontend — agora roda via Edge Function no backend às 16:00 BRT
 
   // Handlers
   const handlePresencaChange = (index: number, presente: boolean) => {
     if (readOnly) return;
+    if (legacyPresenceActionsDisabled) {
+      informarAcaoIndisponivelLegado();
+      return;
+    }
     // Permitir marcar presença na finalização para atrasados (sem presencaId OU com presencaId mas era falta)
     if (fase !== 'inicio' && !(fase === 'concluido' && edicaoLiberada)) {
       const col = colaboradores.find(c => c.index === index);
@@ -1130,6 +1340,10 @@ export default function ApontamentoDiariasModal({
   // MELHORIA 1: Selecionar/Desmarcar todos (inicio) + Saída Todos (finalizacao)
   const handleSelecionarTodos = (marcar: boolean) => {
     if (readOnly) return;
+    if (legacyPresenceActionsDisabled) {
+      informarAcaoIndisponivelLegado();
+      return;
+    }
     const horaAtual = format(new Date(), 'HH:mm');
 
     if (fase === 'inicio' || (fase === 'concluido' && edicaoLiberada)) {
@@ -1165,6 +1379,10 @@ export default function ApontamentoDiariasModal({
   // Alternar refeição de todos os presentes de uma vez
   const handleRefeicaoTodos = (recebe: boolean) => {
     if (fase === 'concluido' || readOnly) return;
+    if (legacyPresenceActionsDisabled) {
+      informarAcaoIndisponivelLegado();
+      return;
+    }
     setColaboradores((prev) =>
       prev.map((col) => {
         if (!col.presente) return col;
@@ -1177,6 +1395,10 @@ export default function ApontamentoDiariasModal({
 
   // Salvar saída individual de um funcionário
   const handleSalvarSaidaIndividual = async (colaborador: ColaboradorPresenca) => {
+    if (legacyPresenceActionsDisabled) {
+      informarAcaoIndisponivelLegado();
+      return;
+    }
     if (!solicitacao?.id || !selectedDate || !colaborador.hora_saida) return;
 
     const { excede12h } = calcularJornada(colaborador.hora_entrada, colaborador.hora_saida);
@@ -1234,42 +1456,34 @@ export default function ApontamentoDiariasModal({
 
     await adicionarFuncionarioConvocado(solicitacao.id, novoConvocado);
 
-    const usarExclusivaPorData = classificacao.regra.usaDiariaExclusiva || false;
-    const novoColab: ColaboradorPresenca = {
+    const novoColab = buildColaboradorFromFuncionario(funcionario, {
       index: colaboradores.length,
-      funcionario_id: funcionario.id,
-      nome_funcionario: funcionario.nome_completo,
-      funcao_id: funcionario.funcao_id || '',
-      nome_funcao: nomeFuncao,
-      valor_diaria_original: usarExclusivaPorData ? valorDiariaExclusiva : valorDiaria,
-      valor_diaria: usarExclusivaPorData ? valorDiariaExclusiva : valorDiaria,
-      presente: false,
-      hora_entrada: "",
-      hora_saida: "",
-      tipo_diaria: 'completa',
-      recebe_refeicao: true,
-      valor_refeicao_aplicado: 0,
-      usarDiariaExclusiva: usarExclusivaPorData,
-      valor_diaria_normal: valorDiaria,
-      valor_diaria_exclusiva_valor: valorDiariaExclusiva,
-      turno: 'diurno' as TurnoDiaria,
       remessaLiberada: classificacao.regra.permiteRemessaMatriculados,
       diariaExclusivaOperacional: classificacao.regra.usaDiariaExclusiva,
       tipoDiaOperacional: classificacao.regra.tipoDiaOperacional,
       observacaoOperacional: classificacao.regra.descricao,
       statusExcecao: classificacao.status === 'pendente_aprovacao' ? 'pendente_aprovacao' : null,
-    };
+    });
 
     setColaboradores(prev => [...prev, novoColab]);
     setFuncionariosAvulsos(prev => new Set(prev).add(funcionario.id));
-  }, [solicitacao?.id, funcoesCompletas, colaboradores.length]);
+  }, [solicitacao?.id, funcoesCompletas, colaboradores.length, buildColaboradorFromFuncionario]);
 
   const classificarAdicaoOperacional = useCallback(async (funcionario: FuncionarioBuscaItem): Promise<ClassificacaoOperacional> => {
-    const regra = await resolverRegraOperacional({
+    if (legacyMode || !selectedDate) {
+      return {
+        status: 'elegivel',
+        regra: regraOperacionalFallback,
+        mensagem: 'Funcionário adicionado ao período geral da solicitação.',
+      };
+    }
+
+    const regraBase = await resolverRegraOperacional({
       data: selectedDate,
       centroCustoId: centroCusto?.id,
       diretoriaId,
     });
+    const regra = aplicarOverrideSolicitacaoNaRegra(selectedDate, regraBase);
 
     const temMatricula = !!funcionario.matricula;
     const tipoDia = regra.tipoDiaOperacional;
@@ -1298,7 +1512,7 @@ export default function ApontamentoDiariasModal({
       regra,
       mensagem: remessaPermitida && temMatricula ? 'Remessa permitida para esta data.' : undefined,
     };
-  }, [selectedDate, centroCusto?.id, diretoriaId]);
+  }, [selectedDate, centroCusto?.id, diretoriaId, legacyMode, regraOperacionalFallback, aplicarOverrideSolicitacaoNaRegra]);
 
   const handleAdicionarFuncionario = async (funcionario: FuncionarioBuscaItem) => {
     if (!solicitacao?.id) return;
@@ -1535,6 +1749,10 @@ export default function ApontamentoDiariasModal({
     value: string
   ) => {
     if (readOnly) return;
+    if (legacyPresenceActionsDisabled) {
+      informarAcaoIndisponivelLegado();
+      return;
+    }
     if (fase === 'inicio' && field === 'hora_saida') return;
     // hora_entrada editável na finalização (período de treinamento)
     if (fase === 'concluido' && !edicaoLiberada) return;
@@ -1551,6 +1769,10 @@ export default function ApontamentoDiariasModal({
 
   const handleRefeicaoChange = (index: number, recebe: boolean) => {
     if ((fase === 'concluido' && !edicaoLiberada) || readOnly) return;
+    if (legacyPresenceActionsDisabled) {
+      informarAcaoIndisponivelLegado();
+      return;
+    }
     setColaboradores((prev) =>
       prev.map((col) =>
         col.index === index ? { ...col, recebe_refeicao: recebe } : col
@@ -1561,6 +1783,10 @@ export default function ApontamentoDiariasModal({
   // Toggle tipo de diária (Normal vs FDS/Feriado) por funcionário
   const handleTipoDiariaChange = (index: number, usarExclusiva: boolean) => {
     if (readOnly) return;
+    if (legacyPresenceActionsDisabled) {
+      informarAcaoIndisponivelLegado();
+      return;
+    }
     if (fase === 'concluido' && !edicaoLiberada) return;
     setColaboradores((prev) =>
       prev.map((col) => {
@@ -1575,6 +1801,10 @@ export default function ApontamentoDiariasModal({
   // Toggle turno (Diurno/Noturno) por funcionário
   const handleTurnoChange = (index: number, turno: TurnoDiaria) => {
     if (readOnly) return;
+    if (legacyPresenceActionsDisabled) {
+      informarAcaoIndisponivelLegado();
+      return;
+    }
     if (fase === 'concluido' && !edicaoLiberada) return;
     setColaboradores((prev) =>
       prev.map((col) =>
@@ -1585,6 +1815,10 @@ export default function ApontamentoDiariasModal({
 
   // Salvar Início
   const handleSalvarInicio = async () => {
+    if (legacyPresenceActionsDisabled) {
+      informarAcaoIndisponivelLegado();
+      return;
+    }
     if (!solicitacao?.id || !selectedDate) return;
 
     setIsSaving(true);
@@ -1632,6 +1866,10 @@ export default function ApontamentoDiariasModal({
 
   // Salvar Início de Atrasados (durante fase de finalização)
   const handleSalvarInicioAtrasados = async () => {
+    if (legacyPresenceActionsDisabled) {
+      informarAcaoIndisponivelLegado();
+      return;
+    }
     if (!solicitacao?.id || !selectedDate) return;
 
     // Atrasados sem presencaId (avulsos novos)
@@ -1721,6 +1959,10 @@ export default function ApontamentoDiariasModal({
 
   // Salvar Finalização
   const handleSalvarFinalizacao = async () => {
+    if (legacyPresenceActionsDisabled) {
+      informarAcaoIndisponivelLegado();
+      return;
+    }
     if (!solicitacao?.id || !selectedDate) return;
 
     const presentes = colaboradores.filter(c => c.presente);
@@ -1766,6 +2008,10 @@ export default function ApontamentoDiariasModal({
   };
   // Salvar Correção (edicaoLiberada)
   const handleSalvarCorrecao = async () => {
+    if (legacyPresenceActionsDisabled) {
+      informarAcaoIndisponivelLegado();
+      return;
+    }
     if (!solicitacao?.id || !selectedDate || !observacaoCorrecao.trim()) return;
 
     setIsSaving(true);
@@ -1858,7 +2104,7 @@ export default function ApontamentoDiariasModal({
   return (
     <>
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[700px] w-[95vw] max-h-[95vh] overflow-y-auto p-3 sm:p-6">
+      <DialogContent className="w-[96vw] max-h-[95vh] overflow-y-auto p-3 sm:max-w-[980px] sm:p-6">
         <DialogHeader className="space-y-1">
           <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
             <Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
@@ -1909,14 +2155,20 @@ export default function ApontamentoDiariasModal({
               Data do Apontamento
             </Label>
 
-            {datasDisponiveis.filter(d => !d.disabled).length > 0 ? (
+            {datasSelecionaveis.length > 0 ? (
               <>
                 {/* Seletor de datas como badges clicáveis */}
-                <div className="grid grid-cols-2 gap-2 rounded-md border bg-muted p-2 sm:grid-cols-4 lg:grid-cols-5 sm:p-3">
+                <div className="grid grid-cols-1 gap-2 rounded-md border bg-muted p-2 sm:grid-cols-2 xl:grid-cols-3 sm:p-3">
                   {datasDisponiveis.map(d => {
                     const isSelected = d.value === selectedDate;
                     const regraData = regrasOperacionaisPorData[d.value];
-                    const possuiOverrideOperacional = regraData?.encontrada && regraData.tipoDiaOperacional === 'operacional';
+                    const badgeTipoDia = getTipoDiaBadge(d.value, {
+                      isFeriado: d.isFeriado,
+                      isWeekend: d.isWeekend,
+                      nomeFeriado: d.nomeFeriado,
+                    });
+                    const possuiOverrideOperacional = badgeTipoDia.manual;
+                    const salvandoTipoDia = !!tiposDiaSaving[d.value];
                     return (
                       <div
                         key={d.value}
@@ -1959,7 +2211,7 @@ export default function ApontamentoDiariasModal({
                           <TooltipContent>
                             <div className="space-y-1 text-xs">
                               <p className="font-medium capitalize">{d.labelFull}</p>
-                              <p>Tipo: {regraData?.tipoDiaOperacional ?? (d.isFeriado ? 'feriado' : d.isWeekend ? 'fim de semana' : 'normal')}</p>
+                              <p>Tipo: {badgeTipoDia.label}</p>
                               {regraData?.descricao && <p>Obs.: {regraData.descricao}</p>}
                               {regraData?.encontrada && (
                                 <p>
@@ -1970,16 +2222,40 @@ export default function ApontamentoDiariasModal({
                           </TooltipContent>
                         </Tooltip>
 
-                        <div
-                          className={cn(
-                            "flex min-h-10 min-w-20 items-center justify-center rounded-sm border px-2 text-[10px] font-semibold",
-                            possuiOverrideOperacional
-                              ? "border-primary bg-primary/10 text-primary"
-                              : "border-border bg-muted/40 text-muted-foreground"
-                          )}
-                        >
-                          {possuiOverrideOperacional ? 'Regra definida na solicitação' : 'Sem regra manual'}
-                        </div>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="xs"
+                              disabled={d.disabled || salvandoTipoDia}
+                              className="min-h-10 min-w-[7rem] px-2 text-[10px] font-semibold"
+                            >
+                              {salvandoTipoDia ? (
+                                <span className="flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Salvando...</span>
+                              ) : (
+                                badgeTipoDia.label
+                              )}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-40 p-1" align="end">
+                            <div className="flex flex-col gap-1">
+                              {(['normal', 'feriado', 'ponte'] as TipoDiaManual[]).map((tipoDia) => (
+                                <Button
+                                  key={tipoDia}
+                                  type="button"
+                                  variant={resolveTipoDiaManual(d.value) === tipoDia ? 'default' : 'ghost'}
+                                  size="sm"
+                                  disabled={salvandoTipoDia}
+                                  className="justify-start"
+                                  onClick={() => void persistirTipoDiaSolicitacao(d.value, tipoDia)}
+                                >
+                                  {TIPO_DIA_LABEL[tipoDia]}
+                                </Button>
+                              ))}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
                       </div>
                     );
                   })}
@@ -1987,7 +2263,8 @@ export default function ApontamentoDiariasModal({
 
                 {/* Info da data selecionada */}
                 {dataSelecionadaInfo && (
-                  <div className="flex flex-wrap items-center gap-1.5 text-xs sm:text-sm">
+                  <div className="grid gap-2 rounded-md border bg-muted/30 p-3 text-xs sm:grid-cols-[minmax(0,1fr)_auto] sm:text-sm">
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                     <span className="capitalize font-medium">{dataSelecionadaInfo.labelFull}</span>
                     {dataSelecionadaInfo.isWeekend && (
                       <Badge variant="secondary" className="text-[10px] sm:text-xs">FDS</Badge>
@@ -2000,25 +2277,46 @@ export default function ApontamentoDiariasModal({
                     {dataSelecionadaInfo.isHoje && (
                       <Badge variant="info" className="text-[10px] sm:text-xs">Hoje</Badge>
                     )}
+                      {getTipoDiaBadge(dataSelecionadaInfo.value, dataSelecionadaInfo).manual && (
+                        <Badge variant="info" className="text-[10px] sm:text-xs">Tipo manual ativo</Badge>
+                      )}
+                    </div>
                     <Badge
                       variant={fase === 'concluido' ? 'success' : fase === 'finalizacao' ? 'warning' : 'secondary'}
-                      className="ml-auto text-[10px] sm:text-xs"
+                      className="w-fit text-[10px] sm:justify-self-end sm:text-xs"
                     >
                       {faseLabel[fase].text}
                     </Badge>
-                    {dataSelecionadaInfo.regraOperacional?.tipoDiaOperacional === 'operacional' && (
-                      <Badge variant="info" className="text-[10px] sm:text-xs">Regra operacional manual ativa</Badge>
-                    )}
                   </div>
                 )}
 
-                {dataSelecionadaInfo && (dataSelecionadaInfo.isWeekend || dataSelecionadaInfo.isFeriado) && (
+                {dataSelecionadaInfo && (dataSelecionadaInfo.isWeekend || dataSelecionadaInfo.isFeriado || getTipoDiaBadge(dataSelecionadaInfo.value, dataSelecionadaInfo).manual) && (
                   <Alert className="mt-2">
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
-                      {dataSelecionadaInfo.isFeriado
-                        ? `Feriado: ${dataSelecionadaInfo.nomeFeriado}`
-                        : "Final de semana"}
+                      {getTipoDiaBadge(dataSelecionadaInfo.value, dataSelecionadaInfo).manual
+                        ? `${getTipoDiaBadge(dataSelecionadaInfo.value, dataSelecionadaInfo).label} manual aplicado à solicitação.`
+                        : dataSelecionadaInfo.isFeriado
+                          ? `Feriado: ${dataSelecionadaInfo.nomeFeriado}`
+                          : "Final de semana"}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {legacyMode && (
+                  <Alert className="mt-2">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Solicitação em formato antigo — adição sem controle por data
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {legacyPresenceActionsDisabled && (
+                  <Alert className="mt-2">
+                    <Lock className="h-4 w-4" />
+                    <AlertDescription>
+                      Ações de presença, início, saída e finalização exigem controle por data e permanecem indisponíveis neste formato.
                     </AlertDescription>
                   </Alert>
                 )}
@@ -2039,6 +2337,7 @@ export default function ApontamentoDiariasModal({
                       <Switch
                         checked={todosComRefeicao}
                         onCheckedChange={(checked) => handleRefeicaoTodos(checked)}
+                        disabled={legacyPresenceActionsDisabled}
                       />
                     </div>
                   </>
@@ -2053,6 +2352,10 @@ export default function ApontamentoDiariasModal({
                   </Alert>
                 )}
               </>
+              ) : legacyMode ? (
+                <div className="py-2 text-center text-xs text-muted-foreground">
+                  Aguarde a validação das datas da solicitação.
+                </div>
             ) : (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
@@ -2069,7 +2372,7 @@ export default function ApontamentoDiariasModal({
               <Alert className="border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20">
                 <AlertTriangle className="h-4 w-4 text-yellow-600" />
                 <AlertDescription className="text-yellow-700 dark:text-yellow-400 text-xs">
-                  Edição liberada pelo administrador — os campos estão desbloqueados para correção.
+                  Edição liberada pelo administrador — os campos estão desbloqueados para correção, mas isso não amplia a busca de funcionários.
                 </AlertDescription>
               </Alert>
               <div>
@@ -2144,7 +2447,7 @@ export default function ApontamentoDiariasModal({
                             </div>
 
                             {/* Toggle Férias para funcionários com matrícula em dia útil */}
-                            {(() => {
+                            {selectedDate && (() => {
                               const dateSel = parseBrazilianDate(selectedDate);
                               const dayOfWeek = dateSel.getDay();
                               const isDiaUtil = dayOfWeek >= 1 && dayOfWeek <= 5;
@@ -2220,7 +2523,7 @@ export default function ApontamentoDiariasModal({
                                   autoFocus
                                 />
                               </div>
-                              {searchTerm.trim() && resultadosBusca.length > 0 && (
+                              {searchTerm.trim() && totalResultadosBusca > 0 && (
                                 <div className="flex items-center justify-between gap-2">
                                   <p className="text-[10px] text-muted-foreground">
                                     {totalResultadosBusca} resultado(s)
@@ -2238,16 +2541,48 @@ export default function ApontamentoDiariasModal({
                                   </Button>
                                 </div>
                               )}
+                              {searchTerm.trim() && totalResultadosBusca > searchPageSize && (
+                                <div className="flex items-center justify-end gap-1">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="xs"
+                                    onClick={() => setSearchPage((prev) => Math.max(prev - 1, 0))}
+                                    disabled={searchPage === 0 || isSearchingFuncionarios}
+                                    className="h-7 px-2"
+                                  >
+                                    <ChevronLeft className="h-3 w-3" />
+                                  </Button>
+                                  <span className="text-[10px] text-muted-foreground">
+                                    Página {searchPage + 1} de {Math.max(1, Math.ceil(totalResultadosBusca / searchPageSize))}
+                                  </span>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="xs"
+                                    onClick={() => setSearchPage((prev) => prev + 1)}
+                                    disabled={(searchPage + 1) * searchPageSize >= totalResultadosBusca || isSearchingFuncionarios}
+                                    className="h-7 px-2"
+                                  >
+                                    <ChevronRight className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              )}
                             </div>
-                            {searchTerm.trim() && (
+                            {searchTerm.trim() && modalReady && (
                               <ScrollArea className="max-h-[200px]">
-                                {resultadosBusca.length === 0 ? (
+                                {isSearchingFuncionarios ? (
+                                  <div className="flex items-center justify-center gap-2 py-4 text-xs text-muted-foreground">
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    Buscando funcionários...
+                                  </div>
+                                ) : resultadosBusca.length === 0 ? (
                                   <p className="text-xs text-muted-foreground text-center py-2">
                                     Nenhum funcionário encontrado
                                   </p>
                                 ) : (
                                   <div className="space-y-1">
-                                    {resultadosBusca.map((func: FuncionarioBuscaItem) => {
+                                    {resultadosBuscaPaginados.map((func: FuncionarioBuscaItem) => {
                                       const preview = getPreviewOperacional(func);
                                       return (
                                       <button
@@ -2281,6 +2616,11 @@ export default function ApontamentoDiariasModal({
                                 )}
                               </ScrollArea>
                             )}
+                            {searchTerm.trim() && !modalReady && !legacyMode && (
+                              <p className="py-2 text-center text-xs text-muted-foreground">
+                                Aguarde o carregamento da data para habilitar a busca.
+                              </p>
+                            )}
                           </>
                         )}
                       </div>
@@ -2306,12 +2646,12 @@ export default function ApontamentoDiariasModal({
                     const { horas, tipo } = calcularJornada(colaborador.hora_entrada, colaborador.hora_saida);
                     const valorRefeicao = funcoesMap[colaborador.funcao_id] || 0;
 
-                    const presencaDisabled = readOnly || (fase === 'concluido' && !edicaoLiberada) || (fase === 'finalizacao' && !!colaborador.presencaId && colaborador.presente && !faltaConvertida.has(colaborador.funcionario_id)) || (fase !== 'inicio' && fase !== 'finalizacao' && !(fase === 'concluido' && edicaoLiberada));
+                    const presencaDisabled = legacyPresenceActionsDisabled || readOnly || (fase === 'concluido' && !edicaoLiberada) || (fase === 'finalizacao' && !!colaborador.presencaId && colaborador.presente && !faltaConvertida.has(colaborador.funcionario_id)) || (fase !== 'inicio' && fase !== 'finalizacao' && !(fase === 'concluido' && edicaoLiberada));
                     const isAtrasado = fase === 'finalizacao' && colaborador.presente && (!colaborador.presencaId || faltaConvertida.has(colaborador.funcionario_id));
-                    const entradaDisabled = (fase !== 'inicio' && fase !== 'finalizacao' && !(fase === 'concluido' && edicaoLiberada)) || !colaborador.presente || readOnly || (isAtrasado && !isSuperAdmin);
+                    const entradaDisabled = legacyPresenceActionsDisabled || (fase !== 'inicio' && fase !== 'finalizacao' && !(fase === 'concluido' && edicaoLiberada)) || !colaborador.presente || readOnly || (isAtrasado && !isSuperAdmin);
                     const jaSalvouSaida = saidasSalvas.has(colaborador.funcionario_id);
-                    const saidaDisabled = (fase !== 'finalizacao' && !(fase === 'concluido' && edicaoLiberada)) || !colaborador.presente || readOnly || jaSalvouSaida;
-                    const refeicaoDisabled = (fase === 'concluido' && !edicaoLiberada) || !colaborador.presente || readOnly || jaSalvouSaida;
+                    const saidaDisabled = legacyPresenceActionsDisabled || (fase !== 'finalizacao' && !(fase === 'concluido' && edicaoLiberada)) || !colaborador.presente || readOnly || jaSalvouSaida;
+                    const refeicaoDisabled = legacyPresenceActionsDisabled || (fase === 'concluido' && !edicaoLiberada) || !colaborador.presente || readOnly || jaSalvouSaida;
                     const isEditingThis = editingExitId === colaborador.funcionario_id;
 
                     return (
@@ -2436,7 +2776,7 @@ export default function ApontamentoDiariasModal({
                               variant="outline"
                               size="xs"
                               onClick={() => handleSalvarSaidaIndividual(colaborador)}
-                              disabled={isSavingIndividual === colaborador.funcionario_id}
+                              disabled={legacyPresenceActionsDisabled || isSavingIndividual === colaborador.funcionario_id}
                               className="text-[10px] sm:text-xs gap-1 border-green-300 dark:border-green-600 text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30 h-6 w-full sm:w-auto"
                             >
                               {isSavingIndividual === colaborador.funcionario_id ? (
@@ -2485,11 +2825,11 @@ export default function ApontamentoDiariasModal({
                             )}
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <Switch
+                              <Switch
                               id={`turno-${colaborador.funcionario_id}`}
                               checked={colaborador.turno === 'noturno'}
                               onCheckedChange={(checked) => handleTurnoChange(colaborador.index, checked ? 'noturno' : 'diurno')}
-                              disabled={(fase === 'concluido' && !edicaoLiberada) || !colaborador.presente || readOnly || jaSalvouSaida}
+                                disabled={legacyPresenceActionsDisabled || (fase === 'concluido' && !edicaoLiberada) || !colaborador.presente || readOnly || jaSalvouSaida}
                             />
                             {fase === 'concluido' && !edicaoLiberada && <Lock className="h-3 w-3 text-muted-foreground" />}
                           </div>
@@ -2513,7 +2853,7 @@ export default function ApontamentoDiariasModal({
                                 id={`tipo-diaria-${colaborador.funcionario_id}`}
                                 checked={colaborador.usarDiariaExclusiva}
                                 onCheckedChange={(checked) => handleTipoDiariaChange(colaborador.index, checked)}
-                                disabled={(fase === 'concluido' && !edicaoLiberada) || !colaborador.presente || readOnly || jaSalvouSaida}
+                                disabled={legacyPresenceActionsDisabled || (fase === 'concluido' && !edicaoLiberada) || !colaborador.presente || readOnly || jaSalvouSaida}
                               />
                               {fase === 'concluido' && !edicaoLiberada && <Lock className="h-3 w-3 text-muted-foreground" />}
                             </div>
@@ -2574,7 +2914,7 @@ export default function ApontamentoDiariasModal({
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
-                {selectedDate
+                {selectedDate || legacyMode
                   ? "Nenhum funcionário convocado para esta solicitação."
                   : "Selecione uma data para ver os funcionários."}
               </div>
@@ -2616,7 +2956,7 @@ export default function ApontamentoDiariasModal({
               )}
               <Button
                 onClick={handleSalvarInicio}
-                disabled={isSaving || hasSaved || !selectedDate || colaboradores.length === 0 || (edicaoLiberada && isSuperAdmin && !observacaoCorrecao.trim())}
+                disabled={legacyPresenceActionsDisabled || isSaving || hasSaved || !selectedDate || colaboradores.length === 0 || (edicaoLiberada && isSuperAdmin && !observacaoCorrecao.trim())}
                 className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-10"
               >
                 {isSaving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Salvando...</> : <><Clock className="h-3.5 w-3.5 mr-1.5" />Salvar Início</>}
@@ -2630,7 +2970,7 @@ export default function ApontamentoDiariasModal({
               {(colaboradores.some(c => c.presente && !c.presencaId) || faltaConvertida.size > 0) && (
                 <Button
                   onClick={handleSalvarInicioAtrasados}
-                  disabled={isSaving || !selectedDate || (edicaoLiberada && isSuperAdmin && !observacaoCorrecao.trim())}
+                  disabled={legacyPresenceActionsDisabled || isSaving || !selectedDate || (edicaoLiberada && isSuperAdmin && !observacaoCorrecao.trim())}
                   className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-10"
                 >
                   {isSaving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Salvando...</> : <><Clock className="h-3.5 w-3.5 mr-1.5" />Salvar Início (Atrasados)</>}
@@ -2640,7 +2980,7 @@ export default function ApontamentoDiariasModal({
               {!colaboradores.some(c => c.presente && !c.presencaId) && faltaConvertida.size === 0 && (
                 <Button
                   onClick={handleSalvarFinalizacao}
-                  disabled={isSaving || !selectedDate || colaboradores.length === 0 || !colaboradores.filter(c => c.presente && !!c.presencaId).every(c => c.hora_saida) || (edicaoLiberada && isSuperAdmin && !observacaoCorrecao.trim())}
+                  disabled={legacyPresenceActionsDisabled || isSaving || !selectedDate || colaboradores.length === 0 || !colaboradores.filter(c => c.presente && !!c.presencaId).every(c => c.hora_saida) || (edicaoLiberada && isSuperAdmin && !observacaoCorrecao.trim())}
                   className="bg-orange-600 hover:bg-orange-700 text-white w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-10"
                 >
                   {isSaving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Finalizando...</> : <><CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />Salvar Finalização</>}
@@ -2659,7 +2999,7 @@ export default function ApontamentoDiariasModal({
           {fase === 'concluido' && edicaoLiberada && !readOnly && (
             <Button
               onClick={handleSalvarCorrecao}
-              disabled={isSaving || !selectedDate || colaboradores.length === 0 || !observacaoCorrecao.trim()}
+              disabled={legacyPresenceActionsDisabled || isSaving || !selectedDate || colaboradores.length === 0 || !observacaoCorrecao.trim()}
               className="bg-yellow-600 hover:bg-yellow-700 text-white w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-10"
             >
               {isSaving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Salvando...</> : <><Save className="h-3.5 w-3.5 mr-1.5" />Salvar Correção</>}

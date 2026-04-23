@@ -183,6 +183,7 @@ export interface SolicitacaoFormData {
 export interface RegraOperacionalSnapshotItem {
   ativa: boolean;
   descricao: string;
+  tipo_dia?: 'normal' | 'feriado' | 'ponte';
   exige_aprovacao_adicao?: boolean;
   tipo?: 'feriado_ponte_operacional';
 }
