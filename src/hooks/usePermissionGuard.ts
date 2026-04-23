@@ -4,6 +4,8 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 
+const LEGACY_ADMIN_ROLE_FALLBACK = ['SuperAdm', 'Administrador'];
+
 interface PermissionGuardOptions {
   requiredPermission?: string;
   requiredPermissions?: string[];
@@ -48,12 +50,16 @@ export const usePermissionGuard = ({
       return true;
     }
     
-    // Verificar funções administrativas válidas
-    const validRoles = ['AdmRH', 'AdmEquipamentos', 'AdmLogistica', 'AdmRequisicoes', 'AdmSSO', 'AdmOBRA', 'TecSSO', 'Apontador', 'Encarregado', 'Engenheiro Civil', 'Administrador', 'SuperAdm', 'GestorLicitacoes', 'AdmSede'];
-    console.log('🔍 PermissionGuard - Verificando função:', { userRole, validRoles, isValid: validRoles.includes(userRole || '') });
-    
-    if (userRole && validRoles.includes(userRole)) {
-      console.log('✅ PermissionGuard - Função administrativa válida:', userRole);
+    const allowLegacyRoleFallback = permissionsToCheck.length === 0;
+    console.log('🔍 PermissionGuard - Verificando fallback legado:', {
+      userRole,
+      allowLegacyRoleFallback,
+      legacyRoles: LEGACY_ADMIN_ROLE_FALLBACK,
+      isValid: LEGACY_ADMIN_ROLE_FALLBACK.includes(userRole || ''),
+    });
+
+    if (allowLegacyRoleFallback && userRole && LEGACY_ADMIN_ROLE_FALLBACK.includes(userRole)) {
+      console.log('✅ PermissionGuard - Fallback legado aplicado:', userRole);
       return true;
     }
     

@@ -1,13 +1,13 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { format, startOfWeek, endOfWeek, parseISO } from "date-fns";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { format, startOfWeek, endOfWeek, parseISO, eachDayOfInterval, isWeekend } from "date-fns";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 import { Combobox } from "@/components/ui/combobox";
 import { Plus, Trash2, Loader2, Users, FileText, Check, ChevronRight, ChevronLeft, Info, Lock, User, Send, ClipboardCheck, AlertTriangle, Calendar, Shield } from "lucide-react";
 import { SmartFuncionarioSearch } from "./SmartFuncionarioSearch";
-import { StatusFuncionarioAlert } from "./StatusFuncionarioAlert";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermission } from "@/hooks/usePermission";
+import { useDiariasDataScope } from "@/hooks/diarias";
 import { RESTRICTED_CC_CODE } from "@/utils/centroCustoRestrictions";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
@@ -26,7 +26,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
@@ -42,10 +41,10 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { SolicitacaoFormData, FuncionarioPreConvocado, DiariaSolicitacao } from "@/types/diarias";
 import { useFeriadosPeriodo } from "@/hooks/diarias/useFeriados";
-import { validarStatusFuncionario, validarStatusPorDia } from "@/services/diarias/antiFraudeService";
 import { 
   analisarPeriodo, 
   calcularEstimativaTotal, 
+  resumirPeriodoParaSimulacao,
   validarPeriodo,
   formatCurrency,
   podeParticiparDiaUtil
@@ -53,6 +52,14 @@ import {
 import { PeriodoResumo } from "./PeriodoResumo";
 import { EstimativaAviso } from "./EstimativaAviso";
 import { SimulacaoValores } from "./SimulacaoValores";
+import {
+  resolverRegraOperacional,
+  salvarRegraCalendarioOperacional,
+  inativarRegraCalendarioOperacionalEscopo,
+  registrarLogOperacionalData,
+  type CalendarioOperacionalResolvido,
+} from "@/services/diarias/calendarioOperacionalService";
+import { cn } from "@/lib/utils";
 
 interface CentroCustoComAprovador {
   id: string;
@@ -60,6 +67,74 @@ interface CentroCustoComAprovador {
   nome_centro_custo: string;
   aprovador_diarias_id: string | null;
 }
+
+interface FuncionarioOption {
+  id: string;
+  nome_completo: string;
+  cpf?: string | null;
+  funcao_id: string;
+  centro_custo_id?: string | null;
+  matricula?: string | null;
+  status_funcionario?: string | null;
+  email?: string | null;
+  elegivel?: boolean;
+  motivo_bloqueio?: string | null;
+  fora_centro_custo_solicitacao?: boolean;
+  bd_funcoes: {
+    id: string;
+    nome_funcao: string;
+    valor_diaria: number;
+    valor_diaria_exclusiva?: number | null;
+    valor_refeicao?: number | null;
+  } | null;
+}
+
+const FUNCAO_ENGENHARIA_REGEX = /(engenheiro|gerente regional)/i;
+const FUNCAO_RESPONSAVEL_CAMPO_REGEX = /(apontador|encarregado|respons)/i;
+
+const mergeFuncionarios = (...listas: Array<FuncionarioOption[] | undefined>) => {
+  const map = new Map<string, FuncionarioOption>();
+
+  listas
+    .flat()
+    .filter((item): item is FuncionarioOption => !!item?.id)
+    .forEach((item) => {
+      map.set(item.id, item);
+    });
+
+  return Array.from(map.values()).sort((a, b) => a.nome_completo.localeCompare(b.nome_completo, 'pt-BR'));
+};
+
+const mapFuncionarioRecord = (funcionario: any): FuncionarioOption => ({
+  id: funcionario.id,
+  nome_completo: funcionario.nome_completo,
+  cpf: funcionario.cpf ?? null,
+  funcao_id: funcionario.funcao_id ?? '',
+  centro_custo_id: funcionario.centro_custo_id ?? null,
+  matricula: funcionario.matricula ?? null,
+  status_funcionario: funcionario.status_funcionario ?? funcionario.status ?? null,
+  email: funcionario.email ?? null,
+  elegivel: funcionario.elegivel,
+  motivo_bloqueio: funcionario.motivo_bloqueio ?? null,
+  fora_centro_custo_solicitacao: funcionario.fora_centro_custo_solicitacao ?? false,
+  bd_funcoes: funcionario.bd_funcoes
+    ? {
+        id: funcionario.bd_funcoes.id ?? funcionario.funcao_id ?? '',
+        nome_funcao: funcionario.bd_funcoes.nome_funcao ?? '',
+        valor_diaria: funcionario.bd_funcoes.valor_diaria ?? 0,
+        valor_diaria_exclusiva: funcionario.bd_funcoes.valor_diaria_exclusiva ?? null,
+        valor_refeicao: funcionario.bd_funcoes.valor_refeicao ?? null,
+      }
+    : (funcionario.funcao_nome
+        ? {
+            id: funcionario.funcao_id ?? '',
+            nome_funcao: funcionario.funcao_nome,
+            valor_diaria: funcionario.valor_diaria ?? 0,
+            valor_diaria_exclusiva: funcionario.valor_diaria_exclusiva ?? null,
+            valor_refeicao: funcionario.valor_refeicao ?? null,
+          }
+        : null),
+});
 
 interface SolicitacaoFormModalProps {
   isOpen: boolean;
@@ -80,9 +155,11 @@ export function SolicitacaoFormModal({
   editingSolicitacao,
   isSaving = false
 }: SolicitacaoFormModalProps) {
+  const JUSTIFICATIVA_OPERACIONAL_PADRAO = 'Ponte de feriado / estratégia operacional';
   const [step, setStep] = useState<Step>('dados');
   const { user } = useAuth();
-  const { isSuperAdmin } = usePermission();
+  const { isSuperAdmin, permissions } = usePermission();
+  const { scopeFilters, canCreateSolicitacao } = useDiariasDataScope();
   
   // Form data - Período
   const [dataInicio, setDataInicio] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -100,19 +177,14 @@ export function SolicitacaoFormModal({
   const [responsavelCampoId, setResponsavelCampoId] = useState('');
   const [engenheiroSolicitanteId, setEngenheiroSolicitanteId] = useState('');
   
-  // Anti-fraude states
-  const [antiFraudeAlert, setAntiFraudeAlert] = useState<{
-    isOpen: boolean;
-    tipo: 'ferias' | 'afastado' | 'inativo' | 'inconsistencia';
-    funcionarioNome: string;
-    motivo: string;
-    diasSemApontamento?: number;
-    pendingFuncId?: string;
-  }>({ isOpen: false, tipo: 'ferias', funcionarioNome: '', motivo: '' });
-
   // Selection state for adding funcionarios
-  const [selectedFuncionarioId, setSelectedFuncionarioId] = useState('');
   const [attemptedNext, setAttemptedNext] = useState(false);
+  const [regrasOperacionaisPorData, setRegrasOperacionaisPorData] = useState<Record<string, CalendarioOperacionalResolvido>>({});
+  const [diasOperacionaisSelecionados, setDiasOperacionaisSelecionados] = useState<string[]>([]);
+  const [justificativaOperacional, setJustificativaOperacional] = useState(JUSTIFICATIVA_OPERACIONAL_PADRAO);
+  const [isSavingRegrasOperacionais, setIsSavingRegrasOperacionais] = useState(false);
+  const [regrasOperacionaisDirty, setRegrasOperacionaisDirty] = useState(false);
+  const ultimoContextoRegrasCarregadoRef = useRef<string | null>(null);
 
   // Calcular semana automaticamente a partir da data início
   const semanaCalculada = useMemo(() => {
@@ -163,6 +235,7 @@ export function SolicitacaoFormModal({
         .select('id, codigo_centro_custo, nome_centro_custo, aprovador_diarias_id')
         .eq('situacao', 'Ativo');
       if (!isSuperAdmin) query = query.neq('codigo_centro_custo', RESTRICTED_CC_CODE);
+      if (scopeFilters.centro_custo_ids?.length) query = query.in('id', scopeFilters.centro_custo_ids);
       const { data, error } = await query.order('nome_centro_custo');
       
       // Fallback se campo não existir (código de erro 42703)
@@ -185,60 +258,167 @@ export function SolicitacaoFormModal({
 
   // Funcionarios query via RPC (SECURITY DEFINER - ignora RLS departamental)
   const { data: funcionarios = [] } = useQuery({
-    queryKey: ['funcionarios-para-diarias'],
+    queryKey: ['funcionarios-para-diarias-modal-amplo', dataInicio, dataFim, centroCustoId, editingSolicitacao?.id],
     queryFn: async () => {
+      if (!dataInicio || !dataFim) return [];
+
+      console.info('[Diarias][RPC funcionarios] parâmetros', {
+        dataInicio,
+        dataFim,
+        centroCustoId: centroCustoId || null,
+        solicitacaoId: editingSolicitacao?.id || null,
+      });
+
       const PAGE_SIZE = 1000;
       let allData: any[] = [];
       let page = 0;
+
       while (true) {
         const from = page * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
-        const { data } = await supabase.rpc('get_funcionarios_para_diarias').range(from, to);
+        const { data, error } = await supabase.rpc('fn_diaria_get_funcionarios_disponiveis', {
+          p_data_inicio: dataInicio,
+          p_data_fim: dataFim,
+          p_centro_custo_solicitacao_id: centroCustoId || null,
+          p_solicitacao_id: editingSolicitacao?.id || null,
+        }).range(from, to);
+
+        if (error) {
+          console.error('[Diarias][RPC funcionarios] erro', {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            hint: error.hint,
+            page,
+          });
+          throw error;
+        }
+
         if (!data || data.length === 0) break;
         allData = allData.concat(data);
         if (data.length < PAGE_SIZE) break;
         page++;
       }
-      return allData.map((f: any) => ({
-        id: f.id,
-        nome_completo: f.nome_completo,
-        cpf: f.cpf,
-        funcao_id: f.funcao_id,
-        centro_custo_id: f.centro_custo_id || null,
-        matricula: f.matricula || null,
-        status_funcionario: f.status_funcionario || null,
-        bd_funcoes: f.funcao_nome ? {
-          id: f.funcao_id,
-          nome_funcao: f.funcao_nome,
-          valor_diaria: f.valor_diaria,
-          valor_diaria_exclusiva: f.valor_diaria_exclusiva,
-          valor_refeicao: f.valor_refeicao
-        } : null
-      }));
-    }
+
+      console.info('[Diarias][RPC funcionarios] retorno bruto', {
+        total: allData.length,
+        primeiroItem: allData[0] || null,
+      });
+
+      const mapped = allData.map(mapFuncionarioRecord);
+
+      console.info('[Diarias][RPC funcionarios] retorno mapeado', {
+        total: mapped.length,
+        primeiroItem: mapped[0] || null,
+      });
+
+      if (mapped.length === 0) {
+        console.warn('[Diarias][RPC funcionarios] lista vazia após RPC', {
+          motivo: 'RPC retornou zero linhas para os parâmetros informados',
+        });
+      }
+
+      return mapped;
+    },
+    enabled: isOpen && !!dataInicio && !!dataFim
   });
 
-  // Aprovadores query (funcionários com função Gerente Regional)
-  const { data: aprovadores = [] } = useQuery({
-    queryKey: ['gerentes-regionais-aprovadores'],
+  const selectedCentroCusto = useMemo(() => {
+    return centrosCusto.find((cc) => cc.id === centroCustoId);
+  }, [centrosCusto, centroCustoId]);
+
+  const funcionarioIdsPreservados = useMemo(() => {
+    return Array.from(new Set([
+      responsavelCampoId,
+      engenheiroSolicitanteId,
+      selectedCentroCusto?.aprovador_diarias_id || '',
+    ].filter(Boolean)));
+  }, [responsavelCampoId, engenheiroSolicitanteId, selectedCentroCusto?.aprovador_diarias_id]);
+
+  const { data: funcionariosPreservados = [] } = useQuery({
+    queryKey: ['diarias-funcionarios-preservados', funcionarioIdsPreservados],
     queryFn: async () => {
-      const { data: funcaoGerente } = await supabase
-        .from('bd_funcoes')
-        .select('id')
-        .eq('nome_funcao', 'Gerente Regional')
-        .single();
-
-      if (!funcaoGerente?.id) return [];
-
       const { data: funcionariosData } = await supabase
         .from('bd_funcionarios')
-        .select('id, nome_completo, email')
-        .eq('funcao_id', funcaoGerente.id)
-        .eq('status', 'Ativo')
+        .select('id, nome_completo, email, cpf, funcao_id, centro_custo_id, matricula, status, bd_funcoes(id, nome_funcao, valor_diaria, valor_diaria_exclusiva, valor_refeicao)')
+        .in('id', funcionarioIdsPreservados)
         .order('nome_completo');
 
-      return funcionariosData || [];
+      return (funcionariosData || []).map(mapFuncionarioRecord);
     }
+    ,
+    enabled: isOpen && funcionarioIdsPreservados.length > 0,
+  });
+
+  const { data: engenheirosSolicitantes = [] } = useQuery({
+    queryKey: ['diarias-engenheiros-solicitantes', funcionarioIdsPreservados],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('bd_funcionarios')
+        .select('id, nome_completo, email, cpf, funcao_id, centro_custo_id, matricula, status, bd_funcoes(id, nome_funcao, valor_diaria, valor_diaria_exclusiva, valor_refeicao)')
+        .in('status', ['Ativo', 'Ativo sem Registro'])
+        .order('nome_completo');
+
+      const base = (data || []).map(mapFuncionarioRecord).filter((funcionario) => {
+        const nomeFuncao = funcionario.bd_funcoes?.nome_funcao || '';
+        return FUNCAO_ENGENHARIA_REGEX.test(nomeFuncao);
+      });
+
+      return mergeFuncionarios(
+        base,
+        funcionariosPreservados.filter((funcionario) => funcionario.id === engenheiroSolicitanteId || FUNCAO_ENGENHARIA_REGEX.test(funcionario.bd_funcoes?.nome_funcao || ''))
+      );
+    },
+    enabled: isOpen,
+  });
+
+  const { data: responsaveisCampo = [] } = useQuery({
+    queryKey: ['diarias-responsaveis-campo', centroCustoId, funcionarioIdsPreservados],
+    queryFn: async () => {
+      if (!centroCustoId) {
+        return mergeFuncionarios(
+          funcionariosPreservados.filter((funcionario) => funcionario.id === responsavelCampoId || FUNCAO_RESPONSAVEL_CAMPO_REGEX.test(funcionario.bd_funcoes?.nome_funcao || ''))
+        );
+      }
+
+      const { data } = await supabase
+        .from('bd_funcionarios')
+        .select('id, nome_completo, email, cpf, funcao_id, centro_custo_id, matricula, status, bd_funcoes(id, nome_funcao, valor_diaria, valor_diaria_exclusiva, valor_refeicao)')
+        .eq('centro_custo_id', centroCustoId)
+        .in('status', ['Ativo', 'Ativo sem Registro'])
+        .order('nome_completo');
+
+      const base = (data || []).map(mapFuncionarioRecord).filter((funcionario) => {
+        const nomeFuncao = funcionario.bd_funcoes?.nome_funcao || '';
+        return FUNCAO_RESPONSAVEL_CAMPO_REGEX.test(nomeFuncao);
+      });
+
+      return mergeFuncionarios(
+        base,
+        funcionarios.filter((funcionario: FuncionarioOption) => {
+          const nomeFuncao = funcionario.bd_funcoes?.nome_funcao || '';
+          return FUNCAO_RESPONSAVEL_CAMPO_REGEX.test(nomeFuncao);
+        }),
+        funcionariosPreservados.filter((funcionario) => funcionario.id === responsavelCampoId || FUNCAO_RESPONSAVEL_CAMPO_REGEX.test(funcionario.bd_funcoes?.nome_funcao || ''))
+      );
+    },
+    enabled: isOpen,
+  });
+
+  const { data: aprovadorCentroCusto } = useQuery({
+    queryKey: ['diarias-aprovador-centro-custo', selectedCentroCusto?.aprovador_diarias_id],
+    queryFn: async () => {
+      if (!selectedCentroCusto?.aprovador_diarias_id) return null;
+
+      const { data } = await supabase
+        .from('bd_funcionarios')
+        .select('id, nome_completo, email, cpf, funcao_id, centro_custo_id, matricula, status, bd_funcoes(id, nome_funcao, valor_diaria, valor_diaria_exclusiva, valor_refeicao)')
+        .eq('id', selectedCentroCusto.aprovador_diarias_id)
+        .maybeSingle();
+
+      return data ? mapFuncionarioRecord(data) : null;
+    },
+    enabled: !!selectedCentroCusto?.aprovador_diarias_id,
   });
 
   // Dados do usuário logado (responsável pela solicitação)
@@ -312,15 +492,243 @@ export function SolicitacaoFormModal({
     return map;
   }, [alocacoesAtivas, editingSolicitacao]);
 
+  const diasOperacionaisResumo = useMemo(() => {
+    return diasOperacionaisSelecionados.map((data) => ({
+      data,
+      descricao: regrasOperacionaisPorData[data]?.descricao?.trim() || justificativaOperacional.trim(),
+    }));
+  }, [diasOperacionaisSelecionados, regrasOperacionaisPorData, justificativaOperacional]);
+
+  const regrasOperacionaisSnapshot = useMemo(() => ({
+    datas: Object.fromEntries(
+      diasOperacionaisSelecionados.map((data) => {
+        const regra = regrasOperacionaisPorData[data];
+        return [data, {
+          ativa: true,
+          descricao: justificativaOperacional.trim(),
+          exige_aprovacao_adicao: regra?.exigeAprovacaoAdicao ?? false,
+          tipo: 'feriado_ponte_operacional' as const,
+        }];
+      })
+    ),
+    observacao: justificativaOperacional.trim(),
+    classificacao: 'feriado_ponte_operacional' as const,
+  }), [diasOperacionaisSelecionados, regrasOperacionaisPorData, justificativaOperacional]);
+
+  const resumoSimulacaoPeriodo = useMemo(() => {
+    return resumirPeriodoParaSimulacao(analise, regrasOperacionaisSnapshot, consideraFdsFeriado);
+  }, [analise, regrasOperacionaisSnapshot, consideraFdsFeriado]);
+
   // Determinar se o período contém dias úteis (relevante para regra de Remessa)
   const temDiasUteis = useMemo(() => {
-    return analise.diasUteis > 0;
-  }, [analise]);
+    return resumoSimulacaoPeriodo.diasUteis > 0;
+  }, [resumoSimulacaoPeriodo.diasUteis]);
 
   // Manter compatibilidade
   const isSomenteDiasUteis = useMemo(() => {
     return analise.sabados === 0 && analise.domingos === 0 && analise.feriados === 0;
   }, [analise]);
+
+  const datasPeriodo = useMemo(() => {
+    if (!dataInicio || !dataFim || !periodoValidacao.valido) return [] as Array<{
+      value: string;
+      label: string;
+      labelFull: string;
+      isWeekend: boolean;
+      isFeriado: boolean;
+    }>;
+
+    return eachDayOfInterval({ start: parseISO(dataInicio), end: parseISO(dataFim) }).map((date) => {
+      const value = format(date, 'yyyy-MM-dd');
+      const feriado = feriados.find((item) => item.data === value);
+      return {
+        value,
+        label: format(date, 'dd'),
+        labelFull: format(date, "EEEE, dd/MM", { locale: undefined }),
+        isWeekend: isWeekend(date),
+        isFeriado: !!feriado,
+      };
+    });
+  }, [dataInicio, dataFim, feriados, periodoValidacao.valido]);
+
+  const listaDiasGerados = datasPeriodo;
+  const contextoRegrasOperacionais = useMemo(
+    () => `${editingSolicitacao?.id || 'nova'}:${centroCustoId || 'sem-cc'}:${dataInicio || 'sem-inicio'}:${dataFim || 'sem-fim'}`,
+    [editingSolicitacao?.id, centroCustoId, dataInicio, dataFim]
+  );
+
+  useEffect(() => {
+    console.log(dataInicio, dataFim);
+    console.log(listaDiasGerados);
+  }, [dataInicio, dataFim, listaDiasGerados]);
+
+  const sincronizarRegraOperacionalData = useCallback(async (data: string) => {
+    const resolvida = await resolverRegraOperacional({
+      data,
+      centroCustoId: centroCustoId || null,
+    });
+
+    setRegrasOperacionaisPorData((prev) => ({
+      ...prev,
+      [data]: resolvida,
+    }));
+
+    return resolvida;
+  }, [centroCustoId]);
+
+  const carregarRegrasOperacionaisPeriodo = useCallback(async (force = false) => {
+    if (!datasPeriodo.length || !centroCustoId) {
+      setRegrasOperacionaisPorData({});
+      setDiasOperacionaisSelecionados([]);
+      setJustificativaOperacional(JUSTIFICATIVA_OPERACIONAL_PADRAO);
+      setRegrasOperacionaisDirty(false);
+      ultimoContextoRegrasCarregadoRef.current = null;
+      return;
+    }
+
+    if (
+      !force &&
+      regrasOperacionaisDirty &&
+      ultimoContextoRegrasCarregadoRef.current === contextoRegrasOperacionais
+    ) {
+      return;
+    }
+
+    const regrasEntries = await Promise.all(
+      datasPeriodo.map(async (dataItem) => [
+        dataItem.value,
+        await resolverRegraOperacional({
+          data: dataItem.value,
+          centroCustoId,
+        }),
+      ] as const)
+    );
+
+    const regrasMap = Object.fromEntries(regrasEntries);
+    const diasAtivos = regrasEntries
+      .filter(([, regra]) => regra?.encontrada && regra.tipoDiaOperacional === 'operacional')
+      .map(([data]) => data);
+    const descricaoAtiva = regrasEntries.find(([, regra]) => regra?.descricao?.trim())?.[1].descricao?.trim();
+
+    setRegrasOperacionaisPorData(regrasMap);
+    setDiasOperacionaisSelecionados(diasAtivos);
+    setJustificativaOperacional(diasAtivos.length > 0 ? (descricaoAtiva || JUSTIFICATIVA_OPERACIONAL_PADRAO) : JUSTIFICATIVA_OPERACIONAL_PADRAO);
+    setRegrasOperacionaisDirty(false);
+    ultimoContextoRegrasCarregadoRef.current = contextoRegrasOperacionais;
+  }, [datasPeriodo, centroCustoId, contextoRegrasOperacionais, regrasOperacionaisDirty]);
+
+  const alternarDiaOperacional = useCallback((data: string) => {
+    setRegrasOperacionaisDirty(true);
+    setDiasOperacionaisSelecionados((prev) => (
+      prev.includes(data)
+        ? prev.filter((item) => item !== data)
+        : [...prev, data]
+    ));
+  }, []);
+
+  const persistirRegrasOperacionaisSelecionadas = useCallback(async () => {
+    if (!centroCustoId) return true;
+
+    const justificativa = justificativaOperacional.trim();
+    if (diasOperacionaisSelecionados.length > 0 && justificativa.length < 10) {
+      toast.error('A justificativa da alteração precisa ter pelo menos 10 caracteres.');
+      return false;
+    }
+
+    const selecionadosSet = new Set(diasOperacionaisSelecionados);
+    const diasAtivosAtuais = Object.entries(regrasOperacionaisPorData)
+      .filter(([, regra]) => regra?.encontrada && regra.tipoDiaOperacional === 'operacional')
+      .map(([data]) => data);
+
+    const diasParaDesativar = diasAtivosAtuais.filter((data) => !selecionadosSet.has(data));
+    const diasParaAtivar = Array.from(selecionadosSet).filter((data) => {
+      const regraAtual = regrasOperacionaisPorData[data];
+      return !(
+        regraAtual?.encontrada &&
+        regraAtual.tipoDiaOperacional === 'operacional' &&
+        regraAtual.usaDiariaExclusiva &&
+        regraAtual.permiteRemessaMatriculados &&
+        (regraAtual.descricao ?? '').trim() === justificativa
+      );
+    });
+
+    if (!diasParaAtivar.length && !diasParaDesativar.length) return true;
+
+    console.info('[Diarias][Regras operacionais] persistência iniciada', {
+      centroCustoId,
+      dataInicio,
+      dataFim,
+      diasOperacionaisSelecionados,
+      diasParaAtivar,
+      diasParaDesativar,
+      payloadAtivacao: diasParaAtivar.map((data) => ({
+        data,
+        escopo_tipo: 'centro_custo',
+        escopo_id: centroCustoId,
+        tipo_dia_operacional: 'operacional',
+        permite_remessa_matriculados: true,
+        usa_diaria_exclusiva: true,
+        exige_aprovacao_adicao: false,
+        descricao: justificativa,
+        ativo: true,
+      })),
+      payloadDesativacao: diasParaDesativar.map((data) => ({
+        data,
+        escopo_tipo: 'centro_custo',
+        escopo_id: centroCustoId,
+      })),
+    });
+
+    setIsSavingRegrasOperacionais(true);
+    try {
+      await Promise.all([
+        ...diasParaAtivar.map(async (data) => {
+          await salvarRegraCalendarioOperacional({
+            data,
+            escopo_tipo: 'centro_custo',
+            escopo_id: centroCustoId,
+            tipo_dia_operacional: 'operacional',
+            permite_remessa_matriculados: true,
+            usa_diaria_exclusiva: true,
+            exige_aprovacao_adicao: false,
+            descricao: justificativa,
+            ativo: true,
+          });
+
+          await registrarLogOperacionalData({ data, acao: 'ativou', descricao: justificativa });
+        }),
+        ...diasParaDesativar.map(async (data) => {
+          await inativarRegraCalendarioOperacionalEscopo({
+            data,
+            escopo_tipo: 'centro_custo',
+            escopo_id: centroCustoId,
+          });
+
+          await registrarLogOperacionalData({
+            data,
+            acao: 'desativou',
+            descricao: regrasOperacionaisPorData[data]?.descricao ?? 'Regra operacional removida na solicitação.',
+          });
+        }),
+      ]);
+
+      await carregarRegrasOperacionaisPeriodo(true);
+      toast.success('Dias operacionais atualizados no período.');
+      return true;
+    } catch (error: any) {
+      console.error('[Diarias][Regras operacionais] falha na persistência', {
+        centroCustoId,
+        dataInicio,
+        dataFim,
+        diasOperacionaisSelecionados,
+        error,
+      });
+      toast.error(error.message || 'Erro ao atualizar os dias operacionais.');
+      return false;
+    } finally {
+      setIsSavingRegrasOperacionais(false);
+    }
+  }, [centroCustoId, dataFim, dataInicio, diasOperacionaisSelecionados, justificativaOperacional, regrasOperacionaisPorData, carregarRegrasOperacionaisPeriodo]);
 
   // Reset form when opening/closing
   useEffect(() => {
@@ -355,11 +763,19 @@ export function SolicitacaoFormModal({
         setJustificativaExtraordinaria('');
       }
       setStep('dados');
-      setSelectedFuncionarioId('');
       setAttemptedNext(false);
       setDuplicidadeDetectada(null);
+      setRegrasOperacionaisPorData({});
+      setDiasOperacionaisSelecionados([]);
+      setJustificativaOperacional(JUSTIFICATIVA_OPERACIONAL_PADRAO);
+      setRegrasOperacionaisDirty(false);
+      ultimoContextoRegrasCarregadoRef.current = null;
     }
   }, [isOpen, editingSolicitacao]);
+
+  useEffect(() => {
+    void carregarRegrasOperacionaisPeriodo();
+  }, [carregarRegrasOperacionaisPeriodo]);
 
   // Verificar duplicidade por sobreposição de datas + centro de custo
   useEffect(() => {
@@ -385,44 +801,66 @@ export function SolicitacaoFormModal({
     checkDuplicate();
   }, [centroCustoId, dataInicio, dataFim, isEditing]);
 
-  // Get selected centro de custo info
-  const selectedCentroCusto = useMemo(() => {
-    return centrosCusto.find((cc) => cc.id === centroCustoId);
-  }, [centrosCusto, centroCustoId]);
-
   // Get aprovador name
   // Get apontador name
   const apontadorNome = useMemo(() => {
     if (!responsavelCampoId) return null;
-    const func = funcionarios.find((f: any) => f.id === responsavelCampoId);
+    const func = mergeFuncionarios(responsaveisCampo, funcionariosPreservados, funcionarios).find((f) => f.id === responsavelCampoId);
     return func?.nome_completo || null;
-  }, [responsavelCampoId, funcionarios]);
+  }, [responsavelCampoId, responsaveisCampo, funcionariosPreservados, funcionarios]);
 
   const aprovadorNome = useMemo(() => {
     if (!selectedCentroCusto?.aprovador_diarias_id) return null;
-    const aprov = funcionarios.find((f: any) => f.id === selectedCentroCusto.aprovador_diarias_id);
-    return aprov?.nome_completo || 'Aprovador não encontrado';
-  }, [selectedCentroCusto, funcionarios]);
-
-  // Funcionarios available (not already added)
-  const funcionariosDisponiveis = useMemo(() => {
-    const addedIds = convocadosPre.map(c => c.funcionario_id);
-    return funcionarios.filter((f: any) => 
-      !addedIds.includes(f.id)
-    );
-  }, [funcionarios, convocadosPre]);
+    return aprovadorCentroCusto?.nome_completo
+      || funcionariosPreservados.find((f) => f.id === selectedCentroCusto.aprovador_diarias_id)?.nome_completo
+      || 'Aprovador não encontrado';
+  }, [selectedCentroCusto, aprovadorCentroCusto, funcionariosPreservados]);
 
   // Lista filtrada para Engenheiro Solicitante (apenas engenheiros e gerentes regionais)
   const engenheirosEGerentes = useMemo(() => {
-    return funcionarios.filter((f: any) => {
-      const nomeFuncao = f.bd_funcoes?.nome_funcao?.toLowerCase() || '';
-      return nomeFuncao.includes('engenheiro') || nomeFuncao.includes('gerente regional');
+    return mergeFuncionarios(
+      engenheirosSolicitantes,
+      funcionariosPreservados.filter((funcionario) => funcionario.id === engenheiroSolicitanteId)
+    );
+  }, [engenheirosSolicitantes, funcionariosPreservados, engenheiroSolicitanteId]);
+
+  const funcionariosBusca = useMemo(() => {
+    const merged = mergeFuncionarios(funcionarios, funcionariosPreservados);
+
+    const normalized = merged.map((funcionario) => ({
+      ...funcionario,
+      bd_funcoes: funcionario.bd_funcoes
+        ? {
+            id: funcionario.bd_funcoes.id || funcionario.funcao_id,
+            nome_funcao: funcionario.bd_funcoes.nome_funcao || 'Sem função cadastrada',
+            valor_diaria: funcionario.bd_funcoes.valor_diaria ?? 0,
+            valor_diaria_exclusiva: funcionario.bd_funcoes.valor_diaria_exclusiva ?? null,
+            valor_refeicao: funcionario.bd_funcoes.valor_refeicao ?? null,
+          }
+        : null,
+    }));
+
+    console.info('[Diarias][RPC funcionarios] pós-filtro frontend', {
+      totalRpc: funcionarios.length,
+      totalPreservados: funcionariosPreservados.length,
+      totalFinal: normalized.length,
+      primeiroItem: normalized[0] || null,
     });
-  }, [funcionarios]);
+
+    if (normalized.length === 0) {
+      console.warn('[Diarias][RPC funcionarios] lista final vazia', {
+        motivo: !dataInicio || !dataFim
+          ? 'Período incompleto para consulta'
+          : 'Nenhum funcionário retornado pela RPC e pela lista preservada',
+      });
+    }
+
+    return normalized;
+  }, [funcionarios, funcionariosPreservados, dataInicio, dataFim]);
 
   // Add funcionario by ID (used by SmartSearch)
   const handleAddFuncionarioById = async (funcId: string) => {
-    const func = funcionarios.find((f: any) => f.id === funcId);
+    const func = funcionariosBusca.find((f: any) => f.id === funcId) || funcionarios.find((f: any) => f.id === funcId);
     if (!func) return;
     
     if (convocadosPre.some(c => c.funcionario_id === funcId)) {
@@ -435,27 +873,9 @@ export function SolicitacaoFormModal({
       return;
     }
 
-    // Anti-fraude: validar status na data de início
-    if (dataInicio) {
-      try {
-        const statusResult = await validarStatusFuncionario(funcId, dataInicio);
-        if (statusResult.bloqueado && statusResult.tipo) {
-          setAntiFraudeAlert({
-            isOpen: true,
-            tipo: statusResult.tipo,
-            funcionarioNome: func.nome_completo,
-            motivo: statusResult.motivo || 'Status bloqueado.',
-            pendingFuncId: funcId
-          });
-          return;
-        }
-
-      } catch (err: any) {
-        // STATUS_HISTORICO_NAO_ENCONTRADO: permitir, pois o funcionário pode não ter histórico cadastrado ainda
-        if (!err?.message?.includes('STATUS_HISTORICO_NAO_ENCONTRADO')) {
-          console.error('Erro na validação anti-fraude:', err);
-        }
-      }
+    if (func.elegivel === false) {
+      toast.warning(func.motivo_bloqueio || `${func.nome_completo} está bloqueado para o período selecionado.`);
+      return;
     }
 
     const novoConvocado: FuncionarioPreConvocado = {
@@ -476,12 +896,13 @@ export function SolicitacaoFormModal({
 
   // Add all funcionarios from a Centro de Custo
   const handleAddByCentroCusto = (centroCustoIdSelected: string) => {
-    const funcsNoCc = funcionarios.filter((f: any) => f.centro_custo_id === centroCustoIdSelected && f.bd_funcoes && (f.status_funcionario === 'Ativo' || f.status_funcionario === 'Ativo sem Registro'));
+    const funcsNoCc = funcionariosBusca.filter((f: any) => f.centro_custo_id === centroCustoIdSelected && f.bd_funcoes);
     const addedIds = new Set(convocadosPre.map(c => c.funcionario_id));
     
     const novos: FuncionarioPreConvocado[] = [];
     let jaExistentes = 0;
     let semFuncao = 0;
+    const bloqueadosPorMotivo = new Map<string, number>();
 
     for (const func of funcsNoCc) {
       if (addedIds.has(func.id)) {
@@ -490,6 +911,11 @@ export function SolicitacaoFormModal({
       }
       if (!func.bd_funcoes) {
         semFuncao++;
+        continue;
+      }
+      if (func.elegivel === false) {
+        const motivo = func.motivo_bloqueio || 'Bloqueado pela regra operacional';
+        bloqueadosPorMotivo.set(motivo, (bloqueadosPorMotivo.get(motivo) || 0) + 1);
         continue;
       }
       novos.push({
@@ -513,6 +939,13 @@ export function SolicitacaoFormModal({
     if (novos.length > 0) parts.push(`${novos.length} funcionário${novos.length > 1 ? 's' : ''} adicionado${novos.length > 1 ? 's' : ''}`);
     if (jaExistentes > 0) parts.push(`${jaExistentes} já estava${jaExistentes > 1 ? 'm' : ''} na lista`);
     if (semFuncao > 0) parts.push(`${semFuncao} sem função cadastrada`);
+    if (bloqueadosPorMotivo.size > 0) {
+      parts.push(
+        Array.from(bloqueadosPorMotivo.entries())
+          .map(([motivo, total]) => `${total} bloqueado${total > 1 ? 's' : ''}: ${motivo}`)
+          .join(' | ')
+      );
+    }
     
     if (novos.length > 0) {
       toast.success(parts.join(". ") + ".");
@@ -521,13 +954,6 @@ export function SolicitacaoFormModal({
     } else {
       toast.warning("Nenhum funcionário ativo encontrado neste centro de custo.");
     }
-  };
-
-  // Legacy add handler (keeping for compatibility)
-  const handleAddFuncionario = () => {
-    if (!selectedFuncionarioId) return;
-    handleAddFuncionarioById(selectedFuncionarioId);
-    setSelectedFuncionarioId('');
   };
 
   // Remove funcionario
@@ -546,14 +972,15 @@ export function SolicitacaoFormModal({
 
   // Calculate simulação de valores
   const simulacao = useMemo(() => {
-    return calcularEstimativaTotal(convocadosPre, analise, consideraFdsFeriado, tipoSolicitacao);
-  }, [convocadosPre, analise, consideraFdsFeriado, tipoSolicitacao]);
+    return calcularEstimativaTotal(convocadosPre, analise, consideraFdsFeriado, tipoSolicitacao, regrasOperacionaisSnapshot);
+  }, [convocadosPre, analise, consideraFdsFeriado, tipoSolicitacao, regrasOperacionaisSnapshot]);
 
   // Validation
   const isExtraordinariaValida = tipoSolicitacao === 'normal' || (tipoSolicitacao === 'extraordinaria' && justificativaExtraordinaria.trim().length >= 20);
   const canProceedToDados = dataInicio && dataFim && centroCustoId && periodoValidacao.valido && responsavelCampoId && engenheiroSolicitanteId && !duplicidadeDetectada && isExtraordinariaValida;
   const canProceedToFuncionarios = convocadosPre.length > 0 && justificativa.trim().length >= minJustificativa;
   const canSave = canProceedToDados && canProceedToFuncionarios;
+  const justificativaOperacionalInvalida = diasOperacionaisSelecionados.length > 0 && justificativaOperacional.trim().length < 10;
 
   // Build form data
   const buildFormData = (): SolicitacaoFormData => ({
@@ -567,9 +994,9 @@ export function SolicitacaoFormModal({
     centro_custo_id: centroCustoId,
     justificativa,
     considera_fds_feriado: consideraFdsFeriado,
-    qtde_dias_uteis_estimado: analise.diasUteis,
-    qtde_fds_estimado: analise.sabados + analise.domingos,
-    qtde_feriados_estimado: analise.feriados,
+    qtde_dias_uteis_estimado: resumoSimulacaoPeriodo.diasUteis,
+    qtde_fds_estimado: resumoSimulacaoPeriodo.sabados + resumoSimulacaoPeriodo.domingos + resumoSimulacaoPeriodo.diasOperacionais,
+    qtde_feriados_estimado: resumoSimulacaoPeriodo.feriados,
     valor_estimado_total: simulacao.totalEstimado,
     convocados_pre: convocadosPre.map(c => ({
       funcionario_id: c.funcionario_id,
@@ -584,7 +1011,8 @@ export function SolicitacaoFormModal({
       matricula: c.matricula
     })),
     responsavel_campo_id: responsavelCampoId || undefined,
-    engenheiro_solicitante_id: engenheiroSolicitanteId || undefined
+    engenheiro_solicitante_id: engenheiroSolicitanteId || undefined,
+    regras_operacionais_por_data: regrasOperacionaisSnapshot
   });
 
   // Log de auditoria para extraordinárias
@@ -603,26 +1031,41 @@ export function SolicitacaoFormModal({
 
   // Handle save as draft
   const handleSave = async () => {
+    const payload = buildFormData();
+
+    console.info('[Diarias][Modal] salvar rascunho', {
+      userId: user?.id || null,
+      canCreateSolicitacao,
+      permissions,
+      payload,
+    });
+
     try {
-      const result = await onSave(buildFormData());
-      // Log extraordinária se houver ID retornado
+      await onSave(payload);
+      onClose();
     } catch (error) {
       console.error('Erro ao salvar:', error);
-    } finally {
-      onClose();
     }
   };
 
   // Handle save and send for authorization
   const handleSaveAndSend = async () => {
+    const payload = buildFormData();
+
+    console.info('[Diarias][Modal] salvar e enviar', {
+      userId: user?.id || null,
+      canCreateSolicitacao,
+      permissions,
+      payload,
+    });
+
     try {
       if (onSaveAndSend) {
-        await onSaveAndSend(buildFormData());
+        await onSaveAndSend(payload);
+        onClose();
       }
     } catch (error) {
       console.error('Erro ao salvar e enviar:', error);
-    } finally {
-      onClose();
     }
   };
 
@@ -717,6 +1160,63 @@ export function SolicitacaoFormModal({
                     </p>
                   </div>
                   <Badge variant="outline" className="text-xs">Automático</Badge>
+                </div>
+              )}
+
+              {dataInicio && dataFim && (
+                <div className="space-y-3 rounded-lg border p-3">
+                  <div>
+                    <Label>Configuração dos dias do período</Label>
+                    <p className="text-xs text-muted-foreground">Selecione os dias que devem ser tratados como feriado/ponte operacional.</p>
+                  </div>
+                  {listaDiasGerados.length > 0 ? (
+                    <>
+                      <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
+                        {listaDiasGerados.map((dia) => {
+                          const selecionado = diasOperacionaisSelecionados.includes(dia.value);
+                          return (
+                            <button
+                              key={dia.value}
+                              type="button"
+                              onClick={() => alternarDiaOperacional(dia.value)}
+                              className={cn(
+                                "flex h-11 items-center justify-center rounded-md border text-sm font-semibold transition-colors",
+                                selecionado
+                                  ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                                  : "border-border bg-muted text-foreground hover:bg-accent",
+                              )}
+                            >
+                              {dia.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="justificativa-operacional">Justificativa da alteração *</Label>
+                        <Textarea
+                          id="justificativa-operacional"
+                          value={justificativaOperacional}
+                          onChange={(e) => {
+                            setRegrasOperacionaisDirty(true);
+                            setJustificativaOperacional(e.target.value);
+                          }}
+                          placeholder={JUSTIFICATIVA_OPERACIONAL_PADRAO}
+                          rows={3}
+                          className="min-h-[88px]"
+                        />
+                        {diasOperacionaisSelecionados.length > 0 && justificativaOperacional.trim().length < 10 && (
+                          <p className="text-xs text-destructive">
+                            Informe ao menos 10 caracteres para aplicar os dias selecionados.
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Selecione um período válido para gerar os dias automaticamente.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -882,15 +1382,15 @@ export function SolicitacaoFormModal({
                     Apontador (Resp. Campo) <span className="text-destructive">*</span>
                   </Label>
                   <Combobox
-                    options={funcionarios.map((f: any) => ({
+                    options={mergeFuncionarios(responsaveisCampo, funcionariosPreservados).map((f: any) => ({
                       value: f.id,
                       label: f.nome_completo
                     }))}
                     value={responsavelCampoId}
                     onChange={setResponsavelCampoId}
                     placeholder="Selecione o apontador..."
-                    searchPlaceholder="Buscar funcionário..."
-                    emptyText="Nenhum funcionário encontrado"
+                    searchPlaceholder="Buscar apontador ou responsável..."
+                    emptyText="Nenhum responsável encontrado"
                     className={`mt-1.5 ${attemptedNext && !responsavelCampoId ? 'border-destructive ring-destructive' : ''}`}
                   />
                   {attemptedNext && !responsavelCampoId ? (
@@ -925,7 +1425,7 @@ export function SolicitacaoFormModal({
             <div className="flex flex-col gap-4">
               {/* Topo fixo: busca */}
               <SmartFuncionarioSearch
-                funcionarios={funcionarios}
+                funcionarios={funcionariosBusca}
                 centrosCusto={centrosCusto}
                 convocadosPre={convocadosPre}
                 onSelectFuncionario={handleAddFuncionarioById}
@@ -989,6 +1489,11 @@ export function SolicitacaoFormModal({
                                     <AlertTriangle className="h-3 w-3" /> D/Férias ativado
                                   </span>
                                 )}
+                                {diasOperacionaisSelecionados.length > 0 && (
+                                  <span className="text-[10px] text-primary flex items-center gap-0.5">
+                                    <Calendar className="h-3 w-3" /> Feriado/ponte operacional no período
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </TableCell>
@@ -1029,9 +1534,9 @@ export function SolicitacaoFormModal({
               {convocadosPre.length > 0 && (
                 <SimulacaoValores
                   simulacao={simulacao}
-                  diasUteis={analise.diasUteis}
-                  diasFds={consideraFdsFeriado ? analise.sabados + analise.domingos + analise.feriados : 0}
-                  diasParaRefeicao={consideraFdsFeriado ? analise.diasUteis + analise.sabados + analise.domingos + analise.feriados : analise.diasUteis}
+                  diasUteis={resumoSimulacaoPeriodo.diasUteis}
+                  diasFds={resumoSimulacaoPeriodo.diasExclusivos}
+                  diasParaRefeicao={resumoSimulacaoPeriodo.diasParaRefeicao}
                 />
               )}
 
@@ -1083,19 +1588,19 @@ export function SolicitacaoFormModal({
                   <div className="grid grid-cols-4 gap-4">
                     <div>
                       <Label className="text-muted-foreground">Seg-Sex</Label>
-                      <p className="font-medium">{analise.diasUteis}</p>
+                      <p className="font-medium">{resumoSimulacaoPeriodo.diasUteis}</p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground">Sábados</Label>
-                      <p className="font-medium">{analise.sabados}</p>
+                      <p className="font-medium">{resumoSimulacaoPeriodo.sabados}</p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground">Domingos</Label>
-                      <p className="font-medium">{analise.domingos}</p>
+                      <p className="font-medium">{resumoSimulacaoPeriodo.domingos}</p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground">Feriados</Label>
-                      <p className="font-medium">{analise.feriados}</p>
+                      <p className="font-medium">{resumoSimulacaoPeriodo.feriados + resumoSimulacaoPeriodo.diasOperacionais}</p>
                     </div>
                   </div>
                   
@@ -1133,6 +1638,31 @@ export function SolicitacaoFormModal({
                     <Label className="text-muted-foreground">Justificativa</Label>
                     <p className="text-sm">{justificativa}</p>
                   </div>
+
+                  {diasOperacionaisResumo.length > 0 && (
+                    <div className="space-y-3 border-t pt-3">
+                      <div>
+                        <Label className="text-muted-foreground">Dias operacionais do período</Label>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {diasOperacionaisResumo.map((item) => (
+                            <Badge key={item.data} variant="secondary" className="text-xs">
+                              {formatBrazilianDateForDisplay(item.data)}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label className="text-muted-foreground">Classificação</Label>
+                          <p className="font-medium">Feriado / ponte operacional</p>
+                        </div>
+                        <div>
+                          <Label className="text-muted-foreground">Observação</Label>
+                          <p className="text-sm">{justificativaOperacional.trim()}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1179,9 +1709,9 @@ export function SolicitacaoFormModal({
               {/* Valor Total Estimado */}
               <SimulacaoValores
                 simulacao={simulacao}
-                diasUteis={analise.diasUteis}
-                diasFds={consideraFdsFeriado ? analise.sabados + analise.domingos + analise.feriados : 0}
-                diasParaRefeicao={consideraFdsFeriado ? analise.diasUteis + analise.sabados + analise.domingos + analise.feriados : analise.diasUteis}
+                diasUteis={resumoSimulacaoPeriodo.diasUteis}
+                diasFds={resumoSimulacaoPeriodo.diasExclusivos}
+                diasParaRefeicao={resumoSimulacaoPeriodo.diasParaRefeicao}
               />
               
               <EstimativaAviso />
@@ -1206,11 +1736,21 @@ export function SolicitacaoFormModal({
           
           {step === 'dados' && (
             <Button 
-              onClick={() => {
+              onClick={async () => {
                 setAttemptedNext(true);
-                if (canProceedToDados) setStep('funcionarios');
+                if (!canProceedToDados || justificativaOperacionalInvalida) return;
+                console.info('[Diarias][Modal] avançando para funcionários', {
+                  centroCustoId,
+                  dataInicio,
+                  dataFim,
+                  diasOperacionaisSelecionados,
+                });
+                const persisted = await persistirRegrasOperacionaisSelecionadas();
+                if (persisted) setStep('funcionarios');
               }}
+              disabled={isSavingRegrasOperacionais}
             >
+              {isSavingRegrasOperacionais && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Próximo
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
@@ -1255,40 +1795,6 @@ export function SolicitacaoFormModal({
       </DialogContent>
     </Dialog>
 
-    <StatusFuncionarioAlert
-      isOpen={antiFraudeAlert.isOpen}
-      onClose={() => setAntiFraudeAlert(prev => ({ ...prev, isOpen: false }))}
-      tipo={antiFraudeAlert.tipo}
-      funcionarioNome={antiFraudeAlert.funcionarioNome}
-      motivo={antiFraudeAlert.motivo}
-      diasSemApontamento={antiFraudeAlert.diasSemApontamento}
-      onSolicitarExtraordinario={
-        antiFraudeAlert.tipo === 'ferias'
-          ? () => {
-              setTipoSolicitacao('extraordinaria');
-              setAntiFraudeAlert(prev => ({ ...prev, isOpen: false }));
-              if (antiFraudeAlert.pendingFuncId) {
-                const func = funcionarios.find((f: any) => f.id === antiFraudeAlert.pendingFuncId);
-                if (func?.bd_funcoes) {
-                  setConvocadosPre(prev => [...prev, {
-                    funcionario_id: func.id,
-                    funcao_id: func.funcao_id,
-                    valor_diaria: func.bd_funcoes.valor_diaria || 0,
-                    valor_diaria_exclusiva: func.bd_funcoes.valor_diaria_exclusiva || undefined,
-                    valor_refeicao: func.bd_funcoes.valor_refeicao || 0,
-                    nome_funcionario: func.nome_completo,
-                    nome_funcao: func.bd_funcoes.nome_funcao,
-                    cpf: func.cpf || '',
-                    matricula: func.matricula || '',
-                    usar_diaria_exclusiva: true
-                  }]);
-                  toast.success(`${func.nome_completo} adicionado como extraordinário.`);
-                }
-              }
-            }
-          : undefined
-      }
-    />
     </>
   );
 }

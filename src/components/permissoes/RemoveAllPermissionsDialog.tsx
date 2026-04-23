@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertTriangle, Trash2, User, Mail } from 'lucide-react';
 import { ProfileType } from '@/types/permissao';
+import { getCanonicalRoleNames } from '@/utils/adminPermissionProfile';
 
 interface RemoveAllPermissionsDialogProps {
   isOpen: boolean;
@@ -42,7 +43,7 @@ const RemoveAllPermissionsDialog: React.FC<RemoveAllPermissionsDialogProps> = ({
 
   if (!profile) return null;
 
-  const adminFunctions = profile.funcoes?.filter(f => f !== 'user') || [];
+  const adminFunctions = getCanonicalRoleNames(profile as any);
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>

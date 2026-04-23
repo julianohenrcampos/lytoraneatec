@@ -809,6 +809,11 @@ export default function DiariasSolicitacoes() {
                 await updateMutation.mutateAsync({ id: editingSolicitacao.id, formData });
                 await enviarMutation.mutateAsync(editingSolicitacao.id);
               } else {
+                console.info('[Diarias][Page] fluxo salvar e enviar', {
+                  userId: userId || null,
+                  canCreateSolicitacao,
+                  payload: formData,
+                });
                 const result = await createMutation.mutateAsync(formData);
                 if (result?.id) {
                   await enviarMutation.mutateAsync(result.id);
@@ -816,6 +821,7 @@ export default function DiariasSolicitacoes() {
               }
             } catch (error) {
               console.error('Erro ao salvar e enviar:', error);
+              throw error;
             }
           }}
           editingSolicitacao={editingSolicitacao}

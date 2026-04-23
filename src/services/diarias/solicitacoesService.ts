@@ -16,6 +16,7 @@ import type {
 interface SolicitacaoScopeFilters {
   criado_por?: string;  // Engenheiro: filtra por criador
   centro_custo_ids?: string[];  // Gerente: filtra por CCs gerenciados
+  responsavel_campo_id?: string;
 }
 
 export async function getSolicitacoes(
@@ -44,6 +45,9 @@ export async function getSolicitacoes(
   }
   if (scope?.centro_custo_ids?.length) {
     query = query.in('centro_custo_id', scope.centro_custo_ids);
+  }
+  if (scope?.responsavel_campo_id) {
+    query = query.eq('responsavel_campo_id', scope.responsavel_campo_id);
   }
 
   // Filtro por número de solicitação (busca parcial)
@@ -112,6 +116,22 @@ async function generateNumeroSolicitacao(): Promise<string> {
   return data as string;
 }
 
+async function getAuthenticatedUserId(): Promise<string> {
+  const { data, error } = await supabase.auth.getUser();
+
+  if (error) {
+    console.error('[Diarias][createSolicitacao] erro ao obter usuário autenticado', error);
+  }
+
+  const userId = data.user?.id;
+
+  if (!userId) {
+    throw new Error('Sua sessão expirou. Recarregue a página e tente novamente.');
+  }
+
+  return userId;
+}
+
 // Verificar duplicidade de funcionários em solicitações com período sobreposto
 async function verificarDuplicidadeSolicitacao(
   dataInicio: string,
@@ -148,7 +168,107 @@ async function verificarDuplicidadeSolicitacao(
   }
 }
 
+async function sincronizarConvocadosPreControlado(
+  solicitacaoId: string,
+  convocadosPre: SolicitacaoFormData['convocados_pre'] = []
+): Promise<void> {
+  const { data: solicitacaoAtual, error: solicitacaoError } = await supabase
+    .from('bd_diaria_solicitacoes')
+    .select('convocados_pre')
+    .eq('id', solicitacaoId)
+    .single();
+
+  if (solicitacaoError) {
+    throw new Error(solicitacaoError.message);
+  }
+
+  const atuais = Array.isArray(solicitacaoAtual?.convocados_pre)
+    ? solicitacaoAtual.convocados_pre as any[]
+    : [];
+
+  const atuaisMap = new Map(atuais.map((item) => [item.funcionario_id, item]));
+  const novosMap = new Map((convocadosPre || []).map((item) => [item.funcionario_id, item]));
+
+  for (const funcionarioId of atuaisMap.keys()) {
+    if (!novosMap.has(funcionarioId)) {
+      await removerFuncionarioConvocado(solicitacaoId, funcionarioId);
+    }
+  }
+
+  for (const convocado of convocadosPre || []) {
+    const atual = atuaisMap.get(convocado.funcionario_id);
+    if (!atual || JSON.stringify(atual) !== JSON.stringify(convocado)) {
+      if (atual) {
+        await removerFuncionarioConvocado(solicitacaoId, convocado.funcionario_id);
+      }
+      await adicionarFuncionarioConvocado(solicitacaoId, {
+        funcionario_id: convocado.funcionario_id,
+        funcao_id: convocado.funcao_id,
+        valor_diaria: convocado.valor_diaria,
+        valor_diaria_exclusiva: convocado.valor_diaria_exclusiva,
+        valor_refeicao: convocado.valor_refeicao,
+        nome_funcionario: convocado.nome_funcionario || '',
+        nome_funcao: convocado.nome_funcao || '',
+        cpf: convocado.cpf,
+        matricula: convocado.matricula,
+      });
+    }
+  }
+}
+
+function traduzirErroCriacaoSolicitacao(error: any): string {
+  const mensagem = traduzirErroPeriodoSobreposto(error);
+  const message = error?.message || '';
+  const details = error?.details || '';
+  const hint = error?.hint || '';
+
+  if (
+    error?.code === '42501' ||
+    message.includes('row-level security policy') ||
+    details.includes('row-level security policy')
+  ) {
+    console.error('[Diarias][createSolicitacao] bloqueio RLS detalhado', {
+      code: error?.code,
+      message,
+      details,
+      hint,
+    });
+
+    if (details.includes('criado_por') || hint.includes('criado_por')) {
+      return 'A solicitação precisa ser criada pelo próprio usuário autenticado. Recarregue a tela e tente novamente.';
+    }
+
+    if (error?.backendCanCreate === true) {
+      return 'O backend reconheceu sua permissão, mas bloqueou a gravação final da solicitação. Tente novamente; se persistir, o erro real foi registrado no console para diagnóstico.';
+    }
+
+    return 'Seu perfil não possui permissão de criação de solicitação de diária.';
+  }
+
+  return mensagem;
+}
+
 export async function createSolicitacao(formData: SolicitacaoFormData): Promise<DiariaSolicitacao> {
+  const currentUserId = await getAuthenticatedUserId();
+
+  const { data: backendCanCreate, error: canCreateError } = await supabase.rpc('fn_diaria_can_create', {
+    p_user_id: currentUserId,
+  });
+
+  if (canCreateError) {
+    console.error('[Diarias][createSolicitacao] erro no preflight fn_diaria_can_create', {
+      userId: currentUserId,
+      message: canCreateError.message,
+      code: canCreateError.code,
+      details: canCreateError.details,
+      hint: canCreateError.hint,
+    });
+  }
+
+  if (backendCanCreate === false) {
+    throw new Error('Seu perfil não possui permissão de criação de solicitação de diária.');
+  }
+
   // Verificar duplicidade antes de criar
   await verificarDuplicidadeSolicitacao(
     formData.data_inicio,
@@ -175,31 +295,78 @@ export async function createSolicitacao(formData: SolicitacaoFormData): Promise<
     qtde_fds_estimado: formData.qtde_fds_estimado ?? 0,
     qtde_feriados_estimado: formData.qtde_feriados_estimado ?? 0,
     valor_estimado_total: formData.valor_estimado_total ?? 0,
-    convocados_pre: formData.convocados_pre || [],
+    criado_por: currentUserId,
+    convocados_pre: [],
+    regras_operacionais_snapshot: formData.regras_operacionais_por_data ?? { datas: {}, observacao: '', classificacao: 'feriado_ponte_operacional' },
     responsavel_campo_id: formData.responsavel_campo_id || null,
     engenheiro_solicitante_id: formData.engenheiro_solicitante_id || null,
     status: 'rascunho'
   };
 
+  console.info('[Diarias][createSolicitacao] tentativa de criação', {
+    centro_custo_id: insertData.centro_custo_id,
+    data_inicio: insertData.data_inicio,
+    data_fim: insertData.data_fim,
+    responsavel_campo_id: insertData.responsavel_campo_id,
+    engenheiro_solicitante_id: insertData.engenheiro_solicitante_id,
+    convocados_pre_count: formData.convocados_pre?.length || 0,
+    flag_extraordinaria: insertData.flag_extraordinaria,
+    tipo_solicitacao: insertData.tipo_solicitacao,
+  });
+
   const { data, error } = await supabase
     .from('bd_diaria_solicitacoes')
-    .insert(insertData as any)
-    .select(`
-      *,
-      bd_centros_custo (
-        id,
-        codigo_centro_custo,
-        nome_centro_custo
-      )
-    `)
-    .single();
+    .insert(insertData as any);
 
   if (error) {
-    console.error('Erro ao criar solicitação:', error);
-    throw new Error(traduzirErroPeriodoSobreposto(error));
+    console.error('[Diarias][createSolicitacao] erro ao criar solicitação', {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+      backendCanCreate,
+      insertData,
+    });
+    throw new Error(traduzirErroCriacaoSolicitacao({ ...error, backendCanCreate }));
   }
 
-  return data as unknown as DiariaSolicitacao;
+  const { data: createdRow, error: createdRowError } = await supabase
+    .from('bd_diaria_solicitacoes')
+    .select('id')
+    .eq('numero_solicitacao', numero_solicitacao)
+    .eq('criado_por', currentUserId)
+    .maybeSingle();
+
+  if (createdRowError || !createdRow?.id) {
+    console.error('[Diarias][createSolicitacao] solicitação criada mas não pôde ser recarregada logo após o insert', {
+      numero_solicitacao,
+      currentUserId,
+      message: createdRowError?.message,
+      code: createdRowError?.code,
+      details: createdRowError?.details,
+      hint: createdRowError?.hint,
+    });
+    throw new Error('A solicitação foi gravada, mas não pôde ser recarregada automaticamente. Atualize a lista e tente novamente.');
+  }
+
+  try {
+    await sincronizarConvocadosPreControlado(createdRow.id, formData.convocados_pre || []);
+  } catch (syncError: any) {
+    console.error('[Diarias][createSolicitacao] erro ao sincronizar convocados após criar solicitação', {
+      solicitacaoId: createdRow.id,
+      message: syncError?.message,
+    });
+    await supabase.from('bd_diaria_solicitacoes').delete().eq('id', createdRow.id);
+    throw new Error(syncError.message || 'Erro ao validar convocados da solicitação');
+  }
+
+  const solicitacaoFinal = await getSolicitacaoById(createdRow.id);
+
+  if (!solicitacaoFinal) {
+    throw new Error('Solicitação criada, mas não foi possível recarregar os dados finais.');
+  }
+
+  return solicitacaoFinal;
 }
 
 // Traduz erros de constraint de sobreposição em mensagem amigável
@@ -228,7 +395,7 @@ export async function updateSolicitacao(id: string, formData: Partial<Solicitaca
   if (formData.qtde_fds_estimado !== undefined) updateData.qtde_fds_estimado = formData.qtde_fds_estimado;
   if (formData.qtde_feriados_estimado !== undefined) updateData.qtde_feriados_estimado = formData.qtde_feriados_estimado;
   if (formData.valor_estimado_total !== undefined) updateData.valor_estimado_total = formData.valor_estimado_total;
-  if (formData.convocados_pre !== undefined) updateData.convocados_pre = formData.convocados_pre;
+  if (formData.regras_operacionais_por_data !== undefined) updateData.regras_operacionais_snapshot = formData.regras_operacionais_por_data;
   if (formData.responsavel_campo_id !== undefined) updateData.responsavel_campo_id = formData.responsavel_campo_id || null;
   if (formData.engenheiro_solicitante_id !== undefined) updateData.engenheiro_solicitante_id = formData.engenheiro_solicitante_id || null;
   if (formData.data_inicio_semana !== undefined) updateData.data_inicio_semana = formData.data_inicio_semana || null;
@@ -256,7 +423,17 @@ export async function updateSolicitacao(id: string, formData: Partial<Solicitaca
     throw new Error(traduzirErroPeriodoSobreposto(error));
   }
 
-  return data as unknown as DiariaSolicitacao;
+  if (formData.convocados_pre !== undefined) {
+    await sincronizarConvocadosPreControlado(id, formData.convocados_pre || []);
+  }
+
+  const solicitacaoFinal = await getSolicitacaoById(id);
+
+  if (!solicitacaoFinal) {
+    throw new Error('Solicitação atualizada, mas não foi possível recarregar os dados finais.');
+  }
+
+  return solicitacaoFinal;
 }
 
 export async function deleteSolicitacao(id: string): Promise<void> {

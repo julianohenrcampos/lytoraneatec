@@ -33,6 +33,7 @@ export interface DiariaSolicitacao {
   qtde_feriados_estimado: number;
   valor_estimado_total: number;
   convocados_pre?: FuncionarioPreConvocado[];
+  regras_operacionais_snapshot?: RegrasOperacionaisSnapshot;
   responsavel_campo_id: string | null;
   engenheiro_solicitante_id: string | null;
   observacao_gerente: string | null;
@@ -176,6 +177,20 @@ export interface SolicitacaoFormData {
   convocados_pre?: FuncionarioPreConvocado[];
   responsavel_campo_id?: string;
   engenheiro_solicitante_id?: string;
+  regras_operacionais_por_data?: RegrasOperacionaisSnapshot;
+}
+
+export interface RegraOperacionalSnapshotItem {
+  ativa: boolean;
+  descricao: string;
+  exige_aprovacao_adicao?: boolean;
+  tipo?: 'feriado_ponte_operacional';
+}
+
+export interface RegrasOperacionaisSnapshot {
+  datas: Record<string, RegraOperacionalSnapshotItem>;
+  observacao: string;
+  classificacao: 'feriado_ponte_operacional';
 }
 
 export interface ConvocacaoFormData {

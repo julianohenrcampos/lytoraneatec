@@ -23,6 +23,7 @@ export interface DiariasDataScope {
   funcionarioId: string | null;
   centrosCustoGerenciados: string[];
   isLoading: boolean;
+  backendCanCreateSolicitacao: boolean | null;
   
   // Filtros automáticos para queries
   scopeFilters: DiariasDataScopeFilters;
@@ -47,12 +48,13 @@ export interface DiariasDataScope {
 }
 
 export function useDiariasDataScope(): DiariasDataScope {
-  const { userId, isSuperAdmin, permissions, isLoading: isLoadingPermissions } = usePermission();
+  const { userId, userRole, isSuperAdmin, permissions, isLoading: isLoadingPermissions } = usePermission();
   
   const [funcionarioId, setFuncionarioId] = useState<string | null>(null);
   const [centrosCustoGerenciados, setCentrosCustoGerenciados] = useState<string[]>([]);
   const [userScope, setUserScope] = useState<DiariasUserScope>('nenhum');
   const [isLoading, setIsLoading] = useState(true);
+  const [backendCanCreateSolicitacao, setBackendCanCreateSolicitacao] = useState<boolean | null>(null);
   const lastDeterminedUserId = useRef<string | null>(null);
 
   // Buscar dados do usuário e determinar escopo
@@ -65,8 +67,26 @@ export function useDiariasDataScope(): DiariasDataScope {
 
     const determineScope = async () => {
       setIsLoading(true);
+      setBackendCanCreateSolicitacao(null);
 
       try {
+        const { data: canCreateFromBackend, error: canCreateError } = await supabase.rpc('fn_diaria_can_create', {
+          p_user_id: userId,
+        });
+
+        if (canCreateError) {
+          console.error('[Diarias][Scope] erro ao consultar fn_diaria_can_create', {
+            userId,
+            message: canCreateError.message,
+            code: canCreateError.code,
+            details: canCreateError.details,
+            hint: canCreateError.hint,
+          });
+          setBackendCanCreateSolicitacao(false);
+        } else {
+          setBackendCanCreateSolicitacao(Boolean(canCreateFromBackend));
+        }
+
         // 1. SuperAdmin = acesso total
         if (isSuperAdmin) {
           setUserScope('superadmin');
@@ -102,8 +122,8 @@ export function useDiariasDataScope(): DiariasDataScope {
           }
         }
 
-        // 2c. Verificar se é AdmSSO (visão ampla, sem aprovação)
-        if (funcoes.includes('AdmSSO') || funcoes.includes('AdmOBRA')) {
+        // 2c. Verificar se é AdmSSO (visão ampla apenas quando houver acesso global real)
+        if (funcoes.includes('AdmSSO')) {
           setFuncionarioId(profile?.funcionario_id || null);
           setUserScope('admsso');
           lastDeterminedUserId.current = userId;
@@ -168,7 +188,7 @@ export function useDiariasDataScope(): DiariasDataScope {
 
   // Filtros de escopo baseado no perfil
   const scopeFilters = useMemo((): DiariasDataScopeFilters => {
-    if (userScope === 'superadmin') return {};
+    if (userScope === 'superadmin' || userScope === 'admsso') return {};
     if (userScope === 'admsede') return { centro_custo_ids: centrosCustoGerenciados };
     if (userScope === 'engenheiro') return { criado_por: userId || undefined };
     if (userScope === 'gerente') return { centro_custo_ids: centrosCustoGerenciados };
@@ -192,7 +212,7 @@ export function useDiariasDataScope(): DiariasDataScope {
   }, [userScope, funcionarioId, centrosCustoGerenciados]);
 
   const getRelatorioFilter = useCallback((): RelatorioFilters & DiariasDataScopeFilters => {
-    if (userScope === 'superadmin') return {};
+    if (userScope === 'superadmin' || userScope === 'admsso') return {};
     if (userScope === 'admsede') return { centro_custo_ids: centrosCustoGerenciados };
     if (userScope === 'engenheiro') return { criado_por: userId || undefined };
     if (userScope === 'gerente') return { centro_custo_ids: centrosCustoGerenciados };
@@ -213,10 +233,33 @@ export function useDiariasDataScope(): DiariasDataScope {
   }, [centrosCustoGerenciados]);
 
   const canCreateSolicitacao = useMemo(() => {
-    if (userScope === 'admsso' || userScope === 'admsede') return true;
+    if (backendCanCreateSolicitacao !== null) {
+      return backendCanCreateSolicitacao;
+    }
+
+    if (isLoading || isLoadingPermissions || !userId) return false;
+
+    if (isSuperAdmin) return true;
+
+    const rolePodeCriar = [
+      'AdmSSO',
+      'AdmSede',
+      'AdmOBRA',
+      'GerenteRegional',
+      'Gerente',
+      'Engenheiro Civil',
+    ].includes(userRole || '');
+
+    if (rolePodeCriar) return true;
+
     if (userScope === 'apontador') return false;
-    return hasPermission('diarias_solicitar_create') || hasPermission('diarias_solicitar') || hasPermission('diarias_view');
-  }, [hasPermission, userScope]);
+
+    return (
+      hasPermission('diarias_criar') ||
+      hasPermission('diarias_solicitar_create') ||
+      hasPermission('diarias_solicitar')
+    );
+  }, [backendCanCreateSolicitacao, hasPermission, isLoading, isLoadingPermissions, isSuperAdmin, userId, userRole, userScope]);
 
   const canEditSolicitacao = useCallback((sol: DiariaSolicitacao) => {
     if (isSuperAdmin) return true;
@@ -234,8 +277,8 @@ export function useDiariasDataScope(): DiariasDataScope {
     // SuperAdmin pode excluir qualquer solicitação
     if (isSuperAdmin) return true;
     
-    // AdmSSO/AdmSede pode excluir solicitações do seu escopo
-    if (userScope === 'admsso' || (userScope === 'admsede' && centrosCustoGerenciados.includes(sol.centro_custo_id))) return true;
+    if (userScope === 'admsso') return true;
+    if ((userScope === 'admsede' || userScope === 'gerente') && centrosCustoGerenciados.includes(sol.centro_custo_id)) return true;
     
     // Criador pode excluir apenas rascunho/enviada
     if (sol.criado_por !== userId) return false;
@@ -327,6 +370,7 @@ export function useDiariasDataScope(): DiariasDataScope {
     funcionarioId,
     centrosCustoGerenciados,
     isLoading,
+    backendCanCreateSolicitacao,
     scopeFilters,
     getSolicitacoesFilter,
     getApontamentosFilter,

@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissionCacheInvalidation } from "@/hooks/usePermissionCacheInvalidation";
-import { userHasAnyPermission } from "@/utils/hybridPermissions";
 import { useProfileSecurity } from "@/hooks/useProfileSecurity";
 import { ProfileType } from "@/types/permissao";
 import {
@@ -29,6 +28,7 @@ import {
 } from "@/services/rbac/userRolesCRUD";
 import { fetchManageablePermissionProfiles } from "@/services/rbac/permissionAdminSecure";
 import { supabase } from "@/integrations/supabase/client";
+import { getCanonicalRoleNames, hasCanonicalPermissionProfile } from "@/utils/adminPermissionProfile";
 
 export const usePermissao = () => {
   const { toast } = useToast();
@@ -137,9 +137,9 @@ export const usePermissao = () => {
 
     if (profileFilter.status && profileFilter.status !== '' && profileFilter.status !== 'todos') {
       if (profileFilter.status === 'sem_permissao') {
-        filteredData = filteredData.filter(profile => !userHasAnyPermission(profile));
+        filteredData = filteredData.filter(profile => !hasCanonicalPermissionProfile(profile));
       } else if (profileFilter.status === 'com_permissao') {
-        filteredData = filteredData.filter(profile => userHasAnyPermission(profile));
+        filteredData = filteredData.filter(profile => hasCanonicalPermissionProfile(profile));
       }
     }
 

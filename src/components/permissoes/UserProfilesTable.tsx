@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Users, Eye, Edit, UserCheck, AlertCircle, RefreshCw, Link2, Unlink, Trash2, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,15 +15,15 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ProfileType } from "@/types/permissao";
-import { 
-  getHybridPermissionStatus, 
-  getUserDisplayFunction, 
-  userHasAnyPermission,
-  isUserSuperAdmin 
-} from "@/utils/hybridPermissions";
 import { getDepartmentDisplay } from "@/utils/departmentDisplay";
 import { usePagination } from "@/hooks/usePagination";
 import TablePagination from "@/components/ui/table-pagination";
+import {
+  canManageDepartmentScope,
+  getCanonicalRoleDisplay,
+  getPermissionStatusLabel,
+  hasCanonicalPermissionProfile,
+} from "@/utils/adminPermissionProfile";
 
 interface UserProfilesTableProps {
   profiles: ProfileType[];
@@ -66,25 +65,18 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
   profilesError,
   refetchProfiles,
 }) => {
-  // Hook de paginação
   const pagination = usePagination(profiles, { pageSize: 10 });
 
-  // Função para detectar status de permissão usando sistema híbrido
   const getPermissionStatus = (profile: ProfileType) => {
-    const hasPermission = userHasAnyPermission(profile);
-    
-    return hasPermission 
+    const hasPermission = hasCanonicalPermissionProfile(profile as any);
+
+    return hasPermission
       ? { label: "Com Permissão", variant: "default" as const }
       : { label: "Sem Permissão", variant: "destructive" as const };
   };
 
-  // Função para exibir as funções do usuário usando sistema híbrido
-  const displayUserFunctions = (profile: ProfileType) => {
-    const displayName = getUserDisplayFunction(profile);
-    return displayName === 'Sem permissão' ? 'Nenhuma' : displayName;
-  };
+  const displayUserFunctions = (profile: ProfileType) => getCanonicalRoleDisplay(profile as any);
 
-  // Mostrar erro se houver
   if (profilesError) {
     return (
       <Card>
@@ -104,11 +96,7 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
                 {profilesError?.message || "Erro desconhecido ao buscar dados"}
               </p>
               {refetchProfiles && (
-                <Button 
-                  onClick={refetchProfiles} 
-                  variant="outline" 
-                  className="mt-4"
-                >
+                <Button onClick={refetchProfiles} variant="outline" className="mt-4">
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Tentar Novamente
                 </Button>
@@ -151,7 +139,6 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Filtros */}
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
             <Input
@@ -178,9 +165,7 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
               </SelectContent>
             </Select>
           </div>
-          <Button variant="outline" onClick={onResetFilters}>
-            Limpar Filtros
-          </Button>
+          <Button variant="outline" onClick={onResetFilters}>Limpar Filtros</Button>
           {refetchProfiles && (
             <Button variant="outline" onClick={refetchProfiles}>
               <RefreshCw className="h-4 w-4 mr-2" />
@@ -189,7 +174,6 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
           )}
         </div>
 
-        {/* Informações de filtros ativos */}
         {(filters.nome || filters.status) && (
           <div className="text-xs text-muted-foreground p-2 bg-muted rounded">
             <strong>Filtros ativos:</strong>
@@ -198,7 +182,6 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
           </div>
         )}
 
-        {/* Tabela */}
         <div className="border rounded-lg">
           <Table>
             <TableHeader>
@@ -217,18 +200,18 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     <AlertCircle className="h-8 w-8 mx-auto mb-2" />
-                    {filters.nome || filters.status 
-                      ? "Nenhum usuário encontrado com os filtros aplicados" 
-                      : "Nenhum usuário encontrado"
-                    }
+                    {filters.nome || filters.status
+                      ? "Nenhum usuário encontrado com os filtros aplicados"
+                      : "Nenhum usuário encontrado"}
                   </TableCell>
                 </TableRow>
               ) : (
-                pagination.paginatedData.map((profile, index) => {
+                pagination.paginatedData.map((profile) => {
                   const status = getPermissionStatus(profile);
                   const userFunctions = displayUserFunctions(profile);
                   const hasPermissions = status.label === "Com Permissão";
-                  
+                  const canManageScope = canManageDepartmentScope(profile as any);
+
                   return (
                     <TableRow key={profile.id}>
                       <TableCell className="font-medium">
@@ -247,74 +230,53 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
                           {profile.nome_completo || "Nome não informado"}
                         </div>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {profile.email}
-                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{profile.email}</TableCell>
                       <TableCell>
                         <span className={`text-sm ${userFunctions === 'Nenhuma' ? 'text-muted-foreground' : 'font-medium'}`}>
                           {userFunctions}
                         </span>
                       </TableCell>
-              <TableCell>
-                {(() => {
-                  const deptDisplay = getDepartmentDisplay(profile);
-                  return (
-                    <div className="flex flex-col gap-1">
-                      {deptDisplay.isGlobalAccess ? (
-                        <>
-                          <Badge variant="outline" className="bg-green-50 dark:bg-green-950/20 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700">
-                            🌐 {deptDisplay.displayText}
-                          </Badge>
-                          {deptDisplay.secondaryText && (
-                            <span className="text-xs text-muted-foreground">
-                              {deptDisplay.secondaryText}
-                            </span>
-                          )}
-                        </>
-                      ) : deptDisplay.hasDepartment ? (
-                        <Badge variant="outline" className="bg-orange-50 dark:bg-orange-950/20 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700">
-                          🏢 {deptDisplay.displayText}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="bg-green-50 dark:bg-green-950/20 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700">
-                          🌐 {deptDisplay.displayText}
-                        </Badge>
-                      )}
-                    </div>
-                  );
-                })()}
-              </TableCell>
                       <TableCell>
-                        <Badge variant={status.variant}>
-                          {status.label}
-                        </Badge>
+                        {(() => {
+                          const deptDisplay = getDepartmentDisplay(profile);
+                          return (
+                            <div className="flex flex-col gap-1">
+                              {deptDisplay.isGlobalAccess ? (
+                                <>
+                                  <Badge variant="outline">🌐 {deptDisplay.displayText}</Badge>
+                                  {deptDisplay.secondaryText && (
+                                    <span className="text-xs text-muted-foreground">{deptDisplay.secondaryText}</span>
+                                  )}
+                                </>
+                              ) : deptDisplay.hasDepartment ? (
+                                <Badge variant="outline">🏢 {deptDisplay.displayText}</Badge>
+                              ) : (
+                                <Badge variant="outline">🌐 {deptDisplay.displayText}</Badge>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={status.variant}>{status.label}</Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {profile.created_at
-                          ? new Date(profile.created_at).toLocaleDateString("pt-BR")
-                          : "N/A"}
+                        {profile.created_at ? new Date(profile.created_at).toLocaleDateString("pt-BR") : "N/A"}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => onViewDetails(profile)}
-                                >
+                                <Button variant="outline" size="sm" onClick={() => onViewDetails(profile)}>
                                   <Eye className="h-4 w-4" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Ver detalhes completos</p>
-                              </TooltipContent>
+                              <TooltipContent><p>Ver detalhes completos</p></TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
-                          
-                          {/* Botões de vinculação - apenas para funções administrativas */}
-                          {['SuperAdm', 'Administrador', 'AdmRH', 'AdmLogistica', 'AdmEquipamentos'].includes(profile.funcao_sistema || '') && (
+
+                          {canManageScope && (
                             <>
                               {profile.funcionario_id ? (
                                 <TooltipProvider>
@@ -329,9 +291,7 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
                                         <Unlink className="h-4 w-4" />
                                       </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>Desvincular funcionário (acesso global)</p>
-                                    </TooltipContent>
+                                    <TooltipContent><p>Desvincular funcionário (acesso global)</p></TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>
                               ) : (
@@ -347,31 +307,23 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
                                         <Link2 className="h-4 w-4" />
                                       </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>Vincular funcionário (filtro departamental)</p>
-                                    </TooltipContent>
+                                    <TooltipContent><p>Vincular funcionário (filtro departamental)</p></TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>
                               )}
                             </>
                           )}
-                          
+
                           {!hasPermissions ? (
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button
-                                    variant="default"
-                                    size="sm"
-                                    onClick={() => onAssignPermission(profile)}
-                                  >
+                                  <Button variant="default" size="sm" onClick={() => onAssignPermission(profile)}>
                                     <UserCheck className="h-4 w-4 mr-1" />
                                     Atribuir
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Atribuir permissões administrativas</p>
-                                </TooltipContent>
+                                <TooltipContent><p>Atribuir permissões administrativas</p></TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
                           ) : (
@@ -379,44 +331,31 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => onEditPermission(profile)}
-                                    >
+                                    <Button variant="outline" size="sm" onClick={() => onEditPermission(profile)}>
                                       <Edit className="h-4 w-4 mr-1" />
                                       Editar
                                     </Button>
                                   </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Editar permissões existentes</p>
-                                  </TooltipContent>
+                                  <TooltipContent><p>Editar permissões existentes</p></TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
-                              
+
                               {onRemoveAllPermissions && (
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <Button
-                                        variant="destructive"
-                                        size="sm"
-                                        onClick={() => onRemoveAllPermissions(profile)}
-                                      >
+                                      <Button variant="destructive" size="sm" onClick={() => onRemoveAllPermissions(profile)}>
                                         <Trash2 className="h-4 w-4 mr-1" />
                                         Remover
                                       </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>Remover todas as permissões administrativas</p>
-                                    </TooltipContent>
+                                    <TooltipContent><p>Remover todas as permissões administrativas</p></TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>
                               )}
                             </>
                           )}
-                          
-                          {/* Botão de exclusão - apenas para SuperAdmin e não pode excluir a si mesmo */}
+
                           {isSuperAdmin && onDeleteUser && profile.id !== currentUserId && (
                             <TooltipProvider>
                               <Tooltip>
@@ -430,9 +369,7 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
                                     <UserX className="h-4 w-4" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Excluir usuário permanentemente</p>
-                                </TooltipContent>
+                                <TooltipContent><p>Excluir usuário permanentemente</p></TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
                           )}
@@ -446,20 +383,16 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
           </Table>
         </div>
 
-        {/* Paginação */}
         <TablePagination pagination={pagination} className="mt-4" />
 
-        {/* Resumo */}
         {pagination.totalItems > 0 && (
           <div className="text-xs text-muted-foreground text-center space-y-1">
             <div>
-              Total: {pagination.totalItems} usuários • 
-              {profiles.filter(p => getPermissionStatus(p).label === "Com Permissão").length} com permissões • 
-              {profiles.filter(p => getPermissionStatus(p).label === "Sem Permissão").length} sem permissões
+              Total: {pagination.totalItems} usuários •
+              {profiles.filter((p) => getPermissionStatusLabel(p as any) === "Com Permissão").length} com permissões •
+              {profiles.filter((p) => getPermissionStatusLabel(p as any) === "Sem Permissão").length} sem permissões
             </div>
-            <div className="text-green-600 font-medium">
-              ✅ RLS ativo - Dados carregados com segurança
-            </div>
+            <div className="text-green-600 font-medium">✅ RLS ativo - Dados carregados com segurança</div>
           </div>
         )}
       </CardContent>

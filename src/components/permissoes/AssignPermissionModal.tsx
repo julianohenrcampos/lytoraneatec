@@ -16,6 +16,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { ProfileType } from "@/types/permissao";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { getCanonicalPrimaryRole } from "@/utils/adminPermissionProfile";
 
 interface AssignPermissionModalProps {
   isOpen: boolean;
@@ -71,8 +72,7 @@ const AssignPermissionModal: React.FC<AssignPermissionModalProps> = ({
 
   if (!profile) return null;
 
-  const currentFunctions = profile.funcoes || [];
-  const currentRole = currentFunctions.find(f => f !== 'user' && f.trim() !== '') || null;
+  const currentRole = getCanonicalPrimaryRole(profile as any);
   const isEditing = !!currentRole;
 
   // Combine roles from DB

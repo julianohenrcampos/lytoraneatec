@@ -53,6 +53,22 @@ export const validateFunctionRemoval = (
   return { isValid: true };
 };
 
+export const validateCanonicalRoleRemoval = (
+  currentRoles: string[],
+  roleToRemove: string
+): { isValid: boolean; message?: string } => {
+  const validRoles = currentRoles.filter((role) => role && role.trim() !== '');
+
+  if (!validRoles.includes(roleToRemove)) {
+    return {
+      isValid: false,
+      message: `A função "${roleToRemove}" não está atribuída a este usuário.`,
+    };
+  }
+
+  return { isValid: true };
+};
+
 export const cleanFunctionArray = (functions: string[]): string[] => {
   // Remover valores vazios, null, undefined
   const cleaned = functions.filter(f => f && f.trim() !== '');

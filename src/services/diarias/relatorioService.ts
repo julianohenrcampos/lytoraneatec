@@ -139,8 +139,8 @@ export async function getRelatorioFolha(
   if (needsSupplement.length > 0) {
     let rpcAll: any[] = [];
     let page = 0;
-    while (true) {
-      const { data } = await supabase.rpc('get_funcionarios_para_diarias')
+      while (true) {
+        const { data } = await supabase.rpc('get_funcionarios_para_diarias', { p_centro_custo_id: null })
         .range(page * 1000, (page + 1) * 1000 - 1);
       if (!data?.length) break;
       rpcAll = rpcAll.concat(data);

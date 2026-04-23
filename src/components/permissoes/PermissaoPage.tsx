@@ -23,6 +23,7 @@ import { useVincularFuncionario } from "@/hooks/useVincularFuncionario";
 import { useRemoverPermissoes } from "@/hooks/useRemoverPermissoes";
 import { useExcluirUsuario } from "@/hooks/useExcluirUsuario";
 import { usePermission } from "@/hooks/usePermission";
+import { getCanonicalRoleNames } from "@/utils/adminPermissionProfile";
 
 const PermissaoPage: React.FC = () => {
   const { userId, isSuperAdmin } = usePermission();
@@ -110,7 +111,7 @@ const PermissaoPage: React.FC = () => {
   const handleRemoveAllPermissions = async () => {
     if (!currentProfile) return;
     
-    const adminFunctions = currentProfile.funcoes?.filter(f => f !== 'user') || [];
+    const adminFunctions = getCanonicalRoleNames(currentProfile as any);
     const result = await removerTodasFuncoes(
       currentProfile.id,
       currentProfile.email || '',

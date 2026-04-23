@@ -19,7 +19,7 @@ import { ProfileType } from "@/types/permissao";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { validateFunctionRemoval, cleanFunctionArray } from "@/utils/permissionValidation";
+import { validateCanonicalRoleRemoval } from "@/utils/permissionValidation";
 import { getDepartmentDisplay } from "@/utils/departmentDisplay";
 import {
   fetchUserOverrides,
@@ -28,6 +28,12 @@ import {
   type Acao,
 } from "@/services/rbac/actionPermissionsCRUD";
 import { removeUserRoleSecure, updateManagedProfileAccessScope } from "@/services/rbac/permissionAdminSecure";
+import {
+  canManageDepartmentScope,
+  getCanonicalPrimaryRole,
+  getCanonicalRoleNames,
+  hasCanonicalPermissionProfile,
+} from "@/utils/adminPermissionProfile";
 
 const ACOES: { key: Acao; label: string }[] = [
   { key: 'visualizar', label: 'Ver' },
@@ -151,14 +157,11 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
 
   if (!profile) return null;
 
-  const currentFunctions = profile.funcoes || [];
-  const currentRoleNames = ((profile as any).role_names as string[] | undefined) || [];
-  const hasPermissions = currentFunctions.length > 0 && 
-    (currentFunctions.length > 1 || (currentFunctions.length === 1 && currentFunctions[0] !== 'user'));
+  const currentRoleNames = getCanonicalRoleNames(profile as any);
+  const currentPrimaryRole = getCanonicalPrimaryRole(profile as any);
+  const hasPermissions = hasCanonicalPermissionProfile(profile as any);
   const deptDisplay = getDepartmentDisplay(profile);
-  const isAdmin = currentFunctions.some(f => 
-    ['SuperAdm', 'Administrador', 'AdmRH', 'AdmLogistica', 'AdmEquipamentos'].includes(f)
-  );
+  const isAdmin = canManageDepartmentScope(profile as any);
 
   const getPermissionStatus = () => {
     if (!hasPermissions) {
@@ -212,7 +215,7 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
   const handleRemoveFunction = async (funcaoToRemove: string) => {
     setIsRemoving(true);
     try {
-      const validation = validateFunctionRemoval(currentFunctions, funcaoToRemove);
+      const validation = validateCanonicalRoleRemoval(currentRoleNames, funcaoToRemove);
       if (!validation.isValid) {
         toast({ title: "Erro de validação", description: validation.message, variant: "destructive" });
         return;
@@ -341,8 +344,7 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
                 <div className="space-y-3">
                   <h4 className="font-medium">Funções Atribuídas</h4>
                   <div className="space-y-2">
-                    {currentRoleNames.length > 0 ? currentRoleNames : currentFunctions.filter(funcao => funcao !== 'user')
-                      .map((funcao, index) => (
+                    {currentRoleNames.map((funcao, index) => (
                         <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-lg">
                           <Badge variant="outline" className="font-medium">
                             {funcao}

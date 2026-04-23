@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { usePermission } from './usePermission';
 import { fetchManageablePermissionProfiles } from '@/services/rbac/permissionAdminSecure';
+import { getCanonicalPrimaryRole } from '@/utils/adminPermissionProfile';
 
 interface ProfileSecurityContext {
   hasGlobalAccess: boolean;
@@ -49,7 +50,7 @@ export const useProfileSecurity = (): ProfileSecurityContext => {
           if (currentManagedProfile) {
             setProfileScope({
               acesso_global: currentManagedProfile.acesso_global,
-              primary_role: (currentManagedProfile as any).primary_role || currentManagedProfile.funcao_sistema || currentManagedProfile.funcoes?.[0] || null,
+              primary_role: getCanonicalPrimaryRole(currentManagedProfile),
               departamento_id: (currentManagedProfile as any).departamento_id || null,
               departamento_nome: (currentManagedProfile as any).departamento_nome || null,
             });

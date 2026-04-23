@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Command,
-  CommandEmpty,
   CommandGroup,
   CommandItem,
   CommandList,
@@ -26,6 +25,9 @@ interface FuncionarioItem {
   centro_custo_id?: string | null;
   matricula?: string | null;
   status_funcionario?: string | null;
+  elegivel?: boolean;
+  motivo_bloqueio?: string | null;
+  fora_centro_custo_solicitacao?: boolean;
   bd_funcoes?: {
     id: string;
     nome_funcao: string;
@@ -63,28 +65,55 @@ export function SmartFuncionarioSearch({
   const [open, setOpen] = React.useState(false)
   const [inputValue, setInputValue] = React.useState("")
 
+  const normalizeSearch = React.useCallback((value: string) => {
+    return value
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim()
+  }, [])
+
+  const searchTerm = React.useMemo(() => normalizeSearch(inputValue), [inputValue, normalizeSearch])
+
   const addedIds = React.useMemo(() => 
     new Set(convocadosPre.map(c => c.funcionario_id)), 
     [convocadosPre]
   );
 
+  const funcionariosOperacionais = React.useMemo(() => funcionarios, [funcionarios])
+
+  const totalFuncionariosPorCentro = React.useMemo(() => {
+    const counts = new Map<string, number>()
+
+    for (const funcionario of funcionariosOperacionais) {
+      if (!funcionario.centro_custo_id) continue
+      counts.set(funcionario.centro_custo_id, (counts.get(funcionario.centro_custo_id) ?? 0) + 1)
+    }
+
+    return counts
+  }, [funcionariosOperacionais])
+
   const filteredCentros = React.useMemo(() => {
-    if (!inputValue || inputValue.length < 2) return [];
-    const search = inputValue.toLowerCase();
+    if (!searchTerm) return [];
     return centrosCusto.filter(cc =>
-      cc.nome_centro_custo.toLowerCase().includes(search) ||
-      cc.codigo_centro_custo.toLowerCase().includes(search)
+      normalizeSearch(cc.nome_centro_custo).includes(searchTerm) ||
+      normalizeSearch(cc.codigo_centro_custo).includes(searchTerm)
     ).slice(0, 5);
-  }, [centrosCusto, inputValue]);
+  }, [centrosCusto, normalizeSearch, searchTerm]);
 
   const filteredFuncionarios = React.useMemo(() => {
-    if (!inputValue || inputValue.length < 2) return [];
-    const search = inputValue.toLowerCase();
-    return funcionarios.filter(f =>
-      f.nome_completo.toLowerCase().includes(search) &&
-      (!f.status_funcionario || f.status_funcionario === 'Ativo' || f.status_funcionario === 'Ativo sem Registro')
-    ).slice(0, 10);
-  }, [funcionarios, inputValue]);
+    if (!searchTerm) {
+      return funcionariosOperacionais.slice(0, 20);
+    }
+
+    return funcionariosOperacionais.filter((f) => {
+      const nome = normalizeSearch(f.nome_completo)
+      const matricula = normalizeSearch(f.matricula || "")
+      const funcao = normalizeSearch(f.bd_funcoes?.nome_funcao || "")
+
+      return nome.includes(searchTerm) || matricula.includes(searchTerm) || funcao.includes(searchTerm)
+    }).slice(0, 10);
+  }, [funcionariosOperacionais, normalizeSearch, searchTerm]);
 
   const handleSelectFuncionario = React.useCallback((funcId: string) => {
     onSelectFuncionario(funcId);
@@ -99,6 +128,7 @@ export function SmartFuncionarioSearch({
   }, [onSelectCentroCusto]);
 
   const hasResults = filteredCentros.length > 0 || filteredFuncionarios.length > 0;
+  const showingInitialList = !searchTerm;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -133,22 +163,20 @@ export function SmartFuncionarioSearch({
             />
           </div>
           <CommandList className="max-h-[350px] overflow-y-auto" style={{ pointerEvents: 'auto' }}>
-            {inputValue.length < 2 ? (
+            {!hasResults ? (
               <div className="py-6 text-center text-sm text-muted-foreground">
-                Digite ao menos 2 caracteres para buscar...
+                {showingInitialList ? 'Nenhum funcionário disponível para o período selecionado' : 'Nenhum resultado encontrado'}
               </div>
-            ) : !hasResults ? (
-              <CommandEmpty>Nenhum resultado encontrado</CommandEmpty>
             ) : (
               <>
                 {filteredCentros.length > 0 && (
                   <CommandGroup heading="Centros de Custo">
                     {filteredCentros.map((cc) => {
-                      const countInCc = funcionarios.filter(f => f.centro_custo_id === cc.id).length;
+                      const countInCc = totalFuncionariosPorCentro.get(cc.id) ?? 0;
                       return (
                         <CommandItem
                           key={`cc-${cc.id}`}
-                          value={`cc-${cc.id}`}
+                          value={`${cc.codigo_centro_custo} ${cc.nome_centro_custo}`}
                           onSelect={() => handleSelectCentroCusto(cc.id)}
                           className="cursor-pointer py-2.5 px-3"
                           style={{ pointerEvents: 'auto' }}
@@ -175,21 +203,26 @@ export function SmartFuncionarioSearch({
                       const isAdded = addedIds.has(f.id);
                       const temMatricula = !!f.matricula;
                       const alocacao = alocacoesPorFuncionario.get(f.id);
+                      const elegivel = f.elegivel !== false && !alocacao;
                       return (
                         <CommandItem
                           key={`func-${f.id}`}
-                          value={`func-${f.id}`}
-                          onSelect={() => !isAdded && handleSelectFuncionario(f.id)}
+                          value={`${f.nome_completo} ${f.bd_funcoes?.nome_funcao || ''} ${f.matricula || ''}`}
+                          onSelect={() => !isAdded && elegivel && handleSelectFuncionario(f.id)}
                           className={cn(
                             "cursor-pointer py-2.5 px-3",
                             isAdded && "opacity-50 cursor-not-allowed",
-                            alocacao && !isAdded && "border-l-2 border-l-destructive"
+                            !elegivel && !isAdded && "opacity-70",
+                            alocacao && !isAdded && "border-l-2 border-l-destructive",
+                            f.fora_centro_custo_solicitacao && "border-l-2 border-l-primary/60"
                           )}
                           style={{ pointerEvents: 'auto' }}
-                          disabled={isAdded}
+                          disabled={isAdded || !elegivel}
                         >
                           {isAdded ? (
                             <Check className="mr-2 h-4 w-4 shrink-0 text-primary" />
+                          ) : !elegivel ? (
+                            <AlertTriangle className="mr-2 h-4 w-4 shrink-0 text-amber-600" />
                           ) : alocacao ? (
                             <AlertTriangle className="mr-2 h-4 w-4 shrink-0 text-destructive" />
                           ) : (
@@ -209,9 +242,19 @@ export function SmartFuncionarioSearch({
                                 {f.bd_funcoes.nome_funcao}
                               </p>
                             )}
+                            {f.fora_centro_custo_solicitacao && (
+                              <p className="text-xs text-primary mt-0.5">
+                                Fora do centro de custo da solicitação
+                              </p>
+                            )}
                             {alocacao && !isAdded && (
                               <p className="text-xs text-destructive mt-0.5">
                                 Convocado no CC: {alocacao.codigo_centro_custo} — Solicitação: {alocacao.numero_solicitacao}
+                              </p>
+                            )}
+                            {!alocacao && f.elegivel === false && f.motivo_bloqueio && (
+                              <p className="text-xs text-amber-700 mt-0.5">
+                                {f.motivo_bloqueio}
                               </p>
                             )}
                           </div>

@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import {
   auditBackendEvent,
   authenticateEdgeRequest,
@@ -10,7 +9,7 @@ import {
   jsonResponse,
 } from "../_shared/backend-security.ts";
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

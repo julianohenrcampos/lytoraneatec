@@ -2648,6 +2648,51 @@ export type Database = {
         }
         Relationships: []
       }
+      bd_diaria_calendario_operacional: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          data: string
+          descricao: string | null
+          escopo_id: string | null
+          escopo_tipo: string
+          exige_aprovacao_adicao: boolean
+          id: string
+          permite_remessa_matriculados: boolean
+          tipo_dia_operacional: string
+          updated_at: string
+          usa_diaria_exclusiva: boolean
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          data: string
+          descricao?: string | null
+          escopo_id?: string | null
+          escopo_tipo: string
+          exige_aprovacao_adicao?: boolean
+          id?: string
+          permite_remessa_matriculados?: boolean
+          tipo_dia_operacional?: string
+          updated_at?: string
+          usa_diaria_exclusiva?: boolean
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          data?: string
+          descricao?: string | null
+          escopo_id?: string | null
+          escopo_tipo?: string
+          exige_aprovacao_adicao?: boolean
+          id?: string
+          permite_remessa_matriculados?: boolean
+          tipo_dia_operacional?: string
+          updated_at?: string
+          usa_diaria_exclusiva?: boolean
+        }
+        Relationships: []
+      }
       bd_diaria_logs: {
         Row: {
           created_at: string
@@ -2874,6 +2919,7 @@ export type Database = {
           qtde_dias_uteis_estimado: number | null
           qtde_fds_estimado: number | null
           qtde_feriados_estimado: number | null
+          regras_operacionais_snapshot: Json
           responsavel_campo_id: string | null
           status: string
           status_fluxo: string | null
@@ -2907,6 +2953,7 @@ export type Database = {
           qtde_dias_uteis_estimado?: number | null
           qtde_fds_estimado?: number | null
           qtde_feriados_estimado?: number | null
+          regras_operacionais_snapshot?: Json
           responsavel_campo_id?: string | null
           status?: string
           status_fluxo?: string | null
@@ -2940,6 +2987,7 @@ export type Database = {
           qtde_dias_uteis_estimado?: number | null
           qtde_fds_estimado?: number | null
           qtde_feriados_estimado?: number | null
+          regras_operacionais_snapshot?: Json
           responsavel_campo_id?: string | null
           status?: string
           status_fluxo?: string | null
@@ -5395,6 +5443,55 @@ export type Database = {
             columns: ["funcionario_id"]
             isOneToOne: false
             referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_log_operacional_datas: {
+        Row: {
+          acao: string
+          created_at: string
+          data: string
+          descricao: string | null
+          id: string
+          usuario_id: string
+        }
+        Insert: {
+          acao: string
+          created_at?: string
+          data: string
+          descricao?: string | null
+          id?: string
+          usuario_id: string
+        }
+        Update: {
+          acao?: string
+          created_at?: string
+          data?: string
+          descricao?: string | null
+          id?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_log_operacional_datas_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_log_operacional_datas_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_log_operacional_datas_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -16220,6 +16317,51 @@ export type Database = {
         Args: { p_solicitacao_id: string; p_user_id?: string }
         Returns: boolean
       }
+      fn_diaria_funcionario_elegibilidade: {
+        Args: {
+          p_data_fim: string
+          p_data_inicio: string
+          p_funcionario_id: string
+          p_solicitacao_id?: string
+        }
+        Returns: {
+          elegivel: boolean
+          motivo_bloqueio: string
+        }[]
+      }
+      fn_diaria_get_funcionarios_disponiveis: {
+        Args: {
+          p_centro_custo_solicitacao_id?: string
+          p_data_fim: string
+          p_data_inicio: string
+          p_solicitacao_id?: string
+        }
+        Returns: {
+          centro_custo_id: string
+          cpf: string
+          elegivel: boolean
+          email: string
+          fora_centro_custo_solicitacao: boolean
+          funcao_id: string
+          funcao_nome: string
+          id: string
+          matricula: string
+          motivo_bloqueio: string
+          nome_completo: string
+          status_funcionario: string
+          valor_diaria: number
+          valor_diaria_exclusiva: number
+          valor_refeicao: number
+        }[]
+      }
+      fn_diaria_has_global_access: {
+        Args: { p_user_id?: string }
+        Returns: boolean
+      }
+      fn_diaria_scope_centros_custo: {
+        Args: { p_user_id?: string }
+        Returns: string[]
+      }
       fn_get_funcionario_sensitive: {
         Args: { p_funcionario_id: string; p_origem?: string }
         Returns: Json
@@ -16472,7 +16614,7 @@ export type Database = {
       }
       get_funcionario_id_for_auth: { Args: never; Returns: string }
       get_funcionarios_para_diarias: {
-        Args: never
+        Args: { p_centro_custo_id?: string; p_user_id?: string }
         Returns: {
           agencia: string
           banco: string

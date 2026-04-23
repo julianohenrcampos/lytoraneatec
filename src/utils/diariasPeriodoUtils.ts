@@ -48,6 +48,15 @@ export interface ContextoDia {
   tipoSolicitacao: 'normal' | 'extraordinaria';
 }
 
+export interface RegrasOperacionaisCalculo {
+  datas?: Record<string, {
+    ativa: boolean;
+    descricao: string;
+    exige_aprovacao_adicao?: boolean;
+    tipo?: 'feriado_ponte_operacional';
+  }>;
+}
+
 /**
  * Verifica se funcionário com matrícula (Remessa) pode participar de dia útil.
  * Remessa NÃO pode participar em dias úteis EXCETO se:
@@ -178,6 +187,17 @@ export function analisarPeriodo(
   };
 }
 
+export interface ResumoPeriodoSimulacao {
+  diasUteis: number;
+  sabados: number;
+  domingos: number;
+  feriados: number;
+  diasOperacionais: number;
+  diasExclusivos: number;
+  diasParaRefeicao: number;
+  datasExclusivas: string[];
+}
+
 /**
  * Calcula a estimativa total de valores para o período
  * 
@@ -188,11 +208,14 @@ export function calcularEstimativaTotal(
   funcionarios: FuncionarioParaCalculo[],
   analise: PeriodoAnalise,
   considerarFdsFeriado: boolean,
-  tipoSolicitacao: 'normal' | 'extraordinaria' = 'normal'
+  tipoSolicitacao: 'normal' | 'extraordinaria' = 'normal',
+  regrasOperacionais?: RegrasOperacionaisCalculo
 ): SimulacaoValores {
+  const resumoPeriodo = resumirPeriodoParaSimulacao(analise, regrasOperacionais, considerarFdsFeriado);
+  const deveCalcularExclusivosPorRegra = resumoPeriodo.diasOperacionais > 0;
   // Se período é exclusivamente FDS/feriados (sem dias úteis), calcular sempre
-  const periodoExclusivoFDS = analise.diasUteis === 0;
-  const deveCalcularExclusivos = considerarFdsFeriado || periodoExclusivoFDS;
+  const periodoExclusivoFDS = resumoPeriodo.diasUteis === 0;
+  const deveCalcularExclusivos = considerarFdsFeriado || periodoExclusivoFDS || deveCalcularExclusivosPorRegra;
 
   const detalhePorFuncionario = funcionarios.map(func => {
     const valorDiaria = func.valor_diaria || 0;
@@ -207,8 +230,8 @@ export function calcularEstimativaTotal(
     const temMatricula = !!func.matricula;
     const remessaBloqueadoDiasUteis = temMatricula && !forcarExclusiva && tipoSolicitacao !== 'extraordinaria';
     
-    const diasNormais = remessaBloqueadoDiasUteis ? 0 : analise.diasUteis;
-    const diasExclusivos = analise.sabados + analise.domingos + analise.feriados;
+    const diasNormais = remessaBloqueadoDiasUteis ? 0 : resumoPeriodo.diasUteis;
+    const diasExclusivos = resumoPeriodo.diasExclusivos;
     
     let valorDiasUteisESabados: number;
     let valorDomFeriados: number;
@@ -258,6 +281,68 @@ export function calcularEstimativaTotal(
     totalDiasUteis: totalDiasUteisESabados,
     totalFdsFeriados: totalDomFeriados,
     detalhePorFuncionario
+  };
+}
+
+export function resumirPeriodoParaSimulacao(
+  analise: PeriodoAnalise,
+  regrasOperacionais?: RegrasOperacionaisCalculo,
+  considerarFdsFeriado: boolean = false
+): ResumoPeriodoSimulacao {
+  const datasOperacionais = new Set(
+    Object.entries(regrasOperacionais?.datas ?? {})
+      .filter(([, regra]) => regra?.ativa)
+      .map(([data]) => data)
+  );
+
+  const datasExclusivas = new Set<string>();
+  let sabados = 0;
+  let domingos = 0;
+  let feriados = 0;
+  let diasOperacionais = 0;
+
+  analise.datasClassificadas.forEach(({ data, tipo }) => {
+    const operacional = datasOperacionais.has(data);
+
+    if (operacional) {
+      diasOperacionais += 1;
+      datasExclusivas.add(data);
+      return;
+    }
+
+    if (tipo === 'sabado') {
+      sabados += 1;
+      datasExclusivas.add(data);
+      return;
+    }
+
+    if (tipo === 'fds') {
+      domingos += 1;
+      datasExclusivas.add(data);
+      return;
+    }
+
+    if (tipo === 'feriado') {
+      feriados += 1;
+      datasExclusivas.add(data);
+    }
+  });
+
+  const diasExclusivos = datasExclusivas.size;
+  const diasUteis = Math.max(analise.totalDias - diasExclusivos, 0);
+  const diasParaRefeicao = (considerarFdsFeriado || diasExclusivos > 0 || diasUteis === 0)
+    ? diasUteis + diasExclusivos
+    : diasUteis;
+
+  return {
+    diasUteis,
+    sabados,
+    domingos,
+    feriados,
+    diasOperacionais,
+    diasExclusivos,
+    diasParaRefeicao,
+    datasExclusivas: Array.from(datasExclusivas).sort(),
   };
 }
 

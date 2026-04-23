@@ -86,9 +86,13 @@ import { generateListaPresencaPDF } from "@/services/pdfService";
 import type { ListaPresencaItem } from "@/components/diarias/pdf/ListaPresencaPDF";
 import {
   resolverRegraOperacional,
+  salvarRegraCalendarioOperacional,
+  inativarRegraCalendarioOperacionalEscopo,
+  registrarLogOperacionalData,
   type CalendarioOperacionalResolvido,
 } from "@/services/diarias/calendarioOperacionalService";
 import { solicitarInclusaoFuncionario, listarInclusoesPendentes } from "@/services/diarias/inclusaoFuncionarioService";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ApontamentoDiariasModalProps {
   isOpen: boolean;
@@ -121,6 +125,9 @@ interface FuncionarioBuscaItem {
   nome_completo: string;
   cpf?: string | null;
   matricula?: string | null;
+  centro_custo_id?: string | null;
+  centro_custo_codigo?: string | null;
+  centro_custo_nome?: string | null;
   funcao_id?: string | null;
   funcao_nome?: string | null;
   valor_diaria?: number | null;
@@ -132,7 +139,28 @@ interface FuncionarioBuscaItem {
     valor_diaria_exclusiva?: number | null;
     valor_refeicao?: number | null;
   } | null;
+  _alocacao?: {
+    codigo_centro_custo?: string | null;
+    numero_solicitacao?: string | null;
+  } | null;
 }
+
+type ClassificacaoOperacional =
+  | {
+      status: 'elegivel';
+      regra: CalendarioOperacionalResolvido;
+      mensagem?: string;
+    }
+  | {
+      status: 'pendente_aprovacao';
+      regra: CalendarioOperacionalResolvido;
+      mensagem: string;
+    }
+  | {
+      status: 'ignorado';
+      regra: CalendarioOperacionalResolvido;
+      mensagem: string;
+    };
 
 type FaseApontamento = 'inicio' | 'finalizacao' | 'concluido';
 
@@ -262,6 +290,10 @@ export default function ApontamentoDiariasModal({
   const [isAddingAllCentroCusto, setIsAddingAllCentroCusto] = useState(false);
   const [isSendingApproval, setIsSendingApproval] = useState(false);
   const [regrasOperacionaisPorData, setRegrasOperacionaisPorData] = useState<Record<string, CalendarioOperacionalResolvido>>({});
+  const [regraPopoverData, setRegraPopoverData] = useState<string | null>(null);
+  const [descricaoRegraOperacional, setDescricaoRegraOperacional] = useState("");
+  const [regraExigeAprovacao, setRegraExigeAprovacao] = useState(false);
+  const [isSavingRegraOperacional, setIsSavingRegraOperacional] = useState(false);
   
   // Estado para confirmação de adição com justificativa + férias
   const [addSelectedFunc, setAddSelectedFunc] = useState<any>(null);
@@ -306,11 +338,19 @@ export default function ApontamentoDiariasModal({
   const [releaseJustificativa, setReleaseJustificativa] = useState('');
 
   const queryClient = useQueryClient();
+  const { userId } = useAuth();
 
   // Extrair dados da solicitação
   const solicitacao = apontamento?.bd_diaria_solicitacoes;
   const centroCusto = solicitacao?.bd_centros_custo;
   const diretoriaId = (centroCusto as any)?.diretoria_id ?? null;
+  const escopoRegraAtual = useMemo(() => (
+    centroCusto?.id
+      ? { escopo_tipo: 'centro_custo' as const, escopo_id: centroCusto.id }
+      : diretoriaId
+        ? { escopo_tipo: 'diretoria' as const, escopo_id: diretoriaId }
+        : { escopo_tipo: 'global' as const, escopo_id: null }
+  ), [centroCusto?.id, diretoriaId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -382,6 +422,13 @@ export default function ApontamentoDiariasModal({
   const universoBusca = funcionariosAtivos as FuncionarioBuscaItem[];
   const usarBuscaServerSide = universoBusca.length > 200;
   const idsJaPresentes = useMemo(() => new Set(colaboradores.map(c => c.funcionario_id)), [colaboradores]);
+  const termoBuscaNormalizado = debouncedSearchTerm.trim().toLowerCase();
+  const buscaPorCentroCustoAtual = useMemo(() => {
+    if (!termoBuscaNormalizado) return false;
+    const codigo = centroCusto?.codigo_centro_custo?.toLowerCase() || '';
+    const nome = centroCusto?.nome_centro_custo?.toLowerCase() || '';
+    return termoBuscaNormalizado === codigo || nome.includes(termoBuscaNormalizado);
+  }, [termoBuscaNormalizado, centroCusto?.codigo_centro_custo, centroCusto?.nome_centro_custo]);
 
   const { data: buscaFuncionariosServer, isFetching: isSearchingFuncionarios } = useQuery({
     queryKey: ['funcionarios-busca-server-diarias', debouncedSearchTerm, searchPage, searchPageSize, centroCusto?.id, showAddFuncionario],
@@ -393,25 +440,33 @@ export default function ApontamentoDiariasModal({
 
       let query = supabase
         .from('bd_funcionarios')
-        .select('id, nome_completo, cpf, matricula, funcao_id, centro_custo_id, status, bd_funcoes(id, nome_funcao, valor_diaria, valor_diaria_exclusiva, valor_refeicao)', { count: 'exact' })
+        .select('id, nome_completo, cpf, matricula, funcao_id, centro_custo_id, status, bd_funcoes(id, nome_funcao, valor_diaria, valor_diaria_exclusiva, valor_refeicao), bd_centros_custo(codigo_centro_custo, nome_centro_custo)', { count: 'exact' })
         .in('status', ['Ativo', 'Ativo sem Registro'])
         .order('nome_completo', { ascending: true })
-        .or(`nome_completo.ilike.%${term}%,cpf.ilike.%${term}%,matricula.ilike.%${term}%`)
         .range(from, to);
 
       if (centroCusto?.id) {
         query = query.eq('centro_custo_id', centroCusto.id);
       }
 
+      if (!buscaPorCentroCustoAtual) {
+        query = query.or(`nome_completo.ilike.%${term}%,cpf.ilike.%${term}%,matricula.ilike.%${term}%,bd_centros_custo.codigo_centro_custo.ilike.%${term}%,bd_centros_custo.nome_centro_custo.ilike.%${term}%`);
+      }
+
       const { data, error, count } = await query;
       if (error) throw error;
-      return {
-        items: ((data || []) as any[]).map((item) => ({
+      const items = ((data || []) as any[])
+        .map((item) => ({
           ...item,
           funcao_nome: item.bd_funcoes?.nome_funcao,
           valor_diaria: item.bd_funcoes?.valor_diaria ?? 0,
           valor_refeicao: item.bd_funcoes?.valor_refeicao ?? 0,
-        })) as FuncionarioBuscaItem[],
+          centro_custo_codigo: item.bd_centros_custo?.codigo_centro_custo ?? null,
+          centro_custo_nome: item.bd_centros_custo?.nome_centro_custo ?? null,
+        })) as FuncionarioBuscaItem[];
+
+      return {
+        items,
         total: count || 0,
       };
     },
@@ -560,16 +615,21 @@ export default function ApontamentoDiariasModal({
       return filtrarElegiveis(buscaFuncionariosServer?.items || []);
     }
 
-    const term = debouncedSearchTerm.toLowerCase();
+    const term = termoBuscaNormalizado;
     return filtrarElegiveis(universoBusca)
-      .filter((func) =>
-        func.nome_completo?.toLowerCase().includes(term) ||
-        func.cpf?.includes(term) ||
-        func.matricula?.toLowerCase().includes(term)
-      )
+      .filter((func) => {
+        if (buscaPorCentroCustoAtual) return true;
+        return (
+          func.nome_completo?.toLowerCase().includes(term) ||
+          func.cpf?.includes(term) ||
+          func.matricula?.toLowerCase().includes(term) ||
+          func.centro_custo_codigo?.toLowerCase().includes(term) ||
+          func.centro_custo_nome?.toLowerCase().includes(term)
+        );
+      })
       .sort((a, b) => a.nome_completo.localeCompare(b.nome_completo, 'pt-BR'))
       .slice(0, searchPageSize);
-  }, [debouncedSearchTerm, idsJaConvocados, idsJaPresentes, usarBuscaServerSide, buscaFuncionariosServer, universoBusca, searchPageSize]);
+  }, [debouncedSearchTerm, idsJaConvocados, idsJaPresentes, usarBuscaServerSide, buscaFuncionariosServer, universoBusca, searchPageSize, termoBuscaNormalizado, buscaPorCentroCustoAtual]);
 
   const totalResultadosBusca = usarBuscaServerSide
     ? (buscaFuncionariosServer?.total || 0)
@@ -579,6 +639,100 @@ export default function ApontamentoDiariasModal({
     () => colaboradores.filter((col) => col.statusExcecao === 'pendente_aprovacao' && !col.pendenciaInclusaoId),
     [colaboradores]
   );
+
+  const getPreviewOperacional = useCallback((funcionario: FuncionarioBuscaItem) => {
+    const regra = regrasOperacionaisPorData[selectedDate];
+    const temMatricula = !!funcionario.matricula;
+    const exigeAprovacao = !!regra?.exigeAprovacaoAdicao;
+    const remessaPermitida = !!regra?.permiteRemessaMatriculados;
+    const excecaoOperacional = temMatricula && exigeAprovacao;
+
+    return {
+      remessaPermitida: temMatricula && remessaPermitida,
+      requerAprovacao: excecaoOperacional,
+      excecaoOperacional,
+      regra,
+    };
+  }, [regrasOperacionaisPorData, selectedDate]);
+
+  const sincronizarRegraOperacionalData = useCallback(async (data: string) => {
+    const resolvida = await resolverRegraOperacional({
+      data,
+      centroCustoId: centroCusto?.id,
+      diretoriaId,
+    });
+
+    setRegrasOperacionaisPorData((prev) => ({
+      ...prev,
+      [data]: resolvida,
+    }));
+
+    return resolvida;
+  }, [centroCusto?.id, diretoriaId]);
+
+  const abrirPopoverRegraOperacional = useCallback((data: string) => {
+    const regraAtual = regrasOperacionaisPorData[data];
+    setRegraPopoverData(data);
+    setDescricaoRegraOperacional(regraAtual?.descricao ?? '');
+    setRegraExigeAprovacao(!!regraAtual?.exigeAprovacaoAdicao);
+  }, [regrasOperacionaisPorData]);
+
+  const salvarOverrideOperacional = useCallback(async (data: string) => {
+    const descricao = descricaoRegraOperacional.trim();
+    if (descricao.length < 5) {
+      toast.error('A observação da regra precisa ter pelo menos 5 caracteres.');
+      return;
+    }
+
+    setIsSavingRegraOperacional(true);
+    try {
+      await salvarRegraCalendarioOperacional({
+        data,
+        escopo_tipo: escopoRegraAtual.escopo_tipo,
+        escopo_id: escopoRegraAtual.escopo_id,
+        tipo_dia_operacional: 'operacional',
+        permite_remessa_matriculados: true,
+        usa_diaria_exclusiva: true,
+        exige_aprovacao_adicao: regraExigeAprovacao,
+        descricao,
+        ativo: true,
+      });
+
+      await registrarLogOperacionalData({ data, acao: 'ativou', descricao });
+      await sincronizarRegraOperacionalData(data);
+      setRegraPopoverData(null);
+      toast.success('Regra operacional aplicada ao dia.');
+    } catch (error: any) {
+      console.error('Erro ao salvar regra operacional:', error);
+      toast.error(error.message || 'Erro ao salvar regra operacional.');
+    } finally {
+      setIsSavingRegraOperacional(false);
+    }
+  }, [descricaoRegraOperacional, escopoRegraAtual, regraExigeAprovacao, sincronizarRegraOperacionalData]);
+
+  const desativarOverrideOperacional = useCallback(async (data: string) => {
+    setIsSavingRegraOperacional(true);
+    try {
+      await inativarRegraCalendarioOperacionalEscopo({
+        data,
+        escopo_tipo: escopoRegraAtual.escopo_tipo,
+        escopo_id: escopoRegraAtual.escopo_id,
+      });
+      await registrarLogOperacionalData({
+        data,
+        acao: 'desativou',
+        descricao: regrasOperacionaisPorData[data]?.descricao ?? 'Regra operacional desativada manualmente.',
+      });
+      await sincronizarRegraOperacionalData(data);
+      setRegraPopoverData(null);
+      toast.success('Regra operacional removida do dia.');
+    } catch (error: any) {
+      console.error('Erro ao desativar regra operacional:', error);
+      toast.error(error.message || 'Erro ao desativar regra operacional.');
+    } finally {
+      setIsSavingRegraOperacional(false);
+    }
+  }, [escopoRegraAtual, regrasOperacionaisPorData, sincronizarRegraOperacionalData]);
 
   // Normalizar nome para comparação (sem acento, lowercase, espaços únicos)
   const normalizeName = (name: string): string => {
@@ -1055,20 +1209,98 @@ export default function ApontamentoDiariasModal({
     }
   };
 
-  // MELHORIA 2: Adicionar funcionário avulso
-  const funcionariosFiltrados = useMemo(() => {
-    if (!searchTerm.trim()) return [];
-    const term = searchTerm.toLowerCase();
-    const idsJaConvocados = convocadosPre.map(c => c.funcionario_id);
-    return funcionariosAtivos
-      .filter((f: any) => 
-        !idsJaConvocados.includes(f.id) &&
-        (f.nome_completo?.toLowerCase().includes(term) || f.cpf?.includes(term))
-      )
-      .slice(0, 10);
-  }, [searchTerm, funcionariosAtivos, convocadosPre]);
+  const persistirFuncionarioSelecionado = useCallback(async (
+    funcionario: FuncionarioBuscaItem,
+    classificacao: Extract<ClassificacaoOperacional, { status: 'elegivel' | 'pendente_aprovacao' }>
+  ) => {
+    if (!solicitacao?.id) return;
 
-  const handleAdicionarFuncionario = async (funcionario: any) => {
+    const nomeFuncao = funcionario.funcao_nome || funcionario.bd_funcoes?.nome_funcao || 'Sem função';
+    const valorDiaria = funcionario.valor_diaria || funcionario.bd_funcoes?.valor_diaria || 0;
+    const funcao = funcoesCompletas.find(f => f.id === funcionario.funcao_id);
+    const valorDiariaExclusiva = funcao?.valor_diaria_exclusiva || funcionario.bd_funcoes?.valor_diaria_exclusiva || valorDiaria;
+
+    const novoConvocado = {
+      funcionario_id: funcionario.id,
+      funcao_id: funcionario.funcao_id || '',
+      valor_diaria: valorDiaria,
+      valor_diaria_exclusiva: valorDiariaExclusiva,
+      valor_refeicao: funcao?.valor_refeicao || funcionario.valor_refeicao || 0,
+      nome_funcionario: funcionario.nome_completo,
+      nome_funcao: nomeFuncao,
+      cpf: funcionario.cpf || '',
+      matricula: funcionario.matricula || ''
+    };
+
+    await adicionarFuncionarioConvocado(solicitacao.id, novoConvocado);
+
+    const usarExclusivaPorData = classificacao.regra.usaDiariaExclusiva || false;
+    const novoColab: ColaboradorPresenca = {
+      index: colaboradores.length,
+      funcionario_id: funcionario.id,
+      nome_funcionario: funcionario.nome_completo,
+      funcao_id: funcionario.funcao_id || '',
+      nome_funcao: nomeFuncao,
+      valor_diaria_original: usarExclusivaPorData ? valorDiariaExclusiva : valorDiaria,
+      valor_diaria: usarExclusivaPorData ? valorDiariaExclusiva : valorDiaria,
+      presente: false,
+      hora_entrada: "",
+      hora_saida: "",
+      tipo_diaria: 'completa',
+      recebe_refeicao: true,
+      valor_refeicao_aplicado: 0,
+      usarDiariaExclusiva: usarExclusivaPorData,
+      valor_diaria_normal: valorDiaria,
+      valor_diaria_exclusiva_valor: valorDiariaExclusiva,
+      turno: 'diurno' as TurnoDiaria,
+      remessaLiberada: classificacao.regra.permiteRemessaMatriculados,
+      diariaExclusivaOperacional: classificacao.regra.usaDiariaExclusiva,
+      tipoDiaOperacional: classificacao.regra.tipoDiaOperacional,
+      observacaoOperacional: classificacao.regra.descricao,
+      statusExcecao: classificacao.status === 'pendente_aprovacao' ? 'pendente_aprovacao' : null,
+    };
+
+    setColaboradores(prev => [...prev, novoColab]);
+    setFuncionariosAvulsos(prev => new Set(prev).add(funcionario.id));
+  }, [solicitacao?.id, funcoesCompletas, colaboradores.length]);
+
+  const classificarAdicaoOperacional = useCallback(async (funcionario: FuncionarioBuscaItem): Promise<ClassificacaoOperacional> => {
+    const regra = await resolverRegraOperacional({
+      data: selectedDate,
+      centroCustoId: centroCusto?.id,
+      diretoriaId,
+    });
+
+    const temMatricula = !!funcionario.matricula;
+    const tipoDia = regra.tipoDiaOperacional;
+    const exigeAprovacao = !!regra.exigeAprovacaoAdicao;
+    const remessaPermitida = !!regra.permiteRemessaMatriculados;
+    const diaEstrategico = tipoDia === 'feriado_estrategico' || tipoDia === 'operacional' || tipoDia === 'compensado';
+
+    if (temMatricula && !remessaPermitida) {
+      if (exigeAprovacao || diaEstrategico) {
+        return {
+          status: 'pendente_aprovacao',
+          regra,
+          mensagem: 'Inclusão marcada como exceção operacional pendente de aprovação.',
+        };
+      }
+
+      return {
+        status: 'ignorado',
+        regra,
+        mensagem: 'Funcionário com matrícula não pode ser adicionado nesta data operacional.',
+      };
+    }
+
+    return {
+      status: 'elegivel',
+      regra,
+      mensagem: remessaPermitida && temMatricula ? 'Remessa permitida para esta data.' : undefined,
+    };
+  }, [selectedDate, centroCusto?.id, diretoriaId]);
+
+  const handleAdicionarFuncionario = async (funcionario: FuncionarioBuscaItem) => {
     if (!solicitacao?.id) return;
     setIsAddingFuncionario(true);
     try {
@@ -1091,63 +1323,19 @@ export default function ApontamentoDiariasModal({
         return;
       }
 
-      // Usar dados do RPC diretamente (funcao_nome, valor_diaria já vêm do RPC)
-      const nomeFuncao = funcionario.funcao_nome || 'Sem função';
-      const valorDiaria = funcionario.valor_diaria || 0;
-      const funcao = funcoesCompletas.find(f => f.id === funcionario.funcao_id);
-      const valorDiariaExclusiva = funcao?.valor_diaria_exclusiva || valorDiaria;
+      const classificacao = await classificarAdicaoOperacional(funcionario);
+      if (classificacao.status === 'ignorado') {
+        toast.error(classificacao.mensagem);
+        return;
+      }
 
-      const novoConvocado = {
-        funcionario_id: funcionario.id,
-        funcao_id: funcionario.funcao_id || '',
-        valor_diaria: valorDiaria,
-        valor_diaria_exclusiva: valorDiariaExclusiva,
-        valor_refeicao: funcao?.valor_refeicao || funcionario.valor_refeicao || 0,
-        nome_funcionario: funcionario.nome_completo,
-        nome_funcao: nomeFuncao,
-        cpf: funcionario.cpf || '',
-        matricula: funcionario.matricula || ''
-      };
-
-      await adicionarFuncionarioConvocado(solicitacao.id, novoConvocado);
-
-      // Adicionar ao state local
-      const dateSel = parseBrazilianDate(selectedDate);
-      const isDomingo = dateSel.getDay() === 0;
-      const isSabado = dateSel.getDay() === 6;
-      const isFeriado = feriados.some(f => f.data === selectedDate);
-      const usarExclusiva = isDomingo || isSabado || isFeriado;
-      const valorOriginal = usarExclusiva ? valorDiariaExclusiva : valorDiaria;
-
-      const novoColab: ColaboradorPresenca = {
-        index: colaboradores.length,
-        funcionario_id: funcionario.id,
-        nome_funcionario: funcionario.nome_completo,
-        funcao_id: funcionario.funcao_id || '',
-        nome_funcao: nomeFuncao,
-        valor_diaria_original: valorOriginal,
-        valor_diaria: valorOriginal,
-        presente: false,
-        hora_entrada: "",
-        hora_saida: "",
-        tipo_diaria: 'completa',
-        recebe_refeicao: true,
-        valor_refeicao_aplicado: 0,
-        usarDiariaExclusiva: usarExclusiva,
-        valor_diaria_normal: valorDiaria,
-        valor_diaria_exclusiva_valor: valorDiariaExclusiva,
-        turno: 'diurno' as TurnoDiaria
-      };
-
-      setColaboradores(prev => [...prev, novoColab]);
-      setFuncionariosAvulsos(prev => new Set(prev).add(funcionario.id));
+      await persistirFuncionarioSelecionado(funcionario, classificacao);
       // Invalidar queries para atualizar a solicitação
       queryClient.invalidateQueries({ queryKey: ['solicitacao-detalhes'] });
       queryClient.invalidateQueries({ queryKey: ['diarias-solicitacoes'] });
 
-      toast.success(`${funcionario.nome_completo} adicionado à lista de convocados.`);
+      toast.success(classificacao.mensagem || `${funcionario.nome_completo} adicionado à lista de convocados.`);
       setSearchTerm("");
-      setShowAddFuncionario(false);
     } catch (error: any) {
       console.error('Erro ao adicionar funcionário:', error);
       toast.error(error.message || 'Erro ao adicionar funcionário.');
@@ -1182,68 +1370,107 @@ export default function ApontamentoDiariasModal({
       // 1. Remover da solicitação de origem
       await removerFuncionarioConvocado(outraSolicitacaoId, funcionario.id);
       
-      // 2. Adicionar na solicitação atual (reutilizar a lógica existente)
-      const nomeFuncao = funcionario.funcao_nome || 'Sem função';
-      const valorDiaria = funcionario.valor_diaria || 0;
-      const funcao = funcoesCompletas.find(f => f.id === funcionario.funcao_id);
-      const valorDiariaExclusiva = funcao?.valor_diaria_exclusiva || valorDiaria;
+      const classificacao = await classificarAdicaoOperacional(funcionario);
+      if (classificacao.status === 'ignorado') {
+        toast.error(classificacao.mensagem);
+        return;
+      }
 
-      const novoConvocado = {
-        funcionario_id: funcionario.id,
-        funcao_id: funcionario.funcao_id || '',
-        valor_diaria: valorDiaria,
-        valor_diaria_exclusiva: valorDiariaExclusiva,
-        valor_refeicao: funcao?.valor_refeicao || funcionario.valor_refeicao || 0,
-        nome_funcionario: funcionario.nome_completo,
-        nome_funcao: nomeFuncao,
-        cpf: funcionario.cpf || '',
-        matricula: funcionario.matricula || ''
-      };
-
-      await adicionarFuncionarioConvocado(solicitacao.id, novoConvocado);
-
-      // Adicionar ao state local
-      const dateSel = parseBrazilianDate(selectedDate);
-      const isDomingo = dateSel.getDay() === 0;
-      const isSabado = dateSel.getDay() === 6;
-      const isFeriado = feriados.some(f => f.data === selectedDate);
-      const usarExclusiva = isDomingo || isSabado || isFeriado;
-      const valorOriginal = usarExclusiva ? valorDiariaExclusiva : valorDiaria;
-
-      const novoColab: ColaboradorPresenca = {
-        index: colaboradores.length,
-        funcionario_id: funcionario.id,
-        nome_funcionario: funcionario.nome_completo,
-        funcao_id: funcionario.funcao_id || '',
-        nome_funcao: nomeFuncao,
-        valor_diaria_original: valorOriginal,
-        valor_diaria: valorOriginal,
-        presente: false,
-        hora_entrada: "",
-        hora_saida: "",
-        tipo_diaria: 'completa',
-        recebe_refeicao: true,
-        valor_refeicao_aplicado: 0,
-        usarDiariaExclusiva: usarExclusiva,
-        valor_diaria_normal: valorDiaria,
-        valor_diaria_exclusiva_valor: valorDiariaExclusiva,
-        turno: 'diurno' as TurnoDiaria
-      };
-
-      setColaboradores(prev => [...prev, novoColab]);
-      setFuncionariosAvulsos(prev => new Set(prev).add(funcionario.id));
+      await persistirFuncionarioSelecionado(funcionario, classificacao);
       queryClient.invalidateQueries({ queryKey: ['solicitacao-detalhes'] });
       queryClient.invalidateQueries({ queryKey: ['diarias-solicitacoes'] });
 
       toast.success(`${funcionario.nome_completo} transferido com sucesso para esta solicitação.`);
       setSearchTerm("");
-      setShowAddFuncionario(false);
     } catch (error: any) {
       console.error('Erro ao transferir funcionário:', error);
       toast.error(error.message || 'Erro ao transferir funcionário.');
     } finally {
       setIsTransferring(false);
       setTransferConflict(null);
+    }
+  };
+
+  const handleAdicionarTodosResultados = async () => {
+    if (!solicitacao?.id || resultadosBusca.length === 0) return;
+    setIsAddingAllCentroCusto(true);
+    try {
+      let adicionados = 0;
+      let pendentes = 0;
+      let ignorados = 0;
+
+      for (const funcionario of resultadosBusca) {
+        const { emOutra } = await verificarFuncionarioEmOutraSolicitacao(
+          funcionario.id,
+          solicitacao.data_inicio,
+          solicitacao.data_fim,
+          solicitacao.id
+        );
+
+        if (emOutra) {
+          ignorados += 1;
+          continue;
+        }
+
+        const classificacao = await classificarAdicaoOperacional(funcionario);
+        if (classificacao.status === 'ignorado') {
+          ignorados += 1;
+          continue;
+        }
+
+        await persistirFuncionarioSelecionado(funcionario, classificacao);
+        if (classificacao.status === 'pendente_aprovacao') pendentes += 1;
+        else adicionados += 1;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['solicitacao-detalhes'] });
+      queryClient.invalidateQueries({ queryKey: ['diarias-solicitacoes'] });
+      toast.success(`Adicionados: ${adicionados}. Pendentes: ${pendentes}. Ignorados: ${ignorados}.`);
+      setSearchTerm('');
+      setSelectedFuncionariosIds(new Set());
+    } catch (error: any) {
+      console.error('Erro ao adicionar todos os funcionários:', error);
+      toast.error(error.message || 'Erro ao adicionar todos os funcionários.');
+    } finally {
+      setIsAddingAllCentroCusto(false);
+    }
+  };
+
+  const handleEnviarPendentesParaAprovacao = async () => {
+    if (!solicitacao?.id || pendentesLocais.length === 0) return;
+    setIsSendingApproval(true);
+    try {
+      let enviados = 0;
+      let falhas = 0;
+      const atualizacoes = new Map<string, string>();
+
+      for (const colaborador of pendentesLocais) {
+        try {
+          const pendencia = await solicitarInclusaoFuncionario({
+            solicitacaoId: solicitacao.id,
+            funcionarioId: colaborador.funcionario_id,
+            justificativa: colaborador.observacaoOperacional || addJustificativa || 'Exceção operacional pendente de aprovação.',
+          });
+          atualizacoes.set(colaborador.funcionario_id, pendencia.id);
+          enviados += 1;
+        } catch (error) {
+          falhas += 1;
+        }
+      }
+
+      if (atualizacoes.size > 0) {
+        setColaboradores((prev) => prev.map((col) => atualizacoes.has(col.funcionario_id)
+          ? { ...col, pendenciaInclusaoId: atualizacoes.get(col.funcionario_id) }
+          : col
+        ));
+        queryClient.invalidateQueries({ queryKey: ['inclusoes-pendentes-apontamento', solicitacao.id] });
+      }
+
+      toast.success(falhas > 0
+        ? `Solicitação enviada para aprovação (${enviados} enviados, ${falhas} falhas).`
+        : 'Solicitação enviada para aprovação');
+    } finally {
+      setIsSendingApproval(false);
     }
   };
 
@@ -1619,14 +1846,14 @@ export default function ApontamentoDiariasModal({
     }
   };
 
-  const totalPresentes = colaboradores.filter((c) => c.presente).length;
-  if (!apontamento || !solicitacao) return null;
-
   const faseLabel = {
     inicio: { text: 'Registrar Entrada', color: 'text-blue-600' },
     finalizacao: { text: 'Registrar Saída', color: 'text-orange-600' },
     concluido: { text: 'Concluído', color: 'text-green-600 dark:text-green-400' }
   };
+
+  const totalPresentes = colaboradores.filter((c) => c.presente).length;
+  if (!apontamento || !solicitacao) return null;
 
   return (
     <>
@@ -1685,28 +1912,75 @@ export default function ApontamentoDiariasModal({
             {datasDisponiveis.filter(d => !d.disabled).length > 0 ? (
               <>
                 {/* Seletor de datas como badges clicáveis */}
-                <div className="grid grid-cols-5 gap-1.5 p-2 sm:p-3 bg-muted rounded-md border max-h-[120px] overflow-y-auto">
+                <div className="grid grid-cols-2 gap-2 rounded-md border bg-muted p-2 sm:grid-cols-4 lg:grid-cols-5 sm:p-3">
                   {datasDisponiveis.map(d => {
                     const isSelected = d.value === selectedDate;
+                    const regraData = regrasOperacionaisPorData[d.value];
+                    const possuiOverrideOperacional = regraData?.encontrada && regraData.tipoDiaOperacional === 'operacional';
                     return (
-                      <button
+                      <div
                         key={d.value}
-                        onClick={() => { if (!d.disabled) { setSelectedDate(d.value); setHasSaved(false); setSaidasSalvas(new Set()); } }}
-                        disabled={d.disabled}
                         className={cn(
-                          "px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-md text-[10px] sm:text-xs font-medium transition-a shrink-0",
-                          d.disabled
-                            ? "opacity-40 cursor-not-allowed bg-muted text-muted-foreground border-transparent"
-                            : isSelected
-                              ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                              : "bg-background hover:bg-accent text-foreground border-border cursor-pointer",
-                          d.isHoje && !isSelected && !d.disabled && "ring-1 ring-primary/50"
+                          "flex items-center gap-2 rounded-md border bg-background p-1.5 transition-colors",
+                          isSelected && "border-primary",
+                          possuiOverrideOperacional && "ring-1 ring-primary"
                         )}
                       >
-                        <span className="capitalize">{d.label}</span>
-                        {d.isWeekend && <span className="ml-0.5 opacity-70">●</span>}
-                        {d.isFeriado && <span className="ml-0.5 text-amber-500">★</span>}
-                      </button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!d.disabled) {
+                                  setSelectedDate(d.value);
+                                  setHasSaved(false);
+                                  setSaidasSalvas(new Set());
+                                }
+                              }}
+                              disabled={d.disabled}
+                              className={cn(
+                                "flex min-w-0 flex-1 flex-col items-start rounded-sm px-2 py-1 text-left text-xs font-medium transition-colors",
+                                d.disabled
+                                  ? "cursor-not-allowed text-muted-foreground opacity-50"
+                                  : isSelected
+                                    ? "bg-primary text-primary-foreground"
+                                    : "hover:bg-accent text-foreground",
+                                d.isHoje && !isSelected && !d.disabled && "ring-1 ring-primary"
+                              )}
+                            >
+                              <span className="truncate capitalize">{d.label}</span>
+                              <span className="mt-1 flex items-center gap-1 text-[10px] opacity-80">
+                                {d.isWeekend && <span>FDS</span>}
+                                {d.isFeriado && <span>Feriado</span>}
+                                {possuiOverrideOperacional && <span>R</span>}
+                              </span>
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <div className="space-y-1 text-xs">
+                              <p className="font-medium capitalize">{d.labelFull}</p>
+                              <p>Tipo: {regraData?.tipoDiaOperacional ?? (d.isFeriado ? 'feriado' : d.isWeekend ? 'fim de semana' : 'normal')}</p>
+                              {regraData?.descricao && <p>Obs.: {regraData.descricao}</p>}
+                              {regraData?.encontrada && (
+                                <p>
+                                  Flags: {regraData.permiteRemessaMatriculados ? 'remessa' : 'sem remessa'} · {regraData.usaDiariaExclusiva ? 'diária exclusiva' : 'padrão'}
+                                </p>
+                              )}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+
+                        <div
+                          className={cn(
+                            "flex min-h-10 min-w-20 items-center justify-center rounded-sm border px-2 text-[10px] font-semibold",
+                            possuiOverrideOperacional
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-muted/40 text-muted-foreground"
+                          )}
+                        >
+                          {possuiOverrideOperacional ? 'Regra definida na solicitação' : 'Sem regra manual'}
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
@@ -1732,6 +2006,9 @@ export default function ApontamentoDiariasModal({
                     >
                       {faseLabel[fase].text}
                     </Badge>
+                    {dataSelecionadaInfo.regraOperacional?.tipoDiaOperacional === 'operacional' && (
+                      <Badge variant="info" className="text-[10px] sm:text-xs">Regra operacional manual ativa</Badge>
+                    )}
                   </div>
                 )}
 
@@ -1912,14 +2189,7 @@ export default function ApontamentoDiariasModal({
                             <Button
                               className="w-full"
                               size="sm"
-                              disabled={isAddingFuncionario || addJustificativa.trim().length < 5 || (() => {
-                                const dateSel = parseBrazilianDate(selectedDate);
-                                const dayOfWeek = dateSel.getDay();
-                                const isDiaUtil = dayOfWeek >= 1 && dayOfWeek <= 5;
-                                const isFeriadoHoje = feriados.some(f => f.data === selectedDate);
-                                const isExtraordinaria = solicitacao?.tipo_solicitacao === 'extraordinaria' || solicitacao?.flag_extraordinaria === true;
-                                return !!addSelectedFunc.matricula && isDiaUtil && !isFeriadoHoje && !addFerias && !isExtraordinaria;
-                              })()}
+                              disabled={isAddingFuncionario || addJustificativa.trim().length < 5}
                               onClick={() => {
                                 handleAdicionarFuncionario(addSelectedFunc);
                                 setAddSelectedFunc(null);
@@ -1931,43 +2201,55 @@ export default function ApontamentoDiariasModal({
                               Confirmar Adição
                             </Button>
 
-                            {(() => {
-                              const dateSel = parseBrazilianDate(selectedDate);
-                              const dayOfWeek = dateSel.getDay();
-                              const isDiaUtil = dayOfWeek >= 1 && dayOfWeek <= 5;
-                              const isFeriadoHoje = feriados.some(f => f.data === selectedDate);
-                              const isExtraordinaria = solicitacao?.tipo_solicitacao === 'extraordinaria' || solicitacao?.flag_extraordinaria === true;
-                              if (addSelectedFunc.matricula && isDiaUtil && !isFeriadoHoje && !addFerias && !isExtraordinaria) {
-                                return (
-                                  <p className="text-xs text-destructive">
-                                    Funcionários com matrícula (Remessa) só podem ser convocados em dias úteis quando estiverem de férias ou em solicitação extraordinária.
-                                  </p>
-                                );
-                              }
-                              return null;
-                            })()}
+                            {getPreviewOperacional(addSelectedFunc).requerAprovacao && (
+                              <p className="text-xs text-muted-foreground">
+                                Esta inclusão será marcada como exceção operacional e ficará pendente de aprovação.
+                              </p>
+                            )}
                           </div>
                         ) : (
                           <>
-                            <div className="flex items-center gap-2">
-                              <Search className="h-4 w-4 text-muted-foreground" />
-                              <Input
-                                placeholder="Buscar por nome ou CPF..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="h-8 text-sm"
-                                autoFocus
-                              />
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <Search className="h-4 w-4 text-muted-foreground" />
+                                <Input
+                                  placeholder="Buscar por nome, CPF, matrícula ou centro de custo"
+                                  value={searchTerm}
+                                  onChange={(e) => setSearchTerm(e.target.value)}
+                                  className="h-8 text-sm"
+                                  autoFocus
+                                />
+                              </div>
+                              {searchTerm.trim() && resultadosBusca.length > 0 && (
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-[10px] text-muted-foreground">
+                                    {totalResultadosBusca} resultado(s)
+                                  </p>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="xs"
+                                    onClick={handleAdicionarTodosResultados}
+                                    disabled={isAddingAllCentroCusto}
+                                    className="h-7 gap-1"
+                                  >
+                                    {isAddingAllCentroCusto && <Loader2 className="h-3 w-3 animate-spin" />}
+                                    Adicionar todos
+                                  </Button>
+                                </div>
+                              )}
                             </div>
                             {searchTerm.trim() && (
                               <ScrollArea className="max-h-[200px]">
-                                {funcionariosFiltrados.length === 0 ? (
+                                {resultadosBusca.length === 0 ? (
                                   <p className="text-xs text-muted-foreground text-center py-2">
                                     Nenhum funcionário encontrado
                                   </p>
                                 ) : (
                                   <div className="space-y-1">
-                                    {funcionariosFiltrados.map((func: any) => (
+                                    {resultadosBusca.map((func: FuncionarioBuscaItem) => {
+                                      const preview = getPreviewOperacional(func);
+                                      return (
                                       <button
                                         key={func.id}
                                         onClick={() => {
@@ -1985,11 +2267,16 @@ export default function ApontamentoDiariasModal({
                                               <Badge variant="outline" className="text-[10px] px-1 py-0 border-amber-400 dark:border-amber-500 text-amber-700 dark:text-amber-300">Remessa</Badge>
                                             )}
                                           </div>
-                                          <p className="text-[10px] sm:text-xs text-muted-foreground">{func.funcao_nome || func.nome_funcao || 'Sem função'}</p>
+                                          <p className="text-[10px] sm:text-xs text-muted-foreground">{func.funcao_nome || 'Sem função'}</p>
+                                          <div className="mt-1 flex flex-wrap gap-1">
+                                            {preview.remessaPermitida && <Badge variant="info" className="text-[10px]">Remessa permitida</Badge>}
+                                            {preview.excecaoOperacional && <Badge variant="warning" className="text-[10px]">Exceção operacional</Badge>}
+                                            {preview.requerAprovacao && <Badge variant="secondary" className="text-[10px]">Requer aprovação</Badge>}
+                                          </div>
                                         </div>
                                         <Plus className="h-4 w-4 text-muted-foreground" />
                                       </button>
-                                    ))}
+                                    )})}
                                   </div>
                                 )}
                               </ScrollArea>
@@ -2089,6 +2376,14 @@ export default function ApontamentoDiariasModal({
                               </div>
                             </div>
                             <p className="text-[10px] sm:text-xs text-muted-foreground">{colaborador.nome_funcao}</p>
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {colaborador.remessaLiberada && <Badge variant="info" className="text-[10px]">Remessa permitida</Badge>}
+                              {colaborador.statusExcecao === 'pendente_aprovacao' && <Badge variant="warning" className="text-[10px]">Pendente aprovação</Badge>}
+                              {colaborador.diariaExclusivaOperacional && <Badge variant="purple" className="text-[10px]">Exceção operacional</Badge>}
+                            </div>
+                            {colaborador.observacaoOperacional && (
+                              <p className="mt-1 text-[10px] text-muted-foreground">{colaborador.observacaoOperacional}</p>
+                            )}
                           </div>
                         </div>
 
@@ -2306,13 +2601,27 @@ export default function ApontamentoDiariasModal({
           </div>
 
           {fase === 'inicio' && !readOnly && (
-            <Button
-              onClick={handleSalvarInicio}
-              disabled={isSaving || hasSaved || !selectedDate || colaboradores.length === 0 || (edicaoLiberada && isSuperAdmin && !observacaoCorrecao.trim())}
-              className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-10"
-            >
-              {isSaving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Salvando...</> : <><Clock className="h-3.5 w-3.5 mr-1.5" />Salvar Início</>}
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              {pendentesLocais.length > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleEnviarPendentesParaAprovacao}
+                  disabled={isSendingApproval}
+                  className="w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-10"
+                >
+                  {isSendingApproval ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1.5" />}
+                  Enviar para aprovação
+                </Button>
+              )}
+              <Button
+                onClick={handleSalvarInicio}
+                disabled={isSaving || hasSaved || !selectedDate || colaboradores.length === 0 || (edicaoLiberada && isSuperAdmin && !observacaoCorrecao.trim())}
+                className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-10"
+              >
+                {isSaving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Salvando...</> : <><Clock className="h-3.5 w-3.5 mr-1.5" />Salvar Início</>}
+              </Button>
+            </div>
           )}
 
           {fase === 'finalizacao' && !readOnly && (

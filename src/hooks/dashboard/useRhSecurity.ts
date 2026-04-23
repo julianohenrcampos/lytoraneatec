@@ -61,7 +61,7 @@ export const useRhSecurity = (): RhSecurityContext => {
           .single();
 
         const funcoes = (profile?.funcoes as string[]) || [];
-        const GLOBAL_ACCESS_ROLES = ['AdmRH', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO', 'ConsultaExames', 'AdmtreinoSSO'];
+        const GLOBAL_ACCESS_ROLES = ['AdmRH', 'AdmSSO', 'TecEnferSSO', 'ConsultaExames', 'AdmtreinoSSO'];
         const hasGlobalRole = funcoes.some(f => GLOBAL_ACCESS_ROLES.includes(f));
 
         if (hasGlobalRole) {
@@ -124,6 +124,21 @@ export const useRhSecurity = (): RhSecurityContext => {
           } else {
             departamentoNome = (funcionario.bd_departamentos as any).nome_departamento || departamentoNome;
           }
+        }
+
+        if (funcoes.includes('AdmOBRA') && funcionario.centro_custo_id) {
+          console.log("🔐 AdmOBRA detectado - filtrando por centro de custo do usuário", funcionario.centro_custo_id);
+          setSecurityContext({
+            departamentoId: funcionario.departamento_id || undefined,
+            centroCustoId: funcionario.centro_custo_id || undefined,
+            centroCustoIds: [funcionario.centro_custo_id],
+            departamentoNome,
+            isLoading: false,
+            canViewAllData: false,
+            shouldFilterByDepartment: false,
+            shouldFilterByCentroCusto: true,
+          });
+          return;
         }
 
         const shouldFilter = !isSuperAdmin && !!funcionario.departamento_id;

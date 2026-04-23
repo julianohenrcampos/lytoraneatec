@@ -1,7 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 
 export type EscopoRegraOperacional = 'global' | 'diretoria' | 'centro_custo';
-export type TipoDiaOperacional = 'normal' | 'feriado_estrategico' | 'ponte' | 'compensado';
+export type TipoDiaOperacional = 'normal' | 'feriado_estrategico' | 'operacional' | 'compensado';
 export type FiltroStatusRegra = 'ativas' | 'inativas' | 'todas';
 
 export interface CalendarioOperacionalRegra {
@@ -50,13 +50,20 @@ function getCalendarioTable() {
   return (supabase as any).from(TABLE_NAME);
 }
 
+function aplicarFiltroEscopoId<T extends { is: (...args: any[]) => any; eq: (...args: any[]) => any }>(query: T, escopoId?: string | null): T {
+  return escopoId == null
+    ? query.is('escopo_id', null)
+    : query.eq('escopo_id', escopoId);
+}
+
 function normalizarRegra(raw: any): CalendarioOperacionalRegra {
+  const tipoDiaOperacional = raw.tipo_dia_operacional === 'ponte' ? 'operacional' : (raw.tipo_dia_operacional ?? 'normal');
   return {
     id: raw.id,
     data: raw.data,
     escopo_tipo: raw.escopo_tipo,
     escopo_id: raw.escopo_id ?? null,
-    tipo_dia_operacional: raw.tipo_dia_operacional ?? 'normal',
+    tipo_dia_operacional: tipoDiaOperacional,
     permite_remessa_matriculados: raw.permite_remessa_matriculados ?? raw.permite_remessa ?? false,
     usa_diaria_exclusiva: raw.usa_diaria_exclusiva ?? raw.diaria_exclusiva ?? false,
     exige_aprovacao_adicao: raw.exige_aprovacao_adicao ?? raw.exige_aprovacao ?? false,
@@ -96,8 +103,27 @@ export async function salvarRegraCalendarioOperacional(input: SalvarCalendarioOp
     ativo: input.ativo ?? true,
   };
 
-  const query = input.id
-    ? getCalendarioTable().update(payload).eq('id', input.id)
+  let targetId = input.id;
+  if (!targetId) {
+    const queryExistentes = aplicarFiltroEscopoId(
+      getCalendarioTable()
+      .select(CALENDARIO_SELECT)
+      .eq('data', input.data)
+      .eq('escopo_tipo', input.escopo_tipo)
+      .order('updated_at', { ascending: false })
+      .order('created_at', { ascending: false }),
+      input.escopo_id ?? null,
+    );
+
+    const { data: existentes, error: buscaError } = await queryExistentes;
+
+    if (buscaError) throw buscaError;
+    const regraAtiva = (existentes || []).find((item: any) => item.ativo !== false);
+    targetId = regraAtiva?.id;
+  }
+
+  const query = targetId
+    ? getCalendarioTable().update(payload).eq('id', targetId)
     : getCalendarioTable().insert(payload);
 
   const { data, error } = await query.select(CALENDARIO_SELECT).single();
@@ -107,6 +133,55 @@ export async function salvarRegraCalendarioOperacional(input: SalvarCalendarioOp
 
 export async function definirRegraCalendarioOperacionalAtiva(id: string, ativo: boolean): Promise<void> {
   const { error } = await getCalendarioTable().update({ ativo }).eq('id', id);
+  if (error) throw error;
+}
+
+export async function inativarRegraCalendarioOperacionalEscopo(params: {
+  data: string;
+  escopo_tipo: EscopoRegraOperacional;
+  escopo_id?: string | null;
+}): Promise<void> {
+  const query = aplicarFiltroEscopoId(
+    getCalendarioTable()
+    .select('id')
+    .eq('data', params.data)
+    .eq('escopo_tipo', params.escopo_tipo)
+    .eq('ativo', true)
+    .order('updated_at', { ascending: false })
+    .order('created_at', { ascending: false }),
+    params.escopo_id ?? null,
+  );
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+
+  const ids = (data || []).map((item: any) => item.id);
+  if (!ids.length) return;
+
+  const { error: updateError } = await getCalendarioTable().update({ ativo: false }).in('id', ids);
+  if (updateError) throw updateError;
+}
+
+export async function registrarLogOperacionalData(params: {
+  data: string;
+  acao: 'ativou' | 'desativou';
+  descricao?: string | null;
+}): Promise<void> {
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  const userId = authData.user?.id;
+  if (!userId) throw new Error('Usuário autenticado não encontrado para registrar log operacional.');
+
+  const { error } = await (supabase as any)
+    .from('bd_log_operacional_datas')
+    .insert({
+      data: params.data,
+      usuario_id: userId,
+      acao: params.acao,
+      descricao: params.descricao ?? null,
+    });
+
   if (error) throw error;
 }
 
