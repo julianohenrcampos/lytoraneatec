@@ -39,7 +39,18 @@ export async function getSolicitacoes(
     `)
     .order('created_at', { ascending: false });
 
-  // Aplicar filtros de ESCOPO OBRIGATÓRIOS
+  // Aplicar filtros de ESCOPO (opcionais). Quando o scope vier vazio (perfis
+  // delegados ao RLS, ex: AdmOBRA/GerenteRegional/compostos), nenhum filtro
+  // adicional é aplicado e a regra de visibilidade é resolvida pelo RLS
+  // (fn_diaria_can_select_row: criador OR responsavel_campo OR CC autorizado).
+  const scopeVazio = !scope || (
+    !scope.criado_por &&
+    !scope.responsavel_campo_id &&
+    !(scope.centro_custo_ids && scope.centro_custo_ids.length)
+  );
+  if (scopeVazio && import.meta.env.DEV) {
+    console.debug('[Diarias][getSolicitacoes] sem scope frontend, delegado ao RLS');
+  }
   if (scope?.criado_por) {
     query = query.eq('criado_por', scope.criado_por);
   }
