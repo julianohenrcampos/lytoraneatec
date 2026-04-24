@@ -380,15 +380,32 @@ export async function createSolicitacao(formData: SolicitacaoFormData): Promise<
   return solicitacaoFinal;
 }
 
-// Traduz erros de constraint de sobreposição em mensagem amigável
+// Traduz erros de constraint (sobreposição / duplicidade) em mensagens amigáveis
 function traduzirErroPeriodoSobreposto(error: any): string {
   const msg = error?.message || '';
+
   if (error?.code === '23P01' || msg.includes('PERIODO_SOBREPOSTO')) {
-    // Extrai trecho útil após "PERIODO_SOBREPOSTO:"
     const match = msg.match(/PERIODO_SOBREPOSTO:\s*(.+)/);
     if (match?.[1]) return match[1].trim();
-    return 'Já existe uma solicitação ativa cobrindo dias deste período para o mesmo Centro de Custo. Ajuste as datas para não sobrepor.';
+    return 'Já existe uma solicitação ativa cobrindo dias deste período para o mesmo Centro de Custo. Use Extraordinária se a sobreposição for necessária.';
   }
+
+  if (msg.includes('FUNCIONARIO_DUPLICADO_NA_DATA')) {
+    const match = msg.match(/FUNCIONARIO_DUPLICADO_NA_DATA:\s*(.+)/);
+    if (match?.[1]) return match[1].trim();
+    return 'Funcionário já está apontado em outra solicitação ativa nesta data.';
+  }
+
+  if (msg.includes('FUNCIONARIO_DUPLICADO_PERIODO')) {
+    const match = msg.match(/FUNCIONARIO_DUPLICADO_PERIODO:\s*(.+)/);
+    if (match?.[1]) return match[1].trim();
+    return 'Um ou mais funcionários já estão convocados em outra solicitação ativa com período sobreposto. A flag Extraordinária NÃO permite duplicar funcionários, apenas sobrepor períodos.';
+  }
+
+  if (msg.includes('chk_justificativa_extraordinaria')) {
+    return 'Solicitações Extraordinárias exigem justificativa com pelo menos 20 caracteres.';
+  }
+
   return msg;
 }
 

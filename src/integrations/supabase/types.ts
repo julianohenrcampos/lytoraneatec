@@ -2924,7 +2924,7 @@ export type Database = {
           status: string
           status_fluxo: string | null
           tipo_envio: string | null
-          tipo_solicitacao: string | null
+          tipo_solicitacao: string
           updated_at: string | null
           valor_estimado_total: number | null
         }
@@ -2958,7 +2958,7 @@ export type Database = {
           status?: string
           status_fluxo?: string | null
           tipo_envio?: string | null
-          tipo_solicitacao?: string | null
+          tipo_solicitacao?: string
           updated_at?: string | null
           valor_estimado_total?: number | null
         }
@@ -2992,7 +2992,7 @@ export type Database = {
           status?: string
           status_fluxo?: string | null
           tipo_envio?: string | null
-          tipo_solicitacao?: string | null
+          tipo_solicitacao?: string
           updated_at?: string | null
           valor_estimado_total?: number | null
         }

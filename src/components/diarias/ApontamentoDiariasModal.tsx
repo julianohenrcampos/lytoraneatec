@@ -1476,6 +1476,17 @@ export default function ApontamentoDiariasModal({
     }
     if (!solicitacao?.id || !selectedDate || !colaborador.hora_saida) return;
 
+    // Validação turno x virada de dia (D+1)
+    const entradaTime = colaborador.hora_entrada || '';
+    const saidaTime = colaborador.hora_saida || '';
+    const isDiurno = (colaborador.turno || 'diurno') === 'diurno';
+    if (entradaTime && saidaTime && isDiurno && saidaTime <= entradaTime) {
+      toast.error(
+        `Saída anterior à entrada para ${colaborador.nome_funcionario}. Marque o turno Noturno para apontar saída no dia seguinte (D+1).`
+      );
+      return;
+    }
+
     const { excede12h } = calcularJornada(colaborador.hora_entrada, colaborador.hora_saida);
     if (excede12h) {
       toast.error(`Jornada acima de 12h não permitida para ${colaborador.nome_funcionario}.`);
@@ -2041,6 +2052,18 @@ export default function ApontamentoDiariasModal({
     if (!solicitacao?.id || !selectedDate) return;
 
     const presentes = colaboradores.filter(c => c.presente);
+
+    // Validação turno x virada de dia (D+1) — diurno não pode ter saída <= entrada
+    const turnoIncoerente = presentes.filter(col => {
+      const isDiurno = (col.turno || 'diurno') === 'diurno';
+      return isDiurno && col.hora_entrada && col.hora_saida && col.hora_saida <= col.hora_entrada;
+    });
+    if (turnoIncoerente.length > 0) {
+      const nomes = turnoIncoerente.map(c => c.nome_funcionario).join(', ');
+      toast.error(`Turno Diurno com saída anterior à entrada: ${nomes}. Marque o turno Noturno para apontar saída no dia seguinte (D+1).`);
+      return;
+    }
+
     const excedem12h = presentes.filter(col => {
       const { excede12h } = calcularJornada(col.hora_entrada, col.hora_saida);
       return excede12h;
@@ -2907,6 +2930,14 @@ export default function ApontamentoDiariasModal({
                                 className={cn("h-7 sm:h-9 text-xs sm:text-sm", saidaDisabled && fase !== 'finalizacao' ? "opacity-50" : "")}
                                 placeholder="Saída"
                               />
+                              {/* Indicador D+1 / aviso de turno incoerente */}
+                              {colaborador.hora_entrada && colaborador.hora_saida && colaborador.hora_saida <= colaborador.hora_entrada && (
+                                colaborador.turno === 'noturno' ? (
+                                  <Badge variant="info" className="mt-0.5 text-[9px] px-1 py-0">📅 D+1</Badge>
+                                ) : (
+                                  <Badge variant="destructive" className="mt-0.5 text-[9px] px-1 py-0">Turno Noturno?</Badge>
+                                )
+                              )}
                             </div>
                             {fase === 'concluido' && colaborador.hora_saida && (
                               <Lock className="h-3 w-3 text-muted-foreground shrink-0 hidden sm:block" />
