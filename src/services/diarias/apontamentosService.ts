@@ -37,6 +37,7 @@ export async function getApontamentos(
         convocados_pre,
         valor_estimado_total,
         criado_por,
+        regras_operacionais_snapshot,
         bd_centros_custo (
           id,
           codigo_centro_custo,
@@ -92,6 +93,7 @@ export async function getApontamentoById(id: string) {
         convocados_pre,
         valor_estimado_total,
         criado_por,
+        regras_operacionais_snapshot,
         bd_centros_custo (
           id,
           codigo_centro_custo,
@@ -128,6 +130,7 @@ export async function getApontamentoBySolicitacaoId(solicitacaoId: string) {
         convocados_pre,
         valor_estimado_total,
         criado_por,
+        regras_operacionais_snapshot,
         bd_centros_custo (
           id,
           codigo_centro_custo,

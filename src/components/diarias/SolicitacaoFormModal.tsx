@@ -3,7 +3,8 @@ import { format, startOfWeek, endOfWeek, parseISO, eachDayOfInterval, isWeekend 
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 import { Combobox } from "@/components/ui/combobox";
 import { Plus, Trash2, Loader2, Users, FileText, Check, ChevronRight, ChevronLeft, Info, Lock, User, Send, ClipboardCheck, AlertTriangle, Calendar, Shield } from "lucide-react";
-import { SmartFuncionarioSearch } from "./SmartFuncionarioSearch";
+import { SmartFuncionarioSearch, type ConflitoSelecao } from "./SmartFuncionarioSearch";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermission } from "@/hooks/usePermission";
@@ -174,6 +175,7 @@ export function SolicitacaoFormModal({
   const [centroCustoId, setCentroCustoId] = useState('');
   const [justificativa, setJustificativa] = useState('');
   const [convocadosPre, setConvocadosPre] = useState<FuncionarioPreConvocado[]>([]);
+  const [conflitoPendente, setConflitoPendente] = useState<ConflitoSelecao | null>(null);
   const [responsavelCampoId, setResponsavelCampoId] = useState('');
   const [engenheiroSolicitanteId, setEngenheiroSolicitanteId] = useState('');
   
@@ -256,19 +258,12 @@ export function SolicitacaoFormModal({
     }
   });
 
-  // Funcionarios query via RPC (SECURITY DEFINER - ignora RLS departamental)
+  // Busca GLOBAL de funcionários ativos (sem filtro de CC/datas/elegibilidade).
+  // Conflitos operacionais são tratados como aviso APÓS seleção (ConfirmDialog),
+  // não como filtro nesta lista.
   const { data: funcionarios = [] } = useQuery({
-    queryKey: ['funcionarios-para-diarias-modal-amplo', dataInicio, dataFim, centroCustoId, editingSolicitacao?.id],
+    queryKey: ['diarias-funcionarios-ativos-global'],
     queryFn: async () => {
-      if (!dataInicio || !dataFim) return [];
-
-      console.info('[Diarias][RPC funcionarios] parâmetros', {
-        dataInicio,
-        dataFim,
-        centroCustoId: centroCustoId || null,
-        solicitacaoId: editingSolicitacao?.id || null,
-      });
-
       const PAGE_SIZE = 1000;
       let allData: any[] = [];
       let page = 0;
@@ -276,21 +271,25 @@ export function SolicitacaoFormModal({
       while (true) {
         const from = page * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
-        const { data, error } = await supabase.rpc('fn_diaria_get_funcionarios_disponiveis', {
-          p_data_inicio: dataInicio,
-          p_data_fim: dataFim,
-          p_centro_custo_solicitacao_id: centroCustoId || null,
-          p_solicitacao_id: editingSolicitacao?.id || null,
-        }).range(from, to);
+        const { data, error } = await supabase
+          .from('bd_funcionarios')
+          .select(`
+            id,
+            nome_completo,
+            cpf,
+            funcao_id,
+            centro_custo_id,
+            matricula,
+            status,
+            email,
+            bd_funcoes(id, nome_funcao, valor_diaria, valor_diaria_exclusiva, valor_refeicao)
+          `)
+          .in('status', ['Ativo', 'Ativo sem Registro'])
+          .order('nome_completo', { ascending: true })
+          .range(from, to);
 
         if (error) {
-          console.error('[Diarias][RPC funcionarios] erro', {
-            message: error.message,
-            code: error.code,
-            details: error.details,
-            hint: error.hint,
-            page,
-          });
+          console.error('[Diarias][funcionarios ativos] erro', error);
           throw error;
         }
 
@@ -300,27 +299,23 @@ export function SolicitacaoFormModal({
         page++;
       }
 
-      console.info('[Diarias][RPC funcionarios] retorno bruto', {
-        total: allData.length,
-        primeiroItem: allData[0] || null,
-      });
+      const mapped = allData.map(mapFuncionarioRecord).map((f) => ({
+        ...f,
+        // Marca "fora do CC da solicitação" client-side (apenas flag visual).
+        fora_centro_custo_solicitacao: !!centroCustoId
+          && !!f.centro_custo_id
+          && f.centro_custo_id !== centroCustoId,
+      }));
 
-      const mapped = allData.map(mapFuncionarioRecord);
-
-      console.info('[Diarias][RPC funcionarios] retorno mapeado', {
-        total: mapped.length,
-        primeiroItem: mapped[0] || null,
-      });
-
-      if (mapped.length === 0) {
-        console.warn('[Diarias][RPC funcionarios] lista vazia após RPC', {
-          motivo: 'RPC retornou zero linhas para os parâmetros informados',
-        });
-      }
-
+      const porStatus = mapped.reduce((acc: Record<string, number>, f: any) => {
+        const key = f.status || 'sem-status';
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
+      console.info('[Diarias][funcionarios ativos] carregados', { total: mapped.length, porStatus });
       return mapped;
     },
-    enabled: isOpen && !!dataInicio && !!dataFim
+    enabled: isOpen,
   });
 
   const selectedCentroCusto = useMemo(() => {
@@ -430,7 +425,7 @@ export function SolicitacaoFormModal({
         .from('profiles')
         .select('id, nome_completo, email')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
       return data;
     },
     enabled: !!user?.id
@@ -460,12 +455,12 @@ export function SolicitacaoFormModal({
           .from('bd_diaria_solicitacoes')
           .select('numero_solicitacao')
           .eq('id', (aloc as any).solicitacao_id)
-          .single();
+          .maybeSingle();
         const { data: cc } = await supabase
           .from('bd_centros_custo')
           .select('codigo_centro_custo')
           .eq('id', (aloc as any).centro_custo_id)
-          .single();
+          .maybeSingle();
         enriched.push({
           ...(aloc as any),
           numero_solicitacao: sol?.numero_solicitacao || '',
@@ -859,7 +854,9 @@ export function SolicitacaoFormModal({
   }, [funcionarios, funcionariosPreservados, dataInicio, dataFim]);
 
   // Add funcionario by ID (used by SmartSearch)
-  const handleAddFuncionarioById = async (funcId: string) => {
+  // forceAdd=true permite ignorar o bloqueio elegivel=false quando o usuário
+  // já confirmou explicitamente um conflito operacional via diálogo.
+  const handleAddFuncionarioById = async (funcId: string, forceAdd: boolean = false) => {
     const func = funcionariosBusca.find((f: any) => f.id === funcId) || funcionarios.find((f: any) => f.id === funcId);
     if (!func) return;
     
@@ -873,7 +870,7 @@ export function SolicitacaoFormModal({
       return;
     }
 
-    if (func.elegivel === false) {
+    if (!forceAdd && func.elegivel === false) {
       toast.warning(func.motivo_bloqueio || `${func.nome_completo} está bloqueado para o período selecionado.`);
       return;
     }
@@ -1431,6 +1428,7 @@ export function SolicitacaoFormModal({
                 onSelectFuncionario={handleAddFuncionarioById}
                 onSelectCentroCusto={handleAddByCentroCusto}
                 alocacoesPorFuncionario={alocacoesPorFuncionario}
+                onSelectFuncionarioComConflito={(conflito) => setConflitoPendente(conflito)}
               />
 
               {/* Meio: lista com scroll isolado */}
@@ -1794,6 +1792,29 @@ export function SolicitacaoFormModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* Confirmação de adição de funcionário com conflito operacional */}
+    <ConfirmDialog
+      isOpen={!!conflitoPendente}
+      onClose={() => setConflitoPendente(null)}
+      onConfirm={async () => {
+        const c = conflitoPendente;
+        if (!c) return;
+        await handleAddFuncionarioById(c.funcionarioId, true);
+        setConflitoPendente(null);
+      }}
+      title="Funcionário já vinculado a outra solicitação"
+      description={
+        conflitoPendente?.alocacao
+          ? `Funcionário já vinculado à solicitação ${conflitoPendente.alocacao.numero_solicitacao} no centro de custo ${conflitoPendente.alocacao.codigo_centro_custo}. Deseja prosseguir mesmo assim?`
+          : (conflitoPendente?.motivo
+              ? `${conflitoPendente.motivo}. Deseja prosseguir mesmo assim?`
+              : "Este funcionário possui um conflito operacional. Deseja prosseguir mesmo assim?")
+      }
+      confirmText="Adicionar mesmo assim"
+      cancelText="Cancelar"
+      variant="warning"
+    />
 
     </>
   );

@@ -126,9 +126,32 @@ export async function salvarRegraCalendarioOperacional(input: SalvarCalendarioOp
     ? getCalendarioTable().update(payload).eq('id', targetId)
     : getCalendarioTable().insert(payload);
 
-  const { data, error } = await query.select(CALENDARIO_SELECT).single();
+  const { data, error } = await query.select(CALENDARIO_SELECT).maybeSingle();
   if (error) throw error;
-  return normalizarRegra(data);
+
+  if (data) return normalizarRegra(data);
+
+  // Fallback: refazer SELECT por chave natural quando RETURNING vier vazio (ex.: RLS)
+  console.warn('[calendarioOperacionalService] Mutação retornou 0 linhas; refazendo SELECT por chave natural.');
+  const refetchQuery = aplicarFiltroEscopoId(
+    getCalendarioTable()
+      .select(CALENDARIO_SELECT)
+      .eq('data', input.data)
+      .eq('escopo_tipo', input.escopo_tipo)
+      .eq('ativo', true)
+      .order('updated_at', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1),
+    input.escopo_id ?? null,
+  );
+  const { data: refetched, error: refetchError } = await refetchQuery;
+  if (refetchError) throw refetchError;
+  const linha = (refetched || [])[0];
+  if (!linha) throw new Error('Regra de calendário operacional não encontrada após salvar.');
+  if ((refetched || []).length > 1) {
+    console.error('[calendarioOperacionalService] Mais de uma regra ativa para a mesma chave natural.');
+  }
+  return normalizarRegra(linha);
 }
 
 export async function definirRegraCalendarioOperacionalAtiva(id: string, ativo: boolean): Promise<void> {

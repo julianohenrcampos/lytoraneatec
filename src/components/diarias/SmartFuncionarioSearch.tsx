@@ -43,6 +43,12 @@ interface CentroCustoItem {
   nome_centro_custo: string;
 }
 
+export interface ConflitoSelecao {
+  funcionarioId: string;
+  alocacao?: { numero_solicitacao: string; codigo_centro_custo: string };
+  motivo?: string;
+}
+
 interface SmartFuncionarioSearchProps {
   funcionarios: FuncionarioItem[];
   centrosCusto: CentroCustoItem[];
@@ -51,7 +57,18 @@ interface SmartFuncionarioSearchProps {
   onSelectCentroCusto: (id: string) => void;
   disabled?: boolean;
   alocacoesPorFuncionario?: Map<string, { numero_solicitacao: string; codigo_centro_custo: string }>;
+  /**
+   * Quando definido, funcionários com conflito operacional (alocação em outra
+   * solicitação ou elegivel=false sem ser bloqueio de status RH) deixam de ser
+   * disabled e passam a disparar este callback em vez de onSelectFuncionario.
+   * O pai deve abrir uma confirmação e, se aceita, chamar o handler de adição
+   * com bypass de conflito.
+   */
+  onSelectFuncionarioComConflito?: (conflito: ConflitoSelecao) => void;
 }
+
+// Status de RH considerados bloqueio real de seleção (não-conflito).
+const STATUS_RH_PERMITIDOS = new Set(["Ativo", "Ativo sem Registro"]);
 
 export function SmartFuncionarioSearch({
   funcionarios,
@@ -61,6 +78,7 @@ export function SmartFuncionarioSearch({
   onSelectCentroCusto,
   disabled = false,
   alocacoesPorFuncionario = new Map(),
+  onSelectFuncionarioComConflito,
 }: SmartFuncionarioSearchProps) {
   const [open, setOpen] = React.useState(false)
   const [inputValue, setInputValue] = React.useState("")
@@ -203,27 +221,61 @@ export function SmartFuncionarioSearch({
                       const isAdded = addedIds.has(f.id);
                       const temMatricula = !!f.matricula;
                       const alocacao = alocacoesPorFuncionario.get(f.id);
-                      const elegivel = f.elegivel !== false && !alocacao;
+                      const statusRaw = f.status_funcionario || "";
+                      const isStatusBloqueado = statusRaw.length > 0 && !STATUS_RH_PERMITIDOS.has(statusRaw);
+                      // Conflito operacional = alocado em outra solicitação OU elegivel=false
+                      // sem ser bloqueio de status RH (ex.: convocados_pre / regra operacional).
+                      const hasConflito = !!alocacao || (f.elegivel === false && !isStatusBloqueado);
+                      const podeSelecionarComConfirmacao =
+                        hasConflito && !!onSelectFuncionarioComConflito && !isStatusBloqueado;
+                      const canSelect = !isAdded && !isStatusBloqueado && (!hasConflito || podeSelecionarComConfirmacao);
+
+                      const handleClick = () => {
+                        if (!canSelect) return;
+                        if (hasConflito && onSelectFuncionarioComConflito) {
+                          onSelectFuncionarioComConflito({
+                            funcionarioId: f.id,
+                            alocacao: alocacao
+                              ? { numero_solicitacao: alocacao.numero_solicitacao, codigo_centro_custo: alocacao.codigo_centro_custo }
+                              : undefined,
+                            motivo: f.motivo_bloqueio || undefined,
+                          });
+                          setInputValue("");
+                          setOpen(false);
+                          return;
+                        }
+                        handleSelectFuncionario(f.id);
+                      };
+
                       return (
                         <CommandItem
                           key={`func-${f.id}`}
                           value={`${f.nome_completo} ${f.bd_funcoes?.nome_funcao || ''} ${f.matricula || ''}`}
-                          onSelect={() => !isAdded && elegivel && handleSelectFuncionario(f.id)}
+                          onSelect={handleClick}
                           className={cn(
                             "cursor-pointer py-2.5 px-3",
                             isAdded && "opacity-50 cursor-not-allowed",
-                            !elegivel && !isAdded && "opacity-70",
-                            alocacao && !isAdded && "border-l-2 border-l-destructive",
-                            f.fora_centro_custo_solicitacao && "border-l-2 border-l-primary/60"
+                            isStatusBloqueado && !isAdded && "opacity-60 cursor-not-allowed",
+                            hasConflito && !isAdded && !isStatusBloqueado && "border-l-2 border-l-destructive",
+                            f.fora_centro_custo_solicitacao && !hasConflito && "border-l-2 border-l-primary/60"
                           )}
                           style={{ pointerEvents: 'auto' }}
-                          disabled={isAdded || !elegivel}
+                          disabled={isAdded || isStatusBloqueado}
+                          title={
+                            isStatusBloqueado
+                              ? `Indisponível: ${statusRaw}`
+                              : hasConflito
+                                ? (alocacao
+                                    ? `Já vinculado à solicitação ${alocacao.numero_solicitacao} (CC ${alocacao.codigo_centro_custo}). Clique para confirmar.`
+                                    : (f.motivo_bloqueio || "Conflito operacional. Clique para confirmar."))
+                                : undefined
+                          }
                         >
                           {isAdded ? (
                             <Check className="mr-2 h-4 w-4 shrink-0 text-primary" />
-                          ) : !elegivel ? (
+                          ) : isStatusBloqueado ? (
                             <AlertTriangle className="mr-2 h-4 w-4 shrink-0 text-amber-600" />
-                          ) : alocacao ? (
+                          ) : hasConflito ? (
                             <AlertTriangle className="mr-2 h-4 w-4 shrink-0 text-destructive" />
                           ) : (
                             <User className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -234,6 +286,11 @@ export function SmartFuncionarioSearch({
                               {temMatricula && (
                                 <Badge variant="outline" className="text-[10px] px-1 py-0 border-amber-400 text-amber-700 shrink-0">
                                   Remessa
+                                </Badge>
+                              )}
+                              {isStatusBloqueado && (
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 border-muted-foreground/40 text-muted-foreground shrink-0">
+                                  {statusRaw}
                                 </Badge>
                               )}
                             </div>
@@ -253,7 +310,7 @@ export function SmartFuncionarioSearch({
                               </p>
                             )}
                             {!alocacao && f.elegivel === false && f.motivo_bloqueio && (
-                              <p className="text-xs text-amber-700 mt-0.5">
+                              <p className={cn("text-xs mt-0.5", isStatusBloqueado ? "text-muted-foreground" : "text-destructive")}>
                                 {f.motivo_bloqueio}
                               </p>
                             )}

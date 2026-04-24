@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { isSuperAdminFallbackEmail } from '@/config/superAdminEmails';
 
 interface SimplePermissions {
   isSuperAdmin: boolean;
@@ -61,9 +62,9 @@ export const useSimplePermissions = (): SimplePermissions => {
           if (user?.email) {
             console.log('🔄 [SimplePermissions] Tentando fallback por email:', user.email);
             
-            // Verificação especial para o SuperAdmin conhecido
-            if (user.email === 'julianohcampos@yahoo.com.br') {
-              console.log('🚀 [SimplePermissions] SUPERADMIN DETECTADO por email!');
+            // Verificação especial para SuperAdm conhecido (fallback centralizado)
+            if (isSuperAdminFallbackEmail(user.email)) {
+              console.log('🚀 [SimplePermissions] SuperAdm detectado por fallback de e-mail');
               setPermissions({
                 isSuperAdmin: true,
                 userRole: 'SuperAdm',
@@ -88,11 +89,11 @@ export const useSimplePermissions = (): SimplePermissions => {
         const funcoes = profile?.funcoes || [];
         console.log('📋 [SimplePermissions] Funções encontradas:', funcoes);
         
-        // Verificação múltipla de SuperAdmin
-        const isSuperAdmin = funcoes.includes('SuperAdm') || 
-                            funcoes.includes('SuperAdmin') || 
+        // Verificação múltipla de SuperAdm
+        const isSuperAdmin = funcoes.includes('SuperAdm') ||
+                            funcoes.includes('SuperAdmin') ||
                             funcoes.includes('super_admin') ||
-                            profile?.email === 'julianohcampos@yahoo.com.br';
+                            isSuperAdminFallbackEmail(profile?.email);
         
         // Determinar função principal
         let userRole = 'user';

@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { isSuperAdminFallbackEmail } from '@/config/superAdminEmails';
 
 interface AuthPermissionsState {
   userId: string | null;
@@ -81,14 +82,13 @@ export const useAuthPermissionsStable = (): AuthPermissionsState => {
           bd_funcoes_permissao: profile.bd_funcoes_permissao
         });
 
-        // SISTEMA HÍBRIDO - Verificar SuperAdmin por múltiplos critérios
+        // Verificação híbrida de SuperAdm por múltiplos critérios.
         let isSuperAdmin = false;
         let userRole = 'user';
         let functionName = 'user';
 
-        // 1. Verificar por email (fallback principal)
-        const superAdminEmails = ['julianohcampos@yahoo.com.br', 'ramonvalentevalente@gmail.com'];
-        if (user.email && superAdminEmails.includes(user.email)) {
+        // 1. Fallback por e-mail (lista centralizada em src/config/superAdminEmails.ts)
+        if (isSuperAdminFallbackEmail(user.email)) {
           console.log('🚀 STABLE - SuperAdmin detectado por EMAIL!');
           isSuperAdmin = true;
           functionName = 'SuperAdm';

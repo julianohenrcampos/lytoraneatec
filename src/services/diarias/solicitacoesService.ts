@@ -106,14 +106,14 @@ export async function getSolicitacaoById(id: string): Promise<DiariaSolicitacao 
       )
     `)
     .eq('id', id)
-    .single();
+    .maybeSingle();
 
   if (error) {
-    if (error.code === 'PGRST116') return null;
     console.error('Erro ao buscar solicitação:', error);
     throw new Error(error.message);
   }
 
+  if (!data) return null;
   return data as unknown as DiariaSolicitacao;
 }
 
@@ -187,14 +187,14 @@ async function sincronizarConvocadosPreControlado(
     .from('bd_diaria_solicitacoes')
     .select('convocados_pre')
     .eq('id', solicitacaoId)
-    .single();
+    .maybeSingle();
 
   if (solicitacaoError) {
     throw new Error(solicitacaoError.message);
   }
 
   const atuais = Array.isArray(solicitacaoAtual?.convocados_pre)
-    ? solicitacaoAtual.convocados_pre as any[]
+    ? solicitacaoAtual!.convocados_pre as any[]
     : [];
 
   const atuaisMap = new Map(atuais.map((item) => [item.funcionario_id, item]));
@@ -427,11 +427,15 @@ export async function updateSolicitacao(id: string, formData: Partial<Solicitaca
         nome_centro_custo
       )
     `)
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('Erro ao atualizar solicitação:', error);
     throw new Error(traduzirErroPeriodoSobreposto(error));
+  }
+
+  if (!data) {
+    console.warn('[Diarias][updateSolicitacao] UPDATE retornou 0 linhas (possível restrição de RLS no RETURNING). Refazendo SELECT.');
   }
 
   if (formData.convocados_pre !== undefined) {
@@ -500,7 +504,7 @@ export async function enviarParaAutorizacao(id: string): Promise<DiariaSolicitac
         nome_centro_custo
       )
     `)
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('Erro ao enviar para autorização:', error);
@@ -509,6 +513,13 @@ export async function enviarParaAutorizacao(id: string): Promise<DiariaSolicitac
 
   // Registrar na auditoria
   await registrarAprovacao(id, 'solicitacao', 'enviar');
+
+  if (!data) {
+    console.warn('[Diarias][enviarParaAutorizacao] UPDATE retornou 0 linhas. Refazendo SELECT.');
+    const refetched = await getSolicitacaoById(id);
+    if (!refetched) throw new Error('Solicitação não encontrada após envio.');
+    return refetched;
+  }
 
   return data as unknown as DiariaSolicitacao;
 }
@@ -548,7 +559,7 @@ export async function autorizarSolicitacao(
         nome_centro_custo
       )
     `)
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('Erro ao autorizar solicitação:', error);
@@ -557,6 +568,13 @@ export async function autorizarSolicitacao(
 
   // Registrar na auditoria
   await registrarAprovacao(id, 'solicitacao', 'aprovar', comentario || observacaoGerente);
+
+  if (!data) {
+    console.warn('[Diarias][autorizarSolicitacao] UPDATE retornou 0 linhas. Refazendo SELECT.');
+    const refetched = await getSolicitacaoById(id);
+    if (!refetched) throw new Error('Solicitação não encontrada após autorização.');
+    return refetched;
+  }
 
   return data as unknown as DiariaSolicitacao;
 }
@@ -591,7 +609,7 @@ export async function reprovarSolicitacao(
         nome_centro_custo
       )
     `)
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('Erro ao reprovar solicitação:', error);
@@ -600,6 +618,13 @@ export async function reprovarSolicitacao(
 
   // Registrar na auditoria
   await registrarAprovacao(id, 'solicitacao', 'reprovar', comentario || observacaoGerente);
+
+  if (!data) {
+    console.warn('[Diarias][reprovarSolicitacao] UPDATE retornou 0 linhas. Refazendo SELECT.');
+    const refetched = await getSolicitacaoById(id);
+    if (!refetched) throw new Error('Solicitação não encontrada após reprovação.');
+    return refetched;
+  }
 
   return data as unknown as DiariaSolicitacao;
 }
@@ -620,7 +645,7 @@ export async function cancelarEnvioSolicitacao(id: string): Promise<DiariaSolici
         nome_centro_custo
       )
     `)
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('Erro ao cancelar envio:', error);
@@ -629,6 +654,13 @@ export async function cancelarEnvioSolicitacao(id: string): Promise<DiariaSolici
 
   // Registrar na auditoria
   await registrarAprovacao(id, 'solicitacao', 'cancelar_envio');
+
+  if (!data) {
+    console.warn('[Diarias][cancelarEnvioSolicitacao] UPDATE retornou 0 linhas. Refazendo SELECT.');
+    const refetched = await getSolicitacaoById(id);
+    if (!refetched) throw new Error('Solicitação não encontrada após cancelar envio.');
+    return refetched;
+  }
 
   return data as unknown as DiariaSolicitacao;
 }
@@ -725,7 +757,7 @@ export async function cancelarAutorizacao(id: string): Promise<DiariaSolicitacao
         nome_centro_custo
       )
     `)
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('Erro ao cancelar autorização:', error);
@@ -734,6 +766,13 @@ export async function cancelarAutorizacao(id: string): Promise<DiariaSolicitacao
 
   // 4. Registrar na auditoria
   await registrarAprovacao(id, 'solicitacao', 'cancelar_autorizacao');
+
+  if (!data) {
+    console.warn('[Diarias][cancelarAutorizacao] UPDATE retornou 0 linhas. Refazendo SELECT.');
+    const refetched = await getSolicitacaoById(id);
+    if (!refetched) throw new Error('Solicitação não encontrada após cancelar autorização.');
+    return refetched;
+  }
 
   return data as unknown as DiariaSolicitacao;
 }

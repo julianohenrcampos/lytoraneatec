@@ -292,6 +292,8 @@ export default function ApontamentoDiariasModal({
   // Estado para adicionar funcionário avulso
   const [showAddFuncionario, setShowAddFuncionario] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  // Filtro local da lista de colaboradores já carregados (nome / cpf / função)
+  const [filtroColaboradores, setFiltroColaboradores] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [isAddingFuncionario, setIsAddingFuncionario] = useState(false);
   const [selectedFuncionariosIds, setSelectedFuncionariosIds] = useState<Set<string>>(new Set());
@@ -403,12 +405,12 @@ export default function ApontamentoDiariasModal({
     }
   });
 
-  // Buscar funcionários ativos para adicionar avulso
+  // Busca GLOBAL de funcionários ativos (sem filtro de CC/escopo).
+  // Conflitos operacionais (alocação em outra solicitação, fora do CC, etc.)
+  // são tratados como aviso APÓS seleção, não como filtro.
   const { data: funcionariosAtivos = [], isFetching: isSearchingFuncionarios } = useQuery({
-    queryKey: ['funcionarios-ativos-diarias', centroCusto?.id, userId, showAddFuncionario],
+    queryKey: ['funcionarios-ativos-diarias-global', showAddFuncionario],
     queryFn: async () => {
-      if (!userId) return [];
-
       const PAGE_SIZE = 1000;
       let allData: any[] = [];
       let page = 0;
@@ -417,24 +419,52 @@ export default function ApontamentoDiariasModal({
         const from = page * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
         const { data, error } = await supabase
-          .rpc('get_funcionarios_para_diarias', {
-            p_centro_custo_id: centroCusto?.id ?? null,
-            p_user_id: userId,
-          })
+          .from('bd_funcionarios')
+          .select(`
+            id,
+            nome_completo,
+            cpf,
+            funcao_id,
+            centro_custo_id,
+            matricula,
+            status,
+            banco,
+            agencia,
+            conta_corrente,
+            chave_pix,
+            bd_funcoes(id, nome_funcao, valor_diaria, valor_diaria_exclusiva, valor_refeicao)
+          `)
+          .eq('status', 'Ativo')
+          .order('nome_completo', { ascending: true })
           .range(from, to);
 
         if (error) throw error;
         if (!data || data.length === 0) break;
-
         allData = allData.concat(data);
-
         if (data.length < PAGE_SIZE) break;
         page++;
       }
 
-      return allData as FuncionarioBuscaItem[];
+      // Normaliza para o shape esperado pelo SmartFuncionarioSearch.
+      return allData.map((f: any) => ({
+        id: f.id,
+        nome_completo: f.nome_completo,
+        cpf: f.cpf,
+        funcao_id: f.funcao_id,
+        centro_custo_id: f.centro_custo_id,
+        matricula: f.matricula,
+        status_funcionario: f.status,
+        banco: f.banco,
+        agencia: f.agencia,
+        conta_corrente: f.conta_corrente,
+        chave_pix: f.chave_pix,
+        funcao_nome: f.bd_funcoes?.nome_funcao ?? null,
+        valor_diaria: f.bd_funcoes?.valor_diaria ?? 0,
+        valor_diaria_exclusiva: f.bd_funcoes?.valor_diaria_exclusiva ?? null,
+        valor_refeicao: f.bd_funcoes?.valor_refeicao ?? 0,
+      })) as FuncionarioBuscaItem[];
     },
-    enabled: showAddFuncionario && !!userId
+    enabled: showAddFuncionario,
   });
 
   const { data: pendenciasInclusao = [] } = useQuery({
@@ -465,7 +495,23 @@ export default function ApontamentoDiariasModal({
     enabled: isOpen
   });
 
-  // Gerar lista de datas do período: passadas e hoje habilitadas, futuras bloqueadas
+  // Mapa de CPFs dos colaboradores carregados — usado apenas para filtro local da lista
+  const colaboradoresIds = useMemo(() => colaboradores.map(c => c.funcionario_id), [colaboradores]);
+  const { data: cpfMap = {} } = useQuery({
+    queryKey: ['apontamento-colaboradores-cpf', colaboradoresIds.sort().join(',')],
+    queryFn: async () => {
+      if (colaboradoresIds.length === 0) return {} as Record<string, string>;
+      const { data } = await supabase
+        .from('bd_funcionarios')
+        .select('id, cpf')
+        .in('id', colaboradoresIds);
+      const map: Record<string, string> = {};
+      (data || []).forEach((f: any) => { if (f?.id) map[f.id] = f.cpf || ''; });
+      return map;
+    },
+    enabled: isOpen && colaboradoresIds.length > 0,
+    staleTime: 60_000,
+  });
   const datasDisponiveis = useMemo(() => {
     if (!solicitacao?.data_inicio || !solicitacao?.data_fim) return [];
 
@@ -599,11 +645,13 @@ export default function ApontamentoDiariasModal({
       };
     }
 
+    // Ponte: equivalente operacional ao feriado para fins de inclusão de funcionários
+    // matriculados (permite remessa sem exigir aprovação extra).
     return {
       ...base,
       encontrada: true,
       tipoDiaOperacional: 'operacional',
-      permiteRemessaMatriculados: false,
+      permiteRemessaMatriculados: true,
       usaDiariaExclusiva: true,
       exigeAprovacaoAdicao: false,
       descricao: snapshotItem.descricao || 'Tipo do dia definido manualmente na solicitação: ponte.',
@@ -824,11 +872,38 @@ export default function ApontamentoDiariasModal({
       });
 
       const snapshotPersistido = (solicitacaoAtualizada.regras_operacionais_snapshot ?? proximoSnapshot) as RegrasOperacionaisSnapshot;
+
+      // Verificação real de persistência: o snapshot retornado deve refletir o tipo solicitado
+      const tipoPersistido = snapshotPersistido?.datas?.[data]?.tipo_dia;
+      if (tipoPersistido !== tipoDia) {
+        throw new Error(
+          `Persistência divergente: esperado "${tipoDia}", recebido "${tipoPersistido ?? 'vazio'}". Verifique RLS/permissões.`
+        );
+      }
+
       setRegrasOperacionaisSnapshotLocal(snapshotPersistido);
       setRegrasOperacionaisPorData((prev) => ({
         ...prev,
         [data]: aplicarOverrideSolicitacaoNaRegra(data, prev[data]),
       }));
+
+      // Sincroniza cache da listagem de apontamentos (fonte real do selectedApontamento na página pai)
+      queryClient.setQueriesData({ queryKey: ['diaria-apontamentos'] }, (old: any) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((a: any) =>
+          a?.bd_diaria_solicitacoes?.id === solicitacao.id
+            ? {
+                ...a,
+                bd_diaria_solicitacoes: {
+                  ...a.bd_diaria_solicitacoes,
+                  regras_operacionais_snapshot: snapshotPersistido,
+                },
+              }
+            : a
+        );
+      });
+      queryClient.invalidateQueries({ queryKey: ['diaria-apontamentos'] });
+      queryClient.invalidateQueries({ queryKey: ['diaria-apontamento-solicitacao', solicitacao.id] });
       queryClient.invalidateQueries({ queryKey: ['solicitacao-detalhes'] });
       queryClient.invalidateQueries({ queryKey: ['diarias-solicitacoes'] });
       toast.success(`Tipo do dia salvo: ${TIPO_DIA_LABEL[tipoDia]}.`);
@@ -2099,7 +2174,43 @@ export default function ApontamentoDiariasModal({
   };
 
   const totalPresentes = colaboradores.filter((c) => c.presente).length;
+
+  // Filtro local da lista (nome, cpf, função) — não altera dados, apenas a renderização
+  const filtroColaboradoresNorm = filtroColaboradores.trim().toLowerCase();
+  const colaboradoresFiltrados = filtroColaboradoresNorm
+    ? colaboradores.filter((c) => {
+        const nome = (c.nome_funcionario || '').toLowerCase();
+        const funcao = (c.nome_funcao || '').toLowerCase();
+        const cpf = (cpfMap[c.funcionario_id] || '').toLowerCase();
+        const cpfDigits = cpf.replace(/\D/g, '');
+        const termoDigits = filtroColaboradoresNorm.replace(/\D/g, '');
+        return (
+          nome.includes(filtroColaboradoresNorm) ||
+          funcao.includes(filtroColaboradoresNorm) ||
+          cpf.includes(filtroColaboradoresNorm) ||
+          (termoDigits.length > 0 && cpfDigits.includes(termoDigits))
+        );
+      })
+    : colaboradores;
+
+  // Tipo do dia ativo (snapshot ou calendário) e valor de diária correspondente
+  const tipoDiaAtivoLabel = (() => {
+    if (!selectedDate) return null;
+    const tipoManual = resolveTipoDiaManual(selectedDate);
+    if (tipoManual === 'feriado') return 'Feriado';
+    if (tipoManual === 'ponte') return 'Ponte';
+    const isFeriadoCalendario = feriados.some((f) => f.data === selectedDate);
+    if (isFeriadoCalendario) return 'Feriado';
+    const dateSel = parseBrazilianDate(selectedDate);
+    const dow = dateSel.getDay();
+    if (dow === 0) return 'Domingo';
+    if (dow === 6) return 'Sábado';
+    return 'Normal';
+  })();
+  const tipoDiaUsaExclusiva = tipoDiaAtivoLabel === 'Feriado' || tipoDiaAtivoLabel === 'Ponte' || tipoDiaAtivoLabel === 'Domingo' || tipoDiaAtivoLabel === 'Sábado';
+
   if (!apontamento || !solicitacao) return null;
+
 
   return (
     <>
@@ -2452,8 +2563,12 @@ export default function ApontamentoDiariasModal({
                               const dayOfWeek = dateSel.getDay();
                               const isDiaUtil = dayOfWeek >= 1 && dayOfWeek <= 5;
                               const isFeriadoHoje = feriados.some(f => f.data === selectedDate);
+                              const tipoManual = resolveTipoDiaManual(selectedDate);
+                              // Em feriado/ponte (manual ou calendário) o matriculado pode trabalhar
+                              // sem precisar marcar "Férias"
+                              const ehFeriadoOuPonte = isFeriadoHoje || tipoManual === 'feriado' || tipoManual === 'ponte';
                               const temMatricula = !!addSelectedFunc.matricula;
-                              const mostrarToggle = temMatricula && isDiaUtil && !isFeriadoHoje;
+                              const mostrarToggle = temMatricula && isDiaUtil && !ehFeriadoOuPonte;
                               
                               return mostrarToggle ? (
                                 <div className="flex items-center justify-between p-2 border rounded-md">
@@ -2627,10 +2742,38 @@ export default function ApontamentoDiariasModal({
                     </PopoverContent>
                   </Popover>
                 )}
+
+                {/* Filtro local da lista (nome, CPF, função) */}
+                {colaboradores.length > 0 && (
+                  <div className="relative w-full sm:w-[220px]">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                    <Input
+                      type="search"
+                      value={filtroColaboradores}
+                      onChange={(e) => setFiltroColaboradores(e.target.value)}
+                      placeholder="Buscar funcionário..."
+                      className="h-9 pl-7 text-xs sm:text-sm"
+                      aria-label="Filtrar funcionários por nome, CPF ou função"
+                    />
+                  </div>
+                )}
               </div>
-              <div className="text-[10px] sm:text-sm text-muted-foreground flex items-center gap-2 sm:gap-3">
+              <div className="text-[10px] sm:text-sm text-muted-foreground flex items-center gap-2 sm:gap-3 flex-wrap">
+                {tipoDiaAtivoLabel && (
+                  <Badge
+                    variant={tipoDiaUsaExclusiva ? 'warning' : 'secondary'}
+                    className="text-[10px] sm:text-xs"
+                  >
+                    Dia: {tipoDiaAtivoLabel}
+                  </Badge>
+                )}
                 <span>Presentes: <span className="font-medium text-primary">{totalPresentes}</span></span>
                 <span>Faltas: <span className="font-medium text-destructive">{colaboradores.length - totalPresentes}</span></span>
+                {filtroColaboradoresNorm && (
+                  <span className="text-[10px]">
+                    Exibindo {colaboradoresFiltrados.length} de {colaboradores.length}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -2642,7 +2785,12 @@ export default function ApontamentoDiariasModal({
             ) : colaboradores.length > 0 ? (
               <div className="border rounded-md p-2 sm:p-4">
                 <div className="space-y-3 sm:space-y-4">
-                  {colaboradores.map((colaborador) => {
+                  {colaboradoresFiltrados.length === 0 && filtroColaboradoresNorm && (
+                    <div className="text-center text-xs text-muted-foreground py-4">
+                      Nenhum funcionário encontrado para "{filtroColaboradores}".
+                    </div>
+                  )}
+                  {colaboradoresFiltrados.map((colaborador) => {
                     const { horas, tipo } = calcularJornada(colaborador.hora_entrada, colaborador.hora_saida);
                     const valorRefeicao = funcoesMap[colaborador.funcao_id] || 0;
 
@@ -2835,30 +2983,25 @@ export default function ApontamentoDiariasModal({
                           </div>
                         </div>
 
-                        {colaborador.valor_diaria_normal !== colaborador.valor_diaria_exclusiva_valor && funcionariosAvulsos.has(colaborador.funcionario_id) && (
-                          <div className="flex items-center justify-between mt-1 pt-1 border-t border-dashed">
-                            <div className="flex items-center gap-1.5">
-                              <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
-                              <Label htmlFor={`tipo-diaria-${colaborador.funcionario_id}`} className="text-xs sm:text-sm cursor-pointer">
-                                Diária Especial
-                              </Label>
-                              <Badge variant={colaborador.usarDiariaExclusiva ? "warning" : "secondary"} className="text-[10px]">
-                                {colaborador.usarDiariaExclusiva
-                                  ? `R$ ${colaborador.valor_diaria_exclusiva_valor.toFixed(2)}`
-                                  : `R$ ${colaborador.valor_diaria_normal.toFixed(2)}`}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <Switch
-                                id={`tipo-diaria-${colaborador.funcionario_id}`}
-                                checked={colaborador.usarDiariaExclusiva}
-                                onCheckedChange={(checked) => handleTipoDiariaChange(colaborador.index, checked)}
-                                disabled={legacyPresenceActionsDisabled || (fase === 'concluido' && !edicaoLiberada) || !colaborador.presente || readOnly || jaSalvouSaida}
-                              />
-                              {fase === 'concluido' && !edicaoLiberada && <Lock className="h-3 w-3 text-muted-foreground" />}
-                            </div>
+                        {/* Diária aplicada (derivada do tipo do dia) — somente leitura */}
+                        <div className="flex items-center justify-between mt-1 pt-1 border-t border-dashed">
+                          <div className="flex items-center gap-1.5">
+                            <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+                            <span className="text-xs sm:text-sm text-muted-foreground">
+                              Diária aplicada:
+                            </span>
+                            <Badge
+                              variant={colaborador.usarDiariaExclusiva ? 'warning' : 'secondary'}
+                              className="text-[10px]"
+                            >
+                              R$ {(colaborador.usarDiariaExclusiva
+                                ? colaborador.valor_diaria_exclusiva_valor
+                                : colaborador.valor_diaria_normal
+                              ).toFixed(2)}
+                              {tipoDiaAtivoLabel ? ` (${tipoDiaAtivoLabel})` : ''}
+                            </Badge>
                           </div>
-                        )}
+                        </div>
 
                         {isEditingThis && (
                           <div className="mt-3 pt-3 border-t border-dashed space-y-2 bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded">

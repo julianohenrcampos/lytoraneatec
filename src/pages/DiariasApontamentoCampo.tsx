@@ -146,6 +146,16 @@ export default function DiariasApontamentoCampo() {
     statusFilterMemo,
     apontamentoScopeFilters
   );
+
+  // Sincroniza selectedApontamento com a versão fresca vinda do cache após mutações
+  // (ex.: persistência de tipo do dia atualiza regras_operacionais_snapshot)
+  useEffect(() => {
+    if (!selectedApontamento) return;
+    const fresh = (apontamentos as any[]).find((a) => a?.id === selectedApontamento.id);
+    if (fresh && fresh !== selectedApontamento) {
+      setSelectedApontamento(fresh as DiariaApontamento);
+    }
+  }, [apontamentos, selectedApontamento]);
   
   // Extrair IDs estáveis das solicitações para usar na query de presenças
   const solicitacaoIds = useMemo(

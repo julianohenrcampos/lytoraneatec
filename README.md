@@ -1,5 +1,4 @@
-
-# Sistema de Gestão Integrada de Pavimentação Asfáltica 🛣️
+# Sistema Corporativo LYTOTEC — Gestão Integrada de Pavimentação Asfáltica 🛣️
 
 [![Versão](https://img.shields.io/badge/versão-4.0.0-blue.svg)](CHANGELOG.md)
 [![React](https://img.shields.io/badge/React-18.3+-61DAFB.svg)](https://reactjs.org/)
@@ -7,352 +6,186 @@
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-00D588.svg)](https://supabase.com/)
 [![PWA](https://img.shields.io/badge/PWA-Ready-orange.svg)](docs/PWA.md)
 
-## 📋 Sobre o Projeto
+---
 
-Sistema **completo e avançado** de gestão para empresas de pavimentação asfáltica, integrando recursos humanos, equipamentos, logística e controle operacional. **Progressive Web App (PWA)** com **modo offline completo**, sincronização automática e **fluxo integrado de retorno de massa**. Desenvolvido com tecnologias modernas para máxima eficiência e confiabilidade.
+### 📌 Nome do Módulo
 
-### ✨ Principais Funcionalidades
+**Sistema Corporativo LYTOTEC** — plataforma corporativa de gestão integrada para
+operações de pavimentação asfáltica, cobrindo Recursos Humanos, Equipamentos e
+Frota, Logística de Usina, Diárias, SSO, Solicitações de Equipamento, Ordens de
+Serviço, Relatórios de Medição e Business Intelligence operacional.
 
-- 📱 **Progressive Web App (PWA)**: Instalação nativa e notificações
-- 🔄 **Modo Offline Completo**: Trabalhe sem internet com sincronização automática
-- 👥 **Gestão de RH Completa**: Cadastro, apontamentos, avaliações e controle salarial
-- 🚛 **Gestão de Máquinas**: Controle total de veículos, equipamentos e manutenção
-- 📦 **Logística Integrada**: Requisições, programação, registro de cargas e aplicação
-- 🔄 **Fluxo de Retorno de Massa**: Integração automática entre aplicação e pesagem ⭐
-- 📊 **Relatórios de Medição**: Cálculos automáticos para contratos de locação
-- 🔧 **Ordens de Serviço**: Sistema completo de chamados e manutenção
-- 📈 **Dashboards Avançados**: KPIs e métricas em tempo real com 4 dashboards especializados
-- 📑 **Exportações**: Excel e PDF com formatação profissional
-- 📱 **Mobile First**: Interface responsiva otimizada para tablet e smartphone
-- 🔐 **Segurança Avançada**: Sistema de permissões granulares com RLS
+A aplicação é um **Progressive Web App (PWA)** com modo offline, sincronização
+automática e fluxo integrado de retorno de massa.
 
-### 🆕 Novidades da Versão 4.0
+### ⚙️ Responsabilidades
 
-- **🔄 Fluxo Integrado de Retorno de Massa**
-  - Detecção automática de massa remanescente após aplicação
-  - Botão "Retorno de Massa" no finalização da aplicação
-  - Navegação contextual para registro de cargas com foco automático
-  - Modo visual destacado para campo de retorno
-  - Rastreabilidade completa do material
+- Centralizar o ciclo operacional de obras: requisição → programação →
+  registro de carga → aplicação → medição.
+- Gerenciar o ciclo de vida do ativo: cadastro mestre, disponibilidade,
+  catálogo técnico, solicitações, ordens de serviço e custos.
+- Gerenciar o ciclo de vida do colaborador: cadastro, equipes, presenças,
+  diárias, SSO, desligamentos e arquivo morto.
+- Operar regras de negócio críticas (cálculo de diárias por feriado/ponte,
+  matching de equipamentos, governança de fornecedores) com auditoria.
+- Disponibilizar relatórios oficiais em Excel e PDF padronizados.
 
-- **🛡️ Sistema de Proteção contra Erros**
-  - GlobalErrorBoundary interceptando erros da plataforma
-  - SafeToast com fallback silencioso para erros TypeID
-  - SafeModalWrapper protegendo todos os modais críticos
-  - SafeFormWrapper com retry automático em formulários
-  - Isolamento completo de erros externos
+### 🔗 Integrações
 
-- **📱 PWA Avançado**
-  - Service Worker otimizado com cache inteligente
-  - Modo offline completo em todos os módulos
-  - Sincronização automática em background
-  - Indicadores visuais de status de conexão
-  - Notificações push para atualizações
+- **Supabase** — Banco de dados PostgreSQL, Auth (JWT), Storage e Edge Functions.
+- **Mapbox** — geocoding via Edge Function dedicada (`geocode-proxy`).
+- **PNCP** — sincronização de licitações públicas (módulo Licitações).
+- **Onboarding de fornecedores** — Edge Function `onboard-fornecedor` com
+  cabeçalho de segurança padronizado entre projetos.
+- **Service Worker / PWA** — cache offline e sincronização em background.
 
-- **🎯 Interface Aprimorada**
-  - 4 Dashboards especializados (Geral, RH, Máquinas, CBUQ)
-  - Navegação contextual entre módulos
-  - Validação de data em tempo real
-  - Modo "Retorno de Massa" com destaque visual
-  - Design system consistente com tokens semânticos
+Tabelas e views principais seguem os prefixos `bd_` (tabelas) e `vw_` (views).
+A documentação completa de schema está em [`docs/DATABASE.md`](docs/DATABASE.md)
+e o detalhamento de RLS em [`docs/rls-structure/`](docs/rls-structure/README.md).
 
-## 🚀 Tecnologias Utilizadas
+### 🧠 Regras de Negócio
 
-### Frontend
-- **React 18** - Framework principal
-- **TypeScript** - Tipagem estática
-- **Vite** - Build tool otimizado
-- **Tailwind CSS** - Estilização
-- **Shadcn/UI** - Componentes modernos
-- **React Hook Form** - Gerenciamento de formulários
-- **TanStack Query** - Gerenciamento de estado e cache
-- **Recharts** - Gráficos e visualizações
+- **Diárias** operam em ciclos semanais (segunda → domingo); auto-save por
+  data permite sobrepor `tipo_dia` (`normal | feriado | ponte`) sem botão
+  explícito, com rollback visual em caso de falha.
+- **Equipamentos** seguem catálogo técnico unificado por subcategoria +
+  capacidade, com controle anti-fraude no cadastro mestre.
+- **Diárias e Equipamentos** delegam visibilidade ao RLS para perfis
+  compostos (SuperAdm, AdmOBRA, GerenteRegional) — o frontend não impõe
+  filtros mais restritivos que o banco.
+- **Funcionários ativos** são pré-requisito para a maioria das operações
+  (Ativo ou Ativo sem Registro).
+- **SSO** padroniza agendamentos por tipo de exame para reduzir redundância.
+- **Relatórios de Medição** calculam aluguel base 200h (equipamentos) e
+  base 30 dias (caminhões), com descontos de manutenção e desmobilização.
 
-### Backend
-- **Supabase** - Backend as a Service
-- **PostgreSQL** - Banco de dados principal
-- **Row Level Security** - Segurança granular
-- **Edge Functions** - Processamento server-side
-- **Realtime** - Atualizações em tempo real
+### 🛡️ Segurança
 
-### Ferramentas
-- **Date-fns** - Manipulação de datas
-- **Zod** - Validação de schemas
-- **Lucide React** - Ícones
-- **React Router** - Roteamento
+- **Row-Level Security (RLS)** habilitado nas tabelas críticas, com funções
+  `SECURITY DEFINER` (ex.: `fn_diaria_can_select_row`, `has_role`).
+- **RBAC granular** por ação (`visualizar`, `criar`, `editar`, `excluir`,
+  `aprovar`) governado por `bd_user_roles` + `profiles.funcoes`, sem armazenar
+  papéis na tabela `profiles`.
+- **Fallback SuperAdm por e-mail** centralizado em
+  [`src/config/superAdminEmails.ts`](src/config/superAdminEmails.ts) — sem
+  e-mails pessoais espalhados pelos hooks.
+- **Assinatura digital** com rubricas PNG no bucket `assinaturas` e captura
+  de IP via Edge Function.
+- **Auditoria** centralizada em `bd_auditoria_log` para criações,
+  modificações e exclusões.
+
+### 📊 Observações Técnicas
+
+- **Frontend**: React 18 + TypeScript 5 + Vite 5 + Tailwind CSS v3 +
+  shadcn/ui + TanStack Query + React Hook Form + Zod.
+- **Backend**: Supabase (PostgreSQL + Edge Functions Deno).
+- **Performance**: code splitting por rota, lazy loading de módulos
+  pesados, memoização e índices estratégicos no banco.
+- **PWA**: service worker com cache inteligente e fila offline; UTC-3
+  (Brasília) é a referência única de tempo (`timezoneUtils`).
+- **Tema**: design system baseado em tokens semânticos HSL (`index.css` +
+  `tailwind.config.ts`); componentes não devem usar cores literais.
+
+---
 
 ## 📦 Instalação e Configuração
 
 ### Pré-requisitos
-- Node.js 18+ 
-- npm ou yarn
-- Conta no Supabase
 
-### 1. Clone o Repositório
-```bash
-git clone https://github.com/seu-usuario/sistema-pavimentacao.git
-cd sistema-pavimentacao
-```
+- Node.js 18+
+- npm, bun ou yarn
+- Projeto Supabase provisionado
 
-### 2. Instale as Dependências
+### 1. Instalar dependências
+
 ```bash
 npm install
-# ou
-yarn install
 ```
 
-### 3. Configuração do Ambiente
-Crie um arquivo `.env.local` na raiz do projeto:
+### 2. Variáveis de ambiente
 
-```env
-VITE_SUPABASE_URL=sua_url_do_supabase
-VITE_SUPABASE_ANON_KEY=sua_chave_anonima_do_supabase
-```
+A integração com Supabase é configurada via cliente em
+`src/integrations/supabase/client.ts`. Chaves publicáveis (anon) podem ficar
+no código; segredos sensíveis devem ser cadastrados como secrets do projeto
+e consumidos por Edge Functions.
 
-### 4. Configuração do Banco de Dados
-Execute os scripts SQL fornecidos na pasta `/database`:
+### 3. Executar em desenvolvimento
 
-```sql
--- 1. Estrutura básica
-\i database/01_estrutura_basica.sql
-
--- 2. Tabelas principais
-\i database/02_tabelas_principais.sql
-
--- 3. Views e functions
-\i database/03_views_functions.sql
-
--- 4. Dados iniciais
-\i database/04_dados_iniciais.sql
-```
-
-### 5. Execute o Projeto
 ```bash
 npm run dev
-# ou
-yarn dev
 ```
 
-O sistema estará disponível em `http://localhost:5173`
+A aplicação ficará disponível em `http://localhost:5173`.
+
+### 4. Build de produção
+
+```bash
+npm run build
+```
+
+---
 
 ## 📚 Documentação
 
-### Guias Completos
-- 📖 [Guia do Usuário](docs/USER_GUIDE.md) - Como usar todas as funcionalidades
-- 🛠️ [Documentação Técnica](docs/TECHNICAL.md) - Arquitetura e desenvolvimento
-- 🗄️ [Documentação do Banco](docs/DATABASE.md) - Estrutura e queries
-- 📝 [Changelog](CHANGELOG.md) - Histórico de versões
+| Documento | Descrição |
+|-----------|-----------|
+| [Guia do Usuário](docs/USER_GUIDE.md) | Uso funcional dos módulos |
+| [Documentação Técnica](docs/TECHNICAL.md) | Arquitetura e padrões |
+| [Banco de Dados](docs/DATABASE.md) | Schema, views e funções |
+| [Estrutura RLS](docs/rls-structure/README.md) | Políticas de segurança |
+| [RBAC Administrativo](docs/RBAC_ADMIN_ARQUITETURA.md) | Permissões e perfis |
+| [Sistema de Permissões](docs/PERMISSION_SYSTEM_FIX.md) | Histórico do fix de permissões |
+| [Segurança](docs/SECURITY.md) | Diretrizes de segurança |
+| [PWA](docs/PWA.md) | Modo offline e instalação |
+| [Mobile](docs/MOBILE.md) | Considerações mobile-first |
+| [Deploy](docs/DEPLOYMENT.md) | Processo de publicação |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Problemas conhecidos |
 
-### Links Rápidos
-- [Módulo de Relatório de Medição](docs/USER_GUIDE.md#relatório-de-medição) ⭐
-- [Gestão de RH](docs/USER_GUIDE.md#gestão-de-rh)
-- [Aplicação de Asfalto](docs/USER_GUIDE.md#aplicação-de-asfalto)
-- [Configuração de Permissões](docs/TECHNICAL.md#permissões)
+---
 
-## 🎯 Funcionalidades Principais
+## 🗂️ Módulos Principais
 
-### 👥 Gestão de Recursos Humanos
-- Cadastro completo de funcionários
-- Organização em equipes
-- Apontamento de presença diário
-- Sistema de avaliação de performance
-- Controle de benefícios e salários
+- **Gestão de RH** — funcionários, equipes, apontamentos, avaliações,
+  desligamentos e arquivo morto.
+- **Gestão de Veículos e Equipamentos** — cadastro mestre, frotas,
+  disponibilidade, portfólio técnico, solicitações de equipamento.
+- **Logística de Usina** — requisições, programação de entregas,
+  registro de cargas, aplicação de asfalto e retorno de massa.
+- **Diárias** — solicitação semanal, presenças, aprovação dinâmica e
+  relatórios financeiros/operacionais.
+- **SSO** — agendamentos de exames, vale transporte e admissão.
+- **Ordens de Serviço** — chamados, OS, mão de obra e materiais.
+- **Relatórios de Medição** — cálculo automático de locação.
+- **Licitações (PNCP)** — busca inteligente e normalização de órgãos.
+- **Administração** — RBAC granular, gestão de permissões, auditoria.
 
-### 🚛 Gestão de Máquinas e Equipamentos
-- Cadastro de veículos, caminhões e equipamentos
-- Apontamento operacional com inspeção
-- Sistema de chamados técnicos
-- Ordens de serviço completas
-- Controle de manutenção preventiva
+---
 
-### 📦 Logística de Pavimentação
-- **Requisições de Obra**: Cadastro de logradouros para pavimentação
-- **Programação de Entregas**: Organização de entregas por data e equipe
-- **Registro de Cargas**: Controle de saída e retorno da usina
-- **Aplicação de Asfalto**: Processo completo em 3 etapas:
-  1. Dados iniciais (seleção da entrega)
-  2. Dados técnicos (dimensões e temperaturas)
-  3. Finalização (cálculos automáticos)
+## 🤝 Convenções de Contribuição
 
-### 📊 Relatório de Medição ⭐
+- **Commits**: [Conventional Commits](https://www.conventionalcommits.org/).
+- **Code style**: ESLint + Prettier.
+- **TypeScript estrito**: tipagem obrigatória.
+- **Nomenclatura**:
+  - Backend (SQL, RPCs, colunas): `snake_case`.
+  - Frontend (variáveis, funções, hooks): `camelCase`.
+  - Tabelas: prefixo `bd_`.
+  - Views: prefixo `vw_`.
+- **Tema**: usar exclusivamente tokens semânticos do design system.
 
-#### Para Equipamentos
-- **Base de Cálculo**: 200 horas mensais
-- **Valor Unitário**: Aluguel mensal ÷ 200h = R$/h
-- **Descontos**: 
-  - Manutenção: (200 ÷ 30) × dias × R$/h
-  - Desmobilização: (200 ÷ 30) × dias parados × R$/h
-- **Distribuição**: Proporcional por centro de custo
-
-#### Para Caminhões
-- **Base de Cálculo**: Dias úteis
-- **Valor Unitário**: Aluguel mensal ÷ 30 = R$/dia
-- **Descontos**:
-  - Manutenção: R$/dia × dias
-  - Desmobilização: R$/dia × dias parados
-- **Distribuição**: Proporcional por centro de custo
-
-#### Funcionalidades
-- ✅ Filtros por tipo, veículo e período
-- ✅ Cálculos automáticos baseados em apontamentos
-- ✅ Controle de descontos de manutenção
-- ✅ Opção de desconto por desmobilização
-- ✅ Exportação Excel com múltiplas abas
-- ✅ Geração de PDF formatado
-- ✅ Validações e mensagens de erro
-
-## 🎨 Interface e Experiência
-
-### Design System
-- **Responsivo**: Funciona perfeitamente em desktop, tablet e mobile
-- **Tema Moderno**: Interface limpa e profissional
-- **Cores Consistentes**: Paleta harmoniosa e acessível
-- **Componentes Reutilizáveis**: Baseados no Shadcn/UI
-
-### Usabilidade
-- **Navegação Intuitiva**: Menu lateral organizado por módulos
-- **Formulários Inteligentes**: Validação em tempo real
-- **Feedback Visual**: Loading states e mensagens claras
-- **Atalhos**: Teclas de atalho para ações comuns
-
-## 🔐 Segurança e Permissões
-
-### Sistema de Roles
-- **SuperAdm**: Acesso total ao sistema
-- **AdmLogistica**: Gestão de logística e relatórios
-- **Encarregado**: Apontamentos e operações
-- **Usuário**: Consultas básicas
-
-### Segurança
-- **Row Level Security (RLS)**: Controle granular no banco
-- **Autenticação JWT**: Tokens seguros via Supabase
-- **Validação Server-side**: Todas as operações validadas
-- **Auditoria**: Log de todas as ações importantes
-
-## 📈 Performance e Otimizações
-
-### Frontend
-- **Code Splitting**: Carregamento otimizado por rotas
-- **Lazy Loading**: Componentes carregados sob demanda
-- **Memoização**: Componentes otimizados com React.memo
-- **Bundle Size**: Otimizado com Vite
-
-### Backend
-- **Índices**: Queries otimizadas com índices estratégicos
-- **Views**: Consultas complexas pré-processadas
-- **Cache**: TanStack Query para cache inteligente
-- **Pagination**: Listas grandes paginadas
-
-## 🧪 Testes e Qualidade
-
-### Validações
-- **TypeScript**: Tipagem estrita em todo o código
-- **Zod**: Validação de schemas em runtime
-- **Formulários**: Validação em tempo real
-- **Dados**: Sanitização automática
-
-### Monitoramento
-- **Error Tracking**: Captura de erros em produção
-- **Performance**: Métricas de carregamento
-- **Usage Analytics**: Análise de uso das funcionalidades
-
-## 🚀 Deploy e Produção
-
-### Ambientes Suportados
-- **Vercel**: Deploy automático via Git
-- **Netlify**: Integração contínua
-- **Docker**: Containerização disponível
-
-### CI/CD
-- **GitHub Actions**: Deploy automático
-- **Preview Deployments**: Branch previews
-- **Environment Variables**: Configuração por ambiente
-
-## 🤝 Contribuição
-
-### Como Contribuir
-1. Fork o projeto
-2. Crie uma branch para sua feature (`git checkout -b feature/nova-funcionalidade`)
-3. Commit suas mudanças (`git commit -m 'feat: adicionar nova funcionalidade'`)
-4. Push para a branch (`git push origin feature/nova-funcionalidade`)
-5. Abra um Pull Request
-
-### Convenções
-- **Commits**: Seguimos [Conventional Commits](https://www.conventionalcommits.org/)
-- **Code Style**: ESLint + Prettier configurados
-- **TypeScript**: Tipagem obrigatória
-- **Testes**: Incluir testes para novas funcionalidades
-
-## 📊 Roadmap
-
-### Versão 2.2 (Q1 2025)
-- [ ] **Módulo Financeiro**
-  - Controle de custos operacionais
-  - Análise de rentabilidade por projeto
-  - Integração bancária
-
-- [ ] **Mobile App**
-  - App nativo React Native
-  - Funcionalidades offline
-  - Sincronização automática
-
-### Versão 2.3 (Q2 2025)
-- [ ] **Inteligência Artificial**
-  - Previsão de manutenções
-  - Otimização de rotas
-  - Análise preditiva
-
-- [ ] **Integração IoT**
-  - Sensores de equipamentos
-  - Monitoramento em tempo real
-  - Alertas automáticos
-
-### Versão 3.0 (Q3 2025)
-- [ ] **Gestão de Contratos**
-  - Contratos digitais
-  - Assinaturas eletrônicas
-  - Workflow de aprovações
-
-- [ ] **Business Intelligence**
-  - Dashboards executivos
-  - Relatórios gerenciais
-  - Data warehouse
-
-## 📞 Suporte e Comunidade
-
-### Canais de Suporte
-- 📧 **Email**: suporte@sistema-pavimentacao.com
-- 💬 **Discord**: [Comunidade](https://discord.gg/sistema-pavimentacao)
-- 🐛 **Issues**: [GitHub Issues](https://github.com/sistema-pavimentacao/issues)
-- 📚 **Documentação**: [Wiki Completa](https://docs.sistema-pavimentacao.com)
-
-### FAQ
-- [Perguntas Frequentes](docs/FAQ.md)
-- [Troubleshooting](docs/TROUBLESHOOTING.md)
-- [Video Tutoriais](https://youtube.com/sistema-pavimentacao)
+---
 
 ## 📄 Licença
 
-Este projeto está licenciado sob a Licença MIT - veja o arquivo [LICENSE](LICENSE) para detalhes.
-
-## 🙏 Agradecimentos
-
-- **Equipe de Desenvolvimento**: Pelos esforços incansáveis
-- **Beta Testers**: Pelas sugestões valiosas
-- **Comunidade Open Source**: Pelas bibliotecas incríveis
-- **Clientes**: Pelo feedback construtivo
+Uso interno corporativo. Consulte o arquivo [LICENSE](LICENSE) quando
+disponível.
 
 ---
 
 <div align="center">
 
-**Sistema de Gestão Integrada de Pavimentação Asfáltica v2.1**
+**Sistema Corporativo LYTOTEC — Gestão Integrada de Pavimentação Asfáltica**
 
-[🌐 Website](https://sistema-pavimentacao.com) • 
-[📖 Documentação](docs/USER_GUIDE.md) • 
-[🚀 Demo](https://demo.sistema-pavimentacao.com) • 
-[💬 Suporte](mailto:suporte@sistema-pavimentacao.com)
-
-Desenvolvido com ❤️ pela equipe de desenvolvimento
+Mantido pela Equipe de Desenvolvimento
 
 </div>

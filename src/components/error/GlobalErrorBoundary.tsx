@@ -16,8 +16,9 @@ class GlobalErrorBoundary extends Component<Props, State> {
   }
 
   static getDerivedStateFromError(error: Error): State {
-    // Detectar se é erro da plataforma Lovable
-    const isPlatformError = 
+    // Detecta erros provenientes do iframe da plataforma de preview/editor
+    // (mensagens não originadas pela aplicação) para isolá-los do usuário final.
+    const isPlatformError =
       error.message?.includes('UserMessageID') ||
       error.message?.includes('TypeID') ||
       error.message?.includes('must be a valid') ||
@@ -31,14 +32,14 @@ class GlobalErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     if (this.state.errorType === 'platform') {
-      // Erro da plataforma - apenas log, não quebrar a aplicação
-      console.warn('🚨 Plataforma Lovable Error (IGNORADO):', {
+      // Erro externo (iframe de preview/editor): apenas log, sem quebrar o app.
+      console.warn('🚨 Erro de plataforma de preview (ignorado):', {
         error: error.message,
         stack: error.stack?.substring(0, 200),
         timestamp: new Date().toISOString()
       });
-      
-      // Reset automaticamente após 100ms
+
+      // Reset automático após 100ms
       setTimeout(() => {
         this.setState({ hasError: false, errorType: 'unknown' });
       }, 100);
