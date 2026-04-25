@@ -1577,7 +1577,19 @@ export default function ApontamentoDiariasModal({
     const remessaPermitida = !!regra.permiteRemessaMatriculados;
     const diaEstrategico = tipoDia === 'feriado_estrategico' || tipoDia === 'operacional' || tipoDia === 'compensado';
 
-    if (temMatricula && !remessaPermitida) {
+    // Liberar matriculados quando o dia for FDS, feriado ou ponte (mesmo sem override no snapshot).
+    // Regra: bloqueio de matriculado só vale para dia útil ('normal').
+    const snapshotItem = getSnapshotTipoDia(selectedDate);
+    const tipoDiaSnapshot = snapshotItem?.ativa ? snapshotItem.tipo_dia : null;
+    const dataSel = parseBrazilianDate(selectedDate);
+    const ehFDS = isWeekend(dataSel);
+    const ehFeriadoCalendario = feriados.some(f => f.data === selectedDate);
+    const diaNaoUtil =
+      tipoDiaSnapshot === 'feriado' ||
+      tipoDiaSnapshot === 'ponte' ||
+      (tipoDiaSnapshot !== 'normal' && (ehFDS || ehFeriadoCalendario));
+
+    if (temMatricula && !remessaPermitida && !diaNaoUtil) {
       if (exigeAprovacao || diaEstrategico) {
         return {
           status: 'pendente_aprovacao',
@@ -1598,7 +1610,7 @@ export default function ApontamentoDiariasModal({
       regra,
       mensagem: remessaPermitida && temMatricula ? 'Remessa permitida para esta data.' : undefined,
     };
-  }, [selectedDate, centroCusto?.id, diretoriaId, legacyMode, regraOperacionalFallback, aplicarOverrideSolicitacaoNaRegra]);
+  }, [selectedDate, centroCusto?.id, diretoriaId, legacyMode, regraOperacionalFallback, aplicarOverrideSolicitacaoNaRegra, getSnapshotTipoDia, feriados]);
 
   const handleAdicionarFuncionario = async (funcionario: FuncionarioBuscaItem) => {
     if (!solicitacao?.id) return;
