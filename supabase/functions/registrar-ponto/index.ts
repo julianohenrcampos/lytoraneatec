@@ -156,15 +156,23 @@ Deno.serve(async (req) => {
         ? vinculoAtivo.centro_custo_id.trim()
         : null;
 
+    // Detectar origem mobile (pwa_pessoal). Para mobile, NUNCA cair em GPS fallback —
+    // a decisão de CC deve vir do vínculo formal do funcionário ou vínculo operacional ativo.
+    const isMobilePessoal =
+      typeof (payload as any).modo_registro === "string"
+        ? (payload as any).modo_registro === "pwa_pessoal"
+        : true; // default: registrar-ponto é a edge do mobile
+
     let ccId: string | null = null;
     let motivoCC = "nenhum";
     if (ccFuncionario) { ccId = ccFuncionario; motivoCC = "cc_funcionario"; }
     else if (ccVinculo) { ccId = ccVinculo; motivoCC = "vinculo_operacional"; }
-    else if (ccPayload) {
-      // fallback: payload (geralmente do totem ou modo legado)
+    else if (ccPayload && !isMobilePessoal) {
+      // fallback: payload (geralmente do totem ou modo legado) — não permitido no mobile pessoal
       ccId = await resolverCentroCusto(supabaseAdmin, funcionarioId, ccPayload);
       motivoCC = ccId ? "payload_fallback" : "nenhum";
-    } else if (ccGpsRef) {
+    } else if (ccGpsRef && !isMobilePessoal) {
+      // gps_fallback: NUNCA usado para mobile pessoal — apenas auditoria (cc_gps_referencia_id)
       ccId = await resolverCentroCusto(supabaseAdmin, funcionarioId, ccGpsRef);
       motivoCC = ccId ? "gps_fallback" : "nenhum";
     }
@@ -311,14 +319,39 @@ Deno.serve(async (req) => {
       if (!geofence.dentroRaio) {
         scoreFlags.foraRaio = true;
 
-        if (config.modo_geofence === "restritivo") {
-          return respostaErro(403, "fora_do_raio", "Fora do raio permitido", {
-            distancia: geofence.distanciaMetros,
-            raio: config.raio_metros,
+        // Mobile pessoal: SEMPRE bloqueia fora do raio (independente do modo_geofence do CC)
+        if (isMobilePessoal || config.modo_geofence === "restritivo") {
+          // Buscar nome do CC para mensagem
+          const { data: ccInfo } = await supabaseAdmin
+            .from("bd_centros_custo")
+            .select("nome_centro_custo")
+            .eq("id", ccId)
+            .single();
+          const ccNome = ccInfo?.nome_centro_custo ?? null;
+
+          console.log("[PONTO][BLOQUEIO_MOBILE_FORA_RAIO]", {
+            funcionarioId,
+            ccId,
+            distancia_metros: geofence.distanciaMetros,
+            raio_permitido: config.raio_metros,
+            isMobilePessoal,
           });
+
+          return respostaErro(
+            403,
+            "fora_do_raio_mobile",
+            "Você está fora do raio permitido do seu centro de custo. Procure o responsável.",
+            "geofence_mobile",
+            {
+              distancia_metros: geofence.distanciaMetros,
+              raio_permitido: config.raio_metros,
+              centro_custo_id: ccId,
+              centro_custo_nome: ccNome,
+            }
+          );
         }
 
-        // flexivel: permite mas marca revisão
+        // flexivel (totem/legado): permite mas marca revisão
         statusValidacao = "pendente_revisao";
         justificativas.push(`Fora do raio: ${geofence.distanciaMetros}m`);
         alertas.push({ tipo: "fora_raio", mensagem: `Distância: ${geofence.distanciaMetros}m` });

@@ -273,12 +273,12 @@ async function fetchContratacoes(
 
     console.log(`    📦 ${contratacoes.length} registros recebidos`);
     return contratacoes;
-  } catch (error) {
+  } catch (error: any) {
     if (error?.name === "AbortError") {
       console.error(`    ⏱️ Timeout ao buscar ${descricao}`);
       return [];
     }
-    console.error(`    ❌ Erro ao buscar: ${error.message}`);
+    console.error(`    ❌ Erro ao buscar: ${error?.message}`);
     return [];
   } finally {
     clearTimeout(timeoutId);
@@ -611,13 +611,13 @@ Deno.serve(async (req) => {
       const supabase = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
       await supabase.from("bd_pncp_sync_log").update({
         status: "erro",
-        mensagem_erro: error.message || "Erro desconhecido",
+        mensagem_erro: (error as any)?.message || "Erro desconhecido",
         duracao_segundos: (Date.now() - startTime) / 1000,
       }).eq("id", syncLogId);
     }
 
     return new Response(
-      JSON.stringify({ success: false, error: error.message || "Erro desconhecido" }),
+      JSON.stringify({ success: false, error: (error as any)?.message || "Erro desconhecido" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

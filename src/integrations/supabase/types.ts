@@ -16304,6 +16304,10 @@ export type Database = {
         Args: { p_target_user_id: string }
         Returns: undefined
       }
+      fn_desvio_can_select_row: {
+        Args: { p_criado_por: string; p_obra_id: string }
+        Returns: boolean
+      }
       fn_diaria_can_create: { Args: { p_user_id?: string }; Returns: boolean }
       fn_diaria_can_manage_row: {
         Args: { p_solicitacao_id: string; p_user_id?: string }
@@ -16521,6 +16525,18 @@ export type Database = {
           _recurso_tipo: string
         }
         Returns: undefined
+      }
+      fn_registrar_permissao: {
+        Args: {
+          p_acoes_padrao?: string[]
+          p_codigo: string
+          p_descricao?: string
+          p_modulo?: string
+          p_nome: string
+          p_rota?: string
+          p_tipo?: string
+        }
+        Returns: string
       }
       fn_remove_user_role_secure: {
         Args: { p_role_id: string; p_target_user_id: string }

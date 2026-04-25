@@ -76,6 +76,9 @@ const TIPOS: { value: TipoBatida; label: string }[] = [
 const TICK_MS = 500;
 const DIST_MAX_TOP1 = 0.50;   // distância euclidiana
 const MARGEM_MIN = 0.08;
+const CONFIANCA_MIN = 0.92;
+const REQUIRED_MATCH_FRAMES = 3;
+const MATCH_BUFFER_WINDOW_MS = 4000;
 
 const PontoTotem: React.FC = () => {
   const navigate = useNavigate();
@@ -128,6 +131,8 @@ const PontoTotem: React.FC = () => {
   const tickRef = useRef<number | null>(null);
   const resetTimerRef = useRef<number | null>(null);
   const inflightRef = useRef(false);
+  // Buffer multi-frame por funcionario_id (Fase 4 — anti falso-positivo)
+  const matchBufferRef = useRef<Array<{ funcionario_id: string; confianca: number; ts: number }>>([]);
   const { validarRostoSeguro, resetBiometriaSegura } = useBiometriaSegura();
   const statusRef = useRef<Status>("carregando_modelos");
   useEffect(() => {
@@ -252,6 +257,7 @@ const PontoTotem: React.FC = () => {
       resetTimerRef.current = null;
     }
     resetBiometriaSegura();
+    matchBufferRef.current = [];
     setFuncionario(null);
     setTipoBatida("entrada");
     setConfiancaAtual(null);
@@ -299,6 +305,8 @@ const PontoTotem: React.FC = () => {
         if (!resultado.valido || !resultado.descriptor) {
           setQualidadeMsg(resultado.motivo ?? null);
           setConfiancaAtual(resultado.confidence ?? null);
+          // Frame inválido quebra a sequência
+          matchBufferRef.current = [];
           if (resultado.motivo === "Nenhum rosto detectado") {
             setQualidadeMsg(null);
           } else if (resultado.motivo && resultado.motivo !== "Confirmando identidade...") {
@@ -370,24 +378,54 @@ const PontoTotem: React.FC = () => {
         if (!data.found || data.decisao === "rejeitado") {
           setConfiancaAtual(null);
           setLastReason((data.reason as any) ?? "sem_candidato");
+          matchBufferRef.current = [];
           setTentativasSemMatch((x) => x + 1);
           return;
         }
 
         const top1d = Number(data.top1_distancia);
         const margem = Number(data.margem);
-        // Pré-filtro adicional no front (defesa em profundidade)
-        if (top1d > DIST_MAX_TOP1 || margem < MARGEM_MIN) {
+        const confianca = Number(data.top1_confidence ?? data.confianca ?? 0);
+        const funcionarioId = (data as any).funcionario_id as string | undefined;
+
+        // Fase 3: defesa em profundidade — exigir distância, margem E confianca >= 0.92
+        if (top1d > DIST_MAX_TOP1 || margem < MARGEM_MIN || confianca < CONFIANCA_MIN || !funcionarioId) {
           setConfiancaAtual(null);
+          matchBufferRef.current = [];
+          setEdgeErroMsg("Rosto não reconhecido com segurança");
+          setTentativasSemMatch((x) => x + 1);
+          console.log("[BIOMETRIA][MATCH]", { confianca, funcionario_id: funcionarioId, dist: top1d, aprovado: false });
+          console.log("[BIOMETRIA][CONFIRMACAO]", { aprovado: false, framesConfirmados: 0 });
           return;
         }
-        // Score interno apenas para debug — não exibir na UI
-        setConfiancaAtual(Number(data.top1_confidence ?? data.confianca ?? 0));
+
+        console.log("[BIOMETRIA][MATCH]", { confianca, funcionario_id: funcionarioId, dist: top1d, aprovado: true });
+
+        // Fase 4: buffer multi-frame por mesmo funcionario_id
+        const now = Date.now();
+        const buffer = matchBufferRef.current.filter((x) => now - x.ts <= MATCH_BUFFER_WINDOW_MS);
+        // Reset se houver troca de identidade
+        const baseId = buffer.length > 0 ? buffer[0].funcionario_id : funcionarioId;
+        const novoBuffer = funcionarioId === baseId
+          ? [...buffer, { funcionario_id: funcionarioId, confianca, ts: now }]
+          : [{ funcionario_id: funcionarioId, confianca, ts: now }];
+        matchBufferRef.current = novoBuffer;
+
+        const framesConfirmados = novoBuffer.length;
+        if (framesConfirmados < REQUIRED_MATCH_FRAMES) {
+          setConfiancaAtual(confianca);
+          console.log("[BIOMETRIA][CONFIRMACAO]", { aprovado: false, framesConfirmados, funcionario_id: funcionarioId });
+          return;
+        }
+
+        console.log("[BIOMETRIA][CONFIRMACAO]", { aprovado: true, framesConfirmados, funcionario_id: funcionarioId });
+        setConfiancaAtual(confianca);
         setLastReason(null);
-        setMatchDebug((prev) => ({ ...prev, frames_ok: resultado.framesConfirmados ?? prev.frames_ok }));
+        setMatchDebug((prev) => ({ ...prev, frames_ok: framesConfirmados }));
         setFuncionario(data as FuncionarioReconhecido);
         setStatus("reconhecido_provisorio");
         setTentativasSemMatch(0);
+        matchBufferRef.current = [];
         resetTimerRef.current = window.setTimeout(reset, 20000);
       } catch (e) {
         console.error("[TOTEM][EXCEPTION]", e);

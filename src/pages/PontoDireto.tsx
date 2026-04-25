@@ -53,6 +53,15 @@ interface CCDetectado {
   distancia: number | null;
 }
 
+interface CCEsperado {
+  id: string;
+  nome: string;
+  latitude: number | null;
+  longitude: number | null;
+  raio_metros: number;
+  origem: "cc_funcionario" | "vinculo_operacional";
+}
+
 interface PerfilFuncionario {
   funcionario_id: string;
   nome: string;
@@ -71,7 +80,9 @@ const TIPOS: { value: TipoBatida; label: string; icon: string }[] = [
 ];
 
 const TICK_MS = 600;
-const THRESHOLD = 0.45;
+const THRESHOLD = 0.40; // endurecido (era 0.45) — anti falso-positivo
+const CONFIANCA_MIN = 0.92;
+const REQUIRED_MATCH_FRAMES = 3;
 const MAX_TENTATIVAS = 3;
 
 function getDeviceFingerprint(): string {
@@ -112,6 +123,15 @@ function distEuclid(a: Float32Array, b: Float32Array): number {
   return Math.sqrt(s);
 }
 
+function haversineMetros(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000;
+  const toRad = (v: number) => (v * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
 export default function PontoDireto() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<Status>("carregando");
@@ -129,8 +149,11 @@ export default function PontoDireto() {
   // GPS
   const [gps, setGps] = useState<GPSData | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
+  const [gpsBloqueado, setGpsBloqueado] = useState(false);
+  // CC detectado por GPS (apenas auditoria visual; NUNCA usado para decisão)
   const [cc, setCC] = useState<CCDetectado>({ id: null, nome: null, distancia: null });
-  const [raioCC, setRaioCC] = useState<number | null>(null);
+  // CC esperado = vínculo formal do funcionário (decisão de geofence)
+  const [ccEsperado, setCCEsperado] = useState<CCEsperado | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -138,6 +161,8 @@ export default function PontoDireto() {
   const inflightRef = useRef(false);
   const watchIdRef = useRef<number | null>(null);
   const statusRef = useRef<Status>("carregando");
+  // Buffer multi-frame para anti falso-positivo (Fase 4)
+  const matchBufferRef = useRef<Array<{ dist: number; confianca: number; ts: number }>>([]);
   const { validarRostoSeguro, resetBiometriaSegura } = useBiometriaSegura();
   useEffect(() => { statusRef.current = status; }, [status]);
 
@@ -191,15 +216,57 @@ export default function PontoDireto() {
           .eq("id", profile.funcionario_id)
           .single();
 
-        // funcao + cc nomes
-        const [{ data: funcao }, { data: ccRow }] = await Promise.all([
+        // funcao + cc completo (lat/lon/raio) + vínculo operacional ativo
+        const [{ data: funcao }, { data: ccRow }, { data: vinculo }] = await Promise.all([
           func?.funcao_id
             ? supabase.from("bd_funcoes").select("nome_funcao").eq("id", func.funcao_id).single()
             : Promise.resolve({ data: null } as any),
           func?.centro_custo_id
-            ? supabase.from("bd_centros_custo").select("nome_centro_custo").eq("id", func.centro_custo_id).single()
+            ? supabase
+                .from("bd_centros_custo")
+                .select("id, nome_centro_custo, latitude, longitude, raio_ponto_metros")
+                .eq("id", func.centro_custo_id)
+                .single()
             : Promise.resolve({ data: null } as any),
+          supabase
+            .from("bd_ponto_vinculos_operacionais")
+            .select("centro_custo_id")
+            .eq("funcionario_id", profile.funcionario_id)
+            .eq("ativo", true)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
         ]);
+
+        // Resolver CC esperado: vínculo operacional ativo > CC formal do funcionário
+        let ccEsperadoLocal: CCEsperado | null = null;
+        const vinculoCCId = (vinculo as any)?.centro_custo_id || null;
+        if (vinculoCCId && vinculoCCId !== func?.centro_custo_id) {
+          const { data: ccVinc } = await supabase
+            .from("bd_centros_custo")
+            .select("id, nome_centro_custo, latitude, longitude, raio_ponto_metros")
+            .eq("id", vinculoCCId)
+            .single();
+          if (ccVinc) {
+            ccEsperadoLocal = {
+              id: ccVinc.id,
+              nome: ccVinc.nome_centro_custo,
+              latitude: (ccVinc as any).latitude ?? null,
+              longitude: (ccVinc as any).longitude ?? null,
+              raio_metros: ((ccVinc as any).raio_ponto_metros as number | null) ?? 200,
+              origem: "vinculo_operacional",
+            };
+          }
+        } else if (ccRow) {
+          ccEsperadoLocal = {
+            id: (ccRow as any).id,
+            nome: (ccRow as any).nome_centro_custo,
+            latitude: (ccRow as any).latitude ?? null,
+            longitude: (ccRow as any).longitude ?? null,
+            raio_metros: ((ccRow as any).raio_ponto_metros as number | null) ?? 200,
+            origem: "cc_funcionario",
+          };
+        }
 
         // Biometria ativa+aprovada mais recente
         const { data: bios } = await supabase
@@ -215,7 +282,7 @@ export default function PontoDireto() {
         let signedUrl: string | null = null;
         if (bio?.foto_url) {
           const { data: s } = await supabase.storage
-            .from("biometrias-faciais")
+            .from("biometria-facial")
             .createSignedUrl(bio.foto_url, 300);
           signedUrl = s?.signedUrl || null;
         }
@@ -223,12 +290,13 @@ export default function PontoDireto() {
         const descriptor = parseDescriptor(bio?.descriptor);
 
         if (cancelled) return;
+        setCCEsperado(ccEsperadoLocal);
         setPerfil({
           funcionario_id: profile.funcionario_id,
           nome: func?.nome_completo || "Funcionário",
           funcao: funcao?.nome_funcao || null,
-          centro_custo: ccRow?.nome_centro_custo || null,
-          centro_custo_id: func?.centro_custo_id || null,
+          centro_custo: ccEsperadoLocal?.nome || (ccRow as any)?.nome_centro_custo || null,
+          centro_custo_id: ccEsperadoLocal?.id || func?.centro_custo_id || null,
           foto_signed_url: signedUrl,
           descriptor,
         });
@@ -301,7 +369,8 @@ export default function PontoDireto() {
   // GPS watch
   useEffect(() => {
     if (!navigator.geolocation) {
-      setGpsError("GPS não suportado");
+      setGpsError("GPS não suportado neste dispositivo");
+      setGpsBloqueado(true);
       return;
     }
     watchIdRef.current = navigator.geolocation.watchPosition(
@@ -312,8 +381,20 @@ export default function PontoDireto() {
           precisao: Math.round(pos.coords.accuracy),
         });
         setGpsError(null);
+        setGpsBloqueado(false);
       },
-      (err) => setGpsError(err.message),
+      (err) => {
+        // Bloqueia o registro quando GPS está indisponível ou negado
+        const msgsBloqueantes: Record<number, string> = {
+          1: "Permissão de localização negada",
+          2: "Localização indisponível",
+          3: "Tempo esgotado para obter localização",
+        };
+        const motivo = msgsBloqueantes[err.code] || err.message;
+        setGpsError(motivo);
+        setGpsBloqueado(true);
+        console.warn("[PontoDireto][GPS_ERR]", { code: err.code, message: err.message });
+      },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 },
     );
     return () => {
@@ -321,22 +402,11 @@ export default function PontoDireto() {
     };
   }, []);
 
-  // Detecta CC quando GPS atualiza
+  // CC detectado por GPS — APENAS auditoria visual / log (não decide permissão)
   useEffect(() => {
     if (!gps) return;
     detectarCentroCustoPorGPS(gps.latitude, gps.longitude).then((r) => {
       setCC({ id: r.centro_custo_id, nome: r.nome, distancia: r.distancia_metros });
-      // raio do CC
-      if (r.centro_custo_id) {
-        supabase
-          .from("bd_centros_custo")
-          .select("raio_ponto_metros")
-          .eq("id", r.centro_custo_id)
-          .single()
-          .then(({ data }) => setRaioCC((data?.raio_ponto_metros as number | null) ?? null));
-      } else {
-        setRaioCC(null);
-      }
     });
   }, [gps]);
 
@@ -392,6 +462,8 @@ export default function PontoDireto() {
         if (statusRef.current !== "escaneando") return;
         if (!resultado.valido || !resultado.descriptor) {
           setErrMsg(resultado.motivo || null);
+          // Frame inválido quebra a sequência
+          matchBufferRef.current = [];
           if (resultado.motivo === "Possível uso de imagem/foto") {
             setTentativasSemMatch((x) => x + 1);
           }
@@ -399,15 +471,40 @@ export default function PontoDireto() {
         }
 
         const dist = distEuclid(resultado.descriptor, perfil.descriptor!);
-        console.log("[PONTO_DIRETO][MATCH]", { dist, threshold: THRESHOLD });
-        if (dist < THRESHOLD) {
-          setErrMsg(null);
-          setTentativasSemMatch(0);
-          setStatus("reconhecido");
-        } else {
-          setErrMsg("Identidade não confirmada");
+        const confianca = Math.min(0.999, Math.max(0, 1 - dist / THRESHOLD));
+        console.log("[BIOMETRIA][MATCH]", {
+          confianca: Number(confianca.toFixed(3)),
+          funcionario_id: perfil.funcionario_id,
+          dist: Number(dist.toFixed(3)),
+        });
+
+        // Fase 3: exigir dist < THRESHOLD (0.40) E confianca >= 0.92
+        if (dist >= THRESHOLD || confianca < CONFIANCA_MIN) {
+          matchBufferRef.current = [];
+          setErrMsg("Rosto não reconhecido com segurança");
           setTentativasSemMatch((x) => x + 1);
+          console.log("[BIOMETRIA][CONFIRMACAO]", { aprovado: false, framesConfirmados: 0 });
+          return;
         }
+
+        // Fase 4: empilhar e exigir REQUIRED_MATCH_FRAMES consecutivos
+        const now = Date.now();
+        matchBufferRef.current.push({ dist, confianca, ts: now });
+        // manter apenas itens dos últimos ~4s
+        matchBufferRef.current = matchBufferRef.current.filter((x) => now - x.ts <= 4000);
+
+        const framesConfirmados = matchBufferRef.current.length;
+        if (framesConfirmados < REQUIRED_MATCH_FRAMES) {
+          setErrMsg("Confirmando identidade...");
+          console.log("[BIOMETRIA][CONFIRMACAO]", { aprovado: false, framesConfirmados });
+          return;
+        }
+
+        console.log("[BIOMETRIA][CONFIRMACAO]", { aprovado: true, framesConfirmados });
+        setErrMsg(null);
+        setTentativasSemMatch(0);
+        matchBufferRef.current = [];
+        setStatus("reconhecido");
       } catch (e) {
         console.error("[PontoDireto][TICK]", e);
       } finally {
@@ -425,15 +522,40 @@ export default function PontoDireto() {
   // Reset para scanner
   const reset = useCallback(() => {
     resetBiometriaSegura();
+    matchBufferRef.current = [];
     setTentativasSemMatch(0);
     setErrMsg(null);
     setStatus("escaneando");
   }, [resetBiometriaSegura]);
 
+  // Distância do GPS atual até o CC ESPERADO do funcionário (não o mais próximo)
+  const distanciaCCEsperado = useMemo<number | null>(() => {
+    if (!gps || !ccEsperado || ccEsperado.latitude == null || ccEsperado.longitude == null) return null;
+    return Math.round(haversineMetros(gps.latitude, gps.longitude, ccEsperado.latitude, ccEsperado.longitude));
+  }, [gps, ccEsperado]);
+
+  const dentroRaio = useMemo<boolean | null>(() => {
+    if (distanciaCCEsperado == null || !ccEsperado) return null;
+    return distanciaCCEsperado <= ccEsperado.raio_metros;
+  }, [distanciaCCEsperado, ccEsperado]);
+
   // Confirmação e registro de ponto
   const confirmarBatida = useCallback(async (tipo: TipoBatida) => {
     if (!perfil) return;
-    if (!gps) { toast.error("Aguardando GPS"); return; }
+    // Bloqueio frontend (defesa em camadas — backend valida igual)
+    if (gpsBloqueado || !navigator.geolocation) {
+      const msg = "Não foi possível obter sua localização. Ative o GPS para registrar o ponto.";
+      setErrMsg(msg); toast.error(msg); return;
+    }
+    if (!gps) { toast.error("Aguardando localização..."); return; }
+    if (!ccEsperado) {
+      const msg = "Funcionário sem centro de custo vinculado. Procure o RH.";
+      setErrMsg(msg); toast.error(msg); return;
+    }
+    if (dentroRaio === false) {
+      const msg = "Você está fora do raio permitido do seu centro de custo. Procure o responsável.";
+      setErrMsg(msg); toast.error(msg); return;
+    }
     const cooldown = await verificarCooldownBatida(perfil.funcionario_id);
     if (cooldown.bloqueado) {
       const msg = cooldown.minutosRestantes > 1
@@ -445,6 +567,14 @@ export default function PontoDireto() {
     }
     const foto = capturarFotoBase64();
     if (!foto) { toast.error("Falha ao capturar foto da câmera"); return; }
+
+    const lastMatch = matchBufferRef.current[matchBufferRef.current.length - 1];
+    console.log("[BIOMETRIA][STATUS_FINAL]", {
+      estado: status,
+      framesConfirmados: matchBufferRef.current.length,
+      confianca: lastMatch?.confianca ?? null,
+      funcionario_id: perfil?.funcionario_id ?? null,
+    });
 
     setStatus("registrando");
     setErrMsg(null);
@@ -488,6 +618,16 @@ export default function PontoDireto() {
       }
 
       if (error || !serverPayload?.success) {
+        // Tratamento específico do bloqueio de geofence vindo da edge
+        if (serverPayload?.error === "fora_do_raio_mobile") {
+          const dist = serverPayload.distancia_metros;
+          const raio = serverPayload.raio_permitido;
+          const ccNome = serverPayload.centro_custo_nome;
+          const detalhe = (dist != null && raio != null)
+            ? ` (${dist}m de ${ccNome || "seu CC"}, raio ${raio}m)`
+            : "";
+          throw new Error(`${serverPayload.message}${detalhe}`);
+        }
         const msg =
           serverPayload?.message ||
           serverPayload?.error ||
@@ -518,8 +658,7 @@ export default function PontoDireto() {
       toast.error(msg);
       setStatus("falha");
     }
-  }, [perfil, gps, cc.id, capturarFotoBase64, navigate, carregarBatidas, reset]);
-
+  }, [perfil, gps, gpsBloqueado, ccEsperado, dentroRaio, cc.id, capturarFotoBase64, navigate, carregarBatidas, reset]);
 
   // Auto-enrolamento removido — biometria só é cadastrada pelo RH no painel administrativo.
 
@@ -550,10 +689,25 @@ export default function PontoDireto() {
     return { cls: "border-red-500/40 text-red-300", icon: <MapPin className="h-3 w-3" />, txt: `GPS ${gps.precisao}m` };
   })();
 
-  const dentroRaio = useMemo(() => {
-    if (cc.distancia == null || raioCC == null) return null;
-    return cc.distancia <= raioCC;
-  }, [cc.distancia, raioCC]);
+  // Razão de bloqueio do botão Confirmar (string null = pode confirmar)
+  const motivoBloqueio = useMemo<string | null>(() => {
+    if (gpsBloqueado) {
+      return "Não foi possível obter sua localização. Ative o GPS para registrar o ponto.";
+    }
+    if (!gps) {
+      return "Aguardando localização...";
+    }
+    if (!ccEsperado) {
+      return "Funcionário sem centro de custo vinculado. Procure o RH.";
+    }
+    if (ccEsperado.latitude == null || ccEsperado.longitude == null) {
+      return `O centro de custo (${ccEsperado.nome}) não possui coordenadas cadastradas. Procure o RH.`;
+    }
+    if (dentroRaio === false) {
+      return "Você está fora do raio permitido do seu centro de custo. Procure o responsável.";
+    }
+    return null;
+  }, [gpsBloqueado, gps, ccEsperado, dentroRaio]);
 
   return (
     <div className="min-h-screen w-full bg-slate-950 text-slate-100 flex flex-col">
@@ -659,27 +813,59 @@ export default function PontoDireto() {
               </div>
             </div>
 
-            {/* GPS info */}
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-              {cc.nome && (
-                <Badge variant="outline" className="border-cyan-500/40 text-cyan-300" title="Referência geográfica detectada por GPS (não é o CC oficial da batida)">
-                  <MapPin className="h-3 w-3 mr-1" />
+            {/* CC oficial (decisão) — destacado */}
+            {ccEsperado && (
+              <div className="mt-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3">
+                <p className="text-[10px] uppercase tracking-wide text-emerald-300/80 font-semibold">
+                  Centro de Custo (oficial)
+                </p>
+                <p className="text-sm font-semibold text-emerald-100 mt-0.5 flex items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5" />
+                  {ccEsperado.nome}
+                </p>
+                <div className="flex flex-wrap items-center gap-1.5 mt-1.5 text-[11px] text-emerald-200/80">
+                  <span>
+                    {ccEsperado.origem === "vinculo_operacional" ? "Vínculo operacional" : "Cadastro do funcionário"}
+                  </span>
+                  {distanciaCCEsperado != null && (
+                    <span>• {distanciaCCEsperado}m / raio {ccEsperado.raio_metros}m</span>
+                  )}
+                  {dentroRaio === true && (
+                    <Badge className="bg-emerald-600 text-white text-[10px] py-0 px-1.5">Dentro do raio</Badge>
+                  )}
+                  {dentroRaio === false && (
+                    <Badge className="bg-rose-600 text-white text-[10px] py-0 px-1.5">Fora do raio</Badge>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Auditoria GPS + status */}
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              {cc.nome && cc.id !== ccEsperado?.id && (
+                <Badge
+                  variant="secondary"
+                  className="text-[10px] font-normal text-muted-foreground"
+                  title="Centro de custo mais próximo via GPS — apenas auditoria, não influencia o registro."
+                >
                   Ref. GPS: {cc.nome}{cc.distancia != null ? ` • ${cc.distancia}m` : ""}
                 </Badge>
               )}
-              {dentroRaio === true && (
-                <Badge className="bg-emerald-600 text-white">Dentro do raio</Badge>
-              )}
-              {dentroRaio === false && (
-                <Badge className="bg-orange-500 text-white">Fora do raio</Badge>
-              )}
-              {!cc.nome && (
+              {!gps && !gpsBloqueado && (
                 <Badge variant="outline" className="border-amber-500/40 text-amber-300">
                   <AlertTriangle className="h-3 w-3 mr-1" />
-                  Sem referência GPS
+                  Aguardando GPS
                 </Badge>
               )}
             </div>
+
+            {/* Banner de bloqueio */}
+            {motivoBloqueio && (
+              <div className="mt-3 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-100 flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5 text-rose-300" />
+                <span>{motivoBloqueio}</span>
+              </div>
+            )}
 
             {/* Tipo de batida — sugestão pré-selecionada */}
             <div className="grid grid-cols-2 gap-2 mt-4">
@@ -715,7 +901,7 @@ export default function PontoDireto() {
             <div className="grid grid-cols-2 gap-3 mt-5">
               <button
                 onClick={() => confirmarBatida(tipoBatida)}
-                disabled={status === "registrando" || !gps}
+                disabled={status === "registrando" || !!motivoBloqueio}
                 className="h-16 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-lg flex items-center justify-center gap-2 shadow-[0_0_25px_rgba(16,185,129,0.4)] disabled:opacity-50"
               >
                 {status === "registrando" ? (

@@ -12,11 +12,12 @@ import FuncaoPermissaoFormModal from "./FuncaoPermissaoFormModal";
 import AssignPermissionModal from "./AssignPermissionModal";
 import UserDetailsModal from "./UserDetailsModal";
 import LinkFuncionarioModal from "./LinkFuncionarioModal";
-import DepartamentoStatusCard from "./DepartamentoStatusCard";
+
 import DeletePermissaoDialog from "./DeletePermissaoDialog";
 import DeleteFuncaoPermissaoDialog from "./DeleteFuncaoPermissaoDialog";
 import RemoveAllPermissionsDialog from "./RemoveAllPermissionsDialog";
 import DeleteUserDialog from "./DeleteUserDialog";
+import UserOverridesTab from "./UserOverridesTab";
 import CreateGestorModal from "./CreateGestorModal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useVincularFuncionario } from "@/hooks/useVincularFuncionario";
@@ -151,6 +152,9 @@ const PermissaoPage: React.FC = () => {
           <TabsTrigger value="permissions">Permissões</TabsTrigger>
           <TabsTrigger value="roles">Funções e Permissões</TabsTrigger>
           <TabsTrigger value="users">Usuários Cadastrados</TabsTrigger>
+          {isSuperAdmin && (
+            <TabsTrigger value="overrides">Overrides Individuais</TabsTrigger>
+          )}
         </TabsList>
         
         <TabsContent value="permissions" className="space-y-4">
@@ -187,8 +191,6 @@ const PermissaoPage: React.FC = () => {
             </div>
           )}
           
-          <DepartamentoStatusCard />
-          
           <UserProfilesTable 
             profiles={profiles || []}
             isLoading={isProfilesLoading}
@@ -209,6 +211,12 @@ const PermissaoPage: React.FC = () => {
             onResetFilters={resetProfileFilters}
           />
         </TabsContent>
+
+        {isSuperAdmin && (
+          <TabsContent value="overrides" className="space-y-4">
+            <UserOverridesTab />
+          </TabsContent>
+        )}
       </Tabs>
       
       {/* Modais */}

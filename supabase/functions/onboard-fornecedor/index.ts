@@ -292,14 +292,14 @@ Deno.serve(async (req) => {
         .from("bd_integracao_fornecedores_log")
         .update({
           status_processamento: "erro",
-          mensagem: error.message || "Erro desconhecido",
+          mensagem: (error as any)?.message || "Erro desconhecido",
           processed_at: new Date().toISOString(),
         })
         .eq("id", logId);
     }
 
     return new Response(
-      JSON.stringify({ error: error.message || "Erro interno" }),
+      JSON.stringify({ error: (error as any)?.message || "Erro interno" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

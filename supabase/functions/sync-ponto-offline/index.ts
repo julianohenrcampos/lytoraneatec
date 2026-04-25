@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (e) {
+  } catch (e: any) {
     console.error("[sync-offline] Erro geral:", e?.message || e);
     return respostaErro(500, "erro_interno", "Erro interno do servidor");
   }

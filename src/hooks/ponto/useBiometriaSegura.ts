@@ -25,14 +25,19 @@ type Snapshot = {
 };
 
 const INPUT_SIZE = 416;
-const DETECTION_SCORE_MIN = 0.7;
+const DETECTION_SCORE_MIN = 0.8; // endurecido (era 0.7) — anti-objeto
 const FACE_RATIO_MIN = 0.15;
 const FACE_RATIO_MAX = 0.75;
+const FACE_BOX_MIN_PX = 120; // tamanho absoluto mínimo da box em px
+const CENTER_MARGIN = 0.15; // centro da box dentro de 70% central (0.15..0.85)
 const YAW_RATIO_MAX = 0.35;
 const REQUIRED_STABLE_FRAMES = 3;
 const SAME_FACE_DISTANCE_MAX = 0.42;
 const FROZEN_MOVEMENT_MAX = 0.018;
 const FROZEN_FRAME_LIMIT = 3;
+
+const MSG_SEM_ROSTO = "Nenhum rosto detectado. Posicione seu rosto dentro do círculo.";
+const MSG_QUALIDADE = "Posicione melhor seu rosto para identificação.";
 
 function descriptorDistance(a: Float32Array, b: Float32Array): number {
   let sum = 0;
@@ -93,7 +98,9 @@ export function useBiometriaSegura() {
   ): Promise<ValidarRostoSeguroResult> => {
     if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
       resetBiometriaSegura();
-      return { valido: false, motivo: "Nenhum rosto detectado" };
+      const motivo = MSG_SEM_ROSTO;
+      console.log("[BIOMETRIA][QUALIDADE]", { valido: false, motivo });
+      return { valido: false, motivo };
     }
 
     const detection = await faceapi
@@ -106,25 +113,61 @@ export function useBiometriaSegura() {
 
     if (!detection) {
       resetBiometriaSegura();
-      return { valido: false, motivo: "Nenhum rosto detectado" };
+      const motivo = MSG_SEM_ROSTO;
+      console.log("[BIOMETRIA][QUALIDADE]", { valido: false, motivo });
+      return { valido: false, motivo };
     }
 
     const detectionScore = detection.detection.score ?? 0;
+    const box = detection.detection.box;
+    console.log("[BIOMETRIA][DETECT]", {
+      score: Number(detectionScore.toFixed(3)),
+      box: { x: Math.round(box.x), y: Math.round(box.y), w: Math.round(box.width), h: Math.round(box.height) },
+    });
+
     if (detectionScore < DETECTION_SCORE_MIN) {
       resetBiometriaSegura();
-      return { valido: false, motivo: "Baixa qualidade de imagem", detectionScore };
+      const motivo = MSG_QUALIDADE;
+      console.log("[BIOMETRIA][QUALIDADE]", { valido: false, motivo, detectionScore });
+      return { valido: false, motivo, detectionScore };
     }
 
-    const box = detection.detection.box;
+    // Tamanho absoluto mínimo (anti-objeto distante / detecção falsa)
+    if (box.width < FACE_BOX_MIN_PX || box.height < FACE_BOX_MIN_PX) {
+      resetBiometriaSegura();
+      const motivo = MSG_QUALIDADE;
+      console.log("[BIOMETRIA][QUALIDADE]", { valido: false, motivo, boxPx: { w: box.width, h: box.height } });
+      return { valido: false, motivo, detectionScore };
+    }
+
+    // Centralização: centro da box dentro de 70% central do frame
+    const cxRatio = (box.x + box.width / 2) / Math.max(video.videoWidth, 1);
+    const cyRatio = (box.y + box.height / 2) / Math.max(video.videoHeight, 1);
+    if (
+      cxRatio < CENTER_MARGIN ||
+      cxRatio > 1 - CENTER_MARGIN ||
+      cyRatio < CENTER_MARGIN ||
+      cyRatio > 1 - CENTER_MARGIN
+    ) {
+      resetBiometriaSegura();
+      const motivo = MSG_QUALIDADE;
+      console.log("[BIOMETRIA][QUALIDADE]", { valido: false, motivo, center: { cxRatio, cyRatio } });
+      return { valido: false, motivo, detectionScore };
+    }
+
     const frameArea = Math.max(video.videoWidth * video.videoHeight, 1);
     const faceRatio = (box.width * box.height) / frameArea;
     if (faceRatio < FACE_RATIO_MIN) {
       resetBiometriaSegura();
-      return { valido: false, motivo: "Rosto muito distante", detectionScore, faceRatio };
+      const motivo = MSG_QUALIDADE;
+      console.log("[BIOMETRIA][QUALIDADE]", { valido: false, motivo, faceRatio });
+      return { valido: false, motivo, detectionScore, faceRatio };
     }
     if (faceRatio > FACE_RATIO_MAX) {
       resetBiometriaSegura();
-      return { valido: false, motivo: "Afaste-se um pouco da câmera", detectionScore, faceRatio };
+      const motivo = "Afaste-se um pouco da câmera";
+      console.log("[BIOMETRIA][QUALIDADE]", { valido: false, motivo, faceRatio });
+      return { valido: false, motivo, detectionScore, faceRatio };
     }
 
     const landmarks = detection.landmarks;
