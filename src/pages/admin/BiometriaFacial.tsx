@@ -23,7 +23,16 @@ import {
   CameraOff,
   Upload,
   RefreshCcw,
+  Eye,
+  EyeOff,
+  Pencil,
+  User,
+  Fingerprint,
+  Shield,
+  PenTool,
+  Copy,
 } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -47,6 +56,7 @@ interface FuncionarioRow {
   biometria_em: string | null;
   foto_url: string | null;
   foto_signed_url?: string | null;
+  assinatura_url?: string | null;
 }
 
 interface PendenteRow {
@@ -106,12 +116,249 @@ const BiometriaFacial: React.FC = () => {
   const [detectStatus, setDetectStatus] = useState<DetectStatus>("idle");
   const [detectScore, setDetectScore] = useState<number | null>(null);
   const [detectMessage, setDetectMessage] = useState<string>("");
+
+  // Assinatura do funcionário
+  const [assinaturaPreview, setAssinaturaPreview] = useState<string | null>(null);
+  const [assinaturaFile, setAssinaturaFile] = useState<File | null>(null);
+
+  function handleUploadAssinatura(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== "image/png") {
+      toast.error("Apenas PNG é permitido para a assinatura.");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 100 * 1024) {
+      toast.error("Arquivo maior que 100KB. Reduza a imagem.");
+      e.target.value = "";
+      return;
+    }
+    if (assinaturaPreview) URL.revokeObjectURL(assinaturaPreview);
+    setAssinaturaFile(file);
+    setAssinaturaPreview(URL.createObjectURL(file));
+  }
+
+  // Hash SHA-256 hex de um File/Blob
+  async function sha256Hex(blob: Blob): Promise<string> {
+    const buf = await blob.arrayBuffer();
+    const hash = await crypto.subtle.digest("SHA-256", buf);
+    return Array.from(new Uint8Array(hash))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  }
+
+  /** Faz upload da assinatura + chama RPC. Retorna {url, hash}. */
+  async function salvarAssinaturaParaFuncionario(
+    funcionarioId: string,
+    file: File,
+  ): Promise<{ url: string; hash: string }> {
+    const path = `${funcionarioId}/assinatura.png`;
+    const { error: upErr } = await supabase.storage
+      .from("assinaturas-funcionarios")
+      .upload(path, file, { upsert: true, contentType: "image/png" });
+    if (upErr) throw new Error(`Upload assinatura: ${upErr.message}`);
+
+    const hash = await sha256Hex(file);
+
+    const { error: rpcErr } = await supabase.rpc("salvar_assinatura_funcionario", {
+      p_funcionario_id: funcionarioId,
+      p_assinatura_url: path,
+      p_assinatura_hash: hash,
+      p_user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
+      p_origem: "admin_web",
+    } as any);
+    if (rpcErr) throw new Error(`RPC assinatura: ${rpcErr.message}`);
+
+    return { url: path, hash };
+  }
   const [confirmCloseAberto, setConfirmCloseAberto] = useState(false);
 
   // Confirm dialogs adicionais (substituir window.confirm)
   const [confirmReplace, setConfirmReplace] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<FuncionarioRow | null>(null);
   const [confirmRejeitar, setConfirmRejeitar] = useState<PendenteRow | null>(null);
+
+  // Modal de visualização da biometria
+  const [viewing, setViewing] = useState<FuncionarioRow | null>(null);
+
+  // Detalhes carregados sob demanda ao abrir o modal de visualização
+  interface ViewingDetails {
+    cpf?: string | null;
+    biometria_id?: string | null;
+    biometria_origem?: string | null;
+    biometria_descriptor_hash?: string | null;
+    cpf_hash?: string | null;
+    assinatura_signed_url?: string | null;
+    assinatura_hash?: string | null;
+    assinatura_updated_at?: string | null;
+  }
+  const [viewingDetails, setViewingDetails] = useState<ViewingDetails | null>(null);
+  const [viewingLoading, setViewingLoading] = useState(false);
+  const [cpfRevealed, setCpfRevealed] = useState(false);
+  const [hashAuditoria, setHashAuditoria] = useState<string | null>(null);
+
+  // Reset CPF visibility ao fechar o modal
+  useEffect(() => {
+    if (!viewing) {
+      setCpfRevealed(false);
+      setHashAuditoria(null);
+    }
+  }, [viewing]);
+
+  // Carrega detalhes ao abrir o modal de visualização
+  useEffect(() => {
+    if (!viewing?.id) {
+      setViewingDetails(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setViewingLoading(true);
+      const details: ViewingDetails = {};
+      try {
+        // 1. Funcionario (cpf + possíveis campos de assinatura — leitura defensiva)
+        const { data: func } = await supabase
+          .from("bd_funcionarios")
+          .select("*")
+          .eq("id", viewing.id)
+          .maybeSingle();
+        if (func) {
+          details.cpf = (func as any).cpf ?? null;
+          details.assinatura_hash = (func as any).assinatura_hash ?? null;
+          details.assinatura_updated_at = (func as any).assinatura_updated_at ?? null;
+          const assinaturaUrl: string | null = (func as any).assinatura_url ?? null;
+          if (assinaturaUrl) {
+            try {
+              const path = assinaturaUrl.includes("/")
+                ? assinaturaUrl.split("/").slice(-2).join("/")
+                : assinaturaUrl;
+              const { data: signed } = await supabase.storage
+                .from("assinaturas-funcionarios")
+                .createSignedUrl(path, 3600);
+              details.assinatura_signed_url = signed?.signedUrl ?? null;
+            } catch {
+              /* bucket pode não existir ainda */
+            }
+          }
+        }
+
+        // 2. Biometria ativa
+        const { data: bio } = await supabase
+          .from("bd_funcionarios_biometria_facial")
+          .select("id, descriptor, origem")
+          .eq("funcionario_id", viewing.id)
+          .eq("ativo", true)
+          .maybeSingle();
+        if (bio) {
+          details.biometria_id = bio.id;
+          details.biometria_origem = (bio as any).origem ?? null;
+          if ((bio as any).descriptor) {
+            try {
+              const arr = (bio as any).descriptor as unknown as number[];
+              const serialized = JSON.stringify(Array.isArray(arr) ? arr : Object.values(arr));
+              const enc = new TextEncoder().encode(serialized);
+              const buf = await crypto.subtle.digest("SHA-256", enc);
+              const hex = Array.from(new Uint8Array(buf))
+                .map((b) => b.toString(16).padStart(2, "0"))
+                .join("");
+              details.biometria_descriptor_hash = hex;
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+
+        // 3. CPF hash (sensivel — pode ser bloqueado por RLS)
+        try {
+          const { data: sens } = await supabase
+            .from("bd_funcionarios_sensivel")
+            .select("cpf_hash")
+            .eq("funcionario_id", viewing.id)
+            .maybeSingle();
+          if (sens) details.cpf_hash = (sens as any).cpf_hash ?? null;
+        } catch {
+          /* sem permissão */
+        }
+
+        // Fallback: se não veio cpf_hash do backend mas temos o CPF, calcula no frontend
+        if (!details.cpf_hash && details.cpf) {
+          try {
+            const cpfNorm = String(details.cpf).replace(/\D/g, "");
+            if (cpfNorm) {
+              const enc = new TextEncoder().encode(cpfNorm);
+              const buf = await crypto.subtle.digest("SHA-256", enc);
+              details.cpf_hash = Array.from(new Uint8Array(buf))
+                .map((b) => b.toString(16).padStart(2, "0"))
+                .join("");
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+      } catch (e) {
+        console.error("Erro ao carregar detalhes da biometria:", e);
+      } finally {
+        if (!cancelled) {
+          setViewingDetails(details);
+          setViewingLoading(false);
+
+          // Hash de auditoria consolidado (frontend, exibido apenas)
+          try {
+            const ts = new Date().toISOString();
+            const { data: auth } = await supabase.auth.getUser();
+            const uid = auth?.user?.id ?? "anon";
+            const ip = "client";
+            const concat = [
+              details.cpf_hash || "",
+              details.biometria_descriptor_hash || "",
+              details.assinatura_hash || "",
+              ip,
+              uid,
+              ts,
+            ].join("|");
+            const enc = new TextEncoder().encode(concat);
+            const buf = await crypto.subtle.digest("SHA-256", enc);
+            const hex = Array.from(new Uint8Array(buf))
+              .map((b) => b.toString(16).padStart(2, "0"))
+              .join("");
+            if (!cancelled) setHashAuditoria(hex);
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [viewing?.id]);
+
+  // Helpers de formatação para o modal
+  const formatCPF = (cpf?: string | null) => {
+    if (!cpf) return "—";
+    const d = cpf.replace(/\D/g, "");
+    if (d.length !== 11) return cpf;
+    return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+  };
+  const maskCPF = (cpf?: string | null, revealed = false) => {
+    if (!cpf) return "—";
+    const digits = cpf.replace(/\D/g, "");
+    if (digits.length !== 11) return "—";
+    return revealed ? formatCPF(cpf) : "***.***.***-**";
+  };
+  const truncHash = (h?: string | null) =>
+    h && h.length > 8 ? `${h.slice(0, 4)}...${h.slice(-4)}` : h || "—";
+  const truncId = (id?: string | null) => (id ? `${id.slice(0, 8)}...` : "—");
+  const copyToClipboard = async (value?: string | null, label = "Hash") => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label} copiado`);
+    } catch {
+      toast.error("Não foi possível copiar");
+    }
+  };
 
   // ---------- Carregar modelos ----------
   useEffect(() => {
@@ -166,7 +413,7 @@ const BiometriaFacial: React.FC = () => {
       const funcs = await fetchAllPaginated<any>(() =>
         supabase
           .from("bd_funcionarios")
-          .select("id, nome_completo, matricula, status, funcao_id, centro_custo_id")
+          .select("id, nome_completo, matricula, status, funcao_id, centro_custo_id, assinatura_url")
           .in("status", ["Ativo", "Ativo sem Registro"])
           .order("nome_completo", { ascending: true }),
       );
@@ -249,6 +496,7 @@ const BiometriaFacial: React.FC = () => {
           biometria_em: bio?.created_at || null,
           foto_url: bio?.foto_url || null,
           foto_signed_url: bio?.foto_url ? signedMap.get(bio.foto_url) || null : null,
+          assinatura_url: f.assinatura_url || null,
         };
       });
       // Sem biometria primeiro (prioriza ação), depois alfabético
@@ -600,10 +848,21 @@ const BiometriaFacial: React.FC = () => {
     setModalAberto(true);
   };
 
-  const abrirModalParaFunc = (f: FuncionarioRow) => {
+  const abrirModalParaFunc = async (f: FuncionarioRow) => {
     setFuncSelecionadoId(f.id);
     resetCaptura();
     setModalAberto(true);
+    // Carrega assinatura existente (signed URL) se houver
+    if (f.assinatura_url) {
+      try {
+        const { data } = await supabase.storage
+          .from("assinaturas-funcionarios")
+          .createSignedUrl(f.assinatura_url, 600);
+        if (data?.signedUrl) setAssinaturaPreview(data.signedUrl);
+      } catch {
+        /* ignore */
+      }
+    }
   };
 
   const resetCaptura = () => {
@@ -614,6 +873,9 @@ const BiometriaFacial: React.FC = () => {
     setDetectStatus("idle");
     setDetectScore(null);
     setDetectMessage("");
+    if (assinaturaPreview && assinaturaPreview.startsWith("blob:")) URL.revokeObjectURL(assinaturaPreview);
+    setAssinaturaPreview(null);
+    setAssinaturaFile(null);
   };
 
   const fecharModal = () => {
@@ -646,59 +908,109 @@ const BiometriaFacial: React.FC = () => {
   }, [stopCamera]);
 
   // ---------- Salvar ----------
-  const executarCadastro = async () => {
+  const executarCadastroBiometria = async () => {
     if (!funcSelecionado) return;
     if (!descriptorRef.current || detectStatus !== "ok") return;
 
-    setProcessando(true);
-    try {
-      console.log("[BIOMETRIA][SAVE] enviando", {
+    console.log("[BIOMETRIA][SAVE] enviando", {
+      funcionario_id: funcSelecionado.id,
+      score: detectScore,
+    });
+
+    const { data, error } = await supabase.functions.invoke("cadastrar-biometria-facial", {
+      body: {
+        origem: "admin_upload",
         funcionario_id: funcSelecionado.id,
-        score: detectScore,
-      });
+        descriptor: Array.from(descriptorRef.current),
+        foto_base64: fotoBase64,
+      },
+    });
+    if (error) throw new Error(error.message);
+    if (!data?.success) throw new Error(data?.error || "Falha ao cadastrar");
 
-      const { data, error } = await supabase.functions.invoke("cadastrar-biometria-facial", {
-        body: {
-          origem: "admin_upload",
-          funcionario_id: funcSelecionado.id,
-          descriptor: Array.from(descriptorRef.current),
-          foto_base64: fotoBase64,
-        },
-      });
-      if (error) throw new Error(error.message);
-      if (!data?.success) throw new Error(data?.error || "Falha ao cadastrar");
-
-      // Atualização otimística — marca o funcionário como cadastrado imediatamente
-      const nowIso = new Date().toISOString();
-      setFuncionarios((prev) => {
-        const next = prev.map((f) =>
-          f.id === funcSelecionado.id
-            ? { ...f, tem_biometria: true, biometria_em: nowIso }
-            : f,
-        );
-        next.sort((a, b) => {
-          if (a.tem_biometria !== b.tem_biometria) return a.tem_biometria ? 1 : -1;
-          return a.nome_completo.localeCompare(b.nome_completo, "pt-BR");
-        });
-        return next;
-      });
-
-      toast.success(
-        `Biometria de ${funcSelecionado.nome_completo} cadastrada e aprovada — pronta para uso no totem`,
+    // Atualização otimística — marca o funcionário como cadastrado imediatamente
+    const nowIso = new Date().toISOString();
+    setFuncionarios((prev) => {
+      const next = prev.map((f) =>
+        f.id === funcSelecionado.id
+          ? { ...f, tem_biometria: true, biometria_em: nowIso }
+          : f,
       );
-      // Feedback claro: trocar para a aba Cadastrados + destacar o recém-criado por 4s
-      const novoId = funcSelecionado.id;
-      setActiveTab("cadastrados");
-      setHighlightId(novoId);
-      setTimeout(() => {
-        setHighlightId((curr) => (curr === novoId ? null : curr));
-      }, 4000);
-      fecharModal();
-      // Recarrega em background para puxar foto_signed_url
-      Promise.all([carregar(), carregarPendentes()]).catch(() => {});
-    } catch (e: any) {
-      console.error("[BIOMETRIA][SAVE] erro:", e);
-      toast.error(e?.message || "Erro ao cadastrar biometria");
+      next.sort((a, b) => {
+        if (a.tem_biometria !== b.tem_biometria) return a.tem_biometria ? 1 : -1;
+        return a.nome_completo.localeCompare(b.nome_completo, "pt-BR");
+      });
+      return next;
+    });
+  };
+
+  /** Executa o salvamento condicional (biometria e/ou assinatura). */
+  const executarCadastro = async () => {
+    if (!funcSelecionado) return;
+
+    const alterouBiometria = !!fotoBase64 && !!descriptorRef.current && detectStatus === "ok";
+    const alterouAssinatura = !!assinaturaFile;
+
+    if (!alterouBiometria && !alterouAssinatura) {
+      toast.error("Nenhuma alteração realizada");
+      return;
+    }
+
+    setProcessando(true);
+    const sucessos: string[] = [];
+    const erros: string[] = [];
+
+    try {
+      if (alterouBiometria) {
+        try {
+          await executarCadastroBiometria();
+          sucessos.push("biometria");
+        } catch (e: any) {
+          console.error("[BIOMETRIA][SAVE] erro:", e);
+          erros.push(`Biometria: ${e?.message || "erro"}`);
+        }
+      }
+
+      if (alterouAssinatura && assinaturaFile) {
+        try {
+          await salvarAssinaturaParaFuncionario(funcSelecionado.id, assinaturaFile);
+          sucessos.push("assinatura");
+          // Atualização otimística
+          setFuncionarios((prev) =>
+            prev.map((f) =>
+              f.id === funcSelecionado.id
+                ? { ...f, assinatura_url: `${funcSelecionado.id}/assinatura.png` }
+                : f,
+            ),
+          );
+        } catch (err: any) {
+          console.error("[ASSINATURA][SAVE] erro:", err);
+          erros.push(`Assinatura: ${err?.message || "erro"}`);
+        }
+      }
+
+      if (sucessos.length > 0) {
+        const partes = sucessos
+          .map((s) => (s === "biometria" ? "Biometria" : "Assinatura"))
+          .join(" e ");
+        toast.success(`${partes} de ${funcSelecionado.nome_completo} salva(s) com sucesso`);
+      }
+      if (erros.length > 0) {
+        erros.forEach((m) => toast.error(m));
+      }
+
+      if (sucessos.length > 0 && erros.length === 0) {
+        if (sucessos.includes("biometria")) {
+          const novoId = funcSelecionado.id;
+          setActiveTab("cadastrados");
+          setHighlightId(novoId);
+          setTimeout(() => {
+            setHighlightId((curr) => (curr === novoId ? null : curr));
+          }, 4000);
+        }
+        fecharModal();
+        Promise.all([carregar(), carregarPendentes()]).catch(() => {});
+      }
     } finally {
       setProcessando(false);
     }
@@ -709,12 +1021,17 @@ const BiometriaFacial: React.FC = () => {
       toast.error("Selecione um funcionário");
       return;
     }
-    if (!descriptorRef.current || detectStatus !== "ok") {
-      toast.error("Capture uma foto válida antes de salvar");
+
+    const alterouBiometria = !!fotoBase64 && !!descriptorRef.current && detectStatus === "ok";
+    const alterouAssinatura = !!assinaturaFile;
+
+    if (!alterouBiometria && !alterouAssinatura) {
+      toast.error("Nenhuma alteração realizada");
       return;
     }
-    // Regra: 1 biometria ativa por funcionário — confirma substituição via ConfirmDialog
-    if (funcSelecionado.tem_biometria) {
+
+    // Confirma substituição apenas se for sobrescrever biometria existente
+    if (alterouBiometria && funcSelecionado.tem_biometria) {
       setConfirmReplace(true);
       return;
     }
@@ -794,12 +1111,12 @@ const BiometriaFacial: React.FC = () => {
   };
 
   const totalCadastrados = funcionarios.filter((f) => f.tem_biometria).length;
+  const biometriaValida =
+    detectStatus === "ok" && hasDescriptor && (detectScore ?? 0) >= QUALITY_THRESHOLD;
+  const alterouBiometria = !!fotoBase64 && biometriaValida;
+  const alterouAssinatura = !!assinaturaFile;
   const podeSalvar =
-    !!funcSelecionado &&
-    detectStatus === "ok" &&
-    hasDescriptor &&
-    (detectScore ?? 0) >= QUALITY_THRESHOLD &&
-    !processando;
+    !!funcSelecionado && !processando && (alterouBiometria || alterouAssinatura);
 
   return (
     <MainLayout>
@@ -870,6 +1187,7 @@ const BiometriaFacial: React.FC = () => {
                   rows={semBiometria}
                   abrirModalParaFunc={abrirModalParaFunc}
                   setConfirmRemove={setConfirmRemove}
+                  onView={setViewing}
                   highlightId={highlightId}
                   emptyMsg="Todos os funcionários ativos já têm biometria cadastrada. ✓"
                 />
@@ -908,6 +1226,7 @@ const BiometriaFacial: React.FC = () => {
                   rows={cadastrados}
                   abrirModalParaFunc={abrirModalParaFunc}
                   setConfirmRemove={setConfirmRemove}
+                  onView={setViewing}
                   highlightId={highlightId}
                   emptyMsg="Nenhum funcionário cadastrado encontrado."
                 />
@@ -1124,6 +1443,51 @@ const BiometriaFacial: React.FC = () => {
               </div>
             </div>
 
+            {/* Status atual de cadastro */}
+            {funcSelecionado && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Badge variant={funcSelecionado.tem_biometria ? "success" : "secondary"}>
+                  {funcSelecionado.tem_biometria ? "Biometria já cadastrada" : "Biometria não cadastrada"}
+                </Badge>
+                <Badge variant={funcSelecionado.assinatura_url ? "success" : "secondary"}>
+                  {funcSelecionado.assinatura_url ? "Assinatura cadastrada" : "Assinatura não cadastrada"}
+                </Badge>
+                {alterouBiometria && (
+                  <Badge variant="warning">Biometria — alteração pendente</Badge>
+                )}
+                {alterouAssinatura && (
+                  <Badge variant="warning">Assinatura — alteração pendente</Badge>
+                )}
+              </div>
+            )}
+
+            {/* Assinatura do Funcionário */}
+            <div className="mt-6 border-t pt-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold">Assinatura do Funcionário</h3>
+                {funcSelecionado?.assinatura_url && !alterouAssinatura && (
+                  <span className="text-xs text-muted-foreground">Já cadastrada — envie um novo PNG para substituir</span>
+                )}
+              </div>
+              <Input
+                type="file"
+                accept="image/png"
+                onChange={handleUploadAssinatura}
+              />
+              {assinaturaPreview && (
+                <div className="mt-2 bg-black/5 dark:bg-white/5 rounded p-2 inline-block">
+                  <img
+                    src={assinaturaPreview}
+                    alt="Assinatura"
+                    className="h-16 object-contain"
+                  />
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground mt-2">
+                Apenas PNG até 100KB. Preferência: fundo transparente.
+              </p>
+            </div>
+
             {/* Status da detecção */}
             {detectStatus !== "idle" && (
               <div
@@ -1180,7 +1544,7 @@ const BiometriaFacial: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <Upload className="h-4 w-4 mr-2" /> Salvar Biometria
+                  <Upload className="h-4 w-4 mr-2" /> Salvar Alterações
                 </>
               )}
             </Button>
@@ -1246,6 +1610,224 @@ const BiometriaFacial: React.FC = () => {
         cancelText="Cancelar"
         variant="danger"
       />
+
+      {/* Modal de visualização da biometria */}
+      <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalhes da Biometria</DialogTitle>
+            <DialogDescription>
+              Informações completas do cadastro biométrico do funcionário.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Cabeçalho consolidado: foto + dados do funcionário */}
+          <div className="flex gap-4 items-start">
+            {viewing?.foto_signed_url ? (
+              <img
+                src={viewing.foto_signed_url}
+                alt={viewing.nome_completo}
+                className="h-24 w-24 rounded-lg object-cover bg-muted border shrink-0"
+              />
+            ) : (
+              <div className="h-24 w-24 rounded-lg bg-muted border flex items-center justify-center text-muted-foreground shrink-0">
+                <User className="h-8 w-8" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0 space-y-1">
+              <p className="text-base font-semibold truncate">{viewing?.nome_completo}</p>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">CPF:</span>
+                <span className="font-mono">{maskCPF(viewingDetails?.cpf, cpfRevealed)}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  disabled={!viewingDetails?.cpf}
+                  onClick={() => setCpfRevealed((v) => !v)}
+                  title={cpfRevealed ? "Ocultar CPF" : "Mostrar CPF"}
+                  aria-label={cpfRevealed ? "Ocultar CPF" : "Mostrar CPF"}
+                >
+                  {cpfRevealed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground truncate">
+                <span className="font-medium">Centro de Custo:</span>{" "}
+                {viewing?.centro_custo_nome || "—"}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                <span className="font-medium">Função:</span> {viewing?.funcao_nome || "—"}
+              </p>
+              {viewingLoading && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Carregando detalhes…
+                </p>
+              )}
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* 🔐 Dados Biométricos */}
+          <section className="space-y-2">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <Fingerprint className="h-4 w-4 text-primary" /> Dados Biométricos
+            </h3>
+            <dl className="grid grid-cols-[140px_1fr] gap-y-1.5 text-sm">
+              <dt className="text-muted-foreground">Cadastrado em:</dt>
+              <dd>
+                {viewing?.biometria_em
+                  ? new Date(viewing.biometria_em).toLocaleString("pt-BR", {
+                      timeZone: "America/Sao_Paulo",
+                    })
+                  : "—"}
+              </dd>
+              <dt className="text-muted-foreground">Origem:</dt>
+              <dd className="capitalize">{viewingDetails?.biometria_origem || "—"}</dd>
+              <dt className="text-muted-foreground">ID:</dt>
+              <dd className="font-mono text-xs">{truncId(viewingDetails?.biometria_id)}</dd>
+            </dl>
+          </section>
+
+          <Separator />
+
+          {/* 🛡️ Segurança */}
+          <section className="space-y-2">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <Shield className="h-4 w-4 text-primary" /> Segurança
+            </h3>
+            <dl className="grid grid-cols-[140px_1fr_auto] gap-y-1.5 gap-x-2 text-sm items-center">
+              <dt className="text-muted-foreground">Hash Biometria:</dt>
+              <dd className="font-mono text-xs">
+                {truncHash(viewingDetails?.biometria_descriptor_hash)}
+              </dd>
+              <dd>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={!viewingDetails?.biometria_descriptor_hash}
+                  onClick={() =>
+                    copyToClipboard(viewingDetails?.biometria_descriptor_hash, "Hash Biometria")
+                  }
+                  title="Copiar hash"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+              </dd>
+
+              <dt className="text-muted-foreground">Hash CPF:</dt>
+              <dd className="font-mono text-xs">
+                {viewingDetails?.cpf_hash
+                  ? truncHash(viewingDetails.cpf_hash)
+                  : viewingLoading
+                    ? "Calculando..."
+                    : "Indisponível"}
+              </dd>
+              <dd>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={!viewingDetails?.cpf_hash}
+                  onClick={() => copyToClipboard(viewingDetails?.cpf_hash, "Hash CPF")}
+                  title="Copiar hash"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+              </dd>
+
+              <dt className="text-muted-foreground">Hash Assinatura:</dt>
+              <dd className="font-mono text-xs">{truncHash(viewingDetails?.assinatura_hash)}</dd>
+              <dd>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={!viewingDetails?.assinatura_hash}
+                  onClick={() =>
+                    copyToClipboard(viewingDetails?.assinatura_hash, "Hash Assinatura")
+                  }
+                  title="Copiar hash"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+              </dd>
+
+              <dt className="text-muted-foreground">Hash Auditoria:</dt>
+              <dd className="font-mono text-xs">{truncHash(hashAuditoria)}</dd>
+              <dd>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={!hashAuditoria}
+                  onClick={() => copyToClipboard(hashAuditoria, "Hash Auditoria")}
+                  title="Copiar hash"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+              </dd>
+            </dl>
+            <p className="text-[10px] text-muted-foreground">
+              Auditoria = SHA-256(hash_cpf | hash_biometria | hash_assinatura | ip | user_id |
+              timestamp).
+            </p>
+          </section>
+
+          <Separator />
+
+          {/* ✍️ Assinatura */}
+          <section className="space-y-2">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <PenTool className="h-4 w-4 text-primary" /> Assinatura
+            </h3>
+            {viewingDetails?.assinatura_signed_url ? (
+              <div className="space-y-2">
+                <div className="bg-muted rounded p-2 inline-block border">
+                  <img
+                    src={viewingDetails.assinatura_signed_url}
+                    alt="Assinatura"
+                    className="h-20 object-contain"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Atualizado em:{" "}
+                  {viewingDetails.assinatura_updated_at
+                    ? new Date(viewingDetails.assinatura_updated_at).toLocaleString("pt-BR", {
+                        timeZone: "America/Sao_Paulo",
+                      })
+                    : "—"}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground italic">Assinatura não cadastrada</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (!viewing) return;
+                    const f = funcionarios.find((x) => x.id === viewing.id);
+                    if (f) {
+                      setViewing(null);
+                      abrirModalParaFunc(f);
+                    }
+                  }}
+                >
+                  <Upload className="h-3.5 w-3.5 mr-1.5" /> Cadastrar assinatura
+                </Button>
+              </div>
+            )}
+          </section>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewing(null)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
     </MainLayout>
   );
@@ -1255,6 +1837,7 @@ interface FuncionariosListProps {
   rows: FuncionarioRow[];
   abrirModalParaFunc: (f: FuncionarioRow) => void;
   setConfirmRemove: (f: FuncionarioRow | null) => void;
+  onView: (f: FuncionarioRow) => void;
   highlightId?: string | null;
   emptyMsg: string;
 }
@@ -1263,6 +1846,7 @@ const FuncionariosList: React.FC<FuncionariosListProps> = ({
   rows,
   abrirModalParaFunc,
   setConfirmRemove,
+  onView,
   highlightId,
   emptyMsg,
 }) => {
@@ -1309,7 +1893,7 @@ const FuncionariosList: React.FC<FuncionariosListProps> = ({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+          <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
             {f.tem_biometria ? (
               <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/40 dark:text-emerald-300 hidden sm:inline-flex">
                 ✓ Cadastrado
@@ -1319,17 +1903,45 @@ const FuncionariosList: React.FC<FuncionariosListProps> = ({
                 Sem cadastro
               </Badge>
             )}
-            <Button size="sm" variant="outline" onClick={() => abrirModalParaFunc(f)} className="flex-1 sm:flex-none min-h-[44px]">
-              {f.tem_biometria ? "Atualizar" : "Cadastrar"}
-            </Button>
-            {f.tem_biometria && (
+            {f.tem_biometria ? (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => onView(f)}
+                  title="Visualizar"
+                  aria-label="Visualizar biometria"
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => abrirModalParaFunc(f)}
+                  title="Editar"
+                  aria-label="Editar biometria"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setConfirmRemove(f)}
+                  title="Excluir"
+                  aria-label="Excluir biometria"
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
               <Button
                 size="sm"
-                variant="ghost"
-                onClick={() => setConfirmRemove(f)}
-                className="text-destructive hover:text-destructive min-h-[44px] min-w-[44px]"
+                variant="outline"
+                onClick={() => abrirModalParaFunc(f)}
+                className="flex-1 sm:flex-none min-h-[44px]"
               >
-                <Trash2 className="h-4 w-4" />
+                Cadastrar
               </Button>
             )}
           </div>

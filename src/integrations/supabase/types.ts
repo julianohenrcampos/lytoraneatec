@@ -914,6 +914,76 @@ export type Database = {
         }
         Relationships: []
       }
+      bd_auditoria_biometria: {
+        Row: {
+          created_at: string
+          event_hash: string
+          funcionario_id: string
+          hash_anterior: string | null
+          hash_novo: string | null
+          id: string
+          integridade_hash: string
+          ip: string | null
+          metadata: Json
+          origem: Database["public"]["Enums"]["origem_auditoria_biometria"]
+          tipo_evento: Database["public"]["Enums"]["tipo_evento_auditoria_biometria"]
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_hash: string
+          funcionario_id: string
+          hash_anterior?: string | null
+          hash_novo?: string | null
+          id?: string
+          integridade_hash: string
+          ip?: string | null
+          metadata?: Json
+          origem?: Database["public"]["Enums"]["origem_auditoria_biometria"]
+          tipo_evento: Database["public"]["Enums"]["tipo_evento_auditoria_biometria"]
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_hash?: string
+          funcionario_id?: string
+          hash_anterior?: string | null
+          hash_novo?: string | null
+          id?: string
+          integridade_hash?: string
+          ip?: string | null
+          metadata?: Json
+          origem?: Database["public"]["Enums"]["origem_auditoria_biometria"]
+          tipo_evento?: Database["public"]["Enums"]["tipo_evento_auditoria_biometria"]
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_auditoria_biometria_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_auditoria_biometria_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_auditoria_biometria_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_auditoria_correcao_registros_carga: {
         Row: {
           data_correcao: string | null
@@ -4102,6 +4172,9 @@ export type Database = {
         Row: {
           adicional_noturno: number | null
           agencia: string | null
+          assinatura_hash: string | null
+          assinatura_updated_at: string | null
+          assinatura_url: string | null
           banco: string | null
           centro_custo_id: string | null
           chave_pix: string | null
@@ -4155,6 +4228,9 @@ export type Database = {
         Insert: {
           adicional_noturno?: number | null
           agencia?: string | null
+          assinatura_hash?: string | null
+          assinatura_updated_at?: string | null
+          assinatura_url?: string | null
           banco?: string | null
           centro_custo_id?: string | null
           chave_pix?: string | null
@@ -4208,6 +4284,9 @@ export type Database = {
         Update: {
           adicional_noturno?: number | null
           agencia?: string | null
+          assinatura_hash?: string | null
+          assinatura_updated_at?: string | null
+          assinatura_url?: string | null
           banco?: string | null
           centro_custo_id?: string | null
           chave_pix?: string | null
@@ -12038,6 +12117,29 @@ export type Database = {
           },
         ]
       }
+      vw_auditoria_sistema: {
+        Row: {
+          categoria: string | null
+          created_at: string | null
+          funcionario_id: string | null
+          funcionario_nome: string | null
+          hash_anterior: string | null
+          hash_novo: string | null
+          id: string | null
+          ip: string | null
+          is_suspeito: boolean | null
+          metadata: Json | null
+          motivos_risco: Json | null
+          nivel_risco: string | null
+          origem: string | null
+          tipo_evento: string | null
+          user_agent: string | null
+          usuario_email: string | null
+          usuario_id: string | null
+          usuario_nome: string | null
+        }
+        Relationships: []
+      }
       vw_bi_diarias_financeiro_indicadores: {
         Row: {
           centro_custo_id: string | null
@@ -16723,6 +16825,22 @@ export type Database = {
         Args: { p_user_id?: string }
         Returns: string[]
       }
+      get_auditoria_alertas_24h: { Args: never; Returns: Json }
+      get_auditoria_sistema: {
+        Args: {
+          p_apenas_suspeitos?: boolean
+          p_categorias?: string[]
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_funcionario_id?: string
+          p_nivel_risco?: string[]
+          p_page?: number
+          p_page_size?: number
+          p_search?: string
+          p_usuario_id?: string
+        }
+        Returns: Json
+      }
       get_configuracao_sistema: { Args: { p_chave: string }; Returns: string }
       get_data_operacional_atual: { Args: never; Returns: string }
       get_etapas_utilizadas: {
@@ -16885,6 +17003,19 @@ export type Database = {
       normalize_email: { Args: { input_email: string }; Returns: string }
       normalize_text: { Args: { input_text: string }; Returns: string }
       rbac_auto_migrate_user: { Args: { p_user_id: string }; Returns: Json }
+      registrar_evento_auditoria_biometria: {
+        Args: {
+          p_funcionario_id: string
+          p_hash_anterior: string
+          p_hash_novo: string
+          p_ip?: string
+          p_metadata?: Json
+          p_origem?: Database["public"]["Enums"]["origem_auditoria_biometria"]
+          p_tipo_evento: Database["public"]["Enums"]["tipo_evento_auditoria_biometria"]
+          p_user_agent?: string
+        }
+        Returns: string
+      }
       rejeitar_etapa_dinamica: {
         Args: {
           p_etapa_exec_id: string
@@ -16917,6 +17048,26 @@ export type Database = {
         Args: { p_observacao?: string; p_solicitacao_id: string }
         Returns: undefined
       }
+      salvar_assinatura_funcionario:
+        | {
+            Args: {
+              p_assinatura_hash?: string
+              p_assinatura_url: string
+              p_funcionario_id: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_assinatura_hash?: string
+              p_assinatura_url: string
+              p_funcionario_id: string
+              p_ip?: string
+              p_origem?: Database["public"]["Enums"]["origem_auditoria_biometria"]
+              p_user_agent?: string
+            }
+            Returns: Json
+          }
       sincronizar_hora_saida_aplicacao: {
         Args: { p_registro_aplicacao_id: string }
         Returns: undefined
@@ -16968,6 +17119,12 @@ export type Database = {
     }
     Enums: {
       confiabilidade_previsao_enum: "ALTA" | "MEDIA" | "BAIXA"
+      origem_auditoria_biometria:
+        | "admin_web"
+        | "pwa_mobile"
+        | "totem_device"
+        | "api_interna"
+        | "trigger_db"
       origem_localizacao_enum: "CENTRO_CUSTO" | "MANUAL" | "TELEMETRIA"
       ponto_modo_registro: "pwa_pessoal" | "totem" | "dispositivo_obra"
       ponto_status_sync: "sincronizado" | "pendente_sync" | "erro_sync"
@@ -16993,6 +17150,13 @@ export type Database = {
         | "EM_ANALISE"
         | "ATENDIDO"
         | "NEGADO"
+      tipo_evento_auditoria_biometria:
+        | "biometria_cadastrada"
+        | "biometria_substituida"
+        | "biometria_desativada"
+        | "assinatura_cadastrada"
+        | "assinatura_substituida"
+        | "cpf_alterado"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -17121,6 +17285,13 @@ export const Constants = {
   public: {
     Enums: {
       confiabilidade_previsao_enum: ["ALTA", "MEDIA", "BAIXA"],
+      origem_auditoria_biometria: [
+        "admin_web",
+        "pwa_mobile",
+        "totem_device",
+        "api_interna",
+        "trigger_db",
+      ],
       origem_localizacao_enum: ["CENTRO_CUSTO", "MANUAL", "TELEMETRIA"],
       ponto_modo_registro: ["pwa_pessoal", "totem", "dispositivo_obra"],
       ponto_status_sync: ["sincronizado", "pendente_sync", "erro_sync"],
@@ -17149,6 +17320,14 @@ export const Constants = {
         "EM_ANALISE",
         "ATENDIDO",
         "NEGADO",
+      ],
+      tipo_evento_auditoria_biometria: [
+        "biometria_cadastrada",
+        "biometria_substituida",
+        "biometria_desativada",
+        "assinatura_cadastrada",
+        "assinatura_substituida",
+        "cpf_alterado",
       ],
     },
   },

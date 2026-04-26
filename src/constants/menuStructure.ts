@@ -348,6 +348,12 @@ export const menuStructure = [
         requiredPermission: "admin_permissoes_view"
       },
       {
+        name: "Central de Auditoria",
+        href: "/admin/auditoria",
+        icon: ShieldCheck,
+        requiredPermission: "admin_auditoria_view"
+      },
+      {
         name: "Biometria Facial",
         href: "/admin/biometria-facial",
         icon: ScanFace,

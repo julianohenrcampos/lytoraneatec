@@ -66,10 +66,11 @@ export function getRequestId(req: Request): string {
 }
 
 export function getClientIp(req: Request): string | null {
+  // Ordem: x-forwarded-for → cf-connecting-ip → x-real-ip → req.ip (não existe em Deno)
   const candidates = [
     req.headers.get("x-forwarded-for"),
-    req.headers.get("x-real-ip"),
     req.headers.get("cf-connecting-ip"),
+    req.headers.get("x-real-ip"),
   ];
 
   const value = candidates.find(Boolean)?.split(",")[0]?.trim() ?? null;

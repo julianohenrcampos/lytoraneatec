@@ -13,6 +13,27 @@ function json(body: unknown, status = 200) {
   });
 }
 
+async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function pickClientIp(req: Request): string | null {
+  const candidates = [
+    req.headers.get("x-forwarded-for"),
+    req.headers.get("cf-connecting-ip"),
+    req.headers.get("x-real-ip"),
+  ];
+  const value = candidates.find(Boolean)?.split(",")[0]?.trim() ?? null;
+  if (!value) return null;
+  const isIPv4 = /^(\d{1,3}\.){3}\d{1,3}$/.test(value);
+  const isIPv6 = /^[a-f0-9:]+$/i.test(value);
+  return isIPv4 || isIPv6 ? value : null;
+}
+
 function decodeBase64Jpeg(b64: string): Uint8Array {
   const clean = b64.replace(/^data:image\/\w+;base64,/, "");
   const bin = atob(clean);
@@ -90,6 +111,27 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Captura descriptor anterior (para auditoria)
+    let hashAnterior: string | null = null;
+    let teveBiometriaAtiva = false;
+    try {
+      const { data: prev } = await supabase
+        .from("bd_funcionarios_biometria_facial")
+        .select("descriptor")
+        .eq("funcionario_id", funcionario_id)
+        .eq("ativo", true)
+        .maybeSingle();
+      if (prev?.descriptor) {
+        teveBiometriaAtiva = true;
+        const desc = Array.isArray(prev.descriptor)
+          ? prev.descriptor
+          : Object.values(prev.descriptor as Record<string, number>);
+        hashAnterior = await sha256Hex(JSON.stringify(desc));
+      }
+    } catch (e) {
+      console.warn("[cadastrar-biometria] não foi possível ler descriptor anterior:", (e as Error).message);
+    }
+
     // Admin upload é sempre aprovado e ativo
     await supabase
       .from("bd_funcionarios_biometria_facial")
@@ -130,6 +172,30 @@ Deno.serve(async (req) => {
         );
       }
       return json({ error: "erro_inserir", detail: insErr.message }, 500);
+    }
+
+    // Auditoria — best effort
+    try {
+      const hashNovo = await sha256Hex(JSON.stringify(descriptor));
+      const ip = pickClientIp(req);
+      const userAgent = req.headers.get("user-agent");
+      await supabase.rpc("registrar_evento_auditoria_biometria", {
+        p_funcionario_id: funcionario_id,
+        p_tipo_evento: teveBiometriaAtiva ? "biometria_substituida" : "biometria_cadastrada",
+        p_hash_anterior: hashAnterior,
+        p_hash_novo: hashNovo,
+        p_origem: "admin_web",
+        p_ip: ip,
+        p_user_agent: userAgent,
+        p_metadata: {
+          biometria_id: inserted.id,
+          foto_path: foto_url,
+          status_validacao: "aprovado",
+          executor_user_id: cadastrado_por_user_id,
+        },
+      });
+    } catch (auditErr) {
+      console.warn("[cadastrar-biometria] auditoria falhou:", (auditErr as Error).message);
     }
 
     return json({

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -51,7 +52,8 @@ import TestePonto from "@/pages/dev/TestePonto";
 import PontoDireto from "@/pages/PontoDireto";
 import PontoTotemLogin from "@/pages/PontoTotemLogin";
 import PontoTotem from "@/pages/PontoTotem";
-import BiometriaFacial from "@/pages/admin/BiometriaFacial";
+const BiometriaFacial = lazy(() => import("@/pages/admin/BiometriaFacial"));
+const AuditoriaBiometria = lazy(() => import("@/pages/admin/AuditoriaBiometria"));
 import GestaoPonto from "@/pages/admin/GestaoPonto";
 
 // Dashboard CBUQ
@@ -72,6 +74,7 @@ import GestaoPermissoes from "@/pages/GestaoPermissoes";
 import GestaoFluxos from "@/pages/admin/GestaoFluxos";
 import ConfiguracoesSistema from "@/pages/admin/ConfiguracoesSistema";
 import PontoDispositivos from "@/pages/admin/PontoDispositivos";
+import AuditoriaSistema from "@/pages/admin/AuditoriaSistema";
 
 // Diárias (Fim de Semana/Feriado)
 import DashboardDiarias from "@/pages/DashboardDiarias";
@@ -411,6 +414,15 @@ const App = () => {
                 </SimplePermissionGuard>
               </SimpleAuthGuard>
             } />
+            <Route path="/admin/auditoria" element={
+              <SimpleAuthGuard>
+                <SimplePermissionGuard>
+                  <SecureRouteGuard requiredPermission="admin_auditoria_view">
+                    <AuditoriaSistema />
+                  </SecureRouteGuard>
+                </SimplePermissionGuard>
+              </SimpleAuthGuard>
+            } />
             
             {/* SSO - Saúde e Segurança Ocupacional */}
             <Route path="/sso/checklists" element={
@@ -597,7 +609,16 @@ const App = () => {
             {/* Admin: cadastro de biometria facial */}
             <Route path="/admin/biometria-facial" element={
               <SimpleAuthGuard>
-                <BiometriaFacial />
+                <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Carregando...</div>}>
+                  <BiometriaFacial />
+                </Suspense>
+              </SimpleAuthGuard>
+            } />
+            <Route path="/admin/auditoria-biometria" element={
+              <SimpleAuthGuard>
+                <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Carregando...</div>}>
+                  <AuditoriaBiometria />
+                </Suspense>
               </SimpleAuthGuard>
             } />
             <Route path="/admin/gestao-ponto" element={
