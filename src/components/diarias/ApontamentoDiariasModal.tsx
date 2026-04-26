@@ -94,6 +94,7 @@ import {
 } from "@/services/diarias/calendarioOperacionalService";
 import { solicitarInclusaoFuncionario, listarInclusoesPendentes } from "@/services/diarias/inclusaoFuncionarioService";
 import { useAuth } from "@/hooks/useAuth";
+import { useOrigemPontoEletronico } from "@/hooks/diarias/useOrigemPontoEletronico";
 import type { RegrasOperacionaisSnapshot, RegraOperacionalSnapshotItem } from "@/types/diarias";
 
 interface ApontamentoDiariasModalProps {
@@ -497,6 +498,13 @@ export default function ApontamentoDiariasModal({
 
   // Mapa de CPFs dos colaboradores carregados — usado apenas para filtro local da lista
   const colaboradoresIds = useMemo(() => colaboradores.map(c => c.funcionario_id), [colaboradores]);
+
+  // Fase 1 — Identifica presenças geradas automaticamente pelo ponto eletrônico
+  const presencaIdsParaOrigem = useMemo(
+    () => colaboradores.map(c => c.presencaId).filter(Boolean) as string[],
+    [colaboradores]
+  );
+  const origensPontoEletronico = useOrigemPontoEletronico(presencaIdsParaOrigem);
   const { data: cpfMap = {} } = useQuery({
     queryKey: ['apontamento-colaboradores-cpf', colaboradoresIds.sort().join(',')],
     queryFn: async () => {
@@ -2867,6 +2875,15 @@ export default function ApontamentoDiariasModal({
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-1">
                               <span className="font-bold text-xs sm:text-sm truncate">{colaborador.nome_funcionario}</span>
+                              {colaborador.presencaId && origensPontoEletronico.has(colaborador.presencaId) && (
+                                <Badge
+                                  variant="secondary"
+                                  className="text-[10px] shrink-0"
+                                  title="Esta presença foi gerada automaticamente pelo registro de ponto eletrônico"
+                                >
+                                  📱 Ponto eletrônico
+                                </Badge>
+                              )}
                               {colaborador.turno === 'noturno' && (
                                 <Badge variant="warning" className="text-[10px] shrink-0"><Moon className="h-2.5 w-2.5 mr-0.5" />Not.</Badge>
                               )}

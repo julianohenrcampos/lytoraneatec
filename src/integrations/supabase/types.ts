@@ -7721,24 +7721,48 @@ export type Database = {
       bd_ponto_diaria_integracao: {
         Row: {
           batida_id: string
+          centro_custo_id: string | null
           created_at: string | null
+          data_operacional: string | null
+          detalhes: Json
+          funcionario_id: string | null
           id: string
-          presenca_diaria_id: string
-          solicitacao_id: string
+          motivo: string | null
+          presenca_diaria_id: string | null
+          solicitacao_id: string | null
+          status: string
+          tipo_batida: string | null
+          updated_at: string
         }
         Insert: {
           batida_id: string
+          centro_custo_id?: string | null
           created_at?: string | null
+          data_operacional?: string | null
+          detalhes?: Json
+          funcionario_id?: string | null
           id?: string
-          presenca_diaria_id: string
-          solicitacao_id: string
+          motivo?: string | null
+          presenca_diaria_id?: string | null
+          solicitacao_id?: string | null
+          status?: string
+          tipo_batida?: string | null
+          updated_at?: string
         }
         Update: {
           batida_id?: string
+          centro_custo_id?: string | null
           created_at?: string | null
+          data_operacional?: string | null
+          detalhes?: Json
+          funcionario_id?: string | null
           id?: string
-          presenca_diaria_id?: string
-          solicitacao_id?: string
+          motivo?: string | null
+          presenca_diaria_id?: string | null
+          solicitacao_id?: string | null
+          status?: string
+          tipo_batida?: string | null
+          updated_at?: string
         }
         Relationships: [
           {
@@ -7774,6 +7798,83 @@ export type Database = {
             columns: ["batida_id"]
             isOneToOne: false
             referencedRelation: "vw_ponto_logs_antifraude_seguro"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_diaria_integracao_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_diaria_integracao_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_diaria_integracao_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_diaria_integracao_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_diaria_integracao_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_diaria_integracao_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_diaria_integracao_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_diaria_integracao_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_diaria_integracao_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_diaria_integracao_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_diaria_integracao_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
             referencedColumns: ["id"]
           },
           {
@@ -16716,6 +16817,10 @@ export type Database = {
       iniciar_fluxo_dinamico: {
         Args: { p_solicitacao_id: string }
         Returns: undefined
+      }
+      integrar_ponto_com_diaria: {
+        Args: { p_batida_id: string }
+        Returns: Json
       }
       is_admsede_for_cc: {
         Args: { p_cc_id: string; p_user_id: string }

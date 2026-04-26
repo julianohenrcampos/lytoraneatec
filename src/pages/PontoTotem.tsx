@@ -729,32 +729,40 @@ const PontoTotem: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen w-full bg-slate-950 text-slate-100 flex flex-col overflow-hidden">
+    <div className="min-h-screen w-full bg-slate-950 text-slate-100 flex flex-col">
       {/* HEADER */}
       <header className="flex items-center justify-between px-8 py-4 border-b border-cyan-500/20 bg-slate-900/60 backdrop-blur">
         <div className="flex items-center gap-3">
-          <img
-            src="/icons/dcf6c980-f927-4180-b109-b425da1323ba.png"
-            alt="Lytorânea"
-            className="h-12 w-12 object-contain"
-          />
-          <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-slate-700">
-            <Tablet className="h-5 w-5 text-cyan-400" />
-          </div>
-          <div>
-            <p className="text-sm text-slate-400 leading-none">Dispositivo</p>
-            <p className="text-lg font-semibold tracking-wide">
-              {dispositivo.nome || dispositivo.codigo_dispositivo}
-              <span className="ml-2 text-xs text-cyan-400/80">
-                {dispositivo.codigo_dispositivo}
-              </span>
-            </p>
-            {dispositivo.centro_custo_nome && (
-              <p className="text-xs text-cyan-300/70 leading-tight mt-0.5">
-                Obra: {dispositivo.centro_custo_nome}
+          <button
+            type="button"
+            onClick={() => navigate("/dashboard", { replace: true })}
+            aria-label="Voltar ao sistema LYTOTEC"
+            title="Voltar ao sistema"
+            className="flex items-center gap-3 rounded hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60"
+          >
+            <img
+              src="/icons/dcf6c980-f927-4180-b109-b425da1323ba.png"
+              alt="Lytorânea"
+              className="h-12 w-12 object-contain"
+            />
+            <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-slate-700">
+              <Tablet className="h-5 w-5 text-cyan-400" />
+            </div>
+            <div className="text-left">
+              <p className="text-sm text-slate-400 leading-none">Dispositivo</p>
+              <p className="text-lg font-semibold tracking-wide">
+                {dispositivo.nome || dispositivo.codigo_dispositivo}
+                <span className="ml-2 text-xs text-cyan-400/80">
+                  {dispositivo.codigo_dispositivo}
+                </span>
               </p>
-            )}
-          </div>
+              {dispositivo.centro_custo_nome && (
+                <p className="text-xs text-cyan-300/70 leading-tight mt-0.5">
+                  Obra: {dispositivo.centro_custo_nome}
+                </p>
+              )}
+            </div>
+          </button>
         </div>
 
         <div className="flex items-center gap-6">

@@ -32,7 +32,7 @@ export default defineConfig(({ mode }) => ({
         theme_color: '#DD2C00',
         background_color: '#ffffff',
         display: 'standalone',
-        orientation: 'portrait-primary',
+        orientation: 'any',
         scope: '/',
         start_url: '/',
         id: 'app.lytotec.erp',

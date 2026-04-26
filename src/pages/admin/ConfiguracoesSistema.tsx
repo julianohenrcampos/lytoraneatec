@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import MainLayout from "@/components/layout/MainLayout";
 import { usePermissionGuard } from "@/hooks/usePermissionGuard";
 import { useListarConfiguracoes, useUpdateConfiguracao } from "@/hooks/useConfiguracaoSistema";
@@ -7,6 +7,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Settings, Loader2 } from "lucide-react";
 import { usePageTitle } from "@/contexts/PageTitleContext";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+
+// Chaves que exigem confirmação ao ATIVAR (defesa contra ativação acidental).
+const CHAVES_COM_CONFIRMACAO_ATIVACAO: Record<string, { titulo: string; descricao: string }> = {
+  ponto_integracao_diaria_ativa: {
+    titulo: "Ativar integração automática Ponto → Diária?",
+    descricao:
+      "A partir desta ativação, cada batida de ponto poderá gerar/atualizar automaticamente o apontamento de diária do funcionário convocado. Antes de prosseguir, confirme: biometria cadastrada, usuários treinados, centros de custo revisados, convocações validadas e apontadores instruídos.",
+  },
+};
 
 const ConfiguracoesSistema: React.FC = () => {
   usePageTitle("Configurações do Sistema");
@@ -17,13 +27,32 @@ const ConfiguracoesSistema: React.FC = () => {
   const { data: configs, isLoading } = useListarConfiguracoes();
   const updateMutation = useUpdateConfiguracao();
 
+  const [pendingAtivacao, setPendingAtivacao] = useState<{ chave: string } | null>(null);
+
   if (guardLoading) return <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin h-8 w-8 text-muted-foreground" /></div>;
   if (!canAccess) return null;
 
   const handleToggle = (chave: string, currentValue: string) => {
     const newValue = currentValue === 'true' ? 'false' : 'true';
+    // Confirmação obrigatória somente ao ATIVAR chaves sensíveis
+    if (newValue === 'true' && CHAVES_COM_CONFIRMACAO_ATIVACAO[chave]) {
+      setPendingAtivacao({ chave });
+      return;
+    }
     updateMutation.mutate({ chave, valor: newValue });
   };
+
+  const confirmarAtivacao = () => {
+    if (!pendingAtivacao) return;
+    updateMutation.mutate(
+      { chave: pendingAtivacao.chave, valor: 'true' },
+      { onSettled: () => setPendingAtivacao(null) }
+    );
+  };
+
+  const dialogContent = pendingAtivacao
+    ? CHAVES_COM_CONFIRMACAO_ATIVACAO[pendingAtivacao.chave]
+    : null;
 
   return (
     <MainLayout>
@@ -80,6 +109,20 @@ const ConfiguracoesSistema: React.FC = () => {
           </div>
         )}
       </div>
+
+      {dialogContent && (
+        <ConfirmDialog
+          isOpen={!!pendingAtivacao}
+          onClose={() => setPendingAtivacao(null)}
+          onConfirm={confirmarAtivacao}
+          title={dialogContent.titulo}
+          description={dialogContent.descricao}
+          confirmText="Ativar"
+          cancelText="Cancelar"
+          variant="warning"
+          isLoading={updateMutation.isPending}
+        />
+      )}
     </MainLayout>
   );
 };

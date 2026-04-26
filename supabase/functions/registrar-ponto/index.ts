@@ -513,16 +513,57 @@ Deno.serve(async (req) => {
       );
     }
 
-    // PASSO 19.6 — Integração diárias (presença_diaria + entrada)
+    // PASSO 19.6 — Integração diárias (presença_diaria + entrada) [legado]
     if (tipoRegistro === "presenca_diaria" && payload.tipo_batida === "entrada") {
       await integrarDiariaPresenca(
         supabaseAdmin, funcionarioId, ccId, dataOperacional, batida.id, dataHoraConsiderada
       );
     }
 
-    console.log(
-      `[registrar-ponto] OK func=${funcionarioId} tipo=${payload.tipo_batida} cc=${ccId} dist=${distanciaMetros ?? "N/A"}m status=${statusValidacao} tipoReg=${tipoRegistro} score=${scoreRisco}`
-    );
+    // PASSO 19.7 — Integração automática Ponto → Diária (Fase 1) — não bloqueante
+    // Controlada por feature flag em bd_configuracoes_sistema.
+    let integracao_diaria: any = null;
+    try {
+      let integracaoAtiva = false;
+      try {
+        const { data: flagValor } = await supabaseAdmin.rpc(
+          "get_configuracao_sistema",
+          { p_chave: "ponto_integracao_diaria_ativa" }
+        );
+        integracaoAtiva = flagValor === "true";
+      } catch (flagErr) {
+        console.error("[PONTO][INTEGRACAO_DIARIA_FLAG_ERRO]", flagErr);
+        integracaoAtiva = false; // fail-safe: OFF
+      }
+
+      if (!integracaoAtiva) {
+        console.log("[PONTO][INTEGRACAO_DIARIA] DESATIVADA");
+        integracao_diaria = { status: "desativada" };
+      } else {
+        try {
+          const { data: integ, error: integErr } = await supabaseAdmin.rpc(
+            "integrar_ponto_com_diaria",
+            { p_batida_id: batida.id }
+          );
+          if (integErr) {
+            console.error("[PONTO][INTEGRACAO_DIARIA_ERRO]", integErr);
+            integracao_diaria = { status: "erro", motivo: integErr.message };
+          } else {
+            integracao_diaria = integ;
+            console.log("[PONTO][INTEGRACAO_DIARIA]", { batida_id: batida.id, ...(integ as any) });
+          }
+        } catch (e: any) {
+          console.error("[PONTO][INTEGRACAO_DIARIA_ERRO]", e);
+          integracao_diaria = { status: "erro", motivo: e?.message };
+        }
+      }
+    } catch (eOuter: any) {
+      // jamais bloqueia o registro de ponto
+      console.error("[PONTO][INTEGRACAO_DIARIA_OUTER_ERRO]", eOuter);
+      integracao_diaria = { status: "erro", motivo: eOuter?.message };
+    }
+
+    // (log de OK consolidado anteriormente)
 
     // PASSO 20 — Resposta
     return new Response(
@@ -538,6 +579,7 @@ Deno.serve(async (req) => {
         tipo_registro: tipoRegistro,
         score_risco: scoreRisco,
         alertas,
+        integracao_diaria,
       }),
       { status: 201, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

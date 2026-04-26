@@ -11,6 +11,7 @@ import {
   Gavel,
   ShieldCheck,
   Settings,
+  Clock,
 } from "lucide-react";
 
 interface ModuleTarget {
@@ -118,6 +119,16 @@ const portalModules: PortalModule[] = [
     ],
   },
   {
+    id: "ponto-eletronico",
+    title: "Ponto Eletrônico",
+    description: "Registro de ponto e gestão",
+    icon: Clock,
+    color: "hsl(200, 80%, 45%)",
+    targets: [
+      { route: "/ponto", permission: "ponto_registrar" },
+    ],
+  },
+  {
     id: "admin",
     title: "Administração",
     description: "Gestão de Permissões",
@@ -191,10 +202,10 @@ export default function Portal() {
 
         {/* Modules grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          {portalModules.map((module, index) => {
+          {portalModules.map((module) => {
             const { accessible, route } = resolveTarget(module.targets);
             return (
-              <div key={module.id} className={index === portalModules.length - 1 ? "lg:col-start-2" : ""}>
+              <div key={module.id}>
                 <PortalCard
                   title={module.title}
                   description={module.description}

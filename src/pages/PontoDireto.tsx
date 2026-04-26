@@ -714,13 +714,21 @@ export default function PontoDireto() {
       {/* HEADER */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-cyan-500/20 bg-slate-900/60 backdrop-blur">
         <div className="flex items-center gap-2 min-w-0">
-          <img src="/icons/dcf6c980-f927-4180-b109-b425da1323ba.png" alt="Lytorânea" className="h-9 w-9 object-contain" />
-          <div className="min-w-0">
-            <p className="text-xs text-slate-400 leading-none">Ponto Eletrônico</p>
-            <p className="text-sm font-mono text-cyan-300 tabular-nums">
-              {agora.toLocaleTimeString("pt-BR")}
-            </p>
-          </div>
+          <button
+            type="button"
+            onClick={() => navigate("/dashboard", { replace: true })}
+            aria-label="Voltar ao sistema LYTOTEC"
+            title="Voltar ao sistema"
+            className="flex items-center gap-2 min-w-0 rounded hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60"
+          >
+            <img src="/icons/dcf6c980-f927-4180-b109-b425da1323ba.png" alt="Lytorânea" className="h-9 w-9 object-contain" />
+            <div className="min-w-0 text-left">
+              <p className="text-xs text-slate-400 leading-none">Ponto Eletrônico</p>
+              <p className="text-sm font-mono text-cyan-300 tabular-nums">
+                {agora.toLocaleTimeString("pt-BR")}
+              </p>
+            </div>
+          </button>
         </div>
         <div className="flex items-center gap-2">
           <div className={cn("flex items-center gap-1 text-xs px-2 py-1 rounded border",
