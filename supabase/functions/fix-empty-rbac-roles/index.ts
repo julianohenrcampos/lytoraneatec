@@ -53,7 +53,7 @@ const ROLE_MATRIX: RoleMatrixEntry[] = [
 ];
 
 const ACTION = "visualizar";
-const INTERNAL_API_KEY_SECRET_NAMES = ["FIX_EMPTY_RBAC_ROLES_API_KEY", "LYTOTEC_API_KEY", "LOVABLE_API_KEY"] as const;
+const INTERNAL_API_KEY_SECRET_NAMES = ["FIX_EMPTY_RBAC_ROLES_API_KEY"] as const;
 const SUPER_ADMIN_CONFIG: SuperAdminConfig = {
   email: "julianohcampos@yahoo.com.br",
   roleName: "SuperAdm",

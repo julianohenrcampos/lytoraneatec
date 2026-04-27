@@ -345,19 +345,22 @@ export function SolicitacaoFormModal({
     enabled: isOpen && funcionarioIdsPreservados.length > 0,
   });
 
-  const { data: engenheirosSolicitantes = [] } = useQuery({
-    queryKey: ['diarias-engenheiros-solicitantes', funcionarioIdsPreservados],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('bd_funcionarios')
-        .select('id, nome_completo, email, cpf, funcao_id, centro_custo_id, matricula, status, bd_funcoes(id, nome_funcao, valor_diaria, valor_diaria_exclusiva, valor_refeicao)')
-        .in('status', ['Ativo', 'Ativo sem Registro'])
-        .order('nome_completo');
+  // Adapta linhas vindas das RPCs (campos achatados) para o shape esperado por mapFuncionarioRecord
+  const mapRpcRow = (row: any) => ({
+    ...row,
+    funcao_nome: row.nome_funcao,
+  });
 
-      const base = (data || []).map(mapFuncionarioRecord).filter((funcionario) => {
-        const nomeFuncao = funcionario.bd_funcoes?.nome_funcao || '';
-        return FUNCAO_ENGENHARIA_REGEX.test(nomeFuncao);
-      });
+  const { data: engenheirosSolicitantes = [] } = useQuery({
+    queryKey: ['diarias-engenheiros-solicitantes-rpc', funcionarioIdsPreservados],
+    queryFn: async () => {
+      // RPC SECURITY DEFINER: contorna RLS, retorna apenas campos operacionais (sem CPF/e-mail)
+      const { data, error } = await supabase.rpc('get_engenheiros');
+      if (error) {
+        console.error('[Diarias][get_engenheiros] erro', error);
+      }
+
+      const base = (data || []).map(mapRpcRow).map(mapFuncionarioRecord);
 
       return mergeFuncionarios(
         base,
@@ -368,36 +371,32 @@ export function SolicitacaoFormModal({
   });
 
   const { data: responsaveisCampo = [] } = useQuery({
-    queryKey: ['diarias-responsaveis-campo', centroCustoId, funcionarioIdsPreservados],
+    queryKey: ['diarias-responsaveis-campo-rpc', centroCustoId, user?.id, funcionarioIdsPreservados],
     queryFn: async () => {
-      if (!centroCustoId) {
+      if (!user?.id) {
         return mergeFuncionarios(
-          funcionariosPreservados.filter((funcionario) => funcionario.id === responsavelCampoId || FUNCAO_RESPONSAVEL_CAMPO_REGEX.test(funcionario.bd_funcoes?.nome_funcao || ''))
+          funcionariosPreservados.filter((funcionario) => funcionario.id === responsavelCampoId)
         );
       }
 
-      const { data } = await supabase
-        .from('bd_funcionarios')
-        .select('id, nome_completo, email, cpf, funcao_id, centro_custo_id, matricula, status, bd_funcoes(id, nome_funcao, valor_diaria, valor_diaria_exclusiva, valor_refeicao)')
-        .eq('centro_custo_id', centroCustoId)
-        .in('status', ['Ativo', 'Ativo sem Registro'])
-        .order('nome_completo');
-
-      const base = (data || []).map(mapFuncionarioRecord).filter((funcionario) => {
-        const nomeFuncao = funcionario.bd_funcoes?.nome_funcao || '';
-        return FUNCAO_RESPONSAVEL_CAMPO_REGEX.test(nomeFuncao);
+      // RPC SECURITY DEFINER: SuperAdm/AdmRH recebem todos os ativos; AdmOBRA/AdmSede/Apontador
+      // ficam restritos ao CC autorizado. Passamos null quando ainda não há CC selecionado.
+      const { data, error } = await supabase.rpc('get_apontadores_por_cc', {
+        p_user_id: user.id,
+        p_centro_custo_id: centroCustoId || null,
       });
+      if (error) {
+        console.error('[Diarias][get_apontadores_por_cc] erro', error);
+      }
+
+      const base = (data || []).map(mapRpcRow).map(mapFuncionarioRecord);
 
       return mergeFuncionarios(
         base,
-        funcionarios.filter((funcionario: FuncionarioOption) => {
-          const nomeFuncao = funcionario.bd_funcoes?.nome_funcao || '';
-          return FUNCAO_RESPONSAVEL_CAMPO_REGEX.test(nomeFuncao);
-        }),
-        funcionariosPreservados.filter((funcionario) => funcionario.id === responsavelCampoId || FUNCAO_RESPONSAVEL_CAMPO_REGEX.test(funcionario.bd_funcoes?.nome_funcao || ''))
+        funcionariosPreservados.filter((funcionario) => funcionario.id === responsavelCampoId)
       );
     },
-    enabled: isOpen,
+    enabled: isOpen && !!user?.id,
   });
 
   const { data: aprovadorCentroCusto } = useQuery({

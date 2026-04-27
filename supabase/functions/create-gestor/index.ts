@@ -58,26 +58,64 @@ Deno.serve(async (req) => {
 
     console.log('👤 Usuário solicitante:', requestingUser.email);
 
-    // Verificar se é SuperAdmin
-    const superAdminEmails = ['julianohcampos@yahoo.com.br', 'ramonvalentevalente@gmail.com'];
-    const { data: requestingProfile } = await supabaseAdmin
-      .from('profiles')
-      .select('funcoes, funcao_sistema')
-      .eq('id', requestingUser.id)
-      .single();
+    // Capturar IP e UA para auditoria
+    const clientIp =
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      req.headers.get('cf-connecting-ip') ||
+      req.headers.get('x-real-ip') ||
+      'unknown';
+    const userAgent = req.headers.get('user-agent') || 'unknown';
 
-    const isSuperAdmin = 
-      superAdminEmails.includes(requestingUser.email || '') ||
-      requestingProfile?.funcoes?.includes('SuperAdm') ||
-      requestingProfile?.funcao_sistema === 'SuperAdm';
+    // [Fase 2] Verificação SuperAdm: prioridade RPC has_role, fallback profiles.funcoes (legado mantido)
+    // Whitelist de e-mails hardcoded REMOVIDA nesta fase.
+    let isSuperAdmin = false;
+    let superAdmSource = 'none';
+
+    const { data: hasRoleData, error: hasRoleError } = await supabaseAdmin.rpc('has_role', {
+      p_role: 'SuperAdm',
+      p_user_id: requestingUser.id,
+    });
+    if (!hasRoleError && hasRoleData === true) {
+      isSuperAdmin = true;
+      superAdmSource = 'has_role';
+    } else {
+      // Fallback legado: profiles.funcoes / funcao_sistema (mantido conforme escopo aprovado)
+      const { data: requestingProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('funcoes, funcao_sistema')
+        .eq('id', requestingUser.id)
+        .single();
+      if (
+        requestingProfile?.funcoes?.includes('SuperAdm') ||
+        requestingProfile?.funcao_sistema === 'SuperAdm'
+      ) {
+        isSuperAdmin = true;
+        superAdmSource = 'profiles_legacy';
+      }
+    }
 
     if (!isSuperAdmin) {
       console.error('❌ Usuário não é SuperAdmin');
+      // Audit log: tentativa negada
+      await supabaseAdmin.from('bd_security_audit_log').insert({
+        event_type: 'create_gestor_denied',
+        rpc_name: 'create-gestor',
+        user_id: requestingUser.id,
+        ip: clientIp,
+        user_agent: userAgent,
+        contexto: {
+          email_solicitante: requestingUser.email,
+          motivo: 'usuario_nao_e_superadm',
+          fase: 'fase2_hardening',
+        },
+      });
       return new Response(
         JSON.stringify({ error: 'Apenas SuperAdmins podem cadastrar gestores' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log(`✅ SuperAdm validado via: ${superAdmSource}`);
 
     // Parse request body
     const body: CreateGestorRequest = await req.json();
@@ -238,6 +276,23 @@ Deno.serve(async (req) => {
       nome_completo,
       tipo_acesso,
       funcoes
+    });
+
+    // [Fase 2] Audit log: sucesso
+    await supabaseAdmin.from('bd_security_audit_log').insert({
+      event_type: 'create_gestor_success',
+      rpc_name: 'create-gestor',
+      user_id: requestingUser.id,
+      target_id: newUserId,
+      ip: clientIp,
+      user_agent: userAgent,
+      contexto: {
+        email_solicitante: requestingUser.email,
+        gestor_criado_email: email,
+        tipo_acesso,
+        funcoes,
+        superadm_source: superAdmSource,
+      },
     });
 
     return new Response(

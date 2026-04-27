@@ -16569,6 +16569,10 @@ export type Database = {
         Args: { p_user_id?: string }
         Returns: string[]
       }
+      fn_funcionarios_can_select_row: {
+        Args: { p_funcionario_id: string; p_user_id: string }
+        Returns: boolean
+      }
       fn_get_funcionario_sensitive: {
         Args: { p_funcionario_id: string; p_origem?: string }
         Returns: Json
@@ -16825,6 +16829,21 @@ export type Database = {
         Args: { p_user_id?: string }
         Returns: string[]
       }
+      get_apontadores_por_cc: {
+        Args: { p_centro_custo_id: string; p_user_id: string }
+        Returns: {
+          centro_custo_id: string
+          funcao_id: string
+          id: string
+          matricula: string
+          nome_completo: string
+          nome_funcao: string
+          status: string
+          valor_diaria: number
+          valor_diaria_exclusiva: number
+          valor_refeicao: number
+        }[]
+      }
       get_auditoria_alertas_24h: { Args: never; Returns: Json }
       get_auditoria_sistema: {
         Args: {
@@ -16843,6 +16862,21 @@ export type Database = {
       }
       get_configuracao_sistema: { Args: { p_chave: string }; Returns: string }
       get_data_operacional_atual: { Args: never; Returns: string }
+      get_engenheiros: {
+        Args: never
+        Returns: {
+          centro_custo_id: string
+          funcao_id: string
+          id: string
+          matricula: string
+          nome_completo: string
+          nome_funcao: string
+          status: string
+          valor_diaria: number
+          valor_diaria_exclusiva: number
+          valor_refeicao: number
+        }[]
+      }
       get_etapas_utilizadas: {
         Args: { p_checklist_id?: string; p_obra_id: string }
         Returns: string[]

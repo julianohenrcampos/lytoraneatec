@@ -63,31 +63,31 @@ const RegistroCargas: React.FC = () => {
   }, [searchParams, setSearchParams, toast]);
 
   useEffect(() => {
-    if (filters.data_inicio) {
-      console.log("[RegistroCargas] Setting selected date from filter:", filters.data_inicio);
-      setSelectedDate(new Date(filters.data_inicio));
-    } else {
-      console.log("[RegistroCargas] Resetting to current date");
-      setSelectedDate(new Date());
-    }
-    
     const hasFilters = Object.values(filters).some(value => value !== undefined && value !== '' && value !== 'all');
-    console.log("[RegistroCargas] Setting isFiltered:", hasFilters);
     setIsFiltered(hasFilters);
+
+    if (filters.data_inicio) {
+      const novaData = new Date(filters.data_inicio);
+      setSelectedDate((prev) =>
+        prev.getTime() === novaData.getTime() ? prev : novaData
+      );
+    }
+    // Importante: NÃO resetar a data para `new Date()` quando filters muda de referência,
+    // pois isso instabiliza o queryKey e causa loops de re-render/refetch.
   }, [filters]);
 
+  // Chave estável para o React Query (string em vez de instância de Date)
+  const selectedDateKey = format(selectedDate, "yyyy-MM-dd");
+
   const { data: entregas = [], isLoading: isLoadingEntregas } = useQuery({
-    queryKey: ['listaProgramacaoEntregas', selectedDate, isFiltered, filters, refreshTrigger],
+    queryKey: ['listaProgramacaoEntregas', selectedDateKey, isFiltered, filters, refreshTrigger],
     queryFn: () => {
-      console.log("[RegistroCargas] Fetching entregas:", {
-        selectedDate,
-        isFiltered,
-        filters
-      });
       return isFiltered 
         ? fetchListaProgramacaoEntregaFiltered(filters)
         : fetchListaProgramacaoEntregaByDate(selectedDate);
     },
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
   });
 
   const { data: caminhoes = [] } = useQuery({
@@ -137,15 +137,17 @@ const RegistroCargas: React.FC = () => {
 
   // Auto-abrir formulário se estiver em modo retorno
   useEffect(() => {
-    if (modoRetorno && entregas.length > 0) {
-      const entregaRetorno = entregas.find(e => e.id === modoRetorno.entregaId);
-      if (entregaRetorno) {
-        console.log('🎯 Auto-abrindo formulário para retorno de massa');
-        handleEntregaClick(entregaRetorno);
-        setModoRetorno(null); // Limpar após usar
-      }
+    if (!modoRetorno?.ativo) return;
+    const entregaRetorno = entregas.find(e => e.id === modoRetorno.entregaId);
+    if (entregaRetorno) {
+      console.log('🎯 Auto-abrindo formulário para retorno de massa');
+      setModoRetorno(null); // Limpar antes de abrir para evitar re-disparo
+      handleEntregaClick(entregaRetorno);
     }
-  }, [modoRetorno, entregas]);
+    // Dependência intencional apenas em modoRetorno: ao mudar entregas (refetch),
+    // não reabrir o formulário automaticamente.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modoRetorno]);
 
   const handleFilter = (filterData: RegistroCargaFilters) => {
     console.log("[RegistroCargas] Applying filters:", filterData);

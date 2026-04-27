@@ -23,12 +23,79 @@ interface AbastecimentoRequest {
   saveToCache?: boolean
 }
 
+/**
+ * [Fase 3A] Autoriza chamada ao guardian-web-proxy.
+ * - Exige JWT Supabase válido.
+ * - Exige permissão `gestao_abastecimento_view` (criada na Fase 3A).
+ * - Vinculada a SuperAdm, AdmTransporte e AdmEquipamentos. AdmSede NÃO tem acesso.
+ * - Sem fallback. Negativas são registradas em bd_security_audit_log.
+ */
+async function authorize(req: Request, supabaseAdmin: ReturnType<typeof createClient>) {
+  const authHeader = req.headers.get('Authorization')
+  if (!authHeader?.startsWith('Bearer ')) {
+    return { ok: false as const, status: 401, error: 'Token de autorização ausente' }
+  }
+  const token = authHeader.replace('Bearer ', '')
+  const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token)
+  if (userError || !userData?.user) {
+    return { ok: false as const, status: 401, error: 'Token inválido' }
+  }
+  const user = userData.user
+
+  const clientIp =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    req.headers.get('cf-connecting-ip') ||
+    req.headers.get('x-real-ip') ||
+    'unknown'
+  const userAgent = req.headers.get('user-agent') || 'unknown'
+
+  // Verificar permissão obrigatória (SuperAdm tem bypass automático em fn_has_permission)
+  const { data: hasPerm, error: hasPermError } = await supabaseAdmin.rpc('has_permission', {
+    p_permission_name: 'gestao_abastecimento_view',
+    p_user_id: user.id,
+  })
+
+  if (!hasPermError && hasPerm === true) {
+    return { ok: true as const, user, clientIp, userAgent }
+  }
+
+  // Negar e registrar em audit log
+  await supabaseAdmin.from('bd_security_audit_log').insert({
+    event_type: 'guardian_proxy_denied',
+    rpc_name: 'guardian-web-proxy',
+    user_id: user.id,
+    ip: clientIp,
+    user_agent: userAgent,
+    contexto: {
+      email: user.email,
+      motivo: 'sem_permissao_gestao_abastecimento_view',
+      fase: '3A',
+      has_permission_error: hasPermError?.message || null,
+    },
+  })
+  return { ok: false as const, status: 403, error: 'Permissão negada: gestao_abastecimento_view' }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    // [Fase 3A] Autorização obrigatória — sem fallback
+    const auth = await authorize(req, supabaseAdmin)
+    if (!auth.ok) {
+      return new Response(
+        JSON.stringify({ erro: auth.error }),
+        { status: auth.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     const url = new URL(req.url)
     const path = url.pathname
 
@@ -115,11 +182,6 @@ Deno.serve(async (req) => {
       // Salvar no cache do Supabase se solicitado
       if (saveToCache && abastecimentos.length > 0) {
         try {
-          const supabaseClient = createClient(
-            Deno.env.get('SUPABASE_URL') ?? '',
-            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-          )
-
           const registrosParaInserir = abastecimentos.map((abast: any) => ({
             identificador: abast.identificador,
             tipo_procedimento: abast.tipo_procedimento,
@@ -154,7 +216,7 @@ Deno.serve(async (req) => {
             data_integracao: new Date().toISOString()
           }))
 
-          const { error: upsertError } = await supabaseClient
+          const { error: upsertError } = await supabaseAdmin
             .from('bd_abastecimentos')
             .upsert(registrosParaInserir, { onConflict: 'identificador' })
 

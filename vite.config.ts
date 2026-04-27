@@ -11,6 +11,8 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
+  // Drop console.log/info/debug/warn (preserva console.error) apenas em build de produção
+  esbuild: mode === 'production' ? { drop: ['debugger'], pure: ['console.log', 'console.info', 'console.debug', 'console.warn'] } : undefined,
   plugins: [
     react(),
     VitePWA({
@@ -57,7 +59,7 @@ export default defineConfig(({ mode }) => ({
     dedupe: ["react", "react-dom", "react/jsx-runtime"],
   },
   build: {
-    sourcemap: mode === 'development',
+    sourcemap: false,
     assetsInlineLimit: 4096,
     chunkSizeWarningLimit: 1000,
     target: 'esnext',

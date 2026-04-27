@@ -340,14 +340,18 @@ export const usePermission = () => {
     loadPermissions();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      // Apenas reagir a eventos que realmente mudam a identidade do usuário.
+      // INITIAL_SESSION e TOKEN_REFRESHED são disparados com frequência e
+      // causariam invalidação de cache + piscar da UI.
       if (event === 'SIGNED_OUT') {
         _cache = null;
         _cacheUserId = null;
         setState({ ...EMPTY_STATE, isLoading: false, canAccessDashboard: false });
-      } else {
-        _cache = null; // Invalidate cache on auth change
+      } else if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        _cache = null; // Invalidate cache on real auth change
         loadPermissions();
       }
+      // Ignorar INITIAL_SESSION, TOKEN_REFRESHED, PASSWORD_RECOVERY, etc.
     });
 
     return () => {
