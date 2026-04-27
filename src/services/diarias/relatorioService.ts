@@ -511,3 +511,98 @@ export async function aprovarRelatorioFinal(convocacaoId: string, comentario?: s
       comentario
     });
 }
+
+// =====================================================
+// MATERIALIZED VIEW — RPCs OTIMIZADAS
+// =====================================================
+
+/**
+ * Traduz erros das RPCs em mensagens amigáveis.
+ */
+function traduzirErroRpc(message: string): string {
+  if (message.includes('NAO_AUTENTICADO')) return 'Sessão expirada. Faça login novamente.';
+  if (message.includes('PERIODO_OBRIGATORIO')) return 'Informe a data de início e a data de fim.';
+  if (message.includes('PERIODO_INVALIDO')) return 'A data de fim deve ser posterior à data de início.';
+  if (message.includes('PERIODO_MAXIMO_EXCEDIDO')) return 'O período máximo para exportação completa é de 92 dias.';
+  if (message.includes('VOLUME_EXCEDIDO')) return 'A consulta retornou mais de 50.000 linhas. Reduza o período ou aplique filtros.';
+  return message;
+}
+
+export interface RelatorioPaginadoParams {
+  data_inicio: string;
+  data_fim: string;
+  centro_custo_ids?: string[];
+  funcionario_ids?: string[];
+  offset?: number;
+  limit?: number;
+}
+
+export interface RelatorioPaginadoResult {
+  rows: any[];
+  total_count: number;
+}
+
+/**
+ * Busca paginada do relatório via materialized view (server-side).
+ * Datas obrigatórias. Permissão validada no servidor.
+ */
+export async function getRelatorioFolhaPaginado(
+  params: RelatorioPaginadoParams
+): Promise<RelatorioPaginadoResult> {
+  const { data, error } = await supabase.rpc('get_relatorio_diarias', {
+    p_data_inicio: params.data_inicio,
+    p_data_fim: params.data_fim,
+    p_centro_custo_ids: params.centro_custo_ids || null,
+    p_funcionario_ids: params.funcionario_ids || null,
+    p_offset: params.offset ?? 0,
+    p_limit: Math.min(params.limit ?? 50, 200),
+  });
+
+  if (error) {
+    throw new Error(traduzirErroRpc(error.message));
+  }
+
+  const result = (data as any) || { rows: [], total_count: 0 };
+  return {
+    rows: result.rows || [],
+    total_count: Number(result.total_count) || 0,
+  };
+}
+
+/**
+ * Exportação completa via MV (até 92 dias / 50.000 linhas).
+ */
+export async function getRelatorioFolhaCompleto(params: {
+  data_inicio: string;
+  data_fim: string;
+  centro_custo_ids?: string[];
+  funcionario_ids?: string[];
+}): Promise<RelatorioPaginadoResult> {
+  const { data, error } = await supabase.rpc('get_relatorio_diarias_full', {
+    p_data_inicio: params.data_inicio,
+    p_data_fim: params.data_fim,
+    p_centro_custo_ids: params.centro_custo_ids || null,
+    p_funcionario_ids: params.funcionario_ids || null,
+  });
+
+  if (error) {
+    throw new Error(traduzirErroRpc(error.message));
+  }
+
+  const result = (data as any) || { rows: [], total_count: 0 };
+  return {
+    rows: result.rows || [],
+    total_count: Number(result.total_count) || 0,
+  };
+}
+
+/**
+ * Força atualização da materialized view (apenas SuperAdm em prática).
+ */
+export async function refreshRelatorioDiarias(force = true): Promise<{ refreshed: boolean }> {
+  const { data, error } = await supabase.rpc('refresh_relatorio_diarias', { p_force: force });
+  if (error) {
+    throw new Error(traduzirErroRpc(error.message));
+  }
+  return (data as any) || { refreshed: false };
+}

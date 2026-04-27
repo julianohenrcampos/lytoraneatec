@@ -1,5 +1,11 @@
 # Sistema de Permissões - Solução Definitiva
 
+> **Status atual:** este documento virou referência histórica.
+>
+> A referência operacional oficial do módulo administrativo agora é `docs/RBAC_ADMIN_ARQUITETURA.md`.
+>
+> Use o novo documento para evolução da `/admin/permissoes`, criação de perfis, manutenção do RBAC blindado e validação da camada administrativa.
+
 ## 🎯 Problema Resolvido
 
 O sistema enfrentava problemas recorrentes com:
@@ -32,9 +38,11 @@ O sistema enfrentava problemas recorrentes com:
 - **Arquivo**: `src/components/layout/AppSidebar.tsx`
 
 ### 4. **SuperAdmins Automáticos**
-Emails com acesso automático total:
-- `julianohcampos@yahoo.com.br`
-- `ramonvalentevalente@gmail.com`
+
+Os e-mails com acesso automático total são mantidos em uma lista centralizada
+e versionada em `src/config/superAdminEmails.ts`. Para adicionar ou revogar
+acesso emergencial, edite essa lista — não há e-mails pessoais espalhados
+pelos hooks de permissão.
 
 ## 🔧 Arquivos Modificados
 
@@ -99,13 +107,14 @@ Se o sistema voltar a falhar:
 4. **Verificar logs** do console
 5. **Executar migração RLS** novamente se necessário
 
-## 📞 Contato
+## 📞 Suporte
 
-Para dúvidas sobre este sistema:
-- Revisar esta documentação
-- Verificar logs do console
-- Testar com diferentes tipos de usuário
-- Contatar desenvolvedor se necessário
+Para dúvidas sobre este subsistema:
+
+- Revisar esta documentação e `docs/RBAC_ADMIN_ARQUITETURA.md`
+- Verificar logs do console do navegador
+- Testar com diferentes perfis de usuário
+- Acionar a Equipe de Desenvolvimento do Sistema Corporativo LYTOTEC
 
 ---
 

@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { DiariasReportContext, RelatorioFilters } from '@/types/diarias';
 import {
@@ -26,7 +26,9 @@ export function useRelatorioFolha(filters?: RelatorioFilters, scope?: RelatorioS
     queryFn: () => getRelatorioFolha(filters, scope),
     retry: 2,
     retryDelay: 1000,
-    staleTime: 30000,
+    staleTime: 2 * 60 * 1000, // 2 minutos — evita refetch excessivo
+    placeholderData: keepPreviousData, // mantém dados anteriores enquanto refaz fetch
+    refetchOnWindowFocus: false,
   });
 }
 

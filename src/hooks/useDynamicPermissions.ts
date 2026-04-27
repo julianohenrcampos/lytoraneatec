@@ -27,6 +27,8 @@ export const useHasPermissionDynamic = (requiredPermission: string): boolean => 
 
   if (isLoading) return false;
   if (isSuperAdmin) return true;
+  // Wildcard explícito: rede de segurança caso uma role tenha permissão '*'.
+  if (permissions.includes('*')) return true;
 
   return permissions.includes(requiredPermission);
 };
@@ -36,6 +38,7 @@ export const useHasAnyPermissionDynamic = (requiredPermissions: string[]): boole
 
   if (isLoading) return false;
   if (isSuperAdmin) return true;
+  if (permissions.includes('*')) return true;
 
   return requiredPermissions.some((permission) => permissions.includes(permission));
 };

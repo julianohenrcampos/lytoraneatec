@@ -14,6 +14,7 @@ O Sistema de Gestão Integrada implementa múltiplas camadas de segurança, incl
 6. [Proteção de Dados](#proteção-de-dados)
 7. [Segurança de Rede](#segurança-de-rede)
 8. [Compliance](#compliance)
+9. [Edge Functions, RPCs e APIs Internas](#edge-functions-rpcs-e-apis-internas)
 
 ## Arquitetura de Segurança
 
@@ -658,6 +659,110 @@ export const rateLimiter = {
 ```
 
 ## Compliance
+
+## Edge Functions, RPCs e APIs Internas
+
+### Plano de Hardening
+
+- **Autenticação obrigatória** para toda Edge Function sensível via JWT válido ou chave de integração explícita quando o fluxo for máquina-a-máquina.
+- **Autorização centralizada** no banco com `fn_backend_can_invoke(...)`, evitando decisões espalhadas e divergentes entre funções.
+- **Auditoria unificada** em `bd_backend_exec_auditoria`, registrando recurso, contexto, risco, resultado, IP, request ID e ator.
+- **Service role com escopo mínimo**: mantido apenas nas funções que realmente precisam atravessar RLS, sempre precedido por validação de identidade/permissão.
+- **Resposta mínima necessária**: Edge Functions administrativas devem retornar só status e metadados essenciais, sem expor payloads sensíveis desnecessários.
+
+### Padrão técnico seguro
+
+Toda função backend sensível deve seguir este fluxo:
+
+1. Tratar preflight com headers CORS padronizados.
+2. Gerar `requestId` para rastreabilidade.
+3. Validar identidade com JWT (`getClaims`) ou chave de integração explícita.
+4. Validar autorização com regra central (`fn_backend_can_invoke`).
+5. Executar lógica mínima necessária com service role apenas quando indispensável.
+6. Auditar sucesso, negação e erro em `bd_backend_exec_auditoria`.
+7. Retornar somente o payload mínimo compatível com a integração atual.
+
+### Revisão de CORS
+
+- CORS permanece compatível com o frontend atual, mas agora com cabeçalhos permitidos explicitamente listados.
+- Funções sensíveis não devem depender de CORS aberto como controle de segurança; CORS é compatibilidade, não autorização.
+- Cabeçalhos adicionais usados no projeto (`x-api-key`, `x-request-id`) entram apenas onde o fluxo exige.
+
+### Revisão do uso de service role
+
+- **Permitido** em rotinas administrativas, syncs e jobs internos que precisam gravar ou ler fora do escopo do usuário.
+- **Obrigatório** validar identidade e permissão antes de qualquer operação com service role em funções interativas.
+- **Vedado** confiar em campos enviados pelo cliente para representar usuário autorizado sem revalidação backend.
+
+### Checklist de adequação
+
+- [ ] Valida JWT com `getClaims` ou usa segredo de integração explícito.
+- [ ] Não confia em `user_id` enviado no body para autorização.
+- [ ] Passa por autorização central antes da lógica privilegiada.
+- [ ] Usa service role somente após autenticação/autorização.
+- [ ] Retorna payload mínimo e sem dados sensíveis excedentes.
+- [ ] Registra auditoria de sucesso, falha e acesso negado.
+- [ ] Mantém compatibilidade com chamadas existentes do frontend ou integrações externas.
+
+### Observação operacional
+
+- **Rate limiting backend não foi implementado aqui** porque a infraestrutura atual do projeto ainda não tem primitives confiáveis para isso; o hardening foi feito via autenticação, autorização, auditoria e redução de superfície exposta.
+
+## Licitações, PNCP e Dados Estratégicos
+
+### Plano de blindagem
+
+- **Separação por sensibilidade**: o monitoramento operacional continua disponível para perfis autorizados, enquanto score, grupos de matching, prioridades e parâmetros estratégicos ficam restritos a perfis de gestão e relatório estratégico.
+- **RLS forçada nas tabelas centrais**: `bd_pncp_contratacoes`, `bd_pncp_config_monitoramento`, `bd_pncp_perfis_busca`, `bd_orgaos_publicos`, `bd_orgaos_alias`, `bd_licitacoes_orgaos_pendentes` e `bd_pncp_sync_log` operam com `FORCE ROW LEVEL SECURITY`.
+- **Funções de acesso dedicadas**: `fn_pncp_can_view`, `fn_pncp_can_manage`, `fn_pncp_can_view_strategic`, `fn_pncp_can_manage_orgaos` e `fn_pncp_can_access_sync_log_row` centralizam a decisão de acesso e evitam regras duplicadas espalhadas.
+- **Compatibilidade preservada**: o fluxo atual de monitoramento permanece funcional para quem já tinha permissão do módulo, sem exigir mudança nas telas existentes.
+
+### Policies RLS aplicadas
+
+#### `bd_pncp_contratacoes`
+- Perfis autenticados com permissão de monitoramento, dashboard ou relatório podem visualizar o conjunto operacional.
+- Inclusão e edição ficam limitadas ao dono do registro ou a quem possui permissão de gestão/configuração.
+- Exclusão fica restrita a perfis de gestão do módulo.
+
+#### `bd_pncp_config_monitoramento`
+- Apenas perfis de gestão/configuração podem visualizar e alterar parâmetros de matching, filtros, agenda de sincronização e thresholds estratégicos.
+- Usuários operacionais deixam de enxergar regras internas de classificação.
+
+#### `bd_pncp_perfis_busca`
+- Cada usuário continua vendo e operando seus próprios perfis.
+- Perfis de gestão podem administrar perfis de busca quando necessário para suporte, revisão ou padronização.
+
+#### `bd_orgaos_publicos`, `bd_orgaos_alias`, `bd_licitacoes_orgaos_pendentes`
+- Leitura liberada apenas para perfis efetivamente autorizados no módulo PNCP.
+- Classificação, criação de alias e manutenção cadastral ficam restritas a perfis de gestão.
+- A RPC `classificar_orgao_pendente` agora nega execução sem autenticação e permissão real.
+
+#### `bd_pncp_sync_log`
+- Cada usuário vê seu próprio histórico.
+- Gestores e perfis estratégicos autorizados podem visualizar logs ampliados para auditoria e supervisão.
+
+### Proteção de configurações e scoring
+
+- **Camada operacional**: a view `vw_pncp_contratacoes_operacional` expõe apenas os campos necessários à operação diária, ocultando score, grupos de matching, perfil vinculado e metadados estratégicos completos.
+- **Camada estratégica**: a view `vw_pncp_contratacoes_estrategico` mantém acesso ao conjunto completo apenas para perfis autorizados por `fn_pncp_can_view_strategic`.
+- **Parâmetros internos blindados**: score mínimo, pesos, prioridades e critérios de matching permanecem acessíveis apenas por quem pode gerenciar configurações PNCP.
+- **Órgãos e aliases com escopo controlado**: a base de classificação continua consultável por usuários do módulo, mas alterações não ficam mais expostas amplamente.
+
+### Checklist de validação
+
+- [x] Tabelas críticas do PNCP com RLS habilitada e forçada.
+- [x] Configuração estratégica do matching restrita a perfis de gestão.
+- [x] Perfis de busca limitados ao próprio dono ou gestor autorizado.
+- [x] Score, grupos de matching e prioridade segregados em visão estratégica.
+- [x] Classificação manual de órgãos protegida por verificação de autenticação e permissão.
+- [x] Logs de sincronização limitados ao próprio usuário ou escopo gerencial.
+- [ ] Validar em produção/homologação com usuários de perfil operacional, gestor de licitações e SuperAdm.
+- [ ] Confirmar que dashboards e relatórios existentes usam a visão correta para cada nível de sensibilidade.
+
+### Observações pós-migração
+
+- Permanecem alertas globais antigos no linter do projeto (views legadas com `SECURITY DEFINER`, funções sem `search_path` fixo, buckets públicos remanescentes e ajustes de segurança de plataforma). Eles não foram introduzidos por esta blindagem do PNCP.
+- Foi removida a política redundante de `service_role` criada inicialmente no hardening PNCP para evitar permissões amplas desnecessárias.
 
 ### LGPD (Lei Geral de Proteção de Dados)
 

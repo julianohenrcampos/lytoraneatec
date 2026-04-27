@@ -143,8 +143,9 @@ const portalModules: PortalModule[] = [
 
 
 export default function Portal() {
-  const { permissions, isSuperAdmin, isLoading } = usePermission();
+  const { permissions, isSuperAdmin, isLoading, permissionsError, clearCache } = usePermission();
   const [userName, setUserName] = useState<string>("");
+  const [slowMessage, setSlowMessage] = useState<string>("Carregando...");
 
   useEffect(() => {
     const fetchUserName = async () => {
@@ -165,9 +166,40 @@ export default function Portal() {
     fetchUserName();
   }, []);
 
+  // Mensagem progressiva durante carregamento das permissões
+  useEffect(() => {
+    if (!isLoading) {
+      setSlowMessage("Carregando...");
+      return;
+    }
+    const t1 = setTimeout(() => setSlowMessage("Carregando permissões..."), 4000);
+    const t2 = setTimeout(
+      () => setSlowMessage("Está demorando mais que o normal. Aguarde ou tente recarregar."),
+      10000
+    );
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [isLoading]);
+
+  const hasWildcard = permissions.includes('*');
+
+  // Log único de diagnóstico
+  useEffect(() => {
+    if (!isLoading) {
+      console.log('🏠 [Portal] Estado consolidado:', {
+        isSuperAdmin,
+        permissionsCount: permissions.length,
+        hasWildcard,
+        permissionsError,
+      });
+    }
+  }, [isLoading, isSuperAdmin, permissions, hasWildcard, permissionsError]);
+
   const resolveTarget = (targets: ModuleTarget[]): { accessible: boolean; route: string } => {
     if (targets.length === 0) return { accessible: false, route: "/" };
-    if (isSuperAdmin) {
+    if (isSuperAdmin || hasWildcard) {
       return { accessible: true, route: targets[0].route };
     }
     const match = targets.find((t) => permissions.includes(t.permission));
@@ -180,11 +212,36 @@ export default function Portal() {
   if (isLoading) {
     return (
       <PortalLayout userName={userName}>
-        <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <p className="text-sm text-muted-foreground">{slowMessage}</p>
         </div>
-      </PortalLayout>);
+      </PortalLayout>
+    );
+  }
 
+  if (permissionsError && !isSuperAdmin) {
+    return (
+      <PortalLayout userName={userName}>
+        <div className="flex items-center justify-center min-h-[60vh] px-4">
+          <div className="max-w-md w-full rounded-lg border border-destructive/30 bg-destructive/5 p-6 space-y-4 text-center">
+            <h2 className="text-lg font-semibold text-foreground">
+              Não foi possível carregar suas permissões
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Tente novamente em alguns instantes. Se o problema persistir, entre em contato com o TI.
+            </p>
+            <button
+              type="button"
+              onClick={() => clearCache()}
+              className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              Tentar novamente
+            </button>
+          </div>
+        </div>
+      </PortalLayout>
+    );
   }
 
   return (

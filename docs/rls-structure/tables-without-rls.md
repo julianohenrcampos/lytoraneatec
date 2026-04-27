@@ -1,10 +1,10 @@
-# Tabelas sem RLS Habilitado ⚠️ CRÍTICO
+# Tabelas sem RLS Habilitado — HISTÓRICO (RESOLVIDO)
 
-## ⚠️ AVISO DE SEGURANÇA
+## ⚠️ AVISO
 
-**17 tabelas estão completamente expostas sem controle de acesso RLS. Isso representa um risco crítico de segurança, pois qualquer usuário autenticado pode acessar, modificar ou deletar dados de todas essas tabelas.**
+> **Status atualizado 2026-04-26:** Este documento descreve a fotografia de 2025-01-17. **Todas as 17 tabelas listadas abaixo já receberam RLS habilitado e policies em migrations posteriores.** Confirmado via `supabase--linter` em 2026-04-26: nenhuma tabela do schema `public` está atualmente sem RLS. Mantido por valor histórico/auditoria.
 
-## Tabelas Desprotegidas
+## Tabelas Desprotegidas (à época — agora protegidas)
 
 ### 1. bd_funcoes_permissao
 - **Risco**: CRÍTICO

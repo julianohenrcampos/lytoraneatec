@@ -1,11 +1,16 @@
-
+/**
+ * @deprecated Este módulo opera sobre a tabela legada `bd_funcoes_permissao`.
+ * A fonte oficial é `bd_user_roles` + `bd_role_permission_actions` (RBAC novo),
+ * consumida via `usePermission`. Mantido apenas para suportar usuários ainda
+ * vinculados ao fallback legado. Não criar novos usos.
+ */
 import { supabase } from "@/integrations/supabase/client";
 import { 
   FuncaoPermissao, 
   FuncaoPermissaoFormData
 } from "@/types/permissao";
 
-// Role Permissions CRUD operations
+// Role Permissions CRUD operations (LEGACY)
 export const fetchFuncoesPermissao = async (filters: { nome_funcao?: string }) => {
   let query = supabase.from("bd_funcoes_permissao").select("*");
 

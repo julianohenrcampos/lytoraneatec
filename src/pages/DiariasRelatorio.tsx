@@ -18,13 +18,15 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  Trash2 } from
+  Trash2,
+  RefreshCw } from
 "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { generateCompiladoDiariasPDF, generateRelatorioDiariasPDFPorPeriodo } from "@/services/pdfService";
 import { generateRelatorioFolhaPDF } from "@/services/pdf/relatorioFolhaPdf";
 import { generateProtocoloDocumentosPDF } from "@/services/pdf/protocoloDocumentosPdf";
 import { deletePresencaRegistro } from "@/services/diarias/presencasService";
+import { refreshRelatorioDiarias } from "@/services/diarias/relatorioService";
 import { isRelatorioItemConfirmado } from '@/services/diarias/relatorioMetrics';
 
 import { RelatorioSemanalModal } from "@/components/diarias/RelatorioSemanalModal";
@@ -88,8 +90,21 @@ export default function DiariasRelatorio() {
   // Filters - sem filtro padrão para exibir todos os registros
   const [filters, setFilters] = useState<RelatorioFilters>({});
 
+  // Estabiliza referência do objeto filters para evitar refetchs falsos
+  const stableFilters = useMemo(() => filters, [
+    filters.data_inicio,
+    filters.data_fim,
+    filters.empresa_id,
+    filters.funcionario_id,
+    filters.tipo_vinculo,
+  ]);
+
+  // Estabiliza scopeFilters por valor (não por referência) — evita refetch
+  // quando useDiariasDataScope retorna novo objeto/array com mesmo conteúdo.
+  const stableScope = useMemo(() => scopeFilters, [JSON.stringify(scopeFilters)]);
+
   // Queries - COM ESCOPO OBRIGATÓRIO
-  const { data: relatorioRaw = [], isLoading } = useRelatorioFolha(filters, scopeFilters);
+  const { data: relatorioRaw = [], isLoading, isFetching } = useRelatorioFolha(stableFilters, stableScope);
 
   // Centro de custos (com aprovador)
   const { data: centrosCusto = [] } = useQuery({
@@ -251,10 +266,25 @@ export default function DiariasRelatorio() {
   // Export mutation
   const exportMutation = useExportarExcel();
   const [isPDFLoading, setIsPDFLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   // Folha de Ponto removida
   const [deleteTarget, setDeleteTarget] = useState<RelatorioFolhaItem | null>(null);
   const [semanalModalOpen, setSemanalModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleRefreshCache = async () => {
+    setIsRefreshing(true);
+    try {
+      const result = await refreshRelatorioDiarias(true);
+      toast.success(result.refreshed ? 'Relatório atualizado!' : 'Relatório já estava atualizado.');
+      queryClient.invalidateQueries({ queryKey: ['diarias-relatorio'] });
+      queryClient.invalidateQueries({ queryKey: ['relatorio-folha'] });
+    } catch (error: any) {
+      toast.error(error?.message || 'Erro ao atualizar relatório.');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Verificar se o user pode ver a coluna de ações
   const showDeleteColumn = useMemo(() => {
@@ -476,7 +506,22 @@ export default function DiariasRelatorio() {
             </div>
           </div>
           {canExport &&
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+              {isSuperAdmin && (
+                <Button
+                  variant="outline"
+                  onClick={handleRefreshCache}
+                  disabled={isRefreshing}
+                  title="Forçar atualização do cache do relatório"
+                >
+                  {isRefreshing ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Atualizar Cache
+                </Button>
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button disabled={exportMutation.isPending || isPDFLoading || relatorio.length === 0}>
@@ -559,7 +604,7 @@ export default function DiariasRelatorio() {
                 <Input
                   type="date"
                   value={filters.data_inicio || ''}
-                  onChange={(e) => setFilters({ ...filters, data_inicio: e.target.value || undefined })} />
+                  onChange={(e) => { const v = e.target.value || undefined; setFilters(prev => ({ ...prev, data_inicio: v })); }} />
 
               </div>
               <div>
@@ -567,7 +612,7 @@ export default function DiariasRelatorio() {
                 <Input
                   type="date"
                   value={filters.data_fim || ''}
-                  onChange={(e) => setFilters({ ...filters, data_fim: e.target.value || undefined })} />
+                  onChange={(e) => { const v = e.target.value || undefined; setFilters(prev => ({ ...prev, data_fim: v })); }} />
 
               </div>
               <div>
@@ -607,7 +652,7 @@ export default function DiariasRelatorio() {
                   }))]
                   }
                   value={filters.funcionario_id ?? '__all__'}
-                  onChange={(v) => setFilters({ ...filters, funcionario_id: v === '__all__' ? undefined : v })}
+                  onChange={(v) => setFilters(prev => ({ ...prev, funcionario_id: v === '__all__' ? undefined : v }))}
                   placeholder="Todos"
                   searchPlaceholder="Buscar funcionário..."
                   emptyText="Nenhum funcionário encontrado" />
@@ -624,7 +669,7 @@ export default function DiariasRelatorio() {
                   }))]
                   }
                   value={filters.empresa_id ?? '__all__'}
-                  onChange={(v) => setFilters({ ...filters, empresa_id: v === '__all__' ? undefined : v })}
+                  onChange={(v) => setFilters(prev => ({ ...prev, empresa_id: v === '__all__' ? undefined : v }))}
                   placeholder="Todas"
                   searchPlaceholder="Buscar empresa..."
                   emptyText="Nenhuma empresa encontrada" />
@@ -648,7 +693,7 @@ export default function DiariasRelatorio() {
                 <Label>Tipo Vínculo</Label>
                 <Select
                   value={filters.tipo_vinculo || 'todos'}
-                  onValueChange={(v) => setFilters({ ...filters, tipo_vinculo: v === 'todos' ? undefined : v as 'diarista' | 'remessa' })}>
+                  onValueChange={(v) => setFilters(prev => ({ ...prev, tipo_vinculo: v === 'todos' ? undefined : v as 'diarista' | 'remessa' }))}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>

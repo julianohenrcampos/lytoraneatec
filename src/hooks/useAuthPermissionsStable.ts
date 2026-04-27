@@ -1,4 +1,9 @@
-
+/**
+ * @deprecated Hook auxiliar histórico. A fonte oficial de permissões do
+ * frontend é `usePermission` (em `src/hooks/usePermission.ts`), que já lê
+ * `bd_user_roles` → `bd_role_permission_actions` → `bd_permissions` e aplica
+ * overrides via `bd_user_permission_overrides`. Não criar novos consumidores.
+ */
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { isSuperAdminFallbackEmail } from '@/config/superAdminEmails';

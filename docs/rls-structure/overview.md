@@ -1,10 +1,12 @@
 # Visão Geral da Estrutura RLS
 
-## Estatísticas Gerais
+> **⚠️ Status atualizado 2026-04-26:** As estatísticas abaixo são uma fotografia histórica de 2025-01-17. Auditoria read-only de 2026-04-26 confirmou que **todas as tabelas em `public` possuem RLS habilitado**. As marcações `❌ (SEM RLS)` deste documento referem-se ao estado anterior; consulte `supabase--linter` para o status corrente.
+
+## Estatísticas Gerais (snapshot 2025-01-17 — histórico)
 
 - **Total de Tabelas**: 34
 - **Tabelas com RLS Habilitado**: 17 (50%)
-- **Tabelas sem RLS**: 17 (50%)
+- **Tabelas sem RLS**: 17 (50%) — **CORRIGIDO em migrations posteriores**
 - **Funções de Segurança**: 8
 - **Políticas RLS Ativas**: 27
 
@@ -84,8 +86,10 @@ SuperAdmin (SuperAdm)
 
 ## Problemas Críticos Identificados
 
-### 1. Tabelas Sem RLS (CRÍTICO)
-17 tabelas estão completamente expostas sem controle de acesso.
+### 1. Tabelas Sem RLS (HISTÓRICO — RESOLVIDO)
+~~17 tabelas estão completamente expostas sem controle de acesso.~~
+
+**Status 2026-04-26:** Todas as tabelas listadas em `tables-without-rls.md` receberam RLS em migrations posteriores. Este item permanece documentado por valor histórico/auditoria.
 
 ### 2. Funções sem search_path (ALTO)
 Várias funções não definem `search_path`, causando vulnerabilidades.

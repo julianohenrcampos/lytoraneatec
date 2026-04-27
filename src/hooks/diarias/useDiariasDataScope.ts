@@ -60,7 +60,15 @@ export function useDiariasDataScope(): DiariasDataScope {
   const { userId, userRole, isSuperAdmin, permissions, isLoading: isLoadingPermissions } = usePermission();
   
   const [funcionarioId, setFuncionarioId] = useState<string | null>(null);
-  const [centrosCustoGerenciados, setCentrosCustoGerenciados] = useState<string[]>([]);
+  const [centrosCustoGerenciados, setCentrosCustoGerenciadosRaw] = useState<string[]>([]);
+  // Setter estável: só dispara re-render se o conteúdo do array realmente mudar.
+  // Evita refetch em cascata no useRelatorioFolha quando os mesmos IDs são reatribuídos.
+  const setCentrosCustoGerenciados = useCallback((next: string[]) => {
+    setCentrosCustoGerenciadosRaw(prev => {
+      if (prev.length === next.length && prev.every((v, i) => v === next[i])) return prev;
+      return next;
+    });
+  }, []);
   const [userScope, setUserScope] = useState<DiariasUserScope>('nenhum');
   const [isLoading, setIsLoading] = useState(true);
   const [backendCanCreateSolicitacao, setBackendCanCreateSolicitacao] = useState<boolean | null>(null);

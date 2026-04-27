@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      _mv_relatorio_diarias_dirty: {
+        Row: {
+          dirty: boolean
+          id: boolean
+          updated_at: string
+        }
+        Insert: {
+          dirty?: boolean
+          id?: boolean
+          updated_at?: string
+        }
+        Update: {
+          dirty?: boolean
+          id?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       bd_abast_sync_log: {
         Row: {
           atualizados: number | null
@@ -7967,6 +7985,13 @@ export type Database = {
             foreignKeyName: "bd_ponto_diaria_integracao_presenca_diaria_id_fkey"
             columns: ["presenca_diaria_id"]
             isOneToOne: false
+            referencedRelation: "mv_relatorio_diarias"
+            referencedColumns: ["presenca_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_diaria_integracao_presenca_diaria_id_fkey"
+            columns: ["presenca_diaria_id"]
+            isOneToOne: false
             referencedRelation: "vw_diarias_aprovacao_gerencial"
             referencedColumns: ["presenca_id"]
           },
@@ -11288,6 +11313,122 @@ export type Database = {
       }
     }
     Views: {
+      mv_relatorio_diarias: {
+        Row: {
+          centro_custo_id: string | null
+          codigo_centro_custo: string | null
+          data: string | null
+          eh_excecao: boolean | null
+          funcao_id: string | null
+          funcionario_id: string | null
+          nome_centro_custo: string | null
+          nome_funcao: string | null
+          nome_funcionario: string | null
+          numero_solicitacao: string | null
+          presenca_id: string | null
+          presente: boolean | null
+          recebe_refeicao: boolean | null
+          solicitacao_id: string | null
+          status_fluxo: string | null
+          tipo_diaria: string | null
+          usar_diaria_exclusiva: boolean | null
+          valor_calculado: number | null
+          valor_refeicao: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_diaria_presencas_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_presencas_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_presencas_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_presencas_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vw_apontamento_cam_equipa_seguro: {
         Row: {
           abastecimento: number | null
@@ -16222,6 +16363,15 @@ export type Database = {
         Args: { p_registro_aplicacao_id: string }
         Returns: number
       }
+      calcular_valor_diaria: {
+        Args: {
+          p_data: string
+          p_funcionario_id: string
+          p_tipo_diaria?: string
+          p_usar_exclusiva_manual?: boolean
+        }
+        Returns: number
+      }
       can_delete_agendamento_exame: {
         Args: { p_user_id?: string }
         Returns: boolean
@@ -16902,6 +17052,26 @@ export type Database = {
           valor_refeicao: number
         }[]
       }
+      get_relatorio_diarias: {
+        Args: {
+          p_centro_custo_ids?: string[]
+          p_data_fim: string
+          p_data_inicio: string
+          p_funcionario_ids?: string[]
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: Json
+      }
+      get_relatorio_diarias_full: {
+        Args: {
+          p_centro_custo_ids?: string[]
+          p_data_fim: string
+          p_data_inicio: string
+          p_funcionario_ids?: string[]
+        }
+        Returns: Json
+      }
       get_sso_admin_users: {
         Args: never
         Returns: {
@@ -17037,6 +17207,7 @@ export type Database = {
       normalize_email: { Args: { input_email: string }; Returns: string }
       normalize_text: { Args: { input_text: string }; Returns: string }
       rbac_auto_migrate_user: { Args: { p_user_id: string }; Returns: Json }
+      refresh_relatorio_diarias: { Args: { p_force?: boolean }; Returns: Json }
       registrar_evento_auditoria_biometria: {
         Args: {
           p_funcionario_id: string

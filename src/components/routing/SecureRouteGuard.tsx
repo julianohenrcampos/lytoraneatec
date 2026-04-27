@@ -3,6 +3,8 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { usePermission } from '@/hooks/usePermission';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ShieldX } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { getValidatedOfflineContext } from '@/utils/offlinePermissions';
 
 interface SecureRouteGuardProps {
   children: React.ReactNode;
@@ -50,14 +52,45 @@ const SecureRouteGuard: React.FC<SecureRouteGuardProps> = ({
     isLoading
   });
 
+  // ⚠️ BYPASS EMERGENCIAL VISUAL — defesa em profundidade
+  // Se o hook ainda está carregando (ex.: Supabase em PGRST002), tenta
+  // reidratar SuperAdm a partir do snapshot offline validado para evitar
+  // tela de "Verificando permissões..." prolongada. Apenas libera UI;
+  // operações sensíveis continuam protegidas por RLS no backend.
+  // Temporário até estabilização do Supabase + consolidação do RBAC.
+  const [emergencyAdminBypass, setEmergencyAdminBypass] = useState(false);
+  useEffect(() => {
+    if (!isLoading || hasVerifiedOnce) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const uid = session?.user?.id;
+        if (!uid) return;
+        const snap = getValidatedOfflineContext(uid);
+        if (!cancelled && snap && (snap.isSuperAdmin || snap.permissions?.includes('*'))) {
+          console.log('🛡️ [SECURE ROUTE] Bypass emergencial visual (snapshot validado).');
+          setEmergencyAdminBypass(true);
+        }
+      } catch {
+        /* silencioso — apenas UX, não autorização */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isLoading, hasVerifiedOnce]);
+
   // Durante carregamento inicial
-  if (isLoading && !hasVerifiedOnce) {
+  if (isLoading && !hasVerifiedOnce && !emergencyAdminBypass) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         <span className="ml-2">Verificando permissões de acesso...</span>
       </div>
     );
+  }
+
+  if (emergencyAdminBypass) {
+    return <>{children}</>;
   }
 
   // Durante revalidação (já verificou antes) - mostrar loading mas NÃO bloquear
@@ -76,6 +109,12 @@ const SecureRouteGuard: React.FC<SecureRouteGuardProps> = ({
   if (!userId && !hasVerifiedOnce) {
     console.log('🔄 [SECURE ROUTE] Usuário não autenticado - redirecionando para login');
     return <Navigate to="/login" replace />;
+  }
+
+  // Wildcard '*' (modo bypass administrativo) libera tudo
+  if (effectivePermissions.includes('*')) {
+    console.log('✅ [SECURE ROUTE] Wildcard "*" - Acesso liberado');
+    return <>{children}</>;
   }
 
   // Verificar permissão específica usando permissões efetivas

@@ -1,13 +1,17 @@
 # Problemas Críticos de Segurança RLS
 
-## ⚠️ AVISO DE SEGURANÇA CRÍTICA
+> **⚠️ Status atualizado 2026-04-26:** As ameaças críticas listadas abaixo (especialmente "17 tabelas sem RLS") são de uma auditoria de 2025-01. **Já foram remediadas** em migrations posteriores. O documento foi mantido como referência histórica e checklist. Consulte `supabase--linter` e a Central de Auditoria para o estado corrente.
+
+## ⚠️ AVISO DE SEGURANÇA CRÍTICA (HISTÓRICO)
 
 Este documento lista problemas críticos de segurança identificados na estrutura RLS atual que requerem ação imediata.
 
-## 1. Tabelas Completamente Expostas (CRÍTICO)
+## 1. Tabelas Completamente Expostas (HISTÓRICO — RESOLVIDO)
 
-### Problema
-**17 tabelas não possuem RLS habilitado**, permitindo acesso irrestrito a dados sensíveis.
+### Problema (à época)
+~~**17 tabelas não possuem RLS habilitado**, permitindo acesso irrestrito a dados sensíveis.~~
+
+**Status 2026-04-26:** Todas as tabelas listadas abaixo receberam `ENABLE ROW LEVEL SECURITY` + policies em migrations subsequentes.
 
 ### Impacto
 - Qualquer usuário autenticado pode acessar todos os dados
@@ -173,7 +177,17 @@ AND viewname IN ('vw_entregas_com_massa_remanescente', 'vw_registro_aplicacao_co
 -- ou implementar RLS nas tabelas base
 ```
 
+### Atualização 2026-04-26 (Fase 2 — RESOLVIDO para `vw_auditoria_sistema`)
+
+A view `vw_auditoria_sistema` (Central de Auditoria) recebeu hardening:
+- `security_invoker = true` — passa a respeitar RLS das tabelas-fonte.
+- Acesso direto **revogado** para `PUBLIC`, `anon` e `authenticated`.
+- Acesso mantido para `service_role` (RPCs `get_auditoria_sistema_*` SECURITY DEFINER continuam funcionando).
+- Front-end consome exclusivamente via RPC — Central de Auditoria continua operacional.
+
+
 ## 6. Políticas RLS Potencialmente Recursivas (BAIXO)
+
 
 ### Problema
 Algumas políticas podem causar recursão infinita se não forem bem estruturadas.

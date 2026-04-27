@@ -16,6 +16,12 @@ export interface UserOfflineContext {
   isSuperAdmin: boolean;
   permissions: string[];
   userRole: string | null;
+  /**
+   * true quando o snapshot foi gerado a partir de uma validação bem-sucedida
+   * do servidor (RBAC granular ou bypass admin com profile carregado).
+   * Snapshots sem esta flag NÃO podem ser usados como fallback de autorização.
+   */
+  validatedFromServer?: boolean;
 }
 
 /**
@@ -157,19 +163,44 @@ export const updateUserOfflineContext = (
   email: string | null,
   isSuperAdmin: boolean,
   permissions: string[],
-  userRole: string | null
+  userRole: string | null,
+  validatedFromServer: boolean = true
 ): void => {
   // Limpar dados se necessário antes de atualizar
   clearOfflineDataOnPermissionChange(permissions, userId);
-  
+
   // Salvar novo contexto
   const newContext: UserOfflineContext = {
     userId,
     email,
     isSuperAdmin,
     permissions,
-    userRole
+    userRole,
+    validatedFromServer,
   };
-  
+
   saveUserOfflineContext(newContext);
+};
+
+/**
+ * ⚠️ BYPASS EMERGENCIAL — uso EXCLUSIVO para liberar UI/rotas quando o
+ * Supabase está indisponível (PGRST002/timeout). NUNCA usar para autorizar
+ * operações sensíveis: gravações, aprovações, exclusões e leituras
+ * sensíveis continuam dependendo de RLS no backend.
+ *
+ * Retorna o snapshot somente se:
+ *  - existir e não estiver expirado (24h, já validado em getUserOfflineContext)
+ *  - userId do snapshot === expectedUserId (sessão atual)
+ *  - validatedFromServer === true (snapshot oriundo de validação anterior bem-sucedida)
+ *
+ * Temporário, até estabilização do Supabase + consolidação do RBAC.
+ */
+export const getValidatedOfflineContext = (
+  expectedUserId: string
+): UserOfflineContext | null => {
+  const ctx = getUserOfflineContext();
+  if (!ctx) return null;
+  if (ctx.userId !== expectedUserId) return null;
+  if (ctx.validatedFromServer !== true) return null;
+  return ctx;
 };

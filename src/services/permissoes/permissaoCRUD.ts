@@ -1,4 +1,10 @@
-
+/**
+ * @deprecated Este módulo opera sobre a tabela legada `bd_permissoes`.
+ * A fonte oficial de permissões é `bd_permissions` (RBAC novo), consumida via
+ * `usePermission` / `bd_role_permission_actions`. Mantido apenas para suportar
+ * usuários ainda vinculados ao fallback legado (ver `usePermission.ts`,
+ * bloco "Legacy fallback"). Não criar novos usos.
+ */
 import { supabase } from "@/integrations/supabase/client";
 import { 
   Permissao, 
@@ -6,7 +12,7 @@ import {
   PermissaoFilter
 } from "@/types/permissao";
 
-// Permissions CRUD operations
+// Permissions CRUD operations (LEGACY)
 export const fetchPermissoes = async (filters: PermissaoFilter = {}) => {
   let query = supabase.from("bd_permissoes").select("*");
 

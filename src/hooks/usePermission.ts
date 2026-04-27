@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { updateUserOfflineContext } from '@/utils/offlinePermissions';
+import { updateUserOfflineContext, getValidatedOfflineContext } from '@/utils/offlinePermissions';
 
 // ============================================================
 // HOOK ÚNICO DE PERMISSÕES — RBAC GRANULAR POR AÇÃO
@@ -20,6 +20,7 @@ interface PermissionState {
   permissionRoutes: string[];  // rotas permitidas
   isLoading: boolean;
   canAccessDashboard: boolean;
+  permissionsError: boolean;   // falha ao carregar permissões (sem cache válido)
   // Granular action data (loaded from new tables)
   roleActions: { permissionCode: string; acao: string }[];
   userOverrides: { permissionCode: string; acao: string; permitido: boolean }[];
@@ -34,9 +35,31 @@ const EMPTY_STATE: PermissionState = {
   permissionRoutes: [],
   isLoading: true,
   canAccessDashboard: true,
+  permissionsError: false,
   roleActions: [],
   userOverrides: [],
 };
+
+// Timeout para queries críticas de RBAC
+const PERMISSION_QUERY_TIMEOUT_MS = 7000;
+
+function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`[usePermission] Timeout (${ms}ms) em: ${label}`));
+    }, ms);
+    Promise.resolve(promise).then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
 
 // Module-level cache
 let _cache: PermissionState | null = null;
@@ -105,29 +128,221 @@ export const usePermission = () => {
     if (loadingRef.current) return;
     loadingRef.current = true;
 
+    const startedAt = performance.now();
+    let earlyIsSuperAdmin = false;
+    let currentUser: { id: string; email: string | null } | null = null;
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
-        const empty = { ...EMPTY_STATE, isLoading: false, canAccessDashboard: false };
-        setState(empty);
+        setState({ ...EMPTY_STATE, isLoading: false, canAccessDashboard: false });
         _cache = null;
         loadingRef.current = false;
         return;
       }
 
+      currentUser = { id: user.id, email: user.email ?? null };
+
       // Check cache validity
       if (_cache && _cacheUserId === user.id && (Date.now() - _cacheTime < CACHE_DURATION)) {
-        setState({ ..._cache, isLoading: false });
+        setState({ ..._cache, isLoading: false, permissionsError: false });
         loadingRef.current = false;
         return;
       }
 
-      // 1. Fetch user roles from bd_user_roles → bd_roles
-      const { data: userRoles, error: rolesError } = await supabase
-        .from('bd_user_roles')
-        .select('role_id, bd_roles(id, nome)')
-        .eq('user_id', user.id);
+      // ============================================================
+      // ⚠️ BYPASS EMERGENCIAL — Camada A: JWT app_metadata (SEM REDE)
+      // Lê apenas claims confiáveis emitidos pelo Auth (app_metadata).
+      // NUNCA usa user_metadata (controlável pelo usuário).
+      // Libera APENAS UI/rotas — backend continua protegido por RLS.
+      // Temporário, até estabilização do Supabase + consolidação do RBAC.
+      // ============================================================
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const appMeta: any = session?.user?.app_metadata ?? {};
+        const funcoesClaim: unknown[] = Array.isArray(appMeta.funcoes) ? appMeta.funcoes : [];
+        const isSuperAdmFromJWT =
+          funcoesClaim.some((f) => String(f ?? '').trim().toLowerCase() === 'superadm') ||
+          appMeta.acesso_global === true;
+
+        if (isSuperAdmFromJWT) {
+          console.log('🚀 [usePermission] Bypass emergencial via app_metadata (JWT). permissions=["*"]');
+          const adminState: PermissionState = {
+            userId: user.id,
+            userEmail: user.email ?? null,
+            isSuperAdmin: true,
+            userRole: 'SuperAdm',
+            permissions: ['*'],
+            permissionRoutes: Object.keys(ROUTE_PERMISSIONS),
+            isLoading: false,
+            canAccessDashboard: true,
+            permissionsError: false,
+            roleActions: [],
+            userOverrides: [],
+          };
+          setState(adminState);
+          _cache = adminState;
+          _cacheTime = Date.now();
+          _cacheUserId = user.id;
+          // JWT não conta como "validado pelo servidor RBAC", mas é fonte
+          // confiável (claim do Auth). Marcado como validatedFromServer=true
+          // para permitir reidratação rápida em sessões futuras.
+          updateUserOfflineContext(user.id, user.email ?? null, true, ['*'], 'SuperAdm', true);
+          loadingRef.current = false;
+          return;
+        }
+      } catch (jwtErr: any) {
+        console.warn('⚠️ [usePermission] Leitura de app_metadata falhou (continua):', jwtErr?.message ?? jwtErr);
+      }
+
+      // ============================================================
+      // ⚠️ BYPASS EMERGENCIAL — Camada B: snapshot offline validado
+      // Só ativa se snapshot foi salvo após validação bem-sucedida do
+      // servidor (validatedFromServer=true), pertence a este user.id e
+      // está dentro de 24h. Libera APENAS UI/rotas — backend continua
+      // protegido por RLS para qualquer operação sensível.
+      // ============================================================
+      try {
+        const snap = getValidatedOfflineContext(user.id);
+        if (snap && (snap.isSuperAdmin || snap.permissions?.includes('*'))) {
+          console.log('🚀 [usePermission] Bypass emergencial via snapshot offline validado.');
+          const adminState: PermissionState = {
+            userId: user.id,
+            userEmail: user.email ?? null,
+            isSuperAdmin: true,
+            userRole: snap.userRole ?? 'SuperAdm',
+            permissions: ['*'],
+            permissionRoutes: Object.keys(ROUTE_PERMISSIONS),
+            isLoading: false,
+            canAccessDashboard: true,
+            permissionsError: false,
+            roleActions: [],
+            userOverrides: [],
+          };
+          setState(adminState);
+          _cache = adminState;
+          _cacheTime = Date.now();
+          _cacheUserId = user.id;
+          // Continua com a Camada C em background para revalidar; se falhar,
+          // mantemos o estado já liberado (não derruba UI).
+        }
+      } catch (snapErr: any) {
+        console.warn('⚠️ [usePermission] Snapshot offline falhou (continua):', snapErr?.message ?? snapErr);
+      }
+
+      // ============================================================
+      // BYPASS ADMINISTRATIVO ANTES DO RBAC (Camada C — via profiles)
+      // Confirma o bypass com fonte de verdade no banco quando disponível.
+      // Timeout reduzido (3s) para falhar rápido quando Supabase está
+      // instável; falha aqui NÃO derruba estado já liberado pelas
+      // Camadas A/B. Temporário até estabilização.
+      // ============================================================
+      try {
+        const { data: profile, error: profileError } = await withTimeout(
+          supabase
+            .from('profiles')
+            .select('id, funcoes, acesso_global')
+            .eq('id', user.id)
+            .maybeSingle(),
+          3000,
+          'profiles (admin bypass)'
+        );
+
+        if (!profileError && profile) {
+          const funcoesRaw: any = (profile as any).funcoes;
+          const funcoes: unknown[] = Array.isArray(funcoesRaw)
+            ? funcoesRaw
+            : typeof funcoesRaw === 'string'
+              ? [funcoesRaw]
+              : [];
+          const isSuperAdmFuncao = funcoes.some(
+            (f) => String(f ?? '').trim().toLowerCase() === 'superadm'
+          );
+          const acessoGlobal = (profile as any).acesso_global === true;
+          const isAdminBypass = isSuperAdmFuncao || acessoGlobal;
+
+          // Log temporário de diagnóstico (remover após estabilização)
+          console.log('🔍 [usePermission] Admin bypass check:', {
+            userId: user.id,
+            funcoesType: Array.isArray(funcoesRaw) ? 'array' : typeof funcoesRaw,
+            funcoes,
+            isSuperAdmFuncao,
+            acessoGlobal,
+            isAdminBypass,
+          });
+
+          if (isAdminBypass) {
+            console.log('✅ [usePermission] Bypass administrativo aplicado antes do RBAC. permissions=["*"]');
+            const adminState: PermissionState = {
+              userId: user.id,
+              userEmail: user.email ?? null,
+              isSuperAdmin: true,
+              userRole: 'SuperAdm',
+              permissions: ['*'],
+              permissionRoutes: Object.keys(ROUTE_PERMISSIONS),
+              isLoading: false,
+              canAccessDashboard: true,
+              permissionsError: false,
+              roleActions: [],
+              userOverrides: [],
+            };
+            setState(adminState);
+            _cache = adminState;
+            _cacheTime = Date.now();
+            _cacheUserId = user.id;
+            updateUserOfflineContext(user.id, user.email ?? null, true, ['*'], 'SuperAdm', true);
+            loadingRef.current = false;
+            return;
+          }
+        } else if (profileError) {
+          console.warn('⚠️ [usePermission] Falha ao ler profile para bypass (segue RBAC):', profileError);
+        }
+      } catch (bypassErr: any) {
+        console.warn('⚠️ [usePermission] Bypass admin (Camada C) falhou:', bypassErr?.message ?? bypassErr);
+        // Se Camadas A/B já liberaram o usuário (cache contém isSuperAdmin),
+        // não derruba o estado: encerra aqui mantendo o bypass emergencial.
+        if (_cache && _cacheUserId === user.id && _cache.isSuperAdmin) {
+          console.log('🛡️ [usePermission] Mantendo bypass emergencial (A/B) ativo apesar de falha do RBAC.');
+          loadingRef.current = false;
+          return;
+        }
+      }
+
+      // 1. Detecção precoce de SuperAdm via profiles.funcoes (paralela, tolerante a falha)
+      //    Esse sinal é usado APENAS no fallback degradado se o RBAC granular falhar.
+      //    Não substitui a fonte oficial de RBAC quando ela responde com sucesso.
+      const earlyProfilePromise = withTimeout(
+        supabase.from('profiles').select('funcoes').eq('id', user.id).maybeSingle(),
+        PERMISSION_QUERY_TIMEOUT_MS,
+        'profiles.funcoes (early)'
+      ).then(
+        (res) => {
+          const funcoes = (res as any)?.data?.funcoes;
+          if (Array.isArray(funcoes)) {
+            earlyIsSuperAdmin = funcoes.some(
+              (f: unknown) => typeof f === 'string' && f.trim().toLowerCase() === 'superadm'
+            );
+          }
+        },
+        (err) => {
+          console.warn('⚠️ [usePermission] Detecção precoce de SuperAdm falhou (não crítico):', err?.message ?? err);
+        }
+      );
+
+      // 2. Fetch user roles from bd_user_roles → bd_roles (com timeout)
+      const userRolesPromise = withTimeout(
+        supabase
+          .from('bd_user_roles')
+          .select('role_id, bd_roles(id, nome)')
+          .eq('user_id', user.id),
+        PERMISSION_QUERY_TIMEOUT_MS,
+        'bd_user_roles'
+      );
+
+      // Aguarda ambas em paralelo. earlyProfilePromise nunca rejeita (catch interno).
+      const [, userRolesRes] = await Promise.all([earlyProfilePromise, userRolesPromise]);
+      const { data: userRoles, error: rolesError } = userRolesRes as any;
 
       let roleName: string | null = null;
       let roleIds: string[] = [];
@@ -139,30 +354,41 @@ export const usePermission = () => {
           if (role?.nome) {
             if (!roleName) roleName = role.nome;
             roleIds.push(role.id);
-            if (role.nome === 'SuperAdm') isSuperAdmin = true;
+            if (typeof role.nome === 'string' && role.nome.trim().toLowerCase() === 'superadm') {
+              isSuperAdmin = true;
+            }
           }
         }
       }
 
       // Fallback: if no roles in new system, try legacy profiles.funcoes
       if (!roleName) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('funcoes')
-          .eq('id', user.id)
-          .single();
+        const { data: profile } = await withTimeout(
+          supabase
+            .from('profiles')
+            .select('funcoes')
+            .eq('id', user.id)
+            .maybeSingle(),
+          PERMISSION_QUERY_TIMEOUT_MS,
+          'profiles.funcoes'
+        );
 
         if (profile?.funcoes && Array.isArray(profile.funcoes) && profile.funcoes.length > 0) {
           roleName = profile.funcoes[0];
-          isSuperAdmin = profile.funcoes.includes('SuperAdm');
+          isSuperAdmin = profile.funcoes.some(
+            (f: unknown) => typeof f === 'string' && f.trim().toLowerCase() === 'superadm'
+          );
 
-          // Try to find role ID for legacy function name
           if (roleName) {
-            const { data: roleData } = await supabase
-              .from('bd_roles')
-              .select('id')
-              .or(`nome.eq.${roleName},nome.ilike.${roleName.trim()}`)
-              .limit(1);
+            const { data: roleData } = await withTimeout(
+              supabase
+                .from('bd_roles')
+                .select('id')
+                .or(`nome.eq.${roleName},nome.ilike.${roleName.trim()}`)
+                .limit(1),
+              PERMISSION_QUERY_TIMEOUT_MS,
+              'bd_roles lookup'
+            );
             if (roleData && roleData.length > 0) {
               roleIds = [roleData[0].id];
             }
@@ -181,6 +407,7 @@ export const usePermission = () => {
           permissionRoutes: [],
           isLoading: false,
           canAccessDashboard: false,
+          permissionsError: false,
           roleActions: [],
           userOverrides: [],
         };
@@ -196,21 +423,25 @@ export const usePermission = () => {
       let userOverrides: { permissionCode: string; acao: string; permitido: boolean }[] = [];
 
       if (isSuperAdmin) {
-        // SuperAdmin: fetch ALL permissions from bd_permissions
-        const { data: allPerms } = await supabase
-          .from('bd_permissions')
-          .select('codigo, rota');
+        const { data: allPerms } = await withTimeout(
+          supabase.from('bd_permissions').select('codigo, rota'),
+          PERMISSION_QUERY_TIMEOUT_MS,
+          'bd_permissions (superadmin)'
+        );
 
         if (allPerms) {
           permissionCodes = [...new Set(allPerms.map(p => p.codigo))];
           permissionRoutes = [...new Set(allPerms.filter(p => p.rota).map(p => p.rota!))];
         }
       } else if (roleIds.length > 0) {
-        // 2. Fetch role_permission_actions (new granular system)
-        const { data: rpaData } = await supabase
-          .from('bd_role_permission_actions')
-          .select('acao, bd_permissions(codigo, rota)')
-          .in('role_id', roleIds);
+        const { data: rpaData } = await withTimeout(
+          supabase
+            .from('bd_role_permission_actions')
+            .select('acao, bd_permissions(codigo, rota)')
+            .in('role_id', roleIds),
+          PERMISSION_QUERY_TIMEOUT_MS,
+          'bd_role_permission_actions'
+        );
 
         if (rpaData && rpaData.length > 0) {
           const codes = new Set<string>(['dashboard_view']);
@@ -230,11 +461,14 @@ export const usePermission = () => {
           permissionRoutes = [...routes];
           roleActions = actions;
         } else {
-          // Fallback: try bd_role_permissions (old system without actions)
-          const { data: rpData } = await supabase
-            .from('bd_role_permissions')
-            .select('bd_permissions(codigo, rota)')
-            .in('role_id', roleIds);
+          const { data: rpData } = await withTimeout(
+            supabase
+              .from('bd_role_permissions')
+              .select('bd_permissions(codigo, rota)')
+              .in('role_id', roleIds),
+            PERMISSION_QUERY_TIMEOUT_MS,
+            'bd_role_permissions'
+          );
 
           if (rpData) {
             const codes = new Set<string>(['dashboard_view']);
@@ -249,11 +483,14 @@ export const usePermission = () => {
           }
         }
 
-        // 3. Fetch user overrides
-        const { data: overrides } = await supabase
-          .from('bd_user_permission_overrides')
-          .select('acao, permitido, bd_permissions(codigo)')
-          .eq('user_id', user.id);
+        const { data: overrides } = await withTimeout(
+          supabase
+            .from('bd_user_permission_overrides')
+            .select('acao, permitido, bd_permissions(codigo)')
+            .eq('user_id', user.id),
+          PERMISSION_QUERY_TIMEOUT_MS,
+          'bd_user_permission_overrides'
+        );
 
         if (overrides) {
           userOverrides = overrides.map((o: any) => ({
@@ -264,25 +501,55 @@ export const usePermission = () => {
         }
       }
 
-      // Also check legacy bd_funcoes_permissao as additional fallback
+      // Legacy fallback
       if (!isSuperAdmin && permissionCodes.length <= 1 && roleName) {
-        const { data: legacyFunc } = await supabase
-          .from('bd_funcoes_permissao')
-          .select('permissoes')
-          .eq('nome_funcao', roleName)
-          .single();
+        const { data: legacyFunc } = await withTimeout(
+          supabase
+            .from('bd_funcoes_permissao')
+            .select('permissoes')
+            .eq('nome_funcao', roleName)
+            .single(),
+          PERMISSION_QUERY_TIMEOUT_MS,
+          'bd_funcoes_permissao'
+        );
 
         if (legacyFunc?.permissoes && legacyFunc.permissoes.length > 0) {
-          const { data: legacyPerms } = await supabase
-            .from('bd_permissoes')
-            .select('nome_permissao, rota')
-            .in('id', legacyFunc.permissoes);
+          const { data: legacyPerms } = await withTimeout(
+            supabase
+              .from('bd_permissoes')
+              .select('nome_permissao, rota')
+              .in('id', legacyFunc.permissoes),
+            PERMISSION_QUERY_TIMEOUT_MS,
+            'bd_permissoes (legacy)'
+          );
 
           if (legacyPerms) {
             const extraCodes = legacyPerms.map(p => p.nome_permissao);
             const extraRoutes = legacyPerms.filter(p => p.rota).map(p => p.rota!);
             permissionCodes = [...new Set([...permissionCodes, ...extraCodes])];
             permissionRoutes = [...new Set([...permissionRoutes, ...extraRoutes])];
+
+            // Telemetria fire-and-forget: registra que este usuário ainda depende
+            // do fallback legado (bd_funcoes_permissao + bd_permissoes).
+            // Throttled para 1 evento por sessão por usuário; falha silenciosa
+            // para nunca impactar o fluxo de permissões.
+            try {
+              const sessionKey = `rbac_legacy_logged_${user.id}`;
+              if (typeof sessionStorage !== 'undefined' && !sessionStorage.getItem(sessionKey)) {
+                sessionStorage.setItem(sessionKey, '1');
+                void supabase
+                  .from('bd_permission_audit_logs')
+                  .insert({
+                    user_id: user.id,
+                    origem: 'legado_fallback',
+                    permitido: true,
+                    rota: roleName ?? null,
+                  })
+                  .then(() => {}, () => {});
+              }
+            } catch {
+              /* telemetria nunca quebra o app */
+            }
           }
         }
       }
@@ -296,6 +563,7 @@ export const usePermission = () => {
         permissionRoutes,
         isLoading: false,
         canAccessDashboard: true,
+        permissionsError: false,
         roleActions,
         userOverrides,
       };
@@ -305,7 +573,6 @@ export const usePermission = () => {
       _cacheTime = Date.now();
       _cacheUserId = user.id;
 
-      // Sync offline context
       updateUserOfflineContext(
         user.id,
         user.email || null,
@@ -314,21 +581,59 @@ export const usePermission = () => {
         roleName
       );
 
-    } catch (error) {
-      console.error('❌ [usePermission] Error:', error);
+    } catch (error: any) {
+      const elapsedMs = Math.round(performance.now() - startedAt);
+      console.error('❌ [usePermission] Falha ao carregar permissões:', {
+        message: error?.message ?? String(error),
+        elapsedMs,
+        earlyIsSuperAdmin,
+        hasCache: !!_cache,
+        cacheAgeMs: _cache ? Date.now() - _cacheTime : null,
+      });
 
-      // If we have cache, keep it
-      if (_cache && _cache.permissions.length > 0) {
-        setState({ ..._cache, isLoading: false });
+      // 1) Se há cache válido, mantém o cache (cobre todos os perfis).
+      if (_cache && (Date.now() - _cacheTime < CACHE_DURATION) && _cache.permissions.length > 0) {
+        console.warn('⚠️ [usePermission] Usando cache válido após falha.');
+        setState({ ..._cache, isLoading: false, permissionsError: false });
+      } else if (earlyIsSuperAdmin && currentUser) {
+        // 2) Bypass seguro do SuperAdm: validado via profiles.funcoes (server-side, RLS-protected).
+        //    Libera acesso total em modo degradado SEM cachear, para reidratar o RBAC depois.
+        console.warn(
+          '⚠️ [usePermission] Falha RBAC, mas SuperAdm validado via profiles. ' +
+          'Liberando acesso total (modo degradado).'
+        );
+        setState({
+          userId: currentUser.id,
+          userEmail: currentUser.email,
+          isSuperAdmin: true,
+          userRole: 'SuperAdm',
+          permissions: ['*'],
+          permissionRoutes: Object.keys(ROUTE_PERMISSIONS),
+          isLoading: false,
+          canAccessDashboard: true,
+          permissionsError: false,
+          roleActions: [],
+          userOverrides: [],
+        });
+        // Auto-retry único após 15s para reidratar RBAC granular.
+        setTimeout(() => {
+          if (!loadingRef.current) {
+            console.info('🔁 [usePermission] Reidratando RBAC após modo degradado...');
+            loadPermissions();
+          }
+        }, 15000);
       } else {
+        // 3) Usuário comum sem cache válido: bloqueio seguro.
         const { data: { user } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }));
         setState({
           ...EMPTY_STATE,
           userId: user?.id || null,
           userEmail: user?.email || null,
           isLoading: false,
-          canAccessDashboard: !!user,
-          permissions: user ? ['dashboard_view'] : [],
+          canAccessDashboard: false,
+          permissionsError: true,
+          permissions: [],
+          permissionRoutes: [],
         });
       }
     } finally {
@@ -364,12 +669,14 @@ export const usePermission = () => {
   const hasPermission = useCallback((codigo: string): boolean => {
     if (state.isLoading) return false;
     if (state.isSuperAdmin) return true;
+    if (state.permissions.includes('*')) return true; // modo degradado SuperAdm
     return state.permissions.includes(codigo);
   }, [state.isLoading, state.isSuperAdmin, state.permissions]);
 
   const hasActionPermission = useCallback((codigo: string, acao: Acao): boolean => {
     if (state.isLoading) return false;
     if (state.isSuperAdmin) return true;
+    if (state.permissions.includes('*')) return true; // modo degradado SuperAdm
 
     // 1. Check user override first
     const override = state.userOverrides.find(
@@ -394,6 +701,7 @@ export const usePermission = () => {
   const hasRouteAccess = useCallback((route: string): boolean => {
     if (state.isLoading) return false;
     if (state.isSuperAdmin) return true;
+    if (state.permissions.includes('*')) return true; // modo degradado SuperAdm
 
     const required = ROUTE_PERMISSIONS[route];
     if (!required) return true; // Unrestricted route
@@ -439,6 +747,7 @@ export const usePermission = () => {
     permissionRoutes: state.permissionRoutes,
     isLoading: state.isLoading,
     canAccessDashboard: state.canAccessDashboard,
+    permissionsError: state.permissionsError,
     roleActions: state.roleActions,
     userOverrides: state.userOverrides,
 
@@ -458,6 +767,7 @@ export const useHasPermission = (requiredPermission: string): boolean => {
   const { isSuperAdmin, permissions, isLoading } = usePermission();
   if (isLoading) return false;
   if (isSuperAdmin) return true;
+  if (permissions.includes('*')) return true;
   return permissions.includes(requiredPermission);
 };
 
@@ -465,6 +775,7 @@ export const useHasAnyPermission = (requiredPermissions: string[]): boolean => {
   const { isSuperAdmin, permissions, isLoading } = usePermission();
   if (isLoading) return false;
   if (isSuperAdmin) return true;
+  if (permissions.includes('*')) return true;
   return requiredPermissions.some(p => permissions.includes(p));
 };
 
