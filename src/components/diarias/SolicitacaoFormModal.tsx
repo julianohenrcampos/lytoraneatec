@@ -159,7 +159,7 @@ export function SolicitacaoFormModal({
   const JUSTIFICATIVA_OPERACIONAL_PADRAO = 'Ponte de feriado / estratégia operacional';
   const [step, setStep] = useState<Step>('dados');
   const { user } = useAuth();
-  const { isSuperAdmin, permissions } = usePermission();
+  const { isSuperAdmin, permissions, userRole } = usePermission();
   const { scopeFilters, canCreateSolicitacao } = useDiariasDataScope();
   
   // Form data - Período
@@ -262,7 +262,7 @@ export function SolicitacaoFormModal({
   // Conflitos operacionais são tratados como aviso APÓS seleção (ConfirmDialog),
   // não como filtro nesta lista.
   const { data: funcionarios = [] } = useQuery({
-    queryKey: ['diarias-funcionarios-ativos-global'],
+    queryKey: ['diarias-funcionarios-ativos-global', user?.id, userRole],
     queryFn: async () => {
       const PAGE_SIZE = 1000;
       let allData: any[] = [];

@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "12.2.12 (cd3cf9e)"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -6761,6 +6761,13 @@ export type Database = {
             referencedRelation: "bd_permissions"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bd_permissoes_acoes_permission_id_fkey"
+            columns: ["permission_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rbac_permissions_safe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       bd_pncp_config_monitoramento: {
@@ -9738,6 +9745,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_role_permission_actions_permission_id_fkey"
+            columns: ["permission_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rbac_permissions_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_role_permission_actions_role_id_fkey"
             columns: ["role_id"]
             isOneToOne: false
@@ -9778,6 +9792,13 @@ export type Database = {
             columns: ["permission_id"]
             isOneToOne: false
             referencedRelation: "bd_permissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_role_permissions_permission_id_fkey"
+            columns: ["permission_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rbac_permissions_safe"
             referencedColumns: ["id"]
           },
           {
@@ -11042,6 +11063,13 @@ export type Database = {
             columns: ["permission_id"]
             isOneToOne: false
             referencedRelation: "bd_permissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_user_permission_overrides_permission_id_fkey"
+            columns: ["permission_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rbac_permissions_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -15546,27 +15574,39 @@ export type Database = {
       }
       vw_rbac_permissions_safe: {
         Row: {
+          ativo: boolean | null
+          codigo: string | null
           created_at: string | null
           descricao: string | null
           id: string | null
-          nome_permissao: string | null
+          modulo: string | null
+          nome: string | null
           rota: string | null
+          tipo: string | null
           updated_at: string | null
         }
         Insert: {
+          ativo?: boolean | null
+          codigo?: string | null
           created_at?: string | null
           descricao?: string | null
           id?: string | null
-          nome_permissao?: string | null
+          modulo?: string | null
+          nome?: string | null
           rota?: string | null
+          tipo?: string | null
           updated_at?: string | null
         }
         Update: {
+          ativo?: boolean | null
+          codigo?: string | null
           created_at?: string | null
           descricao?: string | null
           id?: string | null
-          nome_permissao?: string | null
+          modulo?: string | null
+          nome?: string | null
           rota?: string | null
+          tipo?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -16579,10 +16619,19 @@ export type Database = {
         Args: { p_context?: string; p_resource: string; p_user_id: string }
         Returns: boolean
       }
-      fn_backend_has_permission: {
-        Args: { p_permission_codes: string[]; p_user_id: string }
-        Returns: boolean
-      }
+      fn_backend_has_permission:
+        | {
+            Args: { p_permission_codes: string[]; p_user_id: string }
+            Returns: boolean
+          }
+        | {
+            Args: {
+              p_acao: string
+              p_permission_codes: string[]
+              p_user_id: string
+            }
+            Returns: boolean
+          }
       fn_bi_can_export: {
         Args: {
           _formato: string
