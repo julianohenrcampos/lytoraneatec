@@ -112,9 +112,10 @@ export function useBiometriaSegura() {
       .withFaceDescriptor();
 
     if (!detection) {
+      // BLOQUEIO ABSOLUTO: nenhum frame sem rosto pode avançar no pipeline
       resetBiometriaSegura();
       const motivo = MSG_SEM_ROSTO;
-      console.log("[BIOMETRIA][QUALIDADE]", { valido: false, motivo });
+      console.log("[BIOMETRIA][SEM_ROSTO]", { valido: false, motivo });
       return { valido: false, motivo };
     }
 
@@ -128,7 +129,7 @@ export function useBiometriaSegura() {
     if (detectionScore < DETECTION_SCORE_MIN) {
       resetBiometriaSegura();
       const motivo = MSG_QUALIDADE;
-      console.log("[BIOMETRIA][QUALIDADE]", { valido: false, motivo, detectionScore });
+      console.log("[BIOMETRIA][FRAME_INVALIDO]", { motivo, detectionScore });
       return { valido: false, motivo, detectionScore };
     }
 
@@ -136,7 +137,7 @@ export function useBiometriaSegura() {
     if (box.width < FACE_BOX_MIN_PX || box.height < FACE_BOX_MIN_PX) {
       resetBiometriaSegura();
       const motivo = MSG_QUALIDADE;
-      console.log("[BIOMETRIA][QUALIDADE]", { valido: false, motivo, boxPx: { w: box.width, h: box.height } });
+      console.log("[BIOMETRIA][FRAME_INVALIDO]", { motivo, boxPx: { w: box.width, h: box.height }, detectionScore });
       return { valido: false, motivo, detectionScore };
     }
 
@@ -151,7 +152,7 @@ export function useBiometriaSegura() {
     ) {
       resetBiometriaSegura();
       const motivo = MSG_QUALIDADE;
-      console.log("[BIOMETRIA][QUALIDADE]", { valido: false, motivo, center: { cxRatio, cyRatio } });
+      console.log("[BIOMETRIA][FRAME_INVALIDO]", { motivo, center: { cxRatio, cyRatio }, detectionScore });
       return { valido: false, motivo, detectionScore };
     }
 
@@ -160,13 +161,13 @@ export function useBiometriaSegura() {
     if (faceRatio < FACE_RATIO_MIN) {
       resetBiometriaSegura();
       const motivo = MSG_QUALIDADE;
-      console.log("[BIOMETRIA][QUALIDADE]", { valido: false, motivo, faceRatio });
+      console.log("[BIOMETRIA][FRAME_INVALIDO]", { motivo, faceRatio, detectionScore });
       return { valido: false, motivo, detectionScore, faceRatio };
     }
     if (faceRatio > FACE_RATIO_MAX) {
       resetBiometriaSegura();
       const motivo = "Afaste-se um pouco da câmera";
-      console.log("[BIOMETRIA][QUALIDADE]", { valido: false, motivo, faceRatio });
+      console.log("[BIOMETRIA][FRAME_INVALIDO]", { motivo, faceRatio, detectionScore });
       return { valido: false, motivo, detectionScore, faceRatio };
     }
 
@@ -184,7 +185,9 @@ export function useBiometriaSegura() {
 
     if (yawRatio > YAW_RATIO_MAX) {
       resetBiometriaSegura();
-      return { valido: false, motivo: "Olhe direto para a câmera", detectionScore, faceRatio };
+      const motivo = "Olhe direto para a câmera";
+      console.log("[BIOMETRIA][FRAME_INVALIDO]", { motivo, yawRatio, detectionScore, faceRatio });
+      return { valido: false, motivo, detectionScore, faceRatio };
     }
 
     const descriptor = Float32Array.from(detection.descriptor);
@@ -218,9 +221,17 @@ export function useBiometriaSegura() {
         frozenFramesRef.current = 0;
       }
 
-      stableFramesRef.current = descriptorDelta <= SAME_FACE_DISTANCE_MAX
-        ? stableFramesRef.current + 1
-        : 1;
+      if (descriptorDelta <= SAME_FACE_DISTANCE_MAX) {
+        stableFramesRef.current += 1;
+      } else {
+        // TROCA DE IDENTIDADE: reset completo do buffer
+        console.log("[BIOMETRIA][TROCA_IDENTIDADE]", {
+          descriptorDelta: Number(descriptorDelta.toFixed(3)),
+          limite: SAME_FACE_DISTANCE_MAX,
+        });
+        stableFramesRef.current = 1;
+        frozenFramesRef.current = 0;
+      }
     } else {
       stableFramesRef.current = 1;
       frozenFramesRef.current = 0;
@@ -255,6 +266,14 @@ export function useBiometriaSegura() {
         framesConfirmados: stableFramesRef.current,
       };
     }
+
+    console.log("[BIOMETRIA][RECONHECIMENTO_VALIDO]", {
+      framesConfirmados: stableFramesRef.current,
+      detectionScore: Number(detectionScore.toFixed(3)),
+      faceRatio: Number(faceRatio.toFixed(3)),
+      confidence: Number(confidence.toFixed(3)),
+      livenessScore: Number(livenessScore.toFixed(3)),
+    });
 
     return {
       valido: true,

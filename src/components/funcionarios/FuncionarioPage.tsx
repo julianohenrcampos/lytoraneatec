@@ -1,6 +1,6 @@
 
 import React, { useState } from "react";
-import { Users, Download, Upload, UserCheck, ChevronDown } from "lucide-react";
+import { Users, Download, Upload, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -73,15 +73,6 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
     <div className="space-y-6">
       <div className="flex justify-end">
         <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsEmailConfirmationOpen(true)}
-            className="flex items-center gap-2"
-          >
-            <UserCheck className="h-4 w-4" />
-            Confirmar Email
-          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button

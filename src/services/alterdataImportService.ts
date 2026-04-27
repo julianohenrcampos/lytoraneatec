@@ -516,7 +516,8 @@ export async function confirmStagingImport(loteId: string): Promise<AlterdataImp
         if (row.empresa_id) insertData.empresa_id = row.empresa_id;
         if (row.data_admissao) insertData.data_admissao = row.data_admissao;
 
-        const { error } = await supabase.from('bd_funcionarios').insert(insertData as any);
+        console.log('🚀 USING RPC create_funcionario (alterdata import)');
+        const { error } = await supabase.rpc('create_funcionario', { p_dados: insertData as any });
         if (error) {
           await supabase
             .from('bd_importacao_alterdata')

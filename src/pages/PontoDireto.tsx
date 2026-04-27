@@ -20,7 +20,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { loadFaceApiModels } from "@/lib/faceapi/loader";
+import { loadFaceApiModels, resetFaceApiLoader } from "@/lib/faceapi/loader";
 import { getEstadoJornada, type TipoBatida } from "@/lib/ponto/estadoJornada";
 import { useBiometriaSegura } from "@/hooks/ponto/useBiometriaSegura";
 import { verificarCooldownBatida } from "@/lib/ponto/verificarCooldownBatida";
@@ -150,6 +150,10 @@ export default function PontoDireto() {
   const [gps, setGps] = useState<GPSData | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [gpsBloqueado, setGpsBloqueado] = useState(false);
+  const [gpsPermissao, setGpsPermissao] = useState<"granted" | "prompt" | "denied" | "unknown">("unknown");
+  const [gpsCapturando, setGpsCapturando] = useState(false);
+  const [gpsTentativaAtual, setGpsTentativaAtual] = useState(0);
+  const [modeloErro, setModeloErro] = useState<string | null>(null);
   // CC detectado por GPS (apenas auditoria visual; NUNCA usado para decisão)
   const [cc, setCC] = useState<CCDetectado>({ id: null, nome: null, distancia: null });
   // CC esperado = vínculo formal do funcionário (decisão de geofence)
@@ -301,8 +305,17 @@ export default function PontoDireto() {
           descriptor,
         });
 
-        // Carrega modelos para reconhecimento
-        await loadFaceApiModels();
+        // Carrega modelos para reconhecimento (com retry interno no loader)
+        try {
+          await loadFaceApiModels();
+          setModeloErro(null);
+        } catch (modelErr) {
+          console.error("[BIOMETRIA][ERRO_MODELO]", modelErr);
+          if (cancelled) return;
+          setModeloErro("Falha ao carregar reconhecimento facial");
+          setStatus("falha");
+          return;
+        }
         if (cancelled) return;
 
         if (!descriptor) {
@@ -366,12 +379,16 @@ export default function PontoDireto() {
     };
   }, [status === "carregando"]);
 
-  // GPS watch
-  useEffect(() => {
+  // Inicia watchPosition (chamado após permissão concedida)
+  const iniciarWatchGPS = useCallback(() => {
     if (!navigator.geolocation) {
       setGpsError("GPS não suportado neste dispositivo");
       setGpsBloqueado(true);
+      console.warn("[BIOMETRIA][GPS_BLOQUEADO]", { motivo: "geolocation_indisponivel" });
       return;
+    }
+    if (watchIdRef.current != null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
     }
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
@@ -382,9 +399,9 @@ export default function PontoDireto() {
         });
         setGpsError(null);
         setGpsBloqueado(false);
+        setGpsPermissao("granted");
       },
       (err) => {
-        // Bloqueia o registro quando GPS está indisponível ou negado
         const msgsBloqueantes: Record<number, string> = {
           1: "Permissão de localização negada",
           2: "Localização indisponível",
@@ -393,14 +410,93 @@ export default function PontoDireto() {
         const motivo = msgsBloqueantes[err.code] || err.message;
         setGpsError(motivo);
         setGpsBloqueado(true);
-        console.warn("[PontoDireto][GPS_ERR]", { code: err.code, message: err.message });
+        if (err.code === 1) setGpsPermissao("denied");
+        console.warn("[BIOMETRIA][GPS_BLOQUEADO]", { code: err.code, message: err.message });
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 },
     );
+  }, []);
+
+  // Captura única (com retry) — usada no clique do usuário
+  const ativarLocalizacao = useCallback(async (maxTentativas = 3) => {
+    if (!navigator.geolocation) {
+      setGpsError("GPS não suportado neste dispositivo");
+      setGpsBloqueado(true);
+      return;
+    }
+    setGpsCapturando(true);
+    setGpsError(null);
+    for (let i = 1; i <= maxTentativas; i += 1) {
+      setGpsTentativaAtual(i);
+      const ok = await new Promise<boolean>((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            setGps({
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              precisao: Math.round(pos.coords.accuracy),
+            });
+            setGpsBloqueado(false);
+            setGpsPermissao("granted");
+            setGpsError(null);
+            resolve(true);
+          },
+          (err) => {
+            if (err.code === 1) setGpsPermissao("denied");
+            console.warn("[BIOMETRIA][GPS_BLOQUEADO]", { tentativa: i, code: err.code, message: err.message });
+            resolve(false);
+          },
+          { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 },
+        );
+      });
+      if (ok) {
+        setGpsCapturando(false);
+        setGpsTentativaAtual(0);
+        iniciarWatchGPS();
+        return true;
+      }
+      if (i < maxTentativas) await new Promise((r) => setTimeout(r, 600));
+    }
+    setGpsCapturando(false);
+    setGpsTentativaAtual(0);
+    setGpsBloqueado(true);
+    setGpsError("Não foi possível obter sua localização");
+    return false;
+  }, [iniciarWatchGPS]);
+
+  // Boot do GPS: checa permissão antes de iniciar watch
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setGpsError("GPS não suportado neste dispositivo");
+      setGpsBloqueado(true);
+      setGpsPermissao("denied");
+      return;
+    }
+    const setup = async () => {
+      try {
+        const perms = (navigator as any).permissions;
+        if (perms?.query) {
+          const res = await perms.query({ name: "geolocation" as PermissionName });
+          setGpsPermissao(res.state as any);
+          if (res.state === "granted") {
+            iniciarWatchGPS();
+          } else {
+            // exige gesto do usuário — não dispara watch automaticamente
+            setGpsBloqueado(true);
+          }
+        } else {
+          // navegadores sem Permissions API — tenta watch direto
+          iniciarWatchGPS();
+        }
+      } catch {
+        iniciarWatchGPS();
+      }
+    };
+    setup();
     return () => {
       if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current);
     };
-  }, []);
+  }, [iniciarWatchGPS]);
 
   // CC detectado por GPS — APENAS auditoria visual / log (não decide permissão)
   useEffect(() => {
@@ -542,18 +638,35 @@ export default function PontoDireto() {
   // Confirmação e registro de ponto
   const confirmarBatida = useCallback(async (tipo: TipoBatida) => {
     if (!perfil) return;
+
+    // BLOQUEIO ABSOLUTO PRÉ-EDGE
+    const faceValida = statusRef.current === "reconhecido" && !!perfil.descriptor;
+    if (!faceValida) {
+      console.warn("[BIOMETRIA][BLOQUEIO_PRE_EDGE]", { motivo: "face_invalida", status: statusRef.current });
+      const msg = "Validação biométrica incompleta — não é possível registrar";
+      setErrMsg(msg); toast.error(msg); return;
+    }
+    if (modeloErro) {
+      console.warn("[BIOMETRIA][BLOQUEIO_PRE_EDGE]", { motivo: "modelo_nao_carregado" });
+      toast.error("Reconhecimento facial indisponível"); return;
+    }
     // Bloqueio frontend (defesa em camadas — backend valida igual)
     if (gpsBloqueado || !navigator.geolocation) {
       const msg = "Não foi possível obter sua localização. Ative o GPS para registrar o ponto.";
+      console.warn("[BIOMETRIA][BLOQUEIO_PRE_EDGE]", { motivo: "gps_bloqueado" });
       setErrMsg(msg); toast.error(msg); return;
     }
-    if (!gps) { toast.error("Aguardando localização..."); return; }
+    if (!gps) {
+      console.warn("[BIOMETRIA][BLOQUEIO_PRE_EDGE]", { motivo: "gps_ausente" });
+      toast.error("Aguardando localização..."); return;
+    }
     if (!ccEsperado) {
       const msg = "Funcionário sem centro de custo vinculado. Procure o RH.";
       setErrMsg(msg); toast.error(msg); return;
     }
     if (dentroRaio === false) {
       const msg = "Você está fora do raio permitido do seu centro de custo. Procure o responsável.";
+      console.warn("[BIOMETRIA][BLOQUEIO_PRE_EDGE]", { motivo: "fora_do_raio" });
       setErrMsg(msg); toast.error(msg); return;
     }
     const cooldown = await verificarCooldownBatida(perfil.funcionario_id);
@@ -658,7 +771,22 @@ export default function PontoDireto() {
       toast.error(msg);
       setStatus("falha");
     }
-  }, [perfil, gps, gpsBloqueado, ccEsperado, dentroRaio, cc.id, capturarFotoBase64, navigate, carregarBatidas, reset]);
+  }, [perfil, gps, gpsBloqueado, ccEsperado, dentroRaio, cc.id, modeloErro, capturarFotoBase64, navigate, carregarBatidas, reset]);
+
+  // Retry do modelo de reconhecimento
+  const tentarRecarregarModelo = useCallback(async () => {
+    setModeloErro(null);
+    setStatus("carregando");
+    resetFaceApiLoader();
+    try {
+      await loadFaceApiModels();
+      setStatus(perfil?.descriptor ? "escaneando" : "sem_biometria");
+    } catch (e) {
+      console.error("[BIOMETRIA][ERRO_MODELO]", e);
+      setModeloErro("Falha ao carregar reconhecimento facial");
+      setStatus("falha");
+    }
+  }, [perfil?.descriptor]);
 
   // Auto-enrolamento removido — biometria só é cadastrada pelo RH no painel administrativo.
 
@@ -710,7 +838,58 @@ export default function PontoDireto() {
   }, [gpsBloqueado, gps, ccEsperado, dentroRaio]);
 
   return (
-    <div className="min-h-screen w-full bg-slate-950 text-slate-100 flex flex-col">
+    <div className="min-h-screen w-full bg-slate-950 text-slate-100 flex flex-col relative">
+      {/* OVERLAY DE BLOQUEIO CRÍTICO — modelo */}
+      {modeloErro && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-sm p-6">
+          <div className="max-w-md w-full rounded-3xl border-2 border-rose-500/60 bg-slate-900 p-8 text-center shadow-[0_0_60px_rgba(244,63,94,0.35)]">
+            <AlertTriangle className="h-12 w-12 text-rose-400 mx-auto mb-3" />
+            <h2 className="text-xl font-bold text-rose-100">Reconhecimento facial indisponível</h2>
+            <p className="text-sm text-slate-300 mt-3">{modeloErro}. Verifique sua conexão e tente novamente.</p>
+            <button
+              onClick={tentarRecarregarModelo}
+              className="mt-6 px-6 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm"
+            >
+              <RotateCcw className="h-4 w-4 inline mr-1" />
+              Tentar novamente
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* OVERLAY — exigir gesto do usuário para GPS */}
+      {!modeloErro && (gpsPermissao === "prompt" || gpsPermissao === "denied" || (gpsBloqueado && !gps)) && (
+        <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-sm p-6">
+          <div className="max-w-md w-full rounded-3xl border-2 border-amber-500/50 bg-slate-900 p-8 text-center shadow-[0_0_60px_rgba(245,158,11,0.3)]">
+            <MapPinOff className="h-12 w-12 text-amber-300 mx-auto mb-3" />
+            <h2 className="text-xl font-bold text-amber-100">Localização necessária</h2>
+            <p className="text-sm text-slate-300 mt-3">
+              {gpsPermissao === "denied"
+                ? "Permissão de localização negada. Habilite o GPS nas configurações do navegador para registrar o ponto."
+                : "Ative o GPS do seu dispositivo. O registro de ponto exige sua localização atual."}
+            </p>
+            <button
+              onClick={() => ativarLocalizacao(3)}
+              disabled={gpsCapturando}
+              className="mt-6 px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm disabled:opacity-60"
+            >
+              {gpsCapturando ? (
+                <>
+                  <Loader2 className="h-4 w-4 inline mr-1 animate-spin" />
+                  Obtendo localização... ({gpsTentativaAtual}/3)
+                </>
+              ) : (
+                <>
+                  <MapPin className="h-4 w-4 inline mr-1" />
+                  Ativar localização
+                </>
+              )}
+            </button>
+            {gpsError && <p className="text-xs text-rose-300 mt-3">{gpsError}</p>}
+          </div>
+        </div>
+      )}
+
       {/* HEADER */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-cyan-500/20 bg-slate-900/60 backdrop-blur">
         <div className="flex items-center gap-2 min-w-0">
@@ -909,8 +1088,14 @@ export default function PontoDireto() {
             <div className="grid grid-cols-2 gap-3 mt-5">
               <button
                 onClick={() => confirmarBatida(tipoBatida)}
-                disabled={status === "registrando" || !!motivoBloqueio}
-                className="h-16 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-lg flex items-center justify-center gap-2 shadow-[0_0_25px_rgba(16,185,129,0.4)] disabled:opacity-50"
+                disabled={
+                  status !== "reconhecido" ||
+                  !!motivoBloqueio ||
+                  !!modeloErro ||
+                  !gps ||
+                  dentroRaio !== true
+                }
+                className="h-16 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-lg flex items-center justify-center gap-2 shadow-[0_0_25px_rgba(16,185,129,0.4)] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {status === "registrando" ? (
                   <Loader2 className="h-6 w-6 animate-spin" />

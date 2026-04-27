@@ -336,7 +336,8 @@ const sanitizeFormData = (data: FuncionarioFormData) => {
   return sanitizedData;
 };
 
-// Function to create new funcionario
+// Function to create new funcionario — uses RPC create_funcionario exclusively
+// (allowlist + permission check + duplicate check server-side)
 export const createFuncionario = async (data: FuncionarioFormData): Promise<Funcionario> => {
   try {
     // Validate CPF before proceeding
@@ -344,83 +345,30 @@ export const createFuncionario = async (data: FuncionarioFormData): Promise<Func
       throw new Error('CPF é obrigatório. Preencha o campo CPF antes de salvar.');
     }
 
-    // Sanitize form data (convert empty strings to null)
+    // Sanitize form data (uppercase nome, trim CPF, normalize email, '' -> null)
     const sanitizedData = sanitizeFormData(data);
-    
-    // Check for email duplicates before creating
-    if (sanitizedData.email) {
-      const isDuplicateEmail = await checkEmailDuplicate(sanitizedData.email);
-      if (isDuplicateEmail) {
-        throw new Error(`Já existe um funcionário ativo com o email "${sanitizedData.email}". Verifique duplicidade.`);
-      }
-    }
-    
-    // Calculate data_ferias if data_admissao is provided
-    let funcionarioData = { ...sanitizedData };
-    if (funcionarioData.data_admissao) {
-      const admissionDate = new Date(funcionarioData.data_admissao);
-      const feriasDays = 365; // 1 year for vacation
-      const feriasDate = addDays(admissionDate, feriasDays);
-      funcionarioData.data_ferias = feriasDate.toISOString().split("T")[0];
-    }
 
-    // Set status based on admission and dismissal dates
-    if (!funcionarioData.status) {
-      if (!funcionarioData.data_demissao) {
-        funcionarioData.status = "Ativo";
-      } else {
-        const today = new Date();
-        const dismissalDate = new Date(funcionarioData.data_demissao);
-        funcionarioData.status = dismissalDate > today ? "Aviso Prévio" : "Inativo";
-      }
-    }
+    console.log('🚀 USING RPC create_funcionario');
 
-    // Log the data being sent to the database for debugging
-    console.log("Creating funcionario with data:", funcionarioData);
+    const { data: newFuncionario, error } = await supabase.rpc('create_funcionario', {
+      p_dados: sanitizedData as any,
+    });
 
-    // Separar INSERT do SELECT para evitar conflito RLS no RETURNING
-    // AdmSSO pode inserir em qualquer departamento, mas só pode visualizar o seu
-    const { error: insertError } = await supabase
-      .from("bd_funcionarios")
-      .insert(funcionarioData as any);
-
-    if (insertError) {
-      console.error("Database INSERT error:", insertError);
-      
-      // Extrair mensagem amigável de erros de duplicação
-      if (insertError.message.includes('Já existe um funcionário')) {
-        throw new Error(insertError.message);
-      } else if (insertError.message.includes('duplicate key') || insertError.code === '23505') {
+    if (error) {
+      console.error('RPC create_funcionario error:', error);
+      const msg = error.message || '';
+      if (msg.includes('Já existe um funcionário') || msg.toLowerCase().includes('duplicate') || (error as any).code === '23505') {
         throw new Error('Já existe um funcionário com este CPF ou email. Verifique os dados.');
       }
-      
-      throw new Error(`Erro ao criar funcionário: ${insertError.message}`);
+      if (msg.toLowerCase().includes('permiss')) {
+        throw new Error('Permissão negada para criar funcionário.');
+      }
+      throw new Error(`Erro ao criar funcionário: ${msg}`);
     }
 
-    // INSERT bem-sucedido — tentar buscar o registro criado
-    // Pode falhar por RLS departamental (AdmSSO inserindo em outro departamento)
-    const { data: newFuncionario } = await supabase
-      .from("bd_funcionarios")
-      .select()
-      .eq('cpf', funcionarioData.cpf)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (newFuncionario) {
-      return newFuncionario as unknown as Funcionario;
-    }
-
-    // Fallback: registro criado com sucesso mas não visível por RLS
-    console.warn("⚠️ Funcionário criado com sucesso, mas sem permissão para visualizar (RLS departamental)");
-    return {
-      ...funcionarioData,
-      id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    } as unknown as Funcionario;
+    return newFuncionario as unknown as Funcionario;
   } catch (error) {
-    console.error("Error creating funcionario:", error);
+    console.error('Error creating funcionario:', error);
     throw error;
   }
 };
@@ -784,33 +732,32 @@ export const processImportData = async (
           
           results.success++;
         } else {
-          // Create the funcionario
-          const { data, error } = await supabase
-            .from("bd_funcionarios")
-            .insert(sanitizedData as any)
-            .select();
+          // Create the funcionario via RPC (allowlist + permission + duplicate check)
+          console.log('🚀 USING RPC create_funcionario (import)');
+          const { error } = await supabase.rpc('create_funcionario', {
+            p_dados: sanitizedData as any,
+          });
 
           if (error) {
-            console.error("Erro na inserção:", error);
-            // Se foi erro de email duplicado, tenta sem o email
-            if (error.message.includes("email")) {
+            console.error("Erro na inserção (RPC):", error);
+            // Se foi erro de email duplicado, tenta sem o email — também via RPC
+            if (error.message?.includes("email")) {
               const dataWithoutEmail = { ...sanitizedData };
               delete dataWithoutEmail.email;
-              
-              const { data: retryData, error: retryError } = await supabase
-                .from("bd_funcionarios")
-                .insert(dataWithoutEmail as any)
-                .select();
-                
+
+              const { error: retryError } = await supabase.rpc('create_funcionario', {
+                p_dados: dataWithoutEmail as any,
+              });
+
               if (retryError) {
-                throw new Error(`Erro ao inserir funcionário (retry): ${retryError.message}`);
+                throw new Error(`Erro ao inserir funcionário (retry RPC): ${retryError.message}`);
               }
-              console.log("Funcionário inserido sem email (conflito resolvido):", retryData);
+              console.log("Funcionário inserido sem email (conflito resolvido) via RPC");
             } else {
               throw new Error(`Erro ao inserir funcionário: ${error.message}`);
             }
           } else {
-            console.log("Funcionário inserido com sucesso:", data);
+            console.log("Funcionário inserido com sucesso via RPC");
           }
 
           results.success++;

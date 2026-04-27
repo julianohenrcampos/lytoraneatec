@@ -21,7 +21,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { loadFaceApiModels } from "@/lib/faceapi/loader";
+import { loadFaceApiModels, resetFaceApiLoader } from "@/lib/faceapi/loader";
 import { useBiometriaSegura } from "@/hooks/ponto/useBiometriaSegura";
 import { verificarCooldownBatida } from "@/lib/ponto/verificarCooldownBatida";
 
@@ -122,9 +122,11 @@ const PontoTotem: React.FC = () => {
     frames_ok: 0,
   });
   const [qualidadeMsg, setQualidadeMsg] = useState<string | null>(null);
+  const [modeloErro, setModeloErro] = useState<string | null>(null);
   // GPS
   const [gpsStatus, setGpsStatus] = useState<"idle" | "capturando" | "ok" | "impreciso" | "indisponivel">("idle");
   const [gpsPrecisao, setGpsPrecisao] = useState<number | null>(null);
+  const [gpsTentativaAtual, setGpsTentativaAtual] = useState<number>(0);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -173,24 +175,30 @@ const PontoTotem: React.FC = () => {
     };
   }, []);
 
-  // Carregar modelos face-api
-  useEffect(() => {
-    let cancelled = false;
+  const carregarModelos = useCallback(() => {
+    setModeloErro(null);
+    setStatus("carregando_modelos");
     loadFaceApiModels()
       .then(() => {
-        if (!cancelled) setStatus("escaneando");
+        setModeloErro(null);
+        setStatus("escaneando");
       })
       .catch((e) => {
-        console.error("[PontoTotem] modelos:", e);
-        if (!cancelled) {
-          toast.error("Falha ao carregar modelos de reconhecimento");
-          setStatus("falha");
-        }
+        console.error("[BIOMETRIA][ERRO_MODELO]", e);
+        setModeloErro("Falha ao carregar reconhecimento facial");
+        setStatus("falha");
       });
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  const tentarRecarregarModelo = useCallback(() => {
+    resetFaceApiLoader();
+    carregarModelos();
+  }, [carregarModelos]);
+
+  // Carregar modelos face-api
+  useEffect(() => {
+    carregarModelos();
+  }, [carregarModelos]);
 
   // Câmera — aguarda frame válido antes de marcar cameraReady
   useEffect(() => {
@@ -443,24 +451,19 @@ const PontoTotem: React.FC = () => {
     };
   }, [status, cameraReady, dispositivo, deviceSecret, reset, validarRostoSeguro]);
 
-  // Captura GPS com timeout de 4s e high accuracy
-  const capturarGPS = useCallback((): Promise<{ latitude: number; longitude: number; precisao_gps_metros: number } | null> => {
+  // Captura GPS uma vez (timeout 4s, high accuracy)
+  const capturarGPSUmaVez = useCallback((): Promise<{ latitude: number; longitude: number; precisao_gps_metros: number } | null> => {
     return new Promise((resolve) => {
       if (!("geolocation" in navigator)) {
-        console.log("[PONTO][GPS]", { ok: false, motivo: "indisponivel" });
-        setGpsStatus("indisponivel");
-        setGpsPrecisao(null);
+        console.warn("[BIOMETRIA][GPS_BLOQUEADO]", { motivo: "indisponivel_no_dispositivo" });
         resolve(null);
         return;
       }
-      setGpsStatus("capturando");
       let resolved = false;
       const timeoutId = window.setTimeout(() => {
         if (resolved) return;
         resolved = true;
-        console.warn("[PONTO][GPS]", { ok: false, motivo: "timeout" });
-        setGpsStatus("indisponivel");
-        setGpsPrecisao(null);
+        console.warn("[BIOMETRIA][GPS_BLOQUEADO]", { motivo: "timeout" });
         resolve(null);
       }, 4000);
       navigator.geolocation.getCurrentPosition(
@@ -469,23 +472,17 @@ const PontoTotem: React.FC = () => {
           resolved = true;
           window.clearTimeout(timeoutId);
           const precisao = pos.coords.accuracy ?? 0;
-          const out = {
+          resolve({
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude,
             precisao_gps_metros: precisao,
-          };
-          console.log("[PONTO][GPS]", { ok: true, ...out });
-          setGpsStatus(precisao > 50 ? "impreciso" : "ok");
-          setGpsPrecisao(precisao);
-          resolve(out);
+          });
         },
         (err) => {
           if (resolved) return;
           resolved = true;
           window.clearTimeout(timeoutId);
-          console.warn("[PONTO][GPS]", { ok: false, motivo: err.message, code: err.code });
-          setGpsStatus("indisponivel");
-          setGpsPrecisao(null);
+          console.warn("[BIOMETRIA][GPS_BLOQUEADO]", { motivo: err.message, code: err.code });
           resolve(null);
         },
         { enableHighAccuracy: true, timeout: 3500, maximumAge: 0 },
@@ -493,10 +490,58 @@ const PontoTotem: React.FC = () => {
     });
   }, []);
 
+  // Captura GPS com retry (até 3 tentativas)
+  const capturarGPSComRetry = useCallback(async (
+    maxTentativas: number = 3,
+  ): Promise<{ latitude: number; longitude: number; precisao_gps_metros: number } | null> => {
+    setGpsStatus("capturando");
+    setGpsTentativaAtual(0);
+    for (let i = 1; i <= maxTentativas; i += 1) {
+      setGpsTentativaAtual(i);
+      const r = await capturarGPSUmaVez();
+      if (r) {
+        const precisao = r.precisao_gps_metros;
+        setGpsStatus(precisao > 50 ? "impreciso" : "ok");
+        setGpsPrecisao(precisao);
+        setGpsTentativaAtual(0);
+        console.log("[PONTO][GPS]", { ok: true, tentativa: i, ...r });
+        return r;
+      }
+      if (i < maxTentativas) {
+        await new Promise((res) => setTimeout(res, 600));
+      }
+    }
+    setGpsStatus("indisponivel");
+    setGpsPrecisao(null);
+    setGpsTentativaAtual(0);
+    return null;
+  }, [capturarGPSUmaVez]);
+
+  // Pré-captura GPS assim que reconhecimento provisório acontece
+  useEffect(() => {
+    if (status === "reconhecido_provisorio" && (gpsStatus === "idle" || gpsStatus === "indisponivel")) {
+      capturarGPSComRetry(3).catch(() => undefined);
+    }
+  }, [status, gpsStatus, capturarGPSComRetry]);
+
   // Confirmar batida
   const confirmarBatida = useCallback(async () => {
     if (!dispositivo || !deviceSecret || !funcionario) return;
+
+    // BLOQUEIO ABSOLUTO PRÉ-EDGE: validação completa obrigatória
+    const faceValida = statusRef.current === "reconhecido_provisorio" || statusRef.current === "reconhecido";
+    if (!faceValida) {
+      console.warn("[BIOMETRIA][BLOQUEIO_PRE_EDGE]", { motivo: "face_invalida", status: statusRef.current });
+      toast.error("Validação biométrica incompleta — não é possível registrar");
+      return;
+    }
+    if (modeloErro) {
+      console.warn("[BIOMETRIA][BLOQUEIO_PRE_EDGE]", { motivo: "modelo_nao_carregado" });
+      toast.error("Reconhecimento facial indisponível");
+      return;
+    }
     if (!cameraReady) {
+      console.warn("[BIOMETRIA][BLOQUEIO_PRE_EDGE]", { motivo: "camera_indisponivel" });
       toast.error("Câmera necessária");
       return;
     }
@@ -520,8 +565,22 @@ const PontoTotem: React.FC = () => {
       window.clearTimeout(resetTimerRef.current);
       resetTimerRef.current = null;
     }
+
+    // Garante GPS válido com retry antes de chamar a edge
+    let gps: { latitude: number; longitude: number; precisao_gps_metros: number } | null = null;
+    if (gpsStatus === "ok" || gpsStatus === "impreciso") {
+      gps = await capturarGPSUmaVez(); // refresh rápido
+    }
+    if (!gps) {
+      gps = await capturarGPSComRetry(3);
+    }
+    if (!gps) {
+      console.warn("[BIOMETRIA][BLOQUEIO_PRE_EDGE]", { motivo: "gps_invalido" });
+      toast.error("Não foi possível obter localização. Ative o GPS para registrar o ponto.");
+      return;
+    }
+
     setStatus("registrando");
-    const gps = await capturarGPS();
     const payloadRegistro = {
       codigo_dispositivo: dispositivo.codigo_dispositivo,
       identificador_funcionario: funcionario.matricula || funcionario.cpf || "",
@@ -585,7 +644,7 @@ const PontoTotem: React.FC = () => {
       setStatus("falha");
       resetTimerRef.current = window.setTimeout(reset, 3000);
     }
-  }, [dispositivo, deviceSecret, funcionario, cameraReady, capturarFotoBase64, capturarGPS, tipoBatida, reset]);
+  }, [dispositivo, deviceSecret, funcionario, cameraReady, modeloErro, gpsStatus, capturarFotoBase64, capturarGPSUmaVez, capturarGPSComRetry, tipoBatida, reset]);
 
   // Confirmação humana "Sou eu" → registra no log + promove para "reconhecido"
   const confirmarMatch = useCallback(async () => {
@@ -631,6 +690,29 @@ const PontoTotem: React.FC = () => {
     if (funcionario.foto_url.startsWith("http")) return funcionario.foto_url;
     return undefined;
   }, [funcionario]);
+
+  // Validação visual (gpsValido + faceValida)
+  const gpsValido = gpsStatus === "ok" || gpsStatus === "impreciso";
+  const faceValida = status === "reconhecido_provisorio" || status === "reconhecido";
+
+  // Bloqueio crítico: modelo, câmera (não bloqueia GPS aqui — GPS bloqueia só na confirmação)
+  const motivoBloqueioCritico = useMemo<{ titulo: string; descricao: string; podeRetentar: boolean } | null>(() => {
+    if (modeloErro) {
+      return {
+        titulo: "Reconhecimento facial indisponível",
+        descricao: "Falha ao carregar modelos de reconhecimento. Verifique sua conexão e tente novamente.",
+        podeRetentar: true,
+      };
+    }
+    if (cameraError) {
+      return {
+        titulo: "Câmera indisponível",
+        descricao: cameraError,
+        podeRetentar: false,
+      };
+    }
+    return null;
+  }, [modeloErro, cameraError]);
 
   // Handler de busca/seleção manual
   const buscarManual = useCallback(async () => {
@@ -825,6 +907,45 @@ const PontoTotem: React.FC = () => {
         </div>
       </header>
 
+      {/* OVERLAY DE BLOQUEIO CRÍTICO */}
+      {motivoBloqueioCritico && (
+        <div
+          className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-sm p-6"
+          role="alertdialog"
+          aria-modal="true"
+        >
+          <div className="max-w-md w-full rounded-3xl border-2 border-rose-500/60 bg-slate-900 p-8 text-center shadow-[0_0_60px_rgba(244,63,94,0.35)]">
+            <div className="mx-auto h-16 w-16 rounded-full bg-rose-500/20 flex items-center justify-center mb-4">
+              <X className="h-10 w-10 text-rose-400" />
+            </div>
+            <h2 className="text-2xl font-bold text-rose-100">{motivoBloqueioCritico.titulo}</h2>
+            <p className="text-sm text-slate-300 mt-3">{motivoBloqueioCritico.descricao}</p>
+            {motivoBloqueioCritico.podeRetentar && (
+              <button
+                onClick={tentarRecarregarModelo}
+                className="mt-6 px-6 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm"
+              >
+                Tentar novamente
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Banner de GPS capturando/indisponível (visível durante reconhecimento provisório) */}
+      {(status === "reconhecido_provisorio" || status === "reconhecido") && gpsStatus === "capturando" && (
+        <div className="absolute top-20 right-6 z-40 px-3 py-2 rounded-lg bg-amber-500/15 border border-amber-400/40 text-amber-200 text-xs flex items-center gap-2">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Obtendo localização... ({gpsTentativaAtual}/3)
+        </div>
+      )}
+      {(status === "reconhecido_provisorio" || status === "reconhecido") && gpsStatus === "indisponivel" && (
+        <div className="absolute top-20 right-6 z-40 px-3 py-2 rounded-lg bg-rose-500/20 border border-rose-400/50 text-rose-100 text-xs flex items-center gap-2">
+          <MapPinOff className="h-3 w-3" />
+          GPS indisponível — registro bloqueado
+        </div>
+      )}
+
       <main className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 p-6">
         {/* SCANNER */}
         <section className="flex flex-col gap-4">
@@ -999,7 +1120,12 @@ const PontoTotem: React.FC = () => {
               <div className="flex gap-6 mt-8">
                 <button
                   onClick={status === "reconhecido_provisorio" ? confirmarMatch : confirmarBatida}
-                  disabled={status === "registrando" || status === "sucesso"}
+                  disabled={
+                    status === "registrando" ||
+                    status === "sucesso" ||
+                    !!motivoBloqueioCritico ||
+                    !faceValida
+                  }
                   className={cn(
                     "flex flex-col items-center justify-center gap-2 h-32 w-32 rounded-full font-bold text-lg disabled:opacity-50 animate-pulse",
                     status === "reconhecido_provisorio"
