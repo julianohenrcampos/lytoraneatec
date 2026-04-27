@@ -258,48 +258,28 @@ export function SolicitacaoFormModal({
     }
   });
 
-  // Busca GLOBAL de funcionários ativos (sem filtro de CC/datas/elegibilidade).
-  // Conflitos operacionais são tratados como aviso APÓS seleção (ConfirmDialog),
-  // não como filtro nesta lista.
+  // Adapta linhas vindas das RPCs (campos achatados) para o shape esperado por mapFuncionarioRecord
+  const mapRpcRow = (row: any) => ({
+    ...row,
+    funcao_nome: row.nome_funcao,
+  });
+
+  // Busca GLOBAL de funcionários ativos via RPC SECURITY DEFINER.
+  // Substitui a query direta (que sofria timeout 57014 sob AdmOBRA por avaliar
+  // RLS linha-a-linha em ~1.292 funcionários). A RPC tem fast-path por role e
+  // retorna o mesmo shape achatado consumido por mapRpcRow + mapFuncionarioRecord.
+  // Conflitos operacionais continuam sendo tratados como aviso APÓS seleção.
   const { data: funcionarios = [] } = useQuery({
     queryKey: ['diarias-funcionarios-ativos-global', user?.id, userRole],
     queryFn: async () => {
-      const PAGE_SIZE = 1000;
-      let allData: any[] = [];
-      let page = 0;
+      const { data, error } = await supabase.rpc('get_funcionarios_ativos_global');
 
-      while (true) {
-        const from = page * PAGE_SIZE;
-        const to = from + PAGE_SIZE - 1;
-        const { data, error } = await supabase
-          .from('bd_funcionarios')
-          .select(`
-            id,
-            nome_completo,
-            cpf,
-            funcao_id,
-            centro_custo_id,
-            matricula,
-            status,
-            email,
-            bd_funcoes(id, nome_funcao, valor_diaria, valor_diaria_exclusiva, valor_refeicao)
-          `)
-          .in('status', ['Ativo', 'Ativo sem Registro'])
-          .order('nome_completo', { ascending: true })
-          .range(from, to);
-
-        if (error) {
-          console.error('[Diarias][funcionarios ativos] erro', error);
-          throw error;
-        }
-
-        if (!data || data.length === 0) break;
-        allData = allData.concat(data);
-        if (data.length < PAGE_SIZE) break;
-        page++;
+      if (error) {
+        console.error('[Diarias][funcionarios ativos] erro', error);
+        throw error;
       }
 
-      const mapped = allData.map(mapFuncionarioRecord).map((f) => ({
+      const mapped = (data || []).map(mapRpcRow).map(mapFuncionarioRecord).map((f) => ({
         ...f,
         // Marca "fora do CC da solicitação" client-side (apenas flag visual).
         fora_centro_custo_solicitacao: !!centroCustoId
@@ -308,7 +288,7 @@ export function SolicitacaoFormModal({
       }));
 
       const porStatus = mapped.reduce((acc: Record<string, number>, f: any) => {
-        const key = f.status || 'sem-status';
+        const key = f.status_funcionario || 'sem-status';
         acc[key] = (acc[key] || 0) + 1;
         return acc;
       }, {});
@@ -345,11 +325,6 @@ export function SolicitacaoFormModal({
     enabled: isOpen && funcionarioIdsPreservados.length > 0,
   });
 
-  // Adapta linhas vindas das RPCs (campos achatados) para o shape esperado por mapFuncionarioRecord
-  const mapRpcRow = (row: any) => ({
-    ...row,
-    funcao_nome: row.nome_funcao,
-  });
 
   const { data: engenheirosSolicitantes = [] } = useQuery({
     queryKey: ['diarias-engenheiros-solicitantes-rpc', funcionarioIdsPreservados],

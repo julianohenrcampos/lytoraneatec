@@ -16445,6 +16445,71 @@ export type Database = {
         Args: { p_valor: number }
         Returns: number
       }
+      create_funcionario: {
+        Args: { p_dados: Json }
+        Returns: {
+          adicional_noturno: number | null
+          agencia: string | null
+          assinatura_hash: string | null
+          assinatura_updated_at: string | null
+          assinatura_url: string | null
+          banco: string | null
+          centro_custo_id: string | null
+          chave_pix: string | null
+          conta_corrente: string | null
+          cpf: string
+          created_at: string | null
+          custo_passagem: number | null
+          data_admissao: string | null
+          data_demissao: string | null
+          data_desligamento: string | null
+          data_ferias: string | null
+          data_nascimento: string | null
+          departamento_id: string | null
+          diarias: number | null
+          email: string | null
+          empresa_id: string | null
+          endereco_bairro: string | null
+          endereco_cep: string | null
+          endereco_cidade: string | null
+          endereco_completo: string | null
+          endereco_estado: string | null
+          endereco_normalizado: string | null
+          endereco_numero: string | null
+          endereco_rua: string | null
+          equipe_id: string | null
+          escolaridade: string | null
+          funcao_id: string | null
+          genero: string | null
+          geocoding_relevance: number | null
+          geocoding_source: string | null
+          geocoding_status: string | null
+          geocoding_updated_at: string | null
+          gratificacao: number | null
+          id: string
+          imagem: string | null
+          insalubridade: number | null
+          latitude: number | null
+          longitude: number | null
+          mapbox_place_name: string | null
+          matricula: string | null
+          modificado_por: string | null
+          nome_completo: string
+          observacoes: string | null
+          periculosidade: number | null
+          refeicao: number | null
+          salario_base: number | null
+          status: string | null
+          tipo_escala: string
+          updated_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bd_funcionarios"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       criar_aplicacao_por_rua: {
         Args: {
           p_area_aplicada: number
@@ -17081,6 +17146,23 @@ export type Database = {
         Returns: string[]
       }
       get_funcionario_id_for_auth: { Args: never; Returns: string }
+      get_funcionarios_ativos_global: {
+        Args: never
+        Returns: {
+          centro_custo_id: string
+          cpf: string
+          email: string
+          funcao_id: string
+          id: string
+          matricula: string
+          nome_completo: string
+          nome_funcao: string
+          status: string
+          valor_diaria: number
+          valor_diaria_exclusiva: number
+          valor_refeicao: number
+        }[]
+      }
       get_funcionarios_para_diarias: {
         Args: { p_centro_custo_id?: string; p_user_id?: string }
         Returns: {
@@ -17255,6 +17337,10 @@ export type Database = {
       }
       normalize_email: { Args: { input_email: string }; Returns: string }
       normalize_text: { Args: { input_text: string }; Returns: string }
+      normalize_text_immutable: {
+        Args: { input_text: string }
+        Returns: string
+      }
       rbac_auto_migrate_user: { Args: { p_user_id: string }; Returns: Json }
       refresh_relatorio_diarias: { Args: { p_force?: boolean }; Returns: Json }
       registrar_evento_auditoria_biometria: {
@@ -17333,6 +17419,7 @@ export type Database = {
         Returns: undefined
       }
       unaccent: { Args: { "": string }; Returns: string }
+      unaccent_immutable: { Args: { input_text: string }; Returns: string }
       update_configuracao_sistema: {
         Args: { p_chave: string; p_valor: string }
         Returns: undefined
