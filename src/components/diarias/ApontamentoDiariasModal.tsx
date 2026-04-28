@@ -95,6 +95,7 @@ import {
 import { solicitarInclusaoFuncionario, listarInclusoesPendentes } from "@/services/diarias/inclusaoFuncionarioService";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrigemPontoEletronico } from "@/hooks/diarias/useOrigemPontoEletronico";
+import { useSincronizarDiarias } from "@/hooks/diarias/useSincronizarDiarias";
 import type { RegrasOperacionaisSnapshot, RegraOperacionalSnapshotItem } from "@/types/diarias";
 
 interface ApontamentoDiariasModalProps {
@@ -352,6 +353,7 @@ export default function ApontamentoDiariasModal({
   const [releaseJustificativa, setReleaseJustificativa] = useState('');
 
   const queryClient = useQueryClient();
+  const sincronizarDiarias = useSincronizarDiarias();
   const { userId } = useAuth();
 
   // Extrair dados da solicitação
@@ -910,10 +912,7 @@ export default function ApontamentoDiariasModal({
             : a
         );
       });
-      queryClient.invalidateQueries({ queryKey: ['diaria-apontamentos'] });
-      queryClient.invalidateQueries({ queryKey: ['diaria-apontamento-solicitacao', solicitacao.id] });
-      queryClient.invalidateQueries({ queryKey: ['solicitacao-detalhes'] });
-      queryClient.invalidateQueries({ queryKey: ['diarias-solicitacoes'] });
+      await sincronizarDiarias(solicitacao.id);
       toast.success(`Tipo do dia salvo: ${TIPO_DIA_LABEL[tipoDia]}.`);
     } catch (error: any) {
       const snapshotRevertido: RegrasOperacionaisSnapshot = {
@@ -1171,9 +1170,13 @@ export default function ApontamentoDiariasModal({
             };
           });
 
-          // Detectar funcionários avulsos: presenças existentes cujo funcionario_id NÃO está em convocadosPre
+          // Detectar funcionários avulsos: presenças existentes cujo funcionario_id NÃO está em convocadosPre.
+          // Proteção em camadas: ignorar presenças sem trabalho efetivo (sem hora_entrada e sem presente=true),
+          // para evitar reintrodução de funcionários que foram liberados via gerenciar_convocado_diaria.
           const convocadoIds = new Set(convocadosPre.map(c => c.funcionario_id));
-          const presencasAvulsas = existentes.filter(e => !convocadoIds.has(e.funcionario_id));
+          const presencasAvulsas = existentes.filter(
+            e => !convocadoIds.has(e.funcionario_id) && (!!e.hora_entrada || e.presente === true)
+          );
 
           if (presencasAvulsas.length > 0) {
             // Buscar dados dos funcionários avulsos
@@ -1650,9 +1653,8 @@ export default function ApontamentoDiariasModal({
       }
 
       await persistirFuncionarioSelecionado(funcionario, classificacao);
-      // Invalidar queries para atualizar a solicitação
-      queryClient.invalidateQueries({ queryKey: ['solicitacao-detalhes'] });
-      queryClient.invalidateQueries({ queryKey: ['diarias-solicitacoes'] });
+      // Sincronização única: invalida + refetch das queries de diárias
+      await sincronizarDiarias(solicitacao.id);
 
       toast.success(classificacao.mensagem || `${funcionario.nome_completo} adicionado à lista de convocados.`);
       setSearchTerm("");
@@ -1665,14 +1667,13 @@ export default function ApontamentoDiariasModal({
   };
 
   // Handler para remover/liberar funcionário da lista
+  // IMPORTANTE: NÃO usar filtro local — UI deve refletir refetch do banco
   const handleRemoverFuncionario = async (funcionarioId: string, nomeFuncionario: string, forcarRemocao?: boolean) => {
     if (!solicitacao?.id) return;
     try {
       await removerFuncionarioConvocado(solicitacao.id, funcionarioId, forcarRemocao);
-      setColaboradores(prev => prev.filter(c => c.funcionario_id !== funcionarioId));
-      queryClient.invalidateQueries({ queryKey: ['solicitacao-detalhes'] });
-      queryClient.invalidateQueries({ queryKey: ['diarias-solicitacoes'] });
-      queryClient.invalidateQueries({ queryKey: ['diaria-apontamentos'] });
+      // Sincronização única: invalida + refetch de TODAS as queries relacionadas
+      await sincronizarDiarias(solicitacao.id);
       toast.success(`${nomeFuncionario} liberado da lista.`);
     } catch (error: any) {
       console.error('Erro ao liberar funcionário:', error);
@@ -1697,8 +1698,7 @@ export default function ApontamentoDiariasModal({
       }
 
       await persistirFuncionarioSelecionado(funcionario, classificacao);
-      queryClient.invalidateQueries({ queryKey: ['solicitacao-detalhes'] });
-      queryClient.invalidateQueries({ queryKey: ['diarias-solicitacoes'] });
+      await sincronizarDiarias(solicitacao.id);
 
       toast.success(`${funcionario.nome_completo} transferido com sucesso para esta solicitação.`);
       setSearchTerm("");
@@ -1743,8 +1743,7 @@ export default function ApontamentoDiariasModal({
         else adicionados += 1;
       }
 
-      queryClient.invalidateQueries({ queryKey: ['solicitacao-detalhes'] });
-      queryClient.invalidateQueries({ queryKey: ['diarias-solicitacoes'] });
+      await sincronizarDiarias(solicitacao.id);
       toast.success(`Adicionados: ${adicionados}. Pendentes: ${pendentes}. Ignorados: ${ignorados}.`);
       setSearchTerm('');
       setSelectedFuncionariosIds(new Set());

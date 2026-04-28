@@ -93,6 +93,9 @@ export function useUpdateSolicitacao() {
       updateSolicitacao(id, formData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['diaria-apontamentos'] });
+      queryClient.invalidateQueries({ queryKey: ['diaria-apontamento-solicitacao'] });
+      queryClient.invalidateQueries({ queryKey: ['solicitacao-detalhes'] });
       toast.success('Solicitação atualizada com sucesso!');
     },
     onError: (error: Error) => {
@@ -109,6 +112,8 @@ export function useDeleteSolicitacao() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
       queryClient.invalidateQueries({ queryKey: ['diaria-apontamentos'] });
+      queryClient.invalidateQueries({ queryKey: ['diaria-apontamento-solicitacao'] });
+      queryClient.invalidateQueries({ queryKey: ['solicitacao-detalhes'] });
       queryClient.invalidateQueries({ queryKey: ['diarias-aprovacoes'] });
       toast.success('Solicitação excluída com sucesso!');
     },

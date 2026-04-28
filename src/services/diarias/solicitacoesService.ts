@@ -393,13 +393,14 @@ function traduzirErroPeriodoSobreposto(error: any): string {
   if (msg.includes('FUNCIONARIO_DUPLICADO_NA_DATA')) {
     const match = msg.match(/FUNCIONARIO_DUPLICADO_NA_DATA:\s*(.+)/);
     if (match?.[1]) return match[1].trim();
-    return 'Funcionário já está apontado em outra solicitação ativa nesta data.';
+    return 'Funcionário já possui presença real registrada em outra solicitação ativa nesta data.';
   }
 
+  // Mensagem legada — não é mais disparada pelos triggers atuais (mantida para fallback)
   if (msg.includes('FUNCIONARIO_DUPLICADO_PERIODO')) {
     const match = msg.match(/FUNCIONARIO_DUPLICADO_PERIODO:\s*(.+)/);
     if (match?.[1]) return match[1].trim();
-    return 'Um ou mais funcionários já estão convocados em outra solicitação ativa com período sobreposto. A flag Extraordinária NÃO permite duplicar funcionários, apenas sobrepor períodos.';
+    return 'Funcionário já possui presença em outra solicitação ativa em algum dia deste período.';
   }
 
   if (msg.includes('chk_justificativa_extraordinaria')) {

@@ -44,8 +44,10 @@ type Snapshot = {
   descriptorDelta: number;
 };
 
-const INPUT_SIZE = 416;
-const DETECTION_SCORE_MIN = 0.85;
+// AJUSTE TEMPORÁRIO DE CALIBRAÇÃO — revisar com logs reais
+const INPUT_SIZE = 320; // antes 416
+// AJUSTE TEMPORÁRIO DE CALIBRAÇÃO — revisar com logs reais
+const DETECTION_SCORE_MIN = 0.70; // antes 0.85
 const FACE_RATIO_MIN = 0.15;
 const FACE_RATIO_MAX = 0.75;
 const FACE_BOX_MIN_PX = 120;
@@ -54,6 +56,8 @@ const CENTER_MARGIN = 0.15;
 const YAW_RATIO_MAX = 0.35;
 const REQUIRED_STABLE_FRAMES = 3;
 const SAME_FACE_DISTANCE_MAX = 0.42;
+// AJUSTE TEMPORÁRIO DE CALIBRAÇÃO — revisar com logs reais
+const REQUIRED_DETECTION_FRAMES = 3;
 
 // === LIVENESS PASSIVO (revisão v2) ===
 // MOVEMENT_MIN: limiar mínimo de movimento real (filtra ruído de câmera/compressão)
@@ -87,6 +91,7 @@ export function useBiometriaSegura() {
   const previousSnapshotRef = useRef<Snapshot | null>(null);
   const stableFramesRef = useRef(0);
   const frozenFramesRef = useRef(0);
+  const detectionFramesRef = useRef(0);
   // janela dos últimos N pares para liveness — aprovado se ≥1 par tem movement >= MOVEMENT_MIN
   // E ≥1 par tem descriptorDelta >= DESCRIPTOR_DELTA_MIN
   const livenessWindowRef = useRef<Array<{ movementScore: number; descriptorDelta: number }>>([]);
@@ -96,6 +101,7 @@ export function useBiometriaSegura() {
     previousSnapshotRef.current = null;
     stableFramesRef.current = 0;
     frozenFramesRef.current = 0;
+    detectionFramesRef.current = 0;
     livenessWindowRef.current = [];
   }, []);
 
@@ -132,7 +138,7 @@ export function useBiometriaSegura() {
     _modo: BiometriaModo,
   ): Promise<ValidarRostoSeguroResult> => {
     if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
-      resetBiometriaSegura();
+      detectionFramesRef.current = Math.max(0, detectionFramesRef.current - 1);
       const motivo = MSG_SEM_ROSTO;
       pontoLog("BIOMETRIA", "SEM_ROSTO", "info", { motivo, reason: "video_indisponivel" });
       return { valido: false, motivo, rostoDetectado: false, qualidadeOk: false, livenessOk: false, codigoBloqueio: "SEM_ROSTO" };
@@ -147,7 +153,7 @@ export function useBiometriaSegura() {
       .withFaceDescriptor();
 
     if (!detection) {
-      resetBiometriaSegura();
+      detectionFramesRef.current = Math.max(0, detectionFramesRef.current - 1);
       const motivo = MSG_SEM_ROSTO;
       pontoLog("BIOMETRIA", "SEM_ROSTO", "info", { motivo });
       return { valido: false, motivo, rostoDetectado: false, qualidadeOk: false, livenessOk: false, codigoBloqueio: "SEM_ROSTO" };
@@ -157,10 +163,29 @@ export function useBiometriaSegura() {
     const box = detection.detection.box;
 
     if (detectionScore < DETECTION_SCORE_MIN) {
-      resetBiometriaSegura();
+      detectionFramesRef.current = Math.max(0, detectionFramesRef.current - 1);
       const motivo = MSG_QUALIDADE;
       pontoLog("BIOMETRIA", "DETECCAO_FRACA", "info", { motivo, detectionScore, limite: DETECTION_SCORE_MIN });
       return { valido: false, motivo, detectionScore, rostoDetectado: true, qualidadeOk: false, livenessOk: false, codigoBloqueio: "DETECCAO_FRACA" };
+    }
+
+    // Buffer temporal: exige N frames consecutivos com score válido antes de seguir
+    detectionFramesRef.current += 1;
+    if (detectionFramesRef.current < REQUIRED_DETECTION_FRAMES) {
+      pontoLog("BIOMETRIA", "DETECCAO_AGUARDANDO_BUFFER", "info", {
+        frame: detectionFramesRef.current,
+        requerido: REQUIRED_DETECTION_FRAMES,
+        detectionScore,
+      });
+      return {
+        valido: false,
+        motivo: "Mantenha o rosto centralizado...",
+        detectionScore,
+        rostoDetectado: true,
+        qualidadeOk: false,
+        livenessOk: false,
+        codigoBloqueio: null,
+      };
     }
 
     const boxArea = box.width * box.height;

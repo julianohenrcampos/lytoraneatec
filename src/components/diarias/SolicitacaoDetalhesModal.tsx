@@ -50,6 +50,7 @@ import { generateSolicitacaoPDF } from "@/services/pdfService";
 import { supabase } from "@/integrations/supabase/client";
 import type { DiariaSolicitacao, FuncionarioPreConvocado } from "@/types/diarias";
 import { removerFuncionarioConvocado } from "@/services/diarias/solicitacoesService";
+import { useSincronizarDiarias } from "@/hooks/diarias/useSincronizarDiarias";
 
 interface SolicitacaoDetalhesModalProps {
   isOpen: boolean;
@@ -78,6 +79,7 @@ export function SolicitacaoDetalhesModal({
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [removingFuncId, setRemovingFuncId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const sincronizarDiarias = useSincronizarDiarias();
   
   // Re-analisar período para obter separação sábado/domingo
   const { data: feriados = [] } = useFeriadosPeriodo(
@@ -293,8 +295,7 @@ export function SolicitacaoDetalhesModal({
     setRemovingFuncId(funcionarioId);
     try {
       await removerFuncionarioConvocado(solicitacao.id, funcionarioId);
-      queryClient.invalidateQueries({ queryKey: ['solicitacao-detalhes'] });
-      queryClient.invalidateQueries({ queryKey: ['diarias-solicitacoes'] });
+      await sincronizarDiarias(solicitacao.id);
       toast.success(`${nomeFuncionario} liberado da lista de convocados.`);
     } catch (error: any) {
       toast.error(error.message || 'Erro ao liberar funcionário.');
