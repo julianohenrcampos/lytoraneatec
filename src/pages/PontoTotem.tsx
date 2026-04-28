@@ -73,11 +73,19 @@ const TIPOS: { value: TipoBatida; label: string }[] = [
   { value: "saida", label: "Saída" },
 ];
 
+// AJUSTE TEMPORÁRIO DE CALIBRAÇÃO — revisar com logs reais.
+// Centraliza thresholds locais do gate de match. NÃO espalhar valores no código.
+const CALIBRACAO_MATCH = {
+  DIST_LOCAL_GATE: 0.42, // antes 0.35
+  MARGEM_MIN: 0.08,      // mantido
+  CONFIANCA_MIN: 0.88,   // antes 0.92
+} as const;
+
 // Modo conservador (espelha backend)
 const TICK_MS = 500;
-const DIST_LOCAL_GATE = 0.35; // gate único e estrito
-const MARGEM_MIN = 0.08;
-const CONFIANCA_MIN = 0.92;
+const DIST_LOCAL_GATE = CALIBRACAO_MATCH.DIST_LOCAL_GATE;
+const MARGEM_MIN = CALIBRACAO_MATCH.MARGEM_MIN;
+const CONFIANCA_MIN = CALIBRACAO_MATCH.CONFIANCA_MIN;
 const REQUIRED_MATCH_FRAMES = 3;
 const MATCH_BUFFER_WINDOW_MS = 4000;
 // GPS — limite de precisão para totem/tablet (mais permissivo que mobile)
@@ -440,6 +448,13 @@ const PontoTotem: React.FC = () => {
           setLastReason((data.reason as any) ?? "sem_candidato");
           matchBufferRef.current = [];
           setTentativasSemMatch((x) => x + 1);
+          setBiometria((b) => ({ ...b, matchValido: false, framesValidos: 0, motivoBloqueio: "Rosto detectado, mas não reconhecido" }));
+          setEdgeErroMsg("Rosto detectado, mas não reconhecido");
+          pontoLog("BIOMETRIA", "MATCH_REJEITADO_BACKEND", "warn", {
+            reason: data.reason ?? "sem_candidato",
+            top1Conf: data.top1_confidence ?? null,
+            top1Dist: data.top1_distancia ?? null,
+          });
           return;
         }
 
@@ -448,7 +463,24 @@ const PontoTotem: React.FC = () => {
         const confianca = Number(data.top1_confidence ?? data.confianca ?? 0);
         const funcionarioId = (data as any).funcionario_id as string | undefined;
 
-        // GATE ÚNICO E AND ESTRITO (sem OR): top1d<0.35 && margem≥0.08 && conf≥0.92
+        // MATCH_DEBUG estruturado — visibilidade completa para calibração
+        pontoLog("BIOMETRIA", "MATCH_DEBUG", "info", {
+          top1Distance: top1d,
+          top2Distance: Number.isFinite(Number(data.top2_distancia)) ? Number(data.top2_distancia) : null,
+          margem,
+          confidence: confianca,
+          decisaoBackend: data.decisao,
+          reasonBackend: data.reason ?? null,
+          funcionario_id: funcionarioId ?? null,
+          thresholds_local: {
+            dist: CALIBRACAO_MATCH.DIST_LOCAL_GATE,
+            margem: CALIBRACAO_MATCH.MARGEM_MIN,
+            conf: CALIBRACAO_MATCH.CONFIANCA_MIN,
+          },
+          thresholds_backend: data.thresholds ?? null,
+        });
+
+        // GATE ÚNICO E AND ESTRITO (calibrado via CALIBRACAO_MATCH)
         const matchOk =
           !!funcionarioId &&
           Number.isFinite(top1d) &&
@@ -458,8 +490,8 @@ const PontoTotem: React.FC = () => {
         if (!matchOk) {
           setConfiancaAtual(null);
           matchBufferRef.current = [];
-          setBiometria((b) => ({ ...b, matchValido: false, framesValidos: 0, motivoBloqueio: "Rosto não reconhecido com segurança" }));
-          setEdgeErroMsg("Rosto não reconhecido com segurança");
+          setBiometria((b) => ({ ...b, matchValido: false, framesValidos: 0, motivoBloqueio: "Rosto detectado, mas não reconhecido" }));
+          setEdgeErroMsg("Rosto detectado, mas não reconhecido");
           setTentativasSemMatch((x) => x + 1);
           pontoLog("BIOMETRIA", "MATCH_INVALIDO", "warn", { dist: top1d, margem, confianca, funcionario_id: funcionarioId });
           return;

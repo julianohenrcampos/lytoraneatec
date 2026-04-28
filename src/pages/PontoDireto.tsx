@@ -80,10 +80,17 @@ const TIPOS: { value: TipoBatida; label: string; icon: string }[] = [
   { value: "saida", label: "Saída", icon: "🔴" },
 ];
 
+// AJUSTE TEMPORÁRIO DE CALIBRAÇÃO — revisar com logs reais.
+// Centraliza thresholds locais do gate de match. NÃO espalhar valores no código.
+const CALIBRACAO_MATCH = {
+  DIST_LOCAL_GATE: 0.42, // antes 0.35
+  CONFIANCA_MIN: 0.88,   // antes 0.92
+} as const;
+
 const TICK_MS = 600;
 const THRESHOLD = 0.40; // distância máxima aceita pelo edge equivalente
-const DIST_LOCAL_GATE = 0.35; // gate local mais estrito
-const CONFIANCA_MIN = 0.92;
+const DIST_LOCAL_GATE = CALIBRACAO_MATCH.DIST_LOCAL_GATE;
+const CONFIANCA_MIN = CALIBRACAO_MATCH.CONFIANCA_MIN;
 const REQUIRED_MATCH_FRAMES = 3;
 const MAX_TENTATIVAS = 3;
 // GPS — limite de precisão para mobile
@@ -612,15 +619,30 @@ export default function PontoDireto() {
           dist: Number(dist.toFixed(3)),
         });
 
-        // GATE ÚNICO E AND ESTRITO (sem OR): dist<0.35 && confianca≥0.92
+        // MATCH_DEBUG estruturado — visibilidade completa para calibração
+        pontoLog("BIOMETRIA", "MATCH_DEBUG", "info", {
+          top1Distance: dist,
+          top2Distance: null, // PontoDireto compara contra perfil único
+          margem: null,
+          confidence: confianca,
+          decisaoBackend: "local_compare",
+          reasonBackend: null,
+          funcionario_id: perfil.funcionario_id,
+          thresholds_local: {
+            dist: CALIBRACAO_MATCH.DIST_LOCAL_GATE,
+            conf: CALIBRACAO_MATCH.CONFIANCA_MIN,
+          },
+        });
+
+        // GATE ÚNICO E AND ESTRITO (calibrado via CALIBRACAO_MATCH)
         const matchOk =
           Number.isFinite(dist) &&
           dist < DIST_LOCAL_GATE &&
           confianca >= CONFIANCA_MIN;
         if (!matchOk) {
           matchBufferRef.current = [];
-          setErrMsg("Rosto não reconhecido com segurança");
-          setBiometria((b) => ({ ...b, rostoDetectado: true, qualidadeOk: true, rostoValido: true, livenessOk: true, matchValido: false, framesValidos: 0, motivoBloqueio: "Rosto não reconhecido com segurança" }));
+          setErrMsg("Rosto detectado, mas não reconhecido");
+          setBiometria((b) => ({ ...b, rostoDetectado: true, qualidadeOk: true, rostoValido: true, livenessOk: true, matchValido: false, framesValidos: 0, motivoBloqueio: "Rosto detectado, mas não reconhecido" }));
           setTentativasSemMatch((x) => x + 1);
           pontoLog("BIOMETRIA", "MATCH_INVALIDO", "warn", { dist, confianca });
           return;
