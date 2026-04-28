@@ -175,30 +175,17 @@ export const canCreateApontamentoForTeam = async (teamId: string): Promise<boole
     }
     
     // Get user profile with simplified role check
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('funcoes')
-      .eq('id', currentUser.user.id)
-      .single();
-    
-    if (profileError) {
-      console.log("❌ Could not fetch user profile, but allowing access based on team visibility");
-      // If we can't get the profile but can access the team, allow it
-      return true;
-    }
-    
-    if (!profile?.funcoes || !Array.isArray(profile.funcoes)) {
-      console.log("❌ User has no roles assigned");
-      return false;
-    }
-    
-    // Check if user has allowed roles
-    const allowedRoles = ['SuperAdm', 'AdmRH', 'Apontador', 'Encarregado'];
-    const hasAllowedRole = profile.funcoes.some(role => allowedRoles.includes(role));
-    
-    console.log(`✅ Permission check result: ${hasAllowedRole} (roles: ${profile.funcoes.join(', ')})`);
+    // Decisão via RBAC granular — Gestão de Permissões é fonte única
+    const { checkUserAction } = await import("@/services/rbac/checkUserAction");
+    const hasAllowedRole = await checkUserAction(
+      currentUser.user.id,
+      "requisicoes_apontamento_equipe_view",
+      "criar"
+    );
+
+    console.log(`✅ Permission check result: ${hasAllowedRole}`);
     return hasAllowedRole;
-    
+
   } catch (error) {
     console.error("❌ Error checking apontamento creation permission:", error);
     // In case of error, allow if user can access team (fallback)

@@ -94,6 +94,7 @@ import {
 } from "@/services/diarias/calendarioOperacionalService";
 import { solicitarInclusaoFuncionario, listarInclusoesPendentes } from "@/services/diarias/inclusaoFuncionarioService";
 import { useAuth } from "@/hooks/useAuth";
+import { usePermission } from "@/hooks/usePermission";
 import { useOrigemPontoEletronico } from "@/hooks/diarias/useOrigemPontoEletronico";
 import { useSincronizarDiarias } from "@/hooks/diarias/useSincronizarDiarias";
 import type { RegrasOperacionaisSnapshot, RegraOperacionalSnapshotItem } from "@/types/diarias";
@@ -280,8 +281,18 @@ export default function ApontamentoDiariasModal({
   readOnly = false,
   edicaoLiberada = false,
   initialDate,
-  isSuperAdmin = false
+  isSuperAdmin: isSuperAdminProp = false
 }: ApontamentoDiariasModalProps) {
+  // RBAC: decisão de ação vem do sistema de permissões, não de role string.
+  // A prop isSuperAdmin é mantida apenas para retrocompatibilidade (display/legado).
+  const { isSuperAdmin: isSuperAdminPerm, hasActionPermission } = usePermission();
+  const isSuperAdmin = isSuperAdminProp || isSuperAdminPerm;
+  // Pode editar apontamentos em fase concluída (correção pós-conclusão / adicionar funcionário tardio)
+  const canEditarConcluido =
+    isSuperAdminPerm ||
+    hasActionPermission('diarias_view', 'aprovar') ||
+    hasActionPermission('diarias_apontamento_view', 'editar') ||
+    isSuperAdminProp;
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [hasValidatedDateStructure, setHasValidatedDateStructure] = useState(false);
   const [colaboradores, setColaboradores] = useState<ColaboradorPresenca[]>([]);
@@ -1269,7 +1280,7 @@ export default function ApontamentoDiariasModal({
           // Se a data é passada e não há registros, marcar como concluído (falta) e bloquear
             const hojeStr = getCurrentBrazilianDate();
             const isDataPassada = !!selectedDate && selectedDate < hojeStr;
-            if (isDataPassada && !(edicaoLiberada && isSuperAdmin)) {
+            if (isDataPassada && !(edicaoLiberada && canEditarConcluido)) {
             setFase('concluido');
           } else {
             setFase('inicio');
@@ -1943,7 +1954,7 @@ export default function ApontamentoDiariasModal({
       const resultado = await salvarInicio(solicitacao.id, selectedDate, registros);
       
       // Persistir motivo da edição quando edicaoLiberada
-      if (edicaoLiberada && isSuperAdmin && observacaoCorrecao.trim() && apontamento?.id) {
+      if (edicaoLiberada && canEditarConcluido && observacaoCorrecao.trim() && apontamento?.id) {
         await supabase
           .from('bd_diaria_apontamentos')
           .update({ observacoes: observacaoCorrecao.trim() })
@@ -2520,7 +2531,7 @@ export default function ApontamentoDiariasModal({
           </div>
 
           {/* Banner edição liberada + observação obrigatória */}
-          {edicaoLiberada && isSuperAdmin && (
+          {edicaoLiberada && canEditarConcluido && (
             <div className="space-y-2">
               <Alert className="border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20">
                 <AlertTriangle className="h-4 w-4 text-yellow-600" />
@@ -2572,7 +2583,7 @@ export default function ApontamentoDiariasModal({
                   </Button>
                 )}
 
-                {((fase === 'inicio' || fase === 'finalizacao') && !readOnly || (fase === 'concluido' && isSuperAdmin)) && (
+                {((fase === 'inicio' || fase === 'finalizacao') && !readOnly || (fase === 'concluido' && canEditarConcluido)) && (
                   <Popover open={showAddFuncionario} onOpenChange={(open) => { setShowAddFuncionario(open); if (!open) { setAddSelectedFunc(null); setAddJustificativa(""); setAddFerias(false); } }}>
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="xs" className="text-[10px] sm:text-xs gap-1 h-6 sm:h-7 px-2">
@@ -2838,7 +2849,7 @@ export default function ApontamentoDiariasModal({
 
                     const presencaDisabled = legacyPresenceActionsDisabled || readOnly || (fase === 'concluido' && !edicaoLiberada) || (fase === 'finalizacao' && !!colaborador.presencaId && colaborador.presente && !faltaConvertida.has(colaborador.funcionario_id)) || (fase !== 'inicio' && fase !== 'finalizacao' && !(fase === 'concluido' && edicaoLiberada));
                     const isAtrasado = fase === 'finalizacao' && colaborador.presente && (!colaborador.presencaId || faltaConvertida.has(colaborador.funcionario_id));
-                    const entradaDisabled = legacyPresenceActionsDisabled || (fase !== 'inicio' && fase !== 'finalizacao' && !(fase === 'concluido' && edicaoLiberada)) || !colaborador.presente || readOnly || (isAtrasado && !isSuperAdmin);
+                    const entradaDisabled = legacyPresenceActionsDisabled || (fase !== 'inicio' && fase !== 'finalizacao' && !(fase === 'concluido' && edicaoLiberada)) || !colaborador.presente || readOnly || (isAtrasado && !canEditarConcluido);
                     const jaSalvouSaida = saidasSalvas.has(colaborador.funcionario_id);
                     const saidaDisabled = legacyPresenceActionsDisabled || (fase !== 'finalizacao' && !(fase === 'concluido' && edicaoLiberada)) || !colaborador.presente || readOnly || jaSalvouSaida;
                     const refeicaoDisabled = legacyPresenceActionsDisabled || (fase === 'concluido' && !edicaoLiberada) || !colaborador.presente || readOnly || jaSalvouSaida;
@@ -2905,7 +2916,7 @@ export default function ApontamentoDiariasModal({
                                 ) : (
                                   <>
                                     <Badge variant="destructive" className="text-[10px] sm:text-xs">Falta</Badge>
-                                    {!readOnly && (!colaborador.presencaId || isSuperAdmin) && (
+                                    {!readOnly && (!colaborador.presencaId || canEditarConcluido) && (
                                       <Button variant="ghost" size="xs" onClick={() => setReleaseConfirm({ funcionarioId: colaborador.funcionario_id, nomeFuncionario: colaborador.nome_funcionario, hasPresenca: !!colaborador.presencaId && colaborador.presente === true && !!colaborador.hora_entrada })} className="h-5 w-5 p-0 text-destructive hover:text-destructive" title="Liberar funcionário">
                                         <X className="h-3.5 w-3.5" />
                                       </Button>
@@ -3158,7 +3169,7 @@ export default function ApontamentoDiariasModal({
               )}
               <Button
                 onClick={handleSalvarInicio}
-                disabled={legacyPresenceActionsDisabled || isSaving || hasSaved || !selectedDate || colaboradores.length === 0 || (edicaoLiberada && isSuperAdmin && !observacaoCorrecao.trim())}
+                disabled={legacyPresenceActionsDisabled || isSaving || hasSaved || !selectedDate || colaboradores.length === 0 || (edicaoLiberada && canEditarConcluido && !observacaoCorrecao.trim())}
                 className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-10"
               >
                 {isSaving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Salvando...</> : <><Clock className="h-3.5 w-3.5 mr-1.5" />Salvar Início</>}
@@ -3172,7 +3183,7 @@ export default function ApontamentoDiariasModal({
               {(colaboradores.some(c => c.presente && !c.presencaId) || faltaConvertida.size > 0) && (
                 <Button
                   onClick={handleSalvarInicioAtrasados}
-                  disabled={legacyPresenceActionsDisabled || isSaving || !selectedDate || (edicaoLiberada && isSuperAdmin && !observacaoCorrecao.trim())}
+                  disabled={legacyPresenceActionsDisabled || isSaving || !selectedDate || (edicaoLiberada && canEditarConcluido && !observacaoCorrecao.trim())}
                   className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-10"
                 >
                   {isSaving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Salvando...</> : <><Clock className="h-3.5 w-3.5 mr-1.5" />Salvar Início (Atrasados)</>}
@@ -3182,7 +3193,7 @@ export default function ApontamentoDiariasModal({
               {!colaboradores.some(c => c.presente && !c.presencaId) && faltaConvertida.size === 0 && (
                 <Button
                   onClick={handleSalvarFinalizacao}
-                  disabled={legacyPresenceActionsDisabled || isSaving || !selectedDate || colaboradores.length === 0 || !colaboradores.filter(c => c.presente && !!c.presencaId).every(c => c.hora_saida) || (edicaoLiberada && isSuperAdmin && !observacaoCorrecao.trim())}
+                  disabled={legacyPresenceActionsDisabled || isSaving || !selectedDate || colaboradores.length === 0 || !colaboradores.filter(c => c.presente && !!c.presencaId).every(c => c.hora_saida) || (edicaoLiberada && canEditarConcluido && !observacaoCorrecao.trim())}
                   className="bg-orange-600 hover:bg-orange-700 text-white w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-10"
                 >
                   {isSaving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Finalizando...</> : <><CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />Salvar Finalização</>}

@@ -80,7 +80,7 @@ const SSOAgendamentoExames: React.FC = () => {
     isDeleting,
     isUpdatingStatusBulk 
   } = useAgendamentoExames(undefined, filters);
-  const { isSuperAdmin, userRole } = usePermission();
+  const { isSuperAdmin, hasActionPermission } = usePermission();
 
   // Bloqueio de horário (6h-16h BRT)
   const dentroDoHorario = isWithinBrazilianBusinessHours(6, 16);
@@ -90,16 +90,16 @@ const SSOAgendamentoExames: React.FC = () => {
   const podeAgendar = dentroDoHorario || desbloqueioAtivo;
   const horarioAtual = getCurrentBrazilianTime();
 
-  const canCreate = (isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO', 'JovemAdm', 'EnferAdm', 'TecSSO', 'AdmTec', 'AdmtreinoSSO'].includes(userRole || '')) && podeAgendar;
-  const canEdit = (isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO', 'AdmtreinoSSO'].includes(userRole || '')) && podeAgendar;
-  const canDelete = isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA'].includes(userRole || '');
-  const canChangeStatus = (isSuperAdmin || ['SuperAdm', 'AdmSSO', 'AdmOBRA', 'TecEnferSSO', 'ConsultaExames', 'AdmtreinoSSO'].includes(userRole || '')) && podeAgendar;
-  
-  // Permissões granulares por coluna
-  const canChangeStatusExame = isSuperAdmin || ['SuperAdm', 'TecEnferSSO'].includes(userRole || '');
-  const canChangeIntegracao = isSuperAdmin || ['SuperAdm', 'AdmtreinoSSO'].includes(userRole || '');
-  const canChangeBeneficios = isSuperAdmin || ['SuperAdm', 'AdmtreinoSSO', 'AdmSSO', 'AdmOBRA'].includes(userRole || '');
-  const canChangeCarteira = isSuperAdmin || ['SuperAdm', 'ConsultaExames'].includes(userRole || '');
+  const canCreate = (isSuperAdmin || hasActionPermission('acesso_sso_agendamento_exames', 'criar')) && podeAgendar;
+  const canEdit = (isSuperAdmin || hasActionPermission('acesso_sso_agendamento_exames', 'editar')) && podeAgendar;
+  const canDelete = isSuperAdmin || hasActionPermission('acesso_sso_agendamento_exames', 'excluir');
+  const canChangeStatus = (isSuperAdmin || hasActionPermission('acesso_sso_agendamento_exames', 'aprovar')) && podeAgendar;
+
+  // Permissões granulares por coluna — todas derivam da mesma permissão base + ação
+  const canChangeStatusExame = isSuperAdmin || hasActionPermission('acesso_sso_agendamento_exames', 'aprovar');
+  const canChangeIntegracao = isSuperAdmin || hasActionPermission('acesso_sso_agendamento_exames', 'editar');
+  const canChangeBeneficios = isSuperAdmin || hasActionPermission('acesso_sso_agendamento_exames', 'editar');
+  const canChangeCarteira = isSuperAdmin || hasActionPermission('acesso_sso_agendamento_exames', 'editar');
 
   // Clear selection when filters change
   useEffect(() => {

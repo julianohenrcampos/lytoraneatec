@@ -31,8 +31,8 @@ export const VerAgirDialog: React.FC<VerAgirDialogProps> = ({
 }) => {
   const isEditing = !!registroId;
   const { registro, createRegistro, updateRegistro, setStatus, isCreating, isUpdating, isChangingStatus, getSignedUrl, centrosCusto, isLoadingCentrosCusto } = useVerAgir(registroId);
-  const { isSuperAdmin, userRole, userId } = usePermission();
-  const canManageGestao = isSuperAdmin || userRole === 'AdmSSO' || userRole === 'AdmOBRA';
+  const { isSuperAdmin, userId, hasActionPermission } = usePermission();
+  const canManageGestao = isSuperAdmin || hasActionPermission('acesso_sso_ver_agir', 'editar');
 
   // Opções do Combobox de Centro de Custo
   const centrosCustoOptions = useMemo(() => 

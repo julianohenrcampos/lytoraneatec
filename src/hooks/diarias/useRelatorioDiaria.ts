@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import type { DiariasReportContext, RelatorioFilters } from '@/types/diarias';
 import {
   getRelatorioFolha,
+  getRelatorioFolhaPaginadoView,
   getResumoDiarias,
   getPresencaResumo,
   exportarRelatorioExcel,
@@ -20,15 +21,43 @@ interface RelatorioScopeFilters {
   centro_custo_ids?: string[];
 }
 
-export function useRelatorioFolha(filters?: RelatorioFilters, scope?: RelatorioScopeFilters) {
+export function useRelatorioFolha(
+  filters?: RelatorioFilters,
+  scope?: RelatorioScopeFilters,
+  options?: { enabled?: boolean }
+) {
   return useQuery({
     queryKey: [QUERY_KEY, 'folha', filters, scope],
     queryFn: () => getRelatorioFolha(filters, scope),
-    retry: 2,
+    enabled: options?.enabled ?? true,
+    retry: 1,
     retryDelay: 1000,
-    staleTime: 2 * 60 * 1000, // 2 minutos — evita refetch excessivo
-    placeholderData: keepPreviousData, // mantém dados anteriores enquanto refaz fetch
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+  });
+}
+
+export function useRelatorioFolhaPaginado(
+  filters: RelatorioFilters | undefined,
+  scope: RelatorioScopeFilters | undefined,
+  pagination: { page: number; pageSize: number },
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: [QUERY_KEY, 'folha-paginado', filters, scope, pagination],
+    queryFn: () => getRelatorioFolhaPaginadoView(filters, scope, pagination),
+    enabled: options?.enabled ?? true,
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    retry: 1,
   });
 }
 

@@ -45,6 +45,8 @@ import { usePagination } from "@/hooks/usePagination";
 import TablePagination from "@/components/ui/table-pagination";
 import { Switch } from "@/components/ui/switch";
 import { Combobox } from "@/components/ui/combobox";
+import { PeriodoPicker } from "@/components/ui/periodo-picker";
+import type { DateRange } from "react-day-picker";
 import { fetchCentrosCustoFiltered } from "@/services/centrosCustoFilteredService";
 import { generateFolhaPontoPDF } from "@/services/pdfService";
 import type { FolhaPontoFuncionario } from "@/components/diarias/pdf/FolhaPontoPDF";
@@ -54,7 +56,7 @@ export default function DiariasApontamentoCampo() {
   usePageTitle("Apontamento de Campo - Diárias");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { permissions, isSuperAdmin, isLoading: isLoadingPermissions } = usePermission();
+  const { permissions, isSuperAdmin, hasActionPermission, isLoading: isLoadingPermissions } = usePermission();
   const hasPermission = (perm: string) => permissions.includes(perm);
 
   // Hook de escopo de dados - RBAC
@@ -66,10 +68,13 @@ export default function DiariasApontamentoCampo() {
   } = useDiariasDataScope();
 
   const hasAccess = isSuperAdmin || hasPermission('diarias_apontamento_view') || hasPermission('diarias_view') || userScope === 'admsso';
+  // RBAC: capacidade de liberar edição de apontamentos finalizados (correção administrativa)
+  const canLiberarEdicao = isSuperAdmin || hasActionPermission('diarias_view', 'aprovar') || hasActionPermission('diarias_apontamento_view', 'editar');
 
   // Filters
-  const [statusFilter, setStatusFilter] = useState<StatusApontamento | '__all__'>('__all__');
-  const [dataFilter, setDataFilter] = useState('');
+  type StatusUI = '__all__' | 'pendente' | 'em_andamento' | 'concluido';
+  const [statusFilter, setStatusFilter] = useState<StatusUI>('__all__');
+  const [periodoFilter, setPeriodoFilter] = useState<DateRange | undefined>(undefined);
   const [solicitacaoFilter, setSolicitacaoFilter] = useState('');
   const [centroCustoFilter, setCentroCustoFilter] = useState('');
   const [gerenteFilter, setGerenteFilter] = useState('');
@@ -138,12 +143,8 @@ export default function DiariasApontamentoCampo() {
 
   // Query apontamentos - COM ESCOPO OBRIGATÓRIO
   const apontamentoScopeFilters = useMemo(() => getApontamentosFilter(), [getApontamentosFilter]);
-  const statusFilterMemo = useMemo(
-    () => (statusFilter !== '__all__' ? { status: statusFilter } : undefined),
-    [statusFilter]
-  );
   const { data: apontamentos = [], isLoading, refetch } = useApontamentosCampo(
-    statusFilterMemo,
+    undefined,
     apontamentoScopeFilters
   );
 
@@ -229,6 +230,48 @@ export default function DiariasApontamentoCampo() {
         return ccIds.includes(a.bd_diaria_solicitacoes?.centro_custo_id);
       });
     }
+
+    // Filtrar por intervalo de datas (overlap com o período da solicitação)
+    if (periodoFilter?.from || periodoFilter?.to) {
+      const fmt = (d: Date) => format(d, 'yyyy-MM-dd');
+      const fromStr = periodoFilter.from ? fmt(periodoFilter.from) : undefined;
+      const toStr = periodoFilter.to ? fmt(periodoFilter.to) : (periodoFilter.from ? fmt(periodoFilter.from) : undefined);
+      filtered = filtered.filter((a: any) => {
+        const sol = a.bd_diaria_solicitacoes;
+        const inicio = sol?.data_inicio as string | undefined;
+        const fim = sol?.data_fim as string | undefined;
+        if (!inicio || !fim) return false;
+        if (fromStr && fim < fromStr) return false;
+        if (toStr && inicio > toStr) return false;
+        return true;
+      });
+    }
+
+    // Filtrar por status agregado (UI)
+    if (statusFilter !== '__all__') {
+      filtered = filtered.filter((a: any) => {
+        const sol = a.bd_diaria_solicitacoes;
+        const datas = datasApontadasMap[sol?.id] || [];
+        let totalDias = 0;
+        try {
+          totalDias = eachDayOfInterval({
+            start: parseBrazilianDate(sol?.data_inicio),
+            end: parseBrazilianDate(sol?.data_fim)
+          }).length;
+        } catch { totalDias = 0; }
+
+        const finalizados = datas.filter((d) => d.status === 'finalizado').length;
+        const iniciados = datas.filter((d) => d.status === 'iniciado').length;
+        const concluido = totalDias > 0 && finalizados >= totalDias;
+        const emAndamento = !concluido && (iniciados > 0 || (finalizados > 0 && finalizados < totalDias));
+        const pendente = !concluido && !emAndamento;
+
+        if (statusFilter === 'concluido') return concluido;
+        if (statusFilter === 'em_andamento') return emAndamento;
+        if (statusFilter === 'pendente') return pendente;
+        return true;
+      });
+    }
     
     return filtered.sort((a: any, b: any) => {
       const solA = a.bd_diaria_solicitacoes;
@@ -261,7 +304,7 @@ export default function DiariasApontamentoCampo() {
       if (!allFinA && allFinB) return -1;
       return 0;
     });
-  }, [apontamentos, datasApontadasMap, solicitacaoFilter, centroCustoFilter, gerenteFilter, ccByGerenteMap]);
+  }, [apontamentos, datasApontadasMap, solicitacaoFilter, centroCustoFilter, gerenteFilter, ccByGerenteMap, periodoFilter, statusFilter]);
 
   // Pagination
   const pagination = usePagination(sortedApontamentos, { pageSize: 6 });
@@ -569,28 +612,23 @@ export default function DiariasApontamentoCampo() {
                 </div>
               )}
               <div>
-                <Label>Data</Label>
-                <Input
-                  type="date"
-                  value={dataFilter}
-                  onChange={(e) => setDataFilter(e.target.value)}
-                />
+                <Label>Período</Label>
+                <PeriodoPicker value={periodoFilter} onChange={setPeriodoFilter} />
               </div>
               <div>
                 <Label>Status</Label>
                 <Select
                   value={statusFilter}
-                  onValueChange={(v) => setStatusFilter(v as StatusApontamento | '__all__')}
+                  onValueChange={(v) => setStatusFilter(v as StatusUI)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__all__">Todos</SelectItem>
-                    <SelectItem value="aberto">Aberto</SelectItem>
+                    <SelectItem value="pendente">Pendente</SelectItem>
                     <SelectItem value="em_andamento">Em Andamento</SelectItem>
-                    <SelectItem value="finalizado">Finalizado</SelectItem>
-                    <SelectItem value="cancelado">Cancelado</SelectItem>
+                    <SelectItem value="concluido">Concluído</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -615,7 +653,7 @@ export default function DiariasApontamentoCampo() {
                 size="sm"
                 onClick={() => {
                   setStatusFilter('__all__');
-                  setDataFilter('');
+                  setPeriodoFilter(undefined);
                   setSolicitacaoFilter('');
                   setCentroCustoFilter('');
                   setGerenteFilter('');
@@ -747,7 +785,7 @@ export default function DiariasApontamentoCampo() {
                             }
                           }
 
-                          const isClickable = isLiberado && isSuperAdmin && (isPast || isHoje);
+                          const isClickable = isLiberado && canLiberarEdicao && (isPast || isHoje);
 
                           const titleParts = [formatBrazilianDateForDisplay(dataStr)];
                           if (status?.status === 'finalizado') titleParts.push('Finalizado');
@@ -780,7 +818,7 @@ export default function DiariasApontamentoCampo() {
                       </div>
                       <div className="flex items-center gap-3">
                         {/* Toggle SuperAdmin para liberar edição */}
-                        {isSuperAdmin && (
+                        {canLiberarEdicao && (
                           <div className="flex items-center gap-2">
                             {(apontamento as any).edicao_liberada && (
                               <Badge className="text-[10px] bg-yellow-500 text-white">Liberado</Badge>

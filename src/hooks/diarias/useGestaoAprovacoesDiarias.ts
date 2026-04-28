@@ -86,19 +86,9 @@ export function useGestaoAprovacoesDiarias(filtros: GestaoAprovacoesFiltros) {
         } else if (roleNames.includes('GerenteAdm')) {
           setUserFluxoRole('gerente_adm');
         } else {
-          // Fallback: check profiles.funcoes
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('funcoes')
-            .eq('id', userId)
-            .single();
-          
-          const funcoes = (profile?.funcoes as string[]) || [];
-          if (funcoes.includes('DiretorAdm')) setUserFluxoRole('diretor_adm');
-          else if (funcoes.includes('DiretorOperacional')) setUserFluxoRole('diretor_operacional');
-          else if (funcoes.includes('GerenteAdm')) setUserFluxoRole('gerente_adm');
-          else if (funcoes.includes('AdmSSO') || funcoes.includes('AdmOBRA')) setUserFluxoRole('viewer');
-          else setUserFluxoRole('viewer');
+          // Sem fallback para profiles.funcoes — RBAC (bd_user_roles) é fonte única.
+          // Se o usuário não tem role de fluxo (Diretor/Gerente), trata como viewer.
+          setUserFluxoRole('viewer');
         }
       } catch {
         setUserFluxoRole('viewer');

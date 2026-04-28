@@ -26,13 +26,23 @@ export default defineConfig(({ mode }) => ({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}', 'models/**/*'],
         sourcemap: false
       },
-      includeAssets: ['favicon.ico', 'icons/maskable-icon1.png', 'icons/dcf6c980-f927-4180-b109-b425da1323ba.png', 'models/*'],
+      includeAssets: [
+        'favicon.ico',
+        'favicon-16.png',
+        'favicon-32.png',
+        'icons/icon-192x192.png',
+        'icons/icon-512x512.png',
+        'icons/maskable-icon-192x192.png',
+        'icons/maskable-icon-512x512.png',
+        'icons/apple-touch-icon.png',
+        'models/*'
+      ],
       manifest: {
         name: 'Lytorânea Construtora - Sistema ERP',
         short_name: 'LYTOTEC ERP',
         description: 'Sistema ERP completo para gestão de empresas de construção civil',
         theme_color: '#DD2C00',
-        background_color: '#ffffff',
+        background_color: '#FFFFFF',
         display: 'standalone',
         orientation: 'any',
         scope: '/',
@@ -41,9 +51,10 @@ export default defineConfig(({ mode }) => ({
         prefer_related_applications: false,
         categories: ['business', 'productivity'],
         icons: [
-          { src: 'icons/maskable-icon1.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-          { src: 'icons/maskable-icon1.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-          { src: 'maskable-icon.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+          { src: 'icons/icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icons/maskable-icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: 'icons/maskable-icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ]
       },
       devOptions: {

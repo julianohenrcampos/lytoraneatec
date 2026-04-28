@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Download, Plus, Users, Shield, AlertCircle } from "lucide-react";
 import { useApontamentoEquipe } from "@/hooks/useApontamentoEquipe";
+import { usePermission } from "@/hooks/usePermission";
 import { fetchEquipes } from "@/services/equipe/fetchEquipes";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -224,7 +225,8 @@ const ApontamentoEquipe: React.FC = () => {
     });
   };
 
-  const canCreateApontamento = ['SuperAdm', 'AdmRH', 'Apontador', 'Encarregado'].includes(userRole || '');
+  const { isSuperAdmin, hasActionPermission } = usePermission();
+  const canCreateApontamento = isSuperAdmin || hasActionPermission('requisicoes_apontamento_equipe_view', 'criar');
 
   if (isLoading) {
     return (

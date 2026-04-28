@@ -57,7 +57,7 @@ export interface DiariasDataScope {
 }
 
 export function useDiariasDataScope(): DiariasDataScope {
-  const { userId, userRole, isSuperAdmin, permissions, isLoading: isLoadingPermissions } = usePermission();
+  const { userId, userRole, isSuperAdmin, permissions, isLoading: isLoadingPermissions, hasActionPermission } = usePermission();
   
   const [funcionarioId, setFuncionarioId] = useState<string | null>(null);
   const [centrosCustoGerenciados, setCentrosCustoGerenciadosRaw] = useState<string[]>([]);
@@ -256,17 +256,28 @@ export function useDiariasDataScope(): DiariasDataScope {
     determineScope();
   }, [userId, isSuperAdmin]); // REMOVIDO isLoadingPermissions das deps
 
-  // Filtros de escopo baseado no perfil
+  // Filtros de escopo — RBAC PURO para o Relatório de Diárias.
+  // Fonte ÚNICA: hasActionPermission('diarias_relatorio_view','visualizar') + acesso_global.
+  // - SuperAdmin OU usuário com a ação 'visualizar' liberada → sem filtro frontend
+  //   (o RLS é a barreira final por CC/criador/responsável).
+  // - Caso contrário, mantemos o caminho legado por escopo (engenheiro vê só o que criou,
+  //   gerente vê seus CCs, etc.) — preserva segurança para quem NÃO foi listado na permissão.
+  const podeVerRelatorioCompleto = useMemo(
+    () => isSuperAdmin || hasActionPermission('diarias_relatorio_view', 'visualizar'),
+    [isSuperAdmin, hasActionPermission],
+  );
+
   const scopeFilters = useMemo((): DiariasDataScopeFilters => {
-    if (userScope === 'superadmin' || userScope === 'admsso') return {};
-    // delegado_rls e admobra: não aplicar filtro frontend - RLS resolve OR (criador/responsável/CC)
-    if (userScope === 'delegado_rls' || userScope === 'admobra') return {};
+    // RBAC tem precedência absoluta — zero filtro frontend, RLS resolve.
+    if (podeVerRelatorioCompleto) return {};
+
+    // Fallback legado para perfis sem a permissão granular.
     if (userScope === 'admsede') return { centro_custo_ids: centrosCustoGerenciados };
     if (userScope === 'engenheiro') return { criado_por: userId || undefined };
     if (userScope === 'gerente') return { centro_custo_ids: centrosCustoGerenciados };
     if (userScope === 'apontador') return { responsavel_campo_id: funcionarioId || undefined };
     return {};
-  }, [userScope, userId, centrosCustoGerenciados, funcionarioId]);
+  }, [podeVerRelatorioCompleto, userScope, userId, centrosCustoGerenciados, funcionarioId]);
 
   // Funções de filtro para queries
   const getSolicitacoesFilter = useCallback((): SolicitacaoFilters & DiariasDataScopeFilters => {
@@ -285,13 +296,14 @@ export function useDiariasDataScope(): DiariasDataScope {
   }, [userScope, funcionarioId, centrosCustoGerenciados]);
 
   const getRelatorioFilter = useCallback((): RelatorioFilters & DiariasDataScopeFilters => {
-    if (userScope === 'superadmin' || userScope === 'admsso') return {};
-    if (userScope === 'delegado_rls' || userScope === 'admobra') return {};
+    // RBAC puro: quem tem 'diarias_relatorio_view:visualizar' (ou é SuperAdm) vê tudo.
+    if (podeVerRelatorioCompleto) return {};
+    // Fallback legado para usuários sem a permissão granular.
     if (userScope === 'admsede') return { centro_custo_ids: centrosCustoGerenciados };
     if (userScope === 'engenheiro') return { criado_por: userId || undefined };
     if (userScope === 'gerente') return { centro_custo_ids: centrosCustoGerenciados };
     return {};
-  }, [userScope, userId, centrosCustoGerenciados]);
+  }, [podeVerRelatorioCompleto, userScope, userId, centrosCustoGerenciados]);
 
   // Verificações de ação
   const hasPermission = useCallback((perm: string) => {
@@ -417,21 +429,29 @@ export function useDiariasDataScope(): DiariasDataScope {
 
   const canApontar = useCallback((responsavelCampoId: string, criadoPor?: string | null) => {
     if (isSuperAdmin) return true;
-    
-    // Responsável em campo pode apontar
+
+    // Responsável em campo sempre pode apontar (regra de negócio: dono do CC)
     if (funcionarioId && responsavelCampoId === funcionarioId) return true;
-    
+
     // Criador da solicitação também pode apontar (cobertura de urgência)
     if (criadoPor && userId === criadoPor) return true;
-    
-    // Apontador só pode apontar nos seus próprios
-    if (userScope === 'apontador') {
-      return responsavelCampoId === funcionarioId && hasPermission('diarias_apontar_own');
+
+    // Decisão por RBAC granular: quem tem ação 'criar' ou 'editar' em
+    // diarias_apontamento_view pode apontar (escopo de dados é resolvido pelo RLS).
+    if (
+      hasActionPermission('diarias_apontamento_view', 'criar') ||
+      hasActionPermission('diarias_apontamento_view', 'editar')
+    ) {
+      return true;
     }
-    
-    // AdmSSO e Gerente = somente leitura
+
+    // Compat: permissão histórica do Apontador
+    if (responsavelCampoId === funcionarioId && hasPermission('diarias_apontar_own')) {
+      return true;
+    }
+
     return false;
-  }, [isSuperAdmin, userScope, funcionarioId, userId, hasPermission]);
+  }, [isSuperAdmin, funcionarioId, userId, hasPermission, hasActionPermission]);
 
   const canDeletePresenca = useCallback((item: RelatorioFolhaItem): boolean => {
     // SuperAdmin pode excluir tudo

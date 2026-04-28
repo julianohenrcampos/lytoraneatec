@@ -269,6 +269,7 @@ export interface RelatorioFilters {
   status_convocacao?: StatusConvocacao;
   presenca_status?: StatusPresenca;
   tipo_vinculo?: 'diarista' | 'remessa';
+  gerente_regional_ids?: string[];
 }
 
 // =====================================================

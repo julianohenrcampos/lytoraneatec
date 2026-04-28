@@ -1165,6 +1165,45 @@ export type Database = {
         }
         Relationships: []
       }
+      bd_auditoria_log_archive: {
+        Row: {
+          archived_at: string
+          campos_alterados: string[] | null
+          created_at: string
+          dados_anteriores: Json | null
+          dados_novos: Json | null
+          id: string
+          operacao: string
+          registro_id: string | null
+          tabela: string
+          usuario_id: string | null
+        }
+        Insert: {
+          archived_at?: string
+          campos_alterados?: string[] | null
+          created_at: string
+          dados_anteriores?: Json | null
+          dados_novos?: Json | null
+          id: string
+          operacao: string
+          registro_id?: string | null
+          tabela: string
+          usuario_id?: string | null
+        }
+        Update: {
+          archived_at?: string
+          campos_alterados?: string[] | null
+          created_at?: string
+          dados_anteriores?: Json | null
+          dados_novos?: Json | null
+          id?: string
+          operacao?: string
+          registro_id?: string | null
+          tabela?: string
+          usuario_id?: string | null
+        }
+        Relationships: []
+      }
       bd_auditoria_sync_equipe_funcionario: {
         Row: {
           data_sync: string | null
@@ -12286,6 +12325,21 @@ export type Database = {
           },
         ]
       }
+      vw_auditoria_log_completo: {
+        Row: {
+          arquivado: boolean | null
+          campos_alterados: string[] | null
+          created_at: string | null
+          dados_anteriores: Json | null
+          dados_novos: Json | null
+          id: string | null
+          operacao: string | null
+          registro_id: string | null
+          tabela: string | null
+          usuario_id: string | null
+        }
+        Relationships: []
+      }
       vw_auditoria_sistema: {
         Row: {
           categoria: string | null
@@ -16555,6 +16609,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      fn_arquivar_auditoria_log: { Args: { p_lote?: number }; Returns: number }
       fn_assign_user_role_secure: {
         Args: { p_role_id: string; p_target_user_id: string }
         Returns: undefined
@@ -16757,6 +16812,13 @@ export type Database = {
       fn_can_view_permission_admin: {
         Args: { p_user_id?: string }
         Returns: boolean
+      }
+      fn_check_email_autorizado: {
+        Args: { _email: string }
+        Returns: {
+          autorizado: boolean
+          motivo: string
+        }[]
       }
       fn_check_funcionario_email_status: {
         Args: { p_email: string }

@@ -36,6 +36,23 @@ export async function getRelatorioFolha(
 ): Promise<RelatorioFolhaItem[]> {
   const context = options?.context || await getCurrentDiariasReportContext();
   const viewName = getRelatorioViewForContext(context);
+
+  // Default 31 dias quando nenhum período foi informado — evita varredura
+  // completa da view (que estoura statement_timeout do PostgREST).
+  let appliedDefaultPeriod = false;
+  let effectiveFilters: RelatorioFilters | undefined = filters;
+  if (!filters?.data_inicio && !filters?.data_fim) {
+    const hoje = new Date();
+    const inicio = new Date();
+    inicio.setDate(hoje.getDate() - 30);
+    effectiveFilters = {
+      ...(filters || {}),
+      data_inicio: inicio.toISOString().slice(0, 10),
+      data_fim: hoje.toISOString().slice(0, 10),
+    };
+    appliedDefaultPeriod = true;
+  }
+
   let query: any;
 
   if (viewName === 'vw_diarias_financeiro_dp') {
@@ -65,12 +82,12 @@ export async function getRelatorioFolha(
     query = query.in('centro_custo_id', scope.centro_custo_ids);
   }
 
-  // Aplicar filtros opcionais
-  if (filters?.data_inicio) {
-    query = query.gte('data', filters.data_inicio);
+  // Aplicar filtros opcionais (usando effectiveFilters para datas)
+  if (effectiveFilters?.data_inicio) {
+    query = query.gte('data', effectiveFilters.data_inicio);
   }
-  if (filters?.data_fim) {
-    query = query.lte('data', filters.data_fim);
+  if (effectiveFilters?.data_fim) {
+    query = query.lte('data', effectiveFilters.data_fim);
   }
   if (filters?.centro_custo_id) {
     const { data: cc } = await supabase
@@ -129,14 +146,15 @@ export async function getRelatorioFolha(
   }
 
   // Suplementar dados faltantes via RPC SECURITY DEFINER
-  // Detectar registros com qualquer metadado crítico ausente
+  // Apenas no contexto financeiro_dp e quando o dataset for pequeno o suficiente
+  // para não estourar o statement_timeout (cap de 5000 linhas).
   const canSupplementSensitive = context === 'financeiro_dp';
   const needsSupplement = canSupplementSensitive ? allData.filter(r => r.funcionario_id && (
     !r.nome_funcionario || !r.cpf_funcionario || !r.matricula_funcionario ||
     !r.nome_funcao || !r.banco_funcionario || !r.agencia_funcionario ||
     !r.conta_funcionario || !r.pix_funcionario
   )) : [];
-  if (needsSupplement.length > 0) {
+  if (needsSupplement.length > 0 && allData.length <= 5000) {
     let rpcAll: any[] = [];
     let page = 0;
       while (true) {
@@ -174,12 +192,168 @@ export async function getRelatorioFolha(
       context,
       format: options?.auditFormat || 'screen',
       fileName: options?.fileName,
-      filters: sanitizeFiltersForAudit({ ...filters, ...scope }),
+      filters: sanitizeFiltersForAudit({ ...effectiveFilters, ...scope }),
       quantidadeRegistros: allData.length,
     });
   }
 
+  // Sinalizar para a UI que o período padrão foi aplicado
+  (allData as any).__defaultPeriodApplied = appliedDefaultPeriod;
   return allData;
+}
+
+// =====================================================
+// PAGINAÇÃO SERVER-SIDE (VIEW) — escala para grandes volumes
+// =====================================================
+
+export interface RelatorioFolhaPage {
+  rows: RelatorioFolhaItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  defaultPeriodApplied: boolean;
+}
+
+export async function getRelatorioFolhaPaginadoView(
+  filters: RelatorioFilters | undefined,
+  scope: RelatorioScopeFilters | undefined,
+  pagination: { page: number; pageSize: number },
+  options?: RelatorioFolhaSecureOptions,
+): Promise<RelatorioFolhaPage> {
+  const context = options?.context || await getCurrentDiariasReportContext();
+  const viewName = getRelatorioViewForContext(context);
+
+  // Default 31 dias quando vazios
+  let appliedDefaultPeriod = false;
+  let effectiveFilters: RelatorioFilters = { ...(filters || {}) };
+  if (!effectiveFilters.data_inicio && !effectiveFilters.data_fim) {
+    const hoje = new Date();
+    const inicio = new Date();
+    inicio.setDate(hoje.getDate() - 30);
+    effectiveFilters.data_inicio = inicio.toISOString().slice(0, 10);
+    effectiveFilters.data_fim = hoje.toISOString().slice(0, 10);
+    appliedDefaultPeriod = true;
+  }
+
+  // Resolver gerente_regional => centro_custo_ids (server-side)
+  let ccIdsFromGerente: string[] | null = null;
+  if (effectiveFilters.gerente_regional_ids?.length) {
+    const { data: ccs } = await supabase
+      .from('bd_centros_custo')
+      .select('id')
+      .in('aprovador_diarias_id', effectiveFilters.gerente_regional_ids);
+    ccIdsFromGerente = (ccs || []).map((c: any) => c.id);
+    if (ccIdsFromGerente.length === 0) {
+      return { rows: [], total: 0, page: pagination.page, pageSize: pagination.pageSize, defaultPeriodApplied: appliedDefaultPeriod };
+    }
+  }
+
+  let query: any = supabase
+    .from(viewName as any)
+    .select('*', { count: 'exact' })
+    .not('hora_saida', 'is', null)
+    .order('data', { ascending: false })
+    .order('nome_funcionario', { ascending: true });
+
+  // Escopo RBAC
+  if (scope?.criado_por) query = query.eq('solicitante_id', scope.criado_por);
+  if (scope?.centro_custo_ids?.length) query = query.in('centro_custo_id', scope.centro_custo_ids);
+
+  // Datas
+  query = query.gte('data', effectiveFilters.data_inicio!).lte('data', effectiveFilters.data_fim!);
+
+  // Centros de custo (multi + single + via gerente). Interseção via in().
+  let ccFilterIds: string[] | null = null;
+  if (effectiveFilters.centro_custo_ids?.length) ccFilterIds = effectiveFilters.centro_custo_ids;
+  else if (effectiveFilters.centro_custo_id) ccFilterIds = [effectiveFilters.centro_custo_id];
+  if (ccIdsFromGerente) {
+    ccFilterIds = ccFilterIds
+      ? ccFilterIds.filter(id => ccIdsFromGerente!.includes(id))
+      : ccIdsFromGerente;
+    if (ccFilterIds.length === 0) {
+      return { rows: [], total: 0, page: pagination.page, pageSize: pagination.pageSize, defaultPeriodApplied: appliedDefaultPeriod };
+    }
+  }
+  if (ccFilterIds?.length) query = query.in('centro_custo_id', ccFilterIds);
+
+  if (effectiveFilters.funcionario_id) query = query.eq('funcionario_id', effectiveFilters.funcionario_id);
+  if (effectiveFilters.solicitacao_id) query = query.eq('solicitacao_id', effectiveFilters.solicitacao_id);
+  if (effectiveFilters.solicitacao_ids?.length) query = query.in('solicitacao_id', effectiveFilters.solicitacao_ids);
+  if (effectiveFilters.empresa_id) query = query.eq('empresa_id', effectiveFilters.empresa_id);
+  if (effectiveFilters.presenca_status) {
+    const statusBoolean = effectiveFilters.presenca_status === 'presente';
+    query = query.eq('presenca_status', statusBoolean as unknown as string);
+  }
+  // tipo_vinculo: diarista = matricula nula/'---'; remessa = inverso
+  if (effectiveFilters.tipo_vinculo === 'diarista') {
+    query = query.or('matricula_funcionario.is.null,matricula_funcionario.eq.---');
+  } else if (effectiveFilters.tipo_vinculo === 'remessa') {
+    query = query.not('matricula_funcionario', 'is', null).neq('matricula_funcionario', '---');
+  }
+
+  const from = pagination.page * pagination.pageSize;
+  const to = from + pagination.pageSize - 1;
+  const { data, error, count } = await query.range(from, to);
+
+  if (error) {
+    console.error('Erro ao buscar relatório paginado:', error);
+    throw new Error(error.message);
+  }
+
+  let rows = (data || []) as RelatorioFolhaItem[];
+
+  // Suplementar dados sensíveis APENAS na página atual (≤ pageSize)
+  const canSupplementSensitive = context === 'financeiro_dp';
+  if (canSupplementSensitive && rows.length > 0) {
+    const needs = rows.some(r => r.funcionario_id && (
+      !r.cpf_funcionario || !r.matricula_funcionario ||
+      !r.banco_funcionario || !r.agencia_funcionario ||
+      !r.conta_funcionario || !r.pix_funcionario
+    ));
+    if (needs) {
+      const ids = [...new Set(rows.map(r => r.funcionario_id).filter(Boolean) as string[])];
+      if (ids.length > 0) {
+        const { data: funcs } = await supabase
+          .from('bd_funcionarios')
+          .select('id, nome_completo, cpf, matricula, banco, agencia, conta_corrente, chave_pix')
+          .in('id', ids);
+        const map = new Map((funcs || []).map((f: any) => [f.id, f]));
+        rows = rows.map(item => {
+          if (!item.funcionario_id) return item;
+          const f: any = map.get(item.funcionario_id);
+          if (!f) return item;
+          return {
+            ...item,
+            nome_funcionario: item.nome_funcionario || f.nome_completo,
+            cpf_funcionario: item.cpf_funcionario || f.cpf,
+            matricula_funcionario: item.matricula_funcionario || f.matricula,
+            banco_funcionario: item.banco_funcionario || f.banco,
+            agencia_funcionario: item.agencia_funcionario || f.agencia,
+            conta_funcionario: item.conta_funcionario || f.conta_corrente,
+            pix_funcionario: item.pix_funcionario || f.chave_pix,
+          };
+        });
+      }
+    }
+  }
+
+  if (options?.audit !== false) {
+    await auditRelatorioAccess({
+      context,
+      format: options?.auditFormat || 'screen',
+      fileName: options?.fileName,
+      filters: sanitizeFiltersForAudit({ ...effectiveFilters, ...scope }),
+      quantidadeRegistros: count ?? rows.length,
+    });
+  }
+
+  return {
+    rows,
+    total: count ?? rows.length,
+    page: pagination.page,
+    pageSize: pagination.pageSize,
+    defaultPeriodApplied: appliedDefaultPeriod,
+  };
 }
 
 // =====================================================

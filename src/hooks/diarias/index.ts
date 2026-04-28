@@ -25,6 +25,7 @@ export {
 // Relatório
 export {
   useRelatorioFolha,
+  useRelatorioFolhaPaginado,
   useResumoDiarias,
   usePresencaResumo,
   useExportarExcel,

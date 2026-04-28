@@ -159,8 +159,10 @@ export function SolicitacaoFormModal({
   const JUSTIFICATIVA_OPERACIONAL_PADRAO = 'Ponte de feriado / estratégia operacional';
   const [step, setStep] = useState<Step>('dados');
   const { user } = useAuth();
-  const { isSuperAdmin, permissions, userRole } = usePermission();
+  const { isSuperAdmin, permissions, userRole, hasActionPermission } = usePermission();
   const { scopeFilters, canCreateSolicitacao } = useDiariasDataScope();
+  // RBAC: capacidade de criar solicitação retroativa (data anterior a hoje)
+  const canCriarRetroativa = isSuperAdmin || hasActionPermission('diarias_solicitar', 'criar');
   
   // Form data - Período
   const [dataInicio, setDataInicio] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -1109,7 +1111,7 @@ export function SolicitacaoFormModal({
                {!periodoValidacao.valido && periodoValidacao.erro && (
                   <p className="text-sm text-destructive">{periodoValidacao.erro}</p>
                 )}
-                {isRetroativo && isSuperAdmin && !isEditing && (
+                {isRetroativo && canCriarRetroativa && !isEditing && (
                   <Alert className="border-amber-300 bg-amber-50">
                     <Info className="h-4 w-4 text-amber-600" />
                     <AlertDescription className="text-amber-800 text-xs">

@@ -180,20 +180,15 @@ export const podeSerCancelada = async (entregaId: string, userId: string): Promi
 
     if (programacaoError) throw programacaoError;
 
-    // Por simplicidade, vamos permitir que SuperAdmin e AdmRH sempre possam cancelar
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('funcoes')
-      .eq('id', userId)
-      .single();
+    // Decisão via RBAC granular — Gestão de Permissões é fonte única
+    const { checkUserAction } = await import("@/services/rbac/checkUserAction");
+    const podeCancel = await checkUserAction(
+      userId,
+      "requisicoes_programacao_entrega_view",
+      "excluir"
+    );
 
-    const isAdmin = profile?.funcoes?.some(f => ['SuperAdm', 'AdmRH', 'Administrador'].includes(f));
-
-    if (isAdmin) {
-      return { podeCancel: true };
-    }
-
-    return { podeCancel: true }; // Por agora, permitir para todos os usuários autenticados
+    return { podeCancel };
 
   } catch (error) {
     console.error("❌ Erro ao verificar permissão de cancelamento:", error);

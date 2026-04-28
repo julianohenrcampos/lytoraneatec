@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { checkUserAction } from "@/services/rbac/checkUserAction";
 
 export interface CancellationPermission {
   canCancel: boolean;
@@ -61,51 +62,20 @@ export const checkCancellationPermission = async (
       };
     }
 
-    // 4. Buscar perfil do usuário para verificar permissões
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('funcoes')
-      .eq('id', userId)
-      .single();
-
-    if (profileError || !profile) {
-      return {
-        canCancel: false,
-        reason: "Perfil de usuário não encontrado"
-      };
-    }
-
-    const userRole = profile.funcoes?.[0] || 'user';
-
-    // 5. Verificar permissões por hierarquia
-    const isAdmin = profile.funcoes?.some(f => 
-      ['SuperAdm', 'AdmRH', 'Administrador'].includes(f)
+    // 4. Decisão pelo RBAC granular (Gestão de Permissões — fonte única)
+    const canEdit = await checkUserAction(
+      userId,
+      "requisicoes_programacao_entrega_view",
+      "editar"
     );
 
-    if (isAdmin) {
-      return {
-        canCancel: true,
-        userRole
-      };
-    }
-
-    // 6. Para não-admins, permitir apenas se for criador da programação
-    // (Por simplicidade, vamos permitir para Apontadores e Encarregados)
-    const canEditProgramacao = profile.funcoes?.some(f => 
-      ['Apontador', 'Encarregado'].includes(f)
-    );
-
-    if (canEditProgramacao) {
-      return {
-        canCancel: true,
-        userRole
-      };
+    if (canEdit) {
+      return { canCancel: true };
     }
 
     return {
       canCancel: false,
       reason: "Usuário não possui permissão para cancelar programações",
-      userRole
     };
 
   } catch (error) {
@@ -125,43 +95,17 @@ export const checkEditPermission = async (
   userId: string
 ): Promise<CancellationPermission> => {
   try {
-    // Buscar perfil do usuário
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('funcoes')
-      .eq('id', userId)
-      .single();
-
-    if (!profile) {
-      return {
-        canCancel: false,
-        reason: "Perfil não encontrado"
-      };
-    }
-
-    const userRole = profile.funcoes?.[0] || 'user';
-
-    // Verificar se é admin
-    const isAdmin = profile.funcoes?.some(f => 
-      ['SuperAdm', 'AdmRH', 'Administrador'].includes(f)
-    );
-
-    if (isAdmin) {
-      return {
-        canCancel: true,
-        userRole
-      };
-    }
-
-    // Para não-admins, verificar se pode editar programações
-    const canEdit = profile.funcoes?.some(f => 
-      ['Apontador', 'Encarregado'].includes(f)
+    const canEdit = await checkUserAction(
+      userId,
+      "requisicoes_programacao_entrega_view",
+      "editar"
     );
 
     return {
       canCancel: canEdit,
-      reason: canEdit ? undefined : "Usuário não possui permissão para editar programações",
-      userRole
+      reason: canEdit
+        ? undefined
+        : "Usuário não possui permissão para editar programações",
     };
 
   } catch (error) {

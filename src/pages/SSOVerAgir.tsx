@@ -25,11 +25,11 @@ export default function SSOVerAgir() {
   const [registroToConcluir, setRegistroToConcluir] = useState<string | null>(null);
 
   const { registros, isLoading, deleteRegistro, setStatus, isDeleting, isChangingStatus } = useVerAgir(undefined, filters);
-  const { isSuperAdmin, userRole, userId } = usePermission();
+  const { isSuperAdmin, userId, hasActionPermission } = usePermission();
 
-  const canEditAll = isSuperAdmin || ['AdmSSO', 'AdmOBRA', 'AdmtreinoSSO'].includes(userRole || '');
-  const canDeleteAll = isSuperAdmin || ['AdmSSO', 'AdmOBRA', 'AdmtreinoSSO'].includes(userRole || '');
-  const canConcluir = isSuperAdmin || ['AdmSSO', 'AdmOBRA', 'AdmtreinoSSO'].includes(userRole || '');
+  const canEditAll = isSuperAdmin || hasActionPermission('acesso_sso_ver_agir', 'editar');
+  const canDeleteAll = isSuperAdmin || hasActionPermission('acesso_sso_ver_agir', 'excluir');
+  const canConcluir = isSuperAdmin || hasActionPermission('acesso_sso_ver_agir', 'aprovar');
 
   const handleFilterChange = (newFilters: VerAgirFilters) => {
     setFilters(newFilters);

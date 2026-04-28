@@ -22,6 +22,7 @@ export {
 // Relatório
 export {
   getRelatorioFolha,
+  getRelatorioFolhaPaginadoView,
   getResumoDiarias,
   getPresencaResumo,
   exportarRelatorioExcel,
@@ -30,6 +31,7 @@ export {
   registrarDivergencia,
   aprovarRelatorioFinal
 } from './relatorioService';
+export type { RelatorioFolhaPage } from './relatorioService';
 
 // Apontamentos
 export {

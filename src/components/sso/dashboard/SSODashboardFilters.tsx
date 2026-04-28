@@ -27,8 +27,8 @@ export const SSODashboardFilters = ({ filters, onFilterChange }: SSODashboardFil
   const [resultado, setResultado] = useState(filters.resultado_avaliacao || '');
   const [tecnico, setTecnico] = useState(filters.tecnico_seguranca || '');
 
-  const { userRole, isSuperAdmin } = usePermission();
-  const canFilterByTecnico = isSuperAdmin || userRole === 'AdmSSO' || userRole === 'AdmOBRA';
+  const { isSuperAdmin, hasActionPermission } = usePermission();
+  const canFilterByTecnico = isSuperAdmin || hasActionPermission('acesso_sso_dashboard', 'editar');
 
   const { data: obras } = useQuery({
     queryKey: ['obras-ativas', isSuperAdmin],

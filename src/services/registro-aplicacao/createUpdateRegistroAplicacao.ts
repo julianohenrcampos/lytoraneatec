@@ -50,20 +50,15 @@ const verificarPermissaoEntrega = async (listaEntregaId: string, userId: string)
     }
 
     // Buscar perfil do usuário
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("funcoes")
-      .eq("id", userId)
-      .single();
-
-    if (profileError || !profile) {
-      console.error("Erro ao buscar perfil:", profileError);
-      return false;
-    }
-
-    // SuperAdmin pode tudo
-    if (profile.funcoes && profile.funcoes.includes('SuperAdm')) {
-      console.log("✅ Usuário é SuperAdmin - permissão concedida");
+    // Decisão via RBAC granular — Gestão de Permissões é fonte única
+    const { checkUserAction } = await import("@/services/rbac/checkUserAction");
+    const podeRegistrar = await checkUserAction(
+      userId,
+      "requisicoes_apontamento_caminhoes_view",
+      "criar"
+    );
+    if (podeRegistrar) {
+      console.log("✅ Permissão concedida via RBAC granular");
       return true;
     }
 

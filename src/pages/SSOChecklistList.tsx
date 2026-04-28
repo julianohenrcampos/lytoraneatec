@@ -22,8 +22,8 @@ const SSOChecklistList = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const {
     isSuperAdmin,
-    userRole,
-    userId
+    hasActionPermission,
+    userId,
   } = usePermission();
   const [filters, setFilters] = useState<FilterType>({});
   const {
@@ -32,10 +32,10 @@ const SSOChecklistList = () => {
     deleteChecklist
   } = useSSOChecklist(undefined, filters);
 
-  // SuperAdm e AdmSSO podem editar/excluir todos os checklists e exportar Excel
-  const canEditAll = isSuperAdmin || userRole === 'AdmSSO';
-  const canDeleteAll = isSuperAdmin || userRole === 'AdmSSO';
-  const canExportExcel = isSuperAdmin || userRole === 'AdmSSO';
+  // Decisões via RBAC granular
+  const canEditAll = isSuperAdmin || hasActionPermission('acesso_sso_checklists', 'editar');
+  const canDeleteAll = isSuperAdmin || hasActionPermission('acesso_sso_checklists', 'excluir');
+  const canExportExcel = isSuperAdmin || hasActionPermission('acesso_sso_checklists', 'visualizar');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [selectedChecklistId, setSelectedChecklistId] = useState<string | undefined>();

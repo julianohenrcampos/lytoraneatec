@@ -44,8 +44,8 @@ export const SSOChecklistFilters = ({
   const [resultado, setResultado] = useState('');
   const [tecnico, setTecnico] = useState('');
 
-  const { userRole, isSuperAdmin } = usePermission();
-  const canFilterByTecnico = isSuperAdmin || userRole === 'AdmSSO';
+  const { isSuperAdmin, hasActionPermission } = usePermission();
+  const canFilterByTecnico = isSuperAdmin || hasActionPermission('acesso_sso_checklists', 'editar');
 
   const { data: obras } = useQuery({
     queryKey: ['centros-custo'],

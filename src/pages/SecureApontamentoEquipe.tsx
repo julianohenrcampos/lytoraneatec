@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Download, Plus, Users, Shield, AlertCircle } from "lucide-react";
 import { useSecureApontamentoEquipe } from "@/hooks/useSecureApontamentoEquipe";
+import { usePermission } from "@/hooks/usePermission";
 import { useNavigate } from "react-router-dom";
 
 const SecureApontamentoEquipe: React.FC = () => {
@@ -67,7 +68,8 @@ const SecureApontamentoEquipe: React.FC = () => {
 
   const formattedDate = format(new Date(), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR });
 
-  const canCreateApontamento = ['SuperAdm', 'AdmRH', 'Apontador', 'Encarregado'].includes(userRole || '');
+  const { isSuperAdmin, hasActionPermission } = usePermission();
+  const canCreateApontamento = isSuperAdmin || hasActionPermission('requisicoes_apontamento_equipe_view', 'criar');
 
   return (
     <MainLayout>
