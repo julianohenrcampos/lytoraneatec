@@ -18,18 +18,42 @@ precacheAndRoute(self.__WB_MANIFEST);
 // Clean up outdated caches
 cleanupOutdatedCaches();
 
+// FaceAPI models — DEDICATED ROUTE (must be registered BEFORE NavigationRoute)
+// Models live in /public/models and include binary shards WITHOUT extension
+// (e.g. face_recognition_model-shard1). Without this rule, the SPA navigation
+// fallback could intercept these requests and return index.html.
+const FACEAPI_MODELS_CACHE = 'lytotec-faceapi-models-v1';
+registerRoute(
+  ({ url }) => url.pathname.startsWith('/models/'),
+  new CacheFirst({
+    cacheName: FACEAPI_MODELS_CACHE,
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({
+        maxEntries: 20,
+        maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+        purgeOnQuotaError: true,
+      }),
+    ],
+  })
+);
+
 // SPA Navigation Route — serve index.html for all navigation requests
 const navigationHandler = createHandlerBoundToURL('/index.html');
 const navigationRoute = new NavigationRoute(navigationHandler, {
-  denylist: [/^\/_/, /\/[^/?]+\.[^/]+$/],
+  denylist: [
+    /^\/_/,
+    /^\/models\//,        // NEVER apply SPA fallback to FaceAPI model assets
+    /\/[^/?]+\.[^/]+$/,   // any path whose last segment has an extension
+  ],
 });
 registerRoute(navigationRoute);
 
-// Cache names - versioned to v4 for PWA fix
-const DATA_CACHE = 'lytotec-data-v5';
-const API_CACHE = 'lytotec-api-v5';
-const LARGE_FILES_CACHE = 'lytotec-large-files-v5';
-const ASSETS_CACHE = 'lytotec-assets-v5';
+// Cache names - versioned to v6 to invalidate old SWs that may serve index.html for shards
+const DATA_CACHE = 'lytotec-data-v6';
+const API_CACHE = 'lytotec-api-v6';
+const LARGE_FILES_CACHE = 'lytotec-large-files-v6';
+const ASSETS_CACHE = 'lytotec-assets-v6';
 
 // Cache large JavaScript files with specific strategy
 registerRoute(
@@ -80,7 +104,7 @@ registerRoute(
     return supabasePattern.test(url.origin) && url.pathname.startsWith('/auth/v1/');
   },
   new NetworkFirst({
-    cacheName: 'lytotec-auth-v5',
+    cacheName: 'lytotec-auth-v6',
     plugins: [
       new CacheableResponsePlugin({
         statuses: [0, 200],
@@ -116,7 +140,7 @@ registerRoute(
 registerRoute(
   ({ url }) => url.origin === 'https://fonts.googleapis.com' || url.origin === 'https://fonts.gstatic.com',
   new StaleWhileRevalidate({
-    cacheName: 'lytotec-fonts-v5',
+    cacheName: 'lytotec-fonts-v6',
     plugins: [
       new CacheableResponsePlugin({
         statuses: [0, 200],
@@ -207,7 +231,7 @@ self.addEventListener('install', () => {
 // Activate event - clean old caches
 self.addEventListener('activate', (event) => {
   console.log('✅ Service Worker activated - cleaning old caches');
-  const currentCaches = [DATA_CACHE, API_CACHE, LARGE_FILES_CACHE, ASSETS_CACHE, 'lytotec-auth-v5', 'lytotec-fonts-v5'];
+  const currentCaches = [DATA_CACHE, API_CACHE, LARGE_FILES_CACHE, ASSETS_CACHE, 'lytotec-auth-v6', 'lytotec-fonts-v6', FACEAPI_MODELS_CACHE];
   event.waitUntil(
     caches.keys().then(keys =>
       Promise.all(keys
