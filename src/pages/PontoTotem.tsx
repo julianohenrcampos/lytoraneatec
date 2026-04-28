@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { loadFaceApiModels, resetFaceApiLoader } from "@/lib/faceapi/loader";
 import { useBiometriaSegura } from "@/hooks/ponto/useBiometriaSegura";
 import { verificarCooldownBatida } from "@/lib/ponto/verificarCooldownBatida";
+import { pontoLog } from "@/lib/ponto/pontoLog";
 
 type TipoBatida = "entrada" | "intervalo_inicio" | "intervalo_fim" | "saida";
 type Status =
@@ -74,11 +75,37 @@ const TIPOS: { value: TipoBatida; label: string }[] = [
 
 // Modo conservador (espelha backend)
 const TICK_MS = 500;
-const DIST_MAX_TOP1 = 0.50;   // distância euclidiana
+const DIST_LOCAL_GATE = 0.35; // gate único e estrito
 const MARGEM_MIN = 0.08;
 const CONFIANCA_MIN = 0.92;
 const REQUIRED_MATCH_FRAMES = 3;
 const MATCH_BUFFER_WINDOW_MS = 4000;
+// GPS — limite de precisão para totem/tablet (mais permissivo que mobile)
+const GPS_PRECISAO_MAX_TOTEM = 100; // metros
+// Compat: backend ainda usa DIST_MAX_TOP1 como referência de threshold mostrado
+const DIST_MAX_TOP1 = 0.50;
+
+type BiometriaEstado = {
+  modeloCarregado: boolean;
+  rostoDetectado: boolean;
+  qualidadeOk: boolean;
+  rostoValido: boolean;
+  livenessOk: boolean;
+  matchValido: boolean;
+  framesValidos: number;
+  motivoBloqueio: string | null;
+};
+
+const BIOMETRIA_INICIAL: BiometriaEstado = {
+  modeloCarregado: false,
+  rostoDetectado: false,
+  qualidadeOk: false,
+  rostoValido: false,
+  livenessOk: false,
+  matchValido: false,
+  framesValidos: 0,
+  motivoBloqueio: "Carregando reconhecimento facial...",
+};
 
 const PontoTotem: React.FC = () => {
   const navigate = useNavigate();
@@ -123,6 +150,7 @@ const PontoTotem: React.FC = () => {
   });
   const [qualidadeMsg, setQualidadeMsg] = useState<string | null>(null);
   const [modeloErro, setModeloErro] = useState<string | null>(null);
+  const [biometria, setBiometria] = useState<BiometriaEstado>(BIOMETRIA_INICIAL);
   // GPS
   const [gpsStatus, setGpsStatus] = useState<"idle" | "capturando" | "ok" | "impreciso" | "indisponivel">("idle");
   const [gpsPrecisao, setGpsPrecisao] = useState<number | null>(null);
@@ -177,15 +205,18 @@ const PontoTotem: React.FC = () => {
 
   const carregarModelos = useCallback(() => {
     setModeloErro(null);
+    setBiometria((b) => ({ ...b, modeloCarregado: false, motivoBloqueio: "Carregando reconhecimento facial..." }));
     setStatus("carregando_modelos");
     loadFaceApiModels()
       .then(() => {
         setModeloErro(null);
+        setBiometria((b) => ({ ...b, modeloCarregado: true, motivoBloqueio: "Aguardando rosto" }));
         setStatus("escaneando");
       })
       .catch((e) => {
-        console.error("[BIOMETRIA][ERRO_MODELO]", e);
+        pontoLog("FACEAPI", "ERRO", "error", { message: (e as Error)?.message });
         setModeloErro("Falha ao carregar reconhecimento facial");
+        setBiometria((b) => ({ ...b, modeloCarregado: false, motivoBloqueio: "Reconhecimento facial indisponível" }));
         setStatus("falha");
       });
   }, []);
@@ -283,6 +314,16 @@ const PontoTotem: React.FC = () => {
     setQualidadeMsg(null);
     setLastReason(null);
     setTentativasSemMatch(0);
+    setBiometria((b) => ({
+      ...b,
+      rostoDetectado: false,
+      qualidadeOk: false,
+      rostoValido: false,
+      livenessOk: false,
+      matchValido: false,
+      framesValidos: 0,
+      motivoBloqueio: b.modeloCarregado ? "Aguardando rosto" : "Carregando reconhecimento facial...",
+    }));
     setStatus("escaneando");
   }, [resetBiometriaSegura]);
 
@@ -315,6 +356,16 @@ const PontoTotem: React.FC = () => {
           setConfiancaAtual(resultado.confidence ?? null);
           // Frame inválido quebra a sequência
           matchBufferRef.current = [];
+          setBiometria((b) => ({
+            ...b,
+            rostoDetectado: !!resultado.rostoDetectado,
+            qualidadeOk: !!resultado.qualidadeOk,
+            rostoValido: false,
+            livenessOk: !!resultado.livenessOk,
+            matchValido: false,
+            framesValidos: 0,
+            motivoBloqueio: resultado.motivo ?? "Aguardando rosto",
+          }));
           if (resultado.motivo === "Nenhum rosto detectado") {
             setQualidadeMsg(null);
           } else if (resultado.motivo && resultado.motivo !== "Confirmando identidade...") {
@@ -325,6 +376,7 @@ const PontoTotem: React.FC = () => {
 
         setUltimaDeteccaoEm(Date.now());
         setQualidadeMsg(null);
+        setBiometria((b) => ({ ...b, rostoDetectado: true, qualidadeOk: true, rostoValido: true, livenessOk: true, motivoBloqueio: "Identificando..." }));
 
         const descriptor = Array.from(resultado.descriptor);
         setEdgeStatus("consultando");
@@ -396,18 +448,24 @@ const PontoTotem: React.FC = () => {
         const confianca = Number(data.top1_confidence ?? data.confianca ?? 0);
         const funcionarioId = (data as any).funcionario_id as string | undefined;
 
-        // Fase 3: defesa em profundidade — exigir distância, margem E confianca >= 0.92
-        if (top1d > DIST_MAX_TOP1 || margem < MARGEM_MIN || confianca < CONFIANCA_MIN || !funcionarioId) {
+        // GATE ÚNICO E AND ESTRITO (sem OR): top1d<0.35 && margem≥0.08 && conf≥0.92
+        const matchOk =
+          !!funcionarioId &&
+          Number.isFinite(top1d) &&
+          top1d < DIST_LOCAL_GATE &&
+          margem >= MARGEM_MIN &&
+          confianca >= CONFIANCA_MIN;
+        if (!matchOk) {
           setConfiancaAtual(null);
           matchBufferRef.current = [];
+          setBiometria((b) => ({ ...b, matchValido: false, framesValidos: 0, motivoBloqueio: "Rosto não reconhecido com segurança" }));
           setEdgeErroMsg("Rosto não reconhecido com segurança");
           setTentativasSemMatch((x) => x + 1);
-          console.log("[BIOMETRIA][MATCH]", { confianca, funcionario_id: funcionarioId, dist: top1d, aprovado: false });
-          console.log("[BIOMETRIA][CONFIRMACAO]", { aprovado: false, framesConfirmados: 0 });
+          pontoLog("BIOMETRIA", "MATCH_INVALIDO", "warn", { dist: top1d, margem, confianca, funcionario_id: funcionarioId });
           return;
         }
 
-        console.log("[BIOMETRIA][MATCH]", { confianca, funcionario_id: funcionarioId, dist: top1d, aprovado: true });
+        pontoLog("BIOMETRIA", "MATCH", "info", { confianca, funcionario_id: funcionarioId, dist: top1d, aprovado: true });
 
         // Fase 4: buffer multi-frame por mesmo funcionario_id
         const now = Date.now();
@@ -415,13 +473,14 @@ const PontoTotem: React.FC = () => {
         // Reset se houver troca de identidade
         const baseId = buffer.length > 0 ? buffer[0].funcionario_id : funcionarioId;
         const novoBuffer = funcionarioId === baseId
-          ? [...buffer, { funcionario_id: funcionarioId, confianca, ts: now }]
-          : [{ funcionario_id: funcionarioId, confianca, ts: now }];
+          ? [...buffer, { funcionario_id: funcionarioId!, confianca, ts: now }]
+          : [{ funcionario_id: funcionarioId!, confianca, ts: now }];
         matchBufferRef.current = novoBuffer;
 
         const framesConfirmados = novoBuffer.length;
         if (framesConfirmados < REQUIRED_MATCH_FRAMES) {
           setConfiancaAtual(confianca);
+          setBiometria((b) => ({ ...b, matchValido: false, framesValidos: framesConfirmados, motivoBloqueio: "Confirmando identidade..." }));
           console.log("[BIOMETRIA][CONFIRMACAO]", { aprovado: false, framesConfirmados, funcionario_id: funcionarioId });
           return;
         }
@@ -430,6 +489,7 @@ const PontoTotem: React.FC = () => {
         setConfiancaAtual(confianca);
         setLastReason(null);
         setMatchDebug((prev) => ({ ...prev, frames_ok: framesConfirmados }));
+        setBiometria((b) => ({ ...b, matchValido: true, framesValidos: framesConfirmados, motivoBloqueio: null }));
         setFuncionario(data as FuncionarioReconhecido);
         setStatus("reconhecido_provisorio");
         setTentativasSemMatch(0);
@@ -524,6 +584,47 @@ const PontoTotem: React.FC = () => {
     }
   }, [status, gpsStatus, capturarGPSComRetry]);
 
+  // Validação visual + gates derivados (devem vir antes de confirmarBatida)
+  // GPS válido = lat/lon finitos + accuracy ≤ limite (NÃO aceita "impreciso" automaticamente)
+  const gpsValido = useMemo(() => (
+    gpsPrecisao != null &&
+    Number.isFinite(gpsPrecisao) &&
+    gpsPrecisao <= GPS_PRECISAO_MAX_TOTEM &&
+    (gpsStatus === "ok" || gpsStatus === "impreciso")
+  ), [gpsPrecisao, gpsStatus]);
+  const faceValida = status === "reconhecido_provisorio" || status === "reconhecido";
+
+  const podeConfirmar = useMemo(() => {
+    return (
+      biometria.modeloCarregado &&
+      biometria.rostoDetectado &&
+      biometria.rostoValido &&
+      biometria.livenessOk &&
+      biometria.matchValido &&
+      biometria.framesValidos >= REQUIRED_MATCH_FRAMES &&
+      gpsValido &&
+      faceValida &&
+      !modeloErro &&
+      !cameraError
+    );
+  }, [biometria, gpsValido, faceValida, modeloErro, cameraError]);
+
+  const motivoBotao = useMemo<string | null>(() => {
+    if (!biometria.modeloCarregado) return "Carregando reconhecimento...";
+    if (modeloErro) return "Reconhecimento facial indisponível";
+    if (cameraError) return "Câmera indisponível";
+    if (!biometria.rostoDetectado) return "Posicione o rosto na câmera";
+    if (!biometria.rostoValido) return biometria.motivoBloqueio ?? "Ajuste o rosto na câmera";
+    if (!biometria.livenessOk) return "Mova-se ligeiramente (anti-foto)";
+    if (!biometria.matchValido) return biometria.motivoBloqueio ?? "Identificando...";
+    if (biometria.framesValidos < REQUIRED_MATCH_FRAMES) return "Confirmando identidade...";
+    if (gpsPrecisao == null) return "Aguardando GPS";
+    if (gpsPrecisao > GPS_PRECISAO_MAX_TOTEM) return `GPS impreciso (±${Math.round(gpsPrecisao)}m). Tente novamente.`;
+    if (!gpsValido) return "Aguardando GPS";
+    if (!faceValida) return "Aguardando confirmação";
+    return null;
+  }, [biometria, gpsValido, gpsPrecisao, faceValida, modeloErro, cameraError]);
+
   // Confirmar batida
   const confirmarBatida = useCallback(async () => {
     if (!dispositivo || !deviceSecret || !funcionario) return;
@@ -533,6 +634,11 @@ const PontoTotem: React.FC = () => {
     if (!faceValida) {
       console.warn("[BIOMETRIA][BLOQUEIO_PRE_EDGE]", { motivo: "face_invalida", status: statusRef.current });
       toast.error("Validação biométrica incompleta — não é possível registrar");
+      return;
+    }
+    if (statusRef.current === "reconhecido" && !podeConfirmar) {
+      console.warn("[BIOMETRIA][BLOQUEIO_PRE_EDGE]", { motivo: "validacao_incompleta", biometria, motivoBotao });
+      toast.error(motivoBotao ?? "Validação incompleta — não é possível registrar");
       return;
     }
     if (modeloErro) {
@@ -575,8 +681,16 @@ const PontoTotem: React.FC = () => {
       gps = await capturarGPSComRetry(3);
     }
     if (!gps) {
-      console.warn("[BIOMETRIA][BLOQUEIO_PRE_EDGE]", { motivo: "gps_invalido" });
+      pontoLog("GPS", "HARD_BLOCK", "error", { motivo: "gps_invalido" });
       toast.error("Não foi possível obter localização. Ative o GPS para registrar o ponto.");
+      return;
+    }
+    // Hard-block por precisão (defesa em camadas — botão já bloqueia, mas garantimos aqui)
+    const accuracy = gps.precisao_gps_metros;
+    if (!Number.isFinite(accuracy) || accuracy > GPS_PRECISAO_MAX_TOTEM) {
+      pontoLog("GPS", "HARD_BLOCK", "error", { motivo: "gps_impreciso", accuracy, limite: GPS_PRECISAO_MAX_TOTEM });
+      toast.error(`GPS impreciso (±${Math.round(accuracy)}m). Tente novamente em local aberto.`);
+      setStatus("escaneando");
       return;
     }
 
@@ -644,7 +758,7 @@ const PontoTotem: React.FC = () => {
       setStatus("falha");
       resetTimerRef.current = window.setTimeout(reset, 3000);
     }
-  }, [dispositivo, deviceSecret, funcionario, cameraReady, modeloErro, gpsStatus, capturarFotoBase64, capturarGPSUmaVez, capturarGPSComRetry, tipoBatida, reset]);
+  }, [dispositivo, deviceSecret, funcionario, cameraReady, modeloErro, gpsStatus, capturarFotoBase64, capturarGPSUmaVez, capturarGPSComRetry, tipoBatida, reset, podeConfirmar, motivoBotao, biometria]);
 
   // Confirmação humana "Sou eu" → registra no log + promove para "reconhecido"
   const confirmarMatch = useCallback(async () => {
@@ -691,9 +805,7 @@ const PontoTotem: React.FC = () => {
     return undefined;
   }, [funcionario]);
 
-  // Validação visual (gpsValido + faceValida)
-  const gpsValido = gpsStatus === "ok" || gpsStatus === "impreciso";
-  const faceValida = status === "reconhecido_provisorio" || status === "reconhecido";
+  // (gpsValido / faceValida / podeConfirmar / motivoBotao definidos antes de confirmarBatida)
 
   // Bloqueio crítico: modelo, câmera (não bloqueia GPS aqui — GPS bloqueia só na confirmação)
   const motivoBloqueioCritico = useMemo<{ titulo: string; descricao: string; podeRetentar: boolean } | null>(() => {
@@ -1124,7 +1236,8 @@ const PontoTotem: React.FC = () => {
                     status === "registrando" ||
                     status === "sucesso" ||
                     !!motivoBloqueioCritico ||
-                    !faceValida
+                    !faceValida ||
+                    (status === "reconhecido" && !podeConfirmar)
                   }
                   className={cn(
                     "flex flex-col items-center justify-center gap-2 h-32 w-32 rounded-full font-bold text-lg disabled:opacity-50 animate-pulse",
@@ -1151,6 +1264,9 @@ const PontoTotem: React.FC = () => {
                   NÃO
                 </button>
               </div>
+              {status === "reconhecido" && !podeConfirmar && motivoBotao && (
+                <p className="mt-4 text-sm text-amber-300 font-medium">{motivoBotao}</p>
+              )}
             </div>
           ) : (
             <div className="flex-1 rounded-3xl border-2 border-dashed border-slate-700 bg-slate-900/40 flex flex-col items-center justify-center text-slate-500 gap-4 p-8">

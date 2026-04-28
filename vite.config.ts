@@ -23,10 +23,10 @@ export default defineConfig(({ mode }) => ({
       filename: 'sw.ts',
       injectManifest: {
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MB
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}', 'models/**/*'],
         sourcemap: false
       },
-      includeAssets: ['favicon.ico', 'icons/maskable-icon1.png', 'icons/dcf6c980-f927-4180-b109-b425da1323ba.png'],
+      includeAssets: ['favicon.ico', 'icons/maskable-icon1.png', 'icons/dcf6c980-f927-4180-b109-b425da1323ba.png', 'models/*'],
       manifest: {
         name: 'Lytorânea Construtora - Sistema ERP',
         short_name: 'LYTOTEC ERP',

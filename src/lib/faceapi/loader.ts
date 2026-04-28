@@ -1,10 +1,12 @@
 import * as faceapi from "face-api.js";
+import { pontoLog } from "@/lib/ponto/pontoLog";
 
 let loadingPromise: Promise<void> | null = null;
 let loaded = false;
 
 const MODEL_URL = "/models";
-const LOAD_TIMEOUT_MS = 15000;
+const LOAD_TIMEOUT_FIRST_MS = 30000; // 1ª tentativa: 30s (rede 3G de campo / cold start)
+const LOAD_TIMEOUT_RETRY_MS = 15000; // tentativas seguintes: 15s
 const MAX_ATTEMPTS = 3;
 
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
@@ -15,11 +17,11 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   });
 }
 
-async function loadOnce(): Promise<void> {
+async function loadOnce(timeoutMs: number): Promise<void> {
   await Promise.all([
-    withTimeout(faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL), LOAD_TIMEOUT_MS, "tinyFaceDetector"),
-    withTimeout(faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL), LOAD_TIMEOUT_MS, "faceLandmark68Net"),
-    withTimeout(faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL), LOAD_TIMEOUT_MS, "faceRecognitionNet"),
+    withTimeout(faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL), timeoutMs, "tinyFaceDetector"),
+    withTimeout(faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL), timeoutMs, "faceLandmark68Net"),
+    withTimeout(faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL), timeoutMs, "faceRecognitionNet"),
   ]);
 }
 
@@ -28,29 +30,32 @@ export function loadFaceApiModels(): Promise<void> {
   if (loaded) return Promise.resolve();
   if (loadingPromise) return loadingPromise;
 
+  pontoLog("FACEAPI", "LOAD", "info", { modelUrl: MODEL_URL });
+
   loadingPromise = (async () => {
     let lastErr: unknown = null;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+      const timeoutMs = attempt === 1 ? LOAD_TIMEOUT_FIRST_MS : LOAD_TIMEOUT_RETRY_MS;
       try {
-        await loadOnce();
+        await loadOnce(timeoutMs);
         loaded = true;
+        pontoLog("FACEAPI", "LOAD_OK", "info", { attempt, timeoutMs });
         return;
       } catch (e) {
         lastErr = e;
-        console.warn("[BIOMETRIA][ERRO_MODELO]", {
+        pontoLog("FACEAPI", "ERRO", "warn", {
           attempt,
           maxAttempts: MAX_ATTEMPTS,
+          timeoutMs,
           message: (e as Error)?.message,
         });
-        // backoff exponencial: 500ms, 1000ms
         if (attempt < MAX_ATTEMPTS) {
           await new Promise((r) => setTimeout(r, 500 * attempt));
         }
       }
     }
-    // Falha definitiva — limpa promise para permitir retry futuro
     loadingPromise = null;
-    console.error("[BIOMETRIA][ERRO_MODELO]", {
+    pontoLog("FACEAPI", "ERRO", "error", {
       definitivo: true,
       message: (lastErr as Error)?.message,
     });
