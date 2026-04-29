@@ -7,7 +7,7 @@
  * - Dias úteis (Seg-Sex): pagam Diária Normal (valor_diaria)
  */
 
-import { addDays, differenceInDays, parseISO, format } from 'date-fns';
+import { addDays, differenceInDays, parseISO, format, startOfWeek } from 'date-fns';
 
 export type TipoDia = 'util' | 'sabado' | 'fds' | 'feriado';
 
@@ -347,7 +347,9 @@ export function resumirPeriodoParaSimulacao(
 }
 
 /**
- * Valida o período selecionado
+ * Valida o período selecionado.
+ * Regra fixa: período DEVE ser de segunda a domingo (7 dias exatos).
+ * Não-SuperAdm não pode usar semana anterior à atual.
  */
 export function validarPeriodo(
   dataInicio: string,
@@ -362,17 +364,21 @@ export function validarPeriodo(
 
   const inicio = parseISO(dataInicio);
   const fim = parseISO(dataFim);
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-
-  const isRetroativo = inicio < hoje;
-
-  if (isRetroativo && !isSuperAdmin) {
-    return { valido: false, erro: 'Data de início não pode ser anterior a hoje' };
-  }
 
   if (fim < inicio) {
     return { valido: false, erro: 'Data fim deve ser igual ou posterior à data início' };
+  }
+
+  // Regra estrutural: Segunda → Domingo, exatamente 7 dias
+  // getDay(): 0=Dom, 1=Seg ... 6=Sáb
+  if (inicio.getDay() !== 1) {
+    return { valido: false, erro: 'Data de início deve ser uma segunda-feira' };
+  }
+  if (fim.getDay() !== 0) {
+    return { valido: false, erro: 'Data de fim deve ser o domingo da mesma semana' };
+  }
+  if (differenceInDays(fim, inicio) !== 6) {
+    return { valido: false, erro: 'Período deve ser exatamente Seg→Dom (7 dias)' };
   }
 
   const dias = differenceInDays(fim, inicio) + 1;
@@ -380,8 +386,58 @@ export function validarPeriodo(
     return { valido: false, erro: `Período máximo é de ${maxDias} dias` };
   }
 
+  // Retroativo: comparar contra a segunda-feira da semana atual
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const inicioSemanaAtual = startOfWeek(hoje, { weekStartsOn: 1 });
+  const isRetroativo = inicio < inicioSemanaAtual;
+
+  if (isRetroativo && !isSuperAdmin) {
+    return {
+      valido: false,
+      erro: 'Não é permitido criar/editar solicitação fora da semana atual',
+      isRetroativo,
+    };
+  }
 
   return { valido: true, isRetroativo };
+}
+
+/**
+ * Validação estrutural usada no service (defesa em profundidade).
+ * Lança Error se o período não for Seg→Dom de 7 dias exatos.
+ * NÃO valida retroativo (essa parte depende do papel do usuário).
+ */
+export function assertPeriodoValidoOuFalhar(
+  dataInicio: string,
+  dataFim: string
+): void {
+  if (!dataInicio || !dataFim) {
+    throw new Error('PERIODO_INVALIDO: Datas de início e fim são obrigatórias');
+  }
+  const inicio = parseISO(dataInicio);
+  const fim = parseISO(dataFim);
+  if (inicio.getDay() !== 1) {
+    throw new Error('PERIODO_INVALIDO: data_inicio deve ser segunda-feira');
+  }
+  if (fim.getDay() !== 0) {
+    throw new Error('PERIODO_INVALIDO: data_fim deve ser domingo');
+  }
+  if (differenceInDays(fim, inicio) !== 6) {
+    throw new Error('PERIODO_INVALIDO: período deve ser exatamente Seg→Dom (7 dias)');
+  }
+}
+
+/**
+ * Verifica se um período é retroativo em relação à semana corrente (Seg→Dom).
+ */
+export function isPeriodoRetroativo(dataInicio: string): boolean {
+  if (!dataInicio) return false;
+  const inicio = parseISO(dataInicio);
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const inicioSemanaAtual = startOfWeek(hoje, { weekStartsOn: 1 });
+  return inicio < inicioSemanaAtual;
 }
 
 /**

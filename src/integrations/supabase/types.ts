@@ -16858,8 +16858,13 @@ export type Database = {
           p_solicitacao_id?: string
         }
         Returns: {
+          alerta_mensagem: string
+          conflito_data: string
+          conflito_solicitacao: string
+          conflito_solicitacao_id: string
           elegivel: boolean
           motivo_bloqueio: string
+          status: string
         }[]
       }
       fn_diaria_get_funcionarios_disponiveis: {
@@ -17209,7 +17214,12 @@ export type Database = {
       }
       get_funcionario_id_for_auth: { Args: never; Returns: string }
       get_funcionarios_ativos_global: {
-        Args: never
+        Args: {
+          p_centro_custo?: string
+          p_ids?: string[]
+          p_limit?: number
+          p_search?: string
+        }
         Returns: {
           centro_custo_id: string
           cpf: string

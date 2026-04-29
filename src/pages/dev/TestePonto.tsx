@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getConfiguracaoSistema } from "@/services/configService";
 import { detectarCentroCustoPorGPS, DeteccaoCCResult } from "@/services/ponto";
@@ -10,8 +10,7 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-const MAX_FOTO_SIZE = 2 * 1024 * 1024; // 2MB
+import CameraCapture from "@/components/ponto/CameraCapture";
 
 interface CentroCustoOption {
   id: string;
@@ -64,8 +63,6 @@ export default function TestePonto() {
 
   // Foto
   const [fotoBase64, setFotoBase64] = useState<string | null>(null);
-  const [fotoPreview, setFotoPreview] = useState<string | null>(null);
-  const fotoInputRef = useRef<HTMLInputElement>(null);
 
   // Data operacional do servidor + batidas do dia
   const [dataOperacional, setDataOperacional] = useState<string | null>(null);
@@ -198,37 +195,6 @@ export default function TestePonto() {
   const handleCCManualChange = (v: string) => {
     setCentroCustoId(v || null);
     setModoSelecao("manual");
-  };
-
-  const handleFotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > MAX_FOTO_SIZE) {
-      toast.error("Imagem maior que 2MB. Tire outra foto.");
-      setFotoBase64(null);
-      setFotoPreview(null);
-      if (fotoInputRef.current) fotoInputRef.current.value = "";
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      setFotoBase64(result);
-      setFotoPreview(result);
-    };
-    reader.onerror = () => {
-      toast.error("Falha ao ler a imagem. Tente novamente.");
-      setFotoBase64(null);
-      setFotoPreview(null);
-      if (fotoInputRef.current) fotoInputRef.current.value = "";
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleFotoRemover = () => {
-    setFotoBase64(null);
-    setFotoPreview(null);
-    if (fotoInputRef.current) fotoInputRef.current.value = "";
   };
 
   const registrarPonto = async (tipo: string) => {
@@ -414,27 +380,9 @@ export default function TestePonto() {
       {/* 3.5. Foto de Evidência */}
       <section className="bg-card p-4 rounded border space-y-3">
         <h2 className="font-semibold">📸 Foto de Evidência</h2>
-        <input
-          ref={fotoInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={handleFotoCapture}
-        />
-        {fotoPreview ? (
-          <div className="space-y-2">
-            <img src={fotoPreview} alt="Preview" className="max-h-48 rounded border" />
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => fotoInputRef.current?.click()}>Trocar Foto</Button>
-              <Button size="sm" variant="destructive" onClick={handleFotoRemover}>Remover</Button>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <Button variant="outline" onClick={() => fotoInputRef.current?.click()}>Capturar Foto</Button>
-            <p className="text-sm text-yellow-500">⚠️ Foto obrigatória para registrar ponto.</p>
-          </div>
+        <CameraCapture value={fotoBase64} onChange={setFotoBase64} />
+        {!fotoBase64 && (
+          <p className="text-sm text-yellow-500">⚠️ Foto obrigatória para registrar ponto.</p>
         )}
       </section>
 

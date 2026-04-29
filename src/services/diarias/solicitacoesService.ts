@@ -1,5 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
 import { notificationService } from "@/services/notificationService";
+import {
+  assertPeriodoValidoOuFalhar,
+  isPeriodoRetroativo,
+} from "@/utils/diariasPeriodoUtils";
 import type { 
   DiariaSolicitacao, 
   SolicitacaoFormData, 
@@ -7,6 +11,32 @@ import type {
   SolicitacaoResumo,
   StatusSolicitacao 
 } from "@/types/diarias";
+
+/**
+ * Defesa em profundidade: valida estrutura Seg→Dom (7 dias) e checa
+ * retroativo contra papel SuperAdm via RPC.
+ * Lançar Error aborta o fluxo antes de qualquer write no banco.
+ */
+async function assertPeriodoEReceitaUsuario(
+  dataInicio: string,
+  dataFim: string,
+): Promise<void> {
+  // 1) Estrutura Seg→Dom (7 dias)
+  assertPeriodoValidoOuFalhar(dataInicio, dataFim);
+
+  // 2) Retroativo só para SuperAdm
+  if (isPeriodoRetroativo(dataInicio)) {
+    const { data: isSuperAdm, error } = await supabase.rpc('fn_is_super_admin');
+    if (error) {
+      console.error('[Diarias][periodo] erro ao checar fn_is_super_admin', error);
+      throw new Error('Não foi possível validar permissão para período retroativo. Tente novamente.');
+    }
+    if (isSuperAdm !== true) {
+      throw new Error('PERIODO_RETROATIVO: apenas SuperAdm pode criar/editar solicitações fora da semana atual');
+    }
+  }
+}
+
 
 // =====================================================
 // CRUD - SOLICITAÇÕES DE DIÁRIA
@@ -260,6 +290,9 @@ function traduzirErroCriacaoSolicitacao(error: any): string {
 }
 
 export async function createSolicitacao(formData: SolicitacaoFormData): Promise<DiariaSolicitacao> {
+  // Defesa em profundidade: estrutura Seg→Dom + retroativo só SuperAdm
+  await assertPeriodoEReceitaUsuario(formData.data_inicio, formData.data_fim);
+
   const currentUserId = await getAuthenticatedUserId();
 
   const { data: backendCanCreate, error: canCreateError } = await supabase.rpc('fn_diaria_can_create', {
@@ -411,6 +444,27 @@ function traduzirErroPeriodoSobreposto(error: any): string {
 }
 
 export async function updateSolicitacao(id: string, formData: Partial<SolicitacaoFormData>): Promise<DiariaSolicitacao> {
+  // Defesa em profundidade: se o update toca em data_inicio/data_fim, validar Seg→Dom + retroativo
+  if (formData.data_inicio !== undefined || formData.data_fim !== undefined) {
+    let dataInicio = formData.data_inicio;
+    let dataFim = formData.data_fim;
+
+    // Se vier só uma das duas, buscar a outra do registro atual para validar o par
+    if (!dataInicio || !dataFim) {
+      const { data: atual, error: errAtual } = await supabase
+        .from('bd_diaria_solicitacoes')
+        .select('data_inicio, data_fim')
+        .eq('id', id)
+        .single();
+      if (errAtual) {
+        throw new Error('Não foi possível carregar a solicitação para validar o período.');
+      }
+      dataInicio = dataInicio || (atual?.data_inicio as string);
+      dataFim = dataFim || (atual?.data_fim as string);
+    }
+    await assertPeriodoEReceitaUsuario(dataInicio!, dataFim!);
+  }
+
   const updateData: any = {
     updated_at: new Date().toISOString()
   };

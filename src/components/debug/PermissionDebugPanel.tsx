@@ -14,8 +14,8 @@ const PermissionDebugPanel: React.FC = () => {
   const [testRoute, setTestRoute] = useState('/gestao-maquinas/dashboard');
   const { runFullDiagnostic, testSpecificRoute, authPermissions } = usePermissionDebug();
 
-  // Só mostrar para SuperAdmins ou em desenvolvimento
-  if (!authPermissions.isSuperAdmin && import.meta.env.PROD) {
+  // Guard estrito: somente em DEV E para SuperAdmin. Em produção nunca renderiza.
+  if (!import.meta.env.DEV || !authPermissions.isSuperAdmin) {
     return null;
   }
 

@@ -25,6 +25,9 @@ import { loadFaceApiModels, resetFaceApiLoader } from "@/lib/faceapi/loader";
 import { useBiometriaSegura } from "@/hooks/ponto/useBiometriaSegura";
 import { verificarCooldownBatida } from "@/lib/ponto/verificarCooldownBatida";
 import { pontoLog } from "@/lib/ponto/pontoLog";
+import { useCameraDevices } from "@/hooks/ponto/useCameraDevices";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { IndicadorQualidadeRosto } from "@/components/ponto/IndicadorQualidadeRosto";
 
 type TipoBatida = "entrada" | "intervalo_inicio" | "intervalo_fim" | "saida";
 type Status =
@@ -102,6 +105,7 @@ type BiometriaEstado = {
   matchValido: boolean;
   framesValidos: number;
   motivoBloqueio: string | null;
+  qualidadeNivel: "ruim" | "media" | "boa";
 };
 
 const BIOMETRIA_INICIAL: BiometriaEstado = {
@@ -113,6 +117,7 @@ const BIOMETRIA_INICIAL: BiometriaEstado = {
   matchValido: false,
   framesValidos: 0,
   motivoBloqueio: "Carregando reconhecimento facial...",
+  qualidadeNivel: "ruim",
 };
 
 const PontoTotem: React.FC = () => {
@@ -172,6 +177,8 @@ const PontoTotem: React.FC = () => {
   // Buffer multi-frame por funcionario_id (Fase 4 — anti falso-positivo)
   const matchBufferRef = useRef<Array<{ funcionario_id: string; confianca: number; ts: number }>>([]);
   const { validarRostoSeguro, resetBiometriaSegura } = useBiometriaSegura();
+  // Seleção de câmera (USB ou frontal). Persiste deviceId em localStorage.
+  const { devices: cameraDevices, selectedDeviceId, setSelectedDeviceId, refresh: refreshCameras } = useCameraDevices();
   const statusRef = useRef<Status>("carregando_modelos");
   useEffect(() => {
     statusRef.current = status;
@@ -253,8 +260,11 @@ const PontoTotem: React.FC = () => {
     };
     (async () => {
       try {
+        const videoConstraints: MediaTrackConstraints = selectedDeviceId
+          ? { deviceId: { exact: selectedDeviceId }, width: { ideal: 720 }, height: { ideal: 720 } }
+          : { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } };
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } },
+          video: videoConstraints,
           audio: false,
         });
         if (cancelled) {
@@ -271,8 +281,14 @@ const PontoTotem: React.FC = () => {
           await v.play().catch(() => undefined);
           if (v.videoWidth > 0) onFrameReady();
         }
+        // Re-popula labels após permissão concedida
+        refreshCameras();
       } catch (e: any) {
         console.error("[TOTEM][CAMERA] erro:", e);
+        if (e?.name === "OverconstrainedError" && selectedDeviceId) {
+          setSelectedDeviceId(null);
+          return;
+        }
         setCameraReady(false);
         setCameraError(
           e?.name === "NotAllowedError" ? "Permissão de câmera negada" : "Câmera indisponível",
@@ -290,7 +306,7 @@ const PontoTotem: React.FC = () => {
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     };
-  }, []);
+  }, [selectedDeviceId, refreshCameras, setSelectedDeviceId]);
 
   // Tick visual ("Procurando rosto..." após 2s sem detecção)
   useEffect(() => {
@@ -373,6 +389,7 @@ const PontoTotem: React.FC = () => {
             matchValido: false,
             framesValidos: 0,
             motivoBloqueio: resultado.motivo ?? "Aguardando rosto",
+            qualidadeNivel: resultado.qualidadeNivel ?? "ruim",
           }));
           if (resultado.motivo === "Nenhum rosto detectado") {
             setQualidadeMsg(null);
@@ -384,7 +401,7 @@ const PontoTotem: React.FC = () => {
 
         setUltimaDeteccaoEm(Date.now());
         setQualidadeMsg(null);
-        setBiometria((b) => ({ ...b, rostoDetectado: true, qualidadeOk: true, rostoValido: true, livenessOk: true, motivoBloqueio: "Identificando..." }));
+        setBiometria((b) => ({ ...b, rostoDetectado: true, qualidadeOk: true, rostoValido: true, livenessOk: true, motivoBloqueio: "Identificando...", qualidadeNivel: resultado.qualidadeNivel ?? "boa" }));
 
         const descriptor = Array.from(resultado.descriptor);
         setEdgeStatus("consultando");
@@ -1107,11 +1124,38 @@ const PontoTotem: React.FC = () => {
               muted
               className="absolute inset-0 w-full h-full object-cover opacity-90 scale-x-[-1]"
             />
+            {cameraDevices.length > 1 && (
+              <div className="absolute top-3 right-3 z-20 max-w-[60%]">
+                <Select
+                  value={selectedDeviceId ?? ""}
+                  onValueChange={(v) => setSelectedDeviceId(v || null)}
+                >
+                  <SelectTrigger className="h-9 text-sm bg-background/80 backdrop-blur-sm">
+                    <SelectValue placeholder="Câmera" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cameraDevices.map((d) => (
+                      <SelectItem key={d.deviceId} value={d.deviceId}>{d.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {!cameraReady && (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 gap-3 bg-slate-900">
                 <Camera className="h-16 w-16 opacity-40" />
                 <p className="text-sm">{cameraError || "Iniciando câmera..."}</p>
+              </div>
+            )}
+
+            {status === "escaneando" && cameraReady && (
+              <div className="absolute top-3 left-3 z-20">
+                <IndicadorQualidadeRosto
+                  qualidadeNivel={biometria.qualidadeNivel}
+                  rostoDetectado={biometria.rostoDetectado}
+                  motivoBloqueio={biometria.motivoBloqueio}
+                />
               </div>
             )}
 
@@ -1122,7 +1166,13 @@ const PontoTotem: React.FC = () => {
                     "absolute inset-0 rounded-[40%] border-2 shadow-[0_0_30px_rgba(34,211,238,0.6)]",
                     status === "reconhecido"
                       ? "border-emerald-300/80"
-                      : "border-cyan-300/70 animate-pulse",
+                      : status === "escaneando"
+                        ? (biometria.qualidadeNivel === "boa"
+                            ? "border-emerald-300/80"
+                            : biometria.qualidadeNivel === "media"
+                              ? "border-amber-300/80"
+                              : "border-red-400/80 animate-pulse")
+                        : "border-cyan-300/70 animate-pulse",
                   )}
                 />
                 {[

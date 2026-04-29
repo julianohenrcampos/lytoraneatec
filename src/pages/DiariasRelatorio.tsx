@@ -686,9 +686,9 @@ export default function DiariasRelatorio() {
                 Nenhum registro encontrado.
               </div> :
 
-            <div className="overflow-x-auto">
+            <div className="overflow-auto max-h-[70dvh] overflow-x-auto">
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="sticky top-0 z-10 bg-background shadow-sm">
                     <TableRow>
                       <TableHead className="w-24">Nº Sol.</TableHead>
                       <TableHead>Data</TableHead>

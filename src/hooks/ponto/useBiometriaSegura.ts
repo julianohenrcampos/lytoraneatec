@@ -17,6 +17,8 @@ export type CodigoBloqueioBiometria =
   | "CONFIRMANDO"
   | null;
 
+export type QualidadeNivel = "ruim" | "media" | "boa";
+
 export type ValidarRostoSeguroResult = {
   valido: boolean;
   motivo?: string;
@@ -30,6 +32,7 @@ export type ValidarRostoSeguroResult = {
   qualidadeOk?: boolean;
   livenessOk?: boolean;
   codigoBloqueio?: CodigoBloqueioBiometria;
+  qualidadeNivel?: QualidadeNivel;
 };
 
 type Snapshot = {
@@ -47,7 +50,9 @@ type Snapshot = {
 // AJUSTE TEMPORÁRIO DE CALIBRAÇÃO — revisar com logs reais
 const INPUT_SIZE = 320; // antes 416
 // AJUSTE TEMPORÁRIO DE CALIBRAÇÃO — revisar com logs reais
-const DETECTION_SCORE_MIN = 0.70; // antes 0.85
+const TINY_FACE_SCORE_THRESHOLD = 0.4; // antes 0.5
+const DETECTION_SCORE_MIN = 0.60; // média móvel mínima — antes 0.70 (gate por frame)
+const LAST_SCORE_MIN = 0.55; // último frame não pode estar abaixo disso
 const FACE_RATIO_MIN = 0.15;
 const FACE_RATIO_MAX = 0.75;
 const FACE_BOX_MIN_PX = 120;
@@ -56,8 +61,7 @@ const CENTER_MARGIN = 0.15;
 const YAW_RATIO_MAX = 0.35;
 const REQUIRED_STABLE_FRAMES = 3;
 const SAME_FACE_DISTANCE_MAX = 0.42;
-// AJUSTE TEMPORÁRIO DE CALIBRAÇÃO — revisar com logs reais
-const REQUIRED_DETECTION_FRAMES = 3;
+const REQUIRED_DETECTION_FRAMES = 3; // mantido — janela de 3 scores
 
 // === LIVENESS PASSIVO (revisão v2) ===
 // MOVEMENT_MIN: limiar mínimo de movimento real (filtra ruído de câmera/compressão)
@@ -87,11 +91,19 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function calcularQualidadeNivel(score: number, rostoDetectado: boolean): QualidadeNivel {
+  if (!rostoDetectado) return "ruim";
+  if (score >= 0.80) return "boa";
+  if (score >= 0.60) return "media";
+  return "ruim";
+}
+
 export function useBiometriaSegura() {
   const previousSnapshotRef = useRef<Snapshot | null>(null);
   const stableFramesRef = useRef(0);
   const frozenFramesRef = useRef(0);
-  const detectionFramesRef = useRef(0);
+  // Janela móvel dos últimos N scores de detecção (antes: contador linear)
+  const recentScoresRef = useRef<number[]>([]);
   // janela dos últimos N pares para liveness — aprovado se ≥1 par tem movement >= MOVEMENT_MIN
   // E ≥1 par tem descriptorDelta >= DESCRIPTOR_DELTA_MIN
   const livenessWindowRef = useRef<Array<{ movementScore: number; descriptorDelta: number }>>([]);
@@ -101,7 +113,7 @@ export function useBiometriaSegura() {
     previousSnapshotRef.current = null;
     stableFramesRef.current = 0;
     frozenFramesRef.current = 0;
-    detectionFramesRef.current = 0;
+    recentScoresRef.current = [];
     livenessWindowRef.current = [];
   }, []);
 
@@ -138,53 +150,72 @@ export function useBiometriaSegura() {
     _modo: BiometriaModo,
   ): Promise<ValidarRostoSeguroResult> => {
     if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
-      detectionFramesRef.current = Math.max(0, detectionFramesRef.current - 1);
+      recentScoresRef.current = [];
       const motivo = MSG_SEM_ROSTO;
       pontoLog("BIOMETRIA", "SEM_ROSTO", "info", { motivo, reason: "video_indisponivel" });
-      return { valido: false, motivo, rostoDetectado: false, qualidadeOk: false, livenessOk: false, codigoBloqueio: "SEM_ROSTO" };
+      return { valido: false, motivo, rostoDetectado: false, qualidadeOk: false, livenessOk: false, codigoBloqueio: "SEM_ROSTO", qualidadeNivel: "ruim" };
     }
 
     const detection = await faceapi
       .detectSingleFace(
         video,
-        new faceapi.TinyFaceDetectorOptions({ inputSize: INPUT_SIZE, scoreThreshold: 0.5 }),
+        new faceapi.TinyFaceDetectorOptions({ inputSize: INPUT_SIZE, scoreThreshold: TINY_FACE_SCORE_THRESHOLD }),
       )
       .withFaceLandmarks()
       .withFaceDescriptor();
 
     if (!detection) {
-      detectionFramesRef.current = Math.max(0, detectionFramesRef.current - 1);
+      recentScoresRef.current = [];
       const motivo = MSG_SEM_ROSTO;
       pontoLog("BIOMETRIA", "SEM_ROSTO", "info", { motivo });
-      return { valido: false, motivo, rostoDetectado: false, qualidadeOk: false, livenessOk: false, codigoBloqueio: "SEM_ROSTO" };
+      return { valido: false, motivo, rostoDetectado: false, qualidadeOk: false, livenessOk: false, codigoBloqueio: "SEM_ROSTO", qualidadeNivel: "ruim" };
     }
 
     const detectionScore = detection.detection.score ?? 0;
     const box = detection.detection.box;
 
-    if (detectionScore < DETECTION_SCORE_MIN) {
-      detectionFramesRef.current = Math.max(0, detectionFramesRef.current - 1);
+    // Janela móvel dos últimos REQUIRED_DETECTION_FRAMES scores
+    recentScoresRef.current.push(detectionScore);
+    if (recentScoresRef.current.length > REQUIRED_DETECTION_FRAMES) {
+      recentScoresRef.current.shift();
+    }
+    const scores = recentScoresRef.current;
+    const mediaScore = scores.reduce((a, b) => a + b, 0) / Math.max(scores.length, 1);
+    const qualidadeNivel = calcularQualidadeNivel(detectionScore, true);
+
+    // Detecção fraca: último frame muito baixo OU média muito baixa com janela cheia
+    const ultimoFraco = detectionScore < LAST_SCORE_MIN;
+    const mediaFraca = scores.length >= REQUIRED_DETECTION_FRAMES && mediaScore < DETECTION_SCORE_MIN;
+    if (ultimoFraco || mediaFraca) {
       const motivo = MSG_QUALIDADE;
-      pontoLog("BIOMETRIA", "DETECCAO_FRACA", "info", { motivo, detectionScore, limite: DETECTION_SCORE_MIN });
-      return { valido: false, motivo, detectionScore, rostoDetectado: true, qualidadeOk: false, livenessOk: false, codigoBloqueio: "DETECCAO_FRACA" };
+      pontoLog("BIOMETRIA", "DETECCAO_FRACA", "info", {
+        motivo,
+        detectionScore: Number(detectionScore.toFixed(3)),
+        mediaScore: Number(mediaScore.toFixed(3)),
+        limiteMedia: DETECTION_SCORE_MIN,
+        limiteUltimo: LAST_SCORE_MIN,
+        frames: scores.length,
+      });
+      return { valido: false, motivo, detectionScore, rostoDetectado: true, qualidadeOk: false, livenessOk: false, codigoBloqueio: "DETECCAO_FRACA", qualidadeNivel };
     }
 
-    // Buffer temporal: exige N frames consecutivos com score válido antes de seguir
-    detectionFramesRef.current += 1;
-    if (detectionFramesRef.current < REQUIRED_DETECTION_FRAMES) {
+    // Buffer temporal: exige N frames consecutivos antes de seguir
+    if (scores.length < REQUIRED_DETECTION_FRAMES) {
       pontoLog("BIOMETRIA", "DETECCAO_AGUARDANDO_BUFFER", "info", {
-        frame: detectionFramesRef.current,
+        frame: scores.length,
         requerido: REQUIRED_DETECTION_FRAMES,
-        detectionScore,
+        detectionScore: Number(detectionScore.toFixed(3)),
+        mediaScore: Number(mediaScore.toFixed(3)),
       });
       return {
         valido: false,
-        motivo: "Mantenha o rosto centralizado...",
+        motivo: "Mantenha-se parado...",
         detectionScore,
         rostoDetectado: true,
         qualidadeOk: false,
         livenessOk: false,
         codigoBloqueio: null,
+        qualidadeNivel,
       };
     }
 
@@ -193,7 +224,8 @@ export function useBiometriaSegura() {
       resetBiometriaSegura();
       const motivo = "Aproxime o rosto da câmera";
       pontoLog("BIOMETRIA", "ROSTO_PEQUENO", "info", { motivo, boxPx: { w: Math.round(box.width), h: Math.round(box.height) }, area: Math.round(boxArea), detectionScore });
-      return { valido: false, motivo, detectionScore, rostoDetectado: true, qualidadeOk: false, livenessOk: false, codigoBloqueio: "ROSTO_PEQUENO" };
+      return { valido: false, motivo, detectionScore, rostoDetectado: true, qualidadeOk: false, livenessOk: false, qualidadeNivel,
+      codigoBloqueio: "ROSTO_PEQUENO" };
     }
 
     const cxRatio = (box.x + box.width / 2) / Math.max(video.videoWidth, 1);
@@ -207,7 +239,8 @@ export function useBiometriaSegura() {
       resetBiometriaSegura();
       const motivo = "Centralize o rosto na câmera";
       pontoLog("BIOMETRIA", "FORA_CENTRO", "info", { motivo, center: { cxRatio: Number(cxRatio.toFixed(2)), cyRatio: Number(cyRatio.toFixed(2)) } });
-      return { valido: false, motivo, detectionScore, rostoDetectado: true, qualidadeOk: false, livenessOk: false, codigoBloqueio: "FORA_CENTRO" };
+      return { valido: false, motivo, detectionScore, rostoDetectado: true, qualidadeOk: false, livenessOk: false, qualidadeNivel,
+      codigoBloqueio: "FORA_CENTRO" };
     }
 
     const frameArea = Math.max(video.videoWidth * video.videoHeight, 1);
@@ -216,13 +249,15 @@ export function useBiometriaSegura() {
       resetBiometriaSegura();
       const motivo = "Aproxime o rosto da câmera";
       pontoLog("BIOMETRIA", "ROSTO_PEQUENO", "info", { motivo, faceRatio });
-      return { valido: false, motivo, detectionScore, faceRatio, rostoDetectado: true, qualidadeOk: false, livenessOk: false, codigoBloqueio: "ROSTO_PEQUENO" };
+      return { valido: false, motivo, detectionScore, faceRatio, rostoDetectado: true, qualidadeOk: false, livenessOk: false, qualidadeNivel,
+      codigoBloqueio: "ROSTO_PEQUENO" };
     }
     if (faceRatio > FACE_RATIO_MAX) {
       resetBiometriaSegura();
       const motivo = "Afaste-se um pouco da câmera";
       pontoLog("BIOMETRIA", "FRAME_INVALIDO", "info", { motivo, faceRatio });
-      return { valido: false, motivo, detectionScore, faceRatio, rostoDetectado: true, qualidadeOk: false, livenessOk: false, codigoBloqueio: "FRAME_INVALIDO" };
+      return { valido: false, motivo, detectionScore, faceRatio, rostoDetectado: true, qualidadeOk: false, livenessOk: false, qualidadeNivel,
+      codigoBloqueio: "FRAME_INVALIDO" };
     }
 
     const landmarks = detection.landmarks;
@@ -248,7 +283,8 @@ export function useBiometriaSegura() {
         leftEye: leftEye.length, rightEye: rightEye.length, nose: nose.length,
         mouth: mouth.length, jaw: jaw.length,
       });
-      return { valido: false, motivo, detectionScore, faceRatio, rostoDetectado: true, qualidadeOk: false, livenessOk: false, codigoBloqueio: "LANDMARKS_INVALIDO" };
+      return { valido: false, motivo, detectionScore, faceRatio, rostoDetectado: true, qualidadeOk: false, livenessOk: false, qualidadeNivel,
+      codigoBloqueio: "LANDMARKS_INVALIDO" };
     }
 
     const leftEyeCenterX = leftEye.reduce((acc, p) => acc + p.x, 0) / leftEye.length;
@@ -262,7 +298,8 @@ export function useBiometriaSegura() {
       resetBiometriaSegura();
       const motivo = "Olhe direto para a câmera";
       pontoLog("BIOMETRIA", "YAW_ALTO", "info", { motivo, yawRatio });
-      return { valido: false, motivo, detectionScore, faceRatio, rostoDetectado: true, qualidadeOk: false, livenessOk: false, codigoBloqueio: "YAW_ALTO" };
+      return { valido: false, motivo, detectionScore, faceRatio, rostoDetectado: true, qualidadeOk: false, livenessOk: false, qualidadeNivel,
+      codigoBloqueio: "YAW_ALTO" };
     }
 
     const descriptor = Float32Array.from(detection.descriptor);
@@ -341,7 +378,8 @@ export function useBiometriaSegura() {
         rostoDetectado: true,
         qualidadeOk: false,
         livenessOk: false,
-        codigoBloqueio: "ANTI_FOTO",
+        qualidadeNivel,
+      codigoBloqueio: "ANTI_FOTO",
       };
     }
 
@@ -357,7 +395,8 @@ export function useBiometriaSegura() {
         rostoDetectado: true,
         qualidadeOk: true,
         livenessOk: false,
-        codigoBloqueio: "CONFIRMANDO",
+        qualidadeNivel,
+      codigoBloqueio: "CONFIRMANDO",
       };
     }
 
@@ -391,7 +430,8 @@ export function useBiometriaSegura() {
         rostoDetectado: true,
         qualidadeOk: true,
         livenessOk: false,
-        codigoBloqueio: "LIVENESS_FALHA",
+        qualidadeNivel,
+      codigoBloqueio: "LIVENESS_FALHA",
       };
     }
 
@@ -415,6 +455,7 @@ export function useBiometriaSegura() {
       rostoDetectado: true,
       qualidadeOk: true,
       livenessOk: true,
+      qualidadeNivel,
       codigoBloqueio: null,
     };
   }, [readBrightness, resetBiometriaSegura]);

@@ -38,8 +38,13 @@ import {
 } from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  useFuncionariosBuscaAtivos,
+  fetchFuncionariosAtivos,
+  useFuncionarioElegibilidade,
+} from "@/hooks/diarias";
 import type { SolicitacaoFormData, FuncionarioPreConvocado, DiariaSolicitacao } from "@/types/diarias";
 import { useFeriadosPeriodo } from "@/hooks/diarias/useFeriados";
 import { 
@@ -266,39 +271,30 @@ export function SolicitacaoFormModal({
     funcao_nome: row.nome_funcao,
   });
 
-  // Busca GLOBAL de funcionários ativos via RPC SECURITY DEFINER.
-  // Substitui a query direta (que sofria timeout 57014 sob AdmOBRA por avaliar
-  // RLS linha-a-linha em ~1.292 funcionários). A RPC tem fast-path por role e
-  // retorna o mesmo shape achatado consumido por mapRpcRow + mapFuncionarioRecord.
-  // Conflitos operacionais continuam sendo tratados como aviso APÓS seleção.
-  const { data: funcionarios = [] } = useQuery({
-    queryKey: ['diarias-funcionarios-ativos-global', user?.id, userRole],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_funcionarios_ativos_global');
+  // Busca server-side via RPC SECURITY DEFINER (get_funcionarios_ativos_global).
+  // p_search filtra no banco; p_centro_custo prioriza CC do solicitante;
+  // p_limit aplica cap absoluto. Substitui o legacy "carregar tudo".
+  const queryClient = useQueryClient();
+  const [funcSearch, setFuncSearch] = useState("");
 
-      if (error) {
-        console.error('[Diarias][funcionarios ativos] erro', error);
-        throw error;
-      }
-
-      const mapped = (data || []).map(mapRpcRow).map(mapFuncionarioRecord).map((f) => ({
-        ...f,
-        // Marca "fora do CC da solicitação" client-side (apenas flag visual).
-        fora_centro_custo_solicitacao: !!centroCustoId
-          && !!f.centro_custo_id
-          && f.centro_custo_id !== centroCustoId,
-      }));
-
-      const porStatus = mapped.reduce((acc: Record<string, number>, f: any) => {
-        const key = f.status_funcionario || 'sem-status';
-        acc[key] = (acc[key] || 0) + 1;
-        return acc;
-      }, {});
-      console.info('[Diarias][funcionarios ativos] carregados', { total: mapped.length, porStatus });
-      return mapped;
-    },
-    enabled: isOpen,
+  const {
+    funcionarios: funcionariosServer,
+    isFetching: isFetchingFuncionarios,
+  } = useFuncionariosBuscaAtivos({
+    search: funcSearch,
+    centroCustoId: centroCustoId || null,
+    limit: 50,
+    enabled: isOpen && step === 'funcionarios',
   });
+
+  // Aplica flag visual "fora do CC" e mantém compatibilidade de shape.
+  const funcionarios = useMemo(() => {
+    return funcionariosServer.map((f) => ({
+      ...f,
+      fora_centro_custo_solicitacao:
+        !!centroCustoId && !!f.centro_custo_id && f.centro_custo_id !== centroCustoId,
+    }));
+  }, [funcionariosServer, centroCustoId]);
 
   const selectedCentroCusto = useMemo(() => {
     return centrosCusto.find((cc) => cc.id === centroCustoId);
@@ -811,23 +807,30 @@ export function SolicitacaoFormModal({
         : null,
     }));
 
-    console.info('[Diarias][RPC funcionarios] pós-filtro frontend', {
-      totalRpc: funcionarios.length,
+    console.info('[Diarias][busca server-side]', {
+      search: funcSearch,
+      centroCustoId,
+      totalServer: funcionarios.length,
       totalPreservados: funcionariosPreservados.length,
       totalFinal: normalized.length,
-      primeiroItem: normalized[0] || null,
     });
 
-    if (normalized.length === 0) {
-      console.warn('[Diarias][RPC funcionarios] lista final vazia', {
-        motivo: !dataInicio || !dataFim
-          ? 'Período incompleto para consulta'
-          : 'Nenhum funcionário retornado pela RPC e pela lista preservada',
-      });
-    }
-
     return normalized;
-  }, [funcionarios, funcionariosPreservados, dataInicio, dataFim]);
+  }, [funcionarios, funcionariosPreservados, dataInicio, dataFim, funcSearch, centroCustoId]);
+
+  // Elegibilidade 3 estados (livre / alerta / bloqueado) para os funcionários visíveis.
+  // Bloqueado é regra dura (ignora forceAdd). Alerta abre confirmação.
+  const idsVisiveisElegibilidade = useMemo(
+    () => funcionariosBusca.map((f) => f.id),
+    [funcionariosBusca]
+  );
+  const { elegibilidadeMap } = useFuncionarioElegibilidade({
+    funcionarioIds: idsVisiveisElegibilidade,
+    dataInicio,
+    dataFim,
+    solicitacaoId: editingSolicitacao?.id || null,
+    enabled: isOpen && step === 'funcionarios' && idsVisiveisElegibilidade.length > 0,
+  });
 
   // Add funcionario by ID (used by SmartSearch)
   // forceAdd=true permite ignorar o bloqueio elegivel=false quando o usuário
@@ -846,8 +849,16 @@ export function SolicitacaoFormModal({
       return;
     }
 
-    if (!forceAdd && func.elegivel === false) {
-      toast.warning(func.motivo_bloqueio || `${func.nome_completo} está bloqueado para o período selecionado.`);
+    // Regra dura: bloqueado pela RPC de elegibilidade NUNCA passa, ignora forceAdd.
+    const eleg = elegibilidadeMap.get(funcId);
+    if (eleg?.status === 'bloqueado') {
+      toast.error(eleg.motivo || `${func.nome_completo} está bloqueado para o período.`);
+      return;
+    }
+
+    // Legacy/compat: elegivel=false sem confirmação ainda exige forceAdd.
+    if (!forceAdd && (func.elegivel === false || eleg?.status === 'alerta')) {
+      toast.warning(eleg?.alertaMensagem || eleg?.motivo || func.motivo_bloqueio || `${func.nome_completo} requer confirmação.`);
       return;
     }
 
@@ -867,30 +878,37 @@ export function SolicitacaoFormModal({
     toast.success(`${func.nome_completo} adicionado.`);
   };
 
-  // Add all funcionarios from a Centro de Custo
-  const handleAddByCentroCusto = (centroCustoIdSelected: string) => {
-    const funcsNoCc = funcionariosBusca.filter((f: any) => f.centro_custo_id === centroCustoIdSelected && f.bd_funcoes);
-    const addedIds = new Set(convocadosPre.map(c => c.funcionario_id));
-    
+  // Estado da confirmação "Adicionar por CC" quando volume é grande.
+  const [pendingCcAdd, setPendingCcAdd] = useState<{ ccId: string; preview: number } | null>(null);
+
+  // Adiciona uma lista de candidatos (já vinda do servidor) ao convocadosPre.
+  // Aplica filtros: já presente, sem função, bloqueado pela RPC de elegibilidade.
+  // Funcionários em estado 'alerta' são adicionados automaticamente quando
+  // o usuário confirma o lote (decisão coletiva, sem prompt individual).
+  const aplicarLoteFuncionarios = useCallback((lista: any[]) => {
+    const addedIds = new Set(convocadosPre.map((c) => c.funcionario_id));
     const novos: FuncionarioPreConvocado[] = [];
     let jaExistentes = 0;
     let semFuncao = 0;
     const bloqueadosPorMotivo = new Map<string, number>();
 
-    for (const func of funcsNoCc) {
-      if (addedIds.has(func.id)) {
-        jaExistentes++;
+    for (const func of lista) {
+      if (addedIds.has(func.id)) { jaExistentes++; continue; }
+      if (!func.bd_funcoes) { semFuncao++; continue; }
+
+      const eleg = elegibilidadeMap.get(func.id);
+      if (eleg?.status === 'bloqueado') {
+        const motivo = eleg.motivo || 'Bloqueado pela regra operacional';
+        bloqueadosPorMotivo.set(motivo, (bloqueadosPorMotivo.get(motivo) || 0) + 1);
         continue;
       }
-      if (!func.bd_funcoes) {
-        semFuncao++;
-        continue;
-      }
-      if (func.elegivel === false) {
+      // Legacy compat: respeita elegivel=false do registro quando RPC ainda não respondeu.
+      if (!eleg && func.elegivel === false) {
         const motivo = func.motivo_bloqueio || 'Bloqueado pela regra operacional';
         bloqueadosPorMotivo.set(motivo, (bloqueadosPorMotivo.get(motivo) || 0) + 1);
         continue;
       }
+
       novos.push({
         funcionario_id: func.id,
         funcao_id: func.funcao_id,
@@ -900,32 +918,67 @@ export function SolicitacaoFormModal({
         nome_funcionario: func.nome_completo,
         nome_funcao: func.bd_funcoes.nome_funcao,
         cpf: func.cpf || '',
-        matricula: func.matricula || ''
+        matricula: func.matricula || '',
       });
     }
 
-    if (novos.length > 0) {
-      setConvocadosPre([...convocadosPre, ...novos]);
-    }
+    if (novos.length > 0) setConvocadosPre([...convocadosPre, ...novos]);
 
     const parts: string[] = [];
-    if (novos.length > 0) parts.push(`${novos.length} funcionário${novos.length > 1 ? 's' : ''} adicionado${novos.length > 1 ? 's' : ''}`);
+    if (novos.length > 0) parts.push(`${novos.length} adicionado${novos.length > 1 ? 's' : ''}`);
     if (jaExistentes > 0) parts.push(`${jaExistentes} já estava${jaExistentes > 1 ? 'm' : ''} na lista`);
     if (semFuncao > 0) parts.push(`${semFuncao} sem função cadastrada`);
     if (bloqueadosPorMotivo.size > 0) {
       parts.push(
         Array.from(bloqueadosPorMotivo.entries())
-          .map(([motivo, total]) => `${total} bloqueado${total > 1 ? 's' : ''}: ${motivo}`)
+          .map(([m, t]) => `${t} bloqueado${t > 1 ? 's' : ''}: ${m}`)
           .join(' | ')
       );
     }
-    
-    if (novos.length > 0) {
-      toast.success(parts.join(". ") + ".");
-    } else if (jaExistentes > 0) {
-      toast.info("Todos os funcionários deste centro já estão na lista.");
-    } else {
-      toast.warning("Nenhum funcionário ativo encontrado neste centro de custo.");
+
+    if (novos.length > 0) toast.success(parts.join('. ') + '.');
+    else if (jaExistentes > 0) toast.info('Todos os funcionários deste centro já estão na lista.');
+    else toast.warning(parts.join('. ') || 'Nenhum funcionário adicionado.');
+  }, [convocadosPre, elegibilidadeMap]);
+
+  // "Adicionar por CC" — limite controlado + confirmação forte.
+  // Estratégia: 1ª chamada com limit 100; se vier exatamente 100,
+  // pergunta antes de carregar até 500. Sem fallback massivo.
+  const handleAddByCentroCusto = async (centroCustoIdSelected: string) => {
+    try {
+      const preview = await fetchFuncionariosAtivos(queryClient, {
+        centroCustoId: centroCustoIdSelected,
+        search: '',
+        limit: 100,
+      });
+
+      if (preview.length < 100) {
+        aplicarLoteFuncionarios(preview);
+        return;
+      }
+
+      // Possivelmente há mais de 100 — exige confirmação explícita do usuário.
+      setPendingCcAdd({ ccId: centroCustoIdSelected, preview: preview.length });
+    } catch (err) {
+      console.error('[Diarias][addByCC] erro', err);
+      toast.error('Não foi possível carregar os funcionários do centro de custo.');
+    }
+  };
+
+  const confirmarAddByCc = async () => {
+    if (!pendingCcAdd) return;
+    const { ccId } = pendingCcAdd;
+    setPendingCcAdd(null);
+    try {
+      const lote = await fetchFuncionariosAtivos(queryClient, {
+        centroCustoId: ccId,
+        search: '',
+        limit: 500, // cap absoluto
+      });
+      aplicarLoteFuncionarios(lote);
+    } catch (err) {
+      console.error('[Diarias][addByCC confirm] erro', err);
+      toast.error('Não foi possível carregar a lista completa.');
     }
   };
 
@@ -1082,23 +1135,44 @@ export function SolicitacaoFormModal({
               {/* Período */}
               <div className="space-y-2">
                 <Label>Período da Solicitação *</Label>
+                <p className="text-xs text-muted-foreground">
+                  Escolha qualquer dia da semana desejada — o sistema fixa automaticamente o período de <strong>segunda a domingo</strong>.
+                </p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-xs text-muted-foreground">Data Início</Label>
+                    <Label className="text-xs text-muted-foreground">Data Início (Segunda)</Label>
                     <Input
                       type="date"
                       value={dataInicio}
-                      onChange={(e) => setDataInicio(e.target.value)}
+                      min={!isSuperAdmin ? format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd') : undefined}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (!raw) {
+                          setDataInicio('');
+                          setDataFim('');
+                          return;
+                        }
+                        // Snap automático para segunda-feira da semana escolhida
+                        const escolhida = parseISO(raw);
+                        const segunda = startOfWeek(escolhida, { weekStartsOn: 1 });
+                        const domingo = endOfWeek(escolhida, { weekStartsOn: 1 }); // sábado por default? — date-fns endOfWeek com weekStartsOn:1 retorna domingo
+                        const segundaStr = format(segunda, 'yyyy-MM-dd');
+                        const domingoStr = format(domingo, 'yyyy-MM-dd');
+                        setDataInicio(segundaStr);
+                        setDataFim(domingoStr);
+                      }}
                       disabled={isEditing}
                     />
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">Data Fim</Label>
+                    <Label className="text-xs text-muted-foreground">Data Fim (Domingo)</Label>
                     <Input
                       type="date"
                       value={dataFim}
-                      onChange={(e) => setDataFim(e.target.value)}
-                      disabled={isEditing}
+                      readOnly
+                      disabled
+                      tabIndex={-1}
+                      className="cursor-not-allowed bg-muted"
                     />
                   </div>
                 </div>
@@ -1115,7 +1189,7 @@ export function SolicitacaoFormModal({
                   <Alert className="border-amber-300 bg-amber-50">
                     <Info className="h-4 w-4 text-amber-600" />
                     <AlertDescription className="text-amber-800 text-xs">
-                      <strong>Solicitação Retroativa (SuperAdm):</strong> Você está criando uma solicitação com data anterior a hoje. 
+                      <strong>Solicitação Retroativa (SuperAdm):</strong> Você está criando uma solicitação com data anterior à semana atual. 
                       A justificativa deve conter no mínimo 20 caracteres explicando o motivo da criação retroativa.
                     </AlertDescription>
                   </Alert>
@@ -1405,6 +1479,10 @@ export function SolicitacaoFormModal({
                 onSelectCentroCusto={handleAddByCentroCusto}
                 alocacoesPorFuncionario={alocacoesPorFuncionario}
                 onSelectFuncionarioComConflito={(conflito) => setConflitoPendente(conflito)}
+                searchValue={funcSearch}
+                onSearchChange={setFuncSearch}
+                isSearching={isFetchingFuncionarios}
+                elegibilidadeMap={elegibilidadeMap}
               />
 
               {/* Meio: lista com scroll isolado */}
@@ -1788,6 +1866,18 @@ export function SolicitacaoFormModal({
               : "Este funcionário possui um conflito operacional. Deseja prosseguir mesmo assim?")
       }
       confirmText="Adicionar mesmo assim"
+      cancelText="Cancelar"
+      variant="warning"
+    />
+
+    {/* Confirmação para "Adicionar por CC" quando volume é grande (>= 100) */}
+    <ConfirmDialog
+      isOpen={!!pendingCcAdd}
+      onClose={() => setPendingCcAdd(null)}
+      onConfirm={confirmarAddByCc}
+      title="Carregar funcionários do centro de custo"
+      description="Foram encontrados muitos funcionários neste centro de custo. A operação pode impactar a performance. Deseja continuar? Serão carregados até 500 funcionários."
+      confirmText="Carregar e adicionar"
       cancelText="Cancelar"
       variant="warning"
     />

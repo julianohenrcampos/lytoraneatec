@@ -25,6 +25,9 @@ import { getEstadoJornada, type TipoBatida } from "@/lib/ponto/estadoJornada";
 import { useBiometriaSegura } from "@/hooks/ponto/useBiometriaSegura";
 import { verificarCooldownBatida } from "@/lib/ponto/verificarCooldownBatida";
 import { pontoLog } from "@/lib/ponto/pontoLog";
+import { useCameraDevices } from "@/hooks/ponto/useCameraDevices";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { IndicadorQualidadeRosto } from "@/components/ponto/IndicadorQualidadeRosto";
 
 type Status =
   | "carregando"
@@ -105,6 +108,7 @@ type BiometriaEstado = {
   matchValido: boolean;
   framesValidos: number;
   motivoBloqueio: string | null;
+  qualidadeNivel: "ruim" | "media" | "boa";
 };
 
 const BIOMETRIA_INICIAL: BiometriaEstado = {
@@ -116,6 +120,7 @@ const BIOMETRIA_INICIAL: BiometriaEstado = {
   matchValido: false,
   framesValidos: 0,
   motivoBloqueio: "Carregando reconhecimento facial...",
+  qualidadeNivel: "ruim",
 };
 
 function getDeviceFingerprint(): string {
@@ -202,6 +207,8 @@ export default function PontoDireto() {
   // Buffer multi-frame para anti falso-positivo (Fase 4)
   const matchBufferRef = useRef<Array<{ dist: number; confianca: number; ts: number }>>([]);
   const { validarRostoSeguro, resetBiometriaSegura } = useBiometriaSegura();
+  // Seleção de câmera (USB ou frontal). Persiste deviceId em localStorage.
+  const { devices: cameraDevices, selectedDeviceId, setSelectedDeviceId, refresh: refreshCameras } = useCameraDevices();
   useEffect(() => { statusRef.current = status; }, [status]);
 
   // Relógio + online/offline
@@ -383,8 +390,11 @@ export default function PontoDireto() {
     };
     (async () => {
       try {
+        const videoConstraints: MediaTrackConstraints = selectedDeviceId
+          ? { deviceId: { exact: selectedDeviceId }, width: { ideal: 720 }, height: { ideal: 720 } }
+          : { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } };
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } },
+          video: videoConstraints,
           audio: false,
         });
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
@@ -397,8 +407,15 @@ export default function PontoDireto() {
           await v.play().catch(() => undefined);
           if (v.videoWidth > 0) onFrameReady();
         }
+        // Após permissão concedida, re-popula labels da lista de câmeras
+        refreshCameras();
       } catch (e: any) {
         console.error("[PontoDireto][CAMERA]", e);
+        // OverconstrainedError: deviceId salvo não existe mais — limpa para retry sem constraint
+        if (e?.name === "OverconstrainedError" && selectedDeviceId) {
+          setSelectedDeviceId(null);
+          return;
+        }
         setCameraReady(false);
         setCameraError(e?.name === "NotAllowedError" ? "Permissão de câmera negada" : "Câmera indisponível");
       }
@@ -413,7 +430,7 @@ export default function PontoDireto() {
       streamRef.current?.getTracks().forEach(t => t.stop());
       streamRef.current = null;
     };
-  }, [status]);
+  }, [status, selectedDeviceId, refreshCameras, setSelectedDeviceId]);
 
   // Inicia watchPosition (chamado após permissão concedida)
   const iniciarWatchGPS = useCallback(() => {
@@ -604,6 +621,7 @@ export default function PontoDireto() {
             matchValido: false,
             framesValidos: 0,
             motivoBloqueio: resultado.motivo ?? "Aguardando rosto",
+            qualidadeNivel: resultado.qualidadeNivel ?? "ruim",
           }));
           if (resultado.motivo === "Possível uso de imagem/foto") {
             setTentativasSemMatch((x) => x + 1);
@@ -1068,6 +1086,12 @@ export default function PontoDireto() {
             cameraReady={cameraReady}
             cameraError={cameraError}
             estado={status}
+            cameraDevices={cameraDevices}
+            selectedDeviceId={selectedDeviceId}
+            setSelectedDeviceId={setSelectedDeviceId}
+            qualidadeNivel={biometria.qualidadeNivel}
+            rostoDetectado={biometria.rostoDetectado}
+            motivoBloqueio={biometria.motivoBloqueio}
             overlayLabel={
               status === "escaneando"
                   ? (errMsg === "Confirmando identidade..." ? "Confirmando identidade..." : "Procurando rosto...")
@@ -1296,14 +1320,32 @@ export default function PontoDireto() {
 // ─── Subcomponente: vídeo + overlay ───
 function CameraView({
   videoRef, cameraReady, cameraError, estado, overlayLabel,
+  cameraDevices, selectedDeviceId, setSelectedDeviceId,
+  qualidadeNivel, rostoDetectado, motivoBloqueio,
 }: {
   videoRef: React.RefObject<HTMLVideoElement>;
   cameraReady: boolean;
   cameraError: string | null;
   estado: Status;
   overlayLabel: string;
+  cameraDevices: { deviceId: string; label: string }[];
+  selectedDeviceId: string | null;
+  setSelectedDeviceId: (id: string | null) => void;
+  qualidadeNivel: "ruim" | "media" | "boa";
+  rostoDetectado: boolean;
+  motivoBloqueio: string | null;
 }) {
   const reconhecido = estado === "reconhecido" || estado === "registrando" || estado === "sucesso";
+  const escaneando = estado === "escaneando";
+  const ringClass = reconhecido
+    ? "border-emerald-300/80 shadow-[0_0_30px_rgba(16,185,129,0.5)]"
+    : escaneando
+      ? (qualidadeNivel === "boa"
+          ? "border-emerald-300/80 shadow-[0_0_30px_rgba(16,185,129,0.45)]"
+          : qualidadeNivel === "media"
+            ? "border-amber-300/80 shadow-[0_0_30px_rgba(245,158,11,0.45)]"
+            : "border-red-400/80 shadow-[0_0_30px_rgba(239,68,68,0.45)] animate-pulse")
+      : "border-cyan-300/70 shadow-[0_0_30px_rgba(34,211,238,0.5)] animate-pulse";
   return (
     <div className={cn(
       "relative aspect-square w-full rounded-3xl overflow-hidden bg-slate-900 border-2",
@@ -1319,6 +1361,23 @@ function CameraView({
         muted
         className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
       />
+      {cameraDevices.length > 1 && (
+        <div className="absolute top-2 right-2 z-20 max-w-[60%]">
+          <Select
+            value={selectedDeviceId ?? ""}
+            onValueChange={(v) => setSelectedDeviceId(v || null)}
+          >
+            <SelectTrigger className="h-8 text-xs bg-background/80 backdrop-blur-sm">
+              <SelectValue placeholder="Câmera" />
+            </SelectTrigger>
+            <SelectContent>
+              {cameraDevices.map((d) => (
+                <SelectItem key={d.deviceId} value={d.deviceId}>{d.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       {!cameraReady && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 gap-3 bg-slate-900">
           <Camera className="h-12 w-12 opacity-40" />
@@ -1327,17 +1386,21 @@ function CameraView({
       )}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <div className="relative w-[70%] aspect-square">
-          <div className={cn(
-            "absolute inset-0 rounded-full border-2",
-            reconhecido
-              ? "border-emerald-300/80 shadow-[0_0_30px_rgba(16,185,129,0.5)]"
-              : "border-cyan-300/70 shadow-[0_0_30px_rgba(34,211,238,0.5)] animate-pulse",
-          )} />
+          <div className={cn("absolute inset-0 rounded-full border-2", ringClass)} />
           {estado === "escaneando" && (
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-cyan-300 to-transparent shadow-[0_0_15px_rgba(34,211,238,0.9)] animate-[scan_2.4s_ease-in-out_infinite]" />
           )}
         </div>
       </div>
+      {escaneando && cameraReady && (
+        <div className="absolute top-2 left-2 z-20">
+          <IndicadorQualidadeRosto
+            qualidadeNivel={qualidadeNivel}
+            rostoDetectado={rostoDetectado}
+            motivoBloqueio={motivoBloqueio}
+          />
+        </div>
+      )}
       <div className="absolute bottom-3 inset-x-0 text-center px-4">
         <p className={cn(
           "text-base font-semibold drop-shadow",

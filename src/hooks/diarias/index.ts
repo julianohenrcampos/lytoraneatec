@@ -85,3 +85,25 @@ export {
   useRecusarInclusao,
   useNotificarAprovadorInclusao
 } from './useInclusaoFuncionario';
+
+// Busca server-side padronizada (Solicitação, Apontamento, Equipamento)
+export {
+  useFuncionariosBuscaAtivos,
+  fetchFuncionariosAtivos,
+  type UseFuncionariosBuscaAtivosParams,
+} from './useFuncionariosBuscaAtivos';
+
+// Elegibilidade 3 estados (livre / alerta / bloqueado)
+export {
+  useFuncionarioElegibilidade,
+  type EstadoElegibilidade,
+  type EstadoElegibilidadeStatus,
+} from './useFuncionarioElegibilidade';
+
+// Mappers compartilhados
+export {
+  mapRpcRow,
+  mapFuncionarioRecord,
+  mergeFuncionarios,
+  type FuncionarioOption,
+} from './_funcionarioMappers';

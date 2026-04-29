@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, Search, Users, User, AlertTriangle } from "lucide-react"
+import { Check, Search, Users, User, AlertTriangle, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
 import type { FuncionarioPreConvocado } from "@/types/diarias"
+import type { EstadoElegibilidade } from "@/hooks/diarias/useFuncionarioElegibilidade"
 
 interface FuncionarioItem {
   id: string;
@@ -59,12 +60,24 @@ interface SmartFuncionarioSearchProps {
   alocacoesPorFuncionario?: Map<string, { numero_solicitacao: string; codigo_centro_custo: string }>;
   /**
    * Quando definido, funcionários com conflito operacional (alocação em outra
-   * solicitação ou elegivel=false sem ser bloqueio de status RH) deixam de ser
-   * disabled e passam a disparar este callback em vez de onSelectFuncionario.
-   * O pai deve abrir uma confirmação e, se aceita, chamar o handler de adição
-   * com bypass de conflito.
+   * solicitação ou status='alerta'/elegivel=false sem ser bloqueio de status RH)
+   * deixam de ser disabled e passam a disparar este callback em vez de
+   * onSelectFuncionario. O pai deve abrir uma confirmação e, se aceita,
+   * chamar o handler de adição com bypass de conflito.
    */
   onSelectFuncionarioComConflito?: (conflito: ConflitoSelecao) => void;
+  /** Modo controlado: input alimentado pelo pai (busca server-side). */
+  searchValue?: string;
+  /** Callback de change quando em modo controlado. */
+  onSearchChange?: (value: string) => void;
+  /** Indicador visual de busca em andamento. */
+  isSearching?: boolean;
+  /**
+   * Mapa de elegibilidade vindo do useFuncionarioElegibilidade.
+   * Quando presente, sobrescreve `elegivel` / `motivo_bloqueio` por id
+   * com a regra dos 3 estados (livre / alerta / bloqueado).
+   */
+  elegibilidadeMap?: Map<string, EstadoElegibilidade>;
 }
 
 // Status de RH considerados bloqueio real de seleção (não-conflito).
@@ -79,9 +92,15 @@ export function SmartFuncionarioSearch({
   disabled = false,
   alocacoesPorFuncionario = new Map(),
   onSelectFuncionarioComConflito,
+  searchValue,
+  onSearchChange,
+  isSearching = false,
+  elegibilidadeMap,
 }: SmartFuncionarioSearchProps) {
+  const isControlled = typeof onSearchChange === "function";
   const [open, setOpen] = React.useState(false)
-  const [inputValue, setInputValue] = React.useState("")
+  const [internalValue, setInternalValue] = React.useState("")
+  const inputValue = isControlled ? (searchValue ?? "") : internalValue;
 
   const normalizeSearch = React.useCallback((value: string) => {
     return value
@@ -120,6 +139,8 @@ export function SmartFuncionarioSearch({
   }, [centrosCusto, normalizeSearch, searchTerm]);
 
   const filteredFuncionarios = React.useMemo(() => {
+    // Em modo controlado a lista já vem filtrada do servidor; não trunca.
+    if (isControlled) return funcionariosOperacionais;
     if (!searchTerm) {
       return funcionariosOperacionais.slice(0, 20);
     }
@@ -131,19 +152,27 @@ export function SmartFuncionarioSearch({
 
       return nome.includes(searchTerm) || matricula.includes(searchTerm) || funcao.includes(searchTerm)
     }).slice(0, 10);
-  }, [funcionariosOperacionais, normalizeSearch, searchTerm]);
+  }, [funcionariosOperacionais, normalizeSearch, searchTerm, isControlled]);
+
+  const setValue = React.useCallback((value: string) => {
+    if (isControlled) {
+      onSearchChange?.(value);
+    } else {
+      setInternalValue(value);
+    }
+  }, [isControlled, onSearchChange]);
 
   const handleSelectFuncionario = React.useCallback((funcId: string) => {
     onSelectFuncionario(funcId);
-    setInputValue("");
+    setValue("");
     setOpen(false);
-  }, [onSelectFuncionario]);
+  }, [onSelectFuncionario, setValue]);
 
   const handleSelectCentroCusto = React.useCallback((ccId: string) => {
     onSelectCentroCusto(ccId);
-    setInputValue("");
+    setValue("");
     setOpen(false);
-  }, [onSelectCentroCusto]);
+  }, [onSelectCentroCusto, setValue]);
 
   const hasResults = filteredCentros.length > 0 || filteredFuncionarios.length > 0;
   const showingInitialList = !searchTerm;
@@ -175,10 +204,13 @@ export function SmartFuncionarioSearch({
             <input
               placeholder="Buscar funcionário ou centro de custo..."
               value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
+              onChange={(e) => setValue(e.target.value)}
               className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
               autoFocus
             />
+            {isSearching && (
+              <Loader2 className="ml-2 h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+            )}
           </div>
           <CommandList className="max-h-[350px] overflow-y-auto" style={{ pointerEvents: 'auto' }}>
             {!hasResults ? (
@@ -223,12 +255,27 @@ export function SmartFuncionarioSearch({
                       const alocacao = alocacoesPorFuncionario.get(f.id);
                       const statusRaw = f.status_funcionario || "";
                       const isStatusBloqueado = statusRaw.length > 0 && !STATUS_RH_PERMITIDOS.has(statusRaw);
-                      // Conflito operacional = alocado em outra solicitação OU elegivel=false
-                      // sem ser bloqueio de status RH (ex.: convocados_pre / regra operacional).
-                      const hasConflito = !!alocacao || (f.elegivel === false && !isStatusBloqueado);
+
+                      // Estado de elegibilidade vindo da RPC fn_diaria_funcionario_elegibilidade.
+                      // Quando presente, sobrescreve elegivel/motivo_bloqueio do registro.
+                      const elegState = elegibilidadeMap?.get(f.id);
+                      const isBloqueadoElegibilidade = elegState?.status === "bloqueado";
+                      const isAlertaElegibilidade = elegState?.status === "alerta";
+                      const motivoEffective = elegState?.motivo ?? f.motivo_bloqueio ?? null;
+
+                      // Conflito operacional = alocado em outra solicitação OU
+                      // status='alerta' OU (legacy) elegivel=false sem ser bloqueio de status RH.
+                      const hasConflito =
+                        !!alocacao ||
+                        isAlertaElegibilidade ||
+                        (elegState === undefined && f.elegivel === false && !isStatusBloqueado);
+
+                      // Bloqueio duro: status RH inválido OU elegibilidade='bloqueado'.
+                      const isHardBlocked = isStatusBloqueado || isBloqueadoElegibilidade;
+
                       const podeSelecionarComConfirmacao =
-                        hasConflito && !!onSelectFuncionarioComConflito && !isStatusBloqueado;
-                      const canSelect = !isAdded && !isStatusBloqueado && (!hasConflito || podeSelecionarComConfirmacao);
+                        hasConflito && !!onSelectFuncionarioComConflito && !isHardBlocked;
+                      const canSelect = !isAdded && !isHardBlocked && (!hasConflito || podeSelecionarComConfirmacao);
 
                       const handleClick = () => {
                         if (!canSelect) return;
@@ -238,9 +285,9 @@ export function SmartFuncionarioSearch({
                             alocacao: alocacao
                               ? { numero_solicitacao: alocacao.numero_solicitacao, codigo_centro_custo: alocacao.codigo_centro_custo }
                               : undefined,
-                            motivo: f.motivo_bloqueio || undefined,
+                            motivo: motivoEffective || elegState?.alertaMensagem || undefined,
                           });
-                          setInputValue("");
+                          setValue("");
                           setOpen(false);
                           return;
                         }
@@ -255,25 +302,25 @@ export function SmartFuncionarioSearch({
                           className={cn(
                             "cursor-pointer py-2.5 px-3",
                             isAdded && "opacity-50 cursor-not-allowed",
-                            isStatusBloqueado && !isAdded && "opacity-60 cursor-not-allowed",
-                            hasConflito && !isAdded && !isStatusBloqueado && "border-l-2 border-l-destructive",
-                            f.fora_centro_custo_solicitacao && !hasConflito && "border-l-2 border-l-primary/60"
+                            isHardBlocked && !isAdded && "opacity-60 cursor-not-allowed",
+                            hasConflito && !isAdded && !isHardBlocked && "border-l-2 border-l-destructive",
+                            f.fora_centro_custo_solicitacao && !hasConflito && !isHardBlocked && "border-l-2 border-l-primary/60"
                           )}
                           style={{ pointerEvents: 'auto' }}
-                          disabled={isAdded || isStatusBloqueado}
+                          disabled={isAdded || isHardBlocked}
                           title={
-                            isStatusBloqueado
-                              ? `Indisponível: ${statusRaw}`
+                            isHardBlocked
+                              ? `Indisponível: ${motivoEffective || statusRaw || 'bloqueado'}`
                               : hasConflito
                                 ? (alocacao
                                     ? `Já vinculado à solicitação ${alocacao.numero_solicitacao} (CC ${alocacao.codigo_centro_custo}). Clique para confirmar.`
-                                    : (f.motivo_bloqueio || "Conflito operacional. Clique para confirmar."))
+                                    : (motivoEffective || elegState?.alertaMensagem || "Conflito operacional. Clique para confirmar."))
                                 : undefined
                           }
                         >
                           {isAdded ? (
                             <Check className="mr-2 h-4 w-4 shrink-0 text-primary" />
-                          ) : isStatusBloqueado ? (
+                          ) : isHardBlocked ? (
                             <AlertTriangle className="mr-2 h-4 w-4 shrink-0 text-amber-600" />
                           ) : hasConflito ? (
                             <AlertTriangle className="mr-2 h-4 w-4 shrink-0 text-destructive" />
@@ -309,9 +356,9 @@ export function SmartFuncionarioSearch({
                                 Convocado no CC: {alocacao.codigo_centro_custo} — Solicitação: {alocacao.numero_solicitacao}
                               </p>
                             )}
-                            {!alocacao && f.elegivel === false && f.motivo_bloqueio && (
-                              <p className={cn("text-xs mt-0.5", isStatusBloqueado ? "text-muted-foreground" : "text-destructive")}>
-                                {f.motivo_bloqueio}
+                            {!alocacao && motivoEffective && (
+                              <p className={cn("text-xs mt-0.5", isHardBlocked ? "text-muted-foreground" : "text-destructive")}>
+                                {motivoEffective}
                               </p>
                             )}
                           </div>
