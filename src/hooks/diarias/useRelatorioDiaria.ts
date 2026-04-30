@@ -15,6 +15,31 @@ import {
 
 const QUERY_KEY = 'diarias-relatorio';
 
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Defesa em profundidade: normaliza filtros antes do useQuery.
+ * Remove datas inválidas/parciais para que o serviço aplique o default
+ * sem propagar `undefined` ao Postgres.
+ */
+function sanitizeFilters(filters?: RelatorioFilters): RelatorioFilters | undefined {
+  if (!filters) return filters;
+  const di = filters.data_inicio;
+  const df = filters.data_fim;
+  const diValido = typeof di === 'string' && ISO_DATE_RE.test(di);
+  const dfValido = typeof df === 'string' && ISO_DATE_RE.test(df);
+
+  if ((di || df) && (!diValido || !dfValido)) {
+    console.warn('[RELATORIO] Filtro de data inválido removido no hook', {
+      data_inicio: di,
+      data_fim: df,
+    });
+    const { data_inicio: _i, data_fim: _f, ...rest } = filters;
+    return rest as RelatorioFilters;
+  }
+  return filters;
+}
+
 // Interface de escopo para filtros obrigatórios
 interface RelatorioScopeFilters {
   criado_por?: string;
@@ -26,9 +51,10 @@ export function useRelatorioFolha(
   scope?: RelatorioScopeFilters,
   options?: { enabled?: boolean }
 ) {
+  const safeFilters = sanitizeFilters(filters);
   return useQuery({
-    queryKey: [QUERY_KEY, 'folha', filters, scope],
-    queryFn: () => getRelatorioFolha(filters, scope),
+    queryKey: [QUERY_KEY, 'folha', safeFilters, scope],
+    queryFn: () => getRelatorioFolha(safeFilters, scope),
     enabled: options?.enabled ?? true,
     retry: 1,
     retryDelay: 1000,
@@ -47,9 +73,10 @@ export function useRelatorioFolhaPaginado(
   pagination: { page: number; pageSize: number },
   options?: { enabled?: boolean }
 ) {
+  const safeFilters = sanitizeFilters(filters);
   return useQuery({
-    queryKey: [QUERY_KEY, 'folha-paginado', filters, scope, pagination],
-    queryFn: () => getRelatorioFolhaPaginadoView(filters, scope, pagination),
+    queryKey: [QUERY_KEY, 'folha-paginado', safeFilters, scope, pagination],
+    queryFn: () => getRelatorioFolhaPaginadoView(safeFilters, scope, pagination),
     enabled: options?.enabled ?? true,
     placeholderData: keepPreviousData,
     staleTime: 60_000,
@@ -62,9 +89,10 @@ export function useRelatorioFolhaPaginado(
 }
 
 export function useResumoDiarias(filters?: RelatorioFilters) {
+  const safeFilters = sanitizeFilters(filters);
   return useQuery({
-    queryKey: [QUERY_KEY, 'resumo', filters],
-    queryFn: () => getResumoDiarias(filters),
+    queryKey: [QUERY_KEY, 'resumo', safeFilters],
+    queryFn: () => getResumoDiarias(safeFilters),
     retry: 2,
     retryDelay: 1000,
     staleTime: 30000,
@@ -72,9 +100,10 @@ export function useResumoDiarias(filters?: RelatorioFilters) {
 }
 
 export function usePresencaResumo(filters?: RelatorioFilters) {
+  const safeFilters = sanitizeFilters(filters);
   return useQuery({
-    queryKey: [QUERY_KEY, 'presenca-resumo', filters],
-    queryFn: () => getPresencaResumo(filters),
+    queryKey: [QUERY_KEY, 'presenca-resumo', safeFilters],
+    queryFn: () => getPresencaResumo(safeFilters),
     retry: 2,
     retryDelay: 1000,
     staleTime: 30000,

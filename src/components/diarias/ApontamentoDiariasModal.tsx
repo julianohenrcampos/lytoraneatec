@@ -76,6 +76,8 @@ import {
 } from "@/services/diarias/presencasService";
 import {
   adicionarFuncionarioConvocado,
+  adicionarFuncionarioConvocadoNoDia,
+  adicionarPresencaNoDia,
   removerFuncionarioConvocado,
   verificarFuncionarioEmOutraSolicitacao,
   updateSolicitacao
@@ -93,6 +95,11 @@ import {
   type CalendarioOperacionalResolvido,
 } from "@/services/diarias/calendarioOperacionalService";
 import { solicitarInclusaoFuncionario, listarInclusoesPendentes } from "@/services/diarias/inclusaoFuncionarioService";
+import {
+  salvarPresencaComExcecao,
+  solicitarTransferenciaExcecao,
+} from "@/services/diarias/excecaoService";
+import { ConflitoExcecaoModal, type ConflitoExcecaoData } from "@/components/diarias/ConflitoExcecaoModal";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermission } from "@/hooks/usePermission";
 import { useOrigemPontoEletronico } from "@/hooks/diarias/useOrigemPontoEletronico";
@@ -123,6 +130,12 @@ interface ColaboradorPresenca extends PresencaFormData {
   observacaoOperacional?: string | null;
   tipoDiaOperacional?: string | null;
   pendenciaInclusaoId?: string;
+  /**
+   * Data real (YYYY-MM-DD) à qual este registro pertence.
+   * Usada para resolver o valor da diária no salvamento, sem depender
+   * do estado global selectedDate da UI.
+   */
+  data_apontamento?: string;
 }
 
 interface FuncionarioBuscaItem {
@@ -296,6 +309,9 @@ export default function ApontamentoDiariasModal({
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [hasValidatedDateStructure, setHasValidatedDateStructure] = useState(false);
   const [colaboradores, setColaboradores] = useState<ColaboradorPresenca[]>([]);
+  // Set otimista — chave composta `${funcionario_id}_${data_apontamento}`.
+  // Protege inclusões recém-adicionadas do rebuild via convocadosPre antes do refetch consolidar.
+  const funcionariosAdicionadosOtimistasRef = useRef<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
   const [hasExistingData, setHasExistingData] = useState(false);
   const [isLoadingExisting, setIsLoadingExisting] = useState(false);
@@ -347,13 +363,15 @@ export default function ApontamentoDiariasModal({
   // Ref para controle de auto-finalização (evita duplicação)
   const autoFinalizadoRef = useRef<Set<string>>(new Set());
   
-  // Estado para conflito de transferência entre solicitações
-  const [transferConflict, setTransferConflict] = useState<{
+  // Estado para conflito de alocação entre solicitações (modal único: transferência ou exceção)
+  const [conflitoExcecao, setConflitoExcecao] = useState<{
     funcionario: any;
     outraSolicitacaoId: string;
     numeroSolicitacao: string;
+    centroCustoCodigo?: string;
+    centroCustoNome?: string;
   } | null>(null);
-  const [isTransferring, setIsTransferring] = useState(false);
+  const [isResolvingConflito, setIsResolvingConflito] = useState(false);
   
   // Estado para confirmação de liberação de funcionário
   const [releaseConfirm, setReleaseConfirm] = useState<{
@@ -366,6 +384,33 @@ export default function ApontamentoDiariasModal({
   const queryClient = useQueryClient();
   const sincronizarDiarias = useSincronizarDiarias();
   const { userId } = useAuth();
+
+  /**
+   * Normaliza `selectedDate` para o formato `yyyy-MM-dd` antes de enviar ao banco.
+   * Defesa contra: timezone (Date em UTC), ISO string e divergências de formato.
+   * Bloqueia o fluxo se a normalização divergir do estado atual.
+   */
+  const buildDataApontamentoSegura = useCallback((origem: string): string => {
+    if (!selectedDate) {
+      console.error('[DIARIA][ERRO_DATA_INVALIDA_NO_INSERT]', {
+        origem,
+        expected: null,
+        actual: null,
+        motivo: 'selectedDate_ausente',
+      });
+      throw new Error('Selecione a data do apontamento antes de salvar.');
+    }
+    const dataApontamento = format(parseBrazilianDate(selectedDate), 'yyyy-MM-dd');
+    if (dataApontamento !== selectedDate) {
+      console.error('[DIARIA][ERRO_DATA_INVALIDA_NO_INSERT]', {
+        origem,
+        expected: selectedDate,
+        actual: dataApontamento,
+      });
+      throw new Error('Data inválida no apontamento. Selecione novamente a data e tente outra vez.');
+    }
+    return dataApontamento;
+  }, [selectedDate]);
 
   // Extrair dados da solicitação
   const solicitacao = apontamento?.bd_diaria_solicitacoes;
@@ -582,7 +627,7 @@ export default function ApontamentoDiariasModal({
   const possuiSnapshotEstruturado = useMemo(() => {
     const snapshotDatas = (solicitacao as any)?.regras_operacionais_snapshot?.datas;
     return !!snapshotDatas && typeof snapshotDatas === 'object' && Object.keys(snapshotDatas).length > 0;
-  }, [solicitacao]);
+  }, [(solicitacao as any)?.regras_operacionais_snapshot]);
 
   const possuiEstruturaDatas = datasSelecionaveis.length > 0 || possuiSnapshotEstruturado;
   const datasEstruturadasCarregadas = !!solicitacao?.id && hasValidatedDateStructure;
@@ -610,12 +655,18 @@ export default function ApontamentoDiariasModal({
       observacao: raw?.observacao ?? '',
       classificacao: 'feriado_ponte_operacional',
     };
-  }, [solicitacao]);
+  }, [(solicitacao as any)?.regras_operacionais_snapshot]);
 
   const [regrasOperacionaisSnapshotLocal, setRegrasOperacionaisSnapshotLocal] = useState<RegrasOperacionaisSnapshot>(snapshotOperacionalBase);
 
   useEffect(() => {
-    setRegrasOperacionaisSnapshotLocal(snapshotOperacionalBase);
+    // Guard de igualdade: evita re-render quando o snapshot é equivalente em conteúdo
+    // (caso comum quando o pai re-renderiza e cria nova referência de `solicitacao`).
+    setRegrasOperacionaisSnapshotLocal(prev => {
+      const sameDatas = JSON.stringify(prev.datas) === JSON.stringify(snapshotOperacionalBase.datas);
+      const sameObs = prev.observacao === snapshotOperacionalBase.observacao;
+      return sameDatas && sameObs ? prev : snapshotOperacionalBase;
+    });
   }, [snapshotOperacionalBase]);
 
   const getSnapshotTipoDia = useCallback((data: string): RegraOperacionalSnapshotItem | null => {
@@ -678,6 +729,54 @@ export default function ApontamentoDiariasModal({
       descricao: snapshotItem.descricao || 'Tipo do dia definido manualmente na solicitação: ponte.',
     };
   }, [getSnapshotTipoDia, regrasOperacionaisPorData]);
+
+  /**
+   * Fonte ÚNICA de verdade do valor base da diária.
+   * Recebe a data REAL do registro e retorna { valorOriginal, usarExclusiva, label }.
+   * Não lê selectedDate global — depende exclusivamente do parâmetro `data`.
+   *
+   * Regra:
+   *  - snapshot manual 'feriado'|'ponte' => exclusiva
+   *  - snapshot manual 'normal'          => normal (mesmo em FDS/feriado)
+   *  - sem override + (FDS ou feriado de calendário) => exclusiva
+   *  - caso contrário                                => normal
+   */
+  const resolverValorOriginalParaData = useCallback((
+    col: ColaboradorPresenca,
+    data: string
+  ): { valorOriginal: number; usarExclusiva: boolean; label: string } => {
+    if (!data) {
+      throw new Error('[DIARIA] resolverValorOriginalParaData: data ausente. Verifique o handler que chamou.');
+    }
+
+    const tipoManual = resolveTipoDiaManual(data);
+    let usarExclusiva: boolean;
+    let label: string;
+
+    if (tipoManual === 'feriado') {
+      usarExclusiva = true;
+      label = 'Feriado';
+    } else if (tipoManual === 'ponte') {
+      usarExclusiva = true;
+      label = 'Ponte';
+    } else if (tipoManual === 'normal') {
+      usarExclusiva = false;
+      label = 'Normal';
+    } else {
+      const isFeriadoCalendario = feriados.some((f) => f.data === data);
+      const dateSel = parseBrazilianDate(data);
+      const dow = dateSel.getDay();
+      const isFDS = dow === 0 || dow === 6;
+      usarExclusiva = isFeriadoCalendario || isFDS;
+      label = isFeriadoCalendario ? 'Feriado' : dow === 0 ? 'Domingo' : dow === 6 ? 'Sábado' : 'Normal';
+    }
+
+    const valorOriginal = usarExclusiva
+      ? (col.valor_diaria_exclusiva_valor ?? col.valor_diaria_normal ?? 0)
+      : (col.valor_diaria_normal ?? 0);
+
+    return { valorOriginal, usarExclusiva, label };
+  }, [resolveTipoDiaManual, feriados]);
 
   const getTipoDiaBadge = useCallback((data: string, info?: { isFeriado?: boolean; isWeekend?: boolean; nomeFeriado?: string | null }) => {
     const manual = resolveTipoDiaManual(data);
@@ -779,6 +878,7 @@ export default function ApontamentoDiariasModal({
       diariaExclusivaOperacional: regra?.usaDiariaExclusiva ?? false,
       tipoDiaOperacional: regra?.tipoDiaOperacional ?? null,
       observacaoOperacional: regra?.descricao ?? null,
+      data_apontamento: selectedDate || undefined,
       ...overrides,
     };
   }, [funcoesCompletas, aplicarOverrideSolicitacaoNaRegra, selectedDate, feriados, colaboradores.length]);
@@ -908,6 +1008,178 @@ export default function ApontamentoDiariasModal({
         [data]: aplicarOverrideSolicitacaoNaRegra(data, prev[data]),
       }));
 
+      // Re-sincronizar valor_diaria_original / usarDiariaExclusiva dos colaboradores
+      // cuja data corresponde à data alterada. Não dependemos de resolveTipoDiaManual
+      // aqui porque ele só refletirá o novo snapshot no próximo render — então
+      // calculamos a partir do `tipoDia` recebido por parâmetro (fonte da verdade
+      // do que acabou de ser persistido).
+      const isFeriadoCalendario = feriados.some((f) => f.data === data);
+      const dateSel = parseBrazilianDate(data);
+      const dow = dateSel.getDay();
+      const isFDS = dow === 0 || dow === 6;
+      const usarExclusivaApós = tipoDia === 'feriado' || tipoDia === 'ponte'
+        || (tipoDia !== 'normal' && (isFDS || isFeriadoCalendario));
+
+      // ===== REPROCESSO AUTOMÁTICO de bd_diaria_presencas =====
+      // Sincroniza usar_diaria_exclusiva e valor_diaria_aplicada para registros
+      // já persistidos do dia, refletindo o novo tipo_dia.
+      let registrosReprocessados = 0;
+      const idsFalhos: string[] = [];
+      try {
+        const { data: presencasDoDia, error: errPres } = await supabase
+          .from('bd_diaria_presencas')
+          .select('id, funcao_id, usar_diaria_exclusiva, valor_diaria_aplicada')
+          .eq('solicitacao_id', solicitacao.id)
+          .eq('data', data);
+
+        if (errPres) throw errPres;
+
+        if (presencasDoDia && presencasDoDia.length > 0) {
+          const funcaoIds = Array.from(
+            new Set(presencasDoDia.map((p) => p.funcao_id).filter(Boolean) as string[])
+          );
+
+          const { data: funcoes, error: errFunc } = funcaoIds.length > 0
+            ? await supabase
+                .from('bd_funcoes')
+                .select('id, valor_diaria, valor_diaria_exclusiva')
+                .in('id', funcaoIds)
+            : { data: [], error: null };
+
+          if (errFunc) throw errFunc;
+
+          const mapaFuncoes = new Map((funcoes ?? []).map((f: any) => [f.id, f]));
+
+          const calcularValorAlvo = (funcaoId: string | null, registroId?: string): number | null => {
+            const fc = funcaoId ? mapaFuncoes.get(funcaoId) : null;
+            if (!fc) {
+              console.warn('[DIARIA][FUNCAO_NAO_ENCONTRADA]', {
+                funcao_id: funcaoId,
+                registro: registroId,
+              });
+              return null;
+            }
+
+            const valorNormal = Number(fc.valor_diaria ?? 0);
+            const valorExclusivo = Number((fc as any).valor_diaria_exclusiva);
+
+            const valor = usarExclusivaApós && !isNaN(valorExclusivo)
+              ? valorExclusivo
+              : valorNormal;
+
+            return valor;
+          };
+
+          const registrosDivergentes = presencasDoDia.filter((p) => {
+            const valorAlvo = calcularValorAlvo(p.funcao_id as string | null, p.id);
+            if (valorAlvo === null) return false;
+            const flagDiferente = p.usar_diaria_exclusiva !== usarExclusivaApós;
+            const valorDiferente = Number(p.valor_diaria_aplicada ?? 0) !== valorAlvo;
+            return flagDiferente || valorDiferente;
+          });
+
+          if (registrosDivergentes.length === 0) {
+            console.log('[DIARIA][REPROCESSO_TIPO_DIA][SKIP]', {
+              solicitacao_id: solicitacao.id,
+              data,
+              tipoDia,
+              motivo: 'todos_registros_ja_consistentes',
+              total_registros: presencasDoDia.length,
+            });
+          } else {
+            const resultados = await Promise.all(
+              registrosDivergentes.map(async (reg) => {
+                const valor = calcularValorAlvo(reg.funcao_id as string | null, reg.id);
+                if (valor === null) {
+                  return { id: reg.id, ok: false as const, reason: 'funcao_nao_encontrada' };
+                }
+                // updated_at NÃO enviado — trigger update_bd_diaria_presencas_updated_at cuida.
+                const { data: updated, error: errUpd } = await supabase
+                  .from('bd_diaria_presencas')
+                  .update({
+                    usar_diaria_exclusiva: usarExclusivaApós,
+                    valor_diaria_aplicada: valor,
+                  })
+                  .eq('id', reg.id)
+                  .select('id, valor_diaria_aplicada, usar_diaria_exclusiva')
+                  .maybeSingle();
+
+                if (errUpd) {
+                  console.error('[DIARIA][REPROCESSO_UPDATE_ERROR]', {
+                    registro: reg.id,
+                    funcao_id: reg.funcao_id,
+                    valor_alvo: valor,
+                    error: errUpd,
+                  });
+                  return { id: reg.id, ok: false as const, reason: errUpd.message };
+                }
+                if (!updated) {
+                  console.error('[DIARIA][REPROCESSO_UPDATE_ERROR]', {
+                    registro: reg.id,
+                    reason: 'sem_retorno_rls_ou_id',
+                  });
+                  return { id: reg.id, ok: false as const, reason: 'sem_retorno' };
+                }
+                return { id: reg.id, ok: true as const, updated };
+              })
+            );
+
+            registrosReprocessados = resultados.filter((r) => r.ok).length;
+            idsFalhos.push(
+              ...resultados
+                .filter((r) => !r.ok)
+                .map((r) => `${r.id}(${(r as any).reason})`)
+            );
+
+            console.log('[DIARIA][REPROCESSO_TIPO_DIA]', {
+              solicitacao_id: solicitacao.id,
+              data,
+              tipoDia,
+              usar_diaria_exclusiva: usarExclusivaApós,
+              total_registros: presencasDoDia.length,
+              candidatos_reprocesso: registrosDivergentes.length,
+              registros_atualizados: registrosReprocessados,
+              falhas: idsFalhos,
+            });
+
+            if (idsFalhos.length > 0) {
+              toast.warning(
+                `Tipo do dia salvo, mas ${idsFalhos.length} registro(s) não sincronizaram. Recarregue para revalidar.`
+              );
+            }
+          }
+        }
+      } catch (reprocErr: any) {
+        console.error('[DIARIA][REPROCESSO_TIPO_DIA][ERRO]', {
+          solicitacao_id: solicitacao.id,
+          data,
+          tipoDia,
+          error: reprocErr?.message ?? reprocErr,
+        });
+        toast.warning(
+          'Tipo do dia salvo, mas a sincronização dos valores no banco falhou. Recarregue a página.'
+        );
+        // NÃO reverter snapshot — ele foi persistido com sucesso.
+      }
+      // ===== /REPROCESSO =====
+
+      setColaboradores((prev) => prev.map((col) => {
+        const dataCol = col.data_apontamento ?? selectedDate;
+        if (dataCol !== data) return col;
+        const novoValor = usarExclusivaApós
+          ? (col.valor_diaria_exclusiva_valor ?? col.valor_diaria_normal ?? 0)
+          : (col.valor_diaria_normal ?? 0);
+        if (col.usarDiariaExclusiva === usarExclusivaApós && col.valor_diaria_original === novoValor) {
+          return col;
+        }
+        return {
+          ...col,
+          usarDiariaExclusiva: usarExclusivaApós,
+          valor_diaria_original: novoValor,
+          valor_diaria: novoValor,
+        };
+      }));
+
       // Sincroniza cache da listagem de apontamentos (fonte real do selectedApontamento na página pai)
       queryClient.setQueriesData({ queryKey: ['diaria-apontamentos'] }, (old: any) => {
         if (!Array.isArray(old)) return old;
@@ -924,6 +1196,8 @@ export default function ApontamentoDiariasModal({
         );
       });
       await sincronizarDiarias(solicitacao.id);
+      queryClient.invalidateQueries({ queryKey: ['diaria-apontamentos'] });
+      queryClient.invalidateQueries({ queryKey: ['relatorio-diaria'] });
       toast.success(`Tipo do dia salvo: ${TIPO_DIA_LABEL[tipoDia]}.`);
     } catch (error: any) {
       const snapshotRevertido: RegrasOperacionaisSnapshot = {
@@ -945,7 +1219,7 @@ export default function ApontamentoDiariasModal({
     } finally {
       setTiposDiaSaving((prev) => ({ ...prev, [data]: false }));
     }
-  }, [solicitacao?.id, regrasOperacionaisSnapshotLocal, regrasOperacionaisPorData, aplicarOverrideSolicitacaoNaRegra, queryClient]);
+  }, [solicitacao?.id, regrasOperacionaisSnapshotLocal, regrasOperacionaisPorData, aplicarOverrideSolicitacaoNaRegra, queryClient, feriados, selectedDate]);
 
   const salvarOverrideOperacional = useCallback(async (data: string) => {
     const descricao = descricaoRegraOperacional.trim();
@@ -1119,11 +1393,43 @@ export default function ApontamentoDiariasModal({
     return () => window.cancelAnimationFrame(frame);
   }, [isOpen, solicitacao?.id, solicitacao?.data_inicio, solicitacao?.data_fim, possuiSnapshotEstruturado, datasSelecionaveis.length]);
 
+  // Limpa o set otimista ao trocar a data selecionada ou a solicitação ativa.
+  // Inclusões otimistas são válidas APENAS para a combinação atual de data+solicitação.
+  useEffect(() => {
+    funcionariosAdicionadosOtimistasRef.current.clear();
+  }, [selectedDate, solicitacao?.id]);
+
   useEffect(() => {
     if (!isOpen || (!selectedDate && !legacyMode) || convocadosPre.length === 0) return;
 
     const initColaboradores = async () => {
       setIsLoadingExisting(true);
+
+      // Helper: mescla mapped (vindo de convocadosPre) com inclusões otimistas ainda
+      // não consolidadas pelo refetch. Quando o convocadosPre passa a refletir o item,
+      // a chave sai do set otimista para evitar acumulação.
+      const aplicarMergeOtimista = (mapped: ColaboradorPresenca[]): ColaboradorPresenca[] => {
+        const otimistas = funcionariosAdicionadosOtimistasRef.current;
+        if (otimistas.size === 0) return mapped;
+        const chavesEmMapped = new Set(
+          mapped.map(m => `${m.funcionario_id}_${m.data_apontamento}`)
+        );
+        // Limpa do set as chaves já consolidadas.
+        otimistas.forEach(chave => {
+          if (chavesEmMapped.has(chave)) otimistas.delete(chave);
+        });
+        if (otimistas.size === 0) return mapped;
+        // Preserva entradas otimistas ainda pendentes a partir do estado anterior.
+        const pendentes = colaboradores.filter(c => {
+          const chave = `${c.funcionario_id}_${c.data_apontamento}`;
+          return otimistas.has(chave) && !chavesEmMapped.has(chave);
+        });
+        if (pendentes.length === 0) return mapped;
+        return [
+          ...mapped,
+          ...pendentes.map((c, i) => ({ ...c, index: mapped.length + i })),
+        ];
+      };
 
       try {
         const existentes = selectedDate
@@ -1178,15 +1484,19 @@ export default function ApontamentoDiariasModal({
                 diariaExclusivaOperacional: regraDia.usaDiariaExclusiva,
                 tipoDiaOperacional: regraDia.tipoDiaOperacional,
                 observacaoOperacional: regraDia.descricao,
+                data_apontamento: selectedDate,
             };
           });
 
-          // Detectar funcionários avulsos: presenças existentes cujo funcionario_id NÃO está em convocadosPre.
-          // Proteção em camadas: ignorar presenças sem trabalho efetivo (sem hora_entrada e sem presente=true),
-          // para evitar reintrodução de funcionários que foram liberados via gerenciar_convocado_diaria.
+          // Detectar funcionários avulsos: presenças existentes cujo funcionario_id
+          // NÃO está em convocadosPre. Inclui linhas neutras (presente=false / hora_entrada=null),
+          // que representam "funcionário adicionado ao dia, ainda não apontado".
+          // O relatório financeiro continua protegido pela mv_relatorio_diarias (filtra presente=false).
+          // Funcionários liberados via gerenciar_convocado_diaria são removidos da tabela,
+          // portanto não reaparecem aqui.
           const convocadoIds = new Set(convocadosPre.map(c => c.funcionario_id));
           const presencasAvulsas = existentes.filter(
-            e => !convocadoIds.has(e.funcionario_id) && (!!e.hora_entrada || e.presente === true)
+            e => e.funcionario_id && !convocadoIds.has(e.funcionario_id)
           );
 
           if (presencasAvulsas.length > 0) {
@@ -1231,15 +1541,25 @@ export default function ApontamentoDiariasModal({
                 usarDiariaExclusiva: existenteUsaExclusiva,
                 valor_diaria_normal: vNormal,
                 valor_diaria_exclusiva_valor: vExclusiva,
-                turno: (existente.turno as TurnoDiaria) || 'diurno'
+                turno: (existente.turno as TurnoDiaria) || 'diurno',
+                data_apontamento: selectedDate,
               });
               newAvulsoSet.add(existente.funcionario_id);
             });
-            setFuncionariosAvulsos(newAvulsoSet);
+            setFuncionariosAvulsos(prev => {
+              if (
+                prev.size === newAvulsoSet.size &&
+                [...newAvulsoSet].every(id => prev.has(id))
+              ) {
+                return prev;
+              }
+              return newAvulsoSet;
+            });
           }
 
-          setColaboradores(mapped);
-          setFase(determinarFase(mapped, true));
+          const mappedFinal = aplicarMergeOtimista(mapped);
+          setColaboradores(mappedFinal);
+          setFase(determinarFase(mappedFinal, true));
         } else {
           setHasExistingData(false);
           const mapped: ColaboradorPresenca[] = convocadosPre.map((conv, index) => {
@@ -1272,10 +1592,11 @@ export default function ApontamentoDiariasModal({
               usarDiariaExclusiva: usarExclusiva2,
               valor_diaria_normal: vNormal,
               valor_diaria_exclusiva_valor: vExclusiva,
-              turno: 'diurno' as TurnoDiaria
+              turno: 'diurno' as TurnoDiaria,
+              data_apontamento: selectedDate,
             };
           });
-          setColaboradores(mapped);
+          setColaboradores(aplicarMergeOtimista(mapped));
           
           // Se a data é passada e não há registros, marcar como concluído (falta) e bloquear
             const hojeStr = getCurrentBrazilianDate();
@@ -1310,10 +1631,11 @@ export default function ApontamentoDiariasModal({
             usarDiariaExclusiva: usarExclusivaFallback,
             valor_diaria_normal: vNormal,
             valor_diaria_exclusiva_valor: vExclusiva,
-            turno: 'diurno' as TurnoDiaria
+            turno: 'diurno' as TurnoDiaria,
+            data_apontamento: selectedDate,
           };
         });
-        setColaboradores(mapped);
+        setColaboradores(aplicarMergeOtimista(mapped));
         setFase('inicio');
       } finally {
         setIsLoadingExisting(false);
@@ -1347,6 +1669,7 @@ export default function ApontamentoDiariasModal({
       setSelectedDate("");
       setHasValidatedDateStructure(false);
       setColaboradores([]);
+      funcionariosAdicionadosOtimistasRef.current.clear();
       setHasExistingData(false);
       setHasSaved(false);
       setFase('inicio');
@@ -1517,10 +1840,26 @@ export default function ApontamentoDiariasModal({
 
     setIsSavingIndividual(colaborador.funcionario_id);
     try {
+      const dataApontamento = selectedDate;
+      const dataReal = colaborador.data_apontamento ?? dataApontamento;
       const { tipo } = calcularJornada(colaborador.hora_entrada, colaborador.hora_saida);
-      const valorFinal = calcularValorDiaria(colaborador.valor_diaria_original, tipo);
+      const { valorOriginal, usarExclusiva, label } = resolverValorOriginalParaData(colaborador, dataReal);
+      const valorFinal = calcularValorDiaria(valorOriginal, tipo);
 
-      await salvarSaidaIndividual(solicitacao.id, selectedDate, {
+      console.log("[DIARIA][VALOR_PERSISTIDO]", {
+        origem: 'salvarSaidaIndividual',
+        data_apontamento: dataReal,
+        tipoDiaAtivoLabel: label,
+        funcionario_id: colaborador.funcionario_id,
+        valor_diaria_normal: colaborador.valor_diaria_normal,
+        valor_diaria_exclusiva_valor: colaborador.valor_diaria_exclusiva_valor,
+        usarDiariaExclusiva: usarExclusiva,
+        valor_original_aplicado: valorOriginal,
+        tipo_diaria: tipo,
+        valor_diaria_aplicada: valorFinal,
+      });
+
+      await salvarSaidaIndividual(solicitacao.id, dataReal, {
         funcionario_id: colaborador.funcionario_id,
         hora_saida: colaborador.hora_saida,
         tipo_diaria: tipo,
@@ -1542,40 +1881,94 @@ export default function ApontamentoDiariasModal({
   const persistirFuncionarioSelecionado = useCallback(async (
     funcionario: FuncionarioBuscaItem,
     classificacao: Extract<ClassificacaoOperacional, { status: 'elegivel' | 'pendente_aprovacao' }>
-  ) => {
-    if (!solicitacao?.id) return;
+  ): Promise<boolean> => {
+    if (!solicitacao?.id) return false;
 
-    const nomeFuncao = funcionario.funcao_nome || funcionario.bd_funcoes?.nome_funcao || 'Sem função';
-    const valorDiaria = funcionario.valor_diaria || funcionario.bd_funcoes?.valor_diaria || 0;
-    const funcao = funcoesCompletas.find(f => f.id === funcionario.funcao_id);
-    const valorDiariaExclusiva = funcao?.valor_diaria_exclusiva || funcionario.bd_funcoes?.valor_diaria_exclusiva || valorDiaria;
+    // Data normalizada do dia selecionado — única fonte de verdade para inclusão diária.
+    const dataApontamento = buildDataApontamentoSegura('adicionarFuncionarioNoDiaSelecionado');
 
-    const novoConvocado = {
+    console.log('[DIARIA][ADICIONAR_FUNCIONARIO_VALIDACAO]', {
       funcionario_id: funcionario.id,
-      funcao_id: funcionario.funcao_id || '',
-      valor_diaria: valorDiaria,
-      valor_diaria_exclusiva: valorDiariaExclusiva,
-      valor_refeicao: funcao?.valor_refeicao || funcionario.valor_refeicao || 0,
-      nome_funcionario: funcionario.nome_completo,
-      nome_funcao: nomeFuncao,
-      cpf: funcionario.cpf || '',
-      matricula: funcionario.matricula || ''
-    };
+      data_validacao: dataApontamento,
+      origem: 'ApontamentoDiariasModal',
+    });
 
-    await adicionarFuncionarioConvocado(solicitacao.id, novoConvocado);
+    // Inserção DIRETA em bd_diaria_presencas via RPC.
+    // Sem otimismo: o card só vai para a UI se o banco confirmar a row.
+    let row;
+    try {
+      row = await adicionarPresencaNoDia(
+        solicitacao.id,
+        funcionario.id,
+        dataApontamento,
+        funcionario.funcao_id || null,
+        {
+          is_excecao: classificacao.status === 'pendente_aprovacao',
+          tipo_dia_operacional: classificacao.regra.tipoDiaOperacional ?? null,
+          observacao_operacional: classificacao.regra.descricao ?? null,
+        }
+      );
+    } catch (err: any) {
+      const msg = String(err?.message || '');
+      console.error('[DIARIA][PRESENCA_INSERCAO_FALHOU]', {
+        funcionario_id: funcionario.id,
+        solicitacao_id: solicitacao.id,
+        data_apontamento: dataApontamento,
+        error: msg,
+      });
+      // Conflito real entre solicitações ativas (trigger check_presenca_funcionario_duplicidade)
+      // só dispara em presença com hora_entrada — aqui é linha neutra, então erro indica
+      // outro problema (RLS, validação, etc). Mostra mensagem real.
+      toast.error(msg || 'Não foi possível adicionar o funcionário. Tente novamente.');
+      return false;
+    }
 
+    // Monta o card usando a row REAL retornada pelo banco como base autoritativa.
+    // Dados puramente de display (nome, cpf, matrícula, nome_funcao) vêm do objeto
+    // de busca pois bd_diaria_presencas não os armazena.
     const novoColab = buildColaboradorFromFuncionario(funcionario, {
-      index: colaboradores.length,
       remessaLiberada: classificacao.regra.permiteRemessaMatriculados,
       diariaExclusivaOperacional: classificacao.regra.usaDiariaExclusiva,
       tipoDiaOperacional: classificacao.regra.tipoDiaOperacional,
       observacaoOperacional: classificacao.regra.descricao,
       statusExcecao: classificacao.status === 'pendente_aprovacao' ? 'pendente_aprovacao' : null,
     });
+    // Sobrescreve com os campos que SÃO da row real persistida.
+    novoColab.presencaId = row.id;
+    novoColab.funcionario_id = row.funcionario_id;
+    novoColab.funcao_id = row.funcao_id || novoColab.funcao_id;
+    novoColab.presente = row.presente ?? false;
+    novoColab.hora_entrada = row.hora_entrada || '';
+    novoColab.hora_saida = row.hora_saida || '';
+    novoColab.recebe_refeicao = row.recebe_refeicao ?? true;
+    novoColab.valor_refeicao_aplicado = row.valor_refeicao_aplicado ?? 0;
+    novoColab.tipo_diaria = (row.tipo_diaria as TipoDiaria) || 'completa';
+    novoColab.turno = (row.turno as TurnoDiaria) || 'diurno';
+    novoColab.data_apontamento = row.data;
 
-    setColaboradores(prev => [...prev, novoColab]);
+    // Marca otimista para sobreviver a rebuild do useEffect que ainda lê convocadosPre.
+    const chaveOtimista = `${row.funcionario_id}_${row.data}`;
+    funcionariosAdicionadosOtimistasRef.current.add(chaveOtimista);
+
+    // Inserção idempotente NO TOPO (UX cronológica reversa: novos primeiro).
+    setColaboradores(prev => {
+      const jaExiste = prev.some(
+        c => `${c.funcionario_id}_${c.data_apontamento}` === chaveOtimista
+      );
+      if (jaExiste) return prev;
+      return [novoColab, ...prev];
+    });
+
+    console.log('[DIARIA][PRESENCA_INSERIDA_NO_DIA]', {
+      presenca_id: row.id,
+      funcionario_id: row.funcionario_id,
+      data: row.data,
+      solicitacao_id: row.solicitacao_id,
+    });
+
     setFuncionariosAvulsos(prev => new Set(prev).add(funcionario.id));
-  }, [solicitacao?.id, funcoesCompletas, colaboradores.length, buildColaboradorFromFuncionario]);
+    return true;
+  }, [solicitacao?.id, buildColaboradorFromFuncionario, buildDataApontamentoSegura]);
 
   const classificarAdicaoOperacional = useCallback(async (funcionario: FuncionarioBuscaItem): Promise<ClassificacaoOperacional> => {
     if (legacyMode || !selectedDate) {
@@ -1636,22 +2029,41 @@ export default function ApontamentoDiariasModal({
 
   const handleAdicionarFuncionario = async (funcionario: FuncionarioBuscaItem) => {
     if (!solicitacao?.id) return;
+    console.log('[DIARIA][ADICIONAR_FUNCIONARIO_CLICK]', {
+      funcionario_id: funcionario.id,
+      selectedDate,
+      solicitacao_id: solicitacao.id,
+      data_inicio: solicitacao.data_inicio,
+      data_fim: solicitacao.data_fim,
+    });
     setIsAddingFuncionario(true);
     try {
-      // Verificar se está em outra solicitação
-      const { emOutra, numeroSolicitacao, solicitacaoId: outraId } = await verificarFuncionarioEmOutraSolicitacao(
+      // Verificar se possui presença real (hora_entrada) em outra solicitação NO DIA SELECIONADO
+      if (!selectedDate) {
+        toast.error('Selecione a data antes de adicionar funcionários.');
+        setIsAddingFuncionario(false);
+        return;
+      }
+      const conflito = await verificarFuncionarioEmOutraSolicitacao(
         funcionario.id,
-        solicitacao.data_inicio,
-        solicitacao.data_fim,
+        selectedDate,
         solicitacao.id
       );
+      console.log("[DIARIA][VALIDACAO_DUPLICIDADE]", {
+        funcionario_id: funcionario.id,
+        data_apontamento: selectedDate,
+        solicitacao_atual: solicitacao.id,
+        resultado_conflito: conflito,
+      });
 
-      if (emOutra && outraId) {
-        // Mostrar diálogo de transferência ao invés de bloquear
-        setTransferConflict({
+      if (conflito.emOutra && conflito.solicitacaoId) {
+        // Abre modal único: usuário escolhe transferir, incluir como exceção, ou cancelar
+        setConflitoExcecao({
           funcionario,
-          outraSolicitacaoId: outraId,
-          numeroSolicitacao: numeroSolicitacao || ''
+          outraSolicitacaoId: conflito.solicitacaoId,
+          numeroSolicitacao: conflito.numeroSolicitacao || '',
+          centroCustoCodigo: conflito.centroCustoCodigo,
+          centroCustoNome: conflito.centroCustoNome,
         });
         setIsAddingFuncionario(false);
         return;
@@ -1663,7 +2075,11 @@ export default function ApontamentoDiariasModal({
         return;
       }
 
-      await persistirFuncionarioSelecionado(funcionario, classificacao);
+      const inserido = await persistirFuncionarioSelecionado(funcionario, classificacao);
+      if (!inserido) {
+        // Toast de erro já emitido dentro de persistirFuncionarioSelecionado.
+        return;
+      }
       // Sincronização única: invalida + refetch das queries de diárias
       await sincronizarDiarias(solicitacao.id);
 
@@ -1692,33 +2108,93 @@ export default function ApontamentoDiariasModal({
     }
   };
 
-  // Handler para confirmar transferência de funcionário entre solicitações
-  const handleConfirmTransfer = async () => {
-    if (!transferConflict || !solicitacao?.id) return;
-    setIsTransferring(true);
+  // Permissão para incluir como exceção (AdmObra/Gerente/SuperAdm)
+  const podeIncluirExcecao = useMemo(
+    () => isSuperAdminPerm || hasActionPermission('diarias_view', 'aprovar'),
+    [isSuperAdminPerm, hasActionPermission]
+  );
+
+  // Handler: usuário comum solicita transferência (cria pedido pendente)
+  const handleSolicitarTransferenciaExcecao = async (justificativa: string) => {
+    if (!conflitoExcecao || !solicitacao?.id || !selectedDate) return;
+    setIsResolvingConflito(true);
     try {
-      const { funcionario, outraSolicitacaoId } = transferConflict;
-      
-      // 1. Remover da solicitação de origem
-      await removerFuncionarioConvocado(outraSolicitacaoId, funcionario.id);
-      
+      await solicitarTransferenciaExcecao({
+        funcionarioId: conflitoExcecao.funcionario.id,
+        solicitacaoOrigemId: conflitoExcecao.outraSolicitacaoId,
+        solicitacaoDestinoId: solicitacao.id,
+        data: selectedDate,
+        justificativa,
+      });
+      toast.success(
+        'Pedido de transferência enviado. Aguarde aprovação do responsável.'
+      );
+      setConflitoExcecao(null);
+      setSearchTerm('');
+    } catch (error: any) {
+      console.error('Erro ao solicitar transferência:', error);
+      toast.error(error.message || 'Erro ao solicitar transferência.');
+    } finally {
+      setIsResolvingConflito(false);
+    }
+  };
+
+  // Handler: AdmObra/Gerente inclui como EXCEÇÃO aprovada
+  // (registro fica is_excecao=true e NÃO entra no financeiro automático)
+  const handleIncluirComoExcecao = async (justificativa: string) => {
+    if (!conflitoExcecao || !solicitacao?.id || !selectedDate) return;
+    setIsResolvingConflito(true);
+    try {
+      const { funcionario } = conflitoExcecao;
+
+      // 1) Adiciona aos convocados (mesmo fluxo de inclusão normal)
       const classificacao = await classificarAdicaoOperacional(funcionario);
       if (classificacao.status === 'ignorado') {
         toast.error(classificacao.mensagem);
         return;
       }
+      const incluido = await persistirFuncionarioSelecionado(funcionario, classificacao);
+      if (!incluido) {
+        // Toast de erro já emitido. Aborta o fluxo de exceção sem registrar presença.
+        return;
+      }
 
-      await persistirFuncionarioSelecionado(funcionario, classificacao);
+      // 2) Registra a presença JÁ marcada como exceção
+      const valorDiaria =
+        funcionario.valor_diaria || funcionario.bd_funcoes?.valor_diaria || 0;
+      const dataExcecao = buildDataApontamentoSegura('handleIncluirComoExcecao');
+      await salvarPresencaComExcecao({
+        solicitacaoId: solicitacao.id,
+        funcionarioId: funcionario.id,
+        funcaoId: funcionario.funcao_id || null,
+        data: dataExcecao,
+        presente: false, // marca como falta inicialmente — registro existe para rastrear exceção
+        hora_entrada: null,
+        valor_diaria_original: valorDiaria,
+        usar_diaria_exclusiva: false,
+        turno: 'diurno',
+        recebe_refeicao: true,
+        valor_refeicao_aplicado: 0,
+        conflito: {
+          outraSolicitacaoId: conflitoExcecao.outraSolicitacaoId,
+          numeroSolicitacao: conflitoExcecao.numeroSolicitacao,
+          centroCustoCodigo: conflitoExcecao.centroCustoCodigo,
+          centroCustoNome: conflitoExcecao.centroCustoNome,
+        },
+        justificativa,
+      });
+
       await sincronizarDiarias(solicitacao.id);
-
-      toast.success(`${funcionario.nome_completo} transferido com sucesso para esta solicitação.`);
-      setSearchTerm("");
+      toast.success(
+        `${funcionario.nome_completo} incluído como exceção. Pagamento exigirá aprovação financeira.`
+      );
+      setConflitoExcecao(null);
+      setSearchTerm('');
     } catch (error: any) {
-      console.error('Erro ao transferir funcionário:', error);
-      toast.error(error.message || 'Erro ao transferir funcionário.');
+      console.error('Erro ao incluir exceção:', error);
+      toast.error(error.message || 'Erro ao incluir como exceção.');
     } finally {
-      setIsTransferring(false);
-      setTransferConflict(null);
+      setIsResolvingConflito(false);
     }
   };
 
@@ -1730,13 +2206,23 @@ export default function ApontamentoDiariasModal({
       let pendentes = 0;
       let ignorados = 0;
 
+      if (!selectedDate) {
+        toast.error('Selecione a data antes de adicionar funcionários.');
+        setIsAddingAllCentroCusto(false);
+        return;
+      }
       for (const funcionario of resultadosBusca) {
-        const { emOutra } = await verificarFuncionarioEmOutraSolicitacao(
+        const { emOutra, numeroSolicitacao, solicitacaoId: outraId } = await verificarFuncionarioEmOutraSolicitacao(
           funcionario.id,
-          solicitacao.data_inicio,
-          solicitacao.data_fim,
+          selectedDate,
           solicitacao.id
         );
+        console.log("[DIARIA][VALIDACAO_DUPLICIDADE]", {
+          funcionario_id: funcionario.id,
+          data_apontamento: selectedDate,
+          solicitacao_atual: solicitacao.id,
+          resultado_conflito: { emOutra, outraId, numeroSolicitacao },
+        });
 
         if (emOutra) {
           ignorados += 1;
@@ -1749,7 +2235,11 @@ export default function ApontamentoDiariasModal({
           continue;
         }
 
-        await persistirFuncionarioSelecionado(funcionario, classificacao);
+        const ok = await persistirFuncionarioSelecionado(funcionario, classificacao);
+        if (!ok) {
+          ignorados += 1;
+          continue;
+        }
         if (classificacao.status === 'pendente_aprovacao') pendentes += 1;
         else adicionados += 1;
       }
@@ -1939,19 +2429,42 @@ export default function ApontamentoDiariasModal({
 
     setIsSaving(true);
     try {
-      const registros: InicioFormData[] = colaboradores.map(col => ({
-        funcionario_id: col.funcionario_id,
-        funcao_id: col.funcao_id,
-        presente: col.presente,
-        hora_entrada: col.presente ? col.hora_entrada : undefined,
-        valor_diaria_original: col.valor_diaria_original,
-        usar_diaria_exclusiva: col.usarDiariaExclusiva,
-        turno: col.turno,
-        recebe_refeicao: col.recebe_refeicao ?? true,
-        valor_refeicao_aplicado: (col.recebe_refeicao ?? true) ? (funcoesMap[col.funcao_id] || 0) : 0,
-      }));
+      const dataApontamento = buildDataApontamentoSegura('salvarInicio');
+      colaboradores.forEach(col => {
+        console.log('[DIARIA][INSERT_PRESENCA]', {
+          funcionario_id: col.funcionario_id,
+          data_enviada: dataApontamento,
+          solicitacao_id: solicitacao.id,
+          origem: 'salvarInicio',
+        });
+      });
+      const registros: InicioFormData[] = colaboradores.map(col => {
+        const dataReal = col.data_apontamento ?? dataApontamento;
+        const { valorOriginal, usarExclusiva, label } = resolverValorOriginalParaData(col, dataReal);
+        console.log("[DIARIA][VALOR_PERSISTIDO]", {
+          origem: 'salvarInicio',
+          data_apontamento: dataReal,
+          tipoDiaAtivoLabel: label,
+          funcionario_id: col.funcionario_id,
+          valor_diaria_normal: col.valor_diaria_normal,
+          valor_diaria_exclusiva_valor: col.valor_diaria_exclusiva_valor,
+          usarDiariaExclusiva: usarExclusiva,
+          valor_original_aplicado: valorOriginal,
+        });
+        return {
+          funcionario_id: col.funcionario_id,
+          funcao_id: col.funcao_id,
+          presente: col.presente,
+          hora_entrada: col.presente ? col.hora_entrada : undefined,
+          valor_diaria_original: valorOriginal,
+          usar_diaria_exclusiva: usarExclusiva,
+          turno: col.turno,
+          recebe_refeicao: col.recebe_refeicao ?? true,
+          valor_refeicao_aplicado: (col.recebe_refeicao ?? true) ? (funcoesMap[col.funcao_id] || 0) : 0,
+        };
+      });
 
-      const resultado = await salvarInicio(solicitacao.id, selectedDate, registros);
+      const resultado = await salvarInicio(solicitacao.id, dataApontamento, registros);
       
       // Persistir motivo da edição quando edicaoLiberada
       if (edicaoLiberada && canEditarConcluido && observacaoCorrecao.trim() && apontamento?.id) {
@@ -1997,6 +2510,15 @@ export default function ApontamentoDiariasModal({
 
     setIsSaving(true);
     try {
+      const dataApontamento = buildDataApontamentoSegura('salvarInicioAtrasados');
+      [...atrasadosSemId, ...atrasadosConvertidos].forEach(col => {
+        console.log('[DIARIA][INSERT_PRESENCA]', {
+          funcionario_id: col.funcionario_id,
+          data_enviada: dataApontamento,
+          solicitacao_id: solicitacao.id,
+          origem: 'salvarInicioAtrasados',
+        });
+      });
       let resultadoInsercao: ResultadoInsercaoIdempotente = {
         totalSolicitado: 0,
         inseridos: 0,
@@ -2005,27 +2527,53 @@ export default function ApontamentoDiariasModal({
 
       // INSERT para avulsos sem registro
       if (atrasadosSemId.length > 0) {
-        const registros: InicioFormData[] = atrasadosSemId.map(col => ({
-          funcionario_id: col.funcionario_id,
-          funcao_id: col.funcao_id,
-          presente: col.presente,
-          hora_entrada: col.hora_entrada || undefined,
-          valor_diaria_original: col.valor_diaria_original,
-          usar_diaria_exclusiva: col.usarDiariaExclusiva,
-          turno: col.turno
-        }));
-        resultadoInsercao = await salvarInicioParcial(solicitacao.id, selectedDate, registros);
+        const registros: InicioFormData[] = atrasadosSemId.map(col => {
+          const dataReal = col.data_apontamento ?? dataApontamento;
+          const { valorOriginal, usarExclusiva, label } = resolverValorOriginalParaData(col, dataReal);
+          console.log("[DIARIA][VALOR_PERSISTIDO]", {
+            origem: 'salvarInicioParcial',
+            data_apontamento: dataReal,
+            tipoDiaAtivoLabel: label,
+            funcionario_id: col.funcionario_id,
+            valor_diaria_normal: col.valor_diaria_normal,
+            valor_diaria_exclusiva_valor: col.valor_diaria_exclusiva_valor,
+            usarDiariaExclusiva: usarExclusiva,
+            valor_original_aplicado: valorOriginal,
+          });
+          return {
+            funcionario_id: col.funcionario_id,
+            funcao_id: col.funcao_id,
+            presente: col.presente,
+            hora_entrada: col.hora_entrada || undefined,
+            valor_diaria_original: valorOriginal,
+            usar_diaria_exclusiva: usarExclusiva,
+            turno: col.turno,
+          };
+        });
+        resultadoInsercao = await salvarInicioParcial(solicitacao.id, dataApontamento, registros);
       }
 
       // UPDATE para quem era falta e agora é presente
       if (atrasadosConvertidos.length > 0) {
-        const registrosUpdate = atrasadosConvertidos.map(col => ({
-          id: col.presencaId!,
-          hora_entrada: col.hora_entrada || format(new Date(), 'HH:mm'),
-          valor_diaria_original: col.valor_diaria_original,
-          usar_diaria_exclusiva: col.usarDiariaExclusiva,
-          turno: col.turno
-        }));
+        const registrosUpdate = atrasadosConvertidos.map(col => {
+          const dataReal = col.data_apontamento ?? dataApontamento;
+          const { valorOriginal, usarExclusiva, label } = resolverValorOriginalParaData(col, dataReal);
+          console.log("[DIARIA][VALOR_PERSISTIDO]", {
+            origem: 'atualizarFaltaParaPresente',
+            data_apontamento: dataReal,
+            tipoDiaAtivoLabel: label,
+            funcionario_id: col.funcionario_id,
+            usarDiariaExclusiva: usarExclusiva,
+            valor_original_aplicado: valorOriginal,
+          });
+          return {
+            id: col.presencaId!,
+            hora_entrada: col.hora_entrada || format(new Date(), 'HH:mm'),
+            valor_diaria_original: valorOriginal,
+            usar_diaria_exclusiva: usarExclusiva,
+            turno: col.turno,
+          };
+        });
         await atualizarFaltaParaPresente(registrosUpdate);
       }
       
@@ -2107,11 +2655,34 @@ export default function ApontamentoDiariasModal({
 
     setIsSaving(true);
     try {
+      const dataApontamento = buildDataApontamentoSegura('salvarFinalizacao');
+      presentes.forEach(col => {
+        console.log('[DIARIA][INSERT_PRESENCA]', {
+          funcionario_id: col.funcionario_id,
+          data_enviada: dataApontamento,
+          solicitacao_id: solicitacao.id,
+          origem: 'salvarFinalizacao',
+        });
+      });
       // Filtrar apenas os que ainda não tiveram saída salva individualmente
       const pendentes = presentes.filter(c => !saidasSalvas.has(c.funcionario_id));
       const registros: FinalizacaoFormData[] = pendentes.map(col => {
+        const dataReal = col.data_apontamento ?? dataApontamento;
         const { tipo } = calcularJornada(col.hora_entrada, col.hora_saida);
-        const valorFinal = calcularValorDiaria(col.valor_diaria_original, tipo);
+        const { valorOriginal, usarExclusiva, label } = resolverValorOriginalParaData(col, dataReal);
+        const valorFinal = calcularValorDiaria(valorOriginal, tipo);
+        console.log("[DIARIA][VALOR_PERSISTIDO]", {
+          origem: 'salvarFinalizacao',
+          data_apontamento: dataReal,
+          tipoDiaAtivoLabel: label,
+          funcionario_id: col.funcionario_id,
+          valor_diaria_normal: col.valor_diaria_normal,
+          valor_diaria_exclusiva_valor: col.valor_diaria_exclusiva_valor,
+          usarDiariaExclusiva: usarExclusiva,
+          valor_original_aplicado: valorOriginal,
+          tipo_diaria: tipo,
+          valor_diaria_aplicada: valorFinal,
+        });
         return {
           funcionario_id: col.funcionario_id,
           hora_saida: col.hora_saida || '',
@@ -2122,7 +2693,7 @@ export default function ApontamentoDiariasModal({
         };
       });
 
-      await salvarFinalizacao(solicitacao.id, selectedDate, registros);
+      await salvarFinalizacao(solicitacao.id, dataApontamento, registros);
       setHasSaved(true);
       setFase('concluido');
       toast.success('Apontamento finalizado com sucesso!');
@@ -2144,6 +2715,15 @@ export default function ApontamentoDiariasModal({
 
     setIsSaving(true);
     try {
+      const dataApontamento = buildDataApontamentoSegura('salvarCorrecao');
+      colaboradores.forEach(col => {
+        console.log('[DIARIA][INSERT_PRESENCA]', {
+          funcionario_id: col.funcionario_id,
+          data_enviada: dataApontamento,
+          solicitacao_id: solicitacao.id,
+          origem: 'salvarCorrecao',
+        });
+      });
       let resultadoInsercao: ResultadoInsercaoIdempotente = {
         totalSolicitado: 0,
         inseridos: 0,
@@ -2157,8 +2737,22 @@ export default function ApontamentoDiariasModal({
       // UPDATE existentes via salvarCorrecao
       if (comPresenca.length > 0) {
         const registrosUpdate: CorrecaoFormData[] = comPresenca.map(col => {
+          const dataReal = col.data_apontamento ?? dataApontamento;
           const { tipo } = calcularJornada(col.hora_entrada, col.hora_saida);
-          const valorFinal = col.presente ? calcularValorDiaria(col.valor_diaria_original, tipo) : 0;
+          const { valorOriginal, usarExclusiva, label } = resolverValorOriginalParaData(col, dataReal);
+          const valorFinal = col.presente ? calcularValorDiaria(valorOriginal, tipo) : 0;
+          console.log("[DIARIA][VALOR_PERSISTIDO]", {
+            origem: 'salvarCorrecao',
+            data_apontamento: dataReal,
+            tipoDiaAtivoLabel: label,
+            funcionario_id: col.funcionario_id,
+            valor_diaria_normal: col.valor_diaria_normal,
+            valor_diaria_exclusiva_valor: col.valor_diaria_exclusiva_valor,
+            usarDiariaExclusiva: usarExclusiva,
+            valor_original_aplicado: valorOriginal,
+            tipo_diaria: tipo,
+            valor_diaria_aplicada: valorFinal,
+          });
           return {
             funcionario_id: col.funcionario_id,
             presente: col.presente,
@@ -2172,14 +2766,28 @@ export default function ApontamentoDiariasModal({
             funcao_id: col.funcao_id || undefined
           };
         });
-        await salvarCorrecao(solicitacao.id, selectedDate, registrosUpdate, observacaoCorrecao);
+        await salvarCorrecao(solicitacao.id, dataApontamento, registrosUpdate, observacaoCorrecao);
       }
 
       // INSERT novos (sem presencaId) via inserirPresencasCompletas (com hora_saida para aparecer no relatório)
       if (semPresenca.length > 0) {
         const registrosInsert: CorrecaoFormData[] = semPresenca.map(col => {
+          const dataReal = col.data_apontamento ?? dataApontamento;
           const { tipo } = calcularJornada(col.hora_entrada, col.hora_saida);
-          const valorFinal = col.presente ? calcularValorDiaria(col.valor_diaria_original, tipo) : 0;
+          const { valorOriginal, usarExclusiva, label } = resolverValorOriginalParaData(col, dataReal);
+          const valorFinal = col.presente ? calcularValorDiaria(valorOriginal, tipo) : 0;
+          console.log("[DIARIA][VALOR_PERSISTIDO]", {
+            origem: 'inserirPresencasCompletas',
+            data_apontamento: dataReal,
+            tipoDiaAtivoLabel: label,
+            funcionario_id: col.funcionario_id,
+            valor_diaria_normal: col.valor_diaria_normal,
+            valor_diaria_exclusiva_valor: col.valor_diaria_exclusiva_valor,
+            usarDiariaExclusiva: usarExclusiva,
+            valor_original_aplicado: valorOriginal,
+            tipo_diaria: tipo,
+            valor_diaria_aplicada: valorFinal,
+          });
           return {
             funcionario_id: col.funcionario_id,
             presente: col.presente,
@@ -2193,7 +2801,7 @@ export default function ApontamentoDiariasModal({
             funcao_id: col.funcao_id || undefined
           };
         });
-        resultadoInsercao = await inserirPresencasCompletas(solicitacao.id, selectedDate, registrosInsert, observacaoCorrecao);
+        resultadoInsercao = await inserirPresencasCompletas(solicitacao.id, dataApontamento, registrosInsert, observacaoCorrecao);
       }
 
       const linhasMensagem: string[] = [];
@@ -2246,21 +2854,16 @@ export default function ApontamentoDiariasModal({
       })
     : colaboradores;
 
-  // Tipo do dia ativo (snapshot ou calendário) e valor de diária correspondente
-  const tipoDiaAtivoLabel = (() => {
+  // Tipo do dia ativo — fonte única de verdade: resolverValorOriginalParaData.
+  // Usa stub de colaborador (label/usarExclusiva independem dos valores monetários)
+  // para garantir que override manual ("normal" em feriado/FDS) prevaleça sobre o calendário.
+  const tipoDiaResolvidoSelecionado = (() => {
     if (!selectedDate) return null;
-    const tipoManual = resolveTipoDiaManual(selectedDate);
-    if (tipoManual === 'feriado') return 'Feriado';
-    if (tipoManual === 'ponte') return 'Ponte';
-    const isFeriadoCalendario = feriados.some((f) => f.data === selectedDate);
-    if (isFeriadoCalendario) return 'Feriado';
-    const dateSel = parseBrazilianDate(selectedDate);
-    const dow = dateSel.getDay();
-    if (dow === 0) return 'Domingo';
-    if (dow === 6) return 'Sábado';
-    return 'Normal';
+    const stub = { valor_diaria_normal: 0, valor_diaria_exclusiva_valor: 0 } as unknown as ColaboradorPresenca;
+    return resolverValorOriginalParaData(stub, selectedDate);
   })();
-  const tipoDiaUsaExclusiva = tipoDiaAtivoLabel === 'Feriado' || tipoDiaAtivoLabel === 'Ponte' || tipoDiaAtivoLabel === 'Domingo' || tipoDiaAtivoLabel === 'Sábado';
+  const tipoDiaAtivoLabel = tipoDiaResolvidoSelecionado?.label ?? null;
+  const tipoDiaUsaExclusiva = tipoDiaResolvidoSelecionado?.usarExclusiva ?? false;
 
   if (!apontamento || !solicitacao) return null;
 
@@ -2348,6 +2951,11 @@ export default function ApontamentoDiariasModal({
                               type="button"
                               onClick={() => {
                                 if (!d.disabled) {
+                                  console.log('[DIARIA][SELECTED_DATE_CHANGE]', {
+                                    previous: selectedDate,
+                                    next: d.value,
+                                    solicitacao_id: solicitacao?.id ?? null,
+                                  });
                                   setSelectedDate(d.value);
                                   setHasSaved(false);
                                   setSaidasSalvas(new Set());
@@ -3060,16 +3668,19 @@ export default function ApontamentoDiariasModal({
                             <span className="text-xs sm:text-sm text-muted-foreground">
                               Diária aplicada:
                             </span>
-                            <Badge
-                              variant={colaborador.usarDiariaExclusiva ? 'warning' : 'secondary'}
-                              className="text-[10px]"
-                            >
-                              R$ {(colaborador.usarDiariaExclusiva
-                                ? colaborador.valor_diaria_exclusiva_valor
-                                : colaborador.valor_diaria_normal
-                              ).toFixed(2)}
-                              {tipoDiaAtivoLabel ? ` (${tipoDiaAtivoLabel})` : ''}
-                            </Badge>
+                            {(() => {
+                              const dataRealBadge = colaborador.data_apontamento ?? selectedDate;
+                              const resolvidoBadge = resolverValorOriginalParaData(colaborador, dataRealBadge);
+                              return (
+                                <Badge
+                                  variant={resolvidoBadge.usarExclusiva ? 'warning' : 'secondary'}
+                                  className="text-[10px]"
+                                >
+                                  R$ {resolvidoBadge.valorOriginal.toFixed(2)}
+                                  {resolvidoBadge.label ? ` (${resolvidoBadge.label})` : ''}
+                                </Badge>
+                              );
+                            })()}
                           </div>
                         </div>
 
@@ -3222,19 +3833,24 @@ export default function ApontamentoDiariasModal({
       </DialogContent>
     </Dialog>
 
-      <ConfirmDialog
-        isOpen={!!transferConflict}
-        onClose={() => setTransferConflict(null)}
-        onConfirm={handleConfirmTransfer}
-        title="Transferir funcionário"
-        description={transferConflict 
-          ? `${transferConflict.funcionario.nome_completo} está na solicitação Nº ${transferConflict.numeroSolicitacao}. Deseja liberá-lo automaticamente da outra solicitação e adicioná-lo aqui?`
-          : ''
+      <ConflitoExcecaoModal
+        isOpen={!!conflitoExcecao}
+        conflito={
+          conflitoExcecao && selectedDate
+            ? ({
+                funcionarioNome: conflitoExcecao.funcionario?.nome_completo ?? '',
+                numeroSolicitacao: conflitoExcecao.numeroSolicitacao,
+                centroCustoCodigo: conflitoExcecao.centroCustoCodigo,
+                centroCustoNome: conflitoExcecao.centroCustoNome,
+                data: selectedDate,
+              } as ConflitoExcecaoData)
+            : null
         }
-        confirmText="Transferir"
-        cancelText="Cancelar"
-        variant="warning"
-        isLoading={isTransferring}
+        podeIncluirExcecao={podeIncluirExcecao}
+        isSubmitting={isResolvingConflito}
+        onCancel={() => setConflitoExcecao(null)}
+        onSolicitarTransferencia={handleSolicitarTransferenciaExcecao}
+        onIncluirExcecao={handleIncluirComoExcecao}
       />
 
       <ConfirmDialog

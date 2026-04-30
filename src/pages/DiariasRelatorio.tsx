@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { usePageTitle } from "@/contexts/PageTitleContext";
 import { format, eachDayOfInterval, isWeekend } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -190,20 +190,36 @@ export default function DiariasRelatorio() {
     gcTime: 10 * 60 * 1000,
   });
 
-  // Funcionário: busca assíncrona (autocomplete) — sem pré-carregar volume
-  const [funcionarioSearch] = useState("");
+  // Funcionário: busca assíncrona (autocomplete) — server-side, com debounce
+  const [funcionarioSearch, setFuncionarioSearch] = useState("");
+  const [funcionarioSearchDebounced, setFuncionarioSearchDebounced] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setFuncionarioSearchDebounced(funcionarioSearch), 300);
+    return () => clearTimeout(t);
+  }, [funcionarioSearch]);
+
   const { data: funcionariosBusca = [] } = useQuery({
-    queryKey: ['funcionarios-busca', funcionarioSearch],
+    queryKey: ['funcionarios-busca', funcionarioSearchDebounced, filters.funcionario_id],
     queryFn: async () => {
-      const term = funcionarioSearch.trim();
+      const term = funcionarioSearchDebounced.trim();
       let q = supabase
         .from('bd_funcionarios')
         .select('id, nome_completo')
         .order('nome_completo')
-        .limit(20);
+        .limit(50);
       if (term.length >= 2) q = q.ilike('nome_completo', `%${term}%`);
       const { data } = await q;
-      return data || [];
+      const list = (data || []) as { id: string; nome_completo: string }[];
+      // Garante que o funcionário já selecionado permanece visível mesmo quando o termo muda
+      if (filters.funcionario_id && !list.some(f => f.id === filters.funcionario_id)) {
+        const { data: sel } = await supabase
+          .from('bd_funcionarios')
+          .select('id, nome_completo')
+          .eq('id', filters.funcionario_id)
+          .maybeSingle();
+        if (sel) return [sel, ...list];
+      }
+      return list;
     },
     staleTime: 30_000,
   });
@@ -612,6 +628,7 @@ export default function DiariasRelatorio() {
                   }
                   value={filters.funcionario_id ?? '__all__'}
                   onChange={(v) => setFilters(prev => ({ ...prev, funcionario_id: v === '__all__' ? undefined : v }))}
+                  onSearchChange={setFuncionarioSearch}
                   placeholder="Todos"
                   searchPlaceholder="Buscar funcionário..."
                   emptyText="Nenhum funcionário encontrado" />

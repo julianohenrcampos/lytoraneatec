@@ -90,6 +90,15 @@ async function inserirPresencasIdempotente<T extends PresencaInsertPayload>(
     return { totalSolicitado: 0, inseridos: 0, ignorados: 0 };
   }
 
+  // Log final auditável: data efetivamente enviada ao banco em cada linha.
+  registrosUnicos.forEach((row) => {
+    console.log('[DIARIA][INSERT_PRESENCA]', {
+      funcionario_id: row.funcionario_id,
+      data_enviada: row.data,
+      solicitacao_id: row.solicitacao_id,
+    });
+  });
+
   const { data, error } = await supabase
     .from('bd_diaria_presencas')
     .upsert(registrosUnicos, {
@@ -133,7 +142,7 @@ export async function getPresencasPorSolicitacao(
       )
     `)
     .eq('solicitacao_id', solicitacaoId)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: false });
 
   if (data) {
     query = query.eq('data', data);

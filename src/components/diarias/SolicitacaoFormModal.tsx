@@ -52,6 +52,9 @@ import {
   calcularEstimativaTotal, 
   resumirPeriodoParaSimulacao,
   validarPeriodo,
+  validarPeriodoNormal,
+  primeiraDataValidaNormal,
+  calcularJanelaSemanal,
   formatCurrency,
   podeParticiparDiaUtil
 } from "@/utils/diariasPeriodoUtils";
@@ -227,11 +230,14 @@ export function SolicitacaoFormModal({
   
   // Validar período
   const periodoValidacao = useMemo(() => {
+    if ((tipoSolicitacao || 'normal') === 'normal') {
+      return validarPeriodoNormal(dataInicio, dataFim, isSuperAdmin, !!editingSolicitacao);
+    }
     return validarPeriodo(dataInicio, dataFim, 30, isSuperAdmin, !!editingSolicitacao);
-  }, [dataInicio, dataFim, isSuperAdmin, editingSolicitacao]);
+  }, [dataInicio, dataFim, isSuperAdmin, editingSolicitacao, tipoSolicitacao]);
 
   const isEditing = !!editingSolicitacao;
-  const isRetroativo = periodoValidacao.isRetroativo === true;
+  const isRetroativo = (periodoValidacao as any).isRetroativo === true;
   // Edição não exige justificativa de "criação retroativa"
   const minJustificativa = (isRetroativo && !isEditing) ? 20 : 10;
   
@@ -717,9 +723,13 @@ export function SolicitacaoFormModal({
           setConvocadosPre([]);
         }
       } else {
-        const hoje = format(new Date(), 'yyyy-MM-dd');
-        setDataInicio(hoje);
-        setDataFim(hoje);
+        // Default da Normal: começa na primeira data válida não retroativa
+        // (hoje para usuário comum quando estamos no meio da semana; segunda da semana
+        //  corrente para SuperAdm) e termina no domingo da semana operacional.
+        const inicioPadrao = primeiraDataValidaNormal(new Date(), isSuperAdmin);
+        const fimPadrao = endOfWeek(inicioPadrao, { weekStartsOn: 1 });
+        setDataInicio(format(inicioPadrao, 'yyyy-MM-dd'));
+        setDataFim(format(fimPadrao, 'yyyy-MM-dd'));
         setConsideraFdsFeriado(false);
         setCentroCustoId('');
         setJustificativa('');
@@ -1136,15 +1146,22 @@ export function SolicitacaoFormModal({
               <div className="space-y-2">
                 <Label>Período da Solicitação *</Label>
                 <p className="text-xs text-muted-foreground">
-                  Escolha qualquer dia da semana desejada — o sistema fixa automaticamente o período de <strong>segunda a domingo</strong>.
+                  {(tipoSolicitacao || 'normal') === 'normal' ? (
+                    <>
+                      Escolha qualquer dia da semana desejada — o sistema fixa o domingo como Data Fim.
+                      Para a semana atual, a Data Início começa em <strong>hoje</strong> (ou na primeira data válida não retroativa).
+                    </>
+                  ) : (
+                    <>Período Extraordinário: pode haver mais de uma solicitação na mesma semana e centro de custo.</>
+                  )}
                 </p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-xs text-muted-foreground">Data Início (Segunda)</Label>
+                    <Label className="text-xs text-muted-foreground">Data Início</Label>
                     <Input
                       type="date"
                       value={dataInicio}
-                      min={!isSuperAdmin ? format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd') : undefined}
+                      min={!isSuperAdmin ? format(primeiraDataValidaNormal(new Date(), false), 'yyyy-MM-dd') : undefined}
                       onChange={(e) => {
                         const raw = e.target.value;
                         if (!raw) {
@@ -1152,14 +1169,15 @@ export function SolicitacaoFormModal({
                           setDataFim('');
                           return;
                         }
-                        // Snap automático para segunda-feira da semana escolhida
                         const escolhida = parseISO(raw);
-                        const segunda = startOfWeek(escolhida, { weekStartsOn: 1 });
-                        const domingo = endOfWeek(escolhida, { weekStartsOn: 1 }); // sábado por default? — date-fns endOfWeek com weekStartsOn:1 retorna domingo
-                        const segundaStr = format(segunda, 'yyyy-MM-dd');
-                        const domingoStr = format(domingo, 'yyyy-MM-dd');
-                        setDataInicio(segundaStr);
-                        setDataFim(domingoStr);
+                        // Domingo da semana operacional da escolhida
+                        const domingo = endOfWeek(escolhida, { weekStartsOn: 1 });
+                        // Para usuário comum, não permite retroativo intra-semana:
+                        // a Data Início real é max(escolhida, primeira data válida).
+                        const minima = primeiraDataValidaNormal(new Date(), isSuperAdmin);
+                        const inicioReal = escolhida < minima ? minima : escolhida;
+                        setDataInicio(format(inicioReal, 'yyyy-MM-dd'));
+                        setDataFim(format(domingo, 'yyyy-MM-dd'));
                       }}
                       disabled={isEditing}
                     />
@@ -1860,7 +1878,8 @@ export function SolicitacaoFormModal({
       title="Funcionário já vinculado a outra solicitação"
       description={
         conflitoPendente?.alocacao
-          ? `Funcionário já vinculado à solicitação ${conflitoPendente.alocacao.numero_solicitacao} no centro de custo ${conflitoPendente.alocacao.codigo_centro_custo}. Deseja prosseguir mesmo assim?`
+          ? `Funcionário já vinculado à solicitação ${conflitoPendente.alocacao.numero_solicitacao} no centro de custo ${conflitoPendente.alocacao.codigo_centro_custo}. ` +
+            `Você pode adicioná-lo à convocação aqui — caso ele apareça apontado em ambos no mesmo dia, o apontamento exigirá justificativa de exceção.`
           : (conflitoPendente?.motivo
               ? `${conflitoPendente.motivo}. Deseja prosseguir mesmo assim?`
               : "Este funcionário possui um conflito operacional. Deseja prosseguir mesmo assim?")

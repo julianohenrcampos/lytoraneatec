@@ -41,12 +41,12 @@ export const diariaStyles = StyleSheet.create({
   headerTitle: {
     fontSize: 16,
     fontFamily: 'Roboto', fontWeight: 'bold' as const,
-    color: '#1e3a5f',
+    color: '#1A1A1A',
   },
   headerTitleSmall: {
     fontSize: 14,
     fontFamily: 'Roboto', fontWeight: 'bold' as const,
-    color: '#1e3a5f',
+    color: '#1A1A1A',
   },
   headerSubtitle: {
     fontSize: 10,
@@ -61,7 +61,7 @@ export const diariaStyles = StyleSheet.create({
   sectionTitle: {
     fontSize: 11,
     fontFamily: 'Roboto', fontWeight: 'bold' as const,
-    color: '#1e3a5f',
+    color: '#1A1A1A',
     marginBottom: 8,
     paddingBottom: 4,
     borderBottomWidth: 1,
@@ -120,14 +120,14 @@ export const diariaStyles = StyleSheet.create({
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#eff6ff',
+    backgroundColor: '#FFF5F2',
     borderWidth: 1,
-    borderColor: '#bfdbfe',
+    borderColor: '#F5C9BD',
   },
   statValue: {
     fontSize: 18,
     fontFamily: 'Roboto', fontWeight: 'bold' as const,
-    color: '#1e3a5f',
+    color: '#1A1A1A',
     marginBottom: 2,
   },
   statLabel: {
@@ -142,7 +142,7 @@ export const diariaStyles = StyleSheet.create({
   },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: '#1e3a5f',
+    backgroundColor: '#1A1A1A',
     borderRadius: 4,
     paddingVertical: 8,
     paddingHorizontal: 4,
@@ -185,10 +185,10 @@ export const diariaStyles = StyleSheet.create({
   totalsSection: {
     marginTop: 16,
     padding: 12,
-    backgroundColor: '#eff6ff',
+    backgroundColor: '#FFF5F2',
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#bfdbfe',
+    borderColor: '#F5C9BD',
   },
   totalRow: {
     flexDirection: 'row',
@@ -201,7 +201,7 @@ export const diariaStyles = StyleSheet.create({
   },
   totalValue: {
     fontSize: 9,
-    color: '#1e3a5f',
+    color: '#1A1A1A',
     fontFamily: 'Roboto', fontWeight: 'bold' as const,
   },
   totalRowMain: {
@@ -209,17 +209,17 @@ export const diariaStyles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#bfdbfe',
+    borderTopColor: '#F5C9BD',
     marginTop: 4,
   },
   totalLabelMain: {
     fontSize: 11,
-    color: '#1e3a5f',
+    color: '#1A1A1A',
     fontFamily: 'Roboto', fontWeight: 'bold' as const,
   },
   totalValueMain: {
     fontSize: 14,
-    color: '#1e3a5f',
+    color: '#1A1A1A',
     fontFamily: 'Roboto', fontWeight: 'bold' as const,
   },
 

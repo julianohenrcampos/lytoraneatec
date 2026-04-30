@@ -2820,6 +2820,87 @@ export type Database = {
         }
         Relationships: []
       }
+      bd_diaria_excecao_solicitacoes: {
+        Row: {
+          created_at: string | null
+          data: string
+          funcionario_id: string
+          id: string
+          justificativa: string
+          observacao_resolucao: string | null
+          resolvido_em: string | null
+          resolvido_por: string | null
+          solicitacao_destino_id: string
+          solicitacao_origem_id: string
+          solicitado_por: string
+          status: string
+        }
+        Insert: {
+          created_at?: string | null
+          data: string
+          funcionario_id: string
+          id?: string
+          justificativa: string
+          observacao_resolucao?: string | null
+          resolvido_em?: string | null
+          resolvido_por?: string | null
+          solicitacao_destino_id: string
+          solicitacao_origem_id: string
+          solicitado_por: string
+          status?: string
+        }
+        Update: {
+          created_at?: string | null
+          data?: string
+          funcionario_id?: string
+          id?: string
+          justificativa?: string
+          observacao_resolucao?: string | null
+          resolvido_em?: string | null
+          resolvido_por?: string | null
+          solicitacao_destino_id?: string
+          solicitacao_origem_id?: string
+          solicitado_por?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_diaria_excecao_solicitacoes_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_excecao_solicitacoes_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_excecao_solicitacoes_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_excecao_solicitacoes_solicitacao_destino_id_fkey"
+            columns: ["solicitacao_destino_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_excecao_solicitacoes_solicitacao_origem_id_fkey"
+            columns: ["solicitacao_origem_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_diaria_logs: {
         Row: {
           created_at: string
@@ -2862,8 +2943,11 @@ export type Database = {
         Row: {
           confirmado_em: string | null
           confirmado_por: string | null
+          conflito_solicitacao_id: string | null
           created_at: string | null
           data: string
+          excecao_aprovada_em: string | null
+          excecao_aprovada_por: string | null
           funcao_id: string | null
           funcionario_id: string
           hora_entrada: string | null
@@ -2871,6 +2955,8 @@ export type Database = {
           id: string
           intervalo_fim: string | null
           intervalo_inicio: string | null
+          is_excecao: boolean
+          justificativa_excecao: string | null
           modificado_por: string | null
           observacoes: string | null
           presente: boolean | null
@@ -2887,8 +2973,11 @@ export type Database = {
         Insert: {
           confirmado_em?: string | null
           confirmado_por?: string | null
+          conflito_solicitacao_id?: string | null
           created_at?: string | null
           data: string
+          excecao_aprovada_em?: string | null
+          excecao_aprovada_por?: string | null
           funcao_id?: string | null
           funcionario_id: string
           hora_entrada?: string | null
@@ -2896,6 +2985,8 @@ export type Database = {
           id?: string
           intervalo_fim?: string | null
           intervalo_inicio?: string | null
+          is_excecao?: boolean
+          justificativa_excecao?: string | null
           modificado_por?: string | null
           observacoes?: string | null
           presente?: boolean | null
@@ -2912,8 +3003,11 @@ export type Database = {
         Update: {
           confirmado_em?: string | null
           confirmado_por?: string | null
+          conflito_solicitacao_id?: string | null
           created_at?: string | null
           data?: string
+          excecao_aprovada_em?: string | null
+          excecao_aprovada_por?: string | null
           funcao_id?: string | null
           funcionario_id?: string
           hora_entrada?: string | null
@@ -2921,6 +3015,8 @@ export type Database = {
           id?: string
           intervalo_fim?: string | null
           intervalo_inicio?: string | null
+          is_excecao?: boolean
+          justificativa_excecao?: string | null
           modificado_por?: string | null
           observacoes?: string | null
           presente?: boolean | null
@@ -2935,6 +3031,13 @@ export type Database = {
           valor_refeicao_aplicado?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "bd_diaria_presencas_conflito_solicitacao_id_fkey"
+            columns: ["conflito_solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bd_diaria_presencas_funcao_id_fkey"
             columns: ["funcao_id"]
@@ -8038,6 +8141,13 @@ export type Database = {
             foreignKeyName: "bd_ponto_diaria_integracao_presenca_diaria_id_fkey"
             columns: ["presenca_diaria_id"]
             isOneToOne: false
+            referencedRelation: "vw_diaria_relatorio_financeiro"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_diaria_integracao_presenca_diaria_id_fkey"
+            columns: ["presenca_diaria_id"]
+            isOneToOne: false
             referencedRelation: "vw_diarias_aprovacao_gerencial"
             referencedColumns: ["presenca_id"]
           },
@@ -13069,6 +13179,151 @@ export type Database = {
           },
         ]
       }
+      vw_diaria_relatorio_financeiro: {
+        Row: {
+          classificacao_financeira: string | null
+          confirmado_em: string | null
+          confirmado_por: string | null
+          conflito_solicitacao_id: string | null
+          created_at: string | null
+          data: string | null
+          excecao_aprovada_em: string | null
+          excecao_aprovada_por: string | null
+          funcao_id: string | null
+          funcionario_id: string | null
+          hora_entrada: string | null
+          hora_saida: string | null
+          id: string | null
+          intervalo_fim: string | null
+          intervalo_inicio: string | null
+          is_excecao: boolean | null
+          justificativa_excecao: string | null
+          modificado_por: string | null
+          observacoes: string | null
+          presente: boolean | null
+          recebe_refeicao: boolean | null
+          solicitacao_id: string | null
+          tipo_apontamento: string | null
+          tipo_diaria: string | null
+          turno: string | null
+          updated_at: string | null
+          usar_diaria_exclusiva: boolean | null
+          valor_diaria_aplicada: number | null
+          valor_financeiro_efetivo: number | null
+          valor_refeicao_aplicado: number | null
+          valor_refeicao_efetivo: number | null
+        }
+        Insert: {
+          classificacao_financeira?: never
+          confirmado_em?: string | null
+          confirmado_por?: string | null
+          conflito_solicitacao_id?: string | null
+          created_at?: string | null
+          data?: string | null
+          excecao_aprovada_em?: string | null
+          excecao_aprovada_por?: string | null
+          funcao_id?: string | null
+          funcionario_id?: string | null
+          hora_entrada?: string | null
+          hora_saida?: string | null
+          id?: string | null
+          intervalo_fim?: string | null
+          intervalo_inicio?: string | null
+          is_excecao?: boolean | null
+          justificativa_excecao?: string | null
+          modificado_por?: string | null
+          observacoes?: string | null
+          presente?: boolean | null
+          recebe_refeicao?: boolean | null
+          solicitacao_id?: string | null
+          tipo_apontamento?: string | null
+          tipo_diaria?: string | null
+          turno?: string | null
+          updated_at?: string | null
+          usar_diaria_exclusiva?: boolean | null
+          valor_diaria_aplicada?: number | null
+          valor_financeiro_efetivo?: never
+          valor_refeicao_aplicado?: number | null
+          valor_refeicao_efetivo?: never
+        }
+        Update: {
+          classificacao_financeira?: never
+          confirmado_em?: string | null
+          confirmado_por?: string | null
+          conflito_solicitacao_id?: string | null
+          created_at?: string | null
+          data?: string | null
+          excecao_aprovada_em?: string | null
+          excecao_aprovada_por?: string | null
+          funcao_id?: string | null
+          funcionario_id?: string | null
+          hora_entrada?: string | null
+          hora_saida?: string | null
+          id?: string | null
+          intervalo_fim?: string | null
+          intervalo_inicio?: string | null
+          is_excecao?: boolean | null
+          justificativa_excecao?: string | null
+          modificado_por?: string | null
+          observacoes?: string | null
+          presente?: boolean | null
+          recebe_refeicao?: boolean | null
+          solicitacao_id?: string | null
+          tipo_apontamento?: string | null
+          tipo_diaria?: string | null
+          turno?: string | null
+          updated_at?: string | null
+          usar_diaria_exclusiva?: boolean | null
+          valor_diaria_aplicada?: number | null
+          valor_financeiro_efetivo?: never
+          valor_refeicao_aplicado?: number | null
+          valor_refeicao_efetivo?: never
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_diaria_presencas_conflito_solicitacao_id_fkey"
+            columns: ["conflito_solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_presencas_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_presencas_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_presencas_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_presencas_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_presencas_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vw_diarias_aprovacao_gerencial: {
         Row: {
           apontador_id: string | null
@@ -16609,6 +16864,51 @@ export type Database = {
         }
         Returns: boolean
       }
+      fn_adicionar_funcionario_no_dia: {
+        Args: {
+          p_classificacao?: Json
+          p_data: string
+          p_funcao_id?: string
+          p_funcionario_id: string
+          p_solicitacao_id: string
+        }
+        Returns: {
+          confirmado_em: string | null
+          confirmado_por: string | null
+          conflito_solicitacao_id: string | null
+          created_at: string | null
+          data: string
+          excecao_aprovada_em: string | null
+          excecao_aprovada_por: string | null
+          funcao_id: string | null
+          funcionario_id: string
+          hora_entrada: string | null
+          hora_saida: string | null
+          id: string
+          intervalo_fim: string | null
+          intervalo_inicio: string | null
+          is_excecao: boolean
+          justificativa_excecao: string | null
+          modificado_por: string | null
+          observacoes: string | null
+          presente: boolean | null
+          recebe_refeicao: boolean | null
+          solicitacao_id: string
+          tipo_apontamento: string | null
+          tipo_diaria: string | null
+          turno: string
+          updated_at: string | null
+          usar_diaria_exclusiva: boolean | null
+          valor_diaria_aplicada: number
+          valor_refeicao_aplicado: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bd_diaria_presencas"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       fn_arquivar_auditoria_log: { Args: { p_lote?: number }; Returns: number }
       fn_assign_user_role_secure: {
         Args: { p_role_id: string; p_target_user_id: string }
@@ -16859,6 +17159,7 @@ export type Database = {
         }
         Returns: {
           alerta_mensagem: string
+          conflito_centro_custo: string
           conflito_data: string
           conflito_solicitacao: string
           conflito_solicitacao_id: string
@@ -17151,6 +17452,15 @@ export type Database = {
       gerenciar_convocado_diaria: {
         Args: {
           p_acao: string
+          p_funcionario_data: Json
+          p_solicitacao_id: string
+        }
+        Returns: undefined
+      }
+      gerenciar_convocado_diaria_no_dia: {
+        Args: {
+          p_acao: string
+          p_data_apontamento: string
           p_funcionario_data: Json
           p_solicitacao_id: string
         }

@@ -1,9 +1,6 @@
-
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-
-import { VitePWA } from 'vite-plugin-pwa';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -12,57 +9,11 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
   },
   // Drop console.log/info/debug/warn (preserva console.error) apenas em build de produção
-  esbuild: mode === 'production' ? { drop: ['debugger'], pure: ['console.log', 'console.info', 'console.debug', 'console.warn'] } : undefined,
-  plugins: [
-    react(),
-    VitePWA({
-      registerType: 'prompt',
-      injectRegister: 'auto',
-      strategies: 'injectManifest',
-      srcDir: 'src',
-      filename: 'sw.ts',
-      injectManifest: {
-        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MB
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}', 'models/**/*'],
-        sourcemap: false
-      },
-      includeAssets: [
-        'favicon.ico',
-        'favicon-16.png',
-        'favicon-32.png',
-        'icons/icon-192x192.png',
-        'icons/icon-512x512.png',
-        'icons/maskable-icon-192x192.png',
-        'icons/maskable-icon-512x512.png',
-        'icons/apple-touch-icon.png',
-        'models/*'
-      ],
-      manifest: {
-        name: 'Lytorânea Construtora - Sistema ERP',
-        short_name: 'LYTOTEC ERP',
-        description: 'Sistema ERP completo para gestão de empresas de construção civil',
-        theme_color: '#DD2C00',
-        background_color: '#FFFFFF',
-        display: 'standalone',
-        orientation: 'any',
-        scope: '/',
-        start_url: '/',
-        id: 'app.lytotec.erp',
-        prefer_related_applications: false,
-        categories: ['business', 'productivity'],
-        icons: [
-          { src: 'icons/icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: 'icons/icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-          { src: 'icons/maskable-icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-          { src: 'icons/maskable-icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
-        ]
-      },
-      devOptions: {
-        enabled: true,
-        type: 'module'
-      }
-    })
-  ],
+  esbuild:
+    mode === 'production'
+      ? { drop: ['debugger'], pure: ['console.log', 'console.info', 'console.debug', 'console.warn'] }
+      : undefined,
+  plugins: [react()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -86,12 +37,12 @@ export default defineConfig(({ mode }) => ({
           'date-utils': ['date-fns', 'date-fns-tz'],
           'forms': ['react-hook-form', '@hookform/resolvers', 'zod'],
           'routing': ['react-router-dom'],
-          'lucide': ['lucide-react']
-        }
-      }
-    }
+          'lucide': ['lucide-react'],
+        },
+      },
+    },
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', '@tanstack/react-query', '@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities']
-  }
+    include: ['react', 'react-dom', '@tanstack/react-query', '@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
+  },
 }));

@@ -6,7 +6,7 @@ import AppHeader from "./AppHeader";
 import { useSidebarState } from "@/hooks/useSidebarState";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { PWAUpdateNotification } from "@/components/pwa/PWAUpdateNotification";
+
 import { OfflineIndicator } from "@/components/pwa/OfflineIndicator";
 
 interface MainLayoutProps {
@@ -68,9 +68,8 @@ const MainLayoutOptimized = memo(({ children }: MainLayoutProps) => {
           </div>
         </SidebarInset>
         
-        {/* Componentes PWA */}
+        {/* Indicador offline (sem PWA/SW) */}
         <OfflineIndicator />
-        <PWAUpdateNotification />
       </div>
     </SidebarProvider>
   );

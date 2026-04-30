@@ -7,7 +7,7 @@
  * - Dias úteis (Seg-Sex): pagam Diária Normal (valor_diaria)
  */
 
-import { addDays, differenceInDays, parseISO, format, startOfWeek } from 'date-fns';
+import { addDays, differenceInDays, parseISO, format, startOfWeek, endOfWeek } from 'date-fns';
 
 export type TipoDia = 'util' | 'sabado' | 'fds' | 'feriado';
 
@@ -438,6 +438,131 @@ export function isPeriodoRetroativo(dataInicio: string): boolean {
   hoje.setHours(0, 0, 0, 0);
   const inicioSemanaAtual = startOfWeek(hoje, { weekStartsOn: 1 });
   return inicio < inicioSemanaAtual;
+}
+
+/**
+ * Calcula a janela operacional Seg→Dom (datas REAIS) para uma data de referência.
+ * Sempre retorna a segunda-feira e o domingo reais da semana, mesmo que
+ * `dataReferencia` seja terça/quarta/etc.
+ *
+ * Usada para preencher `data_inicio_semana` / `data_fim_semana` na solicitação,
+ * que são as chaves de unicidade da Solicitação Normal por CC/semana.
+ */
+export function calcularJanelaSemanal(
+  dataReferencia: string
+): { data_inicio_semana: string; data_fim_semana: string } {
+  const ref = parseISO(dataReferencia);
+  const seg = startOfWeek(ref, { weekStartsOn: 1 });
+  const dom = endOfWeek(ref, { weekStartsOn: 1 });
+  return {
+    data_inicio_semana: format(seg, 'yyyy-MM-dd'),
+    data_fim_semana: format(dom, 'yyyy-MM-dd'),
+  };
+}
+
+/**
+ * Primeira data válida (não retroativa) para criar Solicitação Normal.
+ * - SuperAdm: segunda-feira da semana corrente (sem trava de retroativo intra-semana).
+ * - Usuário comum: max(hoje, segunda-feira da semana corrente).
+ *   Para semanas futuras, sempre a própria segunda-feira da semana escolhida —
+ *   esta função se preocupa apenas com o limite inferior (hoje).
+ */
+export function primeiraDataValidaNormal(
+  hoje: Date = new Date(),
+  isSuperAdmin: boolean = false
+): Date {
+  const base = new Date(hoje);
+  base.setHours(0, 0, 0, 0);
+  const segunda = startOfWeek(base, { weekStartsOn: 1 });
+  if (isSuperAdmin) return segunda;
+  return base > segunda ? base : segunda;
+}
+
+/**
+ * Validação para Solicitação Normal (frontend + service).
+ * Regras:
+ * - data_fim deve ser o domingo da MESMA semana operacional de data_inicio.
+ * - data_inicio deve ser >= primeiraDataValidaNormal (bloqueia retroativo intra-semana
+ *   para usuário comum).
+ * - data_inicio e data_fim devem estar na mesma semana operacional (Seg→Dom).
+ *
+ * Erros tipados (lançados como Error.message com prefixo identificador):
+ *   - PERIODO_RETROATIVO_INTRASEMANA
+ *   - PERIODO_FORA_SEMANA_OPERACIONAL
+ */
+export interface ValidacaoNormalResult {
+  valido: boolean;
+  erro?: string;
+  codigo?: 'PERIODO_RETROATIVO_INTRASEMANA' | 'PERIODO_FORA_SEMANA_OPERACIONAL' | 'PERIODO_INVALIDO';
+}
+
+export function validarPeriodoNormal(
+  dataInicio: string,
+  dataFim: string,
+  isSuperAdmin: boolean = false,
+  isEditing: boolean = false
+): ValidacaoNormalResult {
+  if (!dataInicio || !dataFim) {
+    return { valido: false, erro: 'Selecione as datas de início e fim', codigo: 'PERIODO_INVALIDO' };
+  }
+
+  const inicio = parseISO(dataInicio);
+  const fim = parseISO(dataFim);
+
+  if (fim < inicio) {
+    return { valido: false, erro: 'Data fim deve ser igual ou posterior à data início', codigo: 'PERIODO_INVALIDO' };
+  }
+
+  // Mesma semana operacional (Seg→Dom)
+  const segInicio = startOfWeek(inicio, { weekStartsOn: 1 });
+  const segFim = startOfWeek(fim, { weekStartsOn: 1 });
+  if (segInicio.getTime() !== segFim.getTime()) {
+    return {
+      valido: false,
+      erro: 'O período selecionado ultrapassa a semana operacional. Crie uma nova solicitação para a próxima semana.',
+      codigo: 'PERIODO_FORA_SEMANA_OPERACIONAL',
+    };
+  }
+
+  // data_fim deve ser o domingo da mesma semana
+  const domingo = endOfWeek(inicio, { weekStartsOn: 1 });
+  if (format(fim, 'yyyy-MM-dd') !== format(domingo, 'yyyy-MM-dd')) {
+    return {
+      valido: false,
+      erro: 'Data Fim deve ser o domingo da semana operacional.',
+      codigo: 'PERIODO_FORA_SEMANA_OPERACIONAL',
+    };
+  }
+
+  // Edição não re-valida retroativo (período já persistido)
+  if (!isEditing) {
+    const minima = primeiraDataValidaNormal(new Date(), isSuperAdmin);
+    if (inicio < minima) {
+      return {
+        valido: false,
+        erro: 'Solicitação retroativa permitida apenas para SuperAdm.',
+        codigo: 'PERIODO_RETROATIVO_INTRASEMANA',
+      };
+    }
+  }
+
+  return { valido: true };
+}
+
+/**
+ * Versão "assert" para uso no service: lança Error com prefixo do código.
+ * Não consulta SuperAdm — quem chama deve passar o flag já resolvido.
+ */
+export function assertPeriodoNormalOuFalhar(
+  dataInicio: string,
+  dataFim: string,
+  isSuperAdmin: boolean,
+  isEditing: boolean = false
+): void {
+  const r = validarPeriodoNormal(dataInicio, dataFim, isSuperAdmin, isEditing);
+  if (!r.valido) {
+    throw new Error(`${r.codigo || 'PERIODO_INVALIDO'}: ${r.erro || 'Período inválido'}`);
+  }
 }
 
 /**

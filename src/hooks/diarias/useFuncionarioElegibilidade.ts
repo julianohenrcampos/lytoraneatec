@@ -14,7 +14,7 @@ import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-export type EstadoElegibilidadeStatus = "livre" | "alerta" | "bloqueado";
+export type EstadoElegibilidadeStatus = "livre" | "permitido" | "alerta" | "bloqueado";
 
 export interface EstadoElegibilidade {
   status: EstadoElegibilidadeStatus;
@@ -25,6 +25,7 @@ export interface EstadoElegibilidade {
     numero_solicitacao?: string | null;
     data?: string | null;
     solicitacao_id?: string | null;
+    centro_custo?: string | null;
   };
 }
 
@@ -78,7 +79,8 @@ async function consultarElegibilidade(
   // status estiver ausente (compatibilidade defensiva).
   const rawStatus = (row.status as string) || (row.elegivel === false ? "bloqueado" : "livre");
   const status: EstadoElegibilidadeStatus =
-    rawStatus === "bloqueado" || rawStatus === "alerta" || rawStatus === "livre"
+    rawStatus === "bloqueado" || rawStatus === "alerta" ||
+    rawStatus === "permitido" || rawStatus === "livre"
       ? (rawStatus as EstadoElegibilidadeStatus)
       : "livre";
 
@@ -91,6 +93,7 @@ async function consultarElegibilidade(
       numero_solicitacao: row.conflito_solicitacao ?? null,
       data: row.conflito_data ?? null,
       solicitacao_id: row.conflito_solicitacao_id ?? null,
+      centro_custo: row.conflito_centro_custo ?? null,
     },
   };
 }

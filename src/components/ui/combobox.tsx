@@ -33,6 +33,11 @@ interface ComboboxProps {
   searchPlaceholder?: string
   className?: string
   disabled?: boolean
+  /**
+   * Quando informado, o Combobox delega o filtro ao consumidor (busca server-side)
+   * em vez de filtrar localmente as opções. Útil para autocompletes assíncronos.
+   */
+  onSearchChange?: (search: string) => void
 }
 
 export function Combobox({
@@ -44,6 +49,7 @@ export function Combobox({
   searchPlaceholder = "Buscar...",
   className,
   disabled = false,
+  onSearchChange,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const [inputValue, setInputValue] = React.useState("")
@@ -52,13 +58,19 @@ export function Combobox({
     return options.find((option) => option.value === value);
   }, [options, value]);
 
-  // Filter options based on input value
+  // Filter options based on input value (skip local filtering when server-side search is enabled)
   const filteredOptions = React.useMemo(() => {
+    if (onSearchChange) return options;
     if (!inputValue) return options;
     return options.filter((option) => 
       option.label.toLowerCase().includes(inputValue.toLowerCase())
     );
-  }, [options, inputValue]);
+  }, [options, inputValue, onSearchChange]);
+
+  const handleInputValueChange = React.useCallback((v: string) => {
+    setInputValue(v);
+    onSearchChange?.(v);
+  }, [onSearchChange]);
 
   const handleSelect = React.useCallback((selectedValue: string) => {
     console.log("🎯 Combobox item selected:", selectedValue);
@@ -103,7 +115,7 @@ export function Combobox({
             <CommandInput 
               placeholder={searchPlaceholder} 
               value={inputValue}
-              onValueChange={setInputValue}
+              onValueChange={handleInputValueChange}
               className="h-9 flex-1"
             />
           </div>

@@ -3,7 +3,10 @@ import { notificationService } from "@/services/notificationService";
 import {
   assertPeriodoValidoOuFalhar,
   isPeriodoRetroativo,
+  assertPeriodoNormalOuFalhar,
+  calcularJanelaSemanal,
 } from "@/utils/diariasPeriodoUtils";
+import { verificarDuplicidadeSolicitacao as verificarDuplicidadeNormalSemana } from "./antiFraudeService";
 import type { 
   DiariaSolicitacao, 
   SolicitacaoFormData, 
@@ -37,10 +40,72 @@ async function assertPeriodoEReceitaUsuario(
   }
 }
 
+/**
+ * Defesa em profundidade ESPECÍFICA da Solicitação NORMAL.
+ *
+ * Aplica três regras, sempre na mesma ordem, em createSolicitacao,
+ * updateSolicitacao e enviarParaAutorizacao:
+ *
+ *  1. Estrutura/semana operacional: data_inicio e data_fim na mesma semana
+ *     Seg→Dom, com data_fim = domingo.
+ *  2. Retroativo intra-semana: usuário comum não pode iniciar antes de hoje.
+ *  3. Unicidade Normal/CC/semana: bloqueia segunda solicitação Normal ativa
+ *     para o mesmo CC dentro da mesma janela operacional
+ *     (data_inicio_semana / data_fim_semana).
+ *
+ * Para tipo === 'extraordinaria', NENHUMA dessas regras se aplica:
+ * o trigger trg_check_solicitacao_periodo_overlap já libera Extraordinária
+ * e a justificativa ≥20 chars é validada pelo banco.
+ */
+async function assertSolicitacaoNormalValida(params: {
+  centro_custo_id: string;
+  data_inicio: string;
+  data_fim: string;
+  tipo_solicitacao?: 'normal' | 'extraordinaria' | null;
+  isEditing?: boolean;
+  solicitacaoIdAtual?: string;
+}): Promise<void> {
+  const tipo = params.tipo_solicitacao || 'normal';
+  if (tipo !== 'normal') return;
 
-// =====================================================
-// CRUD - SOLICITAÇÕES DE DIÁRIA
-// =====================================================
+  // (1) Resolver SuperAdm via RPC oficial
+  const { data: isSuperAdm, error: rpcErr } = await supabase.rpc('fn_is_super_admin');
+  if (rpcErr) {
+    console.error('[Diarias][assertNormal] erro fn_is_super_admin', rpcErr);
+    throw new Error('Não foi possível validar permissão para o período. Tente novamente.');
+  }
+
+  // (2) Estrutura + retroativo intra-semana — traduz códigos para mensagem amigável
+  try {
+    assertPeriodoNormalOuFalhar(
+      params.data_inicio,
+      params.data_fim,
+      isSuperAdm === true,
+      !!params.isEditing,
+    );
+  } catch (e: any) {
+    const m = e?.message || '';
+    if (m.includes('PERIODO_RETROATIVO_INTRASEMANA')) {
+      throw new Error('Solicitação retroativa permitida apenas para SuperAdm.');
+    }
+    if (m.includes('PERIODO_FORA_SEMANA_OPERACIONAL')) {
+      throw new Error('O período selecionado ultrapassa a semana operacional. Crie uma nova solicitação para a próxima semana.');
+    }
+    throw e;
+  }
+
+  // (3) Unicidade Normal/CC/semana — chave: janela semanal real (Seg→Dom)
+  const { data_inicio_semana, data_fim_semana } = calcularJanelaSemanal(params.data_inicio);
+  const dup = await verificarDuplicidadeNormalSemana(
+    params.centro_custo_id,
+    data_inicio_semana,
+    data_fim_semana,
+    params.solicitacaoIdAtual,
+  );
+  if (dup.duplicada) {
+    throw new Error('Já existe uma solicitação Normal para este CC nesta semana. Use Extraordinária para necessidades específicas.');
+  }
+}
 
 // Interface de escopo para filtros obrigatórios
 interface SolicitacaoScopeFilters {
@@ -290,8 +355,21 @@ function traduzirErroCriacaoSolicitacao(error: any): string {
 }
 
 export async function createSolicitacao(formData: SolicitacaoFormData): Promise<DiariaSolicitacao> {
-  // Defesa em profundidade: estrutura Seg→Dom + retroativo só SuperAdm
-  await assertPeriodoEReceitaUsuario(formData.data_inicio, formData.data_fim);
+  const tipo = formData.tipo_solicitacao || 'normal';
+
+  // Defesa em profundidade da Solicitação NORMAL (estrutura semanal + retroativo + unicidade CC/semana)
+  if (tipo === 'normal') {
+    await assertSolicitacaoNormalValida({
+      centro_custo_id: formData.centro_custo_id,
+      data_inicio: formData.data_inicio,
+      data_fim: formData.data_fim,
+      tipo_solicitacao: 'normal',
+      isEditing: false,
+    });
+  } else {
+    // Extraordinária: mantém validação estrutural legada (Seg→Dom 7d) e retroativo só SuperAdm.
+    await assertPeriodoEReceitaUsuario(formData.data_inicio, formData.data_fim);
+  }
 
   const currentUserId = await getAuthenticatedUserId();
 
@@ -417,10 +495,22 @@ export async function createSolicitacao(formData: SolicitacaoFormData): Promise<
 function traduzirErroPeriodoSobreposto(error: any): string {
   const msg = error?.message || '';
 
+  // Códigos lançados pelo service (Etapa 3 — validação Normal)
+  if (msg.includes('NORMAL_DUPLICADA_NA_SEMANA')) {
+    const match = msg.match(/NORMAL_DUPLICADA_NA_SEMANA:\s*(.+)/);
+    return match?.[1]?.trim() || 'Já existe uma solicitação Normal para este CC nesta semana. Use Extraordinária para necessidades específicas.';
+  }
+  if (msg.includes('PERIODO_RETROATIVO_INTRASEMANA')) {
+    return 'Solicitação retroativa permitida apenas para SuperAdm.';
+  }
+  if (msg.includes('PERIODO_FORA_SEMANA_OPERACIONAL')) {
+    return 'O período selecionado ultrapassa a semana operacional. Crie uma nova solicitação para a próxima semana.';
+  }
+
   if (error?.code === '23P01' || msg.includes('PERIODO_SOBREPOSTO')) {
     const match = msg.match(/PERIODO_SOBREPOSTO:\s*(.+)/);
     if (match?.[1]) return match[1].trim();
-    return 'Já existe uma solicitação ativa cobrindo dias deste período para o mesmo Centro de Custo. Use Extraordinária se a sobreposição for necessária.';
+    return 'Já existe uma solicitação Normal ativa para este Centro de Custo nesta semana. Use Extraordinária para necessidades específicas.';
   }
 
   if (msg.includes('FUNCIONARIO_DUPLICADO_NA_DATA')) {
@@ -444,25 +534,41 @@ function traduzirErroPeriodoSobreposto(error: any): string {
 }
 
 export async function updateSolicitacao(id: string, formData: Partial<SolicitacaoFormData>): Promise<DiariaSolicitacao> {
-  // Defesa em profundidade: se o update toca em data_inicio/data_fim, validar Seg→Dom + retroativo
-  if (formData.data_inicio !== undefined || formData.data_fim !== undefined) {
-    let dataInicio = formData.data_inicio;
-    let dataFim = formData.data_fim;
+  // Defesa em profundidade: se o update toca em data_inicio/data_fim/centro_custo/tipo,
+  // re-aplicar validação coerente ao tipo (Normal x Extraordinária).
+  const tocaPeriodo = formData.data_inicio !== undefined
+    || formData.data_fim !== undefined
+    || formData.centro_custo_id !== undefined
+    || formData.tipo_solicitacao !== undefined;
 
-    // Se vier só uma das duas, buscar a outra do registro atual para validar o par
-    if (!dataInicio || !dataFim) {
-      const { data: atual, error: errAtual } = await supabase
-        .from('bd_diaria_solicitacoes')
-        .select('data_inicio, data_fim')
-        .eq('id', id)
-        .single();
-      if (errAtual) {
-        throw new Error('Não foi possível carregar a solicitação para validar o período.');
-      }
-      dataInicio = dataInicio || (atual?.data_inicio as string);
-      dataFim = dataFim || (atual?.data_fim as string);
+  if (tocaPeriodo) {
+    // Carrega o registro atual para preencher campos faltantes
+    const { data: atual, error: errAtual } = await supabase
+      .from('bd_diaria_solicitacoes')
+      .select('data_inicio, data_fim, centro_custo_id, tipo_solicitacao')
+      .eq('id', id)
+      .single();
+    if (errAtual) {
+      throw new Error('Não foi possível carregar a solicitação para validar o período.');
     }
-    await assertPeriodoEReceitaUsuario(dataInicio!, dataFim!);
+
+    const dataInicio = (formData.data_inicio ?? atual?.data_inicio) as string;
+    const dataFim = (formData.data_fim ?? atual?.data_fim) as string;
+    const centroCustoId = (formData.centro_custo_id ?? atual?.centro_custo_id) as string;
+    const tipo = (formData.tipo_solicitacao ?? atual?.tipo_solicitacao ?? 'normal') as 'normal' | 'extraordinaria';
+
+    if (tipo === 'normal') {
+      await assertSolicitacaoNormalValida({
+        centro_custo_id: centroCustoId,
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+        tipo_solicitacao: 'normal',
+        isEditing: true,
+        solicitacaoIdAtual: id,
+      });
+    } else {
+      await assertPeriodoEReceitaUsuario(dataInicio, dataFim);
+    }
   }
 
   const updateData: any = {
@@ -553,6 +659,19 @@ export async function enviarParaAutorizacao(id: string): Promise<DiariaSolicitac
   // Buscar solicitação para validar duplicidade antes de enviar
   const solicitacao = await getSolicitacaoById(id);
   if (solicitacao) {
+    // Re-validar regra Normal (estrutura/retroativo/unicidade semanal) na transição de status,
+    // para defender contra payloads obsoletos ou criação alternativa via RPC/painel.
+    if ((solicitacao.tipo_solicitacao || 'normal') === 'normal') {
+      await assertSolicitacaoNormalValida({
+        centro_custo_id: solicitacao.centro_custo_id,
+        data_inicio: solicitacao.data_inicio,
+        data_fim: solicitacao.data_fim,
+        tipo_solicitacao: 'normal',
+        isEditing: true, // não re-checar retroativo: já existia
+        solicitacaoIdAtual: id,
+      });
+    }
+
     await verificarDuplicidadeSolicitacao(
       solicitacao.data_inicio,
       solicitacao.data_fim,
@@ -868,19 +987,21 @@ export async function getHistoricoAprovacoes(entidadeId: string): Promise<any[]>
 // ADICIONAR / REMOVER FUNCIONÁRIO DO CONVOCADOS_PRE
 // =====================================================
 
+export interface FuncionarioConvocadoData {
+  funcionario_id: string;
+  funcao_id: string;
+  valor_diaria: number;
+  valor_diaria_exclusiva?: number;
+  valor_refeicao?: number;
+  nome_funcionario: string;
+  nome_funcao: string;
+  cpf?: string;
+  matricula?: string;
+}
+
 export async function adicionarFuncionarioConvocado(
   solicitacaoId: string,
-  funcionarioData: {
-    funcionario_id: string;
-    funcao_id: string;
-    valor_diaria: number;
-    valor_diaria_exclusiva?: number;
-    valor_refeicao?: number;
-    nome_funcionario: string;
-    nome_funcao: string;
-    cpf?: string;
-    matricula?: string;
-  }
+  funcionarioData: FuncionarioConvocadoData
 ): Promise<void> {
   const { error } = await supabase.rpc('gerenciar_convocado_diaria', {
     p_solicitacao_id: solicitacaoId,
@@ -889,6 +1010,82 @@ export async function adicionarFuncionarioConvocado(
   });
 
   if (error) throw new Error(error.message);
+}
+
+/**
+ * Inclusão diária no apontamento: valida duplicidade APENAS na data informada
+ * e grava o item em convocados_pre com `data` e `origem_inclusao = 'apontamento_dia'`.
+ * Não usa o período (data_inicio/data_fim) da solicitação para validar conflito.
+ */
+export async function adicionarFuncionarioConvocadoNoDia(
+  solicitacaoId: string,
+  funcionarioData: FuncionarioConvocadoData,
+  dataApontamento: string
+): Promise<void> {
+  const { error } = await supabase.rpc('gerenciar_convocado_diaria_no_dia' as any, {
+    p_solicitacao_id: solicitacaoId,
+    p_funcionario_data: funcionarioData as any,
+    p_data_apontamento: dataApontamento,
+    p_acao: 'adicionar',
+  } as any);
+
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Inclusão direta em bd_diaria_presencas para o dia selecionado.
+ *
+ * Cria uma linha "neutra" (presente=false, sem horários, valor=0). A MV
+ * mv_relatorio_diarias filtra `presente IS DISTINCT FROM false`, portanto a
+ * linha neutra não aparece no relatório financeiro até alguém marcar presença.
+ *
+ * Idempotente: a UNIQUE (solicitacao_id, funcionario_id, data) garante que
+ * cliques repetidos retornem a linha existente em vez de duplicar.
+ *
+ * Retorna a row completa de bd_diaria_presencas para que o frontend monte o
+ * card a partir dos dados reais persistidos no banco.
+ */
+export type BdDiariaPresencaRow = {
+  id: string;
+  solicitacao_id: string;
+  funcionario_id: string;
+  data: string;
+  funcao_id: string | null;
+  presente: boolean | null;
+  hora_entrada: string | null;
+  hora_saida: string | null;
+  valor_diaria_aplicada: number;
+  recebe_refeicao: boolean | null;
+  valor_refeicao_aplicado: number | null;
+  tipo_apontamento: string | null;
+  is_excecao: boolean;
+  turno: string;
+  tipo_diaria: string | null;
+  usar_diaria_exclusiva: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export async function adicionarPresencaNoDia(
+  solicitacaoId: string,
+  funcionarioId: string,
+  data: string,
+  funcaoId: string | null,
+  classificacao?: Record<string, unknown>
+): Promise<BdDiariaPresencaRow> {
+  const { data: row, error } = await supabase
+    .rpc('fn_adicionar_funcionario_no_dia' as any, {
+      p_solicitacao_id: solicitacaoId,
+      p_funcionario_id: funcionarioId,
+      p_data: data,
+      p_funcao_id: funcaoId,
+      p_classificacao: (classificacao ?? {}) as any,
+    } as any)
+    .single();
+
+  if (error) throw new Error(error.message);
+  if (!row) throw new Error('NAO_PERSISTIU_PRESENCA');
+  return row as unknown as BdDiariaPresencaRow;
 }
 
 export async function removerFuncionarioConvocado(
@@ -916,32 +1113,73 @@ export async function removerFuncionarioConvocado(
   if (error) throw new Error(error.message);
 }
 
-// Verificar se funcionário está em outra solicitação autorizada no mesmo período
+// Verificar se funcionário possui PRESENÇA REAL (hora_entrada preenchida)
+// em outra solicitação ativa NA MESMA DATA selecionada no apontamento.
+// REGRA: bloqueio é por DIA, nunca por período. Convocação planejada
+// (sem hora_entrada) NÃO bloqueia — segue como alerta via fn_diaria_funcionario_elegibilidade.
 export async function verificarFuncionarioEmOutraSolicitacao(
   funcionarioId: string,
-  dataInicio: string,
-  dataFim: string,
+  dataApontamento: string,
   solicitacaoAtualId: string
-): Promise<{ emOutra: boolean; numeroSolicitacao?: string; solicitacaoId?: string }> {
-  const { data: solicitacoes, error } = await supabase
-    .from('bd_diaria_solicitacoes')
-    .select('id, numero_solicitacao, convocados_pre')
-    .eq('status', 'autorizada')
-    .neq('id', solicitacaoAtualId)
-    .lte('data_inicio', dataFim)
-    .gte('data_fim', dataInicio);
-
-  if (error) {
-    console.error('Erro ao verificar duplicidade:', error);
+): Promise<{
+  emOutra: boolean;
+  numeroSolicitacao?: string;
+  solicitacaoId?: string;
+  centroCustoCodigo?: string;
+  centroCustoNome?: string;
+  dataConflito?: string;
+}> {
+  if (!dataApontamento) {
     return { emOutra: false };
   }
 
-  for (const sol of solicitacoes || []) {
-    const convocados = Array.isArray(sol.convocados_pre) ? sol.convocados_pre as any[] : [];
-    if (convocados.some((c: any) => c.funcionario_id === funcionarioId)) {
-      return { emOutra: true, numeroSolicitacao: sol.numero_solicitacao, solicitacaoId: sol.id };
-    }
+  const { data, error } = await supabase
+    .from('bd_diaria_presencas')
+    .select(`
+      solicitacao_id,
+      data,
+      bd_diaria_solicitacoes!inner(
+        numero_solicitacao,
+        status,
+        bd_centros_custo ( codigo_centro_custo, nome_centro_custo )
+      )
+    `)
+    .eq('funcionario_id', funcionarioId)
+    .eq('data', dataApontamento)
+    .not('hora_entrada', 'is', null)
+    .neq('solicitacao_id', solicitacaoAtualId)
+    .not('bd_diaria_solicitacoes.status', 'in', '(cancelado,cancelada,reprovada)')
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Erro ao verificar duplicidade por dia:', error);
+    return { emOutra: false };
   }
 
-  return { emOutra: false };
+  if (!data) return { emOutra: false };
+
+  const sol: any = (data as any).bd_diaria_solicitacoes;
+  const cc: any = sol?.bd_centros_custo;
+  const dataConflito = (data as any).data as string | undefined;
+
+  // Defesa extra: se vier conflito em data diferente da solicitada, ignora.
+  if (dataConflito && dataConflito !== dataApontamento) {
+    console.warn('[DIARIA][CONFLITO_IGNORADO_DATA_DIFERENTE]', {
+      origem: 'verificarFuncionarioEmOutraSolicitacao',
+      selectedDate: dataApontamento,
+      conflitoData: dataConflito,
+      funcionario_id: funcionarioId,
+    });
+    return { emOutra: false };
+  }
+
+  return {
+    emOutra: true,
+    solicitacaoId: data.solicitacao_id,
+    numeroSolicitacao: sol?.numero_solicitacao,
+    centroCustoCodigo: cc?.codigo_centro_custo,
+    centroCustoNome: cc?.nome_centro_custo,
+    dataConflito,
+  };
 }

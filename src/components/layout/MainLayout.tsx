@@ -7,7 +7,7 @@ import AppHeader from "./AppHeader";
 import { useSidebarState } from "@/hooks/useSidebarState";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { PWAUpdateNotification } from "@/components/pwa/PWAUpdateNotification";
+
 import { OfflinePermissionStatus } from "@/components/pwa/OfflinePermissionStatus";
 import { useOfflinePermissionsSync } from "@/hooks/useOfflinePermissionsSync";
 import { usePermission } from "@/hooks/usePermission";
@@ -80,9 +80,8 @@ export default function MainLayout({ children }: MainLayoutProps) {
           </div>
         </SidebarInset>
         
-        {/* Componentes PWA */}
+        {/* Status offline (sem PWA/SW) */}
         <OfflinePermissionStatus />
-        <PWAUpdateNotification />
       </div>
     </SidebarProvider>
   );
