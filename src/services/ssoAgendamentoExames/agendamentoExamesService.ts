@@ -28,7 +28,18 @@ const sanitizeFormData = (formData: Partial<AgendamentoExameFormData>) => {
 };
 
 export const agendamentoExamesService = {
-  async list(filters: AgendamentoExameFilters = {}): Promise<AgendamentoExame[]> {
+  async list(
+    filters: AgendamentoExameFilters = {},
+    opts?: { restrictContratos?: string[] },
+  ): Promise<AgendamentoExame[]> {
+    // Restrição de escopo (AdmOBRA etc.) — server-side via .in('contrato', ...).
+    // Quando `restrictContratos` é passado e está vazio, não consulta o servidor.
+    if (opts && Array.isArray(opts.restrictContratos)) {
+      if (opts.restrictContratos.length === 0) {
+        return [];
+      }
+    }
+
     let query = (supabase
       .from('bd_agendamentos_exames' as any) as any)
       .select(`
@@ -72,8 +83,27 @@ export const agendamentoExamesService = {
     if (filters.status_carteira && filters.status_carteira !== 'all') {
       query = query.eq('status_carteira', filters.status_carteira);
     }
+
+    // Combina filtro visual de contrato (multi-select do usuário) com a restrição de escopo.
+    // Se o usuário escolheu contratos específicos, intersecta com restrictContratos.
+    let contratosEfetivos: string[] | null = null;
     if (filters.contrato?.length) {
-      query = query.in('contrato', filters.contrato);
+      contratosEfetivos = filters.contrato;
+    }
+    if (opts?.restrictContratos && opts.restrictContratos.length > 0) {
+      if (contratosEfetivos) {
+        const allowed = new Set(opts.restrictContratos);
+        contratosEfetivos = contratosEfetivos.filter((c) => allowed.has(c));
+        if (contratosEfetivos.length === 0) {
+          // Usuário escolheu apenas contratos fora do escopo → nada.
+          return [];
+        }
+      } else {
+        contratosEfetivos = opts.restrictContratos;
+      }
+    }
+    if (contratosEfetivos) {
+      query = query.in('contrato', contratosEfetivos);
     }
 
     const { data, error } = await query;

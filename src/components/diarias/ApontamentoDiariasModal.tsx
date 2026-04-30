@@ -104,6 +104,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePermission } from "@/hooks/usePermission";
 import { useOrigemPontoEletronico } from "@/hooks/diarias/useOrigemPontoEletronico";
 import { useSincronizarDiarias } from "@/hooks/diarias/useSincronizarDiarias";
+import { useFuncionariosBuscaAtivos } from "@/hooks/diarias/useFuncionariosBuscaAtivos";
 import type { RegrasOperacionaisSnapshot, RegraOperacionalSnapshotItem } from "@/types/diarias";
 
 interface ApontamentoDiariasModalProps {
@@ -464,67 +465,48 @@ export default function ApontamentoDiariasModal({
     }
   });
 
-  // Busca GLOBAL de funcionários ativos (sem filtro de CC/escopo).
-  // Conflitos operacionais (alocação em outra solicitação, fora do CC, etc.)
-  // são tratados como aviso APÓS seleção, não como filtro.
-  const { data: funcionariosAtivos = [], isFetching: isSearchingFuncionarios } = useQuery({
-    queryKey: ['funcionarios-ativos-diarias-global', showAddFuncionario],
-    queryFn: async () => {
-      const PAGE_SIZE = 1000;
-      let allData: any[] = [];
-      let page = 0;
+  // Busca GLOBAL de funcionários ativos via RPC SECURITY DEFINER
+  // (get_funcionarios_ativos_global), padronizada com Nova Solicitação,
+  // Exame Demissional e Relatório/Folha. Não acessa bd_funcionarios direto:
+  // a RLS deixaria AdmOBRA sem ver funcionários de outros CCs, quebrando a busca.
+  // centroCustoId é APENAS priorização visual; conflitos/anti-fraude continuam
+  // sendo tratados na inclusão (verificarFuncionarioEmOutraSolicitacao,
+  // fn_diaria_funcionario_elegibilidade, persistirFuncionarioSelecionado).
+  const { funcionarios: funcionariosRpc, isFetching: isSearchingFuncionarios } =
+    useFuncionariosBuscaAtivos({
+      search: debouncedSearchTerm,
+      centroCustoId: centroCusto?.id ?? null,
+      limit: 200,
+      enabled: showAddFuncionario,
+    });
 
-      while (true) {
-        const from = page * PAGE_SIZE;
-        const to = from + PAGE_SIZE - 1;
-        const { data, error } = await supabase
-          .from('bd_funcionarios')
-          .select(`
-            id,
-            nome_completo,
-            cpf,
-            funcao_id,
-            centro_custo_id,
-            matricula,
-            status,
-            banco,
-            agencia,
-            conta_corrente,
-            chave_pix,
-            bd_funcoes(id, nome_funcao, valor_diaria, valor_diaria_exclusiva, valor_refeicao)
-          `)
-          .eq('status', 'Ativo')
-          .order('nome_completo', { ascending: true })
-          .range(from, to);
-
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        allData = allData.concat(data);
-        if (data.length < PAGE_SIZE) break;
-        page++;
-      }
-
-      // Normaliza para o shape esperado pelo SmartFuncionarioSearch.
-      return allData.map((f: any) => ({
-        id: f.id,
-        nome_completo: f.nome_completo,
-        cpf: f.cpf,
-        funcao_id: f.funcao_id,
-        centro_custo_id: f.centro_custo_id,
-        matricula: f.matricula,
-        status_funcionario: f.status,
-        banco: f.banco,
-        agencia: f.agencia,
-        conta_corrente: f.conta_corrente,
-        chave_pix: f.chave_pix,
-        funcao_nome: f.bd_funcoes?.nome_funcao ?? null,
-        valor_diaria: f.bd_funcoes?.valor_diaria ?? 0,
-        valor_diaria_exclusiva: f.bd_funcoes?.valor_diaria_exclusiva ?? null,
-        valor_refeicao: f.bd_funcoes?.valor_refeicao ?? 0,
-      })) as FuncionarioBuscaItem[];
-    },
-    enabled: showAddFuncionario,
-  });
+  // Adapta o shape da RPC para FuncionarioBuscaItem consumido pelo modal.
+  // Campos efetivamente usados: id, nome_completo, cpf, matricula,
+  // centro_custo_id, funcao_id, funcao_nome, valor_diaria,
+  // valor_diaria_exclusiva, valor_refeicao. Campos bancários
+  // (banco/agencia/conta/pix) não são lidos no fluxo de adição.
+  const funcionariosAtivos = useMemo<FuncionarioBuscaItem[]>(() => {
+    return (funcionariosRpc ?? []).map((f) => ({
+      id: f.id,
+      nome_completo: f.nome_completo,
+      cpf: f.cpf,
+      funcao_id: f.funcao_id ?? null,
+      centro_custo_id: f.centro_custo_id ?? null,
+      matricula: f.matricula,
+      funcao_nome: f.bd_funcoes?.nome_funcao ?? null,
+      valor_diaria: f.bd_funcoes?.valor_diaria ?? 0,
+      valor_refeicao: f.bd_funcoes?.valor_refeicao ?? 0,
+      bd_funcoes: f.bd_funcoes
+        ? {
+            id: f.bd_funcoes.id,
+            nome_funcao: f.bd_funcoes.nome_funcao,
+            valor_diaria: f.bd_funcoes.valor_diaria,
+            valor_diaria_exclusiva: f.bd_funcoes.valor_diaria_exclusiva,
+            valor_refeicao: f.bd_funcoes.valor_refeicao,
+          }
+        : null,
+    }));
+  }, [funcionariosRpc]);
 
   const { data: pendenciasInclusao = [] } = useQuery({
     queryKey: ['inclusoes-pendentes-apontamento', solicitacao?.id],

@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { usePageTitle } from "@/contexts/PageTitleContext";
-import { format, eachDayOfInterval, isWeekend } from "date-fns";
+import { format, eachDayOfInterval, isWeekend, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -79,14 +79,17 @@ export default function DiariasRelatorio() {
   const {
     scopeFilters,
     isLoading: isLoadingScope,
-    canDeletePresenca
+    canDeletePresenca,
+    userId: scopeUserId,
+    funcionarioId: scopeFuncionarioId,
   } = useDiariasDataScope();
   const queryClient = useQueryClient();
 
   // Acesso à tela: RBAC puro — nada de userScope/role string.
   const hasAccess = isSuperAdmin || hasActionPermission('diarias_relatorio_view', 'visualizar');
 
-  // Filters - sem filtro padrão para exibir todos os registros
+  // Filters — campos visualmente vazios. O fallback de 30 dias é aplicado
+  // internamente pelo service (ensurePeriodo) quando data_inicio/data_fim chegam vazios.
   const [filters, setFilters] = useState<RelatorioFilters>({});
 
   // Filtros multi-select (mantidos no estado da UI)
@@ -118,16 +121,23 @@ export default function DiariasRelatorio() {
   ]);
 
   // Estabiliza scopeFilters por valor
+  // IMPORTANTE: Para SuperAdm/global, scopeFilters?.centro_custo_ids vem undefined
+  // e DEVE permanecer undefined (não pode virar [], pois [] é interpretado como
+  // emptyResult pelo buildRelatorioQuery, escondendo todos os registros).
+  // Para AdmOBRA sem escopo, scopeFilters?.centro_custo_ids vem [] de fato e
+  // mantemos [] para preservar o emptyResult rápido.
   const stableScope = useMemo(
     () => ({
       criado_por: scopeFilters?.criado_por,
-      centro_custo_ids: scopeFilters?.centro_custo_ids ?? [],
+      centro_custo_ids: Array.isArray(scopeFilters?.centro_custo_ids)
+        ? scopeFilters!.centro_custo_ids
+        : undefined,
     }),
-    [scopeFilters?.criado_por, JSON.stringify(scopeFilters?.centro_custo_ids ?? [])]
+    [scopeFilters?.criado_por, JSON.stringify(scopeFilters?.centro_custo_ids ?? null)]
   );
 
   // Query paginada server-side
-  const { data: pageData, isLoading, isFetching } = useRelatorioFolhaPaginado(
+  const { data: pageData, isLoading, isFetching, error: relatorioError } = useRelatorioFolhaPaginado(
     stableFilters,
     stableScope,
     { page, pageSize },
@@ -138,17 +148,28 @@ export default function DiariasRelatorio() {
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const defaultPeriodApplied = pageData?.defaultPeriodApplied ?? false;
 
-  // Centro de custos (com aprovador) — staleTime 5 min
+  // Centro de custos (com aprovador) — restrito ao escopo do usuário
+  // - SuperAdm/global (centro_custo_ids === undefined): lista todos (excluindo DIR001 p/ não-SuperAdm)
+  // - Escopo array vazio: lista vazia (sem consulta)
+  // - Escopo array não-vazio: somente CCs do escopo
+  const ccScopeIds = stableScope.centro_custo_ids;
+  const ccScopeKey = Array.isArray(ccScopeIds) ? ccScopeIds.slice().sort().join(',') : 'ALL';
   const { data: centrosCusto = [] } = useQuery({
-    queryKey: ['centros-custo-com-aprovador', isSuperAdmin],
+    queryKey: ['centros-custo-com-aprovador', isSuperAdmin, ccScopeKey],
     queryFn: async () => {
+      if (Array.isArray(ccScopeIds) && ccScopeIds.length === 0) return [];
       let query = supabase.
       from('bd_centros_custo').
       select('id, codigo_centro_custo, nome_centro_custo, aprovador_diarias_id');
-      if (!isSuperAdmin) query = query.neq('codigo_centro_custo', 'DIR001');
+      if (Array.isArray(ccScopeIds) && ccScopeIds.length > 0) {
+        query = query.in('id', ccScopeIds);
+      } else if (!isSuperAdmin) {
+        query = query.neq('codigo_centro_custo', 'DIR001');
+      }
       const { data } = await query.order('nome_centro_custo');
       return data || [];
     },
+    enabled: !isLoadingScope,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -224,17 +245,71 @@ export default function DiariasRelatorio() {
     staleTime: 30_000,
   });
 
-  // Solicitações autorizadas para filtro por número
+  // Solicitações autorizadas para filtro por número.
+  // Aplica o MESMO escopo da tabela principal:
+  // - Escopo array vazio → lista vazia (sem consulta).
+  // - Escopo array não-vazio → OR(centro_custo_id IN escopo, responsavel_campo_id = funcId, criado_por = userId)
+  //   garante que solicitações como 2026-236 (onde o usuário é responsável de campo) apareçam,
+  //   mesmo se o CC não estiver no merge do scopeFilters.
+  // - Escopo undefined (SuperAdm/global) → sem filtro de escopo.
+  // Período: usa filtros da UI; se vazios, fallback igual ao do relatório (últimos 30 dias).
+  const solicitacoesPeriodo = useMemo(() => {
+    const ISO = /^\d{4}-\d{2}-\d{2}$/;
+    const di = typeof filters.data_inicio === 'string' && ISO.test(filters.data_inicio) ? filters.data_inicio : null;
+    const df = typeof filters.data_fim === 'string' && ISO.test(filters.data_fim) ? filters.data_fim : null;
+    if (di && df) return { inicio: di, fim: df };
+    const hoje = new Date();
+    const fim = format(hoje, 'yyyy-MM-dd');
+    const inicio = format(subDays(hoje, 29), 'yyyy-MM-dd');
+    return { inicio, fim };
+  }, [filters.data_inicio, filters.data_fim]);
+
   const { data: solicitacoesAutorizadas = [] } = useQuery({
-    queryKey: ['solicitacoes-autorizadas'],
+    queryKey: [
+      'solicitacoes-autorizadas',
+      ccScopeKey,
+      scopeUserId || null,
+      scopeFuncionarioId || null,
+      solicitacoesPeriodo.inicio,
+      solicitacoesPeriodo.fim,
+    ],
     queryFn: async () => {
-      const { data } = await supabase.
-      from('bd_diaria_solicitacoes').
-      select('id, numero_solicitacao').
-      eq('status', 'autorizada').
-      order('numero_solicitacao', { ascending: false });
+      // Escopo vazio explícito: nada a buscar
+      if (Array.isArray(ccScopeIds) && ccScopeIds.length === 0
+          && !scopeFuncionarioId && !scopeUserId) {
+        return [];
+      }
+
+      let query = supabase
+        .from('bd_diaria_solicitacoes')
+        .select('id, numero_solicitacao')
+        .eq('status', 'autorizada')
+        // Overlap com o período: solicitação cruza o intervalo se data_fim>=inicio AND data_inicio<=fim
+        .gte('data_fim', solicitacoesPeriodo.inicio)
+        .lte('data_inicio', solicitacoesPeriodo.fim)
+        .order('numero_solicitacao', { ascending: false })
+        .limit(500);
+
+      // Aplica escopo apenas quando é array (escopo restrito).
+      // Para SuperAdm/global, ccScopeIds é undefined e nenhum filtro extra é aplicado.
+      if (Array.isArray(ccScopeIds)) {
+        const orParts: string[] = [];
+        if (ccScopeIds.length > 0) orParts.push(`centro_custo_id.in.(${ccScopeIds.join(',')})`);
+        if (scopeFuncionarioId) orParts.push(`responsavel_campo_id.eq.${scopeFuncionarioId}`);
+        if (scopeUserId) orParts.push(`criado_por.eq.${scopeUserId}`);
+        if (orParts.length > 0) {
+          query = query.or(orParts.join(','));
+        }
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        console.warn('[Relatorio] Falha ao carregar solicitações autorizadas:', error.message);
+        return [];
+      }
       return data || [];
     },
+    enabled: !isLoadingScope,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -684,10 +759,10 @@ export default function DiariasRelatorio() {
           </CardContent>
         </Card>
 
-        {/* Aviso de período padrão (últimos 31 dias) */}
-        {!filters.data_inicio && !filters.data_fim && defaultPeriodApplied && (
+        {/* Aviso de período padrão (últimos 30 dias aplicados internamente) */}
+        {defaultPeriodApplied && (
           <div className="text-xs text-muted-foreground italic px-1">
-            Exibindo os últimos 31 dias. Use os filtros para consultar outro período.
+            Exibindo os últimos 30 dias. Use os filtros para consultar outro período.
           </div>
         )}
 
@@ -697,6 +772,16 @@ export default function DiariasRelatorio() {
             {isLoading ?
             <div className="flex items-center justify-center p-8">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div> :
+            relatorioError ?
+            <div className="text-center p-8 text-destructive space-y-2">
+                <div className="font-medium">Erro ao carregar o relatório.</div>
+                <div className="text-xs text-muted-foreground">
+                  {(relatorioError as any)?.message || 'Falha ao consultar a base de dados.'}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Tente reduzir o intervalo de datas e aplicar novamente.
+                </div>
               </div> :
             relatorio.length === 0 ?
             <div className="text-center p-8 text-muted-foreground">

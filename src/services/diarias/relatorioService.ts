@@ -8,7 +8,7 @@ import type {
   ExcelResumo
 } from "@/types/diarias";
 import * as XLSX from 'xlsx';
-import { format } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { isRelatorioItemConfirmado } from '@/services/diarias/relatorioMetrics';
 import {
@@ -40,7 +40,8 @@ const isValidISODate = (v: unknown): v is string =>
 
 /**
  * Garante que o período enviado ao Postgres seja sempre válido.
- * Aplica default de 31 dias se QUALQUER uma das datas estiver ausente/inválida.
+ * Aplica default de 30 dias inclusivos (hoje-29 até hoje) se QUALQUER
+ * uma das datas estiver ausente/inválida. Usa data local BR (não UTC).
  */
 function ensurePeriodo(filters?: RelatorioFilters): {
   data_inicio: string;
@@ -52,16 +53,14 @@ function ensurePeriodo(filters?: RelatorioFilters): {
 
   if (!di || !df) {
     if (filters?.data_inicio || filters?.data_fim) {
-      console.warn('[RELATORIO] Datas inválidas/parciais — aplicando default 31 dias', {
+      console.warn('[RELATORIO] Datas inválidas/parciais — aplicando default 30 dias', {
         recebido: { data_inicio: filters?.data_inicio, data_fim: filters?.data_fim },
       });
     }
     const hoje = new Date();
-    const inicio = new Date();
-    inicio.setDate(hoje.getDate() - 30);
     return {
-      data_inicio: inicio.toISOString().slice(0, 10),
-      data_fim: hoje.toISOString().slice(0, 10),
+      data_inicio: format(subDays(hoje, 29), 'yyyy-MM-dd'),
+      data_fim: format(hoje, 'yyyy-MM-dd'),
       appliedDefault: true,
     };
   }
@@ -83,8 +82,14 @@ async function buildRelatorioQuery(
   viewName: string,
   effectiveFilters: RelatorioFilters,
   scope: RelatorioScopeFilters | undefined,
-  options?: { withCount?: boolean }
+  options?: { withCount?: 'planned' | 'exact' }
 ): Promise<{ query: any; emptyResult: boolean }> {
+  // Escopo já resolvido pelo hook (ex.: AdmOBRA puro): lista de CCs vazia = nada a buscar.
+  // Evita varredura completa da view sob RLS pesada.
+  if (scope?.centro_custo_ids && scope.centro_custo_ids.length === 0) {
+    return { query: null, emptyResult: true };
+  }
+
   // Resolver gerente_regional => centro_custo_ids (server-side)
   let ccIdsFromGerente: string[] | null = null;
   if (effectiveFilters.gerente_regional_ids?.length) {
@@ -113,9 +118,14 @@ async function buildRelatorioQuery(
     }
   }
 
-  let query: any = options?.withCount
-    ? supabase.from(viewName as any).select('*', { count: 'exact' })
-    : supabase.from(viewName as any).select('*');
+  let query: any;
+  if (options?.withCount === 'exact') {
+    query = supabase.from(viewName as any).select('*', { count: 'exact' });
+  } else if (options?.withCount === 'planned') {
+    query = supabase.from(viewName as any).select('*', { count: 'planned' });
+  } else {
+    query = supabase.from(viewName as any).select('*');
+  }
 
   // Regra atual: presença finalizada (com hora_saida)
   query = query.not('hora_saida', 'is', null);
@@ -291,7 +301,7 @@ export async function getRelatorioFolhaPaginadoView(
     data_fim: periodo.data_fim,
   };
 
-  const { query, emptyResult } = await buildRelatorioQuery(viewName, effectiveFilters, scope, { withCount: true });
+  const { query, emptyResult } = await buildRelatorioQuery(viewName, effectiveFilters, scope, { withCount: 'planned' });
 
   if (emptyResult || !query) {
     return { rows: [], total: 0, page: pagination.page, pageSize: pagination.pageSize, defaultPeriodApplied: appliedDefaultPeriod };

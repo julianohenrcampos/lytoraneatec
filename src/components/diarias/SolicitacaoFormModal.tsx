@@ -56,7 +56,8 @@ import {
   primeiraDataValidaNormal,
   calcularJanelaSemanal,
   formatCurrency,
-  podeParticiparDiaUtil
+  podeParticiparDiaUtil,
+  isAnteriorAHoje
 } from "@/utils/diariasPeriodoUtils";
 import { PeriodoResumo } from "./PeriodoResumo";
 import { EstimativaAviso } from "./EstimativaAviso";
@@ -237,9 +238,10 @@ export function SolicitacaoFormModal({
   }, [dataInicio, dataFim, isSuperAdmin, editingSolicitacao, tipoSolicitacao]);
 
   const isEditing = !!editingSolicitacao;
-  const isRetroativo = (periodoValidacao as any).isRetroativo === true;
-  // Edição não exige justificativa de "criação retroativa"
-  const minJustificativa = (isRetroativo && !isEditing) ? 20 : 10;
+  // Definição oficial de retroativa: data_inicio < hoje (data local).
+  // Edição não exige justificativa de "criação retroativa".
+  const isRetroativo = !isEditing && isAnteriorAHoje(dataInicio);
+  const minJustificativa = isRetroativo ? 20 : 10;
   
   // Centro de custos query com fallback
   const { data: centrosCusto = [] } = useQuery({
@@ -1013,7 +1015,8 @@ export function SolicitacaoFormModal({
 
   // Validation
   const isExtraordinariaValida = tipoSolicitacao === 'normal' || (tipoSolicitacao === 'extraordinaria' && justificativaExtraordinaria.trim().length >= 20);
-  const canProceedToDados = dataInicio && dataFim && centroCustoId && periodoValidacao.valido && responsavelCampoId && engenheiroSolicitanteId && !duplicidadeDetectada && isExtraordinariaValida;
+  const justificativaRetroativaOk = !isRetroativo || isEditing || justificativa.trim().length >= 20;
+  const canProceedToDados = dataInicio && dataFim && centroCustoId && periodoValidacao.valido && responsavelCampoId && engenheiroSolicitanteId && !duplicidadeDetectada && isExtraordinariaValida && justificativaRetroativaOk;
   const canProceedToFuncionarios = convocadosPre.length > 0 && justificativa.trim().length >= minJustificativa;
   const canSave = canProceedToDados && canProceedToFuncionarios;
   const justificativaOperacionalInvalida = diasOperacionaisSelecionados.length > 0 && justificativaOperacional.trim().length < 10;
@@ -1170,14 +1173,23 @@ export function SolicitacaoFormModal({
                           return;
                         }
                         const escolhida = parseISO(raw);
-                        // Domingo da semana operacional da escolhida
                         const domingo = endOfWeek(escolhida, { weekStartsOn: 1 });
-                        // Para usuário comum, não permite retroativo intra-semana:
-                        // a Data Início real é max(escolhida, primeira data válida).
-                        const minima = primeiraDataValidaNormal(new Date(), isSuperAdmin);
+
+                        if (isSuperAdmin) {
+                          // SuperAdm: aceita literalmente a data escolhida (mesmo retroativa).
+                          setDataInicio(format(escolhida, 'yyyy-MM-dd'));
+                          setDataFim(format(domingo, 'yyyy-MM-dd'));
+                          return;
+                        }
+
+                        // Usuário comum: snap para a mínima (hoje) se tentar retroativo.
+                        const minima = primeiraDataValidaNormal(new Date(), false);
+                        if (escolhida < minima) {
+                          toast.warning('Somente SuperAdm pode criar Solicitação de Diária retroativa.');
+                        }
                         const inicioReal = escolhida < minima ? minima : escolhida;
                         setDataInicio(format(inicioReal, 'yyyy-MM-dd'));
-                        setDataFim(format(domingo, 'yyyy-MM-dd'));
+                        setDataFim(format(endOfWeek(inicioReal, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
                       }}
                       disabled={isEditing}
                     />
@@ -1203,14 +1215,28 @@ export function SolicitacaoFormModal({
                {!periodoValidacao.valido && periodoValidacao.erro && (
                   <p className="text-sm text-destructive">{periodoValidacao.erro}</p>
                 )}
-                {isRetroativo && canCriarRetroativa && !isEditing && (
-                  <Alert className="border-amber-300 bg-amber-50">
-                    <Info className="h-4 w-4 text-amber-600" />
-                    <AlertDescription className="text-amber-800 text-xs">
-                      <strong>Solicitação Retroativa (SuperAdm):</strong> Você está criando uma solicitação com data anterior à semana atual. 
-                      A justificativa deve conter no mínimo 20 caracteres explicando o motivo da criação retroativa.
-                    </AlertDescription>
-                  </Alert>
+                {isRetroativo && isSuperAdmin && !isEditing && (
+                  <div className="space-y-2 p-3 border border-amber-300 bg-amber-50 rounded-md">
+                    <div className="flex items-start gap-2">
+                      <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                      <div className="text-amber-800 text-xs">
+                        <strong>Solicitação Retroativa (SuperAdm):</strong> Você selecionou uma data anterior a hoje. Justifique abaixo (mínimo 20 caracteres).
+                      </div>
+                    </div>
+                    <Label htmlFor="justificativa-retroativa-step1" className="sr-only">
+                      Justificativa para criação retroativa
+                    </Label>
+                    <Textarea
+                      id="justificativa-retroativa-step1"
+                      value={justificativa}
+                      onChange={(e) => setJustificativa(e.target.value)}
+                      placeholder="Explique o motivo da criação retroativa desta solicitação..."
+                      rows={3}
+                    />
+                    <p className="text-xs text-amber-800">
+                      {justificativa.trim().length}/20 caracteres mínimos
+                    </p>
+                  </div>
                 )}
                </div>
 
@@ -1611,23 +1637,35 @@ export function SolicitacaoFormModal({
               )}
 
               <div className="pt-4 border-t">
-                <Label>
-                  {isRetroativo && !isEditing
-                    ? 'Justificativa para criação retroativa * (mínimo 20 caracteres)' 
-                    : `Justificativa * (mínimo ${minJustificativa} caracteres)`}
-                </Label>
-                <Textarea
-                  value={justificativa}
-                  onChange={(e) => setJustificativa(e.target.value)}
-                  placeholder={isRetroativo && !isEditing
-                    ? "Explique o motivo da criação retroativa desta solicitação..." 
-                    : "Descreva o motivo da solicitação de diária..."}
-                  rows={3}
-                  className="mt-1.5"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {justificativa.length}/{minJustificativa} caracteres mínimos
-                </p>
+                {isRetroativo && isSuperAdmin && !isEditing ? (
+                  <div className="p-3 border border-amber-300 bg-amber-50 rounded-md">
+                    <Label className="text-amber-900 text-xs font-semibold">Justificativa de criação retroativa</Label>
+                    <p className="text-sm text-amber-900 mt-1 whitespace-pre-wrap">{justificativa}</p>
+                    <p className="text-xs text-amber-700 mt-2">
+                      Justificativa já preenchida no Step 1 — clique em Voltar para editar.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <Label>
+                      {isRetroativo && !isEditing
+                        ? 'Justificativa para criação retroativa * (mínimo 20 caracteres)'
+                        : `Justificativa * (mínimo ${minJustificativa} caracteres)`}
+                    </Label>
+                    <Textarea
+                      value={justificativa}
+                      onChange={(e) => setJustificativa(e.target.value)}
+                      placeholder={isRetroativo && !isEditing
+                        ? "Explique o motivo da criação retroativa desta solicitação..."
+                        : "Descreva o motivo da solicitação de diária..."}
+                      rows={3}
+                      className="mt-1.5"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {justificativa.length}/{minJustificativa} caracteres mínimos
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           )}

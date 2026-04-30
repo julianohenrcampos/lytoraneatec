@@ -25,7 +25,7 @@ export const useConnectionStatusOptimized = () => {
 
     try {
       const { data, error } = await Promise.race([
-        supabase.from('profiles').select('count', { count: 'exact', head: true }),
+        supabase.from('profiles').select('id').limit(1),
         new Promise<{ data: any; error: any }>((_, reject) => 
           setTimeout(() => reject({ data: null, error: new Error('timeout') }), 3000)
         )

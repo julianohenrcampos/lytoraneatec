@@ -227,6 +227,8 @@ export interface FuncionarioSelecionado {
   funcao: string;
   empresa: string;
   centro_custo: string | null;
+  /** Campo interno (não persistido) usado para validação de escopo. */
+  centro_custo_id?: string | null;
   banco_agencia: string | null;
   banco_conta: string | null;
   endereco_rua: string | null;

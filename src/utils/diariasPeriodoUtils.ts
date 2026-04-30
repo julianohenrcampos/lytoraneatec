@@ -429,15 +429,24 @@ export function assertPeriodoValidoOuFalhar(
 }
 
 /**
- * Verifica se um período é retroativo em relação à semana corrente (Seg→Dom).
+ * Verifica se uma data ISO (YYYY-MM-DD) é anterior a hoje (data local).
+ * Usa parseISO + comparação a hoje@00:00 local — sem toISOString/UTC.
  */
-export function isPeriodoRetroativo(dataInicio: string): boolean {
-  if (!dataInicio) return false;
-  const inicio = parseISO(dataInicio);
+export function isAnteriorAHoje(dataISO?: string | null): boolean {
+  if (!dataISO) return false;
+  const inicio = parseISO(dataISO);
+  inicio.setHours(0, 0, 0, 0);
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
-  const inicioSemanaAtual = startOfWeek(hoje, { weekStartsOn: 1 });
-  return inicio < inicioSemanaAtual;
+  return inicio.getTime() < hoje.getTime();
+}
+
+/**
+ * Verifica se um período é retroativo.
+ * Definição oficial: data_inicio < hoje (data local).
+ */
+export function isPeriodoRetroativo(dataInicio: string): boolean {
+  return isAnteriorAHoje(dataInicio);
 }
 
 /**
@@ -461,11 +470,11 @@ export function calcularJanelaSemanal(
 }
 
 /**
- * Primeira data válida (não retroativa) para criar Solicitação Normal.
- * - SuperAdm: segunda-feira da semana corrente (sem trava de retroativo intra-semana).
+ * Primeira data válida para iniciar uma Solicitação Normal.
+ *
+ * - SuperAdm: hoje (data local). SuperAdm pode escolher livremente datas
+ *   anteriores via UI; o default do form não deve pré-preencher retroativo.
  * - Usuário comum: max(hoje, segunda-feira da semana corrente).
- *   Para semanas futuras, sempre a própria segunda-feira da semana escolhida —
- *   esta função se preocupa apenas com o limite inferior (hoje).
  */
 export function primeiraDataValidaNormal(
   hoje: Date = new Date(),
@@ -473,8 +482,8 @@ export function primeiraDataValidaNormal(
 ): Date {
   const base = new Date(hoje);
   base.setHours(0, 0, 0, 0);
+  if (isSuperAdmin) return base;
   const segunda = startOfWeek(base, { weekStartsOn: 1 });
-  if (isSuperAdmin) return segunda;
   return base > segunda ? base : segunda;
 }
 
@@ -537,7 +546,9 @@ export function validarPeriodoNormal(
   // Edição não re-valida retroativo (período já persistido)
   if (!isEditing) {
     const minima = primeiraDataValidaNormal(new Date(), isSuperAdmin);
-    if (inicio < minima) {
+    // SuperAdm: retroativa é permitida no validador de período;
+    // a justificativa é controlada no formulário (Step 1) e no service (defesa final).
+    if (inicio < minima && !isSuperAdmin) {
       return {
         valido: false,
         erro: 'Solicitação retroativa permitida apenas para SuperAdm.',

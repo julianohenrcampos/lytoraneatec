@@ -113,7 +113,7 @@ export const DesligamentoDialog: React.FC<Props> = ({ open, onOpenChange, onSubm
             className="p-3 rounded-lg cursor-pointer border bg-background hover:bg-muted transition-colors">
             <p className="font-medium">{f.nome_completo}</p>
             <p className="text-sm text-muted-foreground">
-              {f.funcao || 'Sem função'} · {f.empresa || 'Sem empresa'} · CPF: {f.cpf}
+              {f.funcao || 'Sem função'} · CPF: {f.cpf}
             </p>
           </div>
         ))}

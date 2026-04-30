@@ -21,9 +21,53 @@ export function getRelatorioViewForContext(context: DiariasReportContext): strin
   return VIEW_BY_CONTEXT[context];
 }
 
+// Roles que devem prevalecer sobre o gate de AdmOBRA.
+// Se o usuário acumular AdmOBRA + uma destas, segue o fluxo normal (financeiro/gerencial).
+const ELEVATED_ROLES_OVER_ADMOBRA = [
+  'SuperAdm',
+  'AdmRH',
+  'Financeiro',
+  'DP',
+  'DepartamentoPessoal',
+] as const;
+
+/**
+ * Busca os nomes das roles do usuário em bd_user_roles → bd_roles.
+ * Fail-closed: em caso de erro, retorna [] (o caller deve degradar para o contexto mais restrito).
+ */
+async function fetchUserRoleNames(userId: string): Promise<string[]> {
+  try {
+    const { data, error } = await supabase
+      .from('bd_user_roles')
+      .select('bd_roles(nome)')
+      .eq('user_id', userId);
+
+    if (error || !data) return [];
+
+    return data
+      .map((r: any) => r?.bd_roles?.nome)
+      .filter((n: unknown): n is string => typeof n === 'string' && n.length > 0);
+  } catch {
+    return [];
+  }
+}
+
 export async function getCurrentDiariasReportContext(): Promise<DiariasReportContext> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return 'operacional_campo';
+
+  // GATE AdmOBRA: AdmOBRA "puro" nunca pode cair em financeiro_dp nem aprovacao_gerencial,
+  // pois ambas as views expõem valores financeiros e (no caso de financeiro_dp) PII bancária.
+  // Se acumular role elevada (SuperAdm/AdmRH/Financeiro/DP), segue o fluxo normal.
+  const roleNames = await fetchUserRoleNames(user.id);
+  const isAdmObra = roleNames.includes('AdmOBRA');
+  const hasElevatedOverride = roleNames.some((r) =>
+    (ELEVATED_ROLES_OVER_ADMOBRA as readonly string[]).includes(r)
+  );
+
+  if (isAdmObra && !hasElevatedOverride) {
+    return 'operacional_campo';
+  }
 
   const [financeiro, gerencial] = await Promise.all([
     supabase.rpc('fn_can_access_diarias_financeiro', { _user_id: user.id }),

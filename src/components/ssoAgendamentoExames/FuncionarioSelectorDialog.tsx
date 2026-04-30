@@ -13,6 +13,9 @@ import { useFuncionarioSearch } from '@/hooks/ssoAgendamentoExames/useFuncionari
 import { FuncionarioSelecionado, TipoExame } from '@/types/ssoAgendamentoExames';
 import { Search, Loader2, User, Building2, Briefcase, Check, AlertTriangle, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { useEscopoCentrosCusto } from '@/hooks/useEscopoCentrosCusto';
 
 interface FuncionarioSelectorDialogProps {
   open: boolean;
@@ -42,13 +45,80 @@ export const FuncionarioSelectorDialog: React.FC<FuncionarioSelectorDialogProps>
 }) => {
   const statusFilter = tipoExame === 'Retorno ao Trabalho' ? 'INSS' : undefined;
   const { funcionarios, isLoading, error, refetch, searchTerm, setSearchTerm, hasSearchTerm, resultLimit } = useFuncionarioSearch(statusFilter, open);
+  const { isGlobal, allowedCentroIds } = useEscopoCentrosCusto();
   const [selectedFuncionario, setSelectedFuncionario] = useState<FuncionarioSelecionado | null>(null);
+  const [enriching, setEnriching] = useState(false);
 
-  const handleContinue = () => {
-    if (selectedFuncionario) {
-      onSelect(selectedFuncionario);
+  const handleContinue = async () => {
+    if (!selectedFuncionario) return;
+
+    // BARREIRA PRINCIPAL DE ESCOPO — não confia no filtro visual.
+    // Bloqueia mesmo se o item vier de cache, manipulação de estado ou bug de UI.
+    if (!isGlobal) {
+      const ccId = selectedFuncionario.centro_custo_id ?? '';
+      if (!ccId || !allowedCentroIds.includes(ccId)) {
+        toast.error('Este funcionário está fora do seu escopo de centros de custo.');
+        return;
+      }
+    }
+
+    setEnriching(true);
+    try {
+      // Enriquecimento por id — sem embed FK, selects simples
+      const { data: extra, error: extraErr } = await supabase
+        .from('bd_funcionarios')
+        .select(`
+          id, email, data_nascimento, data_admissao,
+          agencia, conta_corrente,
+          endereco_rua, endereco_numero, endereco_bairro,
+          endereco_cidade, endereco_estado, endereco_cep,
+          empresa_id, centro_custo_id
+        `)
+        .eq('id', selectedFuncionario.id)
+        .maybeSingle();
+
+      if (extraErr) throw extraErr;
+      if (!extra) {
+        toast.error('Não foi possível carregar os dados do funcionário (acesso restrito).');
+        setEnriching(false);
+        return;
+      }
+
+      const [empresaRes, ccRes] = await Promise.all([
+        extra.empresa_id
+          ? supabase.from('bd_empresas').select('nome_empresa').eq('id', extra.empresa_id).maybeSingle()
+          : Promise.resolve({ data: null, error: null } as any),
+        extra.centro_custo_id
+          ? supabase.from('bd_centros_custo').select('nome_centro_custo').eq('id', extra.centro_custo_id).maybeSingle()
+          : Promise.resolve({ data: null, error: null } as any),
+      ]);
+
+      const merged: FuncionarioSelecionado = {
+        ...selectedFuncionario,
+        email: extra.email ?? selectedFuncionario.email,
+        data_nascimento: extra.data_nascimento ?? null,
+        data_admissao: extra.data_admissao ?? null,
+        banco_agencia: extra.agencia ?? null,
+        banco_conta: extra.conta_corrente ?? null,
+        endereco_rua: extra.endereco_rua ?? null,
+        endereco_numero: extra.endereco_numero ?? null,
+        endereco_bairro: extra.endereco_bairro ?? null,
+        endereco_cidade: extra.endereco_cidade ?? null,
+        endereco_estado: extra.endereco_estado ?? null,
+        endereco_cep: extra.endereco_cep ?? null,
+        empresa: (empresaRes?.data as any)?.nome_empresa || selectedFuncionario.empresa || '',
+        centro_custo: (ccRes?.data as any)?.nome_centro_custo || null,
+        centro_custo_id: extra.centro_custo_id ?? selectedFuncionario.centro_custo_id ?? null,
+      };
+
+      onSelect(merged);
       setSelectedFuncionario(null);
       setSearchTerm('');
+    } catch (e: any) {
+      console.error('[FuncionarioSelectorDialog] Erro ao enriquecer dados:', e);
+      toast.error('Erro ao carregar dados do funcionário. Tente novamente.');
+    } finally {
+      setEnriching(false);
     }
   };
 
@@ -190,8 +260,9 @@ export const FuncionarioSelectorDialog: React.FC<FuncionarioSelectorDialogProps>
           </Button>
           <Button 
             onClick={handleContinue} 
-            disabled={!selectedFuncionario}
+            disabled={!selectedFuncionario || enriching}
           >
+            {enriching && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Continuar
           </Button>
         </DialogFooter>

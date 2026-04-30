@@ -72,6 +72,11 @@ export function useDiariasDataScope(): DiariasDataScope {
   const [userScope, setUserScope] = useState<DiariasUserScope>('nenhum');
   const [isLoading, setIsLoading] = useState(true);
   const [backendCanCreateSolicitacao, setBackendCanCreateSolicitacao] = useState<boolean | null>(null);
+  // Ajuste 4: AdmOBRA puro nunca retorna scopeFilters = {}.
+  // Sempre devolve centro_custo_ids (mesmo que vazio) para evitar varredura sob RLS pesada.
+  const [isAdmObraPuro, setIsAdmObraPuro] = useState(false);
+  const [admObraScopeCcs, setAdmObraScopeCcs] = useState<string[] | null>(null);
+  const admObraScopeFetchedAt = useRef<number>(0);
   const lastDeterminedUserId = useRef<string | null>(null);
 
   // Buscar dados do usuário e determinar escopo
@@ -121,15 +126,15 @@ export function useDiariasDataScope(): DiariasDataScope {
 
         const funcoesProfile = (profile?.funcoes as string[]) || [];
 
-        // 2a. Buscar role_names em bd_user_roles e unir com profile.funcoes
+        // 2a. Buscar nomes de roles via bd_user_roles -> bd_roles(nome) e unir com profile.funcoes
         let roleNames: string[] = [];
         try {
           const { data: rolesData } = await supabase
             .from('bd_user_roles')
-            .select('role_name')
+            .select('bd_roles(nome)')
             .eq('user_id', userId);
           roleNames = (rolesData || [])
-            .map((r: any) => r.role_name)
+            .map((r: any) => r?.bd_roles?.nome)
             .filter(Boolean);
         } catch (e) {
           // Falha silenciosa - usaremos só profile.funcoes
@@ -196,6 +201,113 @@ export function useDiariasDataScope(): DiariasDataScope {
         // 2d. AdmOBRA / GerenteRegional / perfis compostos => delegar ao RLS
         // O RLS (fn_diaria_can_select_row) já cobre criador OR responsável de campo OR CC autorizado
         if (hasRole('AdmOBRA') || hasRole('GerenteRegional') || rolesAmplasPresentes.length > 1) {
+          // Ajuste 4 (Bloco 1): AdmOBRA "puro" — sem nenhuma role elevada — recebe
+          // poda explícita por centro_custo_id no frontend, antes da RLS.
+          // Cache de 5 min para fn_diaria_scope_centros_custo.
+          const elevadas = ['SuperAdm', 'AdmRH', 'Financeiro', 'DP', 'DepartamentoPessoal'];
+          const admObraPuro =
+            hasRole('AdmOBRA') && !rolesEfetivas.some((r) => elevadas.includes(r));
+          setIsAdmObraPuro(admObraPuro);
+
+          if (admObraPuro) {
+            const agora = Date.now();
+            if (admObraScopeCcs === null || agora - admObraScopeFetchedAt.current > 5 * 60_000) {
+              const STATUS_EXCLUIR = ['cancelado', 'cancelada', 'reprovada'];
+              const funcIdAdmObra = profile?.funcionario_id || null;
+
+              const [rpcRes, respRes, criadorRes, funcCcRes] = await Promise.allSettled([
+                supabase.rpc('fn_diaria_scope_centros_custo', { p_user_id: userId }),
+                funcIdAdmObra
+                  ? supabase
+                      .from('bd_diaria_solicitacoes')
+                      .select('centro_custo_id')
+                      .eq('responsavel_campo_id', funcIdAdmObra)
+                      .not('centro_custo_id', 'is', null)
+                      .not('status', 'in', `(${STATUS_EXCLUIR.join(',')})`)
+                  : Promise.resolve({ data: [], error: null } as any),
+                supabase
+                  .from('bd_diaria_solicitacoes')
+                  .select('centro_custo_id')
+                  .eq('criado_por', userId)
+                  .not('centro_custo_id', 'is', null)
+                  .not('status', 'in', `(${STATUS_EXCLUIR.join(',')})`),
+                // CC primário do AdmOBRA: vínculo direto do funcionário do profile
+                // (paridade com useEscopoCentrosCusto do Agendamento de Exames).
+                funcIdAdmObra
+                  ? supabase
+                      .from('bd_funcionarios')
+                      .select('centro_custo_id')
+                      .eq('id', funcIdAdmObra)
+                      .maybeSingle()
+                  : Promise.resolve({ data: null, error: null } as any),
+              ]);
+
+              const merged = new Set<string>();
+              let teveSucesso = false;
+
+              // RPC fn_diaria_scope_centros_custo
+              if (rpcRes.status === 'fulfilled' && !(rpcRes.value as any).error) {
+                teveSucesso = true;
+                (((rpcRes.value as any).data as any[]) || []).forEach((r: any) => {
+                  const id =
+                    typeof r === 'string'
+                      ? r
+                      : r?.fn_diaria_scope_centros_custo ?? r?.id ?? null;
+                  if (id) merged.add(id);
+                });
+              } else {
+                console.warn(
+                  '[Diarias][Scope] fn_diaria_scope_centros_custo falhou — seguindo com escopo parcial',
+                  rpcRes,
+                );
+              }
+
+              // Solicitações onde a Letícia é responsável de campo
+              if (respRes.status === 'fulfilled' && !(respRes.value as any).error) {
+                teveSucesso = true;
+                (((respRes.value as any).data as any[]) || []).forEach((r: any) => {
+                  if (r?.centro_custo_id) merged.add(r.centro_custo_id);
+                });
+              } else {
+                console.warn(
+                  '[Diarias][Scope] consulta responsavel_campo_id falhou — seguindo com escopo parcial',
+                  respRes,
+                );
+              }
+
+              // Solicitações criadas pelo usuário
+              if (criadorRes.status === 'fulfilled' && !(criadorRes.value as any).error) {
+                teveSucesso = true;
+                (((criadorRes.value as any).data as any[]) || []).forEach((r: any) => {
+                  if (r?.centro_custo_id) merged.add(r.centro_custo_id);
+                });
+              } else {
+                console.warn(
+                  '[Diarias][Scope] consulta criado_por falhou — seguindo com escopo parcial',
+                  criadorRes,
+                );
+              }
+
+              // CC primário do funcionário vinculado ao AdmOBRA
+              if (funcCcRes.status === 'fulfilled' && !(funcCcRes.value as any).error) {
+                const ccPrimario = ((funcCcRes.value as any).data as any)?.centro_custo_id;
+                if (ccPrimario) {
+                  teveSucesso = true;
+                  merged.add(ccPrimario);
+                }
+              } else {
+                console.warn(
+                  '[Diarias][Scope] consulta bd_funcionarios.centro_custo_id falhou — seguindo com escopo parcial',
+                  funcCcRes,
+                );
+              }
+
+              // fail-closed: se TUDO falhou, lista vazia (RLS continua sendo barreira final)
+              setAdmObraScopeCcs(teveSucesso ? Array.from(merged) : []);
+              admObraScopeFetchedAt.current = agora;
+            }
+          }
+
           setUserScope('delegado_rls');
           lastDeterminedUserId.current = userId;
           setIsLoading(false);
@@ -268,6 +380,12 @@ export function useDiariasDataScope(): DiariasDataScope {
   );
 
   const scopeFilters = useMemo((): DiariasDataScopeFilters => {
+    // Ajuste 4 (Bloco 1): AdmOBRA puro NUNCA retorna {}.
+    // Sempre devolve centro_custo_ids — vazio se não tiver escopo (poda no frontend).
+    if (isAdmObraPuro) {
+      return { centro_custo_ids: admObraScopeCcs ?? [] };
+    }
+
     // RBAC tem precedência absoluta — zero filtro frontend, RLS resolve.
     if (podeVerRelatorioCompleto) return {};
 
@@ -277,7 +395,7 @@ export function useDiariasDataScope(): DiariasDataScope {
     if (userScope === 'gerente') return { centro_custo_ids: centrosCustoGerenciados };
     if (userScope === 'apontador') return { responsavel_campo_id: funcionarioId || undefined };
     return {};
-  }, [podeVerRelatorioCompleto, userScope, userId, centrosCustoGerenciados, funcionarioId]);
+  }, [isAdmObraPuro, admObraScopeCcs, podeVerRelatorioCompleto, userScope, userId, centrosCustoGerenciados, funcionarioId]);
 
   // Funções de filtro para queries
   const getSolicitacoesFilter = useCallback((): SolicitacaoFilters & DiariasDataScopeFilters => {
@@ -296,6 +414,10 @@ export function useDiariasDataScope(): DiariasDataScope {
   }, [userScope, funcionarioId, centrosCustoGerenciados]);
 
   const getRelatorioFilter = useCallback((): RelatorioFilters & DiariasDataScopeFilters => {
+    // Ajuste 4 (Bloco 1): AdmOBRA puro NUNCA retorna {}.
+    if (isAdmObraPuro) {
+      return { centro_custo_ids: admObraScopeCcs ?? [] };
+    }
     // RBAC puro: quem tem 'diarias_relatorio_view:visualizar' (ou é SuperAdm) vê tudo.
     if (podeVerRelatorioCompleto) return {};
     // Fallback legado para usuários sem a permissão granular.
@@ -303,7 +425,7 @@ export function useDiariasDataScope(): DiariasDataScope {
     if (userScope === 'engenheiro') return { criado_por: userId || undefined };
     if (userScope === 'gerente') return { centro_custo_ids: centrosCustoGerenciados };
     return {};
-  }, [podeVerRelatorioCompleto, userScope, userId, centrosCustoGerenciados]);
+  }, [isAdmObraPuro, admObraScopeCcs, podeVerRelatorioCompleto, userScope, userId, centrosCustoGerenciados]);
 
   // Verificações de ação
   const hasPermission = useCallback((perm: string) => {

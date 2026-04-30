@@ -26,7 +26,7 @@ export const useConnectionStatus = () => {
     try {
       // Query mais simples e rápida - apenas teste de conectividade
       const { error } = await Promise.race([
-        supabase.from('profiles').select('count', { count: 'exact', head: true }),
+        supabase.from('profiles').select('id').limit(1),
         new Promise<{ error: any }>((_, reject) => 
           setTimeout(() => reject({ error: new Error('timeout') }), 1500) // Reduzido para 1.5s
         )

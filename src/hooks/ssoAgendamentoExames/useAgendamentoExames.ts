@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { 
   agendamentoExamesService, 
   agendamentoExamesAnexosService,
@@ -8,16 +9,34 @@ import { AgendamentoExameFormData, AgendamentoExameFilters } from '@/types/ssoAg
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { getEmpresasDropdown } from '@/services/veiculo/dropdowns';
+import { useEscopoCentrosCusto } from '@/hooks/useEscopoCentrosCusto';
 
 export const useAgendamentoExames = (agendamentoId?: string, filters?: AgendamentoExameFilters) => {
   const queryClient = useQueryClient();
   const activeFilters = filters || {};
 
+  const { isGlobal, allowedNomes, isLoading: isLoadingEscopo } = useEscopoCentrosCusto();
+
+  // Restrição server-side por contrato (nome_centro_custo) para usuários NÃO globais.
+  const restrictContratos = isGlobal ? undefined : allowedNomes;
+
   // Query: Listar agendamentos
   const listQuery = useQuery({
-    queryKey: ['agendamentos-exames', activeFilters],
-    queryFn: () => agendamentoExamesService.list(activeFilters),
-    enabled: !agendamentoId
+    queryKey: ['agendamentos-exames', activeFilters, isGlobal ? '__global__' : (allowedNomes.join(',') || '__empty__')],
+    queryFn: async () => {
+      // Se !isGlobal e escopo vazio, não consulta servidor.
+      if (!isGlobal && (allowedNomes?.length ?? 0) === 0) {
+        return [];
+      }
+      const data = await agendamentoExamesService.list(activeFilters, { restrictContratos });
+      // Defesa em profundidade client-side: oculta contrato null ou divergente para não-globais.
+      if (!isGlobal) {
+        const allowed = new Set(allowedNomes);
+        return data.filter((a) => !!a.contrato && allowed.has(a.contrato));
+      }
+      return data;
+    },
+    enabled: !agendamentoId && !isLoadingEscopo,
   });
 
   // Query: Buscar agendamento por ID
@@ -223,6 +242,15 @@ export const useAgendamentoExames = (agendamentoId?: string, filters?: Agendamen
     }
   });
 
+  // Aplica escopo no dropdown de centros de custo (filtros).
+  // SuperAdm/global vê todos; AdmOBRA vê apenas CCs do escopo.
+  const centrosCustoEscopados = useMemo(() => {
+    const all = centrosCustoQuery.data || [];
+    if (isGlobal) return all;
+    const allowedNomesSet = new Set(allowedNomes);
+    return all.filter((cc: any) => allowedNomesSet.has(cc.nome_centro_custo));
+  }, [centrosCustoQuery.data, isGlobal, allowedNomes]);
+
   return {
     // Queries
     agendamentos: listQuery.data || [],
@@ -230,7 +258,7 @@ export const useAgendamentoExames = (agendamentoId?: string, filters?: Agendamen
     locais: locaisQuery.data || [],
     funcoes: funcoesQuery.data || [],
     empresas: empresasQuery.data || [],
-    centrosCusto: centrosCustoQuery.data || [],
+    centrosCusto: centrosCustoEscopados,
     anexos: anexosQuery.data || [],
     isLoading: listQuery.isLoading || detailQuery.isLoading,
     isLoadingLocais: locaisQuery.isLoading,

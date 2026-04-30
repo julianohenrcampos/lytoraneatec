@@ -1,11 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { 
-  fetchFuncionarios, 
-  createFuncionario, 
-  updateFuncionario, 
-  deleteFuncionario,
-  deleteFuncionarioWithBypass,
-  checkFuncionarioReferences
+import {
+  fetchFuncionarios,
+  createFuncionario,
+  updateFuncionario,
+  inativarFuncionario,
 } from "@/services/funcionarioService";
 import { FuncionarioFilter, FuncionarioFormData } from "@/types/funcionario";
 import { useToast } from "../use-toast";
@@ -95,44 +93,26 @@ export function useFuncionarioQueries(
     }
   });
 
-  // Mutation para excluir funcionário
+
+  // Mutation para INATIVAR funcionário (soft delete).
+  // Sem DELETE físico nesta rodada — nem para SuperAdm.
+  // Preserva histórico, vínculos e auditoria.
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      console.log("🔐 Iniciando exclusão de funcionário:", id);
-      
-      // Primeiro verifica se há referências ao funcionário
-      const references = await checkFuncionarioReferences(id);
-      if (references.hasReferences) {
-        console.warn("⚠️ Funcionário possui referências:", references.referencedIn);
-        
-        // Tentar bypass para SuperAdmin
-        try {
-          console.log("🔓 Tentando bypass SuperAdmin para exclusão...");
-          await deleteFuncionarioWithBypass(id);
-          console.log("✅ Bypass SuperAdmin executado com sucesso");
-          return;
-        } catch (bypassError) {
-          console.error("❌ Bypass SuperAdmin falhou:", bypassError);
-          throw new Error(
-            `Não é possível excluir este funcionário pois existem referências em: ${references.referencedIn.join(', ')}`
-          );
-        }
-      }
-      
-      console.log("✅ Funcionário pode ser excluído normalmente, prosseguindo...");
-      return deleteFuncionario(id);
+      console.log("⏸️ Iniciando inativação de funcionário:", id);
+      return inativarFuncionario(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['funcionarios'] });
       toast({
-        title: "Funcionário excluído",
-        description: "O funcionário foi excluído com sucesso."
+        title: "Funcionário inativado",
+        description: "O funcionário foi inativado. O histórico e os vínculos foram preservados."
       });
       if (onSuccessDelete) onSuccessDelete();
     },
     onError: (error: Error) => {
       toast({
-        title: "Erro ao excluir",
+        title: "Erro ao inativar",
         description: error.message,
         variant: "destructive"
       });

@@ -38,14 +38,19 @@ const DeleteFuncionarioDialog: React.FC<DeleteFuncionarioDialogProps> = ({
     <AlertDialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+          <AlertDialogTitle>Inativar funcionário</AlertDialogTitle>
           <AlertDialogDescription>
             {errorMessage ? (
               <div className="text-destructive font-medium mb-2">{errorMessage}</div>
             ) : (
               <>
-                Tem certeza que deseja excluir o funcionário{" "}
-                <span className="font-semibold">{funcionarioNome}</span>? Esta ação não pode ser desfeita.
+                Tem certeza que deseja inativar o funcionário{" "}
+                <span className="font-semibold">{funcionarioNome}</span>?
+                <br />
+                <br />
+                O funcionário ficará com status <span className="font-semibold">Inativo</span>{" "}
+                e não aparecerá em listagens operacionais. Todo o histórico, vínculos e
+                auditoria serão <span className="font-semibold">preservados</span>.
               </>
             )}
           </AlertDialogDescription>
@@ -54,18 +59,18 @@ const DeleteFuncionarioDialog: React.FC<DeleteFuncionarioDialogProps> = ({
           <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
           {!errorMessage && (
             <AlertDialogAction asChild>
-              <Button 
-                variant="destructive" 
-                onClick={onConfirm} 
+              <Button
+                variant="destructive"
+                onClick={onConfirm}
                 disabled={isDeleting}
               >
                 {isDeleting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Excluindo...
+                    Inativando...
                   </>
                 ) : (
-                  "Excluir"
+                  "Inativar"
                 )}
               </Button>
             </AlertDialogAction>

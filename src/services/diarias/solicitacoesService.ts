@@ -3,6 +3,7 @@ import { notificationService } from "@/services/notificationService";
 import {
   assertPeriodoValidoOuFalhar,
   isPeriodoRetroativo,
+  isAnteriorAHoje,
   assertPeriodoNormalOuFalhar,
   calcularJanelaSemanal,
 } from "@/utils/diariasPeriodoUtils";
@@ -37,6 +38,36 @@ async function assertPeriodoEReceitaUsuario(
     if (isSuperAdm !== true) {
       throw new Error('PERIODO_RETROATIVO: apenas SuperAdm pode criar/editar solicitações fora da semana atual');
     }
+  }
+}
+
+/**
+ * Defesa em profundidade — regra oficial de retroativa (data_inicio < hoje):
+ *  - Não-SuperAdm: bloqueia criação/edição/envio.
+ *  - SuperAdm: exige justificativa com no mínimo 20 caracteres.
+ *
+ * Usa data local (sem toISOString). Aplicada em createSolicitacao,
+ * updateSolicitacao e enviarParaAutorizacao.
+ */
+async function assertRegraRetroativa(
+  dataInicio: string,
+  justificativa: string | null | undefined,
+): Promise<void> {
+  if (!isAnteriorAHoje(dataInicio)) return;
+
+  const { data: isSuperAdm, error } = await supabase.rpc('fn_is_super_admin');
+  if (error) {
+    console.error('[Diarias][retroativa] erro fn_is_super_admin', error);
+    throw new Error('Não foi possível validar permissão para período retroativo. Tente novamente.');
+  }
+
+  if (isSuperAdm !== true) {
+    throw new Error('Somente SuperAdm pode criar Solicitação de Diária retroativa.');
+  }
+
+  const j = (justificativa ?? '').trim();
+  if (j.length < 20) {
+    throw new Error('Informe uma justificativa com no mínimo 20 caracteres para criar Solicitação de Diária retroativa.');
   }
 }
 
@@ -371,6 +402,10 @@ export async function createSolicitacao(formData: SolicitacaoFormData): Promise<
     await assertPeriodoEReceitaUsuario(formData.data_inicio, formData.data_fim);
   }
 
+  // Defesa em profundidade — regra oficial de retroativa (data_inicio < hoje).
+  // Bloqueia não-SuperAdm e exige justificativa ≥20 chars para SuperAdm.
+  await assertRegraRetroativa(formData.data_inicio, formData.justificativa);
+
   const currentUserId = await getAuthenticatedUserId();
 
   const { data: backendCanCreate, error: canCreateError } = await supabase.rpc('fn_diaria_can_create', {
@@ -545,7 +580,7 @@ export async function updateSolicitacao(id: string, formData: Partial<Solicitaca
     // Carrega o registro atual para preencher campos faltantes
     const { data: atual, error: errAtual } = await supabase
       .from('bd_diaria_solicitacoes')
-      .select('data_inicio, data_fim, centro_custo_id, tipo_solicitacao')
+      .select('data_inicio, data_fim, centro_custo_id, tipo_solicitacao, justificativa')
       .eq('id', id)
       .single();
     if (errAtual) {
@@ -556,6 +591,7 @@ export async function updateSolicitacao(id: string, formData: Partial<Solicitaca
     const dataFim = (formData.data_fim ?? atual?.data_fim) as string;
     const centroCustoId = (formData.centro_custo_id ?? atual?.centro_custo_id) as string;
     const tipo = (formData.tipo_solicitacao ?? atual?.tipo_solicitacao ?? 'normal') as 'normal' | 'extraordinaria';
+    const justificativaEfetiva = (formData.justificativa ?? (atual as any)?.justificativa) as string | null;
 
     if (tipo === 'normal') {
       await assertSolicitacaoNormalValida({
@@ -569,6 +605,9 @@ export async function updateSolicitacao(id: string, formData: Partial<Solicitaca
     } else {
       await assertPeriodoEReceitaUsuario(dataInicio, dataFim);
     }
+
+    // Defesa em profundidade — regra oficial de retroativa (data_inicio < hoje).
+    await assertRegraRetroativa(dataInicio, justificativaEfetiva);
   }
 
   const updateData: any = {
@@ -671,6 +710,11 @@ export async function enviarParaAutorizacao(id: string): Promise<DiariaSolicitac
         solicitacaoIdAtual: id,
       });
     }
+
+    // Defesa em profundidade — regra oficial de retroativa (data_inicio < hoje).
+    // Mesmo no envio, garante que solicitações retroativas sem justificativa válida
+    // ou criadas por não-SuperAdm por caminhos alternativos não avancem de status.
+    await assertRegraRetroativa(solicitacao.data_inicio, (solicitacao as any).justificativa);
 
     await verificarDuplicidadeSolicitacao(
       solicitacao.data_inicio,

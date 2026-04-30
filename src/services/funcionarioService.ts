@@ -515,66 +515,66 @@ export const checkFuncionarioReferences = async (id: string): Promise<{ hasRefer
   }
 };
 
-// Function to delete funcionario with SuperAdmin bypass
-export const deleteFuncionarioWithBypass = async (id: string): Promise<void> => {
+// Inativa o funcionário (soft delete). Preserva histórico, vínculos e auditoria.
+// Substitui o antigo fluxo de DELETE físico — nesta rodada não há exclusão definitiva,
+// nem para SuperAdm.
+export const inativarFuncionario = async (id: string): Promise<void> => {
   try {
-    console.log("🗑️ Tentando excluir funcionário com bypass SuperAdmin:", id);
-    
-    const { data, error } = await (supabase as any).rpc('delete_funcionario_with_admin_bypass', {
-      funcionario_id: id
-    });
+    console.log("⏸️ Inativando funcionário:", id);
 
-    if (error) {
-      console.error("❌ Erro ao excluir funcionário com bypass:", error);
-      throw new Error(error.message);
-    }
-    
-    if (data === false) {
-      console.error("❌ Usuário não tem permissão para bypass");
-      throw new Error("Usuário não tem permissão para forçar exclusão");
-    }
-    
-    console.log("✅ Funcionário excluído com bypass SuperAdmin:", id);
-  } catch (error) {
-    console.error(`❌ Erro ao excluir funcionário com bypass ${id}:`, error);
-    throw error;
-  }
-};
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
-// Function to delete funcionario (standard)
-export const deleteFuncionario = async (id: string): Promise<void> => {
-  try {
-    console.log("🗑️ Tentando excluir funcionário:", id);
-    
+    // Lê data_demissao atual para preservar se já houver
+    const { data: existing, error: readError } = await supabase
+      .from("bd_funcionarios")
+      .select("data_demissao")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (readError) {
+      console.error("❌ Erro ao ler funcionário antes de inativar:", readError);
+      throw new Error(readError.message);
+    }
+
+    const dataDemissao = existing?.data_demissao || today;
+
     const { error } = await supabase
       .from("bd_funcionarios")
-      .delete()
+      .update({ status: "Inativo", data_demissao: dataDemissao })
       .eq("id", id);
 
     if (error) {
-      console.error("❌ Erro ao excluir funcionário:", error);
+      console.error("❌ Erro ao inativar funcionário:", error);
       throw new Error(error.message);
     }
-    
-    console.log("✅ Funcionário excluído com sucesso:", id);
+
+    console.log("✅ Funcionário inativado com sucesso:", id);
   } catch (error) {
-    console.error(`❌ Erro ao excluir funcionário com id ${id}:`, error);
+    console.error(`❌ Erro ao inativar funcionário com id ${id}:`, error);
     throw error;
   }
 };
 
-// Function to debug user authentication
+// Debug user authentication. A RPC `debug_user_authentication` não existe no banco,
+// então retornamos as informações disponíveis via supabase.auth (sessão + user).
+// Mantido para compatibilidade com painéis de debug existentes.
 export const debugUserAuth = async (): Promise<any> => {
   try {
-    const { data, error } = await (supabase as any).rpc('debug_user_authentication');
-    
-    if (error) {
-      console.error("❌ Erro ao fazer debug de autenticação:", error);
-      throw error;
-    }
-    
-    console.log("🔐 Debug de autenticação:", data);
-    return data;
+    const [{ data: userData }, { data: sessionData }] = await Promise.all([
+      supabase.auth.getUser(),
+      supabase.auth.getSession(),
+    ]);
+
+    const info = {
+      authenticated: !!userData?.user,
+      user_id: userData?.user?.id ?? null,
+      email: userData?.user?.email ?? null,
+      role: userData?.user?.role ?? null,
+      session_expires_at: sessionData?.session?.expires_at ?? null,
+    };
+
+    console.log("🔐 Debug de autenticação:", info);
+    return info;
   } catch (error) {
     console.error("❌ Erro no debug de autenticação:", error);
     throw error;
