@@ -7,29 +7,35 @@ interface EquipeHeaderActionsProps {
   onNewEquipe: () => void;
   onExport: () => void;
   onImport: () => void;
+  canCreate?: boolean;
 }
 
 const EquipeHeaderActions: React.FC<EquipeHeaderActionsProps> = ({
   onNewEquipe,
   onExport,
-  onImport
+  onImport,
+  canCreate = true,
 }) => {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Button onClick={onNewEquipe} className="whitespace-nowrap">
-        <Plus className="h-4 w-4 mr-2" />
-        Nova Equipe
-      </Button>
-      
+      {canCreate && (
+        <Button onClick={onNewEquipe} className="whitespace-nowrap">
+          <Plus className="h-4 w-4 mr-2" />
+          Nova Equipe
+        </Button>
+      )}
+
       <Button variant="outline" onClick={onExport} className="whitespace-nowrap">
         <Download className="h-4 w-4 mr-2" />
         Exportar
       </Button>
-      
-      <Button variant="outline" onClick={onImport} className="whitespace-nowrap">
-        <Upload className="h-4 w-4 mr-2" />
-        Importar
-      </Button>
+
+      {canCreate && (
+        <Button variant="outline" onClick={onImport} className="whitespace-nowrap">
+          <Upload className="h-4 w-4 mr-2" />
+          Importar
+        </Button>
+      )}
     </div>
   );
 };

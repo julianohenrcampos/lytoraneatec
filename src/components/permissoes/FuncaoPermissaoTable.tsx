@@ -15,6 +15,7 @@ import {
 import { type RBACRole, type RBACRoleFilter } from "@/services/rbac/rolesCRUD";
 import { usePagination } from "@/hooks/usePagination";
 import TablePagination from "@/components/ui/table-pagination";
+import ActionGuard from "./ActionGuard";
 
 interface FuncaoPermissaoTableProps {
   funcoesPermissao: RBACRole[];
@@ -104,22 +105,26 @@ const FuncaoPermissaoTable: React.FC<FuncaoPermissaoTableProps> = ({
                   </TableCell>
                   <TableCell>
                     <div className="flex space-x-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => onEdit(funcaoPermissao)}
-                      >
-                        <Edit className="h-4 w-4" />
-                        <span className="sr-only">Editar</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => onDelete(funcaoPermissao)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Excluir</span>
-                      </Button>
+                      <ActionGuard permission="admin_permissoes_view" action="editar">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => onEdit(funcaoPermissao)}
+                        >
+                          <Edit className="h-4 w-4" />
+                          <span className="sr-only">Editar</span>
+                        </Button>
+                      </ActionGuard>
+                      <ActionGuard permission="admin_permissoes_view" action="excluir">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => onDelete(funcaoPermissao)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Excluir</span>
+                        </Button>
+                      </ActionGuard>
                     </div>
                   </TableCell>
                 </TableRow>

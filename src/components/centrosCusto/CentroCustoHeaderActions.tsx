@@ -14,33 +14,37 @@ interface CentroCustoHeaderActionsProps {
   onNewCentroCusto: () => void;
   onExport: () => void;
   onImport: () => void;
+  canCreate?: boolean;
 }
 
 const CentroCustoHeaderActions: React.FC<CentroCustoHeaderActionsProps> = ({
   onNewCentroCusto,
   onExport,
-  onImport
+  onImport,
+  canCreate = true,
 }) => {
   const isMobile = useIsMobile();
   const isSmallScreen = useIsSmallScreen();
-  
+
   if (isMobile) {
     return (
       <div className="flex gap-2 w-full">
-        <Button 
-          className="flex-1"
-          size={isSmallScreen ? "sm" : "sm"}
-          onClick={onNewCentroCusto}
-        >
-          <Plus className={`mr-1.5 ${isSmallScreen ? 'h-3 w-3' : 'h-4 w-4'}`} />
-          {isSmallScreen ? 'Novo' : 'Novo Centro de Custo'}
-        </Button>
-        
+        {canCreate && (
+          <Button
+            className="flex-1"
+            size={isSmallScreen ? "sm" : "sm"}
+            onClick={onNewCentroCusto}
+          >
+            <Plus className={`mr-1.5 ${isSmallScreen ? 'h-3 w-3' : 'h-4 w-4'}`} />
+            {isSmallScreen ? 'Novo' : 'Novo Centro de Custo'}
+          </Button>
+        )}
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button 
-              variant="outline" 
-              size="icon" 
+            <Button
+              variant="outline"
+              size="icon"
               className={`${isSmallScreen ? 'h-8 w-8' : 'h-10 w-10'}`}
             >
               <MoreVertical className={`${isSmallScreen ? 'h-3.5 w-3.5' : 'h-4 w-4'}`} />
@@ -51,29 +55,33 @@ const CentroCustoHeaderActions: React.FC<CentroCustoHeaderActionsProps> = ({
               <Download className="mr-2 h-4 w-4" />
               Exportar
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={onImport} className="cursor-pointer">
-              <Upload className="mr-2 h-4 w-4" />
-              Importar
-            </DropdownMenuItem>
+            {canCreate && (
+              <DropdownMenuItem onClick={onImport} className="cursor-pointer">
+                <Upload className="mr-2 h-4 w-4" />
+                Importar
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
     );
   }
-  
+
   return (
     <div className="flex flex-col sm:flex-row gap-2">
-      <Button 
-        onClick={onNewCentroCusto}
-        size="default"
-        className="w-full sm:w-auto"
-      >
-        <Plus className="mr-2 h-4 w-4" />
-        Novo Centro de Custo
-      </Button>
-      
-      <Button 
-        variant="outline" 
+      {canCreate && (
+        <Button
+          onClick={onNewCentroCusto}
+          size="default"
+          className="w-full sm:w-auto"
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Novo Centro de Custo
+        </Button>
+      )}
+
+      <Button
+        variant="outline"
         onClick={onExport}
         size="default"
         className="w-full sm:w-auto"
@@ -81,16 +89,18 @@ const CentroCustoHeaderActions: React.FC<CentroCustoHeaderActionsProps> = ({
         <Download className="mr-2 h-4 w-4" />
         Exportar
       </Button>
-      
-      <Button 
-        variant="outline" 
-        onClick={onImport}
-        size="default"
-        className="w-full sm:w-auto"
-      >
-        <Upload className="mr-2 h-4 w-4" />
-        Importar
-      </Button>
+
+      {canCreate && (
+        <Button
+          variant="outline"
+          onClick={onImport}
+          size="default"
+          className="w-full sm:w-auto"
+        >
+          <Upload className="mr-2 h-4 w-4" />
+          Importar
+        </Button>
+      )}
     </div>
   );
 };

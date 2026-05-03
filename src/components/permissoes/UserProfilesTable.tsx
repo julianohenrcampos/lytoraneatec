@@ -24,6 +24,7 @@ import {
   getPermissionStatusLabel,
   hasCanonicalPermissionProfile,
 } from "@/utils/adminPermissionProfile";
+import ActionGuard from "./ActionGuard";
 
 interface UserProfilesTableProps {
   profiles: ProfileType[];
@@ -279,99 +280,111 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
                           {canManageScope && (
                             <>
                               {profile.funcionario_id ? (
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => onUnlinkFuncionario?.(profile.id)}
-                                        className="text-orange-600 hover:text-orange-700 border-orange-300"
-                                      >
-                                        <Unlink className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent><p>Desvincular funcionário (acesso global)</p></TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
+                                <ActionGuard permission="admin_permissoes_view" action="editar">
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => onUnlinkFuncionario?.(profile.id)}
+                                          className="text-orange-600 hover:text-orange-700 border-orange-300"
+                                        >
+                                          <Unlink className="h-4 w-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent><p>Desvincular funcionário (acesso global)</p></TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                </ActionGuard>
                               ) : (
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => onLinkFuncionario?.(profile.id)}
-                                        className="text-blue-600 hover:text-blue-700 border-blue-300"
-                                      >
-                                        <Link2 className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent><p>Vincular funcionário (filtro departamental)</p></TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
+                                <ActionGuard permission="admin_permissoes_view" action="editar">
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => onLinkFuncionario?.(profile.id)}
+                                          className="text-blue-600 hover:text-blue-700 border-blue-300"
+                                        >
+                                          <Link2 className="h-4 w-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent><p>Vincular funcionário (filtro departamental)</p></TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                </ActionGuard>
                               )}
                             </>
                           )}
 
                           {!hasPermissions ? (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button variant="default" size="sm" onClick={() => onAssignPermission(profile)}>
-                                    <UserCheck className="h-4 w-4 mr-1" />
-                                    Atribuir
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent><p>Atribuir permissões administrativas</p></TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          ) : (
-                            <>
+                            <ActionGuard permission="admin_permissoes_view" action="criar">
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Button variant="outline" size="sm" onClick={() => onEditPermission(profile)}>
-                                      <Edit className="h-4 w-4 mr-1" />
-                                      Editar
+                                    <Button variant="default" size="sm" onClick={() => onAssignPermission(profile)}>
+                                      <UserCheck className="h-4 w-4 mr-1" />
+                                      Atribuir
                                     </Button>
                                   </TooltipTrigger>
-                                  <TooltipContent><p>Editar permissões existentes</p></TooltipContent>
+                                  <TooltipContent><p>Atribuir permissões administrativas</p></TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
-
-                              {onRemoveAllPermissions && (
+                            </ActionGuard>
+                          ) : (
+                            <>
+                              <ActionGuard permission="admin_permissoes_view" action="editar">
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <Button variant="destructive" size="sm" onClick={() => onRemoveAllPermissions(profile)}>
-                                        <Trash2 className="h-4 w-4 mr-1" />
-                                        Remover
+                                      <Button variant="outline" size="sm" onClick={() => onEditPermission(profile)}>
+                                        <Edit className="h-4 w-4 mr-1" />
+                                        Editar
                                       </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent><p>Remover todas as permissões administrativas</p></TooltipContent>
+                                    <TooltipContent><p>Editar permissões existentes</p></TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>
+                              </ActionGuard>
+
+                              {onRemoveAllPermissions && (
+                                <ActionGuard permission="admin_permissoes_view" action="excluir">
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button variant="destructive" size="sm" onClick={() => onRemoveAllPermissions(profile)}>
+                                          <Trash2 className="h-4 w-4 mr-1" />
+                                          Remover
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent><p>Remover todas as permissões administrativas</p></TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                </ActionGuard>
                               )}
                             </>
                           )}
 
                           {isSuperAdmin && onDeleteUser && profile.id !== currentUserId && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => onDeleteUser(profile)}
-                                    className="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
-                                  >
-                                    <UserX className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent><p>Excluir usuário permanentemente</p></TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
+                            <ActionGuard permission="admin_permissoes_view" action="excluir">
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => onDeleteUser(profile)}
+                                      className="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
+                                    >
+                                      <UserX className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent><p>Excluir usuário permanentemente</p></TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </ActionGuard>
                           )}
                         </div>
                       </TableCell>

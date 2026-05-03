@@ -17,6 +17,8 @@ interface EmpresaTableProps {
   onEdit: (empresa: Empresa) => void;
   onView: (empresa: Empresa) => void;
   onDelete: (empresa: Empresa) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 const isRecent24h = (dateStr?: string | null): boolean => {
@@ -31,7 +33,9 @@ const EmpresaTable: React.FC<EmpresaTableProps> = ({
   isError,
   onEdit,
   onView,
-  onDelete
+  onDelete,
+  canEdit = true,
+  canDelete = true,
 }) => {
   const pagination = usePagination(empresas || [], { pageSize: 10 });
 
@@ -138,14 +142,16 @@ const EmpresaTable: React.FC<EmpresaTableProps> = ({
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onEdit(empresa)}
-                            title="Editar"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
+                          {canEdit && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => onEdit(empresa)}
+                              title="Editar"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
@@ -154,15 +160,17 @@ const EmpresaTable: React.FC<EmpresaTableProps> = ({
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onDelete(empresa)}
-                            title="Excluir"
-                            className="text-destructive hover:text-destructive/90 hover:bg-destructive/10"
-                          >
-                            <Trash className="h-4 w-4" />
-                          </Button>
+                          {canDelete && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => onDelete(empresa)}
+                              title="Excluir"
+                              className="text-destructive hover:text-destructive/90 hover:bg-destructive/10"
+                            >
+                              <Trash className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

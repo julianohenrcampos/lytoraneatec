@@ -1,3 +1,9 @@
+/**
+ * @deprecated
+ * Serviço legado de permissões baseado em bd_funcoes_permissao/bd_permissoes.
+ * Não usar em novos fluxos. Preferir RBAC oficial via bd_permissions/bd_role_permission_actions.
+ * Mantido temporariamente até sunset do fallback legado.
+ */
 
 import { supabase } from "@/integrations/supabase/client";
 import { UserPermission } from "@/types/permissao";

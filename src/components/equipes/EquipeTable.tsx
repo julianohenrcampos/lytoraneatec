@@ -14,6 +14,8 @@ interface EquipeTableProps {
   onView: (equipe: Equipe) => void;
   onDelete: (equipe: Equipe) => void;
   onTransfer?: (equipe: Equipe) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 const EquipeTable: React.FC<EquipeTableProps> = ({
@@ -23,7 +25,9 @@ const EquipeTable: React.FC<EquipeTableProps> = ({
   onEdit,
   onView,
   onDelete,
-  onTransfer
+  onTransfer,
+  canEdit = true,
+  canDelete = true,
 }) => {
   if (isLoading) {
     return (
@@ -119,15 +123,17 @@ const EquipeTable: React.FC<EquipeTableProps> = ({
                   >
                     <Eye className="h-4 w-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onEdit(equipe)}
-                    title="Editar"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  {onTransfer && (equipe.equipe?.length || 0) > 2 && (
+                  {canEdit && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onEdit(equipe)}
+                      title="Editar"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {canEdit && onTransfer && (equipe.equipe?.length || 0) > 2 && (
                     <Button
                       variant="ghost"
                       size="icon"
@@ -138,15 +144,17 @@ const EquipeTable: React.FC<EquipeTableProps> = ({
                       <ArrowRight className="h-4 w-4" />
                     </Button>
                   )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onDelete(equipe)}
-                    title="Excluir"
-                    className="text-red-600 hover:text-red-700"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  {canDelete && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onDelete(equipe)}
+                      title="Excluir"
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </TableCell>
             </TableRow>

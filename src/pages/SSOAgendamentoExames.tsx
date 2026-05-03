@@ -385,10 +385,15 @@ const SSOAgendamentoExames: React.FC = () => {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <Button variant="outline" onClick={() => setImportAlterdataOpen(true)}>
-              <Upload className="h-4 w-4 mr-2" />
-              Importar Alterdata
-            </Button>
+            {canCreate && (
+              <Button variant="outline" onClick={() => {
+                if (!canCreate) { toast.error("Você não tem permissão para executar esta ação."); return; }
+                setImportAlterdataOpen(true);
+              }}>
+                <Upload className="h-4 w-4 mr-2" />
+                Importar Alterdata
+              </Button>
+            )}
             {canCreate && (
               <NovoAgendamentoDropdown
                 onNovoAgendamento={handleNovoAgendamento}

@@ -16,6 +16,8 @@ interface CentroCustoTableProps {
   onEdit: (centroCusto: CentroCusto) => void;
   onView: (centroCusto: CentroCusto) => void;
   onDelete: (centroCusto: CentroCusto) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 const CentroCustoTable: React.FC<CentroCustoTableProps> = ({
@@ -24,7 +26,9 @@ const CentroCustoTable: React.FC<CentroCustoTableProps> = ({
   isError,
   onEdit,
   onView,
-  onDelete
+  onDelete,
+  canEdit = true,
+  canDelete = true,
 }) => {
   const isMobile = useIsMobile();
 
@@ -41,18 +45,22 @@ const CentroCustoTable: React.FC<CentroCustoTableProps> = ({
   }
 
   return isMobile ? (
-    <CentroCustoMobileCards 
-      centrosCusto={centrosCusto} 
-      onEdit={onEdit} 
-      onView={onView} 
-      onDelete={onDelete} 
+    <CentroCustoMobileCards
+      centrosCusto={centrosCusto}
+      onEdit={onEdit}
+      onView={onView}
+      onDelete={onDelete}
+      canEdit={canEdit}
+      canDelete={canDelete}
     />
   ) : (
-    <CentroCustoDesktopTable 
-      centrosCusto={centrosCusto} 
-      onEdit={onEdit} 
-      onView={onView} 
-      onDelete={onDelete} 
+    <CentroCustoDesktopTable
+      centrosCusto={centrosCusto}
+      onEdit={onEdit}
+      onView={onView}
+      onDelete={onDelete}
+      canEdit={canEdit}
+      canDelete={canDelete}
     />
   );
 };

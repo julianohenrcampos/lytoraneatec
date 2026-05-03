@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissionCacheInvalidation } from "@/hooks/usePermissionCacheInvalidation";
+import { invalidateUsePermissionRuntimeCache } from "@/hooks/usePermission";
 import { useProfileSecurity } from "@/hooks/useProfileSecurity";
 import { ProfileType } from "@/types/permissao";
 import {
@@ -154,14 +155,21 @@ export const usePermissao = () => {
   const createPermissaoMutation = useMutation({
     mutationFn: (data: RBACPermissionFormData) => createPermission(data),
     onSuccess: () => {
-      toast({ title: "Permissão criada com sucesso" });
+      toast({ title: "Permissão criada com sucesso." });
       setIsPermissaoFormOpen(false);
+      setCurrentPermissao(null);
       queryClient.invalidateQueries({ queryKey: ['rbac-permissions'] });
       queryClient.invalidateQueries({ queryKey: ['rbac-all-permissions'] });
       invalidatePermissionCache();
     },
     onError: (error: any) => {
-      toast({ title: "Erro ao criar permissão", description: error.message, variant: "destructive" });
+      console.error("[PERMISSOES][MUTATION_ERROR][CREATE]", error);
+      toast({
+        title: "Erro ao criar permissão",
+        description: error?.message || "Erro desconhecido.",
+        variant: "destructive",
+      });
+      // NÃO fechar modal em erro
     }
   });
   
@@ -175,6 +183,7 @@ export const usePermissao = () => {
       invalidatePermissionCache();
     },
     onError: (error: any) => {
+      console.error("[PERMISSOES][MUTATION_ERROR][UPDATE]", error);
       toast({ title: "Erro ao atualizar permissão", description: error.message, variant: "destructive" });
     }
   });
@@ -202,6 +211,8 @@ export const usePermissao = () => {
       queryClient.invalidateQueries({ queryKey: ['rbac-roles'] });
       queryClient.invalidateQueries({ queryKey: ['rbac-available-roles'] });
       invalidatePermissionCache();
+      invalidateUsePermissionRuntimeCache();
+      refetchUserPermissions();
     },
     onError: (error: any) => {
       toast({ title: "Erro ao criar função", description: error.message, variant: "destructive" });
@@ -216,6 +227,7 @@ export const usePermissao = () => {
       queryClient.invalidateQueries({ queryKey: ['rbac-roles'] });
       queryClient.invalidateQueries({ queryKey: ['rbac-available-roles'] });
       invalidatePermissionCache();
+      invalidateUsePermissionRuntimeCache();
       refetchUserPermissions();
     },
     onError: (error: any) => {
@@ -231,6 +243,8 @@ export const usePermissao = () => {
       queryClient.invalidateQueries({ queryKey: ['rbac-roles'] });
       queryClient.invalidateQueries({ queryKey: ['rbac-available-roles'] });
       invalidatePermissionCache();
+      invalidateUsePermissionRuntimeCache();
+      refetchUserPermissions();
     },
     onError: (error: any) => {
       toast({ title: "Erro ao excluir função", description: error.message, variant: "destructive" });
@@ -339,11 +353,17 @@ export const usePermissao = () => {
     if (currentFuncaoPermissao?.id) deleteFuncaoPermissaoMutation.mutate(currentFuncaoPermissao.id);
   };
   
-  const handleSavePermissao = (data: RBACPermissionFormData) => {
-    if (currentPermissao?.id) {
-      updatePermissaoMutation.mutate({ id: currentPermissao.id, data });
-    } else {
-      createPermissaoMutation.mutate(data);
+  const handleSavePermissao = async (data: RBACPermissionFormData) => {
+    console.log("[PERMISSOES][HANDLE_SAVE]", data);
+    try {
+      if (currentPermissao?.id) {
+        await updatePermissaoMutation.mutateAsync({ id: currentPermissao.id, data });
+      } else {
+        await createPermissaoMutation.mutateAsync(data);
+      }
+    } catch (error) {
+      console.error("[PERMISSOES][HANDLE_SAVE_ERROR]", error);
+      // Erro já tratado no onError da mutation (toast + modal aberto)
     }
   };
   

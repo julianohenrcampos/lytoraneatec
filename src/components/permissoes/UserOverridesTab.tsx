@@ -27,6 +27,8 @@ import {
   type UserPermissionOverride,
 } from "@/services/rbac/userOverridesService";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import ActionGuard from "./ActionGuard";
+import { usePermission } from "@/hooks/usePermission";
 
 const ACOES: Acao[] = ["visualizar", "criar", "editar", "excluir", "aprovar"];
 
@@ -43,6 +45,7 @@ interface PerfilOpcao {
 
 const UserOverridesTab: React.FC = () => {
   const queryClient = useQueryClient();
+  const { hasActionPermission } = usePermission();
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [filtro, setFiltro] = useState("");
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -133,6 +136,10 @@ const UserOverridesTab: React.FC = () => {
   // Toggle 3 estados: herdado -> allow -> deny -> herdado
   async function ciclarEstado(perm: PermissionWithActions, acao: Acao) {
     if (!selectedUserId) return;
+    if (!hasActionPermission("admin_permissoes_view", "editar")) {
+      toast.error("Você não tem permissão para esta ação.");
+      return;
+    }
     const estado = getEstado(perm, acao);
     const key = `${perm.id}:${acao}`;
     setSavingKey(key);
@@ -160,6 +167,11 @@ const UserOverridesTab: React.FC = () => {
 
   async function limparTodos() {
     if (!selectedUserId) return;
+    if (!hasActionPermission("admin_permissoes_view", "excluir")) {
+      toast.error("Você não tem permissão para esta ação.");
+      setConfirmClearOpen(false);
+      return;
+    }
     try {
       await clearAllOverrides(selectedUserId);
       toast.success("Todos os overrides do usuário foram removidos");
@@ -252,15 +264,17 @@ const UserOverridesTab: React.FC = () => {
                 </Badge>
               </div>
               {totalOverridesAtivos > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setConfirmClearOpen(true)}
-                  className="text-destructive hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Limpar todos os overrides
-                </Button>
+                <ActionGuard permission="admin_permissoes_view" action="excluir">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setConfirmClearOpen(true)}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Limpar todos os overrides
+                  </Button>
+                </ActionGuard>
               )}
             </div>
           )}
@@ -278,6 +292,7 @@ const UserOverridesTab: React.FC = () => {
       ) : (
         <Card>
           <CardContent className="p-0">
+            <ActionGuard permission="admin_permissoes_view" action="editar" disableOnly>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 border-b">
@@ -377,6 +392,7 @@ const UserOverridesTab: React.FC = () => {
                 </tbody>
               </table>
             </div>
+            </ActionGuard>
           </CardContent>
         </Card>
       )}

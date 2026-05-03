@@ -1974,6 +1974,7 @@ export type Database = {
       }
       bd_centros_custo: {
         Row: {
+          adm_obra_funcionario_id: string | null
           adm_sede_funcionario_id: string | null
           aprovador_diarias_id: string | null
           cnpj_vinculado: string | null
@@ -2006,6 +2007,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          adm_obra_funcionario_id?: string | null
           adm_sede_funcionario_id?: string | null
           aprovador_diarias_id?: string | null
           cnpj_vinculado?: string | null
@@ -2038,6 +2040,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          adm_obra_funcionario_id?: string | null
           adm_sede_funcionario_id?: string | null
           aprovador_diarias_id?: string | null
           cnpj_vinculado?: string | null
@@ -2070,6 +2073,27 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "bd_centros_custo_adm_obra_funcionario_id_fkey"
+            columns: ["adm_obra_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_adm_obra_funcionario_id_fkey"
+            columns: ["adm_obra_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_adm_obra_funcionario_id_fkey"
+            columns: ["adm_obra_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bd_centros_custo_adm_sede_funcionario_id_fkey"
             columns: ["adm_sede_funcionario_id"]

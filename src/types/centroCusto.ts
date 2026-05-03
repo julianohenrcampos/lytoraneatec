@@ -30,6 +30,11 @@ export interface CentroCusto {
     id: string;
     nome_completo: string;
   };
+  adm_obra_funcionario_id: string | null;
+  adm_obra_funcionario?: {
+    id: string;
+    nome_completo: string;
+  };
   // Endereço e geolocalização
   endereco_rua: string | null;
   endereco_numero: string | null;
@@ -52,6 +57,7 @@ export interface CentroCustoFormData {
   aprovador_diarias_id?: string;
   diretoria_id?: string;
   adm_sede_funcionario_id?: string;
+  adm_obra_funcionario_id?: string;
   departamento_id?: string;
   // Endereço e geolocalização
   endereco_rua?: string;

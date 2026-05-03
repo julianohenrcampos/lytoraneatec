@@ -1,6 +1,8 @@
 
 import React, { useState } from "react";
+import { toast } from "sonner";
 
+import { usePermission } from "@/hooks/usePermission";
 import { useEquipeActions } from "@/hooks/useEquipeActions";
 import EquipeFormModal from "./EquipeFormModal";
 import EquipeDetailsModal from "./EquipeDetailsModal";
@@ -10,6 +12,8 @@ import EquipeFilters from "./EquipeFilters";
 import EquipeTable from "./EquipeTable";
 import DeleteEquipeDialog from "./DeleteEquipeDialog";
 import EquipeHeaderActions from "./EquipeHeaderActions";
+
+const DENIED_MSG = "Você não tem permissão para executar esta ação.";
 
 const EquipePage: React.FC = () => {
   const [transferModalOpen, setTransferModalOpen] = useState(false);
@@ -59,7 +63,29 @@ const EquipePage: React.FC = () => {
     primeiraEquipe: equipes?.[0] || null
   });
 
+  const { isSuperAdmin, hasActionPermission } = usePermission();
+  const canCreate = isSuperAdmin || hasActionPermission('gestao_rh_equipes_view', 'criar');
+  const canEdit = isSuperAdmin || hasActionPermission('gestao_rh_equipes_view', 'editar');
+  const canDelete = isSuperAdmin || hasActionPermission('gestao_rh_equipes_view', 'excluir');
+
+  const handleOpenFormModal = (equipe?: any) => {
+    if (equipe && !canEdit) { toast.error(DENIED_MSG); return; }
+    if (!equipe && !canCreate) { toast.error(DENIED_MSG); return; }
+    openFormModal(equipe);
+  };
+
+  const handleOpenImport = () => {
+    if (!canCreate) { toast.error(DENIED_MSG); return; }
+    setIsImportModalOpen(true);
+  };
+
+  const handleConfirmDelete = (equipe: any) => {
+    if (!canDelete) { toast.error(DENIED_MSG); return; }
+    confirmDelete(equipe);
+  };
+
   const handleOpenTransferModal = (equipe) => {
+    if (!canEdit) { toast.error(DENIED_MSG); return; }
     setSelectedEquipeForTransfer(equipe);
     setTransferModalOpen(true);
   };
@@ -72,10 +98,11 @@ const EquipePage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <EquipeHeaderActions 
-          onNewEquipe={() => openFormModal()}
+        <EquipeHeaderActions
+          onNewEquipe={() => handleOpenFormModal()}
           onExport={() => exportToExcel(equipes)}
-          onImport={() => setIsImportModalOpen(true)}
+          onImport={handleOpenImport}
+          canCreate={canCreate}
         />
       </div>
       
@@ -91,10 +118,12 @@ const EquipePage: React.FC = () => {
         equipes={equipes}
         isLoading={isLoading}
         isError={isError}
-        onEdit={openFormModal}
+        onEdit={handleOpenFormModal}
         onView={openDetailsModal}
-        onDelete={confirmDelete}
+        onDelete={handleConfirmDelete}
         onTransfer={handleOpenTransferModal}
+        canEdit={canEdit}
+        canDelete={canDelete}
       />
       
       <EquipeFormModal

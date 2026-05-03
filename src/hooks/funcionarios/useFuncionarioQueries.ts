@@ -76,11 +76,14 @@ export function useFuncionarioQueries(
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: FuncionarioFormData }) => 
       updateFuncionario(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['funcionarios'] });
+    onSuccess: (result: any) => {
+      const noChange = result && result.__noChange === true;
+      if (!noChange) {
+        queryClient.invalidateQueries({ queryKey: ['funcionarios'] });
+      }
       if (onSuccessUpdate) onSuccessUpdate();
       if (onCenterAlert) {
-        onCenterAlert("Salvo com sucesso", "success");
+        onCenterAlert(noChange ? "Nenhuma alteração detectada" : "Salvo com sucesso", noChange ? "warning" : "success");
       }
     },
     onError: (error: Error) => {

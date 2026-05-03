@@ -13,13 +13,17 @@ interface CentroCustoDesktopTableProps {
   onEdit: (centroCusto: CentroCusto) => void;
   onView: (centroCusto: CentroCusto) => void;
   onDelete: (centroCusto: CentroCusto) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 const CentroCustoDesktopTable: React.FC<CentroCustoDesktopTableProps> = ({
   centrosCusto,
   onEdit,
   onView,
-  onDelete
+  onDelete,
+  canEdit = true,
+  canDelete = true,
 }) => {
   const pagination = usePagination(centrosCusto, { pageSize: 10 });
 
@@ -46,7 +50,7 @@ const CentroCustoDesktopTable: React.FC<CentroCustoDesktopTableProps> = ({
                     {centroCusto.codigo_centro_custo}
                   </Badge>
                 </TableCell>
-                <TableCell 
+                <TableCell
                   className="font-medium cursor-pointer hover:text-primary"
                   onClick={() => onView(centroCusto)}
                 >
@@ -56,7 +60,7 @@ const CentroCustoDesktopTable: React.FC<CentroCustoDesktopTableProps> = ({
                 <TableCell>{centroCusto.departamento?.nome_departamento || "—"}</TableCell>
                 <TableCell>{centroCusto.telefone || "Não informado"}</TableCell>
                 <TableCell>
-                  <Badge 
+                  <Badge
                     variant={centroCusto.situacao === "Ativo" ? "default" : "secondary"}
                     className={centroCusto.situacao === "Ativo" ? "bg-green-100 text-green-800" : ""}
                   >
@@ -65,14 +69,16 @@ const CentroCustoDesktopTable: React.FC<CentroCustoDesktopTableProps> = ({
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => onEdit(centroCusto)}
-                      title="Editar"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
+                    {canEdit && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onEdit(centroCusto)}
+                        title="Editar"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -81,15 +87,17 @@ const CentroCustoDesktopTable: React.FC<CentroCustoDesktopTableProps> = ({
                     >
                       <Eye className="h-4 w-4" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => onDelete(centroCusto)}
-                      title="Excluir"
-                      className="text-destructive hover:text-destructive/90 hover:bg-destructive/10"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {canDelete && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onDelete(centroCusto)}
+                        title="Excluir"
+                        className="text-destructive hover:text-destructive/90 hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>
@@ -97,7 +105,7 @@ const CentroCustoDesktopTable: React.FC<CentroCustoDesktopTableProps> = ({
           </TableBody>
         </Table>
       </div>
-      
+
       {centrosCusto.length > 0 && (
         <TablePagination pagination={pagination} />
       )}

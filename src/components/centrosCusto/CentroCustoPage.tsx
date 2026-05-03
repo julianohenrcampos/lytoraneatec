@@ -1,7 +1,9 @@
 
 import React from "react";
+import { toast } from "sonner";
 
 import { useCentroCustoActions } from "@/hooks/useCentroCustoActions";
+import { usePermission } from "@/hooks/usePermission";
 import CentroCustoFormModal from "./CentroCustoFormModal";
 import CentroCustoDetailsModal from "./CentroCustoDetailsModal";
 import ImportCentrosCustoModal from "./ImportCentrosCustoModal";
@@ -10,10 +12,12 @@ import CentroCustoTable from "./CentroCustoTable";
 import DeleteCentroCustoDialog from "./DeleteCentroCustoDialog";
 import CentroCustoHeaderActions from "./CentroCustoHeaderActions";
 import { useIsMobile, useIsSmallScreen } from "@/hooks/use-mobile";
+import { CentroCusto } from "@/types/centroCusto";
+
+const DENIED_MSG = "Você não tem permissão para executar esta ação.";
 
 const CentroCustoPage: React.FC = () => {
   const {
-    // Estado
     filters,
     currentCentroCusto,
     isFormModalOpen,
@@ -25,8 +29,6 @@ const CentroCustoPage: React.FC = () => {
     centrosCusto,
     isLoading,
     isError,
-    
-    // Ações
     setIsFormModalOpen,
     setIsDetailsModalOpen,
     setIsImportModalOpen,
@@ -38,56 +40,78 @@ const CentroCustoPage: React.FC = () => {
     confirmDelete,
     handleDelete,
     refetch,
-    exportToExcel
+    exportToExcel,
   } = useCentroCustoActions();
 
   const isMobile = useIsMobile();
   const isSmallScreen = useIsSmallScreen();
 
+  const { isSuperAdmin, hasActionPermission } = usePermission();
+  const canCreate = isSuperAdmin || hasActionPermission('gestao_rh_centros_custo_view', 'criar');
+  const canEdit = isSuperAdmin || hasActionPermission('gestao_rh_centros_custo_view', 'editar');
+  const canDelete = isSuperAdmin || hasActionPermission('gestao_rh_centros_custo_view', 'excluir');
+
+  const handleOpenFormModal = (cc?: CentroCusto) => {
+    if (cc && !canEdit) { toast.error(DENIED_MSG); return; }
+    if (!cc && !canCreate) { toast.error(DENIED_MSG); return; }
+    openFormModal(cc);
+  };
+  const handleOpenImport = () => {
+    if (!canCreate) { toast.error(DENIED_MSG); return; }
+    setIsImportModalOpen(true);
+  };
+  const handleConfirmDelete = (cc: CentroCusto) => {
+    if (!canDelete) { toast.error(DENIED_MSG); return; }
+    confirmDelete(cc);
+  };
+
   return (
     <div className={`space-y-2 ${isSmallScreen ? 'space-y-2' : isMobile ? 'space-y-3' : 'sm:space-y-6'}`}>
       <div className="flex justify-end">
-        <CentroCustoHeaderActions 
-          onNewCentroCusto={() => openFormModal()}
+        <CentroCustoHeaderActions
+          onNewCentroCusto={() => handleOpenFormModal()}
           onExport={exportToExcel}
-          onImport={() => setIsImportModalOpen(true)}
+          onImport={handleOpenImport}
+          canCreate={canCreate}
         />
       </div>
-      
-      <CentroCustoFilters 
+
+      <CentroCustoFilters
         filters={filters}
         onFilterChange={handleFilterChange}
         onResetFilters={resetFilters}
       />
-      
-      <CentroCustoTable 
+
+      <CentroCustoTable
         centrosCusto={centrosCusto}
         isLoading={isLoading}
         isError={isError}
-        onEdit={openFormModal}
+        onEdit={handleOpenFormModal}
         onView={openDetailsModal}
-        onDelete={confirmDelete}
+        onDelete={handleConfirmDelete}
+        canEdit={canEdit}
+        canDelete={canDelete}
       />
-      
+
       <CentroCustoFormModal
         isOpen={isFormModalOpen}
         onClose={() => setIsFormModalOpen(false)}
         onSuccess={() => refetch()}
         centroCusto={currentCentroCusto || undefined}
       />
-      
+
       <CentroCustoDetailsModal
         isOpen={isDetailsModalOpen}
         onClose={() => setIsDetailsModalOpen(false)}
         centroCusto={currentCentroCusto}
       />
-      
+
       <ImportCentrosCustoModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onSuccess={() => refetch()}
       />
-      
+
       <DeleteCentroCustoDialog
         isOpen={isDeleteModalOpen}
         isDeleting={isDeleting}

@@ -33,6 +33,7 @@ const formSchema = z.object({
   situacao: z.enum(["Ativo", "Inativo"]),
   aprovador_diarias_id: z.string().optional(),
   adm_sede_funcionario_id: z.string().min(1, { message: "ADM SEDE é obrigatório" }),
+  adm_obra_funcionario_id: z.string().optional(),
   diretoria_id: z.string().optional(),
   departamento_id: z.string().min(1, { message: "Departamento é obrigatório" }),
   // Address fields (hidden from user)
@@ -120,24 +121,74 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
     enabled: isOpen
   });
 
-  const { data: admSedeCandidates = [] } = useQuery({
-    queryKey: ['adm-sede-candidates'],
+  const { data: admSedeData = { list: [], fallback: false } } = useQuery({
+    queryKey: ['adm-sede-candidates-v2'],
+    enabled: isOpen,
     queryFn: async () => {
-      const { data } = await (supabase
-        .from("bd_funcionarios")
-        .select("id, nome_completo, bd_funcoes(nome_funcao)")
-        .eq("status", "Ativo") as any);
-      return (data || []).filter((f: any) => {
-        const funcao = (f.bd_funcoes?.nome_funcao || '').toLowerCase();
-        return funcao.includes('administrativo') || funcao.includes('adm');
-      }).map((f: any) => ({
-        id: f.id,
-        nome_completo: f.nome_completo,
-        funcao: f.bd_funcoes?.nome_funcao || 'Sem função'
-      }));
+      try {
+        const { buscarFuncionariosPorRole, buscarFuncionariosFallbackAdministrativo } =
+          await import("@/services/centrosCusto/fetchResponsaveisPorRole");
+        const list = await buscarFuncionariosPorRole("AdmSede");
+        console.log("[CENTRO_CUSTO][ADM_SEDE_CANDIDATES]", list);
+        if (list.length > 0) return { list, fallback: false };
+        // TEMP FALLBACK enquanto não há usuários com role AdmSede
+        const fb = await buscarFuncionariosFallbackAdministrativo();
+        console.log("[CENTRO_CUSTO][ADM_SEDE_FALLBACK_CANDIDATES]", fb);
+        return { list: fb, fallback: true };
+      } catch (error) {
+        console.error("[CENTRO_CUSTO][ADM_SEDE_CANDIDATES_ERROR]", error);
+        return { list: [], fallback: false };
+      }
     },
-    enabled: isOpen
   });
+  const admSedeCandidates = admSedeData.list;
+  const admSedeFallback = admSedeData.fallback;
+
+  const { data: admObraCandidates = [] } = useQuery({
+    queryKey: ['adm-obra-candidates-v2'],
+    enabled: isOpen,
+    queryFn: async () => {
+      try {
+        const { buscarFuncionariosPorRole } =
+          await import("@/services/centrosCusto/fetchResponsaveisPorRole");
+        const list = await buscarFuncionariosPorRole("AdmOBRA");
+        console.log("[CENTRO_CUSTO][ADM_OBRA_CANDIDATES]", list);
+        return list;
+      } catch (error) {
+        console.error("[CENTRO_CUSTO][ADM_OBRA_CANDIDATES_ERROR]", error);
+        return [];
+      }
+    },
+  });
+
+  // Preservar funcionário atual em edição se não estiver na lista carregada
+  const { data: extraSedeCandidate } = useQuery({
+    queryKey: ['adm-sede-extra', centroCusto?.adm_sede_funcionario_id, admSedeCandidates.length],
+    enabled: isOpen && !!centroCusto?.adm_sede_funcionario_id &&
+      !admSedeCandidates.some((c: any) => c.id === centroCusto?.adm_sede_funcionario_id),
+    queryFn: async () => {
+      const { buscarFuncionarioPorId } = await import("@/services/centrosCusto/fetchResponsaveisPorRole");
+      return buscarFuncionarioPorId(centroCusto!.adm_sede_funcionario_id!);
+    },
+  });
+
+  const { data: extraObraCandidate } = useQuery({
+    queryKey: ['adm-obra-extra', centroCusto?.adm_obra_funcionario_id, admObraCandidates.length],
+    enabled: isOpen && !!centroCusto?.adm_obra_funcionario_id &&
+      !admObraCandidates.some((c: any) => c.id === centroCusto?.adm_obra_funcionario_id),
+    queryFn: async () => {
+      const { buscarFuncionarioPorId } = await import("@/services/centrosCusto/fetchResponsaveisPorRole");
+      return buscarFuncionarioPorId(centroCusto!.adm_obra_funcionario_id!);
+    },
+  });
+
+  const admSedeOptions = extraSedeCandidate
+    ? [extraSedeCandidate, ...admSedeCandidates]
+    : admSedeCandidates;
+  const admObraOptions = extraObraCandidate
+    ? [extraObraCandidate, ...admObraCandidates]
+    : admObraCandidates;
+
   
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -149,6 +200,7 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
       situacao: "Ativo",
       aprovador_diarias_id: "",
       adm_sede_funcionario_id: "",
+      adm_obra_funcionario_id: "",
       diretoria_id: "",
       departamento_id: "",
       endereco_completo: "",
@@ -174,6 +226,7 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
         situacao: centroCusto.situacao,
         aprovador_diarias_id: centroCusto.aprovador_diarias_id || "",
         adm_sede_funcionario_id: centroCusto.adm_sede_funcionario_id || "",
+        adm_obra_funcionario_id: centroCusto.adm_obra_funcionario_id || "",
         diretoria_id: centroCusto.diretoria_id || "",
         departamento_id: centroCusto.departamento_id || "",
         endereco_completo: centroCusto.endereco_completo || "",
@@ -196,6 +249,7 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
         situacao: "Ativo",
         aprovador_diarias_id: "",
         adm_sede_funcionario_id: "",
+        adm_obra_funcionario_id: "",
         diretoria_id: "",
         departamento_id: "",
         endereco_completo: "",
@@ -258,12 +312,25 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
         return;
       }
 
-      // Preserve original FK values if form value is empty but original has data
-      const resolveFK = (formVal: string | undefined, originalVal: string | null | undefined) => {
-        if (formVal && formVal !== '__none__') return formVal;
-        if (!formVal && centroCusto && originalVal) return originalVal;
-        return undefined;
+      // FK opcional: vazio/__none__ → undefined (service converte para null).
+      // NÃO ressuscitar valor original — caso contrário, limpar/trocar não persiste.
+      const resolveOptionalFK = (formVal?: string) =>
+        formVal && formVal !== '__none__' ? formVal : undefined;
+
+      // Normaliza geocoding_status legado antes de enviar ao banco.
+      // Regra exata aprovada: success → auto, vazio/null/undefined → pending,
+      // demais valores são preservados (auto, manual, aproximado, erro, pending).
+      const normalizeGeocodingStatusForSave = (status?: string | null) => {
+        if (status === "success") return "auto";
+        if (!status) return "pending";
+        return status;
       };
+
+      console.log("[CENTRO_CUSTO][FORM_VALUES_BEFORE_SUBMIT]", form.getValues());
+      console.log("[CENTRO_CUSTO][ADM_SEDE_VALUE_BEFORE_SUBMIT]", form.getValues("adm_sede_funcionario_id"));
+      console.log("[CENTRO_CUSTO][ADM_OBRA_VALUE_BEFORE_SUBMIT]", form.getValues("adm_obra_funcionario_id"));
+      console.log("[CENTRO_CUSTO][DEPARTAMENTO_VALUE_BEFORE_SUBMIT]", form.getValues("departamento_id"));
+      console.log("[CENTRO_CUSTO][SUBMIT_FORM_DATA]", values);
 
       const formData: CentroCustoFormData = {
         codigo_centro_custo: values.codigo_centro_custo,
@@ -271,10 +338,11 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
         cnpj_vinculado: values.cnpj_vinculado || undefined,
         telefone: values.telefone || undefined,
         situacao: values.situacao,
-        aprovador_diarias_id: resolveFK(values.aprovador_diarias_id, centroCusto?.aprovador_diarias_id),
-        adm_sede_funcionario_id: resolveFK(values.adm_sede_funcionario_id, centroCusto?.adm_sede_funcionario_id),
-        diretoria_id: resolveFK(values.diretoria_id, centroCusto?.diretoria_id),
-        departamento_id: resolveFK(values.departamento_id, centroCusto?.departamento_id),
+        aprovador_diarias_id: resolveOptionalFK(values.aprovador_diarias_id),
+        adm_sede_funcionario_id: resolveOptionalFK(values.adm_sede_funcionario_id),
+        adm_obra_funcionario_id: resolveOptionalFK(values.adm_obra_funcionario_id),
+        diretoria_id: resolveOptionalFK(values.diretoria_id),
+        departamento_id: resolveOptionalFK(values.departamento_id),
         endereco_completo: values.endereco_completo || undefined,
         endereco_rua: values.endereco_rua || undefined,
         endereco_numero: values.endereco_numero || undefined,
@@ -284,8 +352,11 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
         endereco_cep: values.endereco_cep || undefined,
         latitude: values.latitude,
         longitude: values.longitude,
-        geocoding_status: values.geocoding_status || "pending",
+        geocoding_status: normalizeGeocodingStatusForSave(values.geocoding_status),
       };
+
+      console.log("[CENTRO_CUSTO][SUBMIT_PAYLOAD]", formData);
+      console.log("[CENTRO_CUSTO][SUBMIT_PAYLOAD_FINAL]", formData);
 
       if (centroCusto) {
         await updateCentroCusto(centroCusto.id, formData);
@@ -304,7 +375,7 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
       onSuccess();
       onClose();
     } catch (error) {
-      console.error("Erro ao salvar centro de custo:", error);
+      console.error("[CENTRO_CUSTO][SAVE_ERROR]", error);
       toast({
         title: "Erro",
         description: error instanceof Error ? error.message : "Ocorreu um erro ao salvar os dados do centro de custo.",
@@ -321,15 +392,16 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto overflow-x-hidden">
-        <DialogHeader>
+      <DialogContent className="w-[95vw] max-w-3xl p-0 gap-0 max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
           <DialogTitle>
             {centroCusto ? "Editar Centro de Custo" : "Cadastrar Novo Centro de Custo"}
           </DialogTitle>
         </DialogHeader>
-        
+
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
             <FormField
               control={form.control}
               name="codigo_centro_custo"
@@ -479,19 +551,53 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
                   <FormLabel>ADM SEDE Responsável *</FormLabel>
                   <FormControl>
                     <Combobox
-                      options={admSedeCandidates.map((adm: any) => ({
+                      options={admSedeOptions.map((adm: any) => ({
                         value: adm.id,
-                        label: adm.nome_completo,
+                        label: adm.funcao
+                          ? `${adm.nome_completo} (${adm.funcao})`
+                          : adm.nome_completo,
                       }))}
                       value={field.value || ""}
                       onChange={field.onChange}
                       placeholder="Selecione um ADM SEDE..."
                       searchPlaceholder="Buscar funcionário..."
-                      emptyText="Nenhum funcionário encontrado"
+                      emptyText="Nenhum ADM SEDE encontrado. Verifique se o usuário possui role AdmSede e está vinculado a um funcionário."
                     />
                   </FormControl>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Apenas funcionários com função Administrativo/ADM são listados.
+                    {admSedeFallback
+                      ? "Lista carregada por função/cargo administrativo porque ainda não há usuários vinculados à role AdmSede."
+                      : "Apenas usuários com a role AdmSede são listados."}
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Campo ADM OBRA Responsável */}
+            <FormField
+              control={form.control}
+              name="adm_obra_funcionario_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>ADM OBRA Responsável</FormLabel>
+                  <FormControl>
+                    <Combobox
+                      options={admObraOptions.map((adm: any) => ({
+                        value: adm.id,
+                        label: adm.funcao
+                          ? `${adm.nome_completo} (${adm.funcao})`
+                          : adm.nome_completo,
+                      }))}
+                      value={field.value || ""}
+                      onChange={field.onChange}
+                      placeholder="Selecione um ADM OBRA..."
+                      searchPlaceholder="Buscar funcionário..."
+                      emptyText="Nenhum funcionário com role AdmOBRA encontrado"
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Apenas usuários com a role <strong>AdmOBRA</strong> são listados. Um mesmo AdmOBRA pode ser responsável por múltiplos centros de custo.
                   </p>
                   <FormMessage />
                 </FormItem>
@@ -557,11 +663,13 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
               )}
             />
             
-            <DialogFooter className="pt-4">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={onClose} 
+            </div>
+
+            <DialogFooter className="px-6 py-4 border-t bg-background shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
                 disabled={isSubmitting}
               >
                 Cancelar

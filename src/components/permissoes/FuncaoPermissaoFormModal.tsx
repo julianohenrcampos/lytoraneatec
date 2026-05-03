@@ -28,6 +28,12 @@ import { Card } from "@/components/ui/card";
 import { type RBACRole, type RBACRoleFormData } from "@/services/rbac/rolesCRUD";
 import { type RBACPermission } from "@/services/rbac/permissionsCRUD";
 import type { Acao } from "@/services/rbac/actionPermissionsCRUD";
+import {
+  isModuloValido,
+  getModuloLabel,
+  inferirModuloPorCodigo,
+  inferirModuloPorRota,
+} from "@/components/permissoes/modulosCatalogo";
 
 const ACOES: { key: Acao; label: string }[] = [
   { key: 'visualizar', label: 'Ver' },
@@ -146,30 +152,24 @@ const FuncaoPermissaoFormModal: React.FC<FuncaoPermissaoFormModalProps> = ({
       'SSO - Segurança': [],
       'Licitações': [],
       'Administração': [],
+      'Ponto Eletrônico': [],
       'Outros': [],
     };
 
     permissoes.forEach(permission => {
-      const c = permission.codigo;
-      if (c.startsWith('dashboard_') && !c.startsWith('dashboard_licitacoes')) {
-        groups['Dashboards'].push(permission);
-      } else if (c.startsWith('gestao_rh_') || c === 'acesso_sso_agendamento_exames') {
-        groups['Gestão de RH'].push(permission);
-      } else if (c.startsWith('gestao_maquinas_') || c === 'requisicoes_chamados_os_view' || c === 'requisicoes_gestao_os_view' || c === 'requisicoes_apontamento_caminhoes_view') {
-        groups['Gestão de Veículos/Equipamentos'].push(permission);
-      } else if (c.startsWith('requisicoes_') && !['requisicoes_chamados_os_view', 'requisicoes_gestao_os_view', 'requisicoes_apontamento_caminhoes_view'].includes(c)) {
-        groups['Requisições e Logística'].push(permission);
-      } else if (c.startsWith('diarias_') || c === 'acesso_gestao_aprovacoes') {
-        groups['Diárias'].push(permission);
-      } else if ((c.startsWith('acesso_sso_') && c !== 'acesso_sso_agendamento_exames') || c === 'acesso_sso_ver_agir') {
-        groups['SSO - Segurança'].push(permission);
-      } else if (c === 'acesso_monitoramento_pncp' || c.startsWith('configuracoes_pncp') || c.startsWith('dashboard_licitacoes') || c.startsWith('relatorio_licitacoes')) {
-        groups['Licitações'].push(permission);
-      } else if (c.startsWith('admin_')) {
-        groups['Administração'].push(permission);
+      // Prioridade: modulo → código → rota → Outros
+      let moduloKey: string | undefined;
+      if (isModuloValido(permission.modulo)) {
+        moduloKey = permission.modulo!;
       } else {
-        groups['Outros'].push(permission);
+        moduloKey =
+          inferirModuloPorCodigo(permission.codigo) ||
+          inferirModuloPorRota(permission.rota);
       }
+
+      const label = (moduloKey && getModuloLabel(moduloKey)) || 'Outros';
+      if (!groups[label]) groups[label] = [];
+      groups[label].push(permission);
     });
 
     return groups;

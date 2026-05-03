@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermission } from "@/hooks/usePermission";
+import { hasRole } from "@/utils/roleUtils";
 
 export interface RhSecurityContext {
   departamentoId?: string;
@@ -76,7 +77,7 @@ export const useRhSecurity = (): RhSecurityContext => {
         }
 
         // AdmSede: filtrar por centros de custo gerenciados
-        if (funcoes.includes('AdmSede')) {
+        if (hasRole(funcoes, 'AdmSede')) {
           console.log("🔐 AdmSede detectado - buscando CCs gerenciados");
           const { data: ccIds, error: ccError } = await supabase.rpc('get_admsede_centros_custo', {
             p_user_id: userId!,
@@ -126,7 +127,7 @@ export const useRhSecurity = (): RhSecurityContext => {
           }
         }
 
-        if (funcoes.includes('AdmOBRA') && funcionario.centro_custo_id) {
+        if (hasRole(funcoes, 'AdmOBRA') && funcionario.centro_custo_id) {
           console.log("🔐 AdmOBRA detectado - filtrando por centro de custo do usuário", funcionario.centro_custo_id);
           setSecurityContext({
             departamentoId: funcionario.departamento_id || undefined,

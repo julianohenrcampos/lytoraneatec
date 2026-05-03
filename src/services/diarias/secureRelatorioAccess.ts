@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 import type { RelatorioFilters } from '@/types/diarias';
+import { hasRole, hasAnyRole } from '@/utils/roleUtils';
 
 export type DiariasReportContext = 'operacional_campo' | 'aprovacao_gerencial' | 'financeiro_dp';
 
@@ -60,9 +61,10 @@ export async function getCurrentDiariasReportContext(): Promise<DiariasReportCon
   // pois ambas as views expõem valores financeiros e (no caso de financeiro_dp) PII bancária.
   // Se acumular role elevada (SuperAdm/AdmRH/Financeiro/DP), segue o fluxo normal.
   const roleNames = await fetchUserRoleNames(user.id);
-  const isAdmObra = roleNames.includes('AdmOBRA');
-  const hasElevatedOverride = roleNames.some((r) =>
-    (ELEVATED_ROLES_OVER_ADMOBRA as readonly string[]).includes(r)
+  const isAdmObra = hasRole(roleNames, 'AdmOBRA');
+  const hasElevatedOverride = hasAnyRole(
+    roleNames,
+    [...ELEVATED_ROLES_OVER_ADMOBRA],
   );
 
   if (isAdmObra && !hasElevatedOverride) {

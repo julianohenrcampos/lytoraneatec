@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { updateUserOfflineContext, getValidatedOfflineContext } from '@/utils/offlinePermissions';
+import { ROUTE_PERMISSIONS, hasRoutePermission } from '@/constants/routePermissions';
 
 // ============================================================
 // HOOK ÚNICO DE PERMISSÕES — RBAC GRANULAR POR AÇÃO
@@ -67,54 +68,29 @@ let _cacheTime = 0;
 let _cacheUserId: string | null = null;
 const CACHE_DURATION = 60000; // 1 minuto
 
-// Mapeamento de rotas para permissões
-const ROUTE_PERMISSIONS: Record<string, string[]> = {
-  '/': ['dashboard_view'],
-  '/dashboard-rh': ['dashboard_rh_view'],
-  '/dashboard-maquinas': ['dashboard_maquinas_view'],
-  '/dashboard-cbuq': ['dashboard_cbuq_view'],
-  '/gestao-rh/empresas': ['gestao_rh_empresas_view'],
-  '/gestao-rh/departamentos': ['gestao_rh_departamentos_view'],
-  '/gestao-rh/centros-custo': ['gestao_rh_centros_custo_view'],
-  '/gestao-rh/funcoes': ['gestao_rh_funcoes_view'],
-  '/gestao-rh/funcionarios': ['gestao_rh_funcionarios_view'],
-  '/gestao-rh/equipes': ['gestao_rh_equipes_view'],
-  '/gestao-rh/desligamentos': ['gestao_rh_funcionarios_view'],
-  '/gestao-rh/diretorias': ['gestao_rh_diretorias_view'],
-  '/gestao-maquinas/caminhoes': ['gestao_maquinas_caminhoes_view'],
-  '/gestao-maquinas/caminhoes-equipamentos': ['gestao_maquinas_caminhoes_view'],
-  '/gestao-maquinas/usinas': ['gestao_maquinas_usinas_view'],
-  '/gestao-maquinas/relatorio-medicao': ['gestao_maquinas_relatorio_medicao_view'],
-  '/gestao-maquinas/dashboard': ['dashboard_maquinas_view'],
-  '/registro-aplicacao': ['requisicoes_registro_aplicacao_view'],
-  '/programacao-entrega': ['requisicoes_programacao_entrega_view'],
-  '/requisicoes/cadastro': ['requisicoes_cadastro_view'],
-  '/requisicoes/programacao-entrega': ['requisicoes_programacao_entrega_view'],
-  '/requisicoes/registro-cargas': ['requisicoes_registro_cargas_view'],
-  '/requisicoes/registro-aplicacao': ['requisicoes_registro_aplicacao_view'],
-  '/requisicoes/apontamento-equipe': ['requisicoes_apontamento_equipe_view'],
-  '/requisicoes/apontamento-caminhoes': ['requisicoes_apontamento_caminhoes_view'],
-  '/requisicoes/chamados-os': ['requisicoes_chamados_os_view'],
-  '/requisicoes/gestao-os': ['requisicoes_gestao_os_view'],
-  '/requisicoes/diarias/dashboard': ['diarias_dashboard_view'],
-  '/requisicoes/diarias/solicitacoes': ['diarias_solicitacoes_view', 'diarias_view'],
-  '/requisicoes/diarias/apontamento-campo': ['diarias_apontamento_view'],
-  '/requisicoes/diarias/relatorio': ['diarias_relatorio_view'],
-  '/requisicoes/diarias': ['diarias_view'],
-  '/gestao-aprovacoes-diarias': ['acesso_gestao_aprovacoes'],
-  '/sso/checklists': ['acesso_sso_checklists'],
-  '/sso/desvios': ['acesso_sso_desvios'],
-  '/sso/checklists/dashboard': ['acesso_sso_dashboard'],
-  '/sso/agendamento-exames': ['acesso_sso_agendamento_exames'],
-  '/sso/ver-e-agir': ['acesso_sso_ver_agir'],
-  '/licitacoes/monitoramento-pncp': ['acesso_monitoramento_pncp'],
-  '/licitacoes/configuracoes-pncp': ['configuracoes_pncp_view'],
-  '/licitacoes/relatorio': ['relatorio_licitacoes_view'],
-  '/licitacoes/dashboard': ['dashboard_licitacoes_view'],
-  '/admin/permissoes': ['admin_permissoes_view'],
-  '/admin/gestao-fluxos': ['admin_gestao_fluxos_view'],
-  '/relatorio-aplicacao-diaria': ['relatorio_aplicacao_view'],
-};
+/**
+ * FASE 1A — Invalida o cache de runtime de permissões deste módulo.
+ * Usado após salvar alterações em "Gestão de Permissões → Funções e Permissões"
+ * para que a próxima leitura busque do banco em vez de servir cache stale.
+ *
+ * - Zera _cache, _cacheTime, _cacheUserId
+ * - Limpa snapshot offline (user_offline_context) para evitar fallback stale
+ * - NÃO altera TTL nem lógica de SuperAdm
+ *
+ * Nome distinto de `usePermissionCacheInvalidation` (hook React) para evitar conflito.
+ */
+export function invalidateUsePermissionRuntimeCache() {
+  _cache = null;
+  _cacheTime = 0;
+  _cacheUserId = null;
+  try {
+    localStorage.removeItem('user_offline_context');
+  } catch {
+    // ignore (SSR / storage indisponível)
+  }
+}
+
+// Mapeamento de rotas para permissões — fonte única em src/constants/routePermissions.ts
 
 export const usePermission = () => {
   const [state, setState] = useState<PermissionState>(
@@ -700,13 +676,7 @@ export const usePermission = () => {
 
   const hasRouteAccess = useCallback((route: string): boolean => {
     if (state.isLoading) return false;
-    if (state.isSuperAdmin) return true;
-    if (state.permissions.includes('*')) return true; // modo degradado SuperAdm
-
-    const required = ROUTE_PERMISSIONS[route];
-    if (!required) return true; // Unrestricted route
-
-    return required.some(perm => state.permissions.includes(perm));
+    return hasRoutePermission(route, state.permissions, state.isSuperAdmin);
   }, [state.isLoading, state.isSuperAdmin, state.permissions]);
 
   const getAccessibleRoutes = useCallback((): string[] => {

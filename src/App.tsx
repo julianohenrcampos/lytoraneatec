@@ -49,6 +49,9 @@ const TestePonto = lazy(() => import("@/pages/dev/TestePonto"));
 const PontoDireto = lazy(() => import("@/pages/PontoDireto"));
 const PontoTotemLogin = lazy(() => import("@/pages/PontoTotemLogin"));
 const PontoTotem = lazy(() => import("@/pages/PontoTotem"));
+// FROZEN: frente "Ponto Dispositivo de Obra" pausada — retomar plano real (timeout em Funcionários).
+// Arquivo src/pages/PontoDispositivo.tsx e edge function registrar-ponto-dispositivo-obra preservados.
+// const PontoDispositivo = lazy(() => import("@/pages/PontoDispositivo"));
 const BiometriaFacial = lazy(() => import("@/pages/admin/BiometriaFacial"));
 const AuditoriaBiometria = lazy(() => import("@/pages/admin/AuditoriaBiometria"));
 const GestaoPonto = lazy(() => import("@/pages/admin/GestaoPonto"));
@@ -220,6 +223,7 @@ const App = () => {
                     <Route path="/ponto" element={<Auth><PontoDireto /></Auth>} />
                     <Route path="/ponto-totem-login" element={<PontoTotemLogin />} />
                     <Route path="/ponto-totem" element={<PontoTotem />} />
+                    {/* FROZEN: <Route path="/ponto-dispositivo" element={<PontoDispositivo />} /> */}
 
                     {/* Dev */}
                     <Route path="/dev/teste-ponto" element={<Auth><TestePonto /></Auth>} />

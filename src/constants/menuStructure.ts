@@ -87,7 +87,7 @@ export const menuStructure = [
         name: "Arquivo Morto",
         href: "/gestao-rh/arquivo-morto",
         icon: Users,
-        requiredPermission: "gestao_rh_funcionarios_view"
+        requiredPermission: "gestao_rh_arquivo_morto_view"
       },
       {
         name: "Agendamento de Exames",

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { isSuperAdminFallbackEmail } from '@/config/superAdminEmails';
+import { hasRole, hasAnyRole } from '@/utils/roleUtils';
 
 interface SimplePermissions {
   isSuperAdmin: boolean;
@@ -90,24 +91,22 @@ export const useSimplePermissions = (): SimplePermissions => {
         console.log('📋 [SimplePermissions] Funções encontradas:', funcoes);
         
         // Verificação múltipla de SuperAdm
-        const isSuperAdmin = funcoes.includes('SuperAdm') ||
-                            funcoes.includes('SuperAdmin') ||
-                            funcoes.includes('super_admin') ||
+        const isSuperAdmin = hasAnyRole(funcoes, ['SuperAdm', 'SuperAdmin', 'super_admin']) ||
                             isSuperAdminFallbackEmail(profile?.email);
         
         // Determinar função principal
         let userRole = 'user';
         if (isSuperAdmin) {
           userRole = 'SuperAdm';
-        } else if (funcoes.includes('AdmRH')) {
+        } else if (hasRole(funcoes, 'AdmRH')) {
           userRole = 'AdmRH';
-        } else if (funcoes.includes('Administrador')) {
+        } else if (hasRole(funcoes, 'Administrador')) {
           userRole = 'Administrador';
-        } else if (funcoes.includes('Apontador')) {
+        } else if (hasRole(funcoes, 'Apontador')) {
           userRole = 'Apontador';
-        } else if (funcoes.includes('Encarregado')) {
+        } else if (hasRole(funcoes, 'Encarregado')) {
           userRole = 'Encarregado';
-        } else if (funcoes.includes('Engenheiro Civil')) {
+        } else if (hasRole(funcoes, 'Engenheiro Civil')) {
           userRole = 'Engenheiro Civil';
         }
 

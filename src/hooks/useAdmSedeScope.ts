@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { usePermission } from './usePermission';
 import { useEffect, useState } from 'react';
+import { hasRole } from '@/utils/roleUtils';
 
 export interface AdmSedeScope {
   isAdmSede: boolean;
@@ -26,7 +27,7 @@ export function useAdmSedeScope(): AdmSedeScope {
         .single();
       
       const funcoes = (profile?.funcoes as string[]) || [];
-      setIsAdmSede(funcoes.includes('AdmSede'));
+      setIsAdmSede(hasRole(funcoes, 'AdmSede'));
       setCheckDone(true);
     };
     check();

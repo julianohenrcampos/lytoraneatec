@@ -1,6 +1,7 @@
 
 import React, { useState } from "react";
 import { Users, Download, Upload, ChevronDown } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -9,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useFuncionarioActions } from "@/hooks/useFuncionarioActions";
+import { usePermission } from "@/hooks/usePermission";
 import FuncionarioTable from "./FuncionarioTable";
 import FuncionarioFilters from "./FuncionarioFilters";
 import FuncionarioFormModal from "./FuncionarioFormModal";
@@ -69,6 +71,30 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
     handleImport
   } = useFuncionarioActions();
 
+  const { isSuperAdmin, hasActionPermission } = usePermission();
+  const canCreate = isSuperAdmin || hasActionPermission('gestao_rh_funcionarios_view', 'criar');
+  const canEdit = isSuperAdmin || hasActionPermission('gestao_rh_funcionarios_view', 'editar');
+  const canDelete = isSuperAdmin || hasActionPermission('gestao_rh_funcionarios_view', 'excluir');
+  const DENIED_MSG = "Você não tem permissão para executar esta ação.";
+
+  const handleOpenFormModal = (f?: Funcionario) => {
+    if (f && !canEdit) { toast.error(DENIED_MSG); return; }
+    if (!f && !canCreate) { toast.error(DENIED_MSG); return; }
+    openFormModal(f);
+  };
+  const handleOpenImport = () => {
+    if (!canCreate) { toast.error(DENIED_MSG); return; }
+    setIsImportModalOpen(true);
+  };
+  const handleConfirmDelete = (f: Funcionario) => {
+    if (!canDelete) { toast.error(DENIED_MSG); return; }
+    confirmDelete(f);
+  };
+  const handleBaixarClassificacaoGated = (f: Funcionario) => {
+    if (!canCreate) { toast.error(DENIED_MSG); return; }
+    handleBaixarClassificacao(f);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
@@ -95,18 +121,22 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsImportModalOpen(true)}
-            className="flex items-center gap-2"
-          >
-            <Upload className="h-4 w-4" />
-            Importar
-          </Button>
-          <Button onClick={() => openFormModal()}>
-            Novo Funcionário
-          </Button>
+          {canCreate && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleOpenImport}
+              className="flex items-center gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Importar
+            </Button>
+          )}
+          {canCreate && (
+            <Button onClick={() => handleOpenFormModal()}>
+              Novo Funcionário
+            </Button>
+          )}
         </div>
       </div>
 
@@ -122,12 +152,15 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
         isLoading={isLoading}
         isError={isError}
         error={error}
-        onEdit={openFormModal}
-        onDelete={confirmDelete}
+        onEdit={handleOpenFormModal}
+        onDelete={handleConfirmDelete}
+        canEdit={canEdit}
+        canDelete={canDelete}
+        canCreate={canCreate}
         onViewDetails={openDetailsModal}
         onRefetch={refetch}
         openImageModal={openImageModal}
-        onBaixarClassificacao={handleBaixarClassificacao}
+        onBaixarClassificacao={handleBaixarClassificacaoGated}
       />
 
       <FuncionarioFormModal

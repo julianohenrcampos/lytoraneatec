@@ -7,7 +7,7 @@ import * as XLSX from "xlsx";
 export const fetchCentrosCusto = async (filters: CentroCustoFilter = {}, isSuperAdmin: boolean = false): Promise<CentroCusto[]> => {
   let query = supabase
     .from("bd_centros_custo")
-    .select("*, adm_sede_funcionario:bd_funcionarios!adm_sede_funcionario_id(id, nome_completo), departamento:bd_departamentos!departamento_id(id, nome_departamento)");
+    .select("*, adm_sede_funcionario:bd_funcionarios!adm_sede_funcionario_id(id, nome_completo), adm_obra_funcionario:bd_funcionarios!adm_obra_funcionario_id(id, nome_completo), departamento:bd_departamentos!departamento_id(id, nome_departamento)");
   
   // Ocultar DIR001 para não-SuperAdmin
   query = excludeRestrictedCC(query, isSuperAdmin);
@@ -123,6 +123,9 @@ export const createCentroCusto = async (data: CentroCustoFormData): Promise<Cent
   if (data.adm_sede_funcionario_id && data.adm_sede_funcionario_id !== '__none__') {
     insertData.adm_sede_funcionario_id = data.adm_sede_funcionario_id;
   }
+  if (data.adm_obra_funcionario_id && data.adm_obra_funcionario_id !== '__none__') {
+    insertData.adm_obra_funcionario_id = data.adm_obra_funcionario_id;
+  }
   if (data.departamento_id && data.departamento_id !== '__none__') {
     insertData.departamento_id = data.departamento_id;
   }
@@ -143,6 +146,7 @@ export const createCentroCusto = async (data: CentroCustoFormData): Promise<Cent
 
 // Update an existing centro de custo
 export const updateCentroCusto = async (id: string, data: CentroCustoFormData): Promise<CentroCusto> => {
+  console.log("[CENTRO_CUSTO_SERVICE][UPDATE_INPUT]", data);
   const updateData: any = {
     codigo_centro_custo: data.codigo_centro_custo.trim().toUpperCase(),
     nome_centro_custo: data.nome_centro_custo,
@@ -176,11 +180,18 @@ export const updateCentroCusto = async (id: string, data: CentroCustoFormData): 
   } else {
     updateData.adm_sede_funcionario_id = null;
   }
+  if (data.adm_obra_funcionario_id && data.adm_obra_funcionario_id !== '__none__') {
+    updateData.adm_obra_funcionario_id = data.adm_obra_funcionario_id;
+  } else {
+    updateData.adm_obra_funcionario_id = null;
+  }
   if (data.departamento_id && data.departamento_id !== '__none__') {
     updateData.departamento_id = data.departamento_id;
   } else {
     updateData.departamento_id = null;
   }
+
+  console.log("[CENTRO_CUSTO_SERVICE][UPDATE_PAYLOAD]", updateData);
 
   const { data: updatedData, error } = await supabase
     .from("bd_centros_custo")
@@ -188,12 +199,19 @@ export const updateCentroCusto = async (id: string, data: CentroCustoFormData): 
     .eq("id", id)
     .select()
     .single();
-  
+
+  console.log("[CENTRO_CUSTO_SERVICE][UPDATE_RESPONSE]", { data: updatedData, error });
+
   if (error) {
-    console.error("Error updating centro de custo:", error);
+    console.error("[CENTRO_CUSTO_SERVICE][UPDATE_ERROR]", {
+      code: (error as any).code,
+      message: error.message,
+      details: (error as any).details,
+      hint: (error as any).hint,
+    });
     throw new Error(`Erro ao atualizar centro de custo: ${error.message}`);
   }
-  
+
   return updatedData as unknown as CentroCusto;
 };
 

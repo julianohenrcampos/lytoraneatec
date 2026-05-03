@@ -20,9 +20,23 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { type RBACPermission, type RBACPermissionFormData } from "@/services/rbac/permissionsCRUD";
+import {
+  MODULOS,
+  MODULO_VALUES,
+  isModuloValido,
+  inferirModuloPorCodigo,
+  inferirModuloPorRota,
+} from "@/components/permissoes/modulosCatalogo";
 
 interface PermissaoFormModalProps {
   isOpen: boolean;
@@ -33,9 +47,18 @@ interface PermissaoFormModalProps {
 }
 
 const formSchema = z.object({
-  codigo: z.string().min(3, "Código da permissão deve ter pelo menos 3 caracteres"),
+  codigo: z
+    .string()
+    .min(3, "Código da permissão deve ter pelo menos 3 caracteres")
+    .regex(
+      /^[a-zA-Z0-9_]+$/,
+      "Use apenas letras, números e underscore (sem espaços)"
+    ),
   nome: z.string().min(3, "Nome deve ter pelo menos 3 caracteres"),
   descricao: z.string().optional(),
+  modulo: z.enum(MODULO_VALUES as [string, ...string[]], {
+    required_error: "Selecione o módulo da permissão.",
+  }),
   rota: z.string().optional(),
 });
 
@@ -52,16 +75,23 @@ const PermissaoFormModal: React.FC<PermissaoFormModalProps> = ({
       codigo: "",
       nome: "",
       descricao: "",
+      modulo: undefined as any,
       rota: "",
     },
   });
 
   React.useEffect(() => {
     if (permissao) {
+      const inferred =
+        (isModuloValido(permissao.modulo) && permissao.modulo) ||
+        inferirModuloPorCodigo(permissao.codigo) ||
+        inferirModuloPorRota(permissao.rota) ||
+        "outros";
       form.reset({
         codigo: permissao.codigo,
         nome: permissao.nome,
         descricao: permissao.descricao || "",
+        modulo: inferred,
         rota: permissao.rota || "",
       });
     } else {
@@ -69,19 +99,26 @@ const PermissaoFormModal: React.FC<PermissaoFormModalProps> = ({
         codigo: "",
         nome: "",
         descricao: "",
+        modulo: undefined as any,
         rota: "",
       });
     }
   }, [permissao, form]);
 
   const handleFormSubmit = (data: z.infer<typeof formSchema>) => {
+    console.log("[PERMISSOES][FORM_SUBMIT]", data);
     const formData: RBACPermissionFormData = {
       codigo: data.codigo,
       nome: data.nome,
       descricao: data.descricao || "",
       rota: data.rota || "",
+      modulo: data.modulo,
     };
     onSubmit(formData);
+  };
+
+  const handleFormInvalid = (errors: unknown) => {
+    console.warn("[PERMISSOES][FORM_INVALID]", errors);
   };
 
   return (
@@ -94,7 +131,7 @@ const PermissaoFormModal: React.FC<PermissaoFormModalProps> = ({
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(handleFormSubmit, handleFormInvalid)} className="space-y-4">
             <FormField
               control={form.control}
               name="codigo"
@@ -136,6 +173,34 @@ const PermissaoFormModal: React.FC<PermissaoFormModalProps> = ({
                       {...field}
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="modulo"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Módulo</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value || ""}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o módulo" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {MODULOS.map((m) => (
+                        <SelectItem key={m.value} value={m.value}>
+                          {m.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

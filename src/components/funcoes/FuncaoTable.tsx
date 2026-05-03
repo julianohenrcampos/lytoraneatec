@@ -16,6 +16,8 @@ interface FuncaoTableProps {
   onEdit: (funcao: Funcao) => void;
   onView: (funcao: Funcao) => void;
   onDelete: (funcao: Funcao) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 const FuncaoTable: React.FC<FuncaoTableProps> = ({
@@ -24,7 +26,9 @@ const FuncaoTable: React.FC<FuncaoTableProps> = ({
   isError,
   onEdit,
   onView,
-  onDelete
+  onDelete,
+  canEdit = true,
+  canDelete = true,
 }) => {
   const pagination = usePagination(funcoes || [], { pageSize: 10 });
 
@@ -94,14 +98,16 @@ const FuncaoTable: React.FC<FuncaoTableProps> = ({
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onEdit(funcao)}
-                          title="Editar"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
+                        {canEdit && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onEdit(funcao)}
+                            title="Editar"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -110,15 +116,17 @@ const FuncaoTable: React.FC<FuncaoTableProps> = ({
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onDelete(funcao)}
-                          title="Excluir"
-                          className="text-destructive hover:text-destructive/90 hover:bg-destructive/10"
-                        >
-                          <Trash className="h-4 w-4" />
-                        </Button>
+                        {canDelete && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onDelete(funcao)}
+                            title="Excluir"
+                            className="text-destructive hover:text-destructive/90 hover:bg-destructive/10"
+                          >
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

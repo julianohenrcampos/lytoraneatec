@@ -16,6 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, UserPlus, Globe, Settings, Eye, EyeOff, ChevronRight, ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
 import { createGestor, PERMISSION_CATEGORIES, getAllPermissions } from "@/services/gestorService";
+import { usePermission } from "@/hooks/usePermission";
 
 interface CreateGestorModalProps {
   isOpen: boolean;
@@ -32,6 +33,8 @@ const CreateGestorModal: React.FC<CreateGestorModalProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const { hasActionPermission } = usePermission();
+  const canSubmit = hasActionPermission("admin_permissoes_view", "criar");
   
   // Form state
   const [nomeCompleto, setNomeCompleto] = useState("");
@@ -131,6 +134,10 @@ const CreateGestorModal: React.FC<CreateGestorModalProps> = ({
   };
 
   const handleSubmit = async () => {
+    if (!canSubmit) {
+      toast.error("Você não tem permissão para esta ação.");
+      return;
+    }
     if (tipoAcesso === "personalizado" && selectedPermissions.length === 0) {
       toast.error("Selecione pelo menos uma permissão para acesso personalizado");
       return;
@@ -402,7 +409,7 @@ const CreateGestorModal: React.FC<CreateGestorModalProps> = ({
                 <ChevronLeft className="mr-2 h-4 w-4" />
                 Voltar
               </Button>
-              <Button onClick={handleSubmit} disabled={isSubmitting}>
+              <Button onClick={handleSubmit} disabled={isSubmitting || !canSubmit}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Cadastrar Gestor
               </Button>

@@ -8,6 +8,7 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 import { OfflineIndicator } from "@/components/pwa/OfflineIndicator";
+import { AppUpdateBanner } from "@/components/pwa/AppUpdateBanner";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -55,6 +56,7 @@ const MainLayoutOptimized = memo(({ children }: MainLayoutProps) => {
         
         <SidebarInset className="flex-1 overflow-hidden">
           <div className="flex flex-col h-screen">
+            <AppUpdateBanner />
             <AppHeader 
               user={!isLoading ? user : null}
               updateUserImage={updateUserImage}

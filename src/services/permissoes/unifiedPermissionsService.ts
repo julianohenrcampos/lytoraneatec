@@ -1,3 +1,10 @@
+/**
+ * @deprecated
+ * Código legado de permissionamento mantido temporariamente para compatibilidade histórica.
+ * Não usar em novos fluxos.
+ * O permissionamento oficial deve usar usePermission(), bd_permissions, bd_roles e bd_role_permission_actions.
+ * Remoção futura somente após ciclo de release sem regressões.
+ */
 import { supabase } from "@/integrations/supabase/client";
 import { UserPermissions } from "./permissaoTypes";
 

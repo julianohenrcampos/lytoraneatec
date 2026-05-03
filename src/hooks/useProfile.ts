@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { hasRole } from '@/utils/roleUtils';
 
 interface Profile {
   id: string;
@@ -55,7 +56,7 @@ export const useProfile = (): UseProfileReturn => {
         let updatedProfile = { ...profile };
         
         if (!profile.funcionario_id && profile.funcoes && 
-            (profile.funcoes.includes('Apontador') || profile.funcoes.includes('Encarregado'))) {
+            (hasRole(profile.funcoes, 'Apontador') || hasRole(profile.funcoes, 'Encarregado'))) {
           
           console.log('🔄 Tentando auto-vincular funcionário por email:', profile.email);
           
@@ -87,19 +88,19 @@ export const useProfile = (): UseProfileReturn => {
         
         if (profile.funcoes && profile.funcoes.length > 0) {
           // Priorizar funções mais específicas
-          if (profile.funcoes.includes('SuperAdm')) {
+          if (hasRole(profile.funcoes, 'SuperAdm')) {
             funcaoSistemaAtualizada = 'SuperAdm';
-          } else if (profile.funcoes.includes('Administrador')) {
+          } else if (hasRole(profile.funcoes, 'Administrador')) {
             funcaoSistemaAtualizada = 'Administrador';
-          } else if (profile.funcoes.includes('AdmRH')) {
+          } else if (hasRole(profile.funcoes, 'AdmRH')) {
             funcaoSistemaAtualizada = 'AdmRH';
-          } else if (profile.funcoes.includes('AdmLogistica')) {
+          } else if (hasRole(profile.funcoes, 'AdmLogistica')) {
             funcaoSistemaAtualizada = 'AdmLogistica';
-          } else if (profile.funcoes.includes('AdmEquipamentos')) {
+          } else if (hasRole(profile.funcoes, 'AdmEquipamentos')) {
             funcaoSistemaAtualizada = 'AdmEquipamentos';
-          } else if (profile.funcoes.includes('Encarregado')) {
+          } else if (hasRole(profile.funcoes, 'Encarregado')) {
             funcaoSistemaAtualizada = 'Encarregado';
-          } else if (profile.funcoes.includes('Apontador')) {
+          } else if (hasRole(profile.funcoes, 'Apontador')) {
             funcaoSistemaAtualizada = 'Apontador';
           }
           

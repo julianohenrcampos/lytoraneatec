@@ -17,6 +17,8 @@ import { ProfileType } from "@/types/permissao";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getCanonicalPrimaryRole } from "@/utils/adminPermissionProfile";
+import { usePermission } from "@/hooks/usePermission";
+import { toast } from "sonner";
 
 interface AssignPermissionModalProps {
   isOpen: boolean;
@@ -36,6 +38,8 @@ const AssignPermissionModal: React.FC<AssignPermissionModalProps> = ({
   isSubmitting,
 }) => {
   const [selectedFuncao, setSelectedFuncao] = React.useState<string>("");
+  const { hasActionPermission } = usePermission();
+  const canSubmit = hasActionPermission("admin_permissoes_view", "editar");
 
   // Buscar roles da tabela bd_roles (novo RBAC)
   const { data: rolesDB } = useQuery({
@@ -65,6 +69,10 @@ const AssignPermissionModal: React.FC<AssignPermissionModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canSubmit) {
+      toast.error("Você não tem permissão para esta ação.");
+      return;
+    }
     if (profile && selectedFuncao) {
       onAssign(profile.id, selectedFuncao);
     }
@@ -170,7 +178,7 @@ const AssignPermissionModal: React.FC<AssignPermissionModalProps> = ({
             <Button type="button" variant="outline" onClick={onClose}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={!selectedFuncao || isSubmitting}>
+            <Button type="submit" disabled={!selectedFuncao || isSubmitting || !canSubmit}>
               {isSubmitting 
                 ? (isEditing ? "Substituindo..." : "Atribuindo...") 
                 : (isEditing ? "Substituir" : "Atribuir")

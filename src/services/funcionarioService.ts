@@ -373,63 +373,122 @@ export const createFuncionario = async (data: FuncionarioFormData): Promise<Func
   }
 };
 
-// Function to update funcionario
+// Function to update funcionario — Phase 1-FE: payload diff to avoid trigger storms
+const EDITABLE_COLUMNS = [
+  'nome_completo','cpf','data_nascimento','email','endereco_completo','escolaridade','genero',
+  'funcao_id','departamento_id','centro_custo_id','empresa_id','equipe_id',
+  'data_admissao','data_ferias','data_demissao','status',
+  'salario_base','insalubridade','periculosidade','gratificacao','adicional_noturno',
+  'custo_passagem','refeicao','diarias','observacoes',
+  'banco','agencia','conta_corrente','chave_pix','imagem','matricula',
+] as const;
+
+const NUMERIC_COLUMNS = new Set([
+  'salario_base','insalubridade','periculosidade','gratificacao','adicional_noturno',
+  'custo_passagem','refeicao','diarias',
+]);
+
+const normalizeForDiff = (value: any, key: string): any => {
+  if (value === undefined || value === null || value === '') return null;
+  if (NUMERIC_COLUMNS.has(key)) {
+    const n = Number(value);
+    return isNaN(n) ? 0 : n;
+  }
+  return value;
+};
+
 export const updateFuncionario = async (id: string, data: FuncionarioFormData): Promise<Funcionario> => {
   try {
-    // Sanitize form data (convert empty strings to null)
+    // 1) Sanitize incoming form data (uppercase nome, trim CPF, normalize email, '' -> null)
     const sanitizedData = sanitizeFormData(data);
-    
-    // Check for email duplicates before updating (excluding the current record)
-    if (sanitizedData.email) {
-      const isDuplicateEmail = await checkEmailDuplicate(sanitizedData.email, id);
-      if (isDuplicateEmail) {
-        throw new Error(`Já existe um funcionário ativo com o email "${sanitizedData.email}". Verifique duplicidade.`);
-      }
-    }
-    
-    // Calculate data_ferias if data_admissao is provided and different from existing
-    let funcionarioData = { ...sanitizedData };
-    if (funcionarioData.data_admissao) {
-      const admissionDate = new Date(funcionarioData.data_admissao);
-      const feriasDays = 365; // 1 year for vacation
-      const feriasDate = addDays(admissionDate, feriasDays);
-      funcionarioData.data_ferias = feriasDate.toISOString().split("T")[0];
+
+    // 2) Fetch current row (lean SELECT) to compute diff and decide recalculations
+    const { data: current, error: fetchErr } = await supabase
+      .from("bd_funcionarios")
+      .select(EDITABLE_COLUMNS.join(','))
+      .eq("id", id)
+      .single();
+
+    if (fetchErr || !current) {
+      throw new Error(`Erro ao carregar funcionário atual: ${fetchErr?.message || 'registro não encontrado'}`);
     }
 
-    // Set status based on admission and dismissal dates
-    if (!funcionarioData.status) {
-      if (!funcionarioData.data_demissao) {
-        funcionarioData.status = "Ativo";
+    const currentRow = current as unknown as Record<string, any>;
+
+    // 3) Recalculate data_ferias ONLY if data_admissao actually changed
+    const newAdmissao = sanitizedData.data_admissao ?? null;
+    const oldAdmissao = currentRow.data_admissao ?? null;
+    if (newAdmissao && newAdmissao !== oldAdmissao) {
+      const admissionDate = new Date(newAdmissao);
+      const feriasDate = addDays(admissionDate, 365);
+      sanitizedData.data_ferias = feriasDate.toISOString().split("T")[0];
+    } else {
+      // Don't push data_ferias unless admissao changed
+      delete (sanitizedData as any).data_ferias;
+    }
+
+    // 4) Recalculate status ONLY when status missing AND data_demissao changed; otherwise preserve current
+    if (!sanitizedData.status) {
+      const newDemissao = sanitizedData.data_demissao ?? null;
+      const oldDemissao = currentRow.data_demissao ?? null;
+      if (newDemissao !== oldDemissao) {
+        if (!newDemissao) {
+          sanitizedData.status = "Ativo";
+        } else {
+          const today = new Date();
+          const dismissalDate = new Date(newDemissao);
+          sanitizedData.status = dismissalDate > today ? "Aviso Prévio" : "Inativo";
+        }
       } else {
-        const today = new Date();
-        const dismissalDate = new Date(funcionarioData.data_demissao);
-        funcionarioData.status = dismissalDate > today ? "Aviso Prévio" : "Inativo";
+        // Status not provided and demissao not changed → don't touch it
+        delete (sanitizedData as any).status;
       }
     }
 
-    // Log the data being sent to the database for debugging
-    console.log("Updating funcionario with data:", funcionarioData);
+    // 5) Build diff: only fields that actually changed
+    const diff: Record<string, any> = {};
+    for (const key of EDITABLE_COLUMNS) {
+      if (!(key in sanitizedData)) continue;
+      const newVal = normalizeForDiff((sanitizedData as any)[key], key);
+      const oldVal = normalizeForDiff(currentRow[key], key);
+      if (newVal !== oldVal) {
+        diff[key] = (sanitizedData as any)[key];
+      }
+    }
+
+    // 6) No changes → skip UPDATE entirely (avoid trigger cascade)
+    if (Object.keys(diff).length === 0) {
+      const noChange = { ...currentRow, id, __noChange: true } as any;
+      return noChange as Funcionario;
+    }
+
+    // 7) Email duplicate check ONLY if email changed
+    if ('email' in diff && diff.email) {
+      const isDuplicateEmail = await checkEmailDuplicate(diff.email, id);
+      if (isDuplicateEmail) {
+        throw new Error(`Já existe um funcionário ativo com o email "${diff.email}". Verifique duplicidade.`);
+      }
+    }
+
+    console.log("Updating funcionario (diff only):", Object.keys(diff));
 
     const { data: updatedFuncionario, error } = await supabase
       .from("bd_funcionarios")
-      .update(funcionarioData as any)
+      .update(diff as any)
       .eq("id", id)
       .select()
       .single();
 
     if (error) {
       console.error("Database error:", error);
-      
-      // Extrair mensagem amigável de erros de duplicação
       if (error.message.includes('Já existe um funcionário')) {
         throw new Error(error.message);
       } else if (error.message.includes('duplicate key') || error.code === '23505') {
         throw new Error('Já existe um funcionário com este CPF ou email. Verifique os dados.');
       }
-      
       throw new Error(`Erro ao atualizar funcionário: ${error.message}`);
     }
-    
+
     return updatedFuncionario as unknown as Funcionario;
   } catch (error) {
     console.error(`Error updating funcionario with id ${id}:`, error);

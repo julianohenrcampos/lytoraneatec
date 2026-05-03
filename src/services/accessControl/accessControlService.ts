@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { hasRole } from '@/utils/roleUtils';
 
 export interface UserAccess {
   roles: string[];
@@ -41,7 +42,7 @@ export const getUserAccess = async (userId: string): Promise<UserAccess> => {
       }
     }
 
-    const isSuperAdmin = roles.includes('SuperAdm');
+    const isSuperAdmin = hasRole(roles, 'SuperAdm');
 
     // SuperAdmin = acesso total
     if (isSuperAdmin) {

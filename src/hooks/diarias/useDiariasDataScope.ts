@@ -6,6 +6,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { usePermission } from '@/hooks/usePermission';
+import { hasRole as hasRoleNorm, hasAnyRole } from '@/utils/roleUtils';
 import type { DiariaSolicitacao, SolicitacaoFilters, RelatorioFilters, RelatorioFolhaItem } from '@/types/diarias';
 
 export type DiariasUserScope =
@@ -142,7 +143,7 @@ export function useDiariasDataScope(): DiariasDataScope {
 
         const rolesEfetivas = Array.from(new Set([...funcoesProfile, ...roleNames]));
 
-        const hasRole = (name: string) => rolesEfetivas.includes(name);
+        const hasRole = (name: string) => hasRoleNorm(rolesEfetivas, name);
 
         // Roles que indicam visibilidade administrativa/operacional ampla (não só criador)
         const rolesVisibilidadeAmpla = [
@@ -206,7 +207,7 @@ export function useDiariasDataScope(): DiariasDataScope {
           // Cache de 5 min para fn_diaria_scope_centros_custo.
           const elevadas = ['SuperAdm', 'AdmRH', 'Financeiro', 'DP', 'DepartamentoPessoal'];
           const admObraPuro =
-            hasRole('AdmOBRA') && !rolesEfetivas.some((r) => elevadas.includes(r));
+            hasRole('AdmOBRA') && !hasAnyRole(rolesEfetivas, elevadas);
           setIsAdmObraPuro(admObraPuro);
 
           if (admObraPuro) {

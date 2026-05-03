@@ -16,6 +16,8 @@ interface DepartamentoTableProps {
   onEdit: (departamento: Departamento) => void;
   onView: (departamento: Departamento) => void;
   onDelete: (departamento: Departamento) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 const DepartamentoTable: React.FC<DepartamentoTableProps> = ({
@@ -24,7 +26,9 @@ const DepartamentoTable: React.FC<DepartamentoTableProps> = ({
   isError,
   onEdit,
   onView,
-  onDelete
+  onDelete,
+  canEdit = true,
+  canDelete = true,
 }) => {
   const pagination = usePagination(departamentos || [], { pageSize: 10 });
 
@@ -68,14 +72,16 @@ const DepartamentoTable: React.FC<DepartamentoTableProps> = ({
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onEdit(departamento)}
-                          title="Editar"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
+                        {canEdit && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onEdit(departamento)}
+                            title="Editar"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -84,15 +90,17 @@ const DepartamentoTable: React.FC<DepartamentoTableProps> = ({
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onDelete(departamento)}
-                          title="Excluir"
-                          className="text-destructive hover:text-destructive/90 hover:bg-destructive/10"
-                        >
-                          <Trash className="h-4 w-4" />
-                        </Button>
+                        {canDelete && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onDelete(departamento)}
+                            title="Excluir"
+                            className="text-destructive hover:text-destructive/90 hover:bg-destructive/10"
+                          >
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

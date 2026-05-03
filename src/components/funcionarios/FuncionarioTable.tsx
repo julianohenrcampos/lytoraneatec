@@ -1,5 +1,6 @@
 
 import React, { useState } from "react";
+import { toast } from "sonner";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Eye, Pencil, Trash2, ArrowUpCircle, MoreVertical, Printer, FileX2 } from "lucide-react";
@@ -40,6 +41,9 @@ interface FuncionarioTableProps {
   onRefetch: () => void;
   openImageModal?: (funcionario: Funcionario) => void;
   onBaixarClassificacao?: (funcionario: Funcionario) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  canCreate?: boolean;
 }
 
 const FuncionarioTable: React.FC<FuncionarioTableProps> = ({
@@ -53,11 +57,15 @@ const FuncionarioTable: React.FC<FuncionarioTableProps> = ({
   onRefetch,
   openImageModal,
   onBaixarClassificacao,
+  canEdit = true,
+  canDelete = true,
+  canCreate = true,
 }) => {
   const pagination = usePagination(funcionarios, { pageSize: 10 });
   const { reimprimir, isLoading: reimprimindo } = useReimprimirClassificacao();
   const { excluir, isLoading: excluindo } = useExcluirUltimaClassificacao();
   const [confirmExcluirId, setConfirmExcluirId] = useState<string | null>(null);
+  const DENIED_MSG = "Você não tem permissão para executar esta ação.";
 
   if (isLoading) {
     return <div className="text-center p-4">Carregando funcionários...</div>;
@@ -131,54 +139,75 @@ const FuncionarioTable: React.FC<FuncionarioTableProps> = ({
                     >
                       <Eye className="h-4 w-4" />
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => onEdit(funcionario)}
-                      title="Editar"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => onBaixarClassificacao && onBaixarClassificacao(funcionario)}
-                      title="Baixar Classificação"
-                    >
-                      <ArrowUpCircle className="h-4 w-4" />
-                    </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="icon" title="Mais ações">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => reimprimir(funcionario.id)}
-                          disabled={reimprimindo}
-                        >
-                          <Printer className="h-4 w-4 mr-2" />
-                          Reimprimir Classificação
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => setConfirmExcluirId(funcionario.id)}
-                          disabled={excluindo}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <FileX2 className="h-4 w-4 mr-2" />
-                          Excluir Classificação
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => onDelete(funcionario)}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Excluir Funcionário
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    {canEdit && (
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => onEdit(funcionario)}
+                        title="Editar"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {canCreate && (
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => onBaixarClassificacao && onBaixarClassificacao(funcionario)}
+                        title="Baixar Classificação"
+                      >
+                        <ArrowUpCircle className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {(canEdit || canDelete) && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="icon" title="Mais ações">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {canEdit && (
+                            <DropdownMenuItem
+                              onClick={() => {
+                                if (!canEdit) { toast.error(DENIED_MSG); return; }
+                                reimprimir(funcionario.id);
+                              }}
+                              disabled={reimprimindo}
+                            >
+                              <Printer className="h-4 w-4 mr-2" />
+                              Reimprimir Classificação
+                            </DropdownMenuItem>
+                          )}
+                          {canDelete && (
+                            <DropdownMenuItem
+                              onClick={() => {
+                                if (!canDelete) { toast.error(DENIED_MSG); return; }
+                                setConfirmExcluirId(funcionario.id);
+                              }}
+                              disabled={excluindo}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <FileX2 className="h-4 w-4 mr-2" />
+                              Excluir Classificação
+                            </DropdownMenuItem>
+                          )}
+                          {canEdit && canDelete && <DropdownMenuSeparator />}
+                          {canDelete && (
+                            <DropdownMenuItem
+                              onClick={() => {
+                                if (!canDelete) { toast.error(DENIED_MSG); return; }
+                                onDelete(funcionario);
+                              }}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Excluir Funcionário
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>

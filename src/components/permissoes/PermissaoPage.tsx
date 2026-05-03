@@ -20,6 +20,7 @@ import DeleteUserDialog from "./DeleteUserDialog";
 import UserOverridesTab from "./UserOverridesTab";
 import CreateGestorModal from "./CreateGestorModal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import ActionGuard from "./ActionGuard";
 import { useVincularFuncionario } from "@/hooks/useVincularFuncionario";
 import { useRemoverPermissoes } from "@/hooks/useRemoverPermissoes";
 import { useExcluirUsuario } from "@/hooks/useExcluirUsuario";
@@ -184,10 +185,12 @@ const PermissaoPage: React.FC = () => {
         <TabsContent value="users" className="space-y-4">
           {isSuperAdmin && (
             <div className="flex justify-end">
-              <Button onClick={() => setIsCreateGestorOpen(true)}>
-                <UserPlus className="h-4 w-4 mr-2" />
-                Novo Gestor
-              </Button>
+              <ActionGuard permission="admin_permissoes_view" action="criar">
+                <Button onClick={() => setIsCreateGestorOpen(true)}>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Novo Gestor
+                </Button>
+              </ActionGuard>
             </div>
           )}
           

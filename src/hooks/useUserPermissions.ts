@@ -1,3 +1,9 @@
+/**
+ * @deprecated
+ * Hook legado baseado em bd_funcoes_permissao/bd_permissoes.
+ * Não usar em novas telas. Preferir usePermission().
+ * Mantido temporariamente para compatibilidade até remoção futura.
+ */
 
 import { useState, useEffect, useCallback } from "react";
 import { getUserPermissions } from "@/services/permissaoService";

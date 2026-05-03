@@ -60,7 +60,8 @@ import { usePermission } from "@/hooks/usePermission";
 import {
   useRelatorioFolhaPaginado,
   useExportarExcel,
-  useDiariasDataScope } from
+  useDiariasDataScope,
+  useFuncionariosBuscaAtivos } from
 "@/hooks/diarias";
 import { getRelatorioFolha } from "@/services/diarias";
 import { useQuery } from "@tanstack/react-query";
@@ -211,39 +212,20 @@ export default function DiariasRelatorio() {
     gcTime: 10 * 60 * 1000,
   });
 
-  // Funcionário: busca assíncrona (autocomplete) — server-side, com debounce
+  // Funcionário: busca via RPC SECURITY DEFINER (get_funcionarios_ativos_global)
+  // Evita timeout 57014 causado pela RLS linha-a-linha em bd_funcionarios.
+  // O hook já aplica debounce interno (250ms) e preserva o selecionado via `ids`.
   const [funcionarioSearch, setFuncionarioSearch] = useState("");
-  const [funcionarioSearchDebounced, setFuncionarioSearchDebounced] = useState("");
-  useEffect(() => {
-    const t = setTimeout(() => setFuncionarioSearchDebounced(funcionarioSearch), 300);
-    return () => clearTimeout(t);
-  }, [funcionarioSearch]);
 
-  const { data: funcionariosBusca = [] } = useQuery({
-    queryKey: ['funcionarios-busca', funcionarioSearchDebounced, filters.funcionario_id],
-    queryFn: async () => {
-      const term = funcionarioSearchDebounced.trim();
-      let q = supabase
-        .from('bd_funcionarios')
-        .select('id, nome_completo')
-        .order('nome_completo')
-        .limit(50);
-      if (term.length >= 2) q = q.ilike('nome_completo', `%${term}%`);
-      const { data } = await q;
-      const list = (data || []) as { id: string; nome_completo: string }[];
-      // Garante que o funcionário já selecionado permanece visível mesmo quando o termo muda
-      if (filters.funcionario_id && !list.some(f => f.id === filters.funcionario_id)) {
-        const { data: sel } = await supabase
-          .from('bd_funcionarios')
-          .select('id, nome_completo')
-          .eq('id', filters.funcionario_id)
-          .maybeSingle();
-        if (sel) return [sel, ...list];
-      }
-      return list;
-    },
-    staleTime: 30_000,
+  const { funcionarios: funcionariosBuscaRaw } = useFuncionariosBuscaAtivos({
+    search: funcionarioSearch,
+    limit: 50,
+    ids: filters.funcionario_id ? [filters.funcionario_id] : undefined,
   });
+  const funcionariosBusca = funcionariosBuscaRaw.map((f) => ({
+    id: f.id,
+    nome_completo: f.nome_completo,
+  }));
 
   // Solicitações autorizadas para filtro por número.
   // Aplica o MESMO escopo da tabela principal:

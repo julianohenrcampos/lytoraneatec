@@ -11,13 +11,17 @@ interface CentroCustoMobileCardsProps {
   onEdit: (centroCusto: CentroCusto) => void;
   onView: (centroCusto: CentroCusto) => void;
   onDelete: (centroCusto: CentroCusto) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 const CentroCustoMobileCards: React.FC<CentroCustoMobileCardsProps> = ({
   centrosCusto,
   onEdit,
   onView,
-  onDelete
+  onDelete,
+  canEdit = true,
+  canDelete = true,
 }) => {
   return (
     <div className="space-y-4">
@@ -25,7 +29,7 @@ const CentroCustoMobileCards: React.FC<CentroCustoMobileCardsProps> = ({
         <Card key={centroCusto.id} className="p-4 overflow-hidden">
           <div className="flex justify-between items-center mb-2">
             <div className="flex items-center gap-2">
-              <Badge 
+              <Badge
                 variant={centroCusto.situacao === "Ativo" ? "default" : "secondary"}
                 className={centroCusto.situacao === "Ativo" ? "bg-green-500 hover:bg-green-500/90" : "bg-gray-500 hover:bg-gray-500/90"}
               >
@@ -33,7 +37,7 @@ const CentroCustoMobileCards: React.FC<CentroCustoMobileCardsProps> = ({
               </Badge>
               <span className="font-medium text-sm">{centroCusto.codigo_centro_custo}</span>
             </div>
-            
+
             <div className="flex gap-1">
               <Button
                 variant="ghost"
@@ -43,32 +47,36 @@ const CentroCustoMobileCards: React.FC<CentroCustoMobileCardsProps> = ({
               >
                 <Eye className="h-4 w-4" />
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => onEdit(centroCusto)}
-                className="h-8 w-8"
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => onDelete(centroCusto)}
-                className="h-8 w-8 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
-              >
-                <Trash className="h-4 w-4" />
-              </Button>
+              {canEdit && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onEdit(centroCusto)}
+                  className="h-8 w-8"
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+              )}
+              {canDelete && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onDelete(centroCusto)}
+                  className="h-8 w-8 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
+                >
+                  <Trash className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           </div>
-          
-          <h3 
+
+          <h3
             className="font-medium text-lg mb-2 cursor-pointer hover:text-primary truncate"
             onClick={() => onView(centroCusto)}
           >
             {centroCusto.nome_centro_custo}
           </h3>
-          
+
           <div className="space-y-1 text-sm">
             {centroCusto.cnpj_vinculado && (
               <div className="flex justify-between border-b pb-1">
@@ -76,7 +84,7 @@ const CentroCustoMobileCards: React.FC<CentroCustoMobileCardsProps> = ({
                 <span className="font-mono">{centroCusto.cnpj_vinculado}</span>
               </div>
             )}
-            
+
             {centroCusto.telefone && (
               <div className="flex justify-between pb-1">
                 <span className="text-muted-foreground">Telefone:</span>
