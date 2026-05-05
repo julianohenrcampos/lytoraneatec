@@ -148,9 +148,9 @@ const App = () => {
                     <Route path="/" element={<Auth><Portal /></Auth>} />
 
                     {/* Dashboards */}
-                    <Route path="/dashboard-rh" element={<Perm><DashboardRH /></Perm>} />
-                    <Route path="/dashboard-maquinas" element={<Perm><DashboardMaquinas /></Perm>} />
-                    <Route path="/dashboard-cbuq" element={<Perm><DashboardRequisicoes /></Perm>} />
+                    <Route path="/dashboard-rh" element={<Secure permission="dashboard_rh_view"><DashboardRH /></Secure>} />
+                    <Route path="/dashboard-maquinas" element={<Secure permission="dashboard_maquinas_view"><DashboardMaquinas /></Secure>} />
+                    <Route path="/dashboard-cbuq" element={<Secure permission="dashboard_cbuq_view"><DashboardRequisicoes /></Secure>} />
 
                     {/* Gestão RH */}
                     <Route path="/gestao-rh/empresas" element={<Secure permission="gestao_rh_empresas_view"><GestaoEmpresas /></Secure>} />
@@ -159,31 +159,31 @@ const App = () => {
                     <Route path="/gestao-rh/diretorias" element={<Secure permission="gestao_rh_diretorias_view"><GestaoDiretorias /></Secure>} />
                     <Route path="/gestao-rh/funcoes" element={<Secure permission="gestao_rh_funcoes_view"><GestaoFuncoes /></Secure>} />
                     <Route path="/gestao-rh/funcionarios" element={<Secure permission="gestao_rh_funcionarios_view"><GestaoFuncionarios /></Secure>} />
-                    <Route path="/gestao-rh/equipes" element={<Perm><GestaoEquipes /></Perm>} />
-                    <Route path="/gestao-rh/desligamentos" element={<Perm><GestaoDesligamentos /></Perm>} />
-                    <Route path="/gestao-rh/arquivo-morto" element={<Perm><ArquivoMorto /></Perm>} />
+                    <Route path="/gestao-rh/equipes" element={<Secure permission="gestao_rh_equipes_view"><GestaoEquipes /></Secure>} />
+                    <Route path="/gestao-rh/desligamentos" element={<Secure permission="gestao_rh_funcionarios_view"><GestaoDesligamentos /></Secure>} />
+                    <Route path="/gestao-rh/arquivo-morto" element={<Secure permission="gestao_rh_arquivo_morto_view"><ArquivoMorto /></Secure>} />
 
                     {/* Gestão Máquinas */}
-                    <Route path="/gestao-maquinas/caminhoes" element={<Perm><GestaoCaminhoes /></Perm>} />
-                    <Route path="/gestao-maquinas/usinas" element={<Perm><GestaoUsinas /></Perm>} />
-                    <Route path="/gestao-maquinas/relatorio-medicao" element={<Perm><RelatorioMedicao /></Perm>} />
+                    <Route path="/gestao-maquinas/caminhoes" element={<Secure permission="gestao_maquinas_caminhoes_view"><GestaoCaminhoes /></Secure>} />
+                    <Route path="/gestao-maquinas/usinas" element={<Secure permission="gestao_maquinas_usinas_view"><GestaoUsinas /></Secure>} />
+                    <Route path="/gestao-maquinas/relatorio-medicao" element={<Secure permission="gestao_maquinas_relatorio_medicao_view"><RelatorioMedicao /></Secure>} />
                     <Route path="/gestao-maquinas/abastecimento" element={<Secure permission="gestao_maquinas_abastecimento_view"><Abastecimento /></Secure>} />
-                    <Route path="/gestao-maquinas/solicitacoes-equipamentos" element={<Perm><GestaoSolicitacoesEquipamento /></Perm>} />
-                    <Route path="/gestao-maquinas/disponibilidade" element={<Perm><GestaoDisponibilidade /></Perm>} />
-                    <Route path="/gestao-maquinas/portfolio-empresas" element={<Perm><GestaoPortfolio /></Perm>} />
+                    <Route path="/gestao-maquinas/solicitacoes-equipamentos" element={<Secure permission="gestao_maquinas_caminhoes_view"><GestaoSolicitacoesEquipamento /></Secure>} />
+                    <Route path="/gestao-maquinas/disponibilidade" element={<Secure permission="gestao_maquinas_caminhoes_view"><GestaoDisponibilidade /></Secure>} />
+                    <Route path="/gestao-maquinas/portfolio-empresas" element={<Secure permission="gestao_maquinas_caminhoes_view"><GestaoPortfolio /></Secure>} />
                     <Route path="/gestao-maquinas/linhas-operacionais" element={<Perm><LinhasOperacionaisPage /></Perm>} />
-                    <Route path="/gestao-maquinas/central-transporte" element={<Perm><CentralTransporte /></Perm>} />
+                    <Route path="/gestao-maquinas/central-transporte" element={<Secure permission="gestao_maquinas_caminhoes_view"><CentralTransporte /></Secure>} />
                     <Route path="/gestao-maquinas/checklist-saida/:movimentacaoId" element={<Perm><ChecklistSaida /></Perm>} />
 
                     {/* Requisições */}
                     <Route path="/programacao-entrega" element={<Secure permission="requisicoes_programacao_entrega_view"><ProgramacaoEntrega /></Secure>} />
                     <Route path="/registro-aplicacao" element={<Secure permission="requisicoes_registro_aplicacao_view"><RegistroAplicacao /></Secure>} />
-                    <Route path="/requisicoes/cadastro" element={<Perm><GestaoRequisicoes /></Perm>} />
-                    <Route path="/requisicoes/registro-cargas" element={<Perm><RegistroCargas /></Perm>} />
-                    <Route path="/requisicoes/apontamento-equipe" element={<Perm><ApontamentoEquipe /></Perm>} />
-                    <Route path="/requisicoes/apontamento-caminhoes" element={<Perm><ApontamentoCaminhoes /></Perm>} />
-                    <Route path="/requisicoes/chamados-os" element={<Perm><ChamadosOS /></Perm>} />
-                    <Route path="/requisicoes/gestao-os" element={<Perm><GestaoOrdemServico /></Perm>} />
+                    <Route path="/requisicoes/cadastro" element={<Secure permission="requisicoes_cadastro_view"><GestaoRequisicoes /></Secure>} />
+                    <Route path="/requisicoes/registro-cargas" element={<Secure permission="requisicoes_registro_cargas_view"><RegistroCargas /></Secure>} />
+                    <Route path="/requisicoes/apontamento-equipe" element={<Secure permission="requisicoes_apontamento_equipe_view"><ApontamentoEquipe /></Secure>} />
+                    <Route path="/requisicoes/apontamento-caminhoes" element={<Secure permission="requisicoes_apontamento_caminhoes_view"><ApontamentoCaminhoes /></Secure>} />
+                    <Route path="/requisicoes/chamados-os" element={<Secure permission="requisicoes_chamados_os_view"><ChamadosOS /></Secure>} />
+                    <Route path="/requisicoes/gestao-os" element={<Secure permission="requisicoes_gestao_os_view"><GestaoOrdemServico /></Secure>} />
                     <Route path="/relatorio-aplicacao-diaria" element={<Secure permission="relatorio_aplicacao_view"><RelatorioAplicacaoDiaria /></Secure>} />
 
                     {/* Admin */}
@@ -191,10 +191,10 @@ const App = () => {
                     <Route path="/admin/gestao-fluxos" element={<Secure permission="admin_gestao_fluxos_view"><GestaoFluxos /></Secure>} />
                     <Route path="/admin/auditoria" element={<Secure permission="admin_auditoria_view"><AuditoriaSistema /></Secure>} />
                     <Route path="/admin/configuracoes-sistema" element={<Secure permission="admin_permissoes_view"><ConfiguracoesSistema /></Secure>} />
-                    <Route path="/admin/ponto-dispositivos" element={<Auth><PontoDispositivos /></Auth>} />
-                    <Route path="/admin/biometria-facial" element={<Auth><BiometriaFacial /></Auth>} />
-                    <Route path="/admin/auditoria-biometria" element={<Auth><AuditoriaBiometria /></Auth>} />
-                    <Route path="/admin/gestao-ponto" element={<Auth><GestaoPonto /></Auth>} />
+                    <Route path="/admin/ponto-dispositivos" element={<Auth><Secure permission="admin_permissoes_view"><PontoDispositivos /></Secure></Auth>} />
+                    <Route path="/admin/biometria-facial" element={<Auth><Secure permission="biometria_facial_gerenciar"><BiometriaFacial /></Secure></Auth>} />
+                    <Route path="/admin/auditoria-biometria" element={<Auth><Secure permission="admin_auditoria_view"><AuditoriaBiometria /></Secure></Auth>} />
+                    <Route path="/admin/gestao-ponto" element={<Auth><Secure permission="biometria_facial_gerenciar"><GestaoPonto /></Secure></Auth>} />
 
                     {/* SSO */}
                     <Route path="/sso/checklists" element={<Secure permission="acesso_sso_checklists"><SSOChecklistList /></Secure>} />
@@ -205,11 +205,11 @@ const App = () => {
                     <Route path="/sso/ver-e-agir" element={<Secure permission="acesso_sso_ver_agir"><SSOVerAgir /></Secure>} />
 
                     {/* Diárias */}
-                    <Route path="/requisicoes/diarias/dashboard" element={<Perm><DashboardDiarias /></Perm>} />
-                    <Route path="/requisicoes/diarias/solicitacoes" element={<Perm><DiariasSolicitacoes /></Perm>} />
-                    <Route path="/requisicoes/diarias/relatorio" element={<Perm><DiariasRelatorio /></Perm>} />
-                    <Route path="/requisicoes/diarias/apontamento-campo" element={<Perm><DiariasApontamentoCampo /></Perm>} />
-                    <Route path="/gestao-aprovacoes-diarias" element={<Perm><GestaoAprovacoesDiarias /></Perm>} />
+                    <Route path="/requisicoes/diarias/dashboard" element={<Secure permission="diarias_dashboard_view"><DashboardDiarias /></Secure>} />
+                    <Route path="/requisicoes/diarias/solicitacoes" element={<Secure permission="diarias_solicitacoes_view"><DiariasSolicitacoes /></Secure>} />
+                    <Route path="/requisicoes/diarias/relatorio" element={<Secure permission="diarias_relatorio_view"><DiariasRelatorio /></Secure>} />
+                    <Route path="/requisicoes/diarias/apontamento-campo" element={<Secure permission="diarias_apontamento_view"><DiariasApontamentoCampo /></Secure>} />
+                    <Route path="/gestao-aprovacoes-diarias" element={<Secure permission="acesso_gestao_aprovacoes"><GestaoAprovacoesDiarias /></Secure>} />
 
                     {/* Licitações */}
                     <Route path="/licitacoes/dashboard" element={<Secure permission="dashboard_licitacoes_view"><RelatorioLicitacoes /></Secure>} />
@@ -220,7 +220,7 @@ const App = () => {
                     <Route path="/licitacoes/relatorio" element={<Secure permission="relatorio_licitacoes_view"><RelatorioLicitacoes /></Secure>} />
 
                     {/* Ponto */}
-                    <Route path="/ponto" element={<Auth><PontoDireto /></Auth>} />
+                    <Route path="/ponto" element={<Secure permission="ponto_registrar"><PontoDireto /></Secure>} />
                     <Route path="/ponto-totem-login" element={<PontoTotemLogin />} />
                     <Route path="/ponto-totem" element={<PontoTotem />} />
                     {/* FROZEN: <Route path="/ponto-dispositivo" element={<PontoDispositivo />} /> */}

@@ -227,6 +227,32 @@ const ApontamentoEquipe: React.FC = () => {
 
   const { isSuperAdmin, hasActionPermission } = usePermission();
   const canCreateApontamento = isSuperAdmin || hasActionPermission('requisicoes_apontamento_equipe_view', 'criar');
+  const canExportApontamento = isSuperAdmin || hasActionPermission('requisicoes_apontamento_equipe_view', 'visualizar');
+  const canDeleteApontamento = isSuperAdmin || hasActionPermission('requisicoes_apontamento_equipe_view', 'excluir');
+
+  const guardedExport = () => {
+    if (!canExportApontamento) {
+      toast({
+        title: "Sem permissão",
+        description: "Você não tem permissão para esta ação.",
+        variant: "destructive",
+      });
+      return;
+    }
+    handleExport();
+  };
+
+  const guardedDelete = () => {
+    if (!canDeleteApontamento) {
+      toast({
+        title: "Sem permissão",
+        description: "Você não tem permissão para esta ação.",
+        variant: "destructive",
+      });
+      return;
+    }
+    handleDelete();
+  };
 
   if (isLoading) {
     return (
@@ -260,10 +286,10 @@ const ApontamentoEquipe: React.FC = () => {
             )}
             <Button 
               variant="outline" 
-              onClick={handleExport} 
+              onClick={guardedExport} 
               className="h-8 sm:h-10 px-2 sm:px-4 text-sm"
               size="xs"
-              disabled={apontamentos.length === 0}
+              disabled={!canExportApontamento || apontamentos.length === 0}
             >
               <Download className="mr-2 h-4 w-4" />
               <span>Exportar</span>
@@ -383,7 +409,7 @@ const ApontamentoEquipe: React.FC = () => {
           isOpen={isDeleteModalOpen}
           onClose={() => setIsDeleteModalOpen(false)}
           apontamento={deletingApontamento}
-          onDelete={handleDelete}
+          onDelete={guardedDelete}
           isDeleting={isDeleting}
         />
 

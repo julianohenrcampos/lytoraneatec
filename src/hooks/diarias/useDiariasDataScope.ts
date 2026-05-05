@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { usePermission } from '@/hooks/usePermission';
 import { hasRole as hasRoleNorm, hasAnyRole } from '@/utils/roleUtils';
+import { logLegacyUsage } from '@/utils/rbacLegacyTelemetry';
 import type { DiariaSolicitacao, SolicitacaoFilters, RelatorioFilters, RelatorioFolhaItem } from '@/types/diarias';
 
 export type DiariasUserScope =
@@ -47,6 +48,15 @@ export interface DiariasDataScope {
   canDeleteSolicitacao: (sol: DiariaSolicitacao) => boolean;
   canResendSolicitacao: (sol: DiariaSolicitacao) => boolean;
   canApproveSolicitacao: (sol: DiariaSolicitacao) => boolean;
+  /**
+   * Motivo pelo qual o usuário NÃO pode aprovar a solicitação.
+   * - 'segregacao_criador' → criador da solicitação (segregação de função)
+   * - 'sem_permissao'      → não possui RBAC de aprovação
+   * - 'fora_escopo'        → CC fora do escopo gerenciado
+   * - null                 → pode aprovar (ou outro motivo não classificado)
+   * Função puramente informativa: NÃO altera a regra de canApproveSolicitacao.
+   */
+  getMotivoNaoAprovacao: (sol: DiariaSolicitacao) => 'segregacao_criador' | 'sem_permissao' | 'fora_escopo' | null;
   canRejectSolicitacao: (sol: DiariaSolicitacao) => boolean;
   canCancelAutorizacao: (sol: DiariaSolicitacao) => boolean;
   canApontar: (responsavelCampoId: string, criadoPor?: string | null) => boolean;
@@ -143,6 +153,15 @@ export function useDiariasDataScope(): DiariasDataScope {
 
         const rolesEfetivas = Array.from(new Set([...funcoesProfile, ...roleNames]));
 
+        if (funcoesProfile.length > 0) {
+          logLegacyUsage('RBAC_LEGACY_SCOPE_FALLBACK_USED', {
+            userId,
+            hook: 'useDiariasDataScope',
+            funcoesProfileCount: funcoesProfile.length,
+            rolesFromDbCount: roleNames.length,
+          });
+        }
+
         const hasRole = (name: string) => hasRoleNorm(rolesEfetivas, name);
 
         // Roles que indicam visibilidade administrativa/operacional ampla (não só criador)
@@ -216,7 +235,7 @@ export function useDiariasDataScope(): DiariasDataScope {
               const STATUS_EXCLUIR = ['cancelado', 'cancelada', 'reprovada'];
               const funcIdAdmObra = profile?.funcionario_id || null;
 
-              const [rpcRes, respRes, criadorRes, funcCcRes] = await Promise.allSettled([
+              const [rpcRes, respRes, criadorRes, funcCcRes, admObraCcsRes] = await Promise.allSettled([
                 supabase.rpc('fn_diaria_scope_centros_custo', { p_user_id: userId }),
                 funcIdAdmObra
                   ? supabase
@@ -241,6 +260,15 @@ export function useDiariasDataScope(): DiariasDataScope {
                       .eq('id', funcIdAdmObra)
                       .maybeSingle()
                   : Promise.resolve({ data: null, error: null } as any),
+                // D2.2 — AdmObra MULTIOBRA: todos os CCs ativos onde o funcionário
+                // é o adm_obra_funcionario_id (fonte oficial do vínculo, sem N:N).
+                funcIdAdmObra
+                  ? supabase
+                      .from('bd_centros_custo')
+                      .select('id')
+                      .eq('adm_obra_funcionario_id', funcIdAdmObra)
+                      .eq('situacao', 'Ativo')
+                  : Promise.resolve({ data: [], error: null } as any),
               ]);
 
               const merged = new Set<string>();
@@ -300,6 +328,23 @@ export function useDiariasDataScope(): DiariasDataScope {
                 console.warn(
                   '[Diarias][Scope] consulta bd_funcionarios.centro_custo_id falhou — seguindo com escopo parcial',
                   funcCcRes,
+                );
+              }
+
+              // D2.2 — AdmObra MULTIOBRA: une todos os CCs onde o funcionário é
+              // adm_obra_funcionario_id (cinto + suspensório vs. RPC).
+              if (admObraCcsRes.status === 'fulfilled' && !(admObraCcsRes.value as any).error) {
+                const rows = ((admObraCcsRes.value as any).data as any[]) || [];
+                if (rows.length > 0) {
+                  teveSucesso = true;
+                  rows.forEach((r: any) => {
+                    if (r?.id) merged.add(r.id);
+                  });
+                }
+              } else {
+                console.warn(
+                  '[Diarias][Scope] consulta bd_centros_custo.adm_obra_funcionario_id falhou — seguindo com escopo parcial',
+                  admObraCcsRes,
                 );
               }
 
@@ -538,6 +583,24 @@ export function useDiariasDataScope(): DiariasDataScope {
     return canApproveSolicitacao(sol);
   }, [canApproveSolicitacao]);
 
+  // D1.1: motivo informativo de bloqueio de aprovação (não altera regras).
+  const getMotivoNaoAprovacao = useCallback(
+    (sol: DiariaSolicitacao): 'segregacao_criador' | 'sem_permissao' | 'fora_escopo' | null => {
+      if (isSuperAdmin) return null;
+      // Segregação de função tem prioridade na mensagem ao usuário.
+      if (sol.criado_por && sol.criado_por === userId) return 'segregacao_criador';
+      if (!hasPermission('diarias_aprovar') && !hasPermission('diarias_autorizar')) return 'sem_permissao';
+      if (
+        (userScope === 'gerente' || userScope === 'admsede') &&
+        !centrosCustoGerenciados.includes(sol.centro_custo_id)
+      ) {
+        return 'fora_escopo';
+      }
+      return null;
+    },
+    [isSuperAdmin, userId, hasPermission, userScope, centrosCustoGerenciados],
+  );
+
   const canCancelAutorizacao = useCallback((sol: DiariaSolicitacao) => {
     if (sol.status !== 'autorizada') return false;
     if (isSuperAdmin) return true;
@@ -607,6 +670,7 @@ export function useDiariasDataScope(): DiariasDataScope {
     canDeleteSolicitacao,
     canResendSolicitacao,
     canApproveSolicitacao,
+    getMotivoNaoAprovacao,
     canRejectSolicitacao,
     canCancelAutorizacao,
     canApontar,

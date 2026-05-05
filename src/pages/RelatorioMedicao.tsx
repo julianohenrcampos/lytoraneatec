@@ -16,6 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import MainLayout from "@/components/layout/MainLayout";
 import { usePermissionGuard } from "@/hooks/usePermissionGuard";
+import { usePermission } from "@/hooks/usePermission";
 import { supabase } from "@/integrations/supabase/client";
 import { downloadExcel } from "@/lib/excel";
 import { CentroCusto } from "@/types/centroCusto";
@@ -107,6 +108,9 @@ const RelatorioMedicao: React.FC = () => {
   const { canAccess, isLoading: permissionLoading } = usePermissionGuard({
     requiredPermission: "gestao_maquinas_relatorio_medicao_view"
   });
+  const { isSuperAdmin, hasActionPermission } = usePermission();
+  const canExportRelatorioMedicao =
+    isSuperAdmin || hasActionPermission("gestao_maquinas_relatorio_medicao_view", "visualizar");
 
   useEffect(() => {
     fetchVehicleTypes().then(types => {
@@ -776,6 +780,14 @@ const RelatorioMedicao: React.FC = () => {
   };
 
   const handleExportToExcel = () => {
+    if (!canExportRelatorioMedicao) {
+      toast({
+        title: "Sem permissão",
+        description: "Você não tem permissão para esta ação.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!reportData.length || !selectedVehicleDetails || !dateRange?.from || !dateRange?.to) {
       toast({
         title: "Sem dados para exportar",
@@ -816,6 +828,14 @@ const RelatorioMedicao: React.FC = () => {
   };
 
   const handleExportToPDF = async () => {
+    if (!canExportRelatorioMedicao) {
+      toast({
+        title: "Sem permissão",
+        description: "Você não tem permissão para esta ação.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!reportData.length || !selectedVehicleDetails || !dateRange?.from || !dateRange?.to) {
       toast({
         title: "Sem dados para exportar",
@@ -1070,11 +1090,11 @@ const RelatorioMedicao: React.FC = () => {
         {showReport && reportData.length > 0 && dateRange?.from && dateRange?.to && !isLoading && (
           <div>
             <div className="flex justify-end gap-2 mb-4">
-              <Button variant="outline" onClick={handleExportToExcel}>
+              <Button variant="outline" onClick={handleExportToExcel} disabled={!canExportRelatorioMedicao}>
                 <FileDown className="mr-2 h-4 w-4" />
                 Exportar Excel
               </Button>
-              <Button variant="outline" onClick={handleExportToPDF}>
+              <Button variant="outline" onClick={handleExportToPDF} disabled={!canExportRelatorioMedicao}>
                 <Download className="mr-2 h-4 w-4" />
                 Exportar PDF
               </Button>

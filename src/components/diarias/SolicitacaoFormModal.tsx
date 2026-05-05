@@ -244,15 +244,19 @@ export function SolicitacaoFormModal({
   const minJustificativa = isRetroativo ? 20 : 10;
   
   // Centro de custos query com fallback
+  // D2.2 — queryKey inclui scopeFilters.centro_custo_ids para refetch quando o
+  // escopo do AdmObra (multiobra) terminar de ser resolvido pelo hook.
+  const scopedCcIds = scopeFilters.centro_custo_ids;
+  const scopedCcKey = scopedCcIds ? [...scopedCcIds].sort().join(',') : null;
   const { data: centrosCusto = [] } = useQuery({
-    queryKey: ['centros-custo-com-aprovador', isSuperAdmin],
+    queryKey: ['centros-custo-com-aprovador', isSuperAdmin, scopedCcKey],
     queryFn: async () => {
       let query = supabase
         .from('bd_centros_custo')
         .select('id, codigo_centro_custo, nome_centro_custo, aprovador_diarias_id')
         .eq('situacao', 'Ativo');
       if (!isSuperAdmin) query = query.neq('codigo_centro_custo', RESTRICTED_CC_CODE);
-      if (scopeFilters.centro_custo_ids?.length) query = query.in('id', scopeFilters.centro_custo_ids);
+      if (scopedCcIds?.length) query = query.in('id', scopedCcIds);
       const { data, error } = await query.order('nome_centro_custo');
       
       // Fallback se campo não existir (código de erro 42703)
@@ -295,6 +299,26 @@ export function SolicitacaoFormModal({
     enabled: isOpen && step === 'funcionarios',
   });
 
+  // Headcount autoritativo do CC selecionado, sem p_search, para alimentar
+  // a contagem do card de CC no SmartFuncionarioSearch. Não interfere na
+  // lista de busca atual (queryKey distinta, sem search).
+  const { funcionarios: funcionariosHeadcountCc } = useFuncionariosBuscaAtivos({
+    search: "",
+    centroCustoId: centroCustoId || null,
+    limit: 500,
+    enabled: isOpen && step === 'funcionarios' && !!centroCustoId,
+  });
+
+  const totalFuncionariosPorCentroOverride = useMemo(() => {
+    const m = new Map<string, number>();
+    if (!centroCustoId) return m;
+    const total = funcionariosHeadcountCc.filter(
+      (f) => f.centro_custo_id === centroCustoId
+    ).length;
+    m.set(centroCustoId, total);
+    return m;
+  }, [funcionariosHeadcountCc, centroCustoId]);
+
   // Aplica flag visual "fora do CC" e mantém compatibilidade de shape.
   const funcionarios = useMemo(() => {
     return funcionariosServer.map((f) => ({
@@ -307,6 +331,18 @@ export function SolicitacaoFormModal({
   const selectedCentroCusto = useMemo(() => {
     return centrosCusto.find((cc) => cc.id === centroCustoId);
   }, [centrosCusto, centroCustoId]);
+
+  // D2.2 — Pré-seleção: se só houver 1 CC disponível (caso AdmObra com 1 obra)
+  // e o usuário ainda não escolheu nenhum, seleciona automaticamente.
+  // Não sobrescreve edição em curso nem seleção do usuário.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (editingSolicitacao) return;
+    if (centroCustoId) return;
+    if (centrosCusto.length === 1) {
+      setCentroCustoId(centrosCusto[0].id);
+    }
+  }, [isOpen, editingSolicitacao, centroCustoId, centrosCusto]);
 
   const funcionarioIdsPreservados = useMemo(() => {
     return Array.from(new Set([
@@ -894,32 +930,25 @@ export function SolicitacaoFormModal({
   const [pendingCcAdd, setPendingCcAdd] = useState<{ ccId: string; preview: number } | null>(null);
 
   // Adiciona uma lista de candidatos (já vinda do servidor) ao convocadosPre.
-  // Aplica filtros: já presente, sem função, bloqueado pela RPC de elegibilidade.
-  // Funcionários em estado 'alerta' são adicionados automaticamente quando
-  // o usuário confirma o lote (decisão coletiva, sem prompt individual).
-  const aplicarLoteFuncionarios = useCallback((lista: any[]) => {
+  // Filtros aplicados:
+  //   - guard de CC alvo (descarta funcionários fora do CC selecionado);
+  //   - funcionário já presente na lista;
+  //   - sem função cadastrada (impede cálculo financeiro).
+  // NÃO bloqueia inclusão por elegibilidade: funcionários com matrícula
+  // inelegíveis em dia útil DEVEM entrar na lista da solicitação. A
+  // elegibilidade controla apenas o Apontamento de Campo (entrada/saída),
+  // não a presença do funcionário na solicitação.
+  const aplicarLoteFuncionarios = useCallback((lista: any[], ccAlvoId?: string) => {
     const addedIds = new Set(convocadosPre.map((c) => c.funcionario_id));
     const novos: FuncionarioPreConvocado[] = [];
     let jaExistentes = 0;
     let semFuncao = 0;
-    const bloqueadosPorMotivo = new Map<string, number>();
+    let foraCc = 0;
 
     for (const func of lista) {
+      if (ccAlvoId && func.centro_custo_id !== ccAlvoId) { foraCc++; continue; }
       if (addedIds.has(func.id)) { jaExistentes++; continue; }
       if (!func.bd_funcoes) { semFuncao++; continue; }
-
-      const eleg = elegibilidadeMap.get(func.id);
-      if (eleg?.status === 'bloqueado') {
-        const motivo = eleg.motivo || 'Bloqueado pela regra operacional';
-        bloqueadosPorMotivo.set(motivo, (bloqueadosPorMotivo.get(motivo) || 0) + 1);
-        continue;
-      }
-      // Legacy compat: respeita elegivel=false do registro quando RPC ainda não respondeu.
-      if (!eleg && func.elegivel === false) {
-        const motivo = func.motivo_bloqueio || 'Bloqueado pela regra operacional';
-        bloqueadosPorMotivo.set(motivo, (bloqueadosPorMotivo.get(motivo) || 0) + 1);
-        continue;
-      }
 
       novos.push({
         funcionario_id: func.id,
@@ -940,22 +969,17 @@ export function SolicitacaoFormModal({
     if (novos.length > 0) parts.push(`${novos.length} adicionado${novos.length > 1 ? 's' : ''}`);
     if (jaExistentes > 0) parts.push(`${jaExistentes} já estava${jaExistentes > 1 ? 'm' : ''} na lista`);
     if (semFuncao > 0) parts.push(`${semFuncao} sem função cadastrada`);
-    if (bloqueadosPorMotivo.size > 0) {
-      parts.push(
-        Array.from(bloqueadosPorMotivo.entries())
-          .map(([m, t]) => `${t} bloqueado${t > 1 ? 's' : ''}: ${m}`)
-          .join(' | ')
-      );
-    }
+    if (foraCc > 0) parts.push(`${foraCc} fora do centro de custo selecionado`);
 
     if (novos.length > 0) toast.success(parts.join('. ') + '.');
     else if (jaExistentes > 0) toast.info('Todos os funcionários deste centro já estão na lista.');
     else toast.warning(parts.join('. ') || 'Nenhum funcionário adicionado.');
-  }, [convocadosPre, elegibilidadeMap]);
+  }, [convocadosPre]);
 
-  // "Adicionar por CC" — limite controlado + confirmação forte.
-  // Estratégia: 1ª chamada com limit 100; se vier exatamente 100,
-  // pergunta antes de carregar até 500. Sem fallback massivo.
+  // "Adicionar por CC" — filtra ESTRITAMENTE pelo CC selecionado.
+  // A RPC get_funcionarios_ativos_global usa p_centro_custo apenas para
+  // priorização (ORDER BY), não como filtro. Por isso aplicamos o filtro
+  // local f.centro_custo_id === ccId imediatamente após receber a lista.
   const handleAddByCentroCusto = async (centroCustoIdSelected: string) => {
     try {
       const preview = await fetchFuncionariosAtivos(queryClient, {
@@ -964,13 +988,15 @@ export function SolicitacaoFormModal({
         limit: 100,
       });
 
-      if (preview.length < 100) {
-        aplicarLoteFuncionarios(preview);
+      const doCC = preview.filter((f) => f.centro_custo_id === centroCustoIdSelected);
+
+      if (doCC.length < 100) {
+        aplicarLoteFuncionarios(doCC, centroCustoIdSelected);
         return;
       }
 
-      // Possivelmente há mais de 100 — exige confirmação explícita do usuário.
-      setPendingCcAdd({ ccId: centroCustoIdSelected, preview: preview.length });
+      // Volume alto do próprio CC — pede confirmação com a contagem real.
+      setPendingCcAdd({ ccId: centroCustoIdSelected, preview: doCC.length });
     } catch (err) {
       console.error('[Diarias][addByCC] erro', err);
       toast.error('Não foi possível carregar os funcionários do centro de custo.');
@@ -985,9 +1011,10 @@ export function SolicitacaoFormModal({
       const lote = await fetchFuncionariosAtivos(queryClient, {
         centroCustoId: ccId,
         search: '',
-        limit: 500, // cap absoluto
+        limit: 500, // cap absoluto (RPC reduz para 200 internamente)
       });
-      aplicarLoteFuncionarios(lote);
+      const doCC = lote.filter((f) => f.centro_custo_id === ccId);
+      aplicarLoteFuncionarios(doCC, ccId);
     } catch (err) {
       console.error('[Diarias][addByCC confirm] erro', err);
       toast.error('Não foi possível carregar a lista completa.');
@@ -1527,6 +1554,7 @@ export function SolicitacaoFormModal({
                 onSearchChange={setFuncSearch}
                 isSearching={isFetchingFuncionarios}
                 elegibilidadeMap={elegibilidadeMap}
+                totalFuncionariosPorCentroOverride={totalFuncionariosPorCentroOverride}
               />
 
               {/* Meio: lista com scroll isolado */}
@@ -1933,7 +1961,11 @@ export function SolicitacaoFormModal({
       onClose={() => setPendingCcAdd(null)}
       onConfirm={confirmarAddByCc}
       title="Carregar funcionários do centro de custo"
-      description="Foram encontrados muitos funcionários neste centro de custo. A operação pode impactar a performance. Deseja continuar? Serão carregados até 500 funcionários."
+      description={
+        pendingCcAdd
+          ? `Foram encontrados ${pendingCcAdd.preview} funcionários vinculados ao centro de custo ${centrosCusto.find((cc) => cc.id === pendingCcAdd.ccId)?.codigo_centro_custo || ''}. Deseja carregá-los?`
+          : ''
+      }
       confirmText="Carregar e adicionar"
       cancelText="Cancelar"
       variant="warning"

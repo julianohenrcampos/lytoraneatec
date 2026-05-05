@@ -21,6 +21,7 @@ interface UsinaTableProps {
   onEdit: (usina: Usina) => void;
   onView: (usina: Usina) => void;
   onDelete: (usina: Usina) => void;
+  canDelete?: boolean;
 }
 
 const UsinaTable: React.FC<UsinaTableProps> = ({
@@ -30,6 +31,7 @@ const UsinaTable: React.FC<UsinaTableProps> = ({
   onEdit,
   onView,
   onDelete,
+  canDelete = true,
 }) => {
   const pagination = usePagination(usinas || [], { pageSize: 10 });
 
@@ -99,7 +101,7 @@ const UsinaTable: React.FC<UsinaTableProps> = ({
                       <Edit className="h-4 w-4" />
                       <span className="sr-only">Editar</span>
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => onDelete(usina)}>
+                    <Button variant="ghost" size="icon" onClick={() => onDelete(usina)} disabled={!canDelete}>
                       <Trash className="h-4 w-4" />
                       <span className="sr-only">Excluir</span>
                     </Button>

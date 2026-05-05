@@ -184,6 +184,10 @@ const SSOAgendamentoExames: React.FC = () => {
   };
 
   const handleEdit = (id: string) => {
+    if (!canEdit) {
+      toast.error('Você não tem permissão para esta ação.');
+      return;
+    }
     setModoFuncionario(false);
     setFuncionarioSelecionado(null);
     setTipoExameSelecionado(null);
@@ -198,6 +202,10 @@ const SSOAgendamentoExames: React.FC = () => {
 
   const handleDelete = async () => {
     if (!deleteId) return;
+    if (!canDelete) {
+      toast.error('Você não tem permissão para esta ação.');
+      return;
+    }
     try {
       await deleteAgendamento(deleteId);
       setDeleteId(null);
@@ -208,6 +216,10 @@ const SSOAgendamentoExames: React.FC = () => {
   };
 
   const handleStatusChange = async (id: string, status: string) => {
+    if (!canChangeStatus) {
+      toast.error('Você não tem permissão para esta ação.');
+      return;
+    }
     try {
       await updateStatus({ id, status });
     } catch (error) {
@@ -216,6 +228,10 @@ const SSOAgendamentoExames: React.FC = () => {
   };
 
   const handleBulkStatusChange = async (status: string) => {
+    if (!canChangeStatus) {
+      toast.error('Você não tem permissão para esta ação.');
+      return;
+    }
     try {
       await updateStatusBulk({ ids: selectedIds, status });
       setSelectedIds([]);
@@ -225,6 +241,10 @@ const SSOAgendamentoExames: React.FC = () => {
   };
 
   const handleCarteiraChange = async (id: string, status: string) => {
+    if (!canChangeCarteira) {
+      toast.error('Você não tem permissão para esta ação.');
+      return;
+    }
     try {
       await updateStatusCarteira({ id, status });
     } catch (error) {
@@ -233,6 +253,10 @@ const SSOAgendamentoExames: React.FC = () => {
   };
 
   const handleIntegracoChange = async (id: string, status: string) => {
+    if (!canChangeIntegracao) {
+      toast.error('Você não tem permissão para esta ação.');
+      return;
+    }
     try {
       await updateIntegracao({ id, status });
     } catch (error) {
@@ -241,6 +265,10 @@ const SSOAgendamentoExames: React.FC = () => {
   };
 
   const handleBeneficioUpdate = async (id: string, field: string, value: string | null) => {
+    if (!canChangeBeneficios) {
+      toast.error('Você não tem permissão para esta ação.');
+      return;
+    }
     try {
       await updateBeneficio({ id, field, value });
     } catch (error) {

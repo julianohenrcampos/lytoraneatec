@@ -26,6 +26,7 @@ interface VeiculoTableProps {
   onEdit: (veiculo: Veiculo) => void;
   onView: (veiculo: Veiculo) => void;
   onDelete: (veiculo: Veiculo) => void;
+  canDelete?: boolean;
 }
 
 const VeiculoTable: React.FC<VeiculoTableProps> = ({
@@ -35,6 +36,7 @@ const VeiculoTable: React.FC<VeiculoTableProps> = ({
   onEdit,
   onView,
   onDelete,
+  canDelete = true,
 }) => {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [pagination, setPagination] = useState({
@@ -42,7 +44,12 @@ const VeiculoTable: React.FC<VeiculoTableProps> = ({
     pageSize: 10,
   });
 
-  const columns = useVeiculoColumns({ onView, onEdit, onDelete });
+  const guardedDelete = (veiculo: Veiculo) => {
+    if (!canDelete) return;
+    onDelete(veiculo);
+  };
+
+  const columns = useVeiculoColumns({ onView, onEdit, onDelete: guardedDelete });
 
   const table = useReactTable({
     data: veiculos,

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { hasRole } from '@/utils/roleUtils';
+import { logLegacyUsage } from '@/utils/rbacLegacyTelemetry';
 
 interface Profile {
   id: string;
@@ -50,6 +51,14 @@ export const useProfile = (): UseProfileReturn => {
         if (!profile) {
           setError('Perfil não encontrado');
           return;
+        }
+
+        if (Array.isArray(profile.funcoes) && profile.funcoes.length > 0) {
+          logLegacyUsage('RBAC_LEGACY_SCOPE_FALLBACK_USED', {
+            userId: user.id,
+            hook: 'useProfile',
+            rolesCount: profile.funcoes.length,
+          });
         }
 
         // Auto-vinculação do funcionario_id se for Apontador/Encarregado sem vinculação

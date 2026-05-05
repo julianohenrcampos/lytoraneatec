@@ -1,4 +1,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  checkRbacMapDrift,
+  dualWritePersonalizado,
+  dualWriteTotal,
+  logRbacDualWrite,
+  sanitizeError,
+  type RbacCounts,
+  type RbacStatus,
+} from "./_rbac.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,6 +20,31 @@ interface CreateGestorRequest {
   nome_completo: string;
   tipo_acesso: 'total' | 'personalizado';
   permissoes?: string[];
+}
+
+/**
+ * Fase 5A-2 — Telemetria de uso de RBAC legado.
+ * - console.warn estruturado (canal primário, sempre).
+ * - insert fire-and-forget em bd_permission_audit_logs (canal secundário, best-effort).
+ * - Sem PII: apenas event/edge/branch/table/actor_id.
+ * - Nunca derruba a edge.
+ */
+function logLegacyEdge(
+  admin: ReturnType<typeof createClient>,
+  rota: string,
+  payload: Record<string, unknown>,
+) {
+  const event = 'RBAC_LEGACY_EDGE_CREATE_GESTOR_USED';
+  try {
+    try { console.warn(JSON.stringify({ event, rota, ...payload })); } catch { /* noop */ }
+    try {
+      const actorId = (payload.actor_id as string | null | undefined) ?? null;
+      void admin
+        .from('bd_permission_audit_logs')
+        .insert({ user_id: actorId, origem: event, rota, permitido: true } as any)
+        .then(() => {}, () => {});
+    } catch { /* fire-and-forget */ }
+  } catch { /* telemetria nunca quebra a edge */ }
 }
 
 Deno.serve(async (req) => {
@@ -80,6 +114,11 @@ Deno.serve(async (req) => {
       superAdmSource = 'has_role';
     } else {
       // Fallback legado: profiles.funcoes / funcao_sistema (mantido conforme escopo aprovado)
+      logLegacyEdge(supabaseAdmin, 'create-gestor:superadm-fallback-profiles', {
+        edge: 'create-gestor',
+        branch: 'superadm-fallback-profiles',
+        actor_id: requestingUser.id,
+      });
       const { data: requestingProfile } = await supabaseAdmin
         .from('profiles')
         .select('funcoes, funcao_sistema')
@@ -202,7 +241,14 @@ Deno.serve(async (req) => {
       // Se personalizado, criar ou buscar função "Gestor" com permissões específicas
       if (permissoes && permissoes.length > 0) {
         console.log('🔍 Buscando UUIDs das permissões:', permissoes);
-        
+
+        logLegacyEdge(supabaseAdmin, 'create-gestor:read-bd-permissoes', {
+          edge: 'create-gestor',
+          branch: 'read-bd-permissoes',
+          table: 'bd_permissoes',
+          actor_id: requestingUser.id,
+        });
+
         // Converter nomes de permissões para UUIDs
         const { data: permissoesDb, error: permError } = await supabaseAdmin
           .from('bd_permissoes')
@@ -246,6 +292,12 @@ Deno.serve(async (req) => {
           funcoes = [funcaoNome];
           funcaoSistema = funcaoNome;
           console.log('✅ Função personalizada criada:', funcaoNome, 'com', permissoesUuids.length, 'permissões');
+          logLegacyEdge(supabaseAdmin, 'create-gestor:insert-bd-funcoes-permissao', {
+            edge: 'create-gestor',
+            branch: 'insert-bd-funcoes-permissao',
+            table: 'bd_funcoes_permissao',
+            actor_id: requestingUser.id,
+          });
         }
       }
     }
@@ -268,6 +320,13 @@ Deno.serve(async (req) => {
     if (profileError) {
       console.error('⚠️ Erro ao atualizar perfil:', profileError);
       // Não falha completamente, usuário já foi criado
+    } else {
+      logLegacyEdge(supabaseAdmin, 'create-gestor:write-profiles-funcoes', {
+        edge: 'create-gestor',
+        branch: 'write-profiles-funcoes',
+        table: 'profiles',
+        actor_id: requestingUser.id,
+      });
     }
 
     console.log('✅ Gestor criado com sucesso!', {
@@ -295,21 +354,150 @@ Deno.serve(async (req) => {
       },
     });
 
+    // =====================================================================
+    // Fase 5B-2.6 — Dual-write RBAC (shadow-safe)
+    // Só executa se RBAC_DUAL_WRITE_ENABLED === "true". Default: OFF.
+    // Bloco totalmente isolado em try/catch — nunca quebra o legado.
+    // =====================================================================
+    let rbacStatus: RbacStatus = 'disabled';
+    let rbacCounts: RbacCounts | undefined = undefined;
+
+    try {
+      const flag = (Deno.env.get('RBAC_DUAL_WRITE_ENABLED') ?? '').trim();
+
+      // Observabilidade da flag (sem PII, sem valor bruto da secret).
+      // Fire-and-forget: nunca quebra o fluxo legado.
+      // NOTA: bd_permission_audit_logs não possui coluna `contexto`; detalhes
+      // (flag_present/flag_length/flag_is_true/target_id/tipo_acesso) ficam
+      // apenas no console.warn estruturado.
+      try {
+        const rawFlag = Deno.env.get('RBAC_DUAL_WRITE_ENABLED') ?? '';
+        const flagPresent = rawFlag !== '';
+        const flagLength = rawFlag.length;
+        const flagIsTrue = flag === 'true';
+
+        void supabaseAdmin
+          .from('bd_permission_audit_logs')
+          .insert({
+            user_id: requestingUser.id,
+            origem: 'RBAC_DUAL_WRITE_FLAG_EVAL',
+            rota: 'create-gestor',
+            permitido: flagIsTrue,
+          } as any)
+          .then(() => {}, () => {});
+
+        if (!flagIsTrue) {
+          void supabaseAdmin
+            .from('bd_permission_audit_logs')
+            .insert({
+              user_id: requestingUser.id,
+              origem: 'RBAC_DUAL_WRITE_DISABLED',
+              rota: 'create-gestor',
+              permitido: false,
+            } as any)
+            .then(() => {}, () => {});
+        }
+
+        try {
+          console.warn(JSON.stringify({
+            event: 'RBAC_DUAL_WRITE_FLAG_EVAL',
+            rota: 'create-gestor',
+            flag_present: flagPresent,
+            flag_length: flagLength,
+            flag_is_true: flagIsTrue,
+            target_id: newUserId ?? null,
+            tipo_acesso,
+          }));
+        } catch { /* noop */ }
+      } catch { /* telemetria nunca quebra a edge */ }
+
+      if (flag === 'true' && newUserId) {
+        // Cliente com JWT do SuperAdm — criado APENAS quando flag ativa.
+        const supabaseAsCaller = createClient(
+          Deno.env.get('SUPABASE_URL') ?? '',
+          Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+          {
+            global: { headers: { Authorization: authHeader } },
+            auth: { autoRefreshToken: false, persistSession: false },
+          }
+        );
+
+        const drift = await checkRbacMapDrift(supabaseAdmin);
+        if (drift === 'drift') {
+          rbacStatus = 'skipped_drift';
+          logRbacDualWrite(supabaseAdmin, 'RBAC_DUAL_WRITE_SKIPPED_DRIFT', {
+            actor_id: requestingUser.id,
+            target_id: newUserId,
+            tipo_acesso,
+            status: 'skipped_drift',
+          });
+        } else if (tipo_acesso === 'total') {
+          const r = await dualWriteTotal(supabaseAsCaller, supabaseAdmin, newUserId);
+          rbacStatus = r.status;
+          logRbacDualWrite(supabaseAdmin, 'RBAC_DUAL_WRITE_CREATE_GESTOR_TOTAL', {
+            actor_id: requestingUser.id,
+            target_id: newUserId,
+            tipo_acesso,
+            status: r.status,
+            error: r.error,
+          });
+        } else {
+          const r = await dualWritePersonalizado(
+            supabaseAsCaller,
+            supabaseAdmin,
+            newUserId,
+            funcaoSistema, // já é "Gestor_<Primeiro>_<ts>"
+            'Função personalizada (5B-2.6 dual-write)', // sem PII
+            permissoes ?? [],
+          );
+          rbacStatus = r.status;
+          rbacCounts = r.counts;
+          logRbacDualWrite(supabaseAdmin, 'RBAC_DUAL_WRITE_CREATE_GESTOR_PERSONALIZADO', {
+            actor_id: requestingUser.id,
+            target_id: newUserId,
+            tipo_acesso,
+            status: r.status,
+            counts: r.counts,
+            error: r.error,
+          });
+        }
+      }
+    } catch (rbacErr) {
+      rbacStatus = 'failed';
+      try {
+        logRbacDualWrite(supabaseAdmin, 'RBAC_DUAL_WRITE_FAILED', {
+          actor_id: requestingUser.id,
+          target_id: newUserId ?? null,
+          tipo_acesso,
+          status: 'failed',
+          error: sanitizeError(rbacErr),
+        });
+      } catch { /* nunca quebrar legado */ }
+    }
+
+    // Retorno legado preservado. rbac_status só é incluído se ≠ 'disabled'
+    // (omissão garante zero impacto no frontend quando flag desligada).
+    const responseData: Record<string, unknown> = {
+      id: newUserId,
+      email,
+      nome_completo,
+      tipo_acesso,
+      funcoes,
+    };
+    if (rbacStatus !== 'disabled') {
+      responseData.rbac_status = rbacStatus;
+      if (rbacCounts) responseData.rbac_counts = rbacCounts;
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         message: 'Gestor cadastrado com sucesso! Já pode fazer login.',
-        data: {
-          id: newUserId,
-          email,
-          nome_completo,
-          tipo_acesso,
-          funcoes
-        }
+        data: responseData,
       }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
 

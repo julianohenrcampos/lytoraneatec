@@ -9,9 +9,10 @@ interface Props {
   desligamentos: Desligamento[];
   onView: (d: Desligamento) => void;
   onCancel: (d: Desligamento) => void;
+  canCancel?: boolean;
 }
 
-export const DesligamentoList: React.FC<Props> = ({ desligamentos, onView, onCancel }) => {
+export const DesligamentoList: React.FC<Props> = ({ desligamentos, onView, onCancel, canCancel = true }) => {
   const formatDate = (d: string | null) => {
     if (!d) return '—';
     return new Date(d + 'T12:00:00').toLocaleDateString('pt-BR');
@@ -67,7 +68,7 @@ export const DesligamentoList: React.FC<Props> = ({ desligamentos, onView, onCan
                       <Eye className="h-4 w-4" />
                     </Button>
                     {d.status === 'em_andamento' && (
-                      <Button variant="ghost" size="icon" onClick={() => onCancel(d)}>
+                      <Button variant="ghost" size="icon" onClick={() => onCancel(d)} disabled={!canCancel}>
                         <XCircle className="h-4 w-4 text-destructive" />
                       </Button>
                     )}

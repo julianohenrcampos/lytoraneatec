@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermission } from "@/hooks/usePermission";
 import { hasRole } from "@/utils/roleUtils";
+import { logLegacyUsage } from "@/utils/rbacLegacyTelemetry";
 
 export interface RhSecurityContext {
   departamentoId?: string;
@@ -62,6 +63,13 @@ export const useRhSecurity = (): RhSecurityContext => {
           .single();
 
         const funcoes = (profile?.funcoes as string[]) || [];
+        if (funcoes.length > 0) {
+          logLegacyUsage('RBAC_LEGACY_SCOPE_FALLBACK_USED', {
+            userId,
+            hook: 'useRhSecurity',
+            rolesCount: funcoes.length,
+          });
+        }
         const GLOBAL_ACCESS_ROLES = ['AdmRH', 'AdmSSO', 'TecEnferSSO', 'ConsultaExames', 'AdmtreinoSSO'];
         const hasGlobalRole = funcoes.some(f => GLOBAL_ACCESS_ROLES.includes(f));
 
@@ -127,19 +135,55 @@ export const useRhSecurity = (): RhSecurityContext => {
           }
         }
 
-        if (hasRole(funcoes, 'AdmOBRA') && funcionario.centro_custo_id) {
-          console.log("🔐 AdmOBRA detectado - filtrando por centro de custo do usuário", funcionario.centro_custo_id);
-          setSecurityContext({
-            departamentoId: funcionario.departamento_id || undefined,
-            centroCustoId: funcionario.centro_custo_id || undefined,
-            centroCustoIds: [funcionario.centro_custo_id],
-            departamentoNome,
-            isLoading: false,
-            canViewAllData: false,
-            shouldFilterByDepartment: false,
-            shouldFilterByCentroCusto: true,
-          });
-          return;
+        if (hasRole(funcoes, 'AdmOBRA')) {
+          // AdmObra MULTIOBRA: escopo oficial = bd_centros_custo.adm_obra_funcionario_id
+          // Resolve TODOS os CCs administrados via profile.funcionario_id
+          const { data: profileFunc } = await supabase
+            .from('profiles')
+            .select('funcionario_id')
+            .eq('id', userId!)
+            .maybeSingle();
+
+          const funcId = profileFunc?.funcionario_id || null;
+          let admObraCcIds: string[] = [];
+
+          if (funcId) {
+            const { data: ccsAdministrados, error: ccErr } = await supabase
+              .from('bd_centros_custo')
+              .select('id')
+              .eq('adm_obra_funcionario_id', funcId)
+              .eq('situacao', 'Ativo');
+
+            if (ccErr) {
+              console.warn('⚠️ AdmOBRA - erro ao buscar CCs administrados:', ccErr);
+            }
+            admObraCcIds = (ccsAdministrados || []).map((c: any) => c.id);
+          }
+
+          // Fallback: preserva acesso mínimo ao CC pessoal se não houver nenhum CC administrado
+          if (admObraCcIds.length === 0 && funcionario.centro_custo_id) {
+            console.warn('⚠️ AdmOBRA sem CCs administrados - fallback ao centro_custo pessoal', {
+              userId,
+              funcionario_id: funcId,
+              ccPessoal: funcionario.centro_custo_id,
+            });
+            admObraCcIds = [funcionario.centro_custo_id];
+          }
+
+          if (admObraCcIds.length > 0) {
+            console.log('🔐 AdmOBRA multiobra - CCs administrados:', admObraCcIds);
+            setSecurityContext({
+              departamentoId: funcionario.departamento_id || undefined,
+              centroCustoId: admObraCcIds[0],
+              centroCustoIds: admObraCcIds,
+              departamentoNome,
+              isLoading: false,
+              canViewAllData: false,
+              shouldFilterByDepartment: false,
+              shouldFilterByCentroCusto: true,
+            });
+            return;
+          }
         }
 
         const shouldFilter = !isSuperAdmin && !!funcionario.departamento_id;

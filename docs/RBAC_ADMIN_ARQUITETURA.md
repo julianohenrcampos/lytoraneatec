@@ -192,3 +192,15 @@ As decisões principais passam a depender de:
 ## 14. Referência histórica
 
 O documento `docs/PERMISSION_SYSTEM_FIX.md` deve ser tratado como histórico de correções anteriores, não como especificação operacional atual.
+## Operação da flag `RBAC_DUAL_WRITE_ENABLED` (Fase 5B-2.7)
+
+A Edge Function `create-gestor` consulta `RBAC_DUAL_WRITE_ENABLED` em runtime e só ativa o branch dual-write quando o valor (após `trim()`) é exatamente `"true"`. Variações como `"1"`, `"yes"`, `"on"` ou `"TRUE"` são tratadas como OFF.
+
+Procedimento operacional obrigatório:
+
+1. Após **criar ou alterar** o secret `RBAC_DUAL_WRITE_ENABLED`, **redeployar** a Edge Function `create-gestor`. Edge runtimes não recebem env atualizado sem novo deploy/cold start.
+2. Antes de qualquer janela de QA ou cutover, verificar em `bd_permission_audit_logs` (filtrar por `rota = 'create-gestor'` nas execuções recentes) a presença de:
+   - `origem = 'RBAC_DUAL_WRITE_FLAG_EVAL'` com `permitido = true`.
+3. Se a última execução registrar `permitido = false` (ou ainda houver `RBAC_DUAL_WRITE_DISABLED`), **abortar** a janela e investigar antes de prosseguir.
+
+A telemetria é fire-and-forget — falha de log nunca quebra o fluxo legado, e nenhum dado sensível (email, senha, nome, payload, lista de permissões, valor bruto da secret) é registrado.

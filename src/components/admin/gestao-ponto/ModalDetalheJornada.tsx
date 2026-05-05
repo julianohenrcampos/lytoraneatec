@@ -7,6 +7,7 @@ import { MapPin, Camera, Edit, Trash2, MessageSquare, ExternalLink } from "lucid
 import { format } from "date-fns";
 import { toast } from "sonner";
 import type { JornadaDiariaRow } from "@/hooks/admin/useJornadasDiarias";
+import { usePermission } from "@/hooks/usePermission";
 
 interface BatidaDetalhe {
   id: string;
@@ -41,6 +42,11 @@ const ModalDetalheJornada: React.FC<Props> = ({ isOpen, onClose, jornada, onChan
   const [batidas, setBatidas] = useState<BatidaDetalhe[]>([]);
   const [loading, setLoading] = useState(false);
   const [fotoUrls, setFotoUrls] = useState<Record<string, string>>({});
+  const { isSuperAdmin, hasActionPermission, permissions } = usePermission();
+  const canAjustarBatida =
+    isSuperAdmin ||
+    permissions.includes("ponto_aprovar_ajuste") ||
+    hasActionPermission("ponto_aprovar_ajuste", "aprovar");
 
   useEffect(() => {
     if (!isOpen || !jornada) return;
@@ -78,6 +84,10 @@ const ModalDetalheJornada: React.FC<Props> = ({ isOpen, onClose, jornada, onChan
   }, [isOpen, jornada]);
 
   const handleJustificar = async (batida: BatidaDetalhe) => {
+    if (!canAjustarBatida) {
+      toast.error("Você não tem permissão para esta ação.");
+      return;
+    }
     const just = window.prompt("Justificativa:", batida.justificativa || "");
     if (just === null) return;
     const { error } = await supabase
@@ -94,6 +104,10 @@ const ModalDetalheJornada: React.FC<Props> = ({ isOpen, onClose, jornada, onChan
   };
 
   const handleExcluir = async (batida: BatidaDetalhe) => {
+    if (!canAjustarBatida) {
+      toast.error("Você não tem permissão para esta ação.");
+      return;
+    }
     const motivo = window.prompt("Motivo da exclusão (obrigatório):", "");
     if (!motivo || !motivo.trim()) {
       toast.error("Motivo é obrigatório");
@@ -113,6 +127,10 @@ const ModalDetalheJornada: React.FC<Props> = ({ isOpen, onClose, jornada, onChan
   };
 
   const handleEditarHora = async (batida: BatidaDetalhe) => {
+    if (!canAjustarBatida) {
+      toast.error("Você não tem permissão para esta ação.");
+      return;
+    }
     const atual = format(new Date(batida.data_hora_considerada), "HH:mm");
     const nova = window.prompt("Nova hora (HH:mm):", atual);
     if (!nova || !/^\d{2}:\d{2}$/.test(nova)) return;
@@ -225,13 +243,13 @@ const ModalDetalheJornada: React.FC<Props> = ({ isOpen, onClose, jornada, onChan
 
                   {!invalidada && (
                     <div className="flex gap-2 mt-3 pt-3 border-t">
-                      <Button size="sm" variant="outline" onClick={() => handleEditarHora(b)}>
+                      <Button size="sm" variant="outline" onClick={() => handleEditarHora(b)} disabled={!canAjustarBatida}>
                         <Edit className="h-3 w-3 mr-1" /> Editar hora
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleJustificar(b)}>
+                      <Button size="sm" variant="outline" onClick={() => handleJustificar(b)} disabled={!canAjustarBatida}>
                         <MessageSquare className="h-3 w-3 mr-1" /> Justificar
                       </Button>
-                      <Button size="sm" variant="destructive" onClick={() => handleExcluir(b)}>
+                      <Button size="sm" variant="destructive" onClick={() => handleExcluir(b)} disabled={!canAjustarBatida}>
                         <Trash2 className="h-3 w-3 mr-1" /> Excluir
                       </Button>
                     </div>

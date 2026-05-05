@@ -7,12 +7,14 @@ interface UsinaHeaderActionsProps {
   onNewUsina: () => void;
   onExport: () => void;
   onImport: () => void;
+  canExport?: boolean;
 }
 
 const UsinaHeaderActions: React.FC<UsinaHeaderActionsProps> = ({
   onNewUsina,
   onExport,
   onImport,
+  canExport = true,
 }) => {
   return (
     <div className="flex flex-wrap gap-2">
@@ -20,7 +22,7 @@ const UsinaHeaderActions: React.FC<UsinaHeaderActionsProps> = ({
         <Plus className="h-4 w-4" />
         <span className="hidden sm:inline-block">Nova Usina</span>
       </Button>
-      <Button variant="outline" onClick={onExport} className="gap-2">
+      <Button variant="outline" onClick={onExport} className="gap-2" disabled={!canExport}>
         <Download className="h-4 w-4" />
         <span className="hidden sm:inline-block">Exportar</span>
       </Button>

@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  canDelete?: boolean;
 }
 
 const TIPO_OPTIONS = [
@@ -35,7 +36,7 @@ const tipoBadgeColor = (tipo: string | null) => {
   }
 };
 
-const GerenciarFrotasModal: React.FC<Props> = ({ isOpen, onClose }) => {
+const GerenciarFrotasModal: React.FC<Props> = ({ isOpen, onClose, canDelete = true }) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [frotas, setFrotas] = useState<Frota[]>([]);
@@ -122,6 +123,14 @@ const GerenciarFrotasModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
   const handleDelete = async () => {
     if (!editing) return;
+    if (!canDelete) {
+      toast({
+        title: "Sem permissão",
+        description: "Você não tem permissão para esta ação.",
+        variant: "destructive",
+      });
+      return;
+    }
     setLoading(true);
     try {
       const { count } = await supabase
@@ -228,7 +237,7 @@ const GerenciarFrotasModal: React.FC<Props> = ({ isOpen, onClose }) => {
         <DialogFooter className="flex flex-col-reverse sm:flex-row sm:justify-between gap-2">
           <div className="flex gap-2">
             {editing && (
-              <Button variant="destructive" onClick={handleDelete} disabled={loading} size="sm">
+              <Button variant="destructive" onClick={handleDelete} disabled={loading || !canDelete} size="sm">
                 <Trash2 className="mr-1 h-4 w-4" />
                 Excluir
               </Button>

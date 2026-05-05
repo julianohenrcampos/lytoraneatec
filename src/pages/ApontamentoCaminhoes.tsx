@@ -13,12 +13,20 @@ import ApontamentoCaminhoesDetailsModal from "@/components/apontamento-caminhoes
 import DeleteApontamentoCaminhoesDialog from "@/components/apontamento-caminhoes/DeleteApontamentoCaminhoesDialog";
 import { useCentrosCusto } from "@/hooks/useCentrosCusto";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePermission } from "@/hooks/usePermission";
+import { useToast } from "@/hooks/use-toast";
 
 const ApontamentoCaminhoes: React.FC = () => {
   usePageTitle("Apontamento de C&E");
   useApontamentoCaminhoesInit();
   const { centrosCusto } = useCentrosCusto();
   const isMobile = useIsMobile();
+  const { isSuperAdmin, hasActionPermission } = usePermission();
+  const { toast } = useToast();
+  const canDeleteApontamento =
+    isSuperAdmin || hasActionPermission("requisicoes_apontamento_caminhoes_view", "excluir");
+  const canExportApontamento =
+    isSuperAdmin || hasActionPermission("requisicoes_apontamento_caminhoes_view", "visualizar");
   
   const {
     apontamentos,
@@ -49,6 +57,30 @@ const ApontamentoCaminhoes: React.FC = () => {
     label: centro.codigo_centro_custo
   }));
 
+  const guardedDelete = async () => {
+    if (!canDeleteApontamento) {
+      toast({
+        title: "Sem permissão",
+        description: "Você não tem permissão para esta ação.",
+        variant: "destructive",
+      });
+      return;
+    }
+    await handleDelete();
+  };
+
+  const guardedExport = () => {
+    if (!canExportApontamento) {
+      toast({
+        title: "Sem permissão",
+        description: "Você não tem permissão para esta ação.",
+        variant: "destructive",
+      });
+      return;
+    }
+    handleExportToExcel();
+  };
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -64,8 +96,9 @@ const ApontamentoCaminhoes: React.FC = () => {
             
             {!isMobile && (
               <Button 
-                onClick={handleExportToExcel}
+                onClick={guardedExport}
                 variant="outline"
+                disabled={!canExportApontamento}
               >
                 <FileDown className="h-4 w-4 mr-2" />
                 Exportar
@@ -89,15 +122,17 @@ const ApontamentoCaminhoes: React.FC = () => {
           onEdit={handleOpenFormModal}
           onDelete={handleOpenDeleteModal}
           isLoading={isLoading}
+          canDelete={canDeleteApontamento}
         />
         
         {isMobile && apontamentos.length > 0 && (
           <div className="fixed bottom-4 right-4">
             <Button 
-              onClick={handleExportToExcel}
+              onClick={guardedExport}
               variant="outline" 
               size="sm"
               className="rounded-full shadow-lg"
+              disabled={!canExportApontamento}
             >
               <FileDown className="h-4 w-4 mr-1" />
               Exportar
@@ -131,7 +166,7 @@ const ApontamentoCaminhoes: React.FC = () => {
       <DeleteApontamentoCaminhoesDialog
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
-        onConfirm={handleDelete}
+        onConfirm={guardedDelete}
         isLoading={isLoading}
       />
     </MainLayout>

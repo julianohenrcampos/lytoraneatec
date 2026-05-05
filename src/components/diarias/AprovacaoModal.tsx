@@ -23,6 +23,10 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { DiariaSolicitacao, FuncionarioPreConvocado } from "@/types/diarias";
 import { formatCurrency } from "@/utils/diariasPeriodoUtils";
+import { useDiariasDataScope } from "@/hooks/diarias/useDiariasDataScope";
+
+const SEGREGACAO_MSG_CRIADOR =
+  "Você criou esta solicitação. A aprovação deve ser feita por outro aprovador autorizado.";
 
 interface AprovacaoModalProps {
   isOpen: boolean;
@@ -47,6 +51,13 @@ export function AprovacaoModal({
   const [observacaoGerente, setObservacaoGerente] = useState<string>(
     solicitacao?.observacao_gerente || ''
   );
+
+  // D1.1: detectar bloqueio por segregação para exibir motivo claro ao usuário.
+  // Não altera a regra de aprovação — apenas explica o porquê do bloqueio.
+  const { canApproveSolicitacao, getMotivoNaoAprovacao } = useDiariasDataScope();
+  const motivoBloqueio = solicitacao ? getMotivoNaoAprovacao(solicitacao) : null;
+  const bloqueadoPorSegregacao =
+    !!solicitacao && action === 'autorizar' && motivoBloqueio === 'segregacao_criador' && !canApproveSolicitacao(solicitacao);
 
   // Sincronizar observação quando a solicitação mudar
   useEffect(() => {
@@ -137,6 +148,14 @@ export function AprovacaoModal({
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* D1.1: aviso de segregação para o criador da solicitação */}
+          {bloqueadoPorSegregacao && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>{SEGREGACAO_MSG_CRIADOR}</AlertDescription>
+            </Alert>
+          )}
+
           {/* Resumo da Solicitação */}
           <Card>
             <CardContent className="pt-4 space-y-3">
@@ -251,7 +270,8 @@ export function AprovacaoModal({
           <Button
             variant={isAprovacao ? "default" : "destructive"}
             onClick={handleConfirm}
-            disabled={!canConfirm || isLoading}
+            disabled={!canConfirm || isLoading || bloqueadoPorSegregacao}
+            title={bloqueadoPorSegregacao ? SEGREGACAO_MSG_CRIADOR : undefined}
           >
             {isLoading ? (
               <>

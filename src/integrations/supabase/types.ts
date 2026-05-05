@@ -8995,6 +8995,51 @@ export type Database = {
           },
         ]
       }
+      bd_rbac_legacy_map: {
+        Row: {
+          action_padrao: string | null
+          created_at: string
+          legacy_nome: string
+          new_codigo: string | null
+          observacao: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          action_padrao?: string | null
+          created_at?: string
+          legacy_nome: string
+          new_codigo?: string | null
+          observacao?: string | null
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          action_padrao?: string | null
+          created_at?: string
+          legacy_nome?: string
+          new_codigo?: string | null
+          observacao?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_rbac_legacy_map_new_codigo_fk"
+            columns: ["new_codigo"]
+            isOneToOne: false
+            referencedRelation: "bd_permissions"
+            referencedColumns: ["codigo"]
+          },
+          {
+            foreignKeyName: "bd_rbac_legacy_map_new_codigo_fk"
+            columns: ["new_codigo"]
+            isOneToOne: false
+            referencedRelation: "vw_rbac_permissions_safe"
+            referencedColumns: ["codigo"]
+          },
+        ]
+      }
       bd_registro_aplicacao_detalhes: {
         Row: {
           area_aplicada: number
@@ -15905,6 +15950,17 @@ export type Database = {
           },
         ]
       }
+      vw_rbac_legacy_map_drift: {
+        Row: {
+          action_padrao: string | null
+          detalhe: string | null
+          drift_kind: string | null
+          legacy_nome: string | null
+          new_codigo: string | null
+          status: string | null
+        }
+        Relationships: []
+      }
       vw_rbac_permissions_safe: {
         Row: {
           ativo: boolean | null
@@ -17793,6 +17849,10 @@ export type Database = {
       reprovar_gerente_adm: {
         Args: { p_observacao?: string; p_solicitacao_id: string }
         Returns: undefined
+      }
+      rpc_create_gestor_role: {
+        Args: { p_descricao?: string; p_role_name: string }
+        Returns: string
       }
       salvar_assinatura_funcionario:
         | {

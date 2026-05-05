@@ -5,10 +5,11 @@
  * vinculados ao fallback legado. Não criar novos usos.
  */
 import { supabase } from "@/integrations/supabase/client";
-import { 
-  FuncaoPermissao, 
+import {
+  FuncaoPermissao,
   FuncaoPermissaoFormData
 } from "@/types/permissao";
+import { auditLegacyRbacWrite } from "@/utils/rbacLegacyWriteAudit";
 
 // Role Permissions CRUD operations (LEGACY)
 export const fetchFuncoesPermissao = async (filters: { nome_funcao?: string }) => {
@@ -42,6 +43,7 @@ export const getFuncaoPermissaoById = async (id: string) => {
 };
 
 export const createFuncaoPermissao = async (funcaoPermissao: FuncaoPermissaoFormData) => {
+  auditLegacyRbacWrite({ service: "funcaoPermissaoCRUD", operation: "insert", table: "bd_funcoes_permissao" });
   const { data, error } = await supabase
     .from("bd_funcoes_permissao")
     .insert(funcaoPermissao)
@@ -56,6 +58,7 @@ export const createFuncaoPermissao = async (funcaoPermissao: FuncaoPermissaoForm
 };
 
 export const updateFuncaoPermissao = async (id: string, funcaoPermissao: FuncaoPermissaoFormData) => {
+  auditLegacyRbacWrite({ service: "funcaoPermissaoCRUD", operation: "update", table: "bd_funcoes_permissao" });
   const { data, error } = await supabase
     .from("bd_funcoes_permissao")
     .update(funcaoPermissao)
@@ -71,6 +74,7 @@ export const updateFuncaoPermissao = async (id: string, funcaoPermissao: FuncaoP
 };
 
 export const deleteFuncaoPermissao = async (id: string) => {
+  auditLegacyRbacWrite({ service: "funcaoPermissaoCRUD", operation: "delete", table: "bd_funcoes_permissao" });
   const { error } = await supabase
     .from("bd_funcoes_permissao")
     .delete()

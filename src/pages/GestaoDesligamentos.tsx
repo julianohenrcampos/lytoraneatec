@@ -16,10 +16,17 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { usePermission } from '@/hooks/usePermission';
+import { toast } from 'sonner';
 
 const GestaoDesligamentos = () => {
   usePageTitle("Gestão de Desligamentos");
   const { desligamentos, isLoading, createDesligamento, cancelDesligamento } = useDesligamentos();
+  const { isSuperAdmin, hasActionPermission } = usePermission();
+  const canCreateDesligamento =
+    isSuperAdmin || hasActionPermission('gestao_rh_funcionarios_view', 'criar');
+  const canCancelDesligamento =
+    isSuperAdmin || hasActionPermission('gestao_rh_funcionarios_view', 'excluir');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedDesligamento, setSelectedDesligamento] = useState<Desligamento | null>(null);
@@ -40,6 +47,10 @@ const GestaoDesligamentos = () => {
   }, [desligamentos, filterStatus, filterSearch]);
 
   const handleCreate = (data: DesligamentoFormData) => {
+    if (!canCreateDesligamento) {
+      toast.error('Você não tem permissão para esta ação.');
+      return;
+    }
     createDesligamento.mutate(data, {
       onSuccess: () => setDialogOpen(false),
     });
@@ -47,6 +58,10 @@ const GestaoDesligamentos = () => {
 
   const handleCancel = () => {
     if (!cancelTarget) return;
+    if (!canCancelDesligamento) {
+      toast.error('Você não tem permissão para esta ação.');
+      return;
+    }
     cancelDesligamento.mutate(
       { id: cancelTarget.id, funcionario_id: cancelTarget.funcionario_id },
       { onSuccess: () => setCancelTarget(null) },
@@ -59,7 +74,7 @@ const GestaoDesligamentos = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div></div>
-        <Button onClick={() => setDialogOpen(true)}>
+        <Button onClick={() => setDialogOpen(true)} disabled={!canCreateDesligamento}>
           <Plus className="h-4 w-4 mr-2" /> Novo Desligamento
         </Button>
       </div>
@@ -105,6 +120,7 @@ const GestaoDesligamentos = () => {
           desligamentos={filtered}
           onView={d => { setSelectedDesligamento(d); setDetailsOpen(true); }}
           onCancel={d => setCancelTarget(d)}
+          canCancel={canCancelDesligamento}
         />
       )}
 

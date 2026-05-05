@@ -12,7 +12,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { usePermission } from '@/hooks/usePermission';
 import type { SolicitacaoGestao, GestaoFluxoRole } from '@/hooks/diarias/useGestaoAprovacoesDiarias';
+
+const SEGREGACAO_MSG_CRIADOR =
+  'Você criou esta solicitação. A aprovação deve ser feita por outro aprovador autorizado.';
 
 interface Props {
   solicitacoes: SolicitacaoGestao[];
@@ -55,6 +60,8 @@ export default function GestaoAprovacoesTabelaDesktop({
   onAprovar,
   onReprovar,
 }: Props) {
+  // D1.1: detectar segregação para tooltip e bloqueio do botão Aprovar.
+  const { userId, isSuperAdmin } = usePermission();
   if (!solicitacoes.length) {
     return (
       <div className="flex items-center justify-center min-h-[200px] text-muted-foreground text-sm">
@@ -86,6 +93,9 @@ export default function GestaoAprovacoesTabelaDesktop({
             const badge = statusBadgeConfig[statusKey];
             const colorClass = statusColorMap[statusKey] || 'bg-muted text-muted-foreground';
             const showActions = canActOn(userFluxoRole, sol.status_fluxo);
+            // D1.1: criador não pode aprovar a própria solicitação (segregação).
+            const bloqueadoPorSegregacao =
+              !isSuperAdmin && !!userId && !!sol.criado_por && sol.criado_por === userId;
 
             return (
               <TableRow
@@ -135,15 +145,29 @@ export default function GestaoAprovacoesTabelaDesktop({
                     </Button>
                     {showActions && (
                       <>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                          title="Aprovar"
-                          onClick={() => onAprovar(sol)}
-                        >
-                          <CheckCircle className="h-4 w-4" />
-                        </Button>
+                        <TooltipProvider delayDuration={150}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className={cn(bloqueadoPorSegregacao && 'cursor-not-allowed')}>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                  title={bloqueadoPorSegregacao ? SEGREGACAO_MSG_CRIADOR : 'Aprovar'}
+                                  disabled={bloqueadoPorSegregacao}
+                                  onClick={() => onAprovar(sol)}
+                                >
+                                  <CheckCircle className="h-4 w-4" />
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            {bloqueadoPorSegregacao && (
+                              <TooltipContent side="top" className="max-w-xs text-xs">
+                                {SEGREGACAO_MSG_CRIADOR}
+                              </TooltipContent>
+                            )}
+                          </Tooltip>
+                        </TooltipProvider>
                         <Button
                           variant="ghost"
                           size="icon"

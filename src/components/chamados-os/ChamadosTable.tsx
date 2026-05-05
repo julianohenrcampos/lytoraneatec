@@ -31,6 +31,7 @@ interface ChamadosTableProps {
   isLoading: boolean;
   isError?: boolean;
   errorMessage?: string;
+  canDelete?: boolean;
 }
 
 const ChamadosTable: React.FC<ChamadosTableProps> = ({
@@ -41,7 +42,8 @@ const ChamadosTable: React.FC<ChamadosTableProps> = ({
   onConvertToOS,
   isLoading,
   isError = false,
-  errorMessage = "Ocorreu um erro ao carregar os dados. Tente novamente."
+  errorMessage = "Ocorreu um erro ao carregar os dados. Tente novamente.",
+  canDelete = true,
 }) => {
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -180,7 +182,7 @@ const ChamadosTable: React.FC<ChamadosTableProps> = ({
                         <Edit className="h-4 w-4 text-amber-600" />
                         <span className="sr-only">Editar</span>
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => onDelete(chamado)}>
+                      <Button variant="ghost" size="icon" onClick={() => onDelete(chamado)} disabled={!canDelete}>
                         <Trash2 className="h-4 w-4 text-red-600" />
                         <span className="sr-only">Excluir</span>
                       </Button>

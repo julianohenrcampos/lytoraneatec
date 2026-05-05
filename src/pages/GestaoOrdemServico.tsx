@@ -17,10 +17,16 @@ import { useFuncionarios } from "@/hooks/useFuncionarios";
 import { useVeiculos } from "@/hooks/useVeiculos";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { usePermission } from "@/hooks/usePermission";
 
 const GestaoOrdemServico: React.FC = () => {
   usePageTitle("Gestão de Ordens de Serviço");
   const { toast } = useToast();
+  const { isSuperAdmin, hasActionPermission } = usePermission();
+  const canDeleteOSItem =
+    isSuperAdmin || hasActionPermission('requisicoes_gestao_os_view', 'excluir');
+  const canExportOS =
+    isSuperAdmin || hasActionPermission('requisicoes_gestao_os_view', 'visualizar');
   const { funcionarios } = useFuncionarios();
   const { veiculos } = useVeiculos();
   const [departamentosDropdown, setDepartamentosDropdown] = useState<Array<{id: string; nome_departamento: string}>>([]);
@@ -111,14 +117,51 @@ const GestaoOrdemServico: React.FC = () => {
     handleConvertToOs(chamado.id, { tipo_servico: tipoFalha });
   };
 
+  const guardedExport = (...args: any[]) => {
+    if (!canExportOS) {
+      toast({
+        title: 'Sem permissão',
+        description: 'Você não tem permissão para esta ação.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    return (handleExportToExcel as any)(...args);
+  };
+
+  const guardedDeleteMaterial = (...args: any[]) => {
+    if (!canDeleteOSItem) {
+      toast({
+        title: 'Sem permissão',
+        description: 'Você não tem permissão para esta ação.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    return (handleDeleteMaterial as any)(...args);
+  };
+
+  const guardedDeleteMaoDeObra = (...args: any[]) => {
+    if (!canDeleteOSItem) {
+      toast({
+        title: 'Sem permissão',
+        description: 'Você não tem permissão para esta ação.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    return (handleDeleteMaoDeObra as any)(...args);
+  };
+
   return (
     <MainLayout>
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-center">
           <div className="flex space-x-2">
             <Button 
-              onClick={handleExportToExcel}
-              variant="outline" 
+              onClick={guardedExport}
+              variant="outline"
+              disabled={!canExportOS}
             >
               <FileDown className="h-4 w-4 mr-2" />
               Exportar
@@ -208,9 +251,9 @@ const GestaoOrdemServico: React.FC = () => {
         laborItems={laborItems}
         movements={movements}
         onSaveMaterial={handleSaveMaterial}
-        onDeleteMaterial={handleDeleteMaterial}
+        onDeleteMaterial={guardedDeleteMaterial}
         onSaveMaoDeObra={handleSaveMaoDeObra}
-        onDeleteMaoDeObra={handleDeleteMaoDeObra}
+        onDeleteMaoDeObra={guardedDeleteMaoDeObra}
         chamadoId={currentChamado?.id}
       />
     </MainLayout>

@@ -6,11 +6,12 @@
  * bloco "Legacy fallback"). Não criar novos usos.
  */
 import { supabase } from "@/integrations/supabase/client";
-import { 
-  Permissao, 
+import {
+  Permissao,
   PermissaoFormData,
   PermissaoFilter
 } from "@/types/permissao";
+import { auditLegacyRbacWrite } from "@/utils/rbacLegacyWriteAudit";
 
 // Permissions CRUD operations (LEGACY)
 export const fetchPermissoes = async (filters: PermissaoFilter = {}) => {
@@ -48,6 +49,7 @@ export const getPermissaoById = async (id: string) => {
 };
 
 export const createPermissao = async (permissao: PermissaoFormData) => {
+  auditLegacyRbacWrite({ service: "permissaoCRUD", operation: "insert", table: "bd_permissoes" });
   const { data, error } = await supabase
     .from("bd_permissoes")
     .insert(permissao)
@@ -62,6 +64,7 @@ export const createPermissao = async (permissao: PermissaoFormData) => {
 };
 
 export const updatePermissao = async (id: string, permissao: PermissaoFormData) => {
+  auditLegacyRbacWrite({ service: "permissaoCRUD", operation: "update", table: "bd_permissoes" });
   const { data, error } = await supabase
     .from("bd_permissoes")
     .update(permissao)
@@ -77,6 +80,7 @@ export const updatePermissao = async (id: string, permissao: PermissaoFormData) 
 };
 
 export const deletePermissao = async (id: string) => {
+  auditLegacyRbacWrite({ service: "permissaoCRUD", operation: "delete", table: "bd_permissoes" });
   const { error } = await supabase
     .from("bd_permissoes")
     .delete()

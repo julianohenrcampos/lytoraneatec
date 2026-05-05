@@ -19,10 +19,14 @@ import { Button } from "@/components/ui/button";
 import { Calendar, Download } from "lucide-react";
 import * as XLSX from "xlsx";
 import { usePageTitle } from "@/contexts/PageTitleContext";
+import { usePermission } from "@/hooks/usePermission";
 
 const RegistroCargas: React.FC = () => {
   usePageTitle("Registro de Cargas");
   const { toast } = useToast();
+  const { isSuperAdmin, hasActionPermission } = usePermission();
+  const canExportRegistroCargas =
+    isSuperAdmin || hasActionPermission("requisicoes_registro_cargas_view", "visualizar");
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -155,6 +159,14 @@ const RegistroCargas: React.FC = () => {
   };
 
   const handleExport = () => {
+    if (!canExportRegistroCargas) {
+      toast({
+        title: "Sem permissão",
+        description: "Você não tem permissão para esta ação.",
+        variant: "destructive",
+      });
+      return;
+    }
     try {
       const exportData = entregas.map(entrega => ({
         'Centro de Custo': entrega.centro_custo_nome || entrega.logradouro,
@@ -201,7 +213,7 @@ const RegistroCargas: React.FC = () => {
             Visualize e gerencie as entregas programadas.
           </p>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={handleExport}>
+            <Button variant="outline" onClick={handleExport} disabled={!canExportRegistroCargas}>
               <Download className="mr-2 h-4 w-4" />
               Exportar
             </Button>

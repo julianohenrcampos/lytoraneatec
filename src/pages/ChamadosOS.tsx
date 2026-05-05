@@ -18,7 +18,9 @@ const ChamadosOS: React.FC = () => {
   const [veiculosDropdown, setVeiculosDropdown] = useState<{ id: string; label: string }[]>([]);
   const [centrosCustoDropdown, setCentrosCustoDropdown] = useState<{ id: string; label: string, codigo_centro_custo?: string }[]>([]);
   const { toast } = useToast();
-  const { isSuperAdmin } = usePermission();
+  const { isSuperAdmin, hasActionPermission } = usePermission();
+  const canDeleteChamado =
+    isSuperAdmin || hasActionPermission('requisicoes_chamados_os_view', 'excluir');
   
   const {
     chamados,
@@ -170,11 +172,22 @@ const ChamadosOS: React.FC = () => {
           chamados={chamados}
           onView={handleOpenDetailsModal}
           onEdit={handleOpenFormModal}
-          onDelete={handleOpenDeleteModal}
+          onDelete={(chamado) => {
+            if (!canDeleteChamado) {
+              toast({
+                title: 'Sem permissão',
+                description: 'Você não tem permissão para esta ação.',
+                variant: 'destructive',
+              });
+              return;
+            }
+            handleOpenDeleteModal(chamado);
+          }}
           onConvertToOS={handleConvertChamadoToOS}
           isLoading={isLoading}
           isError={isError}
           errorMessage={errorMessage}
+          canDelete={canDeleteChamado}
         />
       </div>
 
@@ -199,7 +212,17 @@ const ChamadosOS: React.FC = () => {
       <DeleteChamadosDialog
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
-        onConfirm={handleDeleteChamado}
+        onConfirm={async () => {
+          if (!canDeleteChamado) {
+            toast({
+              title: 'Sem permissão',
+              description: 'Você não tem permissão para esta ação.',
+              variant: 'destructive',
+            });
+            return;
+          }
+          await handleDeleteChamado();
+        }}
         chamado={currentChamado}
         isLoading={isLoading}
       />

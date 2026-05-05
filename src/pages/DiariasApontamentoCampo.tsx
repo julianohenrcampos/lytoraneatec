@@ -47,7 +47,7 @@ import { Switch } from "@/components/ui/switch";
 import { Combobox } from "@/components/ui/combobox";
 import { PeriodoPicker } from "@/components/ui/periodo-picker";
 import type { DateRange } from "react-day-picker";
-import { fetchCentrosCustoFiltered } from "@/services/centrosCustoFilteredService";
+import { RESTRICTED_CC_CODE } from "@/utils/centroCustoRestrictions";
 import { generateFolhaPontoPDF } from "@/services/pdfService";
 import type { FolhaPontoFuncionario } from "@/components/diarias/pdf/FolhaPontoPDF";
 
@@ -62,6 +62,7 @@ export default function DiariasApontamentoCampo() {
   // Hook de escopo de dados - RBAC
   const { 
     userScope, 
+    scopeFilters,
     getApontamentosFilter,
     canApontar,
     isLoading: isLoadingScope 
@@ -79,13 +80,39 @@ export default function DiariasApontamentoCampo() {
   const [centroCustoFilter, setCentroCustoFilter] = useState('');
   const [gerenteFilter, setGerenteFilter] = useState('');
 
-  // Centros de custo para o combobox
-  const [centrosCustoOptions, setCentrosCustoOptions] = useState<{ value: string; label: string }[]>([]);
-  useEffect(() => {
-    fetchCentrosCustoFiltered(null, isSuperAdmin).then((data) => {
-      setCentrosCustoOptions(data.map((cc) => ({ value: cc.id, label: cc.nome_centro_custo })));
-    });
-  }, [isSuperAdmin]);
+  // Centros de custo para o combobox — respeita escopo AdmObra multiobra (D2.2)
+  const scopeCcIds = scopeFilters?.centro_custo_ids;
+  const scopeKey = (scopeCcIds || []).slice().sort().join(',');
+  const canViewAllCcs = isSuperAdmin || userScope === 'superadmin' || userScope === 'admsso';
+
+  const { data: centrosCustoData = [] } = useQuery({
+    queryKey: ['apontamento-cc-options', canViewAllCcs, scopeKey],
+    enabled: !isLoadingScope,
+    queryFn: async () => {
+      // Sem visão global e sem escopo → não exibe nada
+      if (!canViewAllCcs && (!scopeCcIds || scopeCcIds.length === 0)) {
+        return [] as { id: string; codigo_centro_custo: string; nome_centro_custo: string }[];
+      }
+      let q = supabase
+        .from('bd_centros_custo')
+        .select('id, codigo_centro_custo, nome_centro_custo')
+        .eq('situacao', 'Ativo')
+        .neq('codigo_centro_custo', RESTRICTED_CC_CODE);
+
+      if (!canViewAllCcs && scopeCcIds && scopeCcIds.length > 0) {
+        q = q.in('id', scopeCcIds);
+      }
+      const { data, error } = await q.order('codigo_centro_custo');
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Padronização visual: combo exibe SOMENTE o código do centro de custo (Fase C)
+  const centrosCustoOptions = useMemo(
+    () => (centrosCustoData || []).map((cc: any) => ({ value: cc.id, label: cc.codigo_centro_custo })),
+    [centrosCustoData]
+  );
 
   // Gerentes regionais para filtro (apenas SuperAdm)
   const { data: gerentesOptions = [] } = useQuery({

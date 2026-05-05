@@ -81,6 +81,31 @@ async function buildSuperAdminAuthHeader(userId: string, email: string) {
   return `Bearer ${token}`;
 }
 
+/**
+ * Fase 5A-2 — Telemetria de uso de RBAC legado nesta edge function.
+ * - console.warn estruturado (canal primário, sempre).
+ * - insert fire-and-forget em bd_permission_audit_logs (canal secundário, best-effort).
+ * - Sem PII: apenas event/edge/branch/table/rows/auth_mode/actor_id.
+ * - Nunca derruba a edge.
+ */
+function logLegacyEdge(
+  admin: ReturnType<typeof createClient>,
+  rota: string,
+  payload: Record<string, unknown>,
+) {
+  const event = 'RBAC_LEGACY_EDGE_FIX_EMPTY_ROLES_USED';
+  try {
+    try { console.warn(JSON.stringify({ event, rota, ...payload })); } catch { /* noop */ }
+    try {
+      const actorId = (payload.actor_id as string | null | undefined) ?? null;
+      void admin
+        .from('bd_permission_audit_logs')
+        .insert({ user_id: actorId, origem: event, rota, permitido: true } as any)
+        .then(() => {}, () => {});
+    } catch { /* fire-and-forget */ }
+  } catch { /* telemetria nunca quebra a edge */ }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -108,6 +133,7 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
+    let actorUserId: string | null = null;
     if (!isInternalCall) {
       const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
       const userClient = createClient(supabaseUrl, anonKey, {
@@ -121,6 +147,7 @@ Deno.serve(async (req) => {
       }
 
       const userId = String(claimsData.claims.sub);
+      actorUserId = userId;
       const { data: isSuper, error: superErr } = await admin.rpc("is_super_admin", {
         p_user_id: userId,
       });
@@ -227,6 +254,16 @@ Deno.serve(async (req) => {
     if (actionsError) return json({ error: actionsError.message }, 500);
     if (userRoleError) return json({ error: userRoleError.message }, 500);
 
+    const authMode = isInternalCall ? 'api_key' : 'jwt';
+    logLegacyEdge(admin, 'fix-empty-rbac-roles:read-legacy-rbac', {
+      edge: 'fix-empty-rbac-roles',
+      branch: 'read-legacy-rbac',
+      auth_mode: authMode,
+      existing_links: existingLinks?.length ?? 0,
+      existing_actions: existingActions?.length ?? 0,
+      actor_id: actorUserId,
+    });
+
     const existingLinkSet = new Set((existingLinks || []).map((row) => `${row.role_id}:${row.permission_id}`));
     const existingActionSet = new Set((existingActions || []).map((row) => `${row.role_id}:${row.permission_id}:${row.acao}`));
 
@@ -241,11 +278,27 @@ Deno.serve(async (req) => {
     if (linkRows.length > 0) {
       const { error } = await actorClient.from("bd_role_permissions").insert(linkRows);
       if (error) return json({ error: error.message }, 500);
+      logLegacyEdge(admin, 'fix-empty-rbac-roles:write-bd-role-permissions', {
+        edge: 'fix-empty-rbac-roles',
+        branch: 'write-bd-role-permissions',
+        table: 'bd_role_permissions',
+        rows: linkRows.length,
+        auth_mode: authMode,
+        actor_id: actorUserId,
+      });
     }
 
     if (actionRows.length > 0) {
       const { error } = await actorClient.from("bd_role_permission_actions").insert(actionRows);
       if (error) return json({ error: error.message }, 500);
+      logLegacyEdge(admin, 'fix-empty-rbac-roles:write-bd-role-permission-actions', {
+        edge: 'fix-empty-rbac-roles',
+        branch: 'write-bd-role-permission-actions',
+        table: 'bd_role_permission_actions',
+        rows: actionRows.length,
+        auth_mode: authMode,
+        actor_id: actorUserId,
+      });
     }
 
     let insertedUserRoles = 0;
@@ -256,6 +309,14 @@ Deno.serve(async (req) => {
       });
       if (error) return json({ error: error.message }, 500);
       insertedUserRoles = 1;
+      logLegacyEdge(admin, 'fix-empty-rbac-roles:write-bd-user-roles', {
+        edge: 'fix-empty-rbac-roles',
+        branch: 'write-bd-user-roles',
+        table: 'bd_user_roles',
+        rows: 1,
+        auth_mode: authMode,
+        actor_id: actorUserId,
+      });
     }
 
     let updatedProfiles = 0;

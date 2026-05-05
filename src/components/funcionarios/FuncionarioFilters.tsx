@@ -12,6 +12,7 @@ import { useIsSmallScreen, useIsMobile } from "@/hooks/use-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermission } from "@/hooks/usePermission";
+import { useRhSecurity } from "@/hooks/dashboard/useRhSecurity";
 import { RESTRICTED_CC_CODE } from "@/utils/centroCustoRestrictions";
 
 interface FuncionarioFiltersProps {
@@ -28,6 +29,8 @@ const FuncionarioFilters: React.FC<FuncionarioFiltersProps> = ({
   const isSmallScreen = useIsSmallScreen();
   const isMobile = useIsMobile();
   const { isSuperAdmin } = usePermission();
+  const { canViewAllData, centroCustoIds: scopeCcIds, isLoading: isScopeLoading } = useRhSecurity();
+  const scopeKey = (scopeCcIds || []).slice().sort().join(',');
 
   // Fetch funções
   const { data: funcoes = [] } = useQuery({
@@ -43,16 +46,25 @@ const FuncionarioFilters: React.FC<FuncionarioFiltersProps> = ({
     },
   });
 
-  // Fetch centros de custo
+  // Fetch centros de custo (respeita escopo AdmObra/AdmSede via useRhSecurity)
   const { data: centrosCusto = [] } = useQuery({
-    queryKey: ['filter-centros-custo', isSuperAdmin],
+    queryKey: ['filter-centros-custo', isSuperAdmin, canViewAllData, scopeKey],
+    enabled: !isScopeLoading,
     queryFn: async () => {
+      // Sem global e sem escopo → não exibe CC algum
+      if (!canViewAllData && (!scopeCcIds || scopeCcIds.length === 0)) {
+        return [];
+      }
       let query = supabase
         .from('bd_centros_custo')
         .select('id, codigo_centro_custo, nome_centro_custo')
         .eq('situacao', 'Ativo');
       if (!isSuperAdmin) {
         query = query.neq('codigo_centro_custo', RESTRICTED_CC_CODE);
+      }
+      // Restringe ao escopo do usuário (AdmObra multiobra, AdmSede etc.)
+      if (!canViewAllData && scopeCcIds && scopeCcIds.length > 0) {
+        query = query.in('id', scopeCcIds);
       }
       const { data, error } = await query.order('nome_centro_custo');
       if (error) throw error;

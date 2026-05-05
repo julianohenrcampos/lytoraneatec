@@ -25,6 +25,7 @@ interface ApontamentoCaminhoesTableProps {
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   isLoading?: boolean;
+  canDelete?: boolean;
 }
 
 const ApontamentoCaminhoesTable: React.FC<ApontamentoCaminhoesTableProps> = ({
@@ -33,6 +34,7 @@ const ApontamentoCaminhoesTable: React.FC<ApontamentoCaminhoesTableProps> = ({
   onEdit,
   onDelete,
   isLoading = false,
+  canDelete = true,
 }) => {
   const isMobile = useIsMobile();
   const pagination = usePagination(apontamentos, { pageSize: 10 });
@@ -151,6 +153,7 @@ const ApontamentoCaminhoesTable: React.FC<ApontamentoCaminhoesTableProps> = ({
                     variant="ghost"
                     size="sm"
                     onClick={() => onDelete(apontamento.id)}
+                    disabled={!canDelete}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -227,6 +230,7 @@ const ApontamentoCaminhoesTable: React.FC<ApontamentoCaminhoesTableProps> = ({
                         variant="ghost"
                         size="icon"
                         onClick={() => onDelete(apontamento.id)}
+                        disabled={!canDelete}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

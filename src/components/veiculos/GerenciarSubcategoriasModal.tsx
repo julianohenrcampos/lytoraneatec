@@ -33,9 +33,10 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   categorias: CategoriaOption[];
+  canDelete?: boolean;
 }
 
-const GerenciarSubcategoriasModal: React.FC<Props> = ({ isOpen, onClose, categorias }) => {
+const GerenciarSubcategoriasModal: React.FC<Props> = ({ isOpen, onClose, categorias, canDelete = true }) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [subcategorias, setSubcategorias] = useState<Subcategoria[]>([]);
@@ -119,6 +120,14 @@ const GerenciarSubcategoriasModal: React.FC<Props> = ({ isOpen, onClose, categor
 
   const handleDelete = async () => {
     if (!editing) return;
+    if (!canDelete) {
+      toast({
+        title: "Sem permissão",
+        description: "Você não tem permissão para esta ação.",
+        variant: "destructive",
+      });
+      return;
+    }
     setLoading(true);
     try {
       const { count } = await supabase
@@ -332,7 +341,7 @@ const GerenciarSubcategoriasModal: React.FC<Props> = ({ isOpen, onClose, categor
         <DialogFooter className="flex flex-col-reverse sm:flex-row sm:justify-between gap-2">
           <div className="flex gap-2">
             {editing && (
-              <Button variant="destructive" onClick={handleDelete} disabled={loading} size="sm">
+              <Button variant="destructive" onClick={handleDelete} disabled={loading || !canDelete} size="sm">
                 <Trash2 className="mr-1 h-4 w-4" />
                 Excluir
               </Button>

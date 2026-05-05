@@ -23,11 +23,26 @@ export function useFuncionarioQueries(
   const { departamentoId, centroCustoIds, shouldFilterByDepartment, shouldFilterByCentroCusto, isLoading: isSecurityLoading } = useRhSecurity();
 
   // Aplicar filtro automaticamente baseado no contexto de segurança
-  const secureFilters: FuncionarioFilter = shouldFilterByDepartment && departamentoId
-    ? { ...filters, departamento_id: departamentoId }
-    : shouldFilterByCentroCusto && centroCustoIds && centroCustoIds.length > 0
-      ? { ...filters, centro_custo_ids: centroCustoIds }
-      : filters;
+  // AdmObra multiobra:
+  //  - filtro CC dentro do escopo → enviar SOMENTE centro_custo_id
+  //  - filtro CC fora do escopo → ignora e usa centro_custo_ids do escopo
+  //  - sem filtro CC → usa centro_custo_ids do escopo
+  // Evita conflito eq + in que zerava resultado.
+  const secureFilters: FuncionarioFilter = (() => {
+    if (shouldFilterByDepartment && departamentoId) {
+      return { ...filters, departamento_id: departamentoId };
+    }
+    if (shouldFilterByCentroCusto && centroCustoIds && centroCustoIds.length > 0) {
+      const requested = filters.centro_custo_id;
+      if (requested && requested !== 'sem_valor' && centroCustoIds.includes(requested)) {
+        const { centro_custo_ids: _omitIds, ...rest } = filters;
+        return { ...rest, centro_custo_id: requested };
+      }
+      const { centro_custo_id: _omitId, ...rest } = filters;
+      return { ...rest, centro_custo_ids: centroCustoIds };
+    }
+    return filters;
+  })();
 
   // Query para buscar funcionários
   const { 

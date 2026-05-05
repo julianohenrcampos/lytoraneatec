@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { updateUserOfflineContext, getValidatedOfflineContext } from '@/utils/offlinePermissions';
 import { ROUTE_PERMISSIONS, hasRoutePermission } from '@/constants/routePermissions';
+import { logLegacyUsage } from '@/utils/rbacLegacyTelemetry';
 
 // ============================================================
 // HOOK ÚNICO DE PERMISSÕES — RBAC GRANULAR POR AÇÃO
@@ -143,6 +144,7 @@ export const usePermission = () => {
           appMeta.acesso_global === true;
 
         if (isSuperAdmFromJWT) {
+          logLegacyUsage('RBAC_LEGACY_APP_METADATA_FUNCOES_USED', { userId: user.id, hook: 'usePermission:layerA' });
           console.log('🚀 [usePermission] Bypass emergencial via app_metadata (JWT). permissions=["*"]');
           const adminState: PermissionState = {
             userId: user.id,
@@ -249,6 +251,12 @@ export const usePermission = () => {
           });
 
           if (isAdminBypass) {
+            logLegacyUsage('RBAC_LEGACY_PROFILES_FUNCOES_BYPASS_USED', {
+              userId: user.id,
+              hook: 'usePermission:layerC',
+              isSuperAdmFuncao,
+              acessoGlobal,
+            });
             console.log('✅ [usePermission] Bypass administrativo aplicado antes do RBAC. permissions=["*"]');
             const adminState: PermissionState = {
               userId: user.id,
@@ -351,6 +359,11 @@ export const usePermission = () => {
 
         if (profile?.funcoes && Array.isArray(profile.funcoes) && profile.funcoes.length > 0) {
           roleName = profile.funcoes[0];
+          logLegacyUsage('RBAC_LEGACY_PROFILES_FUNCOES_ROLE_FALLBACK', {
+            userId: user.id,
+            hook: 'usePermission:roleFallback',
+            roleName,
+          });
           isSuperAdmin = profile.funcoes.some(
             (f: unknown) => typeof f === 'string' && f.trim().toLowerCase() === 'superadm'
           );
@@ -437,6 +450,11 @@ export const usePermission = () => {
           permissionRoutes = [...routes];
           roleActions = actions;
         } else {
+          logLegacyUsage('RBAC_LEGACY_BD_ROLE_PERMISSIONS_READ', {
+            userId: user.id,
+            hook: 'usePermission:bdRolePermissionsFallback',
+            roleIdsCount: roleIds.length,
+          });
           const { data: rpData } = await withTimeout(
             supabase
               .from('bd_role_permissions')
@@ -574,6 +592,10 @@ export const usePermission = () => {
       } else if (earlyIsSuperAdmin && currentUser) {
         // 2) Bypass seguro do SuperAdm: validado via profiles.funcoes (server-side, RLS-protected).
         //    Libera acesso total em modo degradado SEM cachear, para reidratar o RBAC depois.
+        logLegacyUsage('RBAC_LEGACY_PROFILES_FUNCOES_DEGRADED', {
+          userId: currentUser.id,
+          hook: 'usePermission:degradedMode',
+        });
         console.warn(
           '⚠️ [usePermission] Falha RBAC, mas SuperAdm validado via profiles. ' +
           'Liberando acesso total (modo degradado).'

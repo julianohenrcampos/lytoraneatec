@@ -21,6 +21,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { usePermission } from '@/hooks/usePermission';
+import { logLegacyUsage } from '@/utils/rbacLegacyTelemetry';
 
 /**
  * Roles consideradas "globais" para Agendamento de Exames.
@@ -100,6 +101,14 @@ export function useEscopoCentrosCusto(): EscopoCentrosCusto {
       const funcoesProfile: string[] = Array.isArray(profile?.funcoes)
         ? (profile!.funcoes as string[])
         : [];
+
+      if (funcoesProfile.length > 0) {
+        logLegacyUsage('RBAC_LEGACY_SCOPE_FALLBACK_USED', {
+          userId,
+          hook: 'useEscopoCentrosCusto',
+          rolesCount: funcoesProfile.length,
+        });
+      }
 
       const rolesFromDb: string[] =
         userRolesRes.status === 'fulfilled'

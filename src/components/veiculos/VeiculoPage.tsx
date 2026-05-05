@@ -2,6 +2,8 @@
 import React, { useState } from "react";
 
 import { useVeiculoActions } from "@/hooks/useVeiculoActions";
+import { usePermission } from "@/hooks/usePermission";
+import { useToast } from "@/hooks/use-toast";
 import VeiculoFilters from "./VeiculoFilters";
 import VeiculoTable from "./VeiculoTable";
 import VeiculoFormModal from "./VeiculoFormModal";
@@ -25,6 +27,12 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
   const [isSubcategoriaModalOpen, setIsSubcategoriaModalOpen] = useState(false);
   const [isFrotaModalOpen, setIsFrotaModalOpen] = useState(false);
   const [isLinhaOperacionalModalOpen, setIsLinhaOperacionalModalOpen] = useState(false);
+  const { isSuperAdmin, hasActionPermission } = usePermission();
+  const { toast } = useToast();
+  const canDeleteVeiculo =
+    isSuperAdmin || hasActionPermission("gestao_maquinas_caminhoes_view", "excluir");
+  const canExportVeiculo =
+    isSuperAdmin || hasActionPermission("gestao_maquinas_caminhoes_view", "visualizar");
   const {
     veiculos,
     isLoading,
@@ -65,6 +73,30 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
     }, 5000);
   };
 
+  const guardedDeleteVeiculo = async () => {
+    if (!canDeleteVeiculo) {
+      toast({
+        title: "Sem permissão",
+        description: "Você não tem permissão para esta ação.",
+        variant: "destructive",
+      });
+      return;
+    }
+    await handleDelete();
+  };
+
+  const guardedExportVeiculo = () => {
+    if (!canExportVeiculo) {
+      toast({
+        title: "Sem permissão",
+        description: "Você não tem permissão para esta ação.",
+        variant: "destructive",
+      });
+      return;
+    }
+    exportToExcel();
+  };
+
   // This wrapper function ensures we return the proper Promise structure
   const handleImportWrapper = async (veiculos: VeiculoFormData[]): Promise<{ success: any[]; errors: any[] }> => {
     try {
@@ -80,13 +112,14 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
     <div className="space-y-6">
       <div className="flex justify-end">
         <VeiculoHeaderActions 
-          onExport={exportToExcel}
+          onExport={guardedExportVeiculo}
           onImport={() => setIsImportModalOpen(true)}
           onNewClick={() => openFormModal()}
           onManageCategorias={() => setIsCategoriaModalOpen(true)}
           onManageSubcategorias={() => setIsSubcategoriaModalOpen(true)}
           onManageFrotas={() => setIsFrotaModalOpen(true)}
           onManageLinhasOperacionais={() => setIsLinhaOperacionalModalOpen(true)}
+          canExport={canExportVeiculo}
         />
       </div>
       
@@ -112,6 +145,7 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
         onEdit={openFormModal}
         onView={openDetailsModal}
         onDelete={confirmDelete}
+        canDelete={canDeleteVeiculo}
       />
       
       <VeiculoFormModal 
@@ -136,7 +170,7 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
         isDeleting={false}
         veiculo={deletingVeiculo || currentVeiculo}
         onClose={() => setIsDeleteModalOpen(false)}
-        onConfirm={handleDelete}
+        onConfirm={guardedDeleteVeiculo}
       />
       
       <ImportVeiculosModal 
@@ -149,22 +183,26 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
       <GerenciarCategoriasModal
         isOpen={isCategoriaModalOpen}
         onClose={() => setIsCategoriaModalOpen(false)}
+        canDelete={canDeleteVeiculo}
       />
 
       <GerenciarSubcategoriasModal
         isOpen={isSubcategoriaModalOpen}
         onClose={() => setIsSubcategoriaModalOpen(false)}
         categorias={categoriasDropdown}
+        canDelete={canDeleteVeiculo}
       />
 
       <GerenciarFrotasModal
         isOpen={isFrotaModalOpen}
         onClose={() => setIsFrotaModalOpen(false)}
+        canDelete={canDeleteVeiculo}
       />
 
       <GerenciarLinhasOperacionaisModal
         isOpen={isLinhaOperacionalModalOpen}
         onClose={() => setIsLinhaOperacionalModalOpen(false)}
+        canDelete={canDeleteVeiculo}
       />
     </div>
   );

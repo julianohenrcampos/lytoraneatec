@@ -13,8 +13,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Check, X, Loader2, User, MapPin, Calendar } from "lucide-react";
+import { toast } from "sonner";
 import { WhatsAppButton } from "./WhatsAppButton";
 import { useAprovarInclusao, useRecusarInclusao } from "@/hooks/diarias/useInclusaoFuncionario";
+import { usePermission } from "@/hooks/usePermission";
 
 interface InclusaoAprovacaoModalProps {
   isOpen: boolean;
@@ -46,15 +48,26 @@ export function InclusaoAprovacaoModal({
   const aprovarMutation = useAprovarInclusao();
   const recusarMutation = useRecusarInclusao();
 
+  const { hasActionPermission, isSuperAdmin } = usePermission();
+  const canAprovarInclusao = isSuperAdmin || hasActionPermission('diarias_solicitacoes_view', 'aprovar');
+
   if (!inclusao) return null;
 
   const handleAprovar = async () => {
+    if (!canAprovarInclusao) {
+      toast.error('Você não tem permissão para esta ação.');
+      return;
+    }
     await aprovarMutation.mutateAsync(inclusao.id);
     onAprovado?.();
     onClose();
   };
 
   const handleRecusar = async () => {
+    if (!canAprovarInclusao) {
+      toast.error('Você não tem permissão para esta ação.');
+      return;
+    }
     await recusarMutation.mutateAsync({
       id: inclusao.id,
       justificativa: justificativaRecusa
@@ -155,52 +168,54 @@ export function InclusaoAprovacaoModal({
             />
           )}
 
-          {showRecusaForm ? (
-            <>
-              <Button
-                variant="outline"
-                onClick={() => setShowRecusaForm(false)}
-                disabled={isLoading}
-                className="h-12 sm:h-10"
-              >
-                Voltar
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={handleRecusar}
-                disabled={isLoading}
-                className="h-12 sm:h-10"
-              >
-                {recusarMutation.isPending ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Recusando...</>
-                ) : (
-                  <><X className="mr-2 h-4 w-4" />Confirmar Recusa</>
-                )}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                variant="destructive"
-                onClick={() => setShowRecusaForm(true)}
-                disabled={isLoading}
-                className="h-12 sm:h-10"
-              >
-                <X className="mr-2 h-4 w-4" />
-                Recusar
-              </Button>
-              <Button
-                onClick={handleAprovar}
-                disabled={isLoading}
-                className="h-12 sm:h-10"
-              >
-                {aprovarMutation.isPending ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Aprovando...</>
-                ) : (
-                  <><Check className="mr-2 h-4 w-4" />Aprovar</>
-                )}
-              </Button>
-            </>
+          {canAprovarInclusao && (
+            showRecusaForm ? (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowRecusaForm(false)}
+                  disabled={isLoading}
+                  className="h-12 sm:h-10"
+                >
+                  Voltar
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleRecusar}
+                  disabled={isLoading}
+                  className="h-12 sm:h-10"
+                >
+                  {recusarMutation.isPending ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Recusando...</>
+                  ) : (
+                    <><X className="mr-2 h-4 w-4" />Confirmar Recusa</>
+                  )}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowRecusaForm(true)}
+                  disabled={isLoading}
+                  className="h-12 sm:h-10"
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Recusar
+                </Button>
+                <Button
+                  onClick={handleAprovar}
+                  disabled={isLoading}
+                  className="h-12 sm:h-10"
+                >
+                  {aprovarMutation.isPending ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Aprovando...</>
+                  ) : (
+                    <><Check className="mr-2 h-4 w-4" />Aprovar</>
+                  )}
+                </Button>
+              </>
+            )
           )}
         </DialogFooter>
       </DialogContent>

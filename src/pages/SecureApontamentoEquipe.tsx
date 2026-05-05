@@ -15,11 +15,13 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Download, Plus, Users, Shield, AlertCircle } from "lucide-react";
 import { useSecureApontamentoEquipe } from "@/hooks/useSecureApontamentoEquipe";
 import { usePermission } from "@/hooks/usePermission";
+import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 
 const SecureApontamentoEquipe: React.FC = () => {
   usePageTitle("Apontamento de Equipe");
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [avaliacaoStatusMap] = useState(new Map());
   
   const {
@@ -70,6 +72,32 @@ const SecureApontamentoEquipe: React.FC = () => {
 
   const { isSuperAdmin, hasActionPermission } = usePermission();
   const canCreateApontamento = isSuperAdmin || hasActionPermission('requisicoes_apontamento_equipe_view', 'criar');
+  const canExportApontamento = isSuperAdmin || hasActionPermission('requisicoes_apontamento_equipe_view', 'visualizar');
+  const canDeleteApontamento = isSuperAdmin || hasActionPermission('requisicoes_apontamento_equipe_view', 'excluir');
+
+  const guardedExport = () => {
+    if (!canExportApontamento) {
+      toast({
+        title: "Sem permissão",
+        description: "Você não tem permissão para esta ação.",
+        variant: "destructive",
+      });
+      return;
+    }
+    handleExport();
+  };
+
+  const guardedDelete = () => {
+    if (!canDeleteApontamento) {
+      toast({
+        title: "Sem permissão",
+        description: "Você não tem permissão para esta ação.",
+        variant: "destructive",
+      });
+      return;
+    }
+    handleDelete();
+  };
 
   return (
     <MainLayout>
@@ -89,10 +117,10 @@ const SecureApontamentoEquipe: React.FC = () => {
             )}
             <Button 
               variant="outline" 
-              onClick={handleExport} 
+              onClick={guardedExport} 
               className="h-8 sm:h-10 px-2 sm:px-4 text-sm"
               size="xs"
-              disabled={apontamentos.length === 0}
+              disabled={!canExportApontamento || apontamentos.length === 0}
             >
               <Download className="mr-2 h-4 w-4" />
               <span>Exportar</span>
@@ -195,7 +223,7 @@ const SecureApontamentoEquipe: React.FC = () => {
           isOpen={isDeleteModalOpen}
           onClose={() => setIsDeleteModalOpen(false)}
           apontamento={deletingApontamento}
-          onDelete={handleDelete}
+          onDelete={guardedDelete}
           isDeleting={isDeleting}
         />
       </div>

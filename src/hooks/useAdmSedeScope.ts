@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { usePermission } from './usePermission';
 import { useEffect, useState } from 'react';
 import { hasRole } from '@/utils/roleUtils';
+import { logLegacyUsage } from '@/utils/rbacLegacyTelemetry';
 
 export interface AdmSedeScope {
   isAdmSede: boolean;
@@ -27,6 +28,13 @@ export function useAdmSedeScope(): AdmSedeScope {
         .single();
       
       const funcoes = (profile?.funcoes as string[]) || [];
+      if (funcoes.length > 0) {
+        logLegacyUsage('RBAC_LEGACY_SCOPE_FALLBACK_USED', {
+          userId,
+          hook: 'useAdmSedeScope',
+          rolesCount: funcoes.length,
+        });
+      }
       setIsAdmSede(hasRole(funcoes, 'AdmSede'));
       setCheckDone(true);
     };

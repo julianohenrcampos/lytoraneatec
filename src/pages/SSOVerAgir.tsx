@@ -45,6 +45,15 @@ export default function SSOVerAgir() {
   };
 
   const handleEdit = (id: string) => {
+    // Espelha VerAgirTable: canEditAll || (criado_por === currentUserId && status ∈ {RASCUNHO, ENVIADO})
+    const registro = registros.find(r => r.id === id);
+    const isOwnerEdit = !!registro && !!userId
+      && registro.criado_por === userId
+      && ['RASCUNHO', 'ENVIADO'].includes(registro.status);
+    if (!isSuperAdmin && !canEditAll && !isOwnerEdit) {
+      toast.error('Você não tem permissão para esta ação.');
+      return;
+    }
     setSelectedRegistroId(id);
     setDialogOpen(true);
   };
@@ -55,6 +64,15 @@ export default function SSOVerAgir() {
   };
 
   const confirmDelete = async () => {
+    // Espelha VerAgirTable: canDeleteAll || (criado_por === currentUserId && status === 'RASCUNHO')
+    const registro = registros.find(r => r.id === registroToDelete);
+    const isOwnerDelete = !!registro && !!userId
+      && registro.criado_por === userId
+      && registro.status === 'RASCUNHO';
+    if (!isSuperAdmin && !canDeleteAll && !isOwnerDelete) {
+      toast.error('Você não tem permissão para esta ação.');
+      return;
+    }
     if (registroToDelete) {
       await deleteRegistro(registroToDelete);
       setDeleteDialogOpen(false);
@@ -76,6 +94,10 @@ export default function SSOVerAgir() {
   };
 
   const confirmConcluir = async () => {
+    if (!isSuperAdmin && !canConcluir) {
+      toast.error('Você não tem permissão para esta ação.');
+      return;
+    }
     if (registroToConcluir) {
       await setStatus({ id: registroToConcluir, status: 'CONCLUIDO' });
       setConcluirDialogOpen(false);

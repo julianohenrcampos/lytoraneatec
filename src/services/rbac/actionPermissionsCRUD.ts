@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { auditLegacyRbacWrite } from "@/utils/rbacLegacyWriteAudit";
 
 export type Acao = 'visualizar' | 'criar' | 'editar' | 'excluir' | 'aprovar';
 
@@ -35,6 +36,7 @@ export const fetchPermissoesAcoes = async (permissionId?: string) => {
 };
 
 export const createPermissaoAcao = async (permissionId: string, acao: Acao, descricao?: string) => {
+  auditLegacyRbacWrite({ service: "actionPermissionsCRUD", operation: "insert", table: "bd_permissoes_acoes" });
   const { data, error } = await supabase
     .from('bd_permissoes_acoes')
     .insert({ permission_id: permissionId, acao, descricao })
@@ -45,6 +47,7 @@ export const createPermissaoAcao = async (permissionId: string, acao: Acao, desc
 };
 
 export const deletePermissaoAcao = async (id: string) => {
+  auditLegacyRbacWrite({ service: "actionPermissionsCRUD", operation: "delete", table: "bd_permissoes_acoes" });
   const { error } = await supabase.from('bd_permissoes_acoes').delete().eq('id', id);
   if (error) throw error;
 };

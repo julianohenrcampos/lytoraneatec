@@ -18,6 +18,7 @@ interface VeiculoHeaderActionsProps {
   onManageSubcategorias: () => void;
   onManageFrotas: () => void;
   onManageLinhasOperacionais: () => void;
+  canExport?: boolean;
 }
 
 const VeiculoHeaderActions: React.FC<VeiculoHeaderActionsProps> = ({
@@ -28,6 +29,7 @@ const VeiculoHeaderActions: React.FC<VeiculoHeaderActionsProps> = ({
   onManageSubcategorias,
   onManageFrotas,
   onManageLinhasOperacionais,
+  canExport = true,
 }) => {
   return (
     <div className="flex flex-wrap gap-2">
@@ -65,7 +67,7 @@ const VeiculoHeaderActions: React.FC<VeiculoHeaderActionsProps> = ({
             <Download className="mr-2 h-4 w-4" />
             Baixar Modelo
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={onExport}>
+          <DropdownMenuItem onClick={onExport} disabled={!canExport}>
             <FileDown className="mr-2 h-4 w-4" />
             Exportar
           </DropdownMenuItem>

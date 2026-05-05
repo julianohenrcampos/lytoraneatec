@@ -2871,6 +2871,20 @@ export default function ApontamentoDiariasModal({
           </DialogDescription>
         </DialogHeader>
 
+        {/* D1.3: banner explicativo no topo do modal quando ações de presença
+            estão desabilitadas por solicitação em formato legado (sem snapshot
+            operacional estruturado por dia). Apenas informativo. */}
+        {legacyPresenceActionsDisabled && (
+          <Alert variant="destructive">
+            <Lock className="h-4 w-4" />
+            <AlertDescription className="text-xs sm:text-sm">
+              Esta solicitação não possui snapshot operacional estruturado por dia.
+              Solicite ao criador para reenviar a solicitação para regularização.
+              As ações de presença ficam desabilitadas até a regularização.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Informações da Solicitação */}
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:justify-between gap-2 text-sm">
@@ -3067,10 +3081,12 @@ export default function ApontamentoDiariasModal({
                 )}
 
                 {legacyPresenceActionsDisabled && (
-                  <Alert className="mt-2">
+                  <Alert variant="destructive" className="mt-2">
                     <Lock className="h-4 w-4" />
                     <AlertDescription>
-                      Ações de presença, início, saída e finalização exigem controle por data e permanecem indisponíveis neste formato.
+                      Esta solicitação não possui snapshot operacional estruturado por dia.
+                      Solicite ao criador para reenviar a solicitação para regularização.
+                      Ações de presença, início, saída e finalização ficam desabilitadas até a regularização.
                     </AlertDescription>
                   </Alert>
                 )}

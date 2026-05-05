@@ -2,6 +2,8 @@
 import React from "react";
 
 import { useUsinaActions } from "@/hooks/useUsinaActions";
+import { usePermission } from "@/hooks/usePermission";
+import { useToast } from "@/hooks/use-toast";
 import UsinaFormModal from "./UsinaFormModal";
 import UsinaDetailsModal from "./UsinaDetailsModal";
 import ImportUsinasModal from "./ImportUsinasModal";
@@ -12,6 +14,12 @@ import UsinaHeaderActions from "./UsinaHeaderActions";
 import { Usina } from "@/types/usina";
 
 const UsinaPage: React.FC = () => {
+  const { isSuperAdmin, hasActionPermission } = usePermission();
+  const { toast } = useToast();
+  const canDeleteUsina =
+    isSuperAdmin || hasActionPermission("gestao_maquinas_usinas_view", "excluir");
+  const canExportUsina =
+    isSuperAdmin || hasActionPermission("gestao_maquinas_usinas_view", "visualizar");
   const {
     // State
     filters,
@@ -62,11 +70,7 @@ const UsinaPage: React.FC = () => {
     }
   };
 
-  // Garantir que handleDelete retorne Promise<void>
-  const handleDeleteWithPromise = async (): Promise<void> => {
-    await handleDelete();
-    return;
-  };
+
 
   // Garantir que importUsinas retorne Promise<void>
   const handleImport = async (usinas: any[]): Promise<void> => {
@@ -74,13 +78,38 @@ const UsinaPage: React.FC = () => {
     return;
   };
 
+  const guardedDeleteUsina = async (): Promise<void> => {
+    if (!canDeleteUsina) {
+      toast({
+        title: "Sem permissão",
+        description: "Você não tem permissão para esta ação.",
+        variant: "destructive",
+      });
+      return;
+    }
+    await handleDelete();
+  };
+
+  const guardedExportUsina = () => {
+    if (!canExportUsina) {
+      toast({
+        title: "Sem permissão",
+        description: "Você não tem permissão para esta ação.",
+        variant: "destructive",
+      });
+      return;
+    }
+    exportToExcel();
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
         <UsinaHeaderActions 
           onNewUsina={() => openFormModal()}
-          onExport={exportToExcel}
+          onExport={guardedExportUsina}
           onImport={() => setIsImportModalOpen(true)}
+          canExport={canExportUsina}
         />
       </div>
       
@@ -97,6 +126,7 @@ const UsinaPage: React.FC = () => {
         onEdit={openFormModal}
         onView={openDetailsModal}
         onDelete={confirmDelete}
+        canDelete={canDeleteUsina}
       />
       
       <UsinaFormModal
@@ -125,7 +155,7 @@ const UsinaPage: React.FC = () => {
         isDeleting={isDeleting}
         usina={deletingUsina}
         onClose={() => setIsDeleteModalOpen(false)}
-        onConfirm={handleDeleteWithPromise}
+        onConfirm={guardedDeleteUsina}
       />
     </div>
   );

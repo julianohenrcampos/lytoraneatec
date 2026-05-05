@@ -10,6 +10,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Plus, BarChart3, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 export default function SSODesviosList() {
   usePageTitle("Registro de Desvios – SSO");
@@ -41,6 +42,13 @@ export default function SSODesviosList() {
   };
 
   const handleEdit = (id: string) => {
+    // Espelha SSODesvioTable: canEditAll || criado_por === currentUserId
+    const desvio = desvios.find(d => d.id === id);
+    const isOwner = !!desvio && !!userId && desvio.criado_por === userId;
+    if (!isSuperAdmin && !canEditAll && !isOwner) {
+      toast.error('Você não tem permissão para esta ação.');
+      return;
+    }
     setSelectedDesvioId(id);
     setDialogOpen(true);
   };
@@ -51,6 +59,10 @@ export default function SSODesviosList() {
   };
 
   const confirmDelete = async () => {
+    if (!isSuperAdmin && !canDeleteAll) {
+      toast.error('Você não tem permissão para esta ação.');
+      return;
+    }
     if (desvioToDelete) {
       await deleteDesvio(desvioToDelete);
       setDeleteDialogOpen(false);

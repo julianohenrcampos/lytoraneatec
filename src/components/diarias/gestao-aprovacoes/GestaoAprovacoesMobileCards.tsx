@@ -1,10 +1,14 @@
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Eye, CheckCircle, XCircle, FileText } from 'lucide-react';
+import { Eye, CheckCircle, XCircle, FileText, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import { usePermission } from '@/hooks/usePermission';
 import type { SolicitacaoGestao, GestaoFluxoRole } from '@/hooks/diarias/useGestaoAprovacoesDiarias';
+
+const SEGREGACAO_MSG_CRIADOR =
+  'Você criou esta solicitação. A aprovação deve ser feita por outro aprovador autorizado.';
 
 interface Props {
   solicitacoes: SolicitacaoGestao[];
@@ -47,6 +51,8 @@ export default function GestaoAprovacoesMobileCards({
   onAprovar,
   onReprovar,
 }: Props) {
+  // D1.1: detectar segregação para legenda inline e bloqueio do botão Aprovar.
+  const { userId, isSuperAdmin } = usePermission();
   if (!solicitacoes.length) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
@@ -65,6 +71,9 @@ export default function GestaoAprovacoesMobileCards({
         const statusKey = sol.status_fluxo || '';
         const colorClass = statusColorMap[statusKey] || 'bg-muted text-muted-foreground';
         const showActions = canActOn(userFluxoRole, sol.status_fluxo);
+        // D1.1: criador não pode aprovar a própria solicitação (segregação).
+        const bloqueadoPorSegregacao =
+          !isSuperAdmin && !!userId && !!sol.criado_por && sol.criado_por === userId;
 
         return (
           <Card
@@ -125,35 +134,45 @@ export default function GestaoAprovacoesMobileCards({
             </div>
 
             {/* Actions */}
-            <div className="border-t border-border px-5 py-3 flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1 h-11 text-sm gap-2"
-                onClick={() => onVerDetalhes(sol)}
-              >
-                <Eye className="h-4 w-4" />
-                Ver
-              </Button>
-              {showActions && (
-                <>
-                  <Button
-                    variant="outline"
-                    className="flex-1 h-11 text-sm gap-2 text-green-700 border-green-300 hover:bg-green-50 hover:text-green-800"
-                    onClick={() => onAprovar(sol)}
-                  >
-                    <CheckCircle className="h-4 w-4" />
-                    Aprovar
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="flex-1 h-11 text-sm gap-2 text-red-700 border-red-300 hover:bg-red-50 hover:text-red-800"
-                    onClick={() => onReprovar(sol)}
-                  >
-                    <XCircle className="h-4 w-4" />
-                    Reprovar
-                  </Button>
-                </>
+            <div className="border-t border-border px-5 py-3 flex flex-col gap-2">
+              {showActions && bloqueadoPorSegregacao && (
+                <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-2 py-1.5">
+                  <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                  <span>{SEGREGACAO_MSG_CRIADOR}</span>
+                </div>
               )}
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 h-11 text-sm gap-2"
+                  onClick={() => onVerDetalhes(sol)}
+                >
+                  <Eye className="h-4 w-4" />
+                  Ver
+                </Button>
+                {showActions && (
+                  <>
+                    <Button
+                      variant="outline"
+                      className="flex-1 h-11 text-sm gap-2 text-green-700 border-green-300 hover:bg-green-50 hover:text-green-800"
+                      onClick={() => onAprovar(sol)}
+                      disabled={bloqueadoPorSegregacao}
+                      title={bloqueadoPorSegregacao ? SEGREGACAO_MSG_CRIADOR : undefined}
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                      Aprovar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="flex-1 h-11 text-sm gap-2 text-red-700 border-red-300 hover:bg-red-50 hover:text-red-800"
+                      onClick={() => onReprovar(sol)}
+                    >
+                      <XCircle className="h-4 w-4" />
+                      Reprovar
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
           </Card>
         );

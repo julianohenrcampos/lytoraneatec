@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import MainLayout from "@/components/layout/MainLayout";
 import { usePermissionGuard } from "@/hooks/usePermissionGuard";
+import { usePermission } from "@/hooks/usePermission";
 import { useRelatorioAplicacao } from "@/hooks/relatorio-aplicacao/useRelatorioAplicacao";
 import RelatorioAplicacaoHeader from "@/components/relatorio-aplicacao/RelatorioAplicacaoHeader";
 import RelatorioAplicacaoResumo from "@/components/relatorio-aplicacao/RelatorioAplicacaoResumo";
@@ -29,6 +30,9 @@ const RelatorioAplicacaoDiaria: React.FC = () => {
   const { canAccess, isLoading: permissionLoading } = usePermissionGuard({
     requiredPermission: "relatorio_aplicacao_view"
   });
+  const { isSuperAdmin, hasActionPermission } = usePermission();
+  const canExportRelatorioAplicacao =
+    isSuperAdmin || hasActionPermission("relatorio_aplicacao_view", "visualizar");
 
   const [filtros, setFiltros] = useState<FiltrosFormData>({
     centro_custo_id: "",
@@ -104,6 +108,14 @@ const RelatorioAplicacaoDiaria: React.FC = () => {
   };
 
   const handleExportarPDF = async () => {
+    if (!canExportRelatorioAplicacao) {
+      toast({
+        title: "Sem permissão",
+        description: "Você não tem permissão para esta ação.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!relatorioGerado || !dadosRelatorio) {
       toast({
         title: "Gere o relatório primeiro",
@@ -129,6 +141,14 @@ const RelatorioAplicacaoDiaria: React.FC = () => {
   };
 
   const handleExportarExcel = async () => {
+    if (!canExportRelatorioAplicacao) {
+      toast({
+        title: "Sem permissão",
+        description: "Você não tem permissão para esta ação.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!relatorioGerado || !dadosRelatorio) {
       toast({
         title: "Gere o relatório primeiro",
@@ -254,7 +274,7 @@ const RelatorioAplicacaoDiaria: React.FC = () => {
                 onClick={handleExportarPDF}
                 variant="outline"
                 size="sm"
-                disabled={!relatorioGerado}
+                disabled={!relatorioGerado || !canExportRelatorioAplicacao}
               >
                 <FileDown className="h-4 w-4 mr-2" />
                 Exportar PDF
@@ -263,7 +283,7 @@ const RelatorioAplicacaoDiaria: React.FC = () => {
                 onClick={handleExportarExcel}
                 variant="outline"
                 size="sm"
-                disabled={!relatorioGerado}
+                disabled={!relatorioGerado || !canExportRelatorioAplicacao}
               >
                 <FileText className="h-4 w-4 mr-2" />
                 Exportar Excel
