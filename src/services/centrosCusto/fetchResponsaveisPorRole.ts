@@ -7,15 +7,19 @@ export interface ResponsavelCandidate {
 }
 
 /**
- * Busca funcionários candidatos a uma role do sistema (RBAC novo + legado profiles.funcoes).
- * Frontend-only helper. Não altera RLS, schema ou regras de RH.
+ * Busca funcionários candidatos a uma role do sistema.
+ *
+ * Fonte única: RBAC novo (`bd_roles` + `bd_user_roles`).
+ * O fallback histórico via `profiles.funcoes` foi removido em 5B-2.9-A
+ * após validação read-only de paridade total entre os dois caminhos
+ * (ver PLAN 5B-2.9-A em `.lovable/plan.md`).
  */
 export async function buscarFuncionariosPorRole(
   roleName: "AdmSede" | "AdmOBRA"
 ): Promise<ResponsavelCandidate[]> {
   const userIds = new Set<string>();
 
-  // 1. RBAC novo: bd_roles + bd_user_roles
+  // 1. RBAC novo: bd_roles + bd_user_roles (fonte única)
   const { data: roleRow } = await supabase
     .from("bd_roles")
     .select("id")
@@ -30,16 +34,9 @@ export async function buscarFuncionariosPorRole(
     (ur ?? []).forEach((r: any) => r.user_id && userIds.add(r.user_id));
   }
 
-  // 2. Legado: profiles.funcoes
-  const { data: viaProfiles } = await (supabase
-    .from("profiles")
-    .select("id")
-    .contains("funcoes", [roleName]) as any);
-  (viaProfiles ?? []).forEach((p: any) => p.id && userIds.add(p.id));
-
   if (userIds.size === 0) return [];
 
-  // 3. profiles.funcionario_id
+  // 2. profiles.funcionario_id
   const { data: profs } = await supabase
     .from("profiles")
     .select("funcionario_id")
@@ -51,7 +48,7 @@ export async function buscarFuncionariosPorRole(
 
   if (funcIds.length === 0) return [];
 
-  // 4. bd_funcionarios ativos por id
+  // 3. bd_funcionarios ativos por id
   const { data } = await (supabase
     .from("bd_funcionarios")
     .select("id, nome_completo, bd_funcoes(nome_funcao)")
@@ -69,6 +66,9 @@ export async function buscarFuncionariosPorRole(
 /**
  * TEMP FALLBACK — usar somente quando buscarFuncionariosPorRole('AdmSede')
  * retornar lista vazia, enquanto não há usuários atribuídos à role AdmSede.
+ *
+ * Não depende de `profiles.funcoes`: busca direta por nome de função em
+ * `bd_funcoes` (cadastro de RH), não por role RBAC.
  */
 export async function buscarFuncionariosFallbackAdministrativo(): Promise<ResponsavelCandidate[]> {
   const { data } = await (supabase

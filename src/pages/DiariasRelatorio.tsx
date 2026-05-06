@@ -26,6 +26,7 @@ import { generateRelatorioFolhaPDF } from "@/services/pdf/relatorioFolhaPdf";
 import { generateProtocoloDocumentosPDF } from "@/services/pdf/protocoloDocumentosPdf";
 import { deletePresencaRegistro } from "@/services/diarias/presencasService";
 import { isRelatorioItemConfirmado } from '@/services/diarias/relatorioMetrics';
+import { calcularBreakdownDiaria } from '@/utils/diariaCalculo';
 
 import { RelatorioSemanalModal } from "@/components/diarias/RelatorioSemanalModal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -835,22 +836,25 @@ export default function DiariasRelatorio() {
                       <span className="text-xs text-muted-foreground">-</span>
                       }
                         </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(
-                        (() => { const v = Math.ceil(item.valor_diaria_aplicada || 0); return item.tipo_diaria === 'completa' ? v : item.tipo_diaria === 'uma_e_meia' ? Math.round(v * (2/3)) : 0; })()
-                      )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(
-                        (() => { const v = Math.ceil(item.valor_diaria_aplicada || 0); return item.tipo_diaria === 'meia' ? v : item.tipo_diaria === 'uma_e_meia' ? (v - Math.round(v * (2/3))) : 0; })()
-                      )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(Math.ceil(item.valor_refeicao_aplicado || 0))}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(Math.ceil(item.valor_diaria_aplicada || 0) + Math.ceil(item.valor_refeicao_aplicado || 0))}
-                        </TableCell>
+                        {(() => {
+                          const breakdown = calcularBreakdownDiaria(item);
+                          return (
+                            <>
+                              <TableCell className="text-right">
+                                {formatCurrency(breakdown.diaria)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {formatCurrency(breakdown.meia)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {formatCurrency(breakdown.refeicao)}
+                              </TableCell>
+                              <TableCell className="text-right font-medium">
+                                {formatCurrency(breakdown.total)}
+                              </TableCell>
+                            </>
+                          );
+                        })()}
                         {showDeleteColumn && (
                           <TableCell className="text-center">
                             {canDeletePresenca(item) && (

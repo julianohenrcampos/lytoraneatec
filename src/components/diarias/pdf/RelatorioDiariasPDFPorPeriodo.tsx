@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { RelatorioFolhaItem, RelatorioFilters } from '@/types/diarias';
 import { isRelatorioItemConfirmado, isRelatorioItemRemessa } from '@/services/diarias/relatorioMetrics';
+import { calcularBreakdownDiaria } from '@/utils/diariaCalculo';
 
 
 // =====================================================
@@ -122,18 +123,16 @@ function consolidarFuncionarios(
     const isFds = diaSemana === 0 || diaSemana === 6;
     const isFeriado = feriadosSet.has(item.data);
 
-    const valor = Math.ceil(item.valor_diaria_aplicada || 0);
-    const tipo = item.tipo_diaria;
-    let integralAdd = 0;
-    let meiaAdd = 0;
-    if (tipo === 'completa') integralAdd = valor;
-    else if (tipo === 'meia') meiaAdd = valor;
-    else if (tipo === 'uma_e_meia') { integralAdd = Math.round(valor * (2/3)); meiaAdd = valor - integralAdd; }
+    const breakdown = calcularBreakdownDiaria(item);
+    const integralAdd = breakdown.diaria;
+    const meiaAdd = breakdown.meia;
+    const refeicaoAdd = breakdown.refeicao;
+    const totalLinha = breakdown.total;
 
     if (existing) {
       existing.total_dias += 1;
-      existing.valor_total += valor;
-      existing.valor_refeicao += Math.ceil(item.valor_refeicao_aplicado || 0);
+      existing.valor_total += totalLinha;
+      existing.valor_refeicao += refeicaoAdd;
       existing.valor_diaria_integral += integralAdd;
       existing.valor_meia_diaria += meiaAdd;
       if (isFeriado) existing.dias_feriados += 1;
@@ -155,8 +154,8 @@ function consolidarFuncionarios(
         dias_uteis: !isFds && !isFeriado ? 1 : 0,
         dias_fds: isFds && !isFeriado ? 1 : 0,
         dias_feriados: isFeriado ? 1 : 0,
-        valor_total: valor,
-        valor_refeicao: Math.ceil(item.valor_refeicao_aplicado || 0),
+        valor_total: totalLinha,
+        valor_refeicao: refeicaoAdd,
         valor_diaria_integral: integralAdd,
         valor_meia_diaria: meiaAdd,
       });

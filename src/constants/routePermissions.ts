@@ -58,6 +58,7 @@ export const ROUTE_PERMISSIONS = {
   '/sso/checklists/dashboard': ['acesso_sso_dashboard'],
   '/sso/desvios': ['acesso_sso_desvios'],
   '/sso/agendamento-exames': ['acesso_sso_agendamento_exames'],
+  '/sso/clinicas': ['acesso_sso_clinica'],
   '/sso/ver-e-agir': ['acesso_sso_ver_agir'],
 
   // Licitações

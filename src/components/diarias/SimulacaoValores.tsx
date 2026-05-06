@@ -1,12 +1,23 @@
-import { TrendingUp, Wallet } from 'lucide-react';
+import { TrendingUp, Wallet, History } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import type { SimulacaoValores as SimulacaoValoresType } from '@/utils/diariasPeriodoUtils';
 import { formatCurrency } from '@/utils/diariasPeriodoUtils';
 import { EstimativaAviso } from './EstimativaAviso';
+import { parseISO, format } from 'date-fns';
+
+type SimulacaoExtras = SimulacaoValoresType & {
+  _fonteRefeicaoFds?: 'ultimo_fds' | 'fallback';
+  _sabadoAnteriorCount?: number | null;
+  _domingoAnteriorCount?: number | null;
+  _datasFdsConsideradas?: { sabado: string | null; domingo: string | null };
+  _qtdFdsUsados?: number;
+  _fdsRecentes?: Array<{ sabado: string; domingo: string; qtdSab: number; qtdDom: number }>;
+};
 
 interface SimulacaoValoresProps {
-  simulacao: SimulacaoValoresType;
+  simulacao: SimulacaoExtras;
   diasUteis: number;
   diasFds: number;
   diasParaRefeicao: number;

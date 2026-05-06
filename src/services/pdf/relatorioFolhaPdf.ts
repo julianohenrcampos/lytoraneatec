@@ -8,6 +8,7 @@ import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { RelatorioFolhaItem } from '@/types/diarias';
+import { calcularBreakdownDiaria } from '@/utils/diariaCalculo';
 
 export function generateRelatorioFolhaPDF(data: RelatorioFolhaItem[]) {
   const doc = new jsPDF({
@@ -80,10 +81,11 @@ export function generateRelatorioFolhaPDF(data: RelatorioFolhaItem[]) {
         }
       })();
 
+      const breakdown = calcularBreakdownDiaria(item);
       const valorFormatado = new Intl.NumberFormat('pt-BR', {
         style: 'currency',
         currency: 'BRL',
-      }).format(Math.ceil(item.valor_diaria_aplicada || 0) + Math.ceil(item.valor_refeicao_aplicado || 0));
+      }).format(breakdown.total);
 
       return [
         dataFormatada,

@@ -11,6 +11,7 @@ import * as XLSX from 'xlsx';
 import { format, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { isRelatorioItemConfirmado } from '@/services/diarias/relatorioMetrics';
+import { calcularBreakdownDiaria } from '@/utils/diariaCalculo';
 import {
   auditRelatorioAccess,
   getCurrentDiariasReportContext,
@@ -503,13 +504,7 @@ export async function exportarRelatorioExcel(
   // Build data rows
   const dataRows = relatorio.map((item, idx) => {
     const rowNum = idx + 2; // Excel row (1-indexed, header is row 1)
-    const valorBase = Math.ceil(item.valor_diaria_aplicada || 0);
-    const integralUmaEMeia = Math.round(valorBase * (2/3));
-    const vDiaria = item.tipo_diaria === 'completa' ? valorBase :
-                    item.tipo_diaria === 'uma_e_meia' ? integralUmaEMeia : 0;
-    const vMeiaDiaria = item.tipo_diaria === 'meia' ? valorBase :
-                        item.tipo_diaria === 'uma_e_meia' ? (valorBase - integralUmaEMeia) : 0;
-    const vRefeicao = Math.ceil(item.valor_refeicao_aplicado || 0);
+    const breakdown = calcularBreakdownDiaria(item);
 
     return [
       format(new Date(item.data + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }),
@@ -524,10 +519,10 @@ export async function exportarRelatorioExcel(
       item.agencia_funcionario || '-',
       item.conta_funcionario || '-',
       item.pix_funcionario || '-',
-      vDiaria,
-      vMeiaDiaria,
-      vRefeicao,
-      null // placeholder for formula
+      breakdown.diaria,
+      breakdown.meia,
+      breakdown.refeicao,
+      null // placeholder for formula (Total = K+L+M)
     ];
   });
 

@@ -107,3 +107,10 @@ export {
   mergeFuncionarios,
   type FuncionarioOption,
 } from './_funcionarioMappers';
+
+// Média histórica de presença em FDS (para simulação de refeições)
+export {
+  useMediaPresencaFds,
+  type MediaPresencaFdsResult,
+  type FonteMediaFds,
+} from './useMediaPresencaFds';

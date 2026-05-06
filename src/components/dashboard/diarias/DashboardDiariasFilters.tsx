@@ -8,6 +8,10 @@ import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon, Filter, X } from "lucide-react";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+// Diárias seguem semana operacional: segunda → domingo (corte no domingo)
+const toMonday = (d: Date) => startOfWeek(d, { weekStartsOn: 1 });
+const toSunday = (d: Date) => endOfWeek(d, { weekStartsOn: 1 });
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -142,29 +146,32 @@ export default function DashboardDiariasFilters({
     let dataFim: Date | undefined;
 
     switch (periodo) {
-      case "today":
-        dataInicio = startOfDay(now);
-        dataFim = endOfDay(now);
+      case "today": {
+        // "Hoje" → semana operacional atual (seg→dom)
+        dataInicio = toMonday(now);
+        dataFim = toSunday(now);
         break;
+      }
       case "week":
-        dataInicio = startOfWeek(now, { locale: ptBR });
-        dataFim = endOfWeek(now, { locale: ptBR });
+        dataInicio = toMonday(now);
+        dataFim = toSunday(now);
         break;
       case "month":
-        dataInicio = startOfMonth(now);
-        dataFim = endOfMonth(now);
+        // Mês ajustado às bordas semanais (seg da semana do dia 1 → dom da semana do último dia)
+        dataInicio = toMonday(startOfMonth(now));
+        dataFim = toSunday(endOfMonth(now));
         break;
       case "quarter":
-        dataInicio = startOfQuarter(now);
-        dataFim = endOfQuarter(now);
+        dataInicio = toMonday(startOfQuarter(now));
+        dataFim = toSunday(endOfQuarter(now));
         break;
       case "year":
-        dataInicio = startOfYear(now);
-        dataFim = endOfYear(now);
+        dataInicio = toMonday(startOfYear(now));
+        dataFim = toSunday(endOfYear(now));
         break;
       case "custom":
-        dataInicio = filters.dataInicio;
-        dataFim = filters.dataFim;
+        dataInicio = filters.dataInicio ? toMonday(filters.dataInicio) : undefined;
+        dataFim = filters.dataFim ? toSunday(filters.dataFim) : undefined;
         break;
     }
 
@@ -236,12 +243,13 @@ export default function DashboardDiariasFilters({
                 <Calendar
                   mode="single"
                   selected={filters.dataInicio}
-                  onSelect={(date) => onFilterChange({ periodo: "custom", dataInicio: date })}
+                  onSelect={(date) => onFilterChange({ periodo: "custom", dataInicio: date ? toMonday(date) : undefined })}
                   locale={ptBR}
                   initialFocus
                 />
               </PopoverContent>
             </Popover>
+            <p className="text-[10px] text-muted-foreground">Ajustado para a segunda-feira da semana</p>
           </div>
 
           {/* Data Fim */}
@@ -264,12 +272,13 @@ export default function DashboardDiariasFilters({
                 <Calendar
                   mode="single"
                   selected={filters.dataFim}
-                  onSelect={(date) => onFilterChange({ periodo: "custom", dataFim: date })}
+                  onSelect={(date) => onFilterChange({ periodo: "custom", dataFim: date ? toSunday(date) : undefined })}
                   locale={ptBR}
                   initialFocus
                 />
               </PopoverContent>
             </Popover>
+            <p className="text-[10px] text-muted-foreground">Ajustado para o domingo da semana (corte)</p>
           </div>
 
           {/* Nº Solicitação */}

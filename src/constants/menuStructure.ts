@@ -99,7 +99,7 @@ export const menuStructure = [
         name: "Clínicas",
         href: "/sso/clinicas",
         icon: Building2,
-        requiredPermission: "acesso_sso_agendamento_exames"
+        requiredPermission: "acesso_sso_clinica"
       }
     ]
   },

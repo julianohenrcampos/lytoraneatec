@@ -200,7 +200,7 @@ const App = () => {
                     <Route path="/sso/checklists" element={<Secure permission="acesso_sso_checklists"><SSOChecklistList /></Secure>} />
                     <Route path="/sso/desvios" element={<Secure permission="acesso_sso_desvios"><SSODesviosList /></Secure>} />
                     <Route path="/sso/agendamento-exames" element={<Secure permission="acesso_sso_agendamento_exames"><SSOAgendamentoExames /></Secure>} />
-                    <Route path="/sso/clinicas" element={<Secure permission="acesso_sso_agendamento_exames"><SSOClinicas /></Secure>} />
+                    <Route path="/sso/clinicas" element={<Secure permission="acesso_sso_clinica"><SSOClinicas /></Secure>} />
                     <Route path="/sso/checklists/dashboard" element={<Secure permission="acesso_sso_dashboard"><SSODashboard /></Secure>} />
                     <Route path="/sso/ver-e-agir" element={<Secure permission="acesso_sso_ver_agir"><SSOVerAgir /></Secure>} />
 

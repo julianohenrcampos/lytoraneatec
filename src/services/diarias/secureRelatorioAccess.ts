@@ -68,6 +68,25 @@ export async function getCurrentDiariasReportContext(): Promise<DiariasReportCon
   );
 
   if (isAdmObra && !hasElevatedOverride) {
+    // Promoção controlada por permission RBAC oficial:
+    // AdmOBRA com diarias_relatorio_view/visualizar acessa vw_diarias_aprovacao_gerencial,
+    // que expõe valor_diaria_aplicada / valor_refeicao_aplicado mas mantém PII bancária mascarada.
+    // Sem essa permission, mantém operacional_campo (sem valores).
+    // Validação via RPC oficial fn_has_action — não lê tabelas RBAC diretamente.
+    try {
+      const { data: hasRelatorioView, error: actionError } = await supabase.rpc('fn_has_action', {
+        p_user_id: user.id,
+        p_codigo: 'diarias_relatorio_view',
+        p_acoes: ['visualizar'],
+      });
+      if (actionError) {
+        console.warn('[DIÁRIAS][CONTEXT] fn_has_action retornou erro, fallback operacional_campo:', actionError.message);
+      } else if (hasRelatorioView === true) {
+        return 'aprovacao_gerencial';
+      }
+    } catch (e) {
+      console.warn('[DIÁRIAS][CONTEXT] Falha em fn_has_action, fallback operacional_campo:', e);
+    }
     return 'operacional_campo';
   }
 

@@ -3,6 +3,92 @@ import { supabase } from '@/integrations/supabase/client';
 import { updateUserOfflineContext, getValidatedOfflineContext } from '@/utils/offlinePermissions';
 import { ROUTE_PERMISSIONS, hasRoutePermission } from '@/constants/routePermissions';
 import { logLegacyUsage } from '@/utils/rbacLegacyTelemetry';
+import { RBAC_LEGACY_FALLBACK_ENABLED } from '@/config/rbacFlags';
+
+// ============================================================
+// emitRbacFallbackEvent — telemetria estruturada de ramos legados
+// ------------------------------------------------------------
+// - log estruturado em console.warn
+// - insert fire-and-forget em bd_permission_audit_logs
+// - throttling por sessionStorage com chave userId+branch+reason
+// - falha de telemetria NUNCA quebra o fluxo
+// ============================================================
+type RbacFallbackBranch =
+  | 'early_superadm'
+  | 'role_fallback'
+  | 'role_permissions_fallback'
+  | 'extra_legacy_permissions'
+  | 'degraded_superadm'
+  | 'superadmin_bypass';
+
+type RbacFallbackReason =
+  | 'rbac_empty'
+  | 'rbac_error'
+  | 'rbac_timeout'
+  | 'role_actions_empty'
+  | 'rbac_thin'
+  | 'admin_bypass';
+
+type RbacFallbackSource =
+  | 'acesso_global'
+  | 'profiles_funcoes'
+  | 'app_metadata'
+  | 'snapshot'
+  | null;
+
+interface RbacFallbackEvent {
+  branch: RbacFallbackBranch;
+  reason: RbacFallbackReason;
+  skipped: boolean;
+  source?: RbacFallbackSource;
+  legacy?: boolean;
+  userId: string;
+  route?: string | null;
+  permitido?: boolean;
+}
+
+function emitRbacFallbackEvent(evt: RbacFallbackEvent): void {
+  try {
+    const route =
+      evt.route ?? (typeof window !== 'undefined' ? window.location?.pathname ?? null : null);
+    const payload = {
+      branch: evt.branch,
+      reason: evt.reason,
+      skipped: evt.skipped,
+      source: evt.source ?? null,
+      legacy: evt.legacy ?? false,
+      user_id: evt.userId,
+      route,
+      origem: 'legado_fallback' as const,
+      permitido: evt.permitido ?? !evt.skipped,
+      flag_state: RBAC_LEGACY_FALLBACK_ENABLED,
+    };
+
+    // Console estruturado (sempre, ignora throttle — barato)
+    console.warn('🧭 [usePermission] rbac_fallback_event', payload);
+
+    // Throttling por sessão: 1 insert por (userId, branch, reason)
+    const sessionKey = `rbac_fallback_${evt.userId}_${evt.branch}_${evt.reason}`;
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(sessionKey)) {
+      return;
+    }
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem(sessionKey, '1');
+    }
+
+    void supabase
+      .from('bd_permission_audit_logs')
+      .insert({
+        user_id: evt.userId,
+        origem: 'legado_fallback',
+        permitido: payload.permitido,
+        rota: route,
+      })
+      .then(() => {}, () => {});
+  } catch {
+    /* telemetria nunca quebra o app */
+  }
+}
 
 // ============================================================
 // HOOK ÚNICO DE PERMISSÕES — RBAC GRANULAR POR AÇÃO
@@ -238,7 +324,15 @@ export const usePermission = () => {
             (f) => String(f ?? '').trim().toLowerCase() === 'superadm'
           );
           const acessoGlobal = (profile as any).acesso_global === true;
-          const isAdminBypass = isSuperAdmFuncao || acessoGlobal;
+          // Decide a fonte do bypass priorizando acesso_global (não-legado).
+          // profiles.funcoes contém 'SuperAdm' permanece como fallback funcional
+          // nesta fase, mas é marcado como legado para cutover futuro.
+          const bypassSource: 'acesso_global' | 'profiles_funcoes' | null = acessoGlobal
+            ? 'acesso_global'
+            : isSuperAdmFuncao
+              ? 'profiles_funcoes'
+              : null;
+          const isAdminBypass = bypassSource !== null;
 
           // Log temporário de diagnóstico (remover após estabilização)
           console.log('🔍 [usePermission] Admin bypass check:', {
@@ -247,17 +341,32 @@ export const usePermission = () => {
             funcoes,
             isSuperAdmFuncao,
             acessoGlobal,
+            bypassSource,
             isAdminBypass,
           });
 
           if (isAdminBypass) {
-            logLegacyUsage('RBAC_LEGACY_PROFILES_FUNCOES_BYPASS_USED', {
+            // Telemetria separada por fonte (acesso_global x profiles.funcoes legado)
+            emitRbacFallbackEvent({
+              branch: 'superadmin_bypass',
+              reason: 'admin_bypass',
+              skipped: false,
+              source: bypassSource!,
+              legacy: bypassSource === 'profiles_funcoes',
               userId: user.id,
-              hook: 'usePermission:layerC',
-              isSuperAdmFuncao,
-              acessoGlobal,
+              permitido: true,
             });
+            // Mantém telemetria legada existente apenas quando o gatilho foi profiles.funcoes
+            if (bypassSource === 'profiles_funcoes') {
+              logLegacyUsage('RBAC_LEGACY_PROFILES_FUNCOES_BYPASS_USED', {
+                userId: user.id,
+                hook: 'usePermission:layerC',
+                isSuperAdmFuncao,
+                acessoGlobal,
+              });
+            }
             console.log('✅ [usePermission] Bypass administrativo aplicado antes do RBAC. permissions=["*"]');
+
             const adminState: PermissionState = {
               userId: user.id,
               userEmail: user.email ?? null,
@@ -293,9 +402,11 @@ export const usePermission = () => {
         }
       }
 
-      // 1. Detecção precoce de SuperAdm via profiles.funcoes (paralela, tolerante a falha)
-      //    Esse sinal é usado APENAS no fallback degradado se o RBAC granular falhar.
+      // 1. (D1) Detecção precoce de SuperAdm via profiles.funcoes (paralela, tolerante a falha).
+      //    Esse sinal é usado APENAS no fallback degradado (E2) se o RBAC granular falhar.
       //    Não substitui a fonte oficial de RBAC quando ela responde com sucesso.
+      //    Sob flag RBAC_LEGACY_FALLBACK_ENABLED: quando false, a leitura segue para
+      //    fins de telemetria mas earlyIsSuperAdmin NÃO é setado (impede que E2 amplie).
       const earlyProfilePromise = withTimeout(
         supabase.from('profiles').select('funcoes').eq('id', user.id).maybeSingle(),
         PERMISSION_QUERY_TIMEOUT_MS,
@@ -304,9 +415,23 @@ export const usePermission = () => {
         (res) => {
           const funcoes = (res as any)?.data?.funcoes;
           if (Array.isArray(funcoes)) {
-            earlyIsSuperAdmin = funcoes.some(
+            const detectedSuperAdm = funcoes.some(
               (f: unknown) => typeof f === 'string' && f.trim().toLowerCase() === 'superadm'
             );
+            if (RBAC_LEGACY_FALLBACK_ENABLED) {
+              earlyIsSuperAdmin = detectedSuperAdm;
+            }
+            if (detectedSuperAdm) {
+              emitRbacFallbackEvent({
+                branch: 'early_superadm',
+                reason: 'admin_bypass',
+                skipped: !RBAC_LEGACY_FALLBACK_ENABLED,
+                source: 'profiles_funcoes',
+                legacy: true,
+                userId: user.id,
+                permitido: RBAC_LEGACY_FALLBACK_ENABLED,
+              });
+            }
           }
         },
         (err) => {
@@ -345,43 +470,65 @@ export const usePermission = () => {
         }
       }
 
-      // Fallback: if no roles in new system, try legacy profiles.funcoes
+      // Fallback (D2): if no roles in new system, try legacy profiles.funcoes — sob flag
       if (!roleName) {
-        const { data: profile } = await withTimeout(
-          supabase
-            .from('profiles')
-            .select('funcoes')
-            .eq('id', user.id)
-            .maybeSingle(),
-          PERMISSION_QUERY_TIMEOUT_MS,
-          'profiles.funcoes'
-        );
-
-        if (profile?.funcoes && Array.isArray(profile.funcoes) && profile.funcoes.length > 0) {
-          roleName = profile.funcoes[0];
-          logLegacyUsage('RBAC_LEGACY_PROFILES_FUNCOES_ROLE_FALLBACK', {
-            userId: user.id,
-            hook: 'usePermission:roleFallback',
-            roleName,
-          });
-          isSuperAdmin = profile.funcoes.some(
-            (f: unknown) => typeof f === 'string' && f.trim().toLowerCase() === 'superadm'
+        if (RBAC_LEGACY_FALLBACK_ENABLED) {
+          const { data: profile } = await withTimeout(
+            supabase
+              .from('profiles')
+              .select('funcoes')
+              .eq('id', user.id)
+              .maybeSingle(),
+            PERMISSION_QUERY_TIMEOUT_MS,
+            'profiles.funcoes'
           );
 
-          if (roleName) {
-            const { data: roleData } = await withTimeout(
-              supabase
-                .from('bd_roles')
-                .select('id')
-                .or(`nome.eq.${roleName},nome.ilike.${roleName.trim()}`)
-                .limit(1),
-              PERMISSION_QUERY_TIMEOUT_MS,
-              'bd_roles lookup'
+          if (profile?.funcoes && Array.isArray(profile.funcoes) && profile.funcoes.length > 0) {
+            roleName = profile.funcoes[0];
+            logLegacyUsage('RBAC_LEGACY_PROFILES_FUNCOES_ROLE_FALLBACK', {
+              userId: user.id,
+              hook: 'usePermission:roleFallback',
+              roleName,
+            });
+            isSuperAdmin = profile.funcoes.some(
+              (f: unknown) => typeof f === 'string' && f.trim().toLowerCase() === 'superadm'
             );
-            if (roleData && roleData.length > 0) {
-              roleIds = [roleData[0].id];
+
+            if (roleName) {
+              const { data: roleData } = await withTimeout(
+                supabase
+                  .from('bd_roles')
+                  .select('id')
+                  .or(`nome.eq.${roleName},nome.ilike.${roleName.trim()}`)
+                  .limit(1),
+                PERMISSION_QUERY_TIMEOUT_MS,
+                'bd_roles lookup'
+              );
+              if (roleData && roleData.length > 0) {
+                roleIds = [roleData[0].id];
+              }
             }
+
+            emitRbacFallbackEvent({
+              branch: 'role_fallback',
+              reason: 'rbac_empty',
+              skipped: false,
+              source: 'profiles_funcoes',
+              legacy: true,
+              userId: user.id,
+              permitido: true,
+            });
           }
+        } else {
+          emitRbacFallbackEvent({
+            branch: 'role_fallback',
+            reason: 'rbac_empty',
+            skipped: true,
+            source: 'profiles_funcoes',
+            legacy: true,
+            userId: user.id,
+            permitido: false,
+          });
         }
       }
 
@@ -450,30 +597,49 @@ export const usePermission = () => {
           permissionRoutes = [...routes];
           roleActions = actions;
         } else {
-          logLegacyUsage('RBAC_LEGACY_BD_ROLE_PERMISSIONS_READ', {
-            userId: user.id,
-            hook: 'usePermission:bdRolePermissionsFallback',
-            roleIdsCount: roleIds.length,
-          });
-          const { data: rpData } = await withTimeout(
-            supabase
-              .from('bd_role_permissions')
-              .select('bd_permissions(codigo, rota)')
-              .in('role_id', roleIds),
-            PERMISSION_QUERY_TIMEOUT_MS,
-            'bd_role_permissions'
-          );
+          // D3 — bd_role_permissions fallback (RPA vazio) — sob flag
+          if (RBAC_LEGACY_FALLBACK_ENABLED) {
+            logLegacyUsage('RBAC_LEGACY_BD_ROLE_PERMISSIONS_READ', {
+              userId: user.id,
+              hook: 'usePermission:bdRolePermissionsFallback',
+              roleIdsCount: roleIds.length,
+            });
+            const { data: rpData } = await withTimeout(
+              supabase
+                .from('bd_role_permissions')
+                .select('bd_permissions(codigo, rota)')
+                .in('role_id', roleIds),
+              PERMISSION_QUERY_TIMEOUT_MS,
+              'bd_role_permissions'
+            );
 
-          if (rpData) {
-            const codes = new Set<string>(['dashboard_view']);
-            const routes = new Set<string>(['/']);
-            for (const rp of rpData) {
-              const perm = rp.bd_permissions as any;
-              if (perm?.codigo) codes.add(perm.codigo);
-              if (perm?.rota) routes.add(perm.rota);
+            if (rpData) {
+              const codes = new Set<string>(['dashboard_view']);
+              const routes = new Set<string>(['/']);
+              for (const rp of rpData) {
+                const perm = rp.bd_permissions as any;
+                if (perm?.codigo) codes.add(perm.codigo);
+                if (perm?.rota) routes.add(perm.rota);
+              }
+              permissionCodes = [...codes];
+              permissionRoutes = [...routes];
             }
-            permissionCodes = [...codes];
-            permissionRoutes = [...routes];
+
+            emitRbacFallbackEvent({
+              branch: 'role_permissions_fallback',
+              reason: 'role_actions_empty',
+              skipped: false,
+              userId: user.id,
+              permitido: true,
+            });
+          } else {
+            emitRbacFallbackEvent({
+              branch: 'role_permissions_fallback',
+              reason: 'role_actions_empty',
+              skipped: true,
+              userId: user.id,
+              permitido: false,
+            });
           }
         }
 
@@ -495,56 +661,52 @@ export const usePermission = () => {
         }
       }
 
-      // Legacy fallback
+      // Legacy fallback (D4) — sob flag RBAC_LEGACY_FALLBACK_ENABLED
       if (!isSuperAdmin && permissionCodes.length <= 1 && roleName) {
-        const { data: legacyFunc } = await withTimeout(
-          supabase
-            .from('bd_funcoes_permissao')
-            .select('permissoes')
-            .eq('nome_funcao', roleName)
-            .single(),
-          PERMISSION_QUERY_TIMEOUT_MS,
-          'bd_funcoes_permissao'
-        );
-
-        if (legacyFunc?.permissoes && legacyFunc.permissoes.length > 0) {
-          const { data: legacyPerms } = await withTimeout(
+        if (RBAC_LEGACY_FALLBACK_ENABLED) {
+          const { data: legacyFunc } = await withTimeout(
             supabase
-              .from('bd_permissoes')
-              .select('nome_permissao, rota')
-              .in('id', legacyFunc.permissoes),
+              .from('bd_funcoes_permissao')
+              .select('permissoes')
+              .eq('nome_funcao', roleName)
+              .single(),
             PERMISSION_QUERY_TIMEOUT_MS,
-            'bd_permissoes (legacy)'
+            'bd_funcoes_permissao'
           );
 
-          if (legacyPerms) {
-            const extraCodes = legacyPerms.map(p => p.nome_permissao);
-            const extraRoutes = legacyPerms.filter(p => p.rota).map(p => p.rota!);
-            permissionCodes = [...new Set([...permissionCodes, ...extraCodes])];
-            permissionRoutes = [...new Set([...permissionRoutes, ...extraRoutes])];
+          if (legacyFunc?.permissoes && legacyFunc.permissoes.length > 0) {
+            const { data: legacyPerms } = await withTimeout(
+              supabase
+                .from('bd_permissoes')
+                .select('nome_permissao, rota')
+                .in('id', legacyFunc.permissoes),
+              PERMISSION_QUERY_TIMEOUT_MS,
+              'bd_permissoes (legacy)'
+            );
 
-            // Telemetria fire-and-forget: registra que este usuário ainda depende
-            // do fallback legado (bd_funcoes_permissao + bd_permissoes).
-            // Throttled para 1 evento por sessão por usuário; falha silenciosa
-            // para nunca impactar o fluxo de permissões.
-            try {
-              const sessionKey = `rbac_legacy_logged_${user.id}`;
-              if (typeof sessionStorage !== 'undefined' && !sessionStorage.getItem(sessionKey)) {
-                sessionStorage.setItem(sessionKey, '1');
-                void supabase
-                  .from('bd_permission_audit_logs')
-                  .insert({
-                    user_id: user.id,
-                    origem: 'legado_fallback',
-                    permitido: true,
-                    rota: roleName ?? null,
-                  })
-                  .then(() => {}, () => {});
-              }
-            } catch {
-              /* telemetria nunca quebra o app */
+            if (legacyPerms) {
+              const extraCodes = legacyPerms.map(p => p.nome_permissao);
+              const extraRoutes = legacyPerms.filter(p => p.rota).map(p => p.rota!);
+              permissionCodes = [...new Set([...permissionCodes, ...extraCodes])];
+              permissionRoutes = [...new Set([...permissionRoutes, ...extraRoutes])];
+
+              emitRbacFallbackEvent({
+                branch: 'extra_legacy_permissions',
+                reason: 'rbac_thin',
+                skipped: false,
+                userId: user.id,
+                permitido: true,
+              });
             }
           }
+        } else {
+          emitRbacFallbackEvent({
+            branch: 'extra_legacy_permissions',
+            reason: 'rbac_thin',
+            skipped: true,
+            userId: user.id,
+            permitido: false,
+          });
         }
       }
 

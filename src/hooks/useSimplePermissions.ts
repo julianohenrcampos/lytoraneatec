@@ -1,4 +1,10 @@
-
+/**
+ * @deprecated Hook legado mantido apenas como histórico.
+ * Não importar em código novo. A fonte oficial de RBAC é
+ * `usePermission` (src/hooks/usePermission.ts) com `ActionGuard`
+ * e checagem backend via `fn_has_action`.
+ * Remoção planejada em fase 5B-2.9-C/E.
+ */
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';

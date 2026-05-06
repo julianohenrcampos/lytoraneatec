@@ -114,8 +114,8 @@ const portalModules: PortalModule[] = [
       { route: "/sso/checklists/dashboard", permission: "acesso_sso_dashboard" },
       { route: "/sso/checklists", permission: "acesso_sso_checklists" },
       { route: "/sso/desvios", permission: "acesso_sso_desvios" },
-      { route: "/sso/agendamento-exames", permission: "acesso_sso_agendamento_exames" },
       { route: "/sso/ver-e-agir", permission: "acesso_sso_ver_agir" },
+      { route: "/sso/clinicas", permission: "acesso_sso_clinica" },
     ],
   },
   {

@@ -17319,6 +17319,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      fn_has_action: {
+        Args: { p_acoes: string[]; p_codigo: string; p_user_id: string }
+        Returns: boolean
+      }
       fn_has_permission: {
         Args: { p_nome_permissao: string; p_user_id?: string }
         Returns: boolean

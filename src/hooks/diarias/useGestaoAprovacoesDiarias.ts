@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { usePermission } from '@/hooks/usePermission';
+import { hasRole } from '@/utils/roleUtils';
 
 export type GestaoFluxoRole = 'superadmin' | 'gerente_adm' | 'diretor_operacional' | 'diretor_adm' | 'viewer';
 
@@ -74,16 +75,22 @@ export function useGestaoAprovacoesDiarias(filtros: GestaoAprovacoesFiltros) {
       try {
         const { data } = await supabase
           .from('bd_user_roles')
-          .select('bd_roles(name)')
+          .select('bd_roles(nome)')
           .eq('user_id', userId);
 
-        const roleNames = (data || []).map((r: any) => r.bd_roles?.name).filter(Boolean);
+        const roleNames = (data || [])
+          .map((r: any) => r.bd_roles?.nome)
+          .filter(Boolean);
 
-        if (roleNames.includes('DiretorAdm')) {
+        if (import.meta.env.DEV) {
+          console.debug('[DIARIAS][APROVACOES][ROLES_DETECTADAS]', { userId, roleNames });
+        }
+
+        if (hasRole(roleNames, 'DiretorAdm')) {
           setUserFluxoRole('diretor_adm');
-        } else if (roleNames.includes('DiretorOperacional')) {
+        } else if (hasRole(roleNames, 'DiretorOperacional')) {
           setUserFluxoRole('diretor_operacional');
-        } else if (roleNames.includes('GerenteAdm')) {
+        } else if (hasRole(roleNames, 'GerenteAdm')) {
           setUserFluxoRole('gerente_adm');
         } else {
           // Sem fallback para profiles.funcoes — RBAC (bd_user_roles) é fonte única.

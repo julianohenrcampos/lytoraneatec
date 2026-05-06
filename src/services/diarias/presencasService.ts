@@ -81,6 +81,12 @@ function deduplicarPresencas<T extends PresencaInsertPayload>(rows: T[]): T[] {
   });
 }
 
+// APONTAMENTO-TIMEOUT-A1: tamanho do chunk para INSERT em bd_diaria_presencas.
+// Cada linha dispara triggers AFTER ROW pesados (recalcular_status_diaria,
+// auditoria) + RLS por linha. Lotes grandes ultrapassam statement_timeout (2 min).
+// 50 linhas mantém cada chunk com folga abaixo do timeout.
+const PRESENCAS_INSERT_CHUNK_SIZE = 50;
+
 async function inserirPresencasIdempotente<T extends PresencaInsertPayload>(
   rows: T[]
 ): Promise<ResultadoInsercaoIdempotente> {
@@ -99,25 +105,66 @@ async function inserirPresencasIdempotente<T extends PresencaInsertPayload>(
     });
   });
 
-  const { data, error } = await supabase
-    .from('bd_diaria_presencas')
-    .upsert(registrosUnicos, {
-      onConflict: 'solicitacao_id,funcionario_id,data',
-      ignoreDuplicates: true,
-    })
-    .select('id');
+  const total = registrosUnicos.length;
+  const chunkSize = PRESENCAS_INSERT_CHUNK_SIZE;
+  const totalChunks = Math.ceil(total / chunkSize);
+  let inseridos = 0;
 
-  if (error) {
-    console.error('Erro ao inserir presenças com idempotência:', error);
-    throw new Error(error.message);
+  // Processamento SEQUENCIAL (não paralelo) para evitar lock contention
+  // em bd_diaria_solicitacoes via trg_recalcular_status_diaria.
+  for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+    const inicio = chunkIndex * chunkSize;
+    const fim = Math.min(inicio + chunkSize, total);
+    const chunk = registrosUnicos.slice(inicio, fim);
+    const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
+    const { data, error } = await supabase
+      .from('bd_diaria_presencas')
+      .upsert(chunk, {
+        onConflict: 'solicitacao_id,funcionario_id,data',
+        ignoreDuplicates: true,
+      })
+      .select('id');
+
+    const tempoMs = Math.round(
+      (typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0
+    );
+
+    if (error) {
+      console.error('[DIARIAS][PRESENCAS][BATCH_INSERT][ERRO]', {
+        total,
+        chunkSize,
+        chunkIndex,
+        totalChunks,
+        quantidadeNoChunk: chunk.length,
+        inseridosAcumulados: inseridos,
+        tempoMs,
+        error: error.message,
+      });
+      throw new Error(
+        `Falha ao salvar presenças (chunk ${chunkIndex + 1}/${totalChunks}, ` +
+        `${chunk.length} linhas, ${inseridos} já inseridas anteriormente): ${error.message}`
+      );
+    }
+
+    const inseridosChunk = data?.length ?? 0;
+    inseridos += inseridosChunk;
+
+    console.log('[DIARIAS][PRESENCAS][BATCH_INSERT]', {
+      total,
+      chunkSize,
+      chunkIndex,
+      totalChunks,
+      quantidadeNoChunk: chunk.length,
+      inseridosNoChunk: inseridosChunk,
+      tempoMs,
+    });
   }
 
-  const inseridos = data?.length ?? 0;
-
   return {
-    totalSolicitado: registrosUnicos.length,
+    totalSolicitado: total,
     inseridos,
-    ignorados: Math.max(registrosUnicos.length - inseridos, 0),
+    ignorados: Math.max(total - inseridos, 0),
   };
 }
 

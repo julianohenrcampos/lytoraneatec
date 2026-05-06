@@ -44,6 +44,7 @@ import {
   useFuncionariosBuscaAtivos,
   fetchFuncionariosAtivos,
   useFuncionarioElegibilidade,
+  useMediaPresencaFds,
 } from "@/hooks/diarias";
 import type { SolicitacaoFormData, FuncionarioPreConvocado, DiariaSolicitacao } from "@/types/diarias";
 import { useFeriadosPeriodo } from "@/hooks/diarias/useFeriados";
@@ -309,15 +310,85 @@ export function SolicitacaoFormModal({
     enabled: isOpen && step === 'funcionarios' && !!centroCustoId,
   });
 
+  // Cache de carregamento completo por CC (paginação alfabética client-side).
+  // Contorna o cap rígido de 200 da RPC get_funcionarios_ativos_global, que
+  // usa p_centro_custo apenas para ordenação. Reaproveitado pelo override
+  // de contagem e pelo fluxo "Adicionar por CC".
+  const [funcionariosFullCcCache, setFuncionariosFullCcCache] = useState<
+    Record<string, any[]>
+  >({});
+  const [carregandoFullCc, setCarregandoFullCc] = useState<string | null>(null);
+
+  const fetchTodosFuncionariosPorCC = useCallback(
+    async (ccId: string): Promise<any[]> => {
+      if (funcionariosFullCcCache[ccId]) return funcionariosFullCcCache[ccId];
+      setCarregandoFullCc(ccId);
+      try {
+        // Cursor por letra: usa p_search como sondagem alfanumérica para
+        // particionar o universo. Cada chamada retorna até 200 (cap RPC),
+        // priorizando CC selecionado. Dedup por id ao final.
+        const letras = "abcdefghijklmnopqrstuvwxyz0123456789".split("");
+        const acc = new Map<string, any>();
+        const concorrencia = 4;
+
+        for (let i = 0; i < letras.length; i += concorrencia) {
+          const slice = letras.slice(i, i + concorrencia);
+          const lotes = await Promise.all(
+            slice.map((letra) =>
+              fetchFuncionariosAtivos(queryClient, {
+                centroCustoId: ccId,
+                search: letra,
+                limit: 200,
+              }).catch((err) => {
+                console.warn("[Diarias][fetchTodosFuncionariosPorCC] letra falhou", letra, err);
+                return [] as any[];
+              })
+            )
+          );
+          for (const lote of lotes) {
+            for (const f of lote) {
+              if (f?.id && f.centro_custo_id === ccId && !acc.has(f.id)) {
+                acc.set(f.id, f);
+              }
+            }
+          }
+        }
+
+        const lista = Array.from(acc.values());
+        setFuncionariosFullCcCache((prev) => ({ ...prev, [ccId]: lista }));
+        return lista;
+      } finally {
+        setCarregandoFullCc((prev) => (prev === ccId ? null : prev));
+      }
+    },
+    [funcionariosFullCcCache, queryClient]
+  );
+
+  // Pré-carrega o universo completo do CC ao entrar na etapa Funcionários,
+  // para que o card de CC mostre a contagem real (sem o teto de 200) e o
+  // botão "Adicionar por CC" responda instantaneamente.
+  useEffect(() => {
+    if (!isOpen || step !== 'funcionarios' || !centroCustoId) return;
+    if (funcionariosFullCcCache[centroCustoId]) return;
+    fetchTodosFuncionariosPorCC(centroCustoId).catch((err) =>
+      console.warn("[Diarias][prefetchFullCC] erro", err)
+    );
+  }, [isOpen, step, centroCustoId, funcionariosFullCcCache, fetchTodosFuncionariosPorCC]);
+
   const totalFuncionariosPorCentroOverride = useMemo(() => {
     const m = new Map<string, number>();
     if (!centroCustoId) return m;
-    const total = funcionariosHeadcountCc.filter(
-      (f) => f.centro_custo_id === centroCustoId
-    ).length;
-    m.set(centroCustoId, total);
+    const completo = funcionariosFullCcCache[centroCustoId];
+    if (completo && completo.length > 0) {
+      m.set(centroCustoId, completo.length);
+    } else {
+      const total = funcionariosHeadcountCc.filter(
+        (f) => f.centro_custo_id === centroCustoId
+      ).length;
+      m.set(centroCustoId, total);
+    }
     return m;
-  }, [funcionariosHeadcountCc, centroCustoId]);
+  }, [funcionariosFullCcCache, funcionariosHeadcountCc, centroCustoId]);
 
   // Aplica flag visual "fora do CC" e mantém compatibilidade de shape.
   const funcionarios = useMemo(() => {
@@ -944,6 +1015,7 @@ export function SolicitacaoFormModal({
     let jaExistentes = 0;
     let semFuncao = 0;
     let foraCc = 0;
+    const totalEncontrados = lista.length;
 
     for (const func of lista) {
       if (ccAlvoId && func.centro_custo_id !== ccAlvoId) { foraCc++; continue; }
@@ -965,38 +1037,39 @@ export function SolicitacaoFormModal({
 
     if (novos.length > 0) setConvocadosPre([...convocadosPre, ...novos]);
 
-    const parts: string[] = [];
-    if (novos.length > 0) parts.push(`${novos.length} adicionado${novos.length > 1 ? 's' : ''}`);
-    if (jaExistentes > 0) parts.push(`${jaExistentes} já estava${jaExistentes > 1 ? 'm' : ''} na lista`);
-    if (semFuncao > 0) parts.push(`${semFuncao} sem função cadastrada`);
-    if (foraCc > 0) parts.push(`${foraCc} fora do centro de custo selecionado`);
+    const elegiveis = totalEncontrados - foraCc - semFuncao;
+    const resumo = [
+      `Encontrados no CC: ${totalEncontrados - foraCc}`,
+      `Elegíveis: ${elegiveis}`,
+      `Adicionados: ${novos.length}`,
+      `Já na lista: ${jaExistentes}`,
+      `Sem função: ${semFuncao}`,
+    ];
+    if (foraCc > 0) resumo.push(`Fora do CC: ${foraCc}`);
 
-    if (novos.length > 0) toast.success(parts.join('. ') + '.');
-    else if (jaExistentes > 0) toast.info('Todos os funcionários deste centro já estão na lista.');
-    else toast.warning(parts.join('. ') || 'Nenhum funcionário adicionado.');
+    const mensagem = resumo.join(' • ');
+
+    if (novos.length > 0) toast.success(mensagem);
+    else if (jaExistentes > 0) toast.info(mensagem);
+    else toast.warning(mensagem);
   }, [convocadosPre]);
 
-  // "Adicionar por CC" — filtra ESTRITAMENTE pelo CC selecionado.
-  // A RPC get_funcionarios_ativos_global usa p_centro_custo apenas para
-  // priorização (ORDER BY), não como filtro. Por isso aplicamos o filtro
-  // local f.centro_custo_id === ccId imediatamente após receber a lista.
+  // "Adicionar por CC" — usa o cache completo paginado para superar o cap de
+  // 200 da RPC. fetchTodosFuncionariosPorCC já filtra por CC e deduplica.
   const handleAddByCentroCusto = async (centroCustoIdSelected: string) => {
     try {
-      const preview = await fetchFuncionariosAtivos(queryClient, {
-        centroCustoId: centroCustoIdSelected,
-        search: '',
-        limit: 100,
-      });
+      // Tenta usar o cache pré-carregado; se vazio, faz a paginação completa.
+      const cached = funcionariosFullCcCache[centroCustoIdSelected];
+      const lista = cached ?? (await fetchTodosFuncionariosPorCC(centroCustoIdSelected));
 
-      const doCC = preview.filter((f) => f.centro_custo_id === centroCustoIdSelected);
-
-      if (doCC.length < 100) {
-        aplicarLoteFuncionarios(doCC, centroCustoIdSelected);
+      // Volume baixo (< 100) — adiciona direto, sem confirmação.
+      if (lista.length < 100) {
+        aplicarLoteFuncionarios(lista, centroCustoIdSelected);
         return;
       }
 
-      // Volume alto do próprio CC — pede confirmação com a contagem real.
-      setPendingCcAdd({ ccId: centroCustoIdSelected, preview: doCC.length });
+      // Volume alto — confirma com contagem real (já paginada, sem teto de 200).
+      setPendingCcAdd({ ccId: centroCustoIdSelected, preview: lista.length });
     } catch (err) {
       console.error('[Diarias][addByCC] erro', err);
       toast.error('Não foi possível carregar os funcionários do centro de custo.');
@@ -1008,13 +1081,8 @@ export function SolicitacaoFormModal({
     const { ccId } = pendingCcAdd;
     setPendingCcAdd(null);
     try {
-      const lote = await fetchFuncionariosAtivos(queryClient, {
-        centroCustoId: ccId,
-        search: '',
-        limit: 500, // cap absoluto (RPC reduz para 200 internamente)
-      });
-      const doCC = lote.filter((f) => f.centro_custo_id === ccId);
-      aplicarLoteFuncionarios(doCC, ccId);
+      const lista = await fetchTodosFuncionariosPorCC(ccId);
+      aplicarLoteFuncionarios(lista, ccId);
     } catch (err) {
       console.error('[Diarias][addByCC confirm] erro', err);
       toast.error('Não foi possível carregar a lista completa.');
@@ -1035,10 +1103,143 @@ export function SolicitacaoFormModal({
     ));
   };
 
+  // Base histórica de presenças em FDS para refinar a estimativa de refeições
+  // de fim de semana (objetivo 3). Usa apenas o ÚLTIMO sábado/domingo
+  // anteriores ao período da solicitação, restrito ao CC.
+  const { data: mediaFds } = useMediaPresencaFds(centroCustoId, {
+    enabled: isOpen && step === 'funcionarios' && !!centroCustoId,
+    periodoInicio: dataInicio || null,
+  });
+
   // Calculate simulação de valores
   const simulacao = useMemo(() => {
-    return calcularEstimativaTotal(convocadosPre, analise, consideraFdsFeriado, tipoSolicitacao, regrasOperacionaisSnapshot);
-  }, [convocadosPre, analise, consideraFdsFeriado, tipoSolicitacao, regrasOperacionaisSnapshot]);
+    const base = calcularEstimativaTotal(convocadosPre, analise, consideraFdsFeriado, tipoSolicitacao, regrasOperacionaisSnapshot);
+
+    // Override de FDS quando há histórico real do CC no último FDS encontrado.
+    // A base histórica passa a alimentar TANTO as diárias FDS QUANTO as refeições FDS.
+    // Dias úteis (diárias e refeições) permanecem inalterados — vindos da lista convocada.
+    if (
+      mediaFds &&
+      mediaFds.fonte === 'ultimo_fds' &&
+      consideraFdsFeriado &&
+      convocadosPre.length > 0 &&
+      (resumoSimulacaoPeriodo.sabados > 0 ||
+        resumoSimulacaoPeriodo.domingos > 0 ||
+        resumoSimulacaoPeriodo.feriados > 0 ||
+        resumoSimulacaoPeriodo.diasOperacionais > 0)
+    ) {
+      // Fonte de valores médios: lista atual primeiro, depois cache do CC.
+      const cacheCc = centroCustoId ? funcionariosFullCcCache[centroCustoId] : undefined;
+
+      const refeicoesLista = convocadosPre.map((c) => c.valor_refeicao || 0).filter((v) => v > 0);
+      const refeicoesCc = (cacheCc || [])
+        .map((f: any) => f?.bd_funcoes?.valor_refeicao || 0)
+        .filter((v: number) => v > 0);
+      const fonteRefeicoes = refeicoesLista.length > 0 ? refeicoesLista : refeicoesCc;
+      const valorMedioRefeicao =
+        fonteRefeicoes.length > 0
+          ? fonteRefeicoes.reduce((s, n) => s + n, 0) / fonteRefeicoes.length
+          : 0;
+
+      const exclusivaLista = convocadosPre
+        .map((c) => c.valor_diaria_exclusiva || (c.valor_diaria ? c.valor_diaria * 1.2 : 0))
+        .filter((v) => v > 0);
+      const exclusivaCc = (cacheCc || [])
+        .map((f: any) => {
+          const fn = f?.bd_funcoes;
+          const ex = fn?.valor_diaria_exclusiva || 0;
+          if (ex > 0) return ex;
+          const dn = fn?.valor_diaria || 0;
+          return dn > 0 ? dn * 1.2 : 0;
+        })
+        .filter((v: number) => v > 0);
+      const fonteExclusiva = exclusivaLista.length > 0 ? exclusivaLista : exclusivaCc;
+      const valorMedioDiariaExclusiva =
+        fonteExclusiva.length > 0
+          ? fonteExclusiva.reduce((s, n) => s + n, 0) / fonteExclusiva.length
+          : 0;
+
+      // Bases por dia: usa contagem própria do dia se houver, senão a média.
+      const baseSab = mediaFds.sabadoAnteriorCount ?? mediaFds.mediaFimSemanaAnterior;
+      const baseDom = mediaFds.domingoAnteriorCount ?? mediaFds.mediaFimSemanaAnterior;
+      const baseOutrosExclusivos = mediaFds.mediaFimSemanaAnterior; // feriados/dias operacionais
+
+      if (baseSab === 0 && baseDom === 0) {
+        return {
+          ...base,
+          _fonteRefeicaoFds: 'fallback' as const,
+        } as typeof base & { _fonteRefeicaoFds?: 'ultimo_fds' | 'fallback' };
+      }
+
+      const qtdSab = resumoSimulacaoPeriodo.sabados;
+      const qtdDom = resumoSimulacaoPeriodo.domingos;
+      const qtdOutros = resumoSimulacaoPeriodo.feriados + resumoSimulacaoPeriodo.diasOperacionais;
+      const qtdDiasUteis = resumoSimulacaoPeriodo.diasUteis;
+
+      // === DIAS ÚTEIS — ISOLADO, regra original ===
+      // Não sofre nenhum ajuste pela média histórica de FDS.
+      // Replica a mesma lógica original APENAS para dias úteis:
+      //  - matrícula && tipo != 'extraordinaria' && !usar_diaria_exclusiva ⇒ bloqueado em úteis
+      //  - quem usa exclusiva paga valor_diaria_exclusiva (ou valor_diaria*1.2) também nos úteis
+      let totalDiasUteisOriginal = 0;
+      let refeicoesDiasUteisOriginal = 0;
+      for (const c of convocadosPre) {
+        const temMatricula = !!c.matricula;
+        const forcarExclusiva = (c as any).usar_diaria_exclusiva === true;
+        const bloqueado =
+          temMatricula && tipoSolicitacao !== 'extraordinaria' && !forcarExclusiva;
+        const dias = bloqueado ? 0 : qtdDiasUteis;
+        const valorDiariaUtil = forcarExclusiva
+          ? (c.valor_diaria_exclusiva || (c.valor_diaria ? c.valor_diaria * 1.2 : 0))
+          : (c.valor_diaria || 0);
+        totalDiasUteisOriginal += dias * valorDiariaUtil;
+        refeicoesDiasUteisOriginal += dias * (c.valor_refeicao || 0);
+      }
+
+      // === FDS/FERIADOS — base histórica × valor exclusiva ===
+      const totalFdsHistorico =
+        (baseSab * qtdSab + baseDom * qtdDom + baseOutrosExclusivos * qtdOutros) *
+        valorMedioDiariaExclusiva;
+
+      // === REFEIÇÕES FDS — base histórica × valor refeição ===
+      const refeicoesFdsHistorico =
+        (baseSab * qtdSab + baseDom * qtdDom + baseOutrosExclusivos * qtdOutros) *
+        valorMedioRefeicao;
+
+      const novoTotalRefeicoes = refeicoesDiasUteisOriginal + refeicoesFdsHistorico;
+      const novoTotalEstimado =
+        totalDiasUteisOriginal + totalFdsHistorico + novoTotalRefeicoes;
+
+      return {
+        ...base,
+        totalDiasUteisESabados: totalDiasUteisOriginal, // somente úteis (sábado sai daqui)
+        totalDomFeriados: totalFdsHistorico,            // sáb + dom + feriados/operacionais via histórico
+        totalRefeicoes: novoTotalRefeicoes,
+        totalEstimado: novoTotalEstimado,
+        // aliases deprecados mantidos coerentes
+        totalDiasUteis: totalDiasUteisOriginal,
+        totalFdsFeriados: totalFdsHistorico,
+        _fonteRefeicaoFds: 'ultimo_fds' as const,
+        _sabadoAnteriorCount: mediaFds.sabadoAnteriorCount,
+        _domingoAnteriorCount: mediaFds.domingoAnteriorCount,
+        _datasFdsConsideradas: mediaFds.datasConsideradas,
+        _qtdFdsUsados: mediaFds.qtdFdsUsados,
+        _fdsRecentes: mediaFds.fdsRecentes,
+      } as typeof base & {
+        _fonteRefeicaoFds?: 'ultimo_fds' | 'fallback';
+        _sabadoAnteriorCount?: number | null;
+        _domingoAnteriorCount?: number | null;
+        _datasFdsConsideradas?: { sabado: string | null; domingo: string | null };
+        _qtdFdsUsados?: number;
+        _fdsRecentes?: Array<{ sabado: string; domingo: string; qtdSab: number; qtdDom: number }>;
+      };
+    }
+
+    return {
+      ...base,
+      _fonteRefeicaoFds: 'fallback' as const,
+    } as typeof base & { _fonteRefeicaoFds?: 'ultimo_fds' | 'fallback' };
+  }, [convocadosPre, analise, consideraFdsFeriado, tipoSolicitacao, regrasOperacionaisSnapshot, mediaFds, resumoSimulacaoPeriodo, centroCustoId, funcionariosFullCcCache]);
 
   // Validation
   const isExtraordinariaValida = tipoSolicitacao === 'normal' || (tipoSolicitacao === 'extraordinaria' && justificativaExtraordinaria.trim().length >= 20);
