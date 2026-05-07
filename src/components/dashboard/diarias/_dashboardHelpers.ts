@@ -3,10 +3,48 @@
 // =====================================================
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { calcularBreakdownDiaria } from "@/utils/diariaCalculo";
-import type { DiariasFilters } from "./DashboardDiariasFilters";
+
+import {
+  getCurrentDiariasReportContext,
+  getRelatorioViewForContext,
+} from "@/services/diarias/secureRelatorioAccess";
+
+// Cache do nome da view segura — evita resolver o contexto a cada query.
+// Usa a MESMA view que o Relatório Oficial (PDF/Excel) — fonte da verdade.
+let _viewPromise: Promise<string> | null = null;
+async function getDashboardView(): Promise<string> {
+  if (!_viewPromise) {
+    _viewPromise = (async () => {
+      try {
+        const ctx = await getCurrentDiariasReportContext();
+        return getRelatorioViewForContext(ctx);
+      } catch (e) {
+        console.warn("[Dashboard Diárias] fallback para vw_relatorio_diarias_folha:", e);
+        return "vw_relatorio_diarias_folha";
+      }
+    })();
+  }
+  return _viewPromise;
+}
+
+// ---------------------------------------------------------------------------
+// Filtros do Dashboard de Diárias
+// (definidos aqui para evitar dependência circular com DashboardDiariasFilters)
+// ---------------------------------------------------------------------------
+export interface DiariasFilters {
+  dataInicio?: Date;
+  dataFim?: Date;
+  /** Lista de IDs selecionados; vazio/undefined = "Todos" */
+  centroCustoIds?: string[];
+  /** Lista de IDs de gerentes regionais (aprovador_diarias_id); vazio = "Todos" */
+  gerenteRegionalIds?: string[];
+  solicitacaoId?: string;
+  engenheiroSolicitanteId?: string;
+  funcionarioId?: string;
+}
 
 export interface PresencaRow {
+  presenca_id?: string | null;
   data: string | null;
   centro_custo_id: string | null;
   codigo_centro_custo: string | null;
@@ -18,6 +56,7 @@ export interface PresencaRow {
   solicitacao_id: string | null;
   numero_solicitacao: string | null;
   presenca_status: string | null;
+  hora_entrada?: string | null;
   hora_saida: string | null;
   tipo_diaria: string | null;
   valor_diaria_aplicada: number | null;
@@ -54,8 +93,61 @@ export interface SolicitacaoRow {
 
 export const fmtDate = (d?: Date) => (d ? format(d, "yyyy-MM-dd") : undefined);
 
+/**
+ * Gera uma chave estável e serializável para useQuery a partir dos filtros.
+ * Evita refetch desnecessário quando o objeto `filters` é recriado (Date instances etc.).
+ */
+export function stableFilterKey(filters: DiariasFilters) {
+  return {
+    ini: fmtDate(filters.dataInicio) ?? null,
+    fim: fmtDate(filters.dataFim) ?? null,
+    cc: [...(filters.centroCustoIds || [])].sort(),
+    ger: [...(filters.gerenteRegionalIds || [])].sort(),
+    sol: filters.solicitacaoId ?? null,
+    eng: filters.engenheiroSolicitanteId ?? null,
+    fun: filters.funcionarioId ?? null,
+  };
+}
+
+/** Opções padrão de cache para queries do Dashboard de Diárias. */
+export const DASHBOARD_QUERY_OPTS = {
+  staleTime: 60_000,
+  gcTime: 5 * 60_000,
+  refetchOnWindowFocus: false,
+} as const;
+
 export const formatBRL = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+
+/**
+ * Resolve a lista efetiva de centro_custo_id a aplicar nas queries,
+ * combinando seleção direta do usuário com derivação por gerente regional.
+ *
+ * Retorna:
+ *  - null  → não há restrição de CC (passar livre)
+ *  - []    → restrição que resulta em conjunto vazio (curto-circuito → sem dados)
+ *  - [...] → lista a aplicar via .in("centro_custo_id", [...])
+ */
+async function resolveCentroCustoIds(filters: DiariasFilters): Promise<string[] | null> {
+  const ccDirect = (filters.centroCustoIds || []).filter(Boolean);
+  const gerentes = (filters.gerenteRegionalIds || []).filter(Boolean);
+
+  let derivedFromGerentes: string[] | null = null;
+  if (gerentes.length > 0) {
+    const { data: ccIds } = await supabase
+      .from("bd_centros_custo")
+      .select("id")
+      .in("aprovador_diarias_id", gerentes);
+    derivedFromGerentes = (ccIds || []).map((c) => c.id);
+  }
+
+  if (ccDirect.length === 0 && derivedFromGerentes === null) return null;
+  if (ccDirect.length > 0 && derivedFromGerentes === null) return ccDirect;
+  if (ccDirect.length === 0 && derivedFromGerentes !== null) return derivedFromGerentes;
+  // Interseção
+  const set = new Set(derivedFromGerentes!);
+  return ccDirect.filter((id) => set.has(id));
+}
 
 /**
  * Resolve as solicitações que passam pelos filtros server-side.
@@ -67,6 +159,9 @@ export async function fetchSolicitacoesFiltradas(
   const ini = fmtDate(filters.dataInicio);
   const fim = fmtDate(filters.dataFim);
 
+  const ccIds = await resolveCentroCustoIds(filters);
+  if (ccIds !== null && ccIds.length === 0) return [];
+
   let query = supabase
     .from("bd_diaria_solicitacoes")
     .select(
@@ -75,20 +170,10 @@ export async function fetchSolicitacoesFiltradas(
 
   if (fim) query = query.lte("data_inicio", fim);
   if (ini) query = query.gte("data_fim", ini);
-  if (filters.centroCustoId) query = query.eq("centro_custo_id", filters.centroCustoId);
+  if (ccIds && ccIds.length > 0) query = query.in("centro_custo_id", ccIds);
   if (filters.solicitacaoId) query = query.eq("id", filters.solicitacaoId);
   if (filters.engenheiroSolicitanteId)
     query = query.eq("engenheiro_solicitante_id", filters.engenheiroSolicitanteId);
-
-  if (filters.gerenteRegionalId) {
-    const { data: ccIds } = await supabase
-      .from("bd_centros_custo")
-      .select("id")
-      .eq("aprovador_diarias_id", filters.gerenteRegionalId);
-    const ids = (ccIds || []).map((c) => c.id);
-    if (ids.length === 0) return [];
-    query = query.in("centro_custo_id", ids);
-  }
 
   const { data, error } = await query;
   if (error) throw error;
@@ -106,27 +191,105 @@ export async function fetchPresencasConfirmadas(
   const ini = fmtDate(filters.dataInicio);
   const fim = fmtDate(filters.dataFim);
 
-  let q = supabase
-    .from("vw_relatorio_diarias_folha")
-    .select(
-      "data, centro_custo_id, codigo_centro_custo, nome_centro_custo, funcionario_id, nome_funcionario, funcao_id, nome_funcao, solicitacao_id, numero_solicitacao, presenca_status, hora_saida, tipo_diaria, valor_diaria_aplicada, valor_refeicao_aplicado"
-    )
-    .eq("presenca_status", "true" as unknown as string)
-    .not("hora_saida", "is", null);
+  const ccIds = await resolveCentroCustoIds(filters);
+  if (ccIds !== null && ccIds.length === 0) return [];
 
-  if (ini) q = q.gte("data", ini);
-  if (fim) q = q.lte("data", fim);
-  if (filters.centroCustoId) q = q.eq("centro_custo_id", filters.centroCustoId);
-  if (filters.funcionarioId) q = q.eq("funcionario_id", filters.funcionarioId);
-  if (filters.solicitacaoId) q = q.eq("solicitacao_id", filters.solicitacaoId);
+  // Usa a MESMA view do relatório oficial (vw_diarias_* segundo o contexto do usuário).
+  // Fallback: vw_relatorio_diarias_folha (mantém compatibilidade).
+  const viewName = await getDashboardView();
 
-  if (solIdSet && solIdSet.size > 0 && !filters.solicitacaoId) {
-    q = q.in("solicitacao_id", Array.from(solIdSet));
+  const buildQuery = () => {
+    let q = supabase
+      .from(viewName as any)
+      .select(
+        "presenca_id, data, centro_custo_id, codigo_centro_custo, nome_centro_custo, funcionario_id, nome_funcionario, funcao_id, nome_funcao, solicitacao_id, numero_solicitacao, presenca_status, hora_entrada, hora_saida, tipo_diaria, valor_diaria_aplicada, valor_refeicao_aplicado"
+      )
+      // Critério oficial de "confirmado" — alinhado com isRelatorioItemConfirmado e PDF Compilado.
+      .eq("presenca_status", "true" as unknown as string)
+      .not("hora_entrada", "is", null)
+      .not("hora_saida", "is", null)
+      // Ordenação determinística para .range() — evita pular/duplicar linhas no limite das páginas.
+      .order("data", { ascending: true })
+      .order("funcionario_id", { ascending: true })
+      .order("solicitacao_id", { ascending: true })
+      .order("presenca_id", { ascending: true });
+
+    if (ini) q = q.gte("data", ini);
+    if (fim) q = q.lte("data", fim);
+    if (ccIds && ccIds.length > 0) q = q.in("centro_custo_id", ccIds);
+    if (filters.funcionarioId) q = q.eq("funcionario_id", filters.funcionarioId);
+    if (filters.solicitacaoId) q = q.eq("solicitacao_id", filters.solicitacaoId);
+
+    if (solIdSet && solIdSet.size > 0 && !filters.solicitacaoId) {
+      q = q.in("solicitacao_id", Array.from(solIdSet));
+    }
+    return q;
+  };
+
+  // Paginação obrigatória — PostgREST limita a 1000 linhas por request.
+  const pageSize = 1000;
+  let from = 0;
+  let all: PresencaRow[] = [];
+  while (true) {
+    const { data, error } = await buildQuery().range(from, from + pageSize - 1);
+    if (error) {
+      console.error(
+        `[Dashboard Diárias] erro ao consultar ${viewName}:`,
+        error.message,
+        error
+      );
+      // Fallback: se a view segura falhou (ex.: contexto operacional_campo sem valores),
+      // tenta a view base. Não trava o dashboard.
+      if (viewName !== "vw_relatorio_diarias_folha") {
+        const fb = await supabase
+          .from("vw_relatorio_diarias_folha")
+          .select(
+            "presenca_id, data, centro_custo_id, codigo_centro_custo, nome_centro_custo, funcionario_id, nome_funcionario, funcao_id, nome_funcao, solicitacao_id, numero_solicitacao, presenca_status, hora_entrada, hora_saida, tipo_diaria, valor_diaria_aplicada, valor_refeicao_aplicado"
+          )
+          .eq("presenca_status", "true" as unknown as string)
+          .not("hora_entrada", "is", null)
+          .not("hora_saida", "is", null)
+          .gte("data", ini || "1900-01-01")
+          .lte("data", fim || "2999-12-31")
+          .order("data", { ascending: true })
+          .order("funcionario_id", { ascending: true })
+          .order("solicitacao_id", { ascending: true })
+          .order("presenca_id", { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (fb.error) throw fb.error;
+        const rows = (fb.data || []) as PresencaRow[];
+        all = all.concat(rows);
+        if (rows.length < pageSize) break;
+        from += pageSize;
+        continue;
+      }
+      throw error;
+    }
+    const rows = (data || []) as unknown as PresencaRow[];
+    all = all.concat(rows);
+    if (rows.length < pageSize) break;
+    from += pageSize;
   }
+  return all;
+}
 
-  const { data, error } = await q;
-  if (error) throw error;
-  return (data || []) as PresencaRow[];
+/**
+ * Retorna presenças confirmadas dos últimos N meses até filters.dataFim,
+ * reaplicando todos os filtros (CC/gerente/funcionário/engenheiro/solicitação).
+ * Usado pelo gráfico de Evolução Mensal — independe do período do filtro.
+ */
+export async function fetchPresencasUltimosMeses(
+  filters: DiariasFilters,
+  meses = 12
+): Promise<PresencaRow[]> {
+  const ref = filters.dataFim || new Date();
+  const inicio = new Date(ref.getFullYear(), ref.getMonth() - (meses - 1), 1);
+  const fim = new Date(ref.getFullYear(), ref.getMonth() + 1, 0); // último dia do mês de ref
+
+  const ampl: DiariasFilters = { ...filters, dataInicio: inicio, dataFim: fim };
+  const solIdSet = await buildSolIdSet(ampl);
+  if (solIdSet !== null && solIdSet.size === 0) return [];
+  return fetchPresencasConfirmadas(ampl, solIdSet);
 }
 
 export async function fetchFeriadosSet(): Promise<Set<string>> {
@@ -154,30 +317,34 @@ export interface BreakdownAgg {
 
 export const emptyAgg = (): BreakdownAgg => ({ diaria: 0, meia: 0, refeicao: 0, total: 0, qtd: 0 });
 
+/**
+ * Valor Executado oficial (alinhado ao PDF Compilado / Relatório do patrão).
+ * IMPORTANTE: `valor_diaria_aplicada` em bd_diaria_presencas já é o valor FINAL
+ * aplicado do dia (inclusive para tipo='uma_e_meia'). NÃO usar
+ * calcularBreakdownDiaria sobre presenças no Dashboard — gera dupla contagem.
+ */
+export function getValorExecutadoOficial(
+  p: Pick<PresencaRow, "valor_diaria_aplicada" | "valor_refeicao_aplicado">
+): number {
+  const diaria = Math.ceil(Number(p.valor_diaria_aplicada || 0));
+  const refeicao = Math.ceil(Number(p.valor_refeicao_aplicado || 0));
+  return diaria + refeicao;
+}
+
 export function somarPresenca(agg: BreakdownAgg, p: PresencaRow) {
-  const b = calcularBreakdownDiaria({
-    tipo_diaria: p.tipo_diaria,
-    valor_diaria_aplicada: p.valor_diaria_aplicada,
-    valor_refeicao_aplicado: p.valor_refeicao_aplicado,
-  });
-  agg.diaria += b.diaria;
-  agg.meia += b.meia;
-  agg.refeicao += b.refeicao;
-  agg.total += b.total;
+  const diaria = Math.ceil(Number(p.valor_diaria_aplicada || 0));
+  const refeicao = Math.ceil(Number(p.valor_refeicao_aplicado || 0));
+  agg.diaria += diaria;
+  // meia diária NÃO é decomposta no Dashboard — valor já vem aplicado.
+  agg.refeicao += refeicao;
+  agg.total += diaria + refeicao;
   agg.qtd += 1;
 }
 
-/** Soma valor executado total (diária + meia + refeição) de uma lista. */
+/** Soma valor executado total oficial (ceil(diária) + ceil(refeição)). */
 export function totalExecutado(list: PresencaRow[]): number {
   let t = 0;
-  for (const p of list) {
-    const b = calcularBreakdownDiaria({
-      tipo_diaria: p.tipo_diaria,
-      valor_diaria_aplicada: p.valor_diaria_aplicada,
-      valor_refeicao_aplicado: p.valor_refeicao_aplicado,
-    });
-    t += b.total;
-  }
+  for (const p of list) t += getValorExecutadoOficial(p);
   return t;
 }
 
@@ -187,7 +354,9 @@ export function totalExecutado(list: PresencaRow[]): number {
  */
 export async function buildSolIdSet(filters: DiariasFilters): Promise<Set<string> | null> {
   const needs =
-    !!filters.solicitacaoId || !!filters.engenheiroSolicitanteId || !!filters.gerenteRegionalId;
+    !!filters.solicitacaoId ||
+    !!filters.engenheiroSolicitanteId ||
+    (filters.gerenteRegionalIds && filters.gerenteRegionalIds.length > 0);
   if (!needs) return null;
   const sols = await fetchSolicitacoesFiltradas(filters);
   return new Set(sols.map((s) => s.id));
@@ -196,37 +365,16 @@ export async function buildSolIdSet(filters: DiariasFilters): Promise<Set<string
 // =====================================================
 // ESTIMADO CORRIGIDO POR HISTÓRICO FDS
 // =====================================================
-// Replica, no Dashboard, a mesma regra usada na simulação da Nova Solicitação:
-//  - Dias úteis: lista convocada (já embutida em valor_estimado_total)
-//  - FDS/Feriados: histórico real (média de presenças sáb/dom anteriores ao
-//    período da solicitação, restrito ao CC). Quando não houver histórico,
-//    mantém fallback pelo valor_estimado_total original (lista bruta).
-//
-// Algoritmo (por solicitação):
-//   1. Calcula a parcela FDS bruta da solicitação:
-//        parcelaFdsBruta = somatório(convocados.valor_diaria_exclusiva ||
-//          valor_diaria*1.2) * qtde_fds_estimado
-//        + somatório(convocados.valor_refeicao) * qtde_fds_estimado
-//   2. Se houver histórico FDS para o CC e a solicitação tem dias FDS:
-//        baseHist = média(qtdSab, qtdDom) (do hook)
-//        valorMedioExclusiva = média dos valor_diaria_exclusiva da solicitação
-//        valorMedioRefeicao = média dos valor_refeicao da solicitação
-//        parcelaFdsHist = baseHist * qtde_fds_estimado *
-//                          (valorMedioExclusiva + valorMedioRefeicao)
-//        estimadoCorrigido = valor_estimado_total - parcelaFdsBruta + parcelaFdsHist
-//   3. Sem histórico → estimado = valor_estimado_total (fallback)
+// (Mantido — usado por DiariasRankingCentrosCusto. Mesma regra da simulação
+// de Nova Solicitação: dias úteis pela lista convocada; FDS/Feriados pelo
+// histórico real do CC; fallback para o valor_estimado_total quando não há
+// histórico.)
 
 export interface MediaFdsCC {
-  /** Média (sáb+dom)/N — N só conta dias com dado > 0 */
   base: number;
-  /** Quantos FDS foram efetivamente usados (0..2) */
   qtdFdsUsados: number;
 }
 
-/**
- * Busca, por CC, a média de presenças nos 2 últimos FDS antes do período.
- * Usa a mesma fonte e definição de "executado" do hook useMediaPresencaFds.
- */
 export async function fetchMediaFdsPorCC(
   ccIds: string[],
   refDateInicio: Date
@@ -234,7 +382,6 @@ export async function fetchMediaFdsPorCC(
   const result = new Map<string, MediaFdsCC>();
   if (ccIds.length === 0) return result;
 
-  // Gera 8 sábados/domingos retroativos a partir de refDateInicio (exclusivo)
   const datas: string[] = [];
   const startCursor = (() => {
     const d = new Date(refDateInicio);
@@ -269,7 +416,6 @@ export async function fetchMediaFdsPorCC(
     return result;
   }
 
-  // Agrupa por CC → data → set de funcionários
   const porCcData = new Map<string, Map<string, Set<string>>>();
   for (const r of data || []) {
     const cc = (r as any).centro_custo_id as string;
@@ -314,10 +460,6 @@ export async function fetchMediaFdsPorCC(
   return result;
 }
 
-/**
- * Calcula o estimado corrigido de UMA solicitação aplicando histórico FDS.
- * Quando não há histórico/FDS, retorna o valor original (fallback).
- */
 export function calcularEstimadoCorrigidoSolicitacao(
   s: SolicitacaoRow,
   mediaFdsCc: MediaFdsCC | undefined
@@ -330,7 +472,6 @@ export function calcularEstimadoCorrigidoSolicitacao(
     return { total: original, usouHistorico: false };
   }
 
-  // Parcela FDS bruta (lista cheia × qtdFds): exclusiva + refeição
   let somaExclusiva = 0;
   let somaRefeicao = 0;
   let nExc = 0;
@@ -362,10 +503,6 @@ export function calcularEstimadoCorrigidoSolicitacao(
   return { total, usouHistorico: true };
 }
 
-/**
- * Calcula estimado corrigido agregado para uma lista de solicitações,
- * agrupando por CC e aplicando histórico FDS por CC.
- */
 export async function calcularEstimadoCorrigidoTotal(
   sols: SolicitacaoRow[],
   refDateInicio: Date
@@ -387,4 +524,3 @@ export async function calcularEstimadoCorrigidoTotal(
   }
   return { total, porCc };
 }
-

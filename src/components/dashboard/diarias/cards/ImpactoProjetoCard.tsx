@@ -7,29 +7,37 @@ const STORAGE_KEY = "lytotec.diarias.valorProjeto";
 
 interface Props {
   valorExecutado: number;
-  isLoading?: boolean;
 }
 
-export default function ImpactoProjetoCard({ valorExecutado, isLoading }: Props) {
-  const [valorProjeto, setValorProjeto] = useState<string>("");
+const formatBRL = (v: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+
+const formatPct = (v: number) =>
+  `${v.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}%`;
+
+export default function ImpactoProjetoCard({ valorExecutado }: Props) {
+  const [valorMedicao, setValorMedicao] = useState<string>("");
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) setValorProjeto(saved);
+    if (saved) setValorMedicao(saved);
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value.replace(/[^\d.,]/g, "").replace(",", ".");
-    setValorProjeto(v);
+    setValorMedicao(v);
     if (v) localStorage.setItem(STORAGE_KEY, v);
     else localStorage.removeItem(STORAGE_KEY);
   };
 
-  const valorNum = parseFloat(valorProjeto) || 0;
-  const impacto = valorNum > 0 ? (valorExecutado / valorNum) * 100 : 0;
-
-  const formatBRL = (v: number) =>
-    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+  const valorNum = parseFloat(valorMedicao) || 0;
+  const isValid = valorNum > 0;
+  const impacto = isValid ? (valorExecutado / valorNum) * 100 : 0;
+  const saldo = isValid ? valorNum - valorExecutado : 0;
+  const saldoNegativo = saldo < 0;
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -43,20 +51,33 @@ export default function ImpactoProjetoCard({ valorExecutado, isLoading }: Props)
         <Input
           type="text"
           inputMode="decimal"
-          placeholder="Valor do projeto (R$)"
-          value={valorProjeto}
+          placeholder="Valor da medição (R$)"
+          value={valorMedicao}
           onChange={handleChange}
           className="h-8 text-sm"
+          aria-label="Valor da medição do período"
         />
-        {valorNum > 0 ? (
-          <div>
-            <div className="text-2xl font-bold">{impacto.toFixed(2)}%</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {formatBRL(valorExecutado)} de {formatBRL(valorNum)}
+        {!valorMedicao ? (
+          <p className="text-xs text-muted-foreground">
+            Informe o valor da medição para calcular o impacto.
+          </p>
+        ) : !isValid ? (
+          <p className="text-xs text-muted-foreground">Informe um valor válido.</p>
+        ) : (
+          <div className="space-y-0.5">
+            <div className="text-2xl font-bold">{formatPct(impacto)}</div>
+            <p className="text-xs text-muted-foreground">
+              Executado {formatBRL(valorExecutado)} de {formatBRL(valorNum)}
+            </p>
+            <p
+              className={`text-xs ${
+                saldoNegativo ? "text-destructive font-medium" : "text-muted-foreground"
+              }`}
+            >
+              Saldo após diárias: {saldoNegativo ? "-" : ""}
+              {formatBRL(Math.abs(saldo))}
             </p>
           </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">Informe o valor do projeto</p>
         )}
       </CardContent>
     </Card>

@@ -131,6 +131,8 @@ async function inserirPresencasIdempotente<T extends PresencaInsertPayload>(
     );
 
     if (error) {
+      // Instrumentação detalhada (PostgrestError) — captura tabela/policy real
+      // que está bloqueando, inclusive quando a falha vem de trigger/cascade.
       console.error('[DIARIAS][PRESENCAS][BATCH_INSERT][ERRO]', {
         total,
         chunkSize,
@@ -139,11 +141,17 @@ async function inserirPresencasIdempotente<T extends PresencaInsertPayload>(
         quantidadeNoChunk: chunk.length,
         inseridosAcumulados: inseridos,
         tempoMs,
-        error: error.message,
+        error_code: (error as any).code,
+        error_message: error.message,
+        error_details: (error as any).details,
+        error_hint: (error as any).hint,
+        primeiro_registro: chunk[0],
       });
       throw new Error(
         `Falha ao salvar presenças (chunk ${chunkIndex + 1}/${totalChunks}, ` +
-        `${chunk.length} linhas, ${inseridos} já inseridas anteriormente): ${error.message}`
+        `${chunk.length} linhas, ${inseridos} já inseridas anteriormente): ${error.message}` +
+        ((error as any).details ? ` | detalhes: ${(error as any).details}` : '') +
+        ((error as any).hint ? ` | dica: ${(error as any).hint}` : '')
       );
     }
 

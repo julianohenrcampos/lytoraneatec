@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 // Types for KPI card
 export interface RhKpis {
   totalAtivos: number;
+  totalInativos: number;
   totalFuncionarios: number;
   totalEquipes: number;
   tempoMedioMeses: number;
@@ -56,11 +57,17 @@ export const useRhDashboardData = (filters: {
     queryFn: async () => {
       console.log("🔍 DEBUG kpisQuery - iniciando consulta KPIs");
       
-      // Total ativos
+      // Total ativos: Ativo + Ativo sem Registro
       const { count: totalAtivos } = await supabase
         .from("bd_funcionarios")
         .select("*", { count: "exact", head: true })
-        .eq("status", "Ativo");
+        .in("status", ["Ativo", "Ativo sem Registro"]);
+
+      // Total inativos: Inativo + INSS
+      const { count: totalInativos } = await supabase
+        .from("bd_funcionarios")
+        .select("*", { count: "exact", head: true })
+        .in("status", ["Inativo", "INSS"]);
         
       // Total de funcionários
       const { count: totalFuncionarios } = await supabase
@@ -122,6 +129,7 @@ export const useRhDashboardData = (filters: {
 
       return {
         totalAtivos: totalAtivos || 0,
+        totalInativos: totalInativos || 0,
         totalFuncionarios: totalFuncionarios || 0,
         totalEquipes: totalEquipes || 0,
         tempoMedioMeses,

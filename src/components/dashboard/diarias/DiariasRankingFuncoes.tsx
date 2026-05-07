@@ -1,17 +1,13 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useQuery } from "@tanstack/react-query";
-import { calcularBreakdownDiaria } from "@/utils/diariaCalculo";
-import { DiariasFilters } from "./DashboardDiariasFilters";
+
 import {
-  buildSolIdSet,
   classificarDia,
-  fetchFeriadosSet,
-  fetchPresencasConfirmadas,
-  fetchSolicitacoesFiltradas,
   formatBRL,
+  type DiariasFilters,
 } from "./_dashboardHelpers";
+import { useDiariasDataset } from "./useDiariasDataset";
 
 interface Props {
   filters: DiariasFilters;
@@ -31,101 +27,88 @@ interface FuncRow {
 }
 
 export default function DiariasRankingFuncoes({ filters }: Props) {
-  const { data, isLoading } = useQuery({
-    queryKey: ["diarias-ranking-funcoes-v2", filters],
-    queryFn: async (): Promise<FuncRow[]> => {
-      const solIdSet = await buildSolIdSet(filters);
-      if (solIdSet !== null && solIdSet.size === 0) return [];
+  const { data: ds, isLoading } = useDiariasDataset(filters);
 
-      const [presencas, solicitacoes, feriados] = await Promise.all([
-        fetchPresencasConfirmadas(filters, solIdSet),
-        fetchSolicitacoesFiltradas(filters),
-        fetchFeriadosSet(),
-      ]);
-
-      const map = new Map<
-        string,
-        {
-          nome: string;
-          convocadosSet: Set<string>;
-          apontUteisSet: Set<string>;
-          apontFdsSet: Set<string>;
-          valorUteis: number;
-          valorFds: number;
-          refeicao: number;
-          total: number;
-        }
-      >();
-
-      const ensure = (id: string, nome: string) => {
-        if (!map.has(id)) {
-          map.set(id, {
-            nome,
-            convocadosSet: new Set(),
-            apontUteisSet: new Set(),
-            apontFdsSet: new Set(),
-            valorUteis: 0,
-            valorFds: 0,
-            refeicao: 0,
-            total: 0,
-          });
-        }
-        return map.get(id)!;
-      };
-
-      // Convocados (vindos do JSON convocados_pre)
-      for (const s of solicitacoes) {
-        const conv = Array.isArray(s.convocados_pre) ? s.convocados_pre : [];
-        for (const c of conv) {
-          const id = c.funcao_id || "__sem_funcao__";
-          const nome = c.nome_funcao || "Sem função";
-          const r = ensure(id, nome);
-          if (c.funcionario_id) r.convocadosSet.add(c.funcionario_id);
-        }
+  const data = useMemo<FuncRow[]>(() => {
+    if (!ds) return [];
+    const map = new Map<
+      string,
+      {
+        nome: string;
+        convocadosSet: Set<string>;
+        apontUteis: number;
+        apontFds: number;
+        valorUteis: number;
+        valorFds: number;
+        refeicao: number;
+        total: number;
       }
+    >();
 
-      // Apontados (executados)
-      let grandTotal = 0;
-      for (const p of presencas) {
-        if (!p.data) continue;
-        const id = p.funcao_id || "__sem_funcao__";
-        const nome = p.nome_funcao || "Sem função";
-        const r = ensure(id, nome);
-        const b = calcularBreakdownDiaria({
-          tipo_diaria: p.tipo_diaria,
-          valor_diaria_aplicada: p.valor_diaria_aplicada,
-          valor_refeicao_aplicado: p.valor_refeicao_aplicado,
+    const ensure = (id: string, nome: string) => {
+      if (!map.has(id)) {
+        map.set(id, {
+          nome,
+          convocadosSet: new Set(),
+          apontUteis: 0,
+          apontFds: 0,
+          valorUteis: 0,
+          valorFds: 0,
+          refeicao: 0,
+          total: 0,
         });
-        const cat = classificarDia(p.data, feriados);
-        if (cat === "uteis") {
-          r.valorUteis += b.diaria + b.meia;
-          if (p.funcionario_id) r.apontUteisSet.add(p.funcionario_id);
-        } else {
-          r.valorFds += b.diaria + b.meia;
-          if (p.funcionario_id) r.apontFdsSet.add(p.funcionario_id);
-        }
-        r.refeicao += b.refeicao;
-        r.total += b.total;
-        grandTotal += b.total;
       }
+      return map.get(id)!;
+    };
 
-      return Array.from(map.entries())
-        .map(([funcao_id, r]) => ({
-          funcao_id,
-          nome: r.nome,
-          convocados: r.convocadosSet.size,
-          apontUteis: r.apontUteisSet.size,
-          apontFds: r.apontFdsSet.size,
-          valorUteis: r.valorUteis,
-          valorFds: r.valorFds,
-          refeicao: r.refeicao,
-          total: r.total,
-          pct: grandTotal > 0 ? (r.total / grandTotal) * 100 : 0,
-        }))
-        .sort((a, b) => b.total - a.total)
-        .slice(0, 10);
-    },
-  });
+    for (const s of ds.solicitacoes) {
+      const conv = Array.isArray(s.convocados_pre) ? s.convocados_pre : [];
+      for (const c of conv) {
+        const id = c.funcao_id || "__sem_funcao__";
+        const nome = c.nome_funcao || "Sem função";
+        const r = ensure(id, nome);
+        if (c.funcionario_id) r.convocadosSet.add(c.funcionario_id);
+      }
+    }
+
+    let grandTotal = 0;
+    for (const p of ds.presencas) {
+      if (!p.data) continue;
+      const id = p.funcao_id || "__sem_funcao__";
+      const nome = p.nome_funcao || "Sem função";
+      const r = ensure(id, nome);
+      const dRef = Math.ceil(Number(p.valor_diaria_aplicada || 0));
+      const rRef = Math.ceil(Number(p.valor_refeicao_aplicado || 0));
+      const lineTotal = dRef + rRef;
+      const cat = classificarDia(p.data, ds.feriadosSet);
+      if (cat === "uteis") {
+        r.valorUteis += dRef;
+        r.apontUteis += 1;
+      } else {
+        r.valorFds += dRef;
+        r.apontFds += 1;
+      }
+      r.refeicao += rRef;
+      r.total += lineTotal;
+      grandTotal += lineTotal;
+    }
+
+    return Array.from(map.entries())
+      .map(([funcao_id, r]) => ({
+        funcao_id,
+        nome: r.nome,
+        convocados: r.convocadosSet.size,
+        apontUteis: r.apontUteis,
+        apontFds: r.apontFds,
+        valorUteis: r.valorUteis,
+        valorFds: r.valorFds,
+        refeicao: r.refeicao,
+        total: r.total,
+        pct: grandTotal > 0 ? (r.total / grandTotal) * 100 : 0,
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
+  }, [ds]);
 
   return (
     <Card>
@@ -138,6 +121,10 @@ export default function DiariasRankingFuncoes({ filters }: Props) {
         ) : !data || data.length === 0 ? (
           <div className="h-[120px] flex items-center justify-center text-muted-foreground text-sm">
             Sem dados suficientes no período
+          </div>
+        ) : data.every((r) => r.total === 0) ? (
+          <div className="h-[120px] flex items-center justify-center text-muted-foreground text-sm">
+            Sem valores financeiros disponíveis para este perfil/contexto
           </div>
         ) : (
           <div className="overflow-x-auto">

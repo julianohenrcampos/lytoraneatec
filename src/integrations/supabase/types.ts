@@ -366,6 +366,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_agendamentos_exames_funcao_nova_id_fkey"
+            columns: ["funcao_nova_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcoes_publicas"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_agendamentos_exames_local_atendimento_id_fkey"
             columns: ["local_atendimento_id"]
             isOneToOne: false
@@ -3070,6 +3077,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_diaria_presencas_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcoes_publicas"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_diaria_presencas_funcionario_id_fkey"
             columns: ["funcionario_id"]
             isOneToOne: false
@@ -4606,6 +4620,13 @@ export type Database = {
             referencedRelation: "bd_funcoes"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bd_funcionarios_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcoes_publicas"
+            referencedColumns: ["id"]
+          },
         ]
       }
       bd_funcionarios_biometria_facial: {
@@ -5090,6 +5111,13 @@ export type Database = {
             referencedRelation: "bd_funcoes"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fk_hist_cargo_novo"
+            columns: ["cargo_novo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcoes_publicas"
+            referencedColumns: ["id"]
+          },
         ]
       }
       bd_importacao_alterdata: {
@@ -5219,6 +5247,13 @@ export type Database = {
             columns: ["funcao_id"]
             isOneToOne: false
             referencedRelation: "bd_funcoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_importacao_alterdata_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcoes_publicas"
             referencedColumns: ["id"]
           },
         ]
@@ -11673,6 +11708,13 @@ export type Database = {
             referencedRelation: "bd_funcoes"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bd_funcionarios_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcoes_publicas"
+            referencedColumns: ["id"]
+          },
         ]
       }
       vw_apontamento_cam_equipa_seguro: {
@@ -13364,6 +13406,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_diaria_presencas_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcoes_publicas"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_diaria_presencas_funcionario_id_fkey"
             columns: ["funcionario_id"]
             isOneToOne: false
@@ -13462,6 +13511,13 @@ export type Database = {
             columns: ["funcao_id"]
             isOneToOne: false
             referencedRelation: "bd_funcoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_presencas_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcoes_publicas"
             referencedColumns: ["id"]
           },
           {
@@ -13598,6 +13654,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_diaria_presencas_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcoes_publicas"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_diaria_presencas_funcionario_id_fkey"
             columns: ["funcionario_id"]
             isOneToOne: false
@@ -13720,6 +13783,13 @@ export type Database = {
             columns: ["funcao_id"]
             isOneToOne: false
             referencedRelation: "bd_funcoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_presencas_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcoes_publicas"
             referencedColumns: ["id"]
           },
           {
@@ -14033,6 +14103,13 @@ export type Database = {
             referencedRelation: "bd_funcoes"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bd_funcionarios_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcoes_publicas"
+            referencedColumns: ["id"]
+          },
         ]
       }
       vw_funcionarios_rh: {
@@ -14171,7 +14248,41 @@ export type Database = {
             referencedRelation: "bd_funcoes"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bd_funcionarios_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcoes_publicas"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      vw_funcoes_publicas: {
+        Row: {
+          created_at: string | null
+          descricao: string | null
+          id: string | null
+          nome_funcao: string | null
+          situacao: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          descricao?: string | null
+          id?: string | null
+          nome_funcao?: string | null
+          situacao?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          descricao?: string | null
+          id?: string | null
+          nome_funcao?: string | null
+          situacao?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       vw_lista_programacao_entrega_segura: {
         Row: {
@@ -16261,6 +16372,13 @@ export type Database = {
             columns: ["funcao_id"]
             isOneToOne: false
             referencedRelation: "bd_funcoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_presencas_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcoes_publicas"
             referencedColumns: ["id"]
           },
           {

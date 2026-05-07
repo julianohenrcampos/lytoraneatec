@@ -1,6 +1,6 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaginated } from "./_fetchAllPaginated";
 
 export interface FinanceiroAnalise {
   folhaTotal: number;
@@ -10,28 +10,16 @@ export interface FinanceiroAnalise {
 
 // Helper to consistently extract nome_funcao regardless of shape
 function getNomeFuncao(bd_funcoes: any): string {
-  console.log("🔍 DEBUG getNomeFuncao - input:", bd_funcoes);
-  
-  if (!bd_funcoes) {
-    console.log("🔍 DEBUG getNomeFuncao - returning 'Não informada' (null input)");
-    return "Não informada";
-  }
-  
+  if (!bd_funcoes) return "Não informada";
   if (Array.isArray(bd_funcoes)) {
     if (bd_funcoes.length > 0 && bd_funcoes[0]?.nome_funcao) {
-      console.log("🔍 DEBUG getNomeFuncao - returning from array:", bd_funcoes[0].nome_funcao);
       return bd_funcoes[0].nome_funcao;
     }
-    console.log("🔍 DEBUG getNomeFuncao - returning 'Não informada' (empty array)");
     return "Não informada";
   }
-  
   if (typeof bd_funcoes === "object" && bd_funcoes.nome_funcao) {
-    console.log("🔍 DEBUG getNomeFuncao - returning from object:", bd_funcoes.nome_funcao);
     return bd_funcoes.nome_funcao;
   }
-  
-  console.log("🔍 DEBUG getNomeFuncao - returning 'Não informada' (fallback)");
   return "Não informada";
 }
 
@@ -46,204 +34,167 @@ function convertSalary(salario: any): number {
   return 0;
 }
 
+function aggregate(funcionarios: any[]): FinanceiroAnalise {
+  const salarios = funcionarios.map((f) => convertSalary(f.salario_base));
+  const folhaTotal = salarios.reduce((a, b) => a + b, 0);
+  const salariosValidos = salarios.filter((s) => s > 0);
+  const mediaSalarial = salariosValidos.length > 0 ? folhaTotal / salariosValidos.length : 0;
+
+  const porFuncaoMap = new Map<string, { nome_funcao: string; total: number; conta: number }>();
+  for (const f of funcionarios) {
+    const nome = getNomeFuncao(f.bd_funcoes);
+    const salario = convertSalary(f.salario_base);
+    if (!porFuncaoMap.has(nome)) {
+      porFuncaoMap.set(nome, { nome_funcao: nome, total: 0, conta: 0 });
+    }
+    const entry = porFuncaoMap.get(nome)!;
+    entry.total += salario;
+    entry.conta += 1;
+  }
+
+  const folhaPorFuncao = Array.from(porFuncaoMap.values()).map(({ nome_funcao, total, conta }) => ({
+    nome_funcao,
+    total,
+    media: conta > 0 ? total / conta : 0,
+  }));
+
+  return { folhaTotal, mediaSalarial, folhaPorFuncao };
+}
+
 export function useFinanceiroDashboard({
   periodStart,
   periodEnd,
   statusFuncionario,
+  empresaId,
+  diretoriaId,
   departamentoId,
   centroCustoId,
   equipeId,
   funcaoId,
   nomeFuncionario,
+  centroCustoIds,
 }: {
   periodStart: string;
   periodEnd: string;
   statusFuncionario?: string;
+  empresaId?: string;
+  diretoriaId?: string;
   departamentoId?: string;
   centroCustoId?: string;
   equipeId?: string;
   funcaoId?: string;
   nomeFuncionario?: string;
+  /** Lista de centros de custo para uso quando há filtro por diretoria */
+  centroCustoIds?: string[];
 }) {
   // --- Consulta base geral (sem filtro) ---
   const totalQuery = useQuery<FinanceiroAnalise>({
     queryKey: ["rh-financeiro", "GLOBAL"],
-    staleTime: 30000, // 30 segundos - dados críticos ficam frescos
+    staleTime: 30000,
     queryFn: async () => {
-      console.log("🔍 DEBUG totalQuery - iniciando consulta global");
-      
-      let query = supabase
-        .from("bd_funcionarios")
-        .select(`
-          id, nome_completo, status, salario_base, bd_funcoes(id, nome_funcao)
-        `)
-        .in("status", ["Ativo", "Aviso Prévio"]);
-        
-      const { data: funcionarios, error } = await query;
-      
-      if (error) {
-        console.error("🔍 DEBUG totalQuery - erro:", error);
-        return { folhaTotal: 0, mediaSalarial: 0, folhaPorFuncao: [] };
-      }
-      
-      console.log("🔍 DEBUG totalQuery - funcionarios encontrados:", funcionarios?.length || 0);
-      console.log("🔍 DEBUG totalQuery - primeiros 3 funcionarios:", funcionarios?.slice(0, 3));
-      
-      // Debug: Verificar se há funcionários com status INSS que estão sendo excluídos
-      const { data: todosFunc } = await supabase
-        .from("bd_funcionarios")
-        .select("id, nome_completo, status, salario_base")
-        .eq("status", "INSS");
-      
-      if (todosFunc && todosFunc.length > 0) {
-        console.log("🔍 DEBUG totalQuery - funcionários com status INSS (EXCLUÍDOS):", todosFunc.length);
-        console.log("🔍 DEBUG totalQuery - lista INSS:", todosFunc.map(f => ({ nome: f.nome_completo, salario: f.salario_base })));
-      }
-      
-      if (!funcionarios || funcionarios.length === 0) {
-        console.log("🔍 DEBUG totalQuery - nenhum funcionário encontrado");
-        return { folhaTotal: 0, mediaSalarial: 0, folhaPorFuncao: [] };
-      }
-      
-      const salarios = funcionarios.map((f: any) => {
-        const salario = convertSalary(f.salario_base);
-        console.log(`🔍 DEBUG totalQuery - funcionário ${f.id}: salario_base=${f.salario_base} -> convertido=${salario}`);
-        return salario;
+      const buildQuery = () =>
+        supabase
+          .from("bd_funcionarios")
+          .select(`id, nome_completo, status, salario_base, funcao_id, bd_funcoes(id, nome_funcao)`)
+          .in("status", ["Ativo", "Ativo sem Registro"]);
+
+      const { data: funcionarios, error, pages } = await fetchAllPaginated(buildQuery, {
+        label: "DASHBOARD_RH][FINANCEIRO][GLOBAL",
       });
-      
-      const folhaTotal = salarios.reduce((a, b) => a + b, 0);
-      const salariosValidos = salarios.filter(s => s > 0);
-      const mediaSalarial = salariosValidos.length > 0 ? folhaTotal / salariosValidos.length : 0;
-      
-      console.log("🔍 DEBUG totalQuery - folhaTotal:", folhaTotal);
-      console.log("🔍 DEBUG totalQuery - mediaSalarial:", mediaSalarial);
-      console.log("🔍 DEBUG totalQuery - salários válidos:", salariosValidos.length);
-      
-      // Agrupar por função
-      const porFuncaoMap = new Map<string, { nome_funcao: string, total: number, conta: number }>();
-      
-      for (const f of funcionarios) {
-        const nome = getNomeFuncao(f.bd_funcoes);
-        const salario = convertSalary(f.salario_base);
-        
-        if (!porFuncaoMap.has(nome)) {
-          porFuncaoMap.set(nome, { nome_funcao: nome, total: 0, conta: 0 });
-        }
-        
-        const entry = porFuncaoMap.get(nome)!;
-        entry.total += salario;
-        entry.conta += 1;
-        
-        console.log(`🔍 DEBUG totalQuery - função ${nome}: total=${entry.total}, conta=${entry.conta}`);
+
+      if (error) {
+        console.error("[useFinanceiroDashboard] totalQuery erro:", error);
+        return { folhaTotal: 0, mediaSalarial: 0, folhaPorFuncao: [] };
       }
-      
-      const folhaPorFuncao = Array.from(porFuncaoMap.values()).map(({ nome_funcao, total, conta }) => ({
-        nome_funcao,
-        total,
-        media: conta > 0 ? total / conta : 0,
-      }));
-      
-      console.log("🔍 DEBUG totalQuery - folhaPorFuncao:", folhaPorFuncao);
-      
-      return { folhaTotal, mediaSalarial, folhaPorFuncao };
-    }
+
+      console.log("[DASHBOARD_RH][FINANCEIRO][GLOBAL]", {
+        total: funcionarios.length,
+        pages,
+      });
+
+      if (!funcionarios || funcionarios.length === 0) {
+        return { folhaTotal: 0, mediaSalarial: 0, folhaPorFuncao: [] };
+      }
+
+      return aggregate(funcionarios);
+    },
   });
 
   // --- Consulta filtrada ---
   const filtroQuery = useQuery<FinanceiroAnalise>({
-    queryKey: ["rh-financeiro", "FILTERED", {
-      statusFuncionario, departamentoId, centroCustoId, equipeId, funcaoId, nomeFuncionario
-    }],
-    staleTime: 30000, // 30 segundos - dados críticos ficam frescos
+    queryKey: [
+      "rh-financeiro",
+      "FILTERED",
+      {
+        statusFuncionario,
+        empresaId,
+        diretoriaId,
+        departamentoId,
+        centroCustoId,
+        equipeId,
+        funcaoId,
+        nomeFuncionario,
+        centroCustoIds,
+      },
+    ],
+    staleTime: 30000,
     queryFn: async () => {
-      console.log("🔍 DEBUG filtroQuery - iniciando consulta filtrada");
-      console.log("🔍 DEBUG filtroQuery - filtros:", {
-        statusFuncionario, departamentoId, centroCustoId, equipeId, funcaoId, nomeFuncionario
-      });
-      
-      let query = supabase
-        .from("bd_funcionarios")
-        .select("id, nome_completo, status, salario_base, bd_funcoes(id, nome_funcao)")
-        .in("status", ["Ativo", "Aviso Prévio"]);
-        
-      // Aplicar filtros apenas se especificados e diferentes de "_all"
-      if (statusFuncionario && statusFuncionario !== "_all") {
-        console.log("🔍 DEBUG filtroQuery - aplicando filtro status:", statusFuncionario);
-        query = query.eq("status", statusFuncionario);
-      }
-      if (departamentoId && departamentoId !== "_all") {
-        console.log("🔍 DEBUG filtroQuery - aplicando filtro departamento:", departamentoId);
-        query = query.eq("departamento_id", departamentoId);
-      }
-      if (centroCustoId && centroCustoId !== "_all") {
-        console.log("🔍 DEBUG filtroQuery - aplicando filtro centro custo:", centroCustoId);
-        query = query.eq("centro_custo_id", centroCustoId);
-      }
-      if (equipeId && equipeId !== "_all") {
-        console.log("🔍 DEBUG filtroQuery - aplicando filtro equipe:", equipeId);
-        query = query.eq("equipe_id", equipeId);
-      }
-      if (funcaoId && funcaoId !== "_all") {
-        console.log("🔍 DEBUG filtroQuery - aplicando filtro função:", funcaoId);
-        query = query.eq("funcao_id", funcaoId);
-      }
-      if (nomeFuncionario && nomeFuncionario.trim()) {
-        console.log("🔍 DEBUG filtroQuery - aplicando filtro nome:", nomeFuncionario);
-        query = query.ilike("nome_completo", `%${nomeFuncionario}%`);
-      }
-      
-      // REMOVIDO: Filtro de período que estava causando problema
-      // O filtro de período não faz sentido para dados financeiros atuais
-      
-      const { data: funcionarios, error } = await query;
-      
-      if (error) {
-        console.error("🔍 DEBUG filtroQuery - erro:", error);
-        return { folhaTotal: 0, mediaSalarial: 0, folhaPorFuncao: [] };
-      }
-      
-      console.log("🔍 DEBUG filtroQuery - funcionarios encontrados:", funcionarios?.length || 0);
-      console.log("🔍 DEBUG filtroQuery - status incluídos:", funcionarios?.map(f => f.status));
-      
-      if (!funcionarios || funcionarios.length === 0) {
-        console.log("🔍 DEBUG filtroQuery - nenhum funcionário encontrado com filtros");
-        return { folhaTotal: 0, mediaSalarial: 0, folhaPorFuncao: [] };
-      }
-      
-      const salarios = funcionarios.map((f: any) => convertSalary(f.salario_base));
-      const folhaTotal = salarios.reduce((a, b) => a + b, 0);
-      const salariosValidos = salarios.filter(s => s > 0);
-      const mediaSalarial = salariosValidos.length > 0 ? folhaTotal / salariosValidos.length : 0;
-      
-      console.log("🔍 DEBUG filtroQuery - folhaTotal:", folhaTotal);
-      console.log("🔍 DEBUG filtroQuery - mediaSalarial:", mediaSalarial);
-      
-      // Agrupar por função
-      const porFuncaoMap = new Map<string, { nome_funcao: string, total: number, conta: number }>();
-      
-      for (const f of funcionarios) {
-        const nome = getNomeFuncao(f.bd_funcoes);
-        const salario = convertSalary(f.salario_base);
-        
-        if (!porFuncaoMap.has(nome)) {
-          porFuncaoMap.set(nome, { nome_funcao: nome, total: 0, conta: 0 });
+      const buildQuery = () => {
+        let query = supabase
+          .from("bd_funcionarios")
+          .select("id, nome_completo, status, salario_base, funcao_id, bd_funcoes(id, nome_funcao)")
+          .in("status", ["Ativo", "Ativo sem Registro"]);
+
+        if (statusFuncionario && statusFuncionario !== "_all") {
+          query = query.eq("status", statusFuncionario);
         }
-        
-        const entry = porFuncaoMap.get(nome)!;
-        entry.total += salario;
-        entry.conta += 1;
+        if (empresaId && empresaId !== "_all") {
+          query = query.eq("empresa_id", empresaId);
+        }
+        if (departamentoId && departamentoId !== "_all") {
+          query = query.eq("departamento_id", departamentoId);
+        }
+        if (centroCustoId && centroCustoId !== "_all") {
+          query = query.eq("centro_custo_id", centroCustoId);
+        }
+        if (equipeId && equipeId !== "_all") {
+          query = query.eq("equipe_id", equipeId);
+        }
+        if (funcaoId && funcaoId !== "_all") {
+          query = query.eq("funcao_id", funcaoId);
+        }
+        if (nomeFuncionario && nomeFuncionario.trim()) {
+          query = query.ilike("nome_completo", `%${nomeFuncionario}%`);
+        }
+        if (centroCustoIds && centroCustoIds.length > 0) {
+          query = query.in("centro_custo_id", centroCustoIds);
+        } else if (diretoriaId && diretoriaId !== "_all" && diretoriaId !== "__cc_filter__") {
+          const ids = centroCustoIds ?? [];
+          query = query.in("centro_custo_id", ids.length ? ids : ["__no_match__"]);
+        }
+        return query;
+      };
+
+      const { data: funcionarios, error, pages } = await fetchAllPaginated(buildQuery, {
+        label: "DASHBOARD_RH][FINANCEIRO][FILTERED",
+      });
+
+      if (error) {
+        console.error("[useFinanceiroDashboard] filtroQuery erro:", error);
+        return { folhaTotal: 0, mediaSalarial: 0, folhaPorFuncao: [] };
       }
-      
-      const folhaPorFuncao = Array.from(porFuncaoMap.values()).map(({ nome_funcao, total, conta }) => ({
-        nome_funcao,
-        total,
-        media: conta > 0 ? total / conta : 0,
-      }));
-      
-      console.log("🔍 DEBUG filtroQuery - folhaPorFuncao:", folhaPorFuncao);
-      
-      return { folhaTotal, mediaSalarial, folhaPorFuncao };
-    }
+
+      console.log("[DASHBOARD_RH][FINANCEIRO][FILTERED]", {
+        total: funcionarios.length,
+        pages,
+      });
+
+      if (!funcionarios || funcionarios.length === 0) {
+        return { folhaTotal: 0, mediaSalarial: 0, folhaPorFuncao: [] };
+      }
+
+      return aggregate(funcionarios);
+    },
   });
 
   return { totalQuery, filtroQuery };

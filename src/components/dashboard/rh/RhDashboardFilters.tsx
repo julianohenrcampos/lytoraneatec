@@ -1,9 +1,12 @@
-
 import React from "react";
+import type { DateRange } from "react-day-picker";
 import { Card } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Combobox, ComboboxOption } from "@/components/ui/combobox";
+import { MultiCombobox, MultiComboboxOption } from "@/components/ui/multi-combobox";
+import { Button } from "@/components/ui/button";
 import { FilterX } from "lucide-react";
+import { PeriodoRangePicker } from "./PeriodoRangePicker";
 
 interface Option {
   label: string;
@@ -11,21 +14,37 @@ interface Option {
 }
 
 interface RhDashboardFiltersProps {
-  period: "6m" | "12m" | "all";
-  setPeriod: (val: "6m" | "12m" | "all") => void;
+  dateRange: DateRange | undefined;
+  setDateRange: (val: DateRange) => void;
+
+  empresa: string;
+  setEmpresa: (val: string) => void;
+
+  gerenciaIds: string[];
+  setGerenciaIds: (val: string[]) => void;
+
   departamento: string;
   setDepartamento: (val: string) => void;
+
+  centroCustoIds: string[];
+  setCentroCustoIds: (val: string[]) => void;
+
   status: string;
   setStatus: (val: string) => void;
   funcao: string;
   setFuncao: (val: string) => void;
-  departamentosOptions: Option[];
-  funcoesOptions: Option[];
   equipe: string;
   setEquipe: (val: string) => void;
-  equipesOptions: Option[];
   nomeFuncionario: string;
   setNomeFuncionario: (val: string) => void;
+
+  empresasOptions: Option[];
+  gerenciasOptions: Option[];
+  departamentosOptions: Option[];
+  centrosCustoOptions: Option[];
+  funcoesOptions: Option[];
+  equipesOptions: Option[];
+
   onResetFilters?: () => void;
   filtrosAtivos?: number;
 }
@@ -33,125 +52,151 @@ interface RhDashboardFiltersProps {
 export const statusOptions: Option[] = [
   { label: "Todos", value: "_all" },
   { label: "Ativo", value: "Ativo" },
+  { label: "Ativo sem Registro", value: "Ativo sem Registro" },
   { label: "Aviso Prévio", value: "Aviso Prévio" },
   { label: "Inativo", value: "Inativo" },
   { label: "INSS", value: "INSS" },
 ];
 
-const periodOptions: { label: string; value: "6m" | "12m" | "all" }[] = [
-  { label: "Últimos 6 meses", value: "6m" },
-  { label: "Últimos 12 meses", value: "12m" },
-  { label: "Todos os tempos", value: "all" },
-];
+const ALL_OPT: ComboboxOption = { value: "_all", label: "Todos" };
 
 const RhDashboardFilters: React.FC<RhDashboardFiltersProps> = ({
-  period, setPeriod,
+  dateRange, setDateRange,
+  empresa, setEmpresa,
+  gerenciaIds, setGerenciaIds,
   departamento, setDepartamento,
+  centroCustoIds, setCentroCustoIds,
   status, setStatus,
   funcao, setFuncao,
-  departamentosOptions,
-  funcoesOptions,
   equipe, setEquipe,
-  equipesOptions,
   nomeFuncionario, setNomeFuncionario,
-  onResetFilters,
-  filtrosAtivos
+  empresasOptions, gerenciasOptions, departamentosOptions,
+  centrosCustoOptions, funcoesOptions, equipesOptions,
+  onResetFilters, filtrosAtivos,
 }) => {
+  const withAll = (opts: Option[]): ComboboxOption[] => [ALL_OPT, ...opts];
+  const asMulti = (opts: Option[]): MultiComboboxOption[] =>
+    opts.map((o) => ({ value: o.value, label: o.label }));
+
   return (
-    <Card className="p-4 flex flex-wrap gap-4 items-end mb-2">
-      {/* Filtros (igual) */}
-      <div>
-        <label className="block text-xs font-semibold text-muted-foreground mb-1">Período</label>
-        <Select value={period} onValueChange={v => setPeriod(v as "6m" | "12m" | "all")}>
-          <SelectTrigger className="w-40 text-xs h-9">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {periodOptions.map(opt => (
-              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <label className="block text-xs font-semibold text-muted-foreground mb-1">Departamento</label>
-        <Select value={departamento} onValueChange={setDepartamento}>
-          <SelectTrigger className="w-44 text-xs h-9">
-            <SelectValue placeholder="Departamento" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="_all">Todos</SelectItem>
-            {departamentosOptions.map(dep => (
-              <SelectItem key={dep.value} value={dep.value}>{dep.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <label className="block text-xs font-semibold text-muted-foreground mb-1">Função</label>
-        <Select value={funcao} onValueChange={setFuncao}>
-          <SelectTrigger className="w-44 text-xs h-9">
-            <SelectValue placeholder="Função" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="_all">Todos</SelectItem>
-            {funcoesOptions.map(fn => (
-              <SelectItem key={fn.value} value={fn.value}>{fn.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <label className="block text-xs font-semibold text-muted-foreground mb-1">Equipe</label>
-        <Select value={equipe} onValueChange={setEquipe}>
-          <SelectTrigger className="w-40 text-xs h-9">
-            <SelectValue placeholder="Equipe" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="_all">Todas</SelectItem>
-            {equipesOptions.map(eq => (
-              <SelectItem key={eq.value} value={eq.value}>{eq.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <label className="block text-xs font-semibold text-muted-foreground mb-1">Status</label>
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="w-32 text-xs h-9">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            {statusOptions.map(opt => (
-              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <label className="block text-xs font-semibold text-muted-foreground mb-1">Buscar Funcionário</label>
-        <Input
-          placeholder="Nome do funcionário"
-          value={nomeFuncionario}
-          className="text-xs h-9"
-          onChange={e => setNomeFuncionario(e.target.value)}
-        />
-      </div>
-      {/* Botão "Limpar Filtros" */}
-      {onResetFilters && (
-        <div className="ml-auto">
-          <button
-            onClick={onResetFilters}
-            className="flex items-center gap-2 border rounded px-3 py-2 text-xs text-muted-foreground hover:bg-accent transition"
-          >
-            <FilterX className="w-4 h-4" />
-            Limpar Filtros
-            {filtrosAtivos !== undefined && filtrosAtivos > 0 && (
-              <span className="ml-1 bg-primary/10 px-2 rounded-full">{filtrosAtivos}</span>
-            )}
-          </button>
+    <Card className="p-4 mb-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div>
+          <label className="block text-xs font-semibold text-muted-foreground mb-1">Período</label>
+          <PeriodoRangePicker value={dateRange} onChange={setDateRange} />
         </div>
-      )}
+
+        <div>
+          <label className="block text-xs font-semibold text-muted-foreground mb-1">Empresa</label>
+          <Combobox
+            options={withAll(empresasOptions)}
+            value={empresa}
+            onChange={setEmpresa}
+            placeholder="Todas"
+            searchPlaceholder="Buscar empresa..."
+            className="h-9 text-xs"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-muted-foreground mb-1">Gerência</label>
+          <MultiCombobox
+            options={asMulti(gerenciasOptions)}
+            value={gerenciaIds}
+            onChange={setGerenciaIds}
+            placeholder="Todas"
+            searchPlaceholder="Buscar gerência..."
+            className="text-xs"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-muted-foreground mb-1">Departamento</label>
+          <Combobox
+            options={withAll(departamentosOptions)}
+            value={departamento}
+            onChange={setDepartamento}
+            placeholder="Todos"
+            searchPlaceholder="Buscar departamento..."
+            className="h-9 text-xs"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-muted-foreground mb-1">Centro de Custo</label>
+          <MultiCombobox
+            options={asMulti(centrosCustoOptions)}
+            value={centroCustoIds}
+            onChange={setCentroCustoIds}
+            placeholder="Todos"
+            searchPlaceholder="Buscar centro de custo..."
+            className="text-xs"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-muted-foreground mb-1">Função / Cargo</label>
+          <Combobox
+            options={withAll(funcoesOptions)}
+            value={funcao}
+            onChange={setFuncao}
+            placeholder="Todas"
+            searchPlaceholder="Buscar função..."
+            className="h-9 text-xs"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-muted-foreground mb-1">Equipe</label>
+          <Combobox
+            options={withAll(equipesOptions)}
+            value={equipe}
+            onChange={setEquipe}
+            placeholder="Todas"
+            searchPlaceholder="Buscar equipe..."
+            className="h-9 text-xs"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-muted-foreground mb-1">Status</label>
+          <Combobox
+            options={statusOptions as ComboboxOption[]}
+            value={status}
+            onChange={setStatus}
+            placeholder="Todos"
+            searchPlaceholder="Buscar status..."
+            className="h-9 text-xs"
+          />
+        </div>
+
+        <div className="sm:col-span-2 md:col-span-3 lg:col-span-3">
+          <label className="block text-xs font-semibold text-muted-foreground mb-1">Buscar Funcionário</label>
+          <Input
+            placeholder="Nome do funcionário"
+            value={nomeFuncionario}
+            className="h-9 text-xs"
+            onChange={e => setNomeFuncionario(e.target.value)}
+          />
+        </div>
+
+        <div className="flex items-end">
+          {onResetFilters && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onResetFilters}
+              className="h-9 w-full text-xs gap-2"
+            >
+              <FilterX className="w-4 h-4" />
+              Limpar Filtros
+              {filtrosAtivos !== undefined && filtrosAtivos > 0 && (
+                <span className="ml-1 bg-primary/10 text-primary px-2 rounded-full">{filtrosAtivos}</span>
+              )}
+            </Button>
+          )}
+        </div>
+      </div>
     </Card>
   );
 };

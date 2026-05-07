@@ -2,10 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import MainLayout from '@/components/layout/MainLayout';
 import { usePageTitle } from "@/contexts/PageTitleContext";
-import { isWithinBrazilianBusinessHours, getCurrentBrazilianTime } from '@/utils/timezoneUtils';
-import { useConfiguracaoSistema, useUpdateConfiguracao } from '@/hooks/useConfiguracaoSistema';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Clock, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AgendamentoExamesFilters, AgendamentoExamesTable } from '@/components/ssoAgendamentoExames/list';
 import { BulkActionBar } from '@/components/ssoAgendamentoExames/list/BulkActionBar';
@@ -82,18 +78,14 @@ const SSOAgendamentoExames: React.FC = () => {
   } = useAgendamentoExames(undefined, filters);
   const { isSuperAdmin, hasActionPermission } = usePermission();
 
-  // Bloqueio de horário (6h-16h BRT)
-  const dentroDoHorario = isWithinBrazilianBusinessHours(6, 16);
-  const { data: desbloqueioConfig, isLoading: isLoadingConfig } = useConfiguracaoSistema('desbloqueio_horario_agendamento_exames');
-  const updateConfiguracao = useUpdateConfiguracao();
-  const desbloqueioAtivo = desbloqueioConfig === 'true';
-  const podeAgendar = dentroDoHorario || desbloqueioAtivo;
-  const horarioAtual = getCurrentBrazilianTime();
+  // [REMOVIDO 2026-05] Gate global por relógio do usuário (6h-16h BRT).
+  // A validação correta acontece por clínica selecionada (dias/horários da clínica)
+  // dentro do formulário de agendamento (Etapa2AgendamentoForm).
 
-  const canCreate = (isSuperAdmin || hasActionPermission('acesso_sso_agendamento_exames', 'criar')) && podeAgendar;
-  const canEdit = (isSuperAdmin || hasActionPermission('acesso_sso_agendamento_exames', 'editar')) && podeAgendar;
+  const canCreate = isSuperAdmin || hasActionPermission('acesso_sso_agendamento_exames', 'criar');
+  const canEdit = isSuperAdmin || hasActionPermission('acesso_sso_agendamento_exames', 'editar');
   const canDelete = isSuperAdmin || hasActionPermission('acesso_sso_agendamento_exames', 'excluir');
-  const canChangeStatus = (isSuperAdmin || hasActionPermission('acesso_sso_agendamento_exames', 'aprovar')) && podeAgendar;
+  const canChangeStatus = isSuperAdmin || hasActionPermission('acesso_sso_agendamento_exames', 'aprovar');
 
   // Permissões granulares por coluna — todas derivam da mesma permissão base + ação
   const canChangeStatusExame = isSuperAdmin || hasActionPermission('acesso_sso_agendamento_exames', 'aprovar');
@@ -434,37 +426,8 @@ const SSOAgendamentoExames: React.FC = () => {
           </div>
         </div>
 
-        {/* Alerta de bloqueio de horário */}
-        {!dentroDoHorario && (
-          <Alert variant={desbloqueioAtivo ? 'default' : 'destructive'} className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {desbloqueioAtivo ? <Clock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-              <AlertDescription>
-                {desbloqueioAtivo
-                  ? `Horário fora do expediente (${horarioAtual} BRT) — desbloqueio ativo temporariamente.`
-                  : `Agendamentos bloqueados fora do horário comercial (6h-16h BRT). Horário atual: ${horarioAtual}.`}
-              </AlertDescription>
-            </div>
-            {isSuperAdmin && (
-              <div className="flex items-center gap-2 ml-4">
-                <Switch
-                  id="desbloqueio-horario"
-                  checked={desbloqueioAtivo}
-                  disabled={updateConfiguracao.isPending}
-                  onCheckedChange={(checked) => {
-                    updateConfiguracao.mutate({
-                      chave: 'desbloqueio_horario_agendamento_exames',
-                      valor: checked ? 'true' : 'false',
-                    });
-                  }}
-                />
-                <Label htmlFor="desbloqueio-horario" className="text-sm cursor-pointer whitespace-nowrap">
-                  Desbloquear
-                </Label>
-              </div>
-            )}
-          </Alert>
-        )}
+        {/* [REMOVIDO 2026-05] Alerta global de horário comercial.
+            Validação de janela acontece por clínica no formulário de agendamento. */}
 
         {/* Filters */}
         <AgendamentoExamesFilters

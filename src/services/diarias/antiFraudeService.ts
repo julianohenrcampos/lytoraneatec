@@ -79,6 +79,47 @@ export async function validarStatusFuncionario(
     return { status, bloqueado: false };
   } catch (err: any) {
     if (err.message === 'STATUS_HISTORICO_NAO_ENCONTRADO') {
+      // Fallback: consultar status atual do cadastro do funcionário
+      // (usado quando ainda não há registros em bd_funcionario_status_historico)
+      try {
+        const { data: funcRow } = await supabase
+          .from('bd_funcionarios')
+          .select('status')
+          .eq('id', funcionarioId)
+          .maybeSingle();
+
+        const statusCadastro = (funcRow?.status || '').toString();
+
+        if (statusCadastro === 'Férias') {
+          return {
+            status: 'ferias',
+            bloqueado: true,
+            motivo: 'Funcionário em Férias (status do cadastro).',
+            tipo: 'ferias'
+          };
+        }
+
+        if (statusCadastro === 'Inativo') {
+          return {
+            status: 'inativo',
+            bloqueado: true,
+            motivo: 'Funcionário Inativo (status do cadastro).',
+            tipo: 'inativo'
+          };
+        }
+
+        if (statusCadastro === 'INSS' || statusCadastro === 'Aviso Prévio') {
+          return {
+            status: 'afastado',
+            bloqueado: true,
+            motivo: `Funcionário ${statusCadastro} (status do cadastro).`,
+            tipo: 'afastado'
+          };
+        }
+      } catch (fallbackErr) {
+        console.warn('[antiFraude] fallback bd_funcionarios.status falhou:', fallbackErr);
+      }
+
       return {
         status: 'sem_historico',
         bloqueado: false,

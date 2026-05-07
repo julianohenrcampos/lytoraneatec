@@ -52,13 +52,14 @@ export const useAgendamentoExames = (agendamentoId?: string, filters?: Agendamen
     queryFn: () => locaisAtendimentoService.listAtivos()
   });
 
-  // Query: Listar funções
+  // Query: Listar funções (usa view pública para permitir leitura por perfis não-financeiros como AdmOBRA)
   const funcoesQuery = useQuery({
     queryKey: ['funcoes-lista'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('bd_funcoes')
+        .from('vw_funcoes_publicas')
         .select('id, nome_funcao')
+        .eq('situacao', 'Ativo')
         .order('nome_funcao');
       if (error) throw error;
       return data || [];

@@ -34,7 +34,12 @@ export const useRhSecurity = (): RhSecurityContext => {
 
         // SuperAdm SEMPRE tem acesso global
         if (isSuperAdmin) {
-          console.log("🔐 SuperAdmin - acesso total sem filtro departamental");
+          console.log("[DASHBOARD_RH][SECURITY_CONTEXT]", {
+            userId,
+            isSuperAdmin: true,
+            canViewAllData: true,
+            reason: "superadmin_bypass",
+          });
           setSecurityContext({
             isLoading: false,
             canViewAllData: true,
