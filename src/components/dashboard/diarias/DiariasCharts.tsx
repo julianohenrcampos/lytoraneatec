@@ -49,6 +49,7 @@ export default function DiariasCharts({ filters }: Props) {
       {
         name: string;
         fullName: string;
+        funcao: string;
         totalDias: number;
         porCc: Map<string, number>;
       }
@@ -58,18 +59,21 @@ export default function DiariasCharts({ filters }: Props) {
     for (const p of ds.presencas) {
       if (!p.funcionario_id) continue;
       const fullName = p.nome_funcionario || "Desconhecido";
-      const shortName = fullName.split(" ").slice(0, 2).join(" ");
+      const shortRaw = fullName.split(" ").slice(0, 2).join(" ");
+      const shortName = shortRaw.length > 18 ? shortRaw.slice(0, 17) + "…" : shortRaw;
       const ccLabel = p.codigo_centro_custo || "—";
 
       if (!funcMap.has(p.funcionario_id)) {
         funcMap.set(p.funcionario_id, {
           name: shortName,
           fullName,
+          funcao: p.nome_funcao || "—",
           totalDias: 0,
           porCc: new Map(),
         });
       }
       const f = funcMap.get(p.funcionario_id)!;
+      if (f.funcao === "—" && p.nome_funcao) f.funcao = p.nome_funcao;
       f.totalDias += 1;
       f.porCc.set(ccLabel, (f.porCc.get(ccLabel) || 0) + 1);
       ccTotal.set(ccLabel, (ccTotal.get(ccLabel) || 0) + 1);
@@ -93,6 +97,7 @@ export default function DiariasCharts({ filters }: Props) {
       const row: Record<string, any> = {
         name: f.name,
         fullName: f.fullName,
+        funcao: f.funcao,
         totalDias: f.totalDias,
       };
       for (const cc of colunas) row[cc] = 0;
@@ -218,7 +223,7 @@ export default function DiariasCharts({ filters }: Props) {
                   <XAxis
                     type="category"
                     dataKey="name"
-                    tick={{ fontSize: 11, fontWeight: 600 }}
+                    tick={{ fill: "hsl(var(--foreground))", fontSize: 11, fontWeight: 600 }}
                     angle={-35}
                     textAnchor="end"
                     height={80}
@@ -226,10 +231,41 @@ export default function DiariasCharts({ filters }: Props) {
                   />
                   <YAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
                   <Tooltip
-                    formatter={(value: number, name: string) => [`${value} dias`, name]}
-                    labelFormatter={(label) =>
-                      funcsRows.find((f) => f.name === label)?.fullName || label
-                    }
+                    cursor={{ fill: "hsl(var(--muted) / 0.4)" }}
+                    content={({ active, payload }) => {
+                      if (!active || !payload || payload.length === 0) return null;
+                      const row = payload[0]?.payload as any;
+                      if (!row) return null;
+                      return (
+                        <div
+                          className="rounded-md border shadow-md p-3 text-xs"
+                          style={{ backgroundColor: "#ffffff", color: "#111111", minWidth: 200 }}
+                        >
+                          <div className="font-semibold uppercase mb-1" style={{ color: "#111" }}>
+                            {row.fullName}
+                          </div>
+                          <div className="mb-2" style={{ color: "#000" }}>
+                            Função: <span className="font-medium">{row.funcao || "—"}</span>
+                          </div>
+                          <div className="space-y-0.5">
+                            {payload.map((p: any) => (
+                              <div key={p.dataKey} className="flex items-center justify-between gap-3">
+                                <span className="flex items-center gap-1.5" style={{ color: "#333" }}>
+                                  <span
+                                    className="inline-block w-2 h-2 rounded-sm"
+                                    style={{ backgroundColor: p.color }}
+                                  />
+                                  {p.dataKey}
+                                </span>
+                                <span className="tabular-nums font-medium" style={{ color: "#111" }}>
+                                  {p.value} dias
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }}
                   />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   {ccs.map((cc, idx) => (

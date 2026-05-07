@@ -292,6 +292,124 @@ export async function fetchPresencasUltimosMeses(
   return fetchPresencasConfirmadas(ampl, solIdSet);
 }
 
+export interface SerieMensalItem {
+  mes: string; // YYYY-MM
+  diarias: number;
+  refeicoes: number;
+  total: number;
+}
+
+/**
+ * Série mensal dedicada para o gráfico Evolução Mensal.
+ * - Janela: últimos N meses até filters.dataFim (ou mês atual).
+ * - Fonte: mesma view oficial (vw_diarias_* segundo contexto), com fallback p/ vw_relatorio_diarias_folha.
+ * - Fórmula: Math.ceil(valor_diaria_aplicada || 0) + Math.ceil(valor_refeicao_aplicado || 0).
+ * - Sempre retorna N buckets (preenche 0 quando não houver dado).
+ */
+export async function fetchSerieMensalDiarias(
+  filters: DiariasFilters,
+  meses = 12
+): Promise<SerieMensalItem[]> {
+  const ref = filters.dataFim || new Date();
+  const inicioDate = new Date(ref.getFullYear(), ref.getMonth() - (meses - 1), 1);
+  const fimDate = new Date(ref.getFullYear(), ref.getMonth() + 1, 0);
+  const ini = fmtDate(inicioDate)!;
+  const fim = fmtDate(fimDate)!;
+
+  // Buckets vazios em ordem cronológica
+  const buckets = new Map<string, SerieMensalItem>();
+  for (let i = 0; i < meses; i++) {
+    const d = new Date(inicioDate.getFullYear(), inicioDate.getMonth() + i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    buckets.set(key, { mes: key, diarias: 0, refeicoes: 0, total: 0 });
+  }
+
+  const ccIds = await resolveCentroCustoIds(filters);
+  if (ccIds !== null && ccIds.length === 0) return Array.from(buckets.values());
+
+  const solIdSet =
+    !!filters.solicitacaoId ||
+    !!filters.engenheiroSolicitanteId ||
+    (filters.gerenteRegionalIds && filters.gerenteRegionalIds.length > 0)
+      ? await buildSolIdSet({ ...filters, dataInicio: inicioDate, dataFim: fimDate })
+      : null;
+  if (solIdSet !== null && solIdSet.size === 0) return Array.from(buckets.values());
+
+  const safeSolSet = solIdSet && solIdSet.size > 800 ? null : solIdSet;
+  const viewName = await getDashboardView();
+
+  const SELECT =
+    "presenca_id, data, funcionario_id, solicitacao_id, valor_diaria_aplicada, valor_refeicao_aplicado";
+
+  const buildQ = (vname: string) => {
+    let q = supabase
+      .from(vname as any)
+      .select(SELECT)
+      .eq("presenca_status", "true" as unknown as string)
+      .not("hora_entrada", "is", null)
+      .not("hora_saida", "is", null)
+      .gte("data", ini)
+      .lte("data", fim)
+      // Ordenação determinística — evita pular/duplicar linhas no .range() por página.
+      .order("data", { ascending: true })
+      .order("funcionario_id", { ascending: true })
+      .order("solicitacao_id", { ascending: true })
+      .order("presenca_id", { ascending: true });
+    if (ccIds && ccIds.length > 0) q = q.in("centro_custo_id", ccIds);
+    if (filters.funcionarioId) q = q.eq("funcionario_id", filters.funcionarioId);
+    if (filters.solicitacaoId) q = q.eq("solicitacao_id", filters.solicitacaoId);
+    if (safeSolSet && safeSolSet.size > 0 && !filters.solicitacaoId) {
+      q = q.in("solicitacao_id", Array.from(safeSolSet));
+    }
+    return q;
+  };
+
+  const pageSize = 1000;
+  let from = 0;
+  let usedView = viewName;
+  let triedFallback = false;
+  while (true) {
+    const { data, error } = await buildQ(usedView).range(from, from + pageSize - 1);
+    if (error) {
+      if (!triedFallback && usedView !== "vw_relatorio_diarias_folha") {
+        console.warn(
+          `[Evolução Mensal] fallback ${usedView} → vw_relatorio_diarias_folha:`,
+          error.message
+        );
+        usedView = "vw_relatorio_diarias_folha";
+        triedFallback = true;
+        from = 0;
+        continue;
+      }
+      throw error;
+    }
+    const rows = ((data || []) as unknown) as Array<{
+      data: string | null;
+      valor_diaria_aplicada: number | null;
+      valor_refeicao_aplicado: number | null;
+    }>;
+    for (const r of rows) {
+      if (!r.data) continue;
+      const key = r.data.slice(0, 7);
+      const b = buckets.get(key);
+      if (!b) continue;
+      const d = Math.ceil(Number(r.valor_diaria_aplicada || 0));
+      const ref = Math.ceil(Number(r.valor_refeicao_aplicado || 0));
+      b.diarias += d;
+      b.refeicoes += ref;
+      b.total += d + ref;
+    }
+    if (rows.length < pageSize) break;
+    from += pageSize;
+  }
+
+  const out = Array.from(buckets.values());
+  if (typeof window !== "undefined") {
+    console.debug("[Evolução Mensal] série", { ini, fim, view: usedView, out });
+  }
+  return out;
+}
+
 export async function fetchFeriadosSet(): Promise<Set<string>> {
   const { data } = await supabase.from("bd_feriados").select("data");
   return new Set((data || []).map((f) => f.data));
@@ -523,4 +641,24 @@ export async function calcularEstimadoCorrigidoTotal(
     }
   }
   return { total, porCc };
+}
+
+// =====================================================
+// Helper: detecta se o filtro está exatamente no padrão "semana atual"
+// (segunda → domingo) sem nenhum filtro opcional adicional.
+// =====================================================
+import { startOfWeek as _startOfWeek, endOfWeek as _endOfWeek } from "date-fns";
+
+export function isSemanaAtualPadrao(filters: DiariasFilters): boolean {
+  if (!filters.dataInicio || !filters.dataFim) return false;
+  const ini = _startOfWeek(new Date(), { weekStartsOn: 1 });
+  const fim = _endOfWeek(new Date(), { weekStartsOn: 1 });
+  if (fmtDate(filters.dataInicio) !== fmtDate(ini)) return false;
+  if (fmtDate(filters.dataFim) !== fmtDate(fim)) return false;
+  if ((filters.centroCustoIds || []).length > 0) return false;
+  if ((filters.gerenteRegionalIds || []).length > 0) return false;
+  if (filters.solicitacaoId) return false;
+  if (filters.engenheiroSolicitanteId) return false;
+  if (filters.funcionarioId) return false;
+  return true;
 }

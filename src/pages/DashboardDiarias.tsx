@@ -3,15 +3,15 @@ import MainLayout from "@/components/layout/MainLayout";
 import DashboardDiariasContent from "@/components/dashboard/diarias/DashboardDiariasContent";
 import DashboardDiariasFilters from "@/components/dashboard/diarias/DashboardDiariasFilters";
 import type { DiariasFilters } from "@/components/dashboard/diarias/_dashboardHelpers";
-import { startOfMonth, endOfMonth } from "date-fns";
+import { startOfWeek, endOfWeek } from "date-fns";
 import { usePermission } from "@/hooks/usePermission";
 import { useDiariasDataScope } from "@/hooks/diarias";
 import { Loader2 } from "lucide-react";
 import { usePageTitle } from "@/contexts/PageTitleContext";
 
 const buildInitialFilters = (): DiariasFilters => ({
-  dataInicio: startOfMonth(new Date()),
-  dataFim: endOfMonth(new Date()),
+  dataInicio: startOfWeek(new Date(), { weekStartsOn: 1 }),
+  dataFim: endOfWeek(new Date(), { weekStartsOn: 1 }),
   centroCustoIds: [],
   gerenteRegionalIds: [],
 });
