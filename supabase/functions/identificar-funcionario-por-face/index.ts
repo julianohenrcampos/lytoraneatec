@@ -13,10 +13,11 @@ function json(body: unknown, status = 200) {
   });
 }
 
-// Defaults (sobrescritos pela bd_ponto_config se presentes)
-const DEFAULT_MIN_CONFIDENCE = 0.68;     // abaixo disso = outra pessoa
-const DEFAULT_STRONG_CONFIDENCE = 0.92;  // acima disso = match forte
-const DEFAULT_MIN_DELTA = 0.12;          // diferença mínima top1 vs top2
+// Defaults recalibrados (face-api 128D, mesma pessoa tipicamente dist <= 0.5)
+// Sobrescritos por bd_ponto_config se houver linha do CC do dispositivo.
+const DEFAULT_MIN_CONFIDENCE = 0.55;     // abaixo disso = outra pessoa (dist > 0.90)
+const DEFAULT_STRONG_CONFIDENCE = 0.75;  // acima disso = match forte (dist <= 0.50)
+const DEFAULT_MIN_DELTA = 0.05;          // diferença mínima top1 vs top2
 const LOG_SAMPLE = 3;
 
 let _logCounter = 0;
@@ -44,7 +45,7 @@ Deno.serve(async (req) => {
     // Validar dispositivo + sessão
     const { data: disp, error: dispErr } = await supabase
       .from("bd_ponto_dispositivos")
-      .select("id, ativo, tipo, device_session_token, device_session_expires_at")
+      .select("id, ativo, tipo, device_session_token, device_session_expires_at, centro_custo_id")
       .eq("codigo_dispositivo", codigo)
       .maybeSingle();
 
@@ -62,22 +63,51 @@ Deno.serve(async (req) => {
       return json({ error: "sessao_expirada", stage: "session" }, 401);
     }
 
-    // Carrega config (modo estrito + thresholds)
+    // Carrega config — resolução determinística por CC do dispositivo (sem .limit(1) sem filtro).
+    // Nível 1: bd_ponto_dispositivos.centro_custo_id (single-CC legado)
+    // Nível 2: primeiro CC ativo em bd_ponto_dispositivo_centros_custo (criado_em ASC)
+    // Nível 3: defaults hardcoded recalibrados
     let modoEstrito = true;
     let minConfidence = DEFAULT_MIN_CONFIDENCE;
     let strongConfidence = DEFAULT_STRONG_CONFIDENCE;
     let minDelta = DEFAULT_MIN_DELTA;
+    let cfgOrigem: "dispositivo" | "multi_cc" | "default" = "default";
+    let cfgCcId: string | null = null;
+
     try {
-      const { data: cfg } = await supabase
-        .from("bd_ponto_config")
-        .select("modo_reconhecimento_estrito, match_min_confidence, match_strong_confidence, match_min_delta")
-        .limit(1)
-        .maybeSingle();
-      if (cfg) {
-        if (typeof cfg.modo_reconhecimento_estrito === "boolean") modoEstrito = cfg.modo_reconhecimento_estrito;
-        if (typeof cfg.match_min_confidence === "number") minConfidence = cfg.match_min_confidence;
-        if (typeof cfg.match_strong_confidence === "number") strongConfidence = cfg.match_strong_confidence;
-        if (typeof cfg.match_min_delta === "number") minDelta = cfg.match_min_delta;
+      const candidatosCc: string[] = [];
+      if (disp.centro_custo_id) candidatosCc.push(disp.centro_custo_id as string);
+
+      // Nível 2 fallback — busca CCs do N:N
+      const { data: ccsLink } = await supabase
+        .from("bd_ponto_dispositivo_centros_custo")
+        .select("centro_custo_id, criado_em")
+        .eq("dispositivo_id", disp.id)
+        .eq("ativo", true)
+        .order("criado_em", { ascending: true });
+      if (Array.isArray(ccsLink)) {
+        for (const link of ccsLink) {
+          const cc = link.centro_custo_id as string | null;
+          if (cc && !candidatosCc.includes(cc)) candidatosCc.push(cc);
+        }
+      }
+
+      for (let i = 0; i < candidatosCc.length; i++) {
+        const cc = candidatosCc[i];
+        const { data: cfg } = await supabase
+          .from("bd_ponto_config")
+          .select("modo_reconhecimento_estrito, match_min_confidence, match_strong_confidence, match_min_delta")
+          .eq("centro_custo_id", cc)
+          .maybeSingle();
+        if (cfg) {
+          if (typeof cfg.modo_reconhecimento_estrito === "boolean") modoEstrito = cfg.modo_reconhecimento_estrito;
+          if (typeof cfg.match_min_confidence === "number") minConfidence = cfg.match_min_confidence;
+          if (typeof cfg.match_strong_confidence === "number") strongConfidence = cfg.match_strong_confidence;
+          if (typeof cfg.match_min_delta === "number") minDelta = cfg.match_min_delta;
+          cfgOrigem = i === 0 && disp.centro_custo_id ? "dispositivo" : "multi_cc";
+          cfgCcId = cc;
+          break;
+        }
       }
     } catch (_e) {
       // mantém defaults
@@ -115,6 +145,8 @@ Deno.serve(async (req) => {
         delta: null,
         thresholds: { min: minConfidence, strong: strongConfidence, delta: minDelta },
         modo_estrito: modoEstrito,
+        cfg_origem: cfgOrigem,
+        cfg_centro_custo_id: cfgCcId,
       };
       console.log("[identificar-face] AUDIT", audit);
       _logCounter++;
@@ -184,6 +216,8 @@ Deno.serve(async (req) => {
       delta,
       thresholds: { min: minConfidence, strong: strongConfidence, delta: minDelta },
       modo_estrito: modoEstrito,
+      cfg_origem: cfgOrigem,
+      cfg_centro_custo_id: cfgCcId,
     };
     console.log("[identificar-face] AUDIT", audit);
 

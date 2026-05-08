@@ -4640,10 +4640,14 @@ export type Database = {
           funcionario_id: string
           id: string
           origem: string
+          pose: string | null
+          principal: boolean | null
+          qualidade_score: number | null
           status_validacao: string
           updated_at: string
           validado_em: string | null
           validado_por_user_id: string | null
+          versao_cadastro: number | null
         }
         Insert: {
           ativo?: boolean
@@ -4655,10 +4659,14 @@ export type Database = {
           funcionario_id: string
           id?: string
           origem: string
+          pose?: string | null
+          principal?: boolean | null
+          qualidade_score?: number | null
           status_validacao?: string
           updated_at?: string
           validado_em?: string | null
           validado_por_user_id?: string | null
+          versao_cadastro?: number | null
         }
         Update: {
           ativo?: boolean
@@ -4670,10 +4678,14 @@ export type Database = {
           funcionario_id?: string
           id?: string
           origem?: string
+          pose?: string | null
+          principal?: boolean | null
+          qualidade_score?: number | null
           status_validacao?: string
           updated_at?: string
           validado_em?: string | null
           validado_por_user_id?: string | null
+          versao_cadastro?: number | null
         }
         Relationships: [
           {
