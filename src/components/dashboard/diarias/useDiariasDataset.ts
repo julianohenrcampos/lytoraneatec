@@ -44,6 +44,7 @@ export function useDiariasDataset(filters: DiariasFilters) {
   return useQuery<DiariasDataset>({
     queryKey: ["diarias-dashboard-dataset-v1", stableFilterKey(filters)],
     ...DASHBOARD_QUERY_OPTS,
+    enabled: !!filters.dataInicio && !!filters.dataFim,
     queryFn: async () => {
       // 1) Solicitações + feriados em paralelo.
       const [solicitacoes, feriadosSet] = await Promise.all([

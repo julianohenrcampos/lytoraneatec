@@ -188,6 +188,13 @@ export async function fetchPresencasConfirmadas(
   filters: DiariasFilters,
   solIdSet?: Set<string> | null
 ): Promise<PresencaRow[]> {
+  // Gate defensivo: nunca consultar a view sem janela de período (evita varredura
+  // total e timeout). Tela do Dashboard sempre passa dataInicio/dataFim.
+  if (!filters.dataInicio || !filters.dataFim) {
+    console.warn('[Dashboard Diárias] fetchPresencasConfirmadas chamado sem dataInicio/dataFim — abortando.');
+    return [];
+  }
+
   const ini = fmtDate(filters.dataInicio);
   const fim = fmtDate(filters.dataFim);
 

@@ -38,10 +38,12 @@ export function useSincronizarDiarias() {
 
       await Promise.all(invalidations);
 
-      // 2) Força refetch das chaves críticas (origem do snapshot convocados_pre)
+      // 2) Força refetch APENAS das chaves da tela atual (Apontamento de Campo).
+      // ['diarias-solicitacoes'] foi removido daqui para evitar disparar getSolicitacoes
+      // pesado em background quando outra rota tinha a query ativa em cache (causa de
+      // statement timeout 57014). A invalidação acima já garante refetch ao remontar.
       const refetches: Promise<void>[] = [
         queryClient.refetchQueries({ queryKey: ['diaria-apontamentos'], type: 'active' }),
-        queryClient.refetchQueries({ queryKey: ['diarias-solicitacoes'], type: 'active' }),
       ];
 
       if (solicitacaoId) {

@@ -26,12 +26,33 @@ const QUERY_KEY = 'diarias-solicitacoes';
 interface SolicitacaoScopeFilters {
   criado_por?: string;
   centro_custo_ids?: string[];
+  responsavel_campo_id?: string;
+}
+
+/**
+ * Gate defensivo: só dispara `getSolicitacoes` (query pesada em
+ * `bd_diaria_solicitacoes` com 2 joins e ORDER BY created_at DESC) quando
+ * houver pelo menos um critério mínimo. Sem isso, refetch cruzado vindo de
+ * outras telas (ex.: invalidação após salvar horário em Apontamento de Campo)
+ * pode disparar varredura completa e causar statement timeout (57014).
+ */
+function hasMinimumScopeOrPeriod(
+  filters?: SolicitacaoFilters,
+  scope?: SolicitacaoScopeFilters,
+): boolean {
+  return (
+    !!scope?.criado_por ||
+    !!scope?.responsavel_campo_id ||
+    !!(scope?.centro_custo_ids && scope.centro_custo_ids.length) ||
+    !!filters?.periodo_inicio
+  );
 }
 
 export function useSolicitacoesDiaria(filters?: SolicitacaoFilters, scope?: SolicitacaoScopeFilters) {
   return useQuery({
     queryKey: [QUERY_KEY, filters, scope],
     queryFn: () => getSolicitacoes(filters, scope),
+    enabled: hasMinimumScopeOrPeriod(filters, scope),
     retry: 2,
     retryDelay: 1000,
     staleTime: 30000,
@@ -53,6 +74,7 @@ export function useSolicitacoesResumo(filters?: SolicitacaoFilters, scope?: Soli
   return useQuery({
     queryKey: [QUERY_KEY, 'resumo', filters, scope],
     queryFn: () => getSolicitacoesResumo(filters, scope),
+    enabled: hasMinimumScopeOrPeriod(filters, scope),
     retry: 2,
     retryDelay: 1000,
     staleTime: 30000,

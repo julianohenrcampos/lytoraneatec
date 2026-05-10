@@ -174,6 +174,26 @@ export async function getSolicitacoes(
     !scope.responsavel_campo_id &&
     !(scope.centro_custo_ids && scope.centro_custo_ids.length)
   );
+  const semPeriodo = !filters?.periodo_inicio && !filters?.periodo_fim;
+
+  // SAFETY NET: chamada sem período E sem scope pode varrer toda a tabela
+  // (com 2 joins e ORDER BY created_at DESC), causando statement timeout 57014.
+  // Aplicar janela últimos 90 dias + limit 500 e logar warning explícito.
+  if (scopeVazio && semPeriodo) {
+    const hoje = new Date();
+    const inicio = new Date(hoje);
+    inicio.setDate(inicio.getDate() - 90);
+    const yyyy = inicio.getFullYear();
+    const mm = String(inicio.getMonth() + 1).padStart(2, '0');
+    const dd = String(inicio.getDate()).padStart(2, '0');
+    const janelaInicio = `${yyyy}-${mm}-${dd}`;
+    console.warn(
+      '[Diarias][getSolicitacoes][SAFETY_NET] Chamada sem periodo_inicio e sem scope — aplicando janela últimos 90 dias e limit=500.',
+      { janelaInicio, limit: 500, motivo: 'sem periodo_inicio e sem scope' },
+    );
+    query = query.gte('data_inicio', janelaInicio).limit(500);
+  }
+
   if (scopeVazio && import.meta.env.DEV) {
     console.debug('[Diarias][getSolicitacoes] sem scope frontend, delegado ao RLS');
   }
