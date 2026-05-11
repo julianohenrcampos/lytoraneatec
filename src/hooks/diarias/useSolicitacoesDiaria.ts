@@ -30,13 +30,14 @@ interface SolicitacaoScopeFilters {
 }
 
 /**
- * Gate defensivo: só dispara `getSolicitacoes` (query pesada em
- * `bd_diaria_solicitacoes` com 2 joins e ORDER BY created_at DESC) quando
- * houver pelo menos um critério mínimo. Sem isso, refetch cruzado vindo de
- * outras telas (ex.: invalidação após salvar horário em Apontamento de Campo)
- * pode disparar varredura completa e causar statement timeout (57014).
+ * Utilitário de telemetria: indica se a chamada tem ao menos um critério mínimo
+ * (scope efetivo ou período). Quando não tem, o service `getSolicitacoes`
+ * aplica safety net (janela 90d + limit 500). Mantido exportado caso outros
+ * consumidores queiram detectar essa condição, mas **não** é usado como gate
+ * de `enabled` aqui — perfis SuperAdm/AdmOBRA/GerenteRegional legitimamente
+ * delegam ao RLS com scope vazio e devem ver a lista.
  */
-function hasMinimumScopeOrPeriod(
+export function hasMinimumScopeOrPeriod(
   filters?: SolicitacaoFilters,
   scope?: SolicitacaoScopeFilters,
 ): boolean {
@@ -49,10 +50,14 @@ function hasMinimumScopeOrPeriod(
 }
 
 export function useSolicitacoesDiaria(filters?: SolicitacaoFilters, scope?: SolicitacaoScopeFilters) {
+  if (!hasMinimumScopeOrPeriod(filters, scope)) {
+    console.warn(
+      '[Diarias][useSolicitacoesDiaria] chamada sem scope efetivo e sem periodo_inicio — service aplicará safety net (janela 90d + limit 500).',
+    );
+  }
   return useQuery({
     queryKey: [QUERY_KEY, filters, scope],
     queryFn: () => getSolicitacoes(filters, scope),
-    enabled: hasMinimumScopeOrPeriod(filters, scope),
     retry: 2,
     retryDelay: 1000,
     staleTime: 30000,
@@ -74,7 +79,6 @@ export function useSolicitacoesResumo(filters?: SolicitacaoFilters, scope?: Soli
   return useQuery({
     queryKey: [QUERY_KEY, 'resumo', filters, scope],
     queryFn: () => getSolicitacoesResumo(filters, scope),
-    enabled: hasMinimumScopeOrPeriod(filters, scope),
     retry: 2,
     retryDelay: 1000,
     staleTime: 30000,

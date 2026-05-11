@@ -206,8 +206,8 @@ export function buildEmpresaGroups(
 
     const empresa = empresaMap.get(empresaId)!;
     const funcId = item.funcionario_id;
-    const valorDiaria = Math.ceil(item.valor_diaria_aplicada || 0);
-    const valorRefeicao = Math.ceil(item.valor_refeicao_aplicado || 0);
+    const valorDiaria = Number(item.valor_diaria_aplicada || 0);
+    const valorRefeicao = Number(item.valor_refeicao_aplicado || 0);
 
     if (empresa.funcMap.has(funcId)) {
       const f = empresa.funcMap.get(funcId)!;

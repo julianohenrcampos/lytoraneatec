@@ -102,7 +102,27 @@ export const verAgirService = {
       .single();
 
     if (error) {
-      console.error('Erro ao criar registro Ver e Agir:', error);
+      // TEMP: remover após diagnóstico do "schema out of sync"
+      console.error('[VerAgir][create] Supabase error', {
+        message: error.message,
+        code: (error as any).code,
+        details: (error as any).details,
+        hint: (error as any).hint,
+        payload: {
+          obra: insertData.obra,
+          local: insertData.local,
+          data_registro: insertData.data_registro,
+          hora_registro: insertData.hora_registro,
+          tecnico_seguranca_nome: insertData.tecnico_seguranca_nome,
+          engenheiro_nome: insertData.engenheiro_nome,
+          descricao_nao_conformidade_len: insertData.descricao_nao_conformidade?.length ?? 0,
+          resultado_alcancado_solucao_len: insertData.resultado_alcancado_solucao?.length ?? 0,
+          centro_custo_id: insertData.centro_custo_id,
+          tecnico_seguranca_id: insertData.tecnico_seguranca_id,
+          engenheiro_id: insertData.engenheiro_id,
+          status: insertData.status,
+        },
+      });
       throw new Error(error.message);
     }
 

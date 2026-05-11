@@ -781,7 +781,7 @@ export function buildCompiladoData(
     const ccLabel = cc?.codigo_centro_custo || item.codigo_centro_custo || '';
     const ccNome = cc?.nome_centro_custo || item.nome_centro_custo || '';
     const empresaNome = item.empresa_funcionario || 'Empresa não informada';
-    const valorItem = Math.ceil(item.valor_diaria_aplicada || 0) + Math.ceil(item.valor_refeicao_aplicado || 0);
+    const valorItem = Number(item.valor_diaria_aplicada || 0) + Number(item.valor_refeicao_aplicado || 0);
 
     const dataStr = item.data?.substring(0, 10) || '';
     const dataObj = new Date(dataStr + 'T12:00:00');

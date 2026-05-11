@@ -470,8 +470,8 @@ export async function getPresencaResumo(filters?: RelatorioFilters): Promise<Pre
     ausentes: ausentes.length,
     pendentes: pendentes.length,
     substituidos: substituidos.length,
-    valor_total_presentes: presentes.reduce((acc, r) => acc + Math.ceil(r.valor_diaria_aplicada || 0), 0),
-    valor_total_previsto: relatorio.reduce((acc, r) => acc + Math.ceil(r.valor_diaria_aplicada || 0), 0)
+    valor_total_presentes: presentes.reduce((acc, r) => acc + Number(r.valor_diaria_aplicada || 0) + Number(r.valor_refeicao_aplicado || 0), 0),
+    valor_total_previsto: relatorio.reduce((acc, r) => acc + Number(r.valor_diaria_aplicada || 0) + Number(r.valor_refeicao_aplicado || 0), 0)
   };
 }
 
