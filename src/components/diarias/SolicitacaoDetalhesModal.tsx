@@ -22,6 +22,9 @@ import {
   Loader2,
   UserMinus
 } from "lucide-react";
+import { lerConvocadosPre, derivarFuncionariosPlanos } from "@/lib/diarias/convocadosPreAdapter";
+import { DIARIAS_LOTES_UI_PREVIEW } from "@/config/diariasFlags";
+import { LotesPreviewPanel } from "@/components/diarias/preview/LotesPreviewPanel";
 
 import {
   Dialog,
@@ -161,9 +164,12 @@ export function SolicitacaoDetalhesModal({
       }
 
       // Fallback: buscar nomes de funcionários/funções se não existirem no JSON
-      const convocadosRaw: FuncionarioPreConvocado[] = Array.isArray(solicitacao.convocados_pre) 
-        ? solicitacao.convocados_pre 
-        : [];
+      const convocadosRaw: FuncionarioPreConvocado[] = derivarFuncionariosPlanos(
+        lerConvocadosPre(solicitacao.convocados_pre, {
+          inicio: solicitacao.data_inicio,
+          fim: solicitacao.data_fim,
+        }),
+      ).map(({ extras, ...rest }) => ({ ...(extras ?? {}), ...rest })) as unknown as FuncionarioPreConvocado[];
       
       let funcionariosMap: Record<string, string> = {};
       let funcoesMap: Record<string, string> = {};
@@ -217,9 +223,12 @@ export function SolicitacaoDetalhesModal({
 
   if (!solicitacao) return null;
 
-  const convocadosPre: FuncionarioPreConvocado[] = Array.isArray(solicitacao.convocados_pre) 
-    ? solicitacao.convocados_pre 
-    : [];
+  const convocadosPre: FuncionarioPreConvocado[] = derivarFuncionariosPlanos(
+    lerConvocadosPre(solicitacao.convocados_pre, {
+      inicio: solicitacao.data_inicio,
+      fim: solicitacao.data_fim,
+    }),
+  ).map(({ extras, ...rest }) => ({ ...(extras ?? {}), ...rest })) as unknown as FuncionarioPreConvocado[];
 
   const diasUteis = solicitacao.qtde_dias_uteis_estimado || 0;
   const diasFds = solicitacao.qtde_fds_estimado || 0;
@@ -611,6 +620,13 @@ export function SolicitacaoDetalhesModal({
               <EstimativaAviso variant="compact" />
             </CardContent>
           </Card>
+
+          {DIARIAS_LOTES_UI_PREVIEW && (
+            <LotesPreviewPanel
+              convocadosPreRaw={solicitacao.convocados_pre}
+              periodo={{ inicio: solicitacao.data_inicio, fim: solicitacao.data_fim }}
+            />
+          )}
         </div>
 
         <DialogFooter className="flex-shrink-0 flex justify-between gap-2 sm:justify-between">

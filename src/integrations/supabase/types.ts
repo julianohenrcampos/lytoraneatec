@@ -2970,6 +2970,155 @@ export type Database = {
           },
         ]
       }
+      bd_diaria_lote_funcionarios: {
+        Row: {
+          cpf_snap: string | null
+          created_at: string
+          data: string
+          extras: Json
+          funcao_id: string
+          funcionario_id: string
+          id: string
+          lote_id: string
+          matricula_snap: string | null
+          nome_funcao_snap: string
+          nome_funcionario_snap: string
+          solicitacao_id: string
+          status: Database["public"]["Enums"]["diaria_lote_item_status"]
+          updated_at: string
+          usar_diaria_exclusiva: boolean
+          valor_diaria: number
+          valor_diaria_exclusiva: number | null
+          valor_refeicao: number
+        }
+        Insert: {
+          cpf_snap?: string | null
+          created_at?: string
+          data: string
+          extras?: Json
+          funcao_id: string
+          funcionario_id: string
+          id?: string
+          lote_id: string
+          matricula_snap?: string | null
+          nome_funcao_snap: string
+          nome_funcionario_snap: string
+          solicitacao_id: string
+          status?: Database["public"]["Enums"]["diaria_lote_item_status"]
+          updated_at?: string
+          usar_diaria_exclusiva?: boolean
+          valor_diaria: number
+          valor_diaria_exclusiva?: number | null
+          valor_refeicao?: number
+        }
+        Update: {
+          cpf_snap?: string | null
+          created_at?: string
+          data?: string
+          extras?: Json
+          funcao_id?: string
+          funcionario_id?: string
+          id?: string
+          lote_id?: string
+          matricula_snap?: string | null
+          nome_funcao_snap?: string
+          nome_funcionario_snap?: string
+          solicitacao_id?: string
+          status?: Database["public"]["Enums"]["diaria_lote_item_status"]
+          updated_at?: string
+          usar_diaria_exclusiva?: boolean
+          valor_diaria?: number
+          valor_diaria_exclusiva?: number | null
+          valor_refeicao?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_diaria_lote_funcionarios_lote_id_fkey"
+            columns: ["lote_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_lotes_convocacao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_lote_funcionarios_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_diaria_lotes_convocacao: {
+        Row: {
+          aprovado_em: string | null
+          aprovado_por: string | null
+          assinatura_aprovacao_png: string | null
+          assinatura_hash: string | null
+          cancelado_em: string | null
+          criado_em: string
+          criado_por: string
+          enviado_aprovacao_em: string | null
+          id: string
+          metadata: Json
+          motivo_cancelamento: string | null
+          motivo_rejeicao: string | null
+          nome: string | null
+          origem: Database["public"]["Enums"]["diaria_lote_origem"]
+          rejeitado_em: string | null
+          rejeitado_por: string | null
+          solicitacao_id: string
+          status: Database["public"]["Enums"]["diaria_lote_status"]
+        }
+        Insert: {
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          assinatura_aprovacao_png?: string | null
+          assinatura_hash?: string | null
+          cancelado_em?: string | null
+          criado_em?: string
+          criado_por: string
+          enviado_aprovacao_em?: string | null
+          id?: string
+          metadata?: Json
+          motivo_cancelamento?: string | null
+          motivo_rejeicao?: string | null
+          nome?: string | null
+          origem: Database["public"]["Enums"]["diaria_lote_origem"]
+          rejeitado_em?: string | null
+          rejeitado_por?: string | null
+          solicitacao_id: string
+          status?: Database["public"]["Enums"]["diaria_lote_status"]
+        }
+        Update: {
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          assinatura_aprovacao_png?: string | null
+          assinatura_hash?: string | null
+          cancelado_em?: string | null
+          criado_em?: string
+          criado_por?: string
+          enviado_aprovacao_em?: string | null
+          id?: string
+          metadata?: Json
+          motivo_cancelamento?: string | null
+          motivo_rejeicao?: string | null
+          nome?: string | null
+          origem?: Database["public"]["Enums"]["diaria_lote_origem"]
+          rejeitado_em?: string | null
+          rejeitado_por?: string | null
+          solicitacao_id?: string
+          status?: Database["public"]["Enums"]["diaria_lote_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_diaria_lotes_convocacao_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_diaria_presencas: {
         Row: {
           confirmado_em: string | null
@@ -3180,6 +3329,7 @@ export type Database = {
           id: string
           justificativa: string
           justificativa_extraordinaria: string | null
+          lotes_modelo_relacional_ativo: boolean
           modificado_por: string | null
           motor_aprovacao: string
           numero_solicitacao: string
@@ -3214,6 +3364,7 @@ export type Database = {
           id?: string
           justificativa: string
           justificativa_extraordinaria?: string | null
+          lotes_modelo_relacional_ativo?: boolean
           modificado_por?: string | null
           motor_aprovacao?: string
           numero_solicitacao: string
@@ -3248,6 +3399,7 @@ export type Database = {
           id?: string
           justificativa?: string
           justificativa_extraordinaria?: string | null
+          lotes_modelo_relacional_ativo?: boolean
           modificado_por?: string | null
           motor_aprovacao?: string
           numero_solicitacao?: string
@@ -13302,6 +13454,57 @@ export type Database = {
           },
         ]
       }
+      vw_diaria_aprovacoes_efetivas: {
+        Row: {
+          data: string | null
+          funcao_id: string | null
+          funcionario_id: string | null
+          lote_id: string | null
+          solicitacao_id: string | null
+          usar_diaria_exclusiva: boolean | null
+          valor_diaria: number | null
+          valor_diaria_exclusiva: number | null
+          valor_refeicao: number | null
+        }
+        Insert: {
+          data?: string | null
+          funcao_id?: string | null
+          funcionario_id?: string | null
+          lote_id?: string | null
+          solicitacao_id?: string | null
+          usar_diaria_exclusiva?: boolean | null
+          valor_diaria?: number | null
+          valor_diaria_exclusiva?: number | null
+          valor_refeicao?: number | null
+        }
+        Update: {
+          data?: string | null
+          funcao_id?: string | null
+          funcionario_id?: string | null
+          lote_id?: string | null
+          solicitacao_id?: string | null
+          usar_diaria_exclusiva?: boolean | null
+          valor_diaria?: number | null
+          valor_diaria_exclusiva?: number | null
+          valor_refeicao?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_diaria_lote_funcionarios_lote_id_fkey"
+            columns: ["lote_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_lotes_convocacao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_lote_funcionarios_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vw_diaria_relatorio_financeiro: {
         Row: {
           classificacao_financeira: string | null
@@ -16807,6 +17010,20 @@ export type Database = {
         Args: { p_tipo: string }
         Returns: string
       }
+      adicionar_item_lote: {
+        Args: {
+          p_data: string
+          p_extras?: Json
+          p_funcao_id?: string
+          p_funcionario_id: string
+          p_lote_id: string
+          p_usar_diaria_exclusiva?: boolean
+          p_valor_diaria?: number
+          p_valor_diaria_exclusiva?: number
+          p_valor_refeicao?: number
+        }
+        Returns: string
+      }
       api_listar_apontamentos: {
         Args: { _data_fim?: string; _data_inicio?: string; _equipe?: string }
         Returns: {
@@ -16868,6 +17085,23 @@ export type Database = {
           p_cpf?: string
           p_nome_usuario: string
           p_solicitacao_id: string
+        }
+        Returns: undefined
+      }
+      aprovar_lote_diaria: {
+        Args: { p_assinatura_png?: string; p_lote_id: string }
+        Returns: undefined
+      }
+      atualizar_item_lote: {
+        Args: {
+          p_data?: string
+          p_extras?: Json
+          p_funcao_id?: string
+          p_item_id: string
+          p_usar_diaria_exclusiva?: boolean
+          p_valor_diaria?: number
+          p_valor_diaria_exclusiva?: number
+          p_valor_refeicao?: number
         }
         Returns: undefined
       }
@@ -16934,6 +17168,10 @@ export type Database = {
       can_delete_agendamento_exame: {
         Args: { p_user_id?: string }
         Returns: boolean
+      }
+      cancelar_lote_diaria: {
+        Args: { p_lote_id: string; p_motivo: string }
+        Returns: undefined
       }
       check_email_duplicate_normalized: {
         Args: { p_email: string; p_exclude_id?: string }
@@ -17048,6 +17286,14 @@ export type Database = {
           p_tonelada_aplicada: number
         }
         Returns: Json
+      }
+      criar_lote_diaria: {
+        Args: { p_metadata?: Json; p_nome?: string; p_solicitacao_id: string }
+        Returns: string
+      }
+      enviar_lote_para_aprovacao: {
+        Args: { p_lote_id: string }
+        Returns: undefined
       }
       finalizar_carga_aplicacao: {
         Args: { aplicacao_id: string }
@@ -17262,6 +17508,28 @@ export type Database = {
             }
             Returns: boolean
           }
+      fn_backfill_lotes_dry_run: {
+        Args: { p_limit?: number; p_solicitacao_id?: string }
+        Returns: {
+          centro_custo_id: string
+          convocados_pre_qtd: number
+          dias_periodo: number
+          inconsistencias_bloqueantes: Json
+          itens_apontamento_dia_qtd: number
+          itens_legado_sem_data_qtd: number
+          itens_simulados: number
+          lotes_simulados: number
+          numero_solicitacao: string
+          periodo_fim: string
+          periodo_inicio: string
+          pode_migrar: boolean
+          solicitacao_id: string
+          status_simulado: string
+          valor_total_simulado_diaria: number
+          valor_total_simulado_refeicao: number
+          warnings: Json
+        }[]
+      }
       fn_bi_can_export: {
         Args: {
           _formato: string
@@ -17279,6 +17547,7 @@ export type Database = {
         Args: { lat1: number; lat2: number; lon1: number; lon2: number }
         Returns: number
       }
+      fn_calcular_hash_lote: { Args: { p_lote_id: string }; Returns: string }
       fn_calcular_nota_checklist: {
         Args: { p_checklist_id: string }
         Returns: Json
@@ -17596,6 +17865,10 @@ export type Database = {
         Returns: undefined
       }
       fn_role_is_protected: { Args: { p_role_id: string }; Returns: boolean }
+      fn_solicitacao_tem_lote_pendente: {
+        Args: { p_solicitacao_id: string }
+        Returns: boolean
+      }
       fn_storage_audit_access: {
         Args: {
           _acao: string
@@ -17960,6 +18233,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      rejeitar_lote_diaria: {
+        Args: { p_lote_id: string; p_motivo: string }
+        Returns: undefined
+      }
       relatorio_correcao_status_massa: {
         Args: never
         Returns: {
@@ -17972,6 +18249,7 @@ export type Database = {
           total_entregas: number
         }[]
       }
+      remover_item_lote: { Args: { p_item_id: string }; Returns: undefined }
       reprovar_diretor_adm: {
         Args: { p_observacao?: string; p_solicitacao_id: string }
         Returns: undefined
@@ -18060,6 +18338,19 @@ export type Database = {
     }
     Enums: {
       confiabilidade_previsao_enum: "ALTA" | "MEDIA" | "BAIXA"
+      diaria_lote_item_status:
+        | "rascunho"
+        | "pendente_aprovacao"
+        | "aprovado"
+        | "rejeitado"
+        | "cancelado"
+      diaria_lote_origem: "legado" | "explicito" | "apontamento_dia"
+      diaria_lote_status:
+        | "rascunho"
+        | "pendente_aprovacao"
+        | "aprovado"
+        | "rejeitado"
+        | "cancelado"
       origem_auditoria_biometria:
         | "admin_web"
         | "pwa_mobile"
@@ -18226,6 +18517,21 @@ export const Constants = {
   public: {
     Enums: {
       confiabilidade_previsao_enum: ["ALTA", "MEDIA", "BAIXA"],
+      diaria_lote_item_status: [
+        "rascunho",
+        "pendente_aprovacao",
+        "aprovado",
+        "rejeitado",
+        "cancelado",
+      ],
+      diaria_lote_origem: ["legado", "explicito", "apontamento_dia"],
+      diaria_lote_status: [
+        "rascunho",
+        "pendente_aprovacao",
+        "aprovado",
+        "rejeitado",
+        "cancelado",
+      ],
       origem_auditoria_biometria: [
         "admin_web",
         "pwa_mobile",

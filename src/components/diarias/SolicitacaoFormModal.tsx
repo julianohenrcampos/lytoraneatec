@@ -11,6 +11,7 @@ import { usePermission } from "@/hooks/usePermission";
 import { useDiariasDataScope } from "@/hooks/diarias";
 import { RESTRICTED_CC_CODE } from "@/utils/centroCustoRestrictions";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { lerConvocadosPre, derivarFuncionariosPlanos } from "@/lib/diarias/convocadosPreAdapter";
 
 import {
   Dialog,
@@ -825,12 +826,18 @@ export function SolicitacaoFormModal({
         setEngenheiroSolicitanteId(editingSolicitacao.engenheiro_solicitante_id || '');
         setTipoSolicitacao(editingSolicitacao.tipo_solicitacao || 'normal');
         setJustificativaExtraordinaria(editingSolicitacao.justificativa_extraordinaria || '');
-        const convocadosRaw = editingSolicitacao.convocados_pre;
-        if (convocadosRaw && Array.isArray(convocadosRaw)) {
-          setConvocadosPre(convocadosRaw);
-        } else {
-          setConvocadosPre([]);
-        }
+        const convocadosNormalizados = derivarFuncionariosPlanos(
+          lerConvocadosPre(editingSolicitacao.convocados_pre, {
+            inicio: editingSolicitacao.data_inicio,
+            fim: editingSolicitacao.data_fim,
+          }),
+        ).map((c) => {
+          // Re-espalha `extras` no root para preservar campos legados
+          // consumidos pelo form (ex.: `usar_diaria_exclusiva`).
+          const { extras, ...rest } = c;
+          return { ...(extras ?? {}), ...rest };
+        });
+        setConvocadosPre(convocadosNormalizados as any);
       } else {
         // Default da Normal: começa na primeira data válida não retroativa
         // (hoje para usuário comum quando estamos no meio da semana; segunda da semana

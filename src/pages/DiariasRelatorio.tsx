@@ -994,6 +994,14 @@ export default function DiariasRelatorio() {
         defaultTipoVinculo={filters.tipo_vinculo || undefined}
         defaultGerenteId={gerenteRegionalFilter.length === 1 ? gerenteRegionalFilter[0] : undefined}
         defaultSolicitacaoIds={solicitacaoFilter.length > 0 ? solicitacaoFilter : undefined}
+        defaultDateRange={
+          filters.data_inicio && filters.data_fim
+            ? {
+                from: new Date(filters.data_inicio + 'T12:00:00'),
+                to: new Date(filters.data_fim + 'T12:00:00'),
+              }
+            : undefined
+        }
       />
     </MainLayout>);
 

@@ -55,7 +55,11 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { cn } from "@/lib/utils";
-import type { DiariaApontamento, FuncionarioPreConvocado } from "@/types/diarias";
+import type { DiariaApontamento } from "@/types/diarias";
+import { lerConvocadosPre, derivarFuncionariosPlanos } from "@/lib/diarias/convocadosPreAdapter";
+import type { ConvocadoLote } from "@/types/diarias/lotes";
+
+type ConvocadoPreCompat = ConvocadoLote & Record<string, unknown>;
 import {
   getPresencasPorSolicitacao,
   salvarInicio,
@@ -786,14 +790,19 @@ export default function ApontamentoDiariasModal({
     return { label: 'Normal', variant: 'secondary', descricao: 'Dia normal', manual: false } as const;
   }, [resolveTipoDiaManual]);
 
-  // Parsear convocados_pre
-  const convocadosPre = useMemo((): FuncionarioPreConvocado[] => {
-    if (!solicitacao?.convocados_pre) return [];
-    if (Array.isArray(solicitacao.convocados_pre)) {
-      return solicitacao.convocados_pre as FuncionarioPreConvocado[];
-    }
-    return [];
-  }, [solicitacao?.convocados_pre]);
+  // Parsear convocados_pre via adapter (lote legado), reespalhando extras no root
+  // para preservar campos legados como `usar_diaria_exclusiva` consumidos pela UI.
+  const convocadosPre = useMemo<ConvocadoPreCompat[]>(() => {
+    if (!solicitacao) return [];
+    const view = lerConvocadosPre(solicitacao.convocados_pre, {
+      inicio: solicitacao.data_inicio,
+      fim: solicitacao.data_fim,
+    });
+    return derivarFuncionariosPlanos(view).map((c): ConvocadoPreCompat => ({
+      ...(c.extras ?? {}),
+      ...c,
+    }));
+  }, [solicitacao?.convocados_pre, solicitacao?.data_inicio, solicitacao?.data_fim]);
   const idsJaConvocados = useMemo(() => new Set(convocadosPre.map(c => c.funcionario_id)), [convocadosPre]);
 
   const [isPrinting, setIsPrinting] = useState(false);
@@ -1302,7 +1311,7 @@ export default function ApontamentoDiariasModal({
       }
 
       // Buscar snapshots do convocados_pre para fallback final
-      const convocadosPreMap = new Map<string, FuncionarioPreConvocado>();
+      const convocadosPreMap = new Map<string, (typeof convocadosPre)[number]>();
       convocadosPre.forEach(c => convocadosPreMap.set(c.funcionario_id, c));
 
       const itens: ListaPresencaItem[] = colaboradores.map(colab => {

@@ -21,9 +21,10 @@ import { Badge } from "@/components/ui/badge";
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { DiariaSolicitacao, FuncionarioPreConvocado } from "@/types/diarias";
+import type { DiariaSolicitacao } from "@/types/diarias";
 import { formatCurrency } from "@/utils/diariasPeriodoUtils";
 import { useDiariasDataScope } from "@/hooks/diarias/useDiariasDataScope";
+import { lerConvocadosPre, derivarFuncionariosPlanos } from "@/lib/diarias/convocadosPreAdapter";
 
 const SEGREGACAO_MSG_CRIADOR =
   "Você criou esta solicitação. A aprovação deve ser feita por outro aprovador autorizado.";
@@ -86,14 +87,16 @@ export function AprovacaoModal({
     return func?.nome_completo || 'Carregando...';
   }, [solicitacao?.responsavel_campo_id, funcionarios]);
 
-  // Parse convocados_pre
-  const convocados = useMemo(() => {
-    if (!solicitacao?.convocados_pre) return [];
-    if (Array.isArray(solicitacao.convocados_pre)) {
-      return solicitacao.convocados_pre as FuncionarioPreConvocado[];
-    }
-    return [];
-  }, [solicitacao?.convocados_pre]);
+  // Contagem de convocados via adapter (Fase 1B-4A)
+  const convocadosCount = useMemo(() => {
+    if (!solicitacao) return 0;
+    return derivarFuncionariosPlanos(
+      lerConvocadosPre(solicitacao.convocados_pre, {
+        inicio: solicitacao.data_inicio,
+        fim: solicitacao.data_fim,
+      }),
+    ).length;
+  }, [solicitacao?.convocados_pre, solicitacao?.data_inicio, solicitacao?.data_fim]);
 
   // Calcular dias do período
   const diasPeriodo = useMemo(() => {
@@ -189,7 +192,7 @@ export function AprovacaoModal({
                   <span className="text-muted-foreground">Funcionários:</span>
                 </div>
                 <div>
-                  {convocados.length} selecionado{convocados.length !== 1 ? 's' : ''}
+                  {convocadosCount} selecionado{convocadosCount !== 1 ? 's' : ''}
                 </div>
               </div>
               

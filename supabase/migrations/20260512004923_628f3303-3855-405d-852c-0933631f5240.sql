@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.fn_backfill_lotes_dry_run(uuid, int) FROM anon, authenticated;

@@ -38,7 +38,9 @@ import { useApontamentosCampo, useToggleEdicaoLiberada } from "@/hooks/diarias/u
 import { useDiariasDataScope } from "@/hooks/diarias";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { StatusApontamento, FuncionarioPreConvocado, DiariaApontamento } from "@/types/diarias";
+import type { StatusApontamento, DiariaApontamento } from "@/types/diarias";
+import { lerConvocadosPre, derivarFuncionariosPlanos } from "@/lib/diarias/convocadosPreAdapter";
+import type { ConvocadoLote } from "@/types/diarias/lotes";
 import ApontamentoDiariasModal from "@/components/diarias/ApontamentoDiariasModal";
 import { toast } from "sonner";
 import { usePagination } from "@/hooks/usePagination";
@@ -376,7 +378,7 @@ export default function DiariasApontamentoCampo() {
       }
 
       // Collect all solicitacao IDs and date ranges
-      const solicitacaoData: { id: string; numero: string; dataInicio: string; dataFim: string; convocados: FuncionarioPreConvocado[] }[] = [];
+      const solicitacaoData: { id: string; numero: string; dataInicio: string; dataFim: string; convocados: ConvocadoLote[] }[] = [];
       for (const apt of apontamentosCC) {
         const sol = (apt as any).bd_diaria_solicitacoes;
         if (!sol?.data_inicio || !sol?.data_fim) continue;
@@ -385,7 +387,7 @@ export default function DiariasApontamentoCampo() {
           numero: sol.numero_solicitacao || '',
           dataInicio: sol.data_inicio,
           dataFim: sol.data_fim,
-          convocados: parseConvocados(sol.convocados_pre),
+          convocados: parseConvocados(sol.convocados_pre, { inicio: sol.data_inicio, fim: sol.data_fim }),
         });
       }
 
@@ -574,14 +576,16 @@ export default function DiariasApontamentoCampo() {
     );
   }
 
-  // Parse convocados helper - handles null, array, and stringified JSON
-  const parseConvocados = (convocadosPre: any): FuncionarioPreConvocado[] => {
-    if (!convocadosPre) return [];
-    if (typeof convocadosPre === 'string') {
-      try { return JSON.parse(convocadosPre); } catch { return []; }
+  // Parse convocados via adapter — preserva tolerância a string JSON legada
+  const parseConvocados = (
+    convocadosPre: unknown,
+    periodo: { inicio: string; fim: string },
+  ): ConvocadoLote[] => {
+    let raw: unknown = convocadosPre;
+    if (typeof raw === 'string') {
+      try { raw = JSON.parse(raw); } catch { raw = []; }
     }
-    if (Array.isArray(convocadosPre)) return convocadosPre;
-    return [];
+    return derivarFuncionariosPlanos(lerConvocadosPre(raw, periodo));
   };
 
   // Data de hoje para comparação
@@ -713,7 +717,9 @@ export default function DiariasApontamentoCampo() {
           <div className="grid gap-4">
             {pagination.paginatedData.map((apontamento: any) => {
               const solicitacao = apontamento.bd_diaria_solicitacoes;
-              const convocados = parseConvocados(solicitacao?.convocados_pre);
+              const convocados = solicitacao
+                ? parseConvocados(solicitacao.convocados_pre, { inicio: solicitacao.data_inicio, fim: solicitacao.data_fim })
+                : [];
               const centroCusto = solicitacao?.bd_centros_custo;
 
               // Gerar todas as datas do período (IIFE para evitar hook dentro do map)

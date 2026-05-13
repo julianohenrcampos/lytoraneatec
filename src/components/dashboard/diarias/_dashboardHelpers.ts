@@ -3,6 +3,7 @@
 // =====================================================
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { lerConvocadosPre, derivarFuncionariosPlanos } from "@/lib/diarias/convocadosPreAdapter";
 
 import {
   getCurrentDiariasReportContext,
@@ -591,7 +592,9 @@ export function calcularEstimadoCorrigidoSolicitacao(
 ): { total: number; usouHistorico: boolean } {
   const original = Number(s.valor_estimado_total || 0);
   const qtdFds = Number(s.qtde_fds_estimado || 0) + Number(s.qtde_feriados_estimado || 0);
-  const convocados = Array.isArray(s.convocados_pre) ? s.convocados_pre : [];
+  const convocados = derivarFuncionariosPlanos(
+    lerConvocadosPre(s.convocados_pre, { inicio: s.data_inicio, fim: s.data_fim }),
+  ).map(({ extras, ...rest }) => ({ ...(extras ?? {}), ...rest }));
 
   if (!mediaFdsCc || mediaFdsCc.base <= 0 || qtdFds <= 0 || convocados.length === 0) {
     return { total: original, usouHistorico: false };

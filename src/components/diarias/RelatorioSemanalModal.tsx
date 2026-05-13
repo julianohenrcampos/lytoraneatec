@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { format, startOfWeek, endOfWeek, subWeeks, differenceInDays } from 'date-fns';
+import { format, startOfWeek, endOfWeek, subWeeks, differenceInDays, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { Loader2, Calendar, Download, FileArchive, Files, Info, Search, Users, CheckSquare, Square } from 'lucide-react';
@@ -33,6 +33,8 @@ interface RelatorioSemanalModalProps {
   defaultTipoVinculo?: string;
   defaultGerenteId?: string;
   defaultSolicitacaoIds?: string[];
+  /** Período exato vindo da tela Relatório/Folha. Quando presente, o modal NÃO sobrescreve com data_inicio/data_fim da solicitação. */
+  defaultDateRange?: { from?: Date; to?: Date };
 }
 
 interface FuncionarioOption {
@@ -83,13 +85,24 @@ export function RelatorioSemanalModal({
   defaultTipoVinculo,
   defaultGerenteId,
   defaultSolicitacaoIds,
+  defaultDateRange,
 }: RelatorioSemanalModalProps) {
   const [gerenteSelecionado, setGerenteSelecionado] = useState<string>('todos');
   const [modoDownload, setModoDownload] = useState<'zip' | 'individual'>('zip');
   const [isLoading, setIsLoading] = useState(false);
 
-  const defaultRange = useMemo(() => calcularUltimaSemana(), [open]);
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(defaultRange);
+  const hasScreenDateRange = !!(defaultDateRange?.from && defaultDateRange?.to);
+
+  const initialRange = useMemo<DateRange>(() => {
+    if (hasScreenDateRange) {
+      return { from: defaultDateRange!.from, to: defaultDateRange!.to };
+    }
+    return calcularUltimaSemana();
+  }, [hasScreenDateRange, defaultDateRange?.from?.getTime(), defaultDateRange?.to?.getTime(), open]);
+
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(initialRange);
+  // true quando o usuário clicou explicitamente em "Expandir para semana operacional"
+  const [expandidoSemana, setExpandidoSemana] = useState(false);
 
   // Employee filter state
   const [funcionarios, setFuncionarios] = useState<FuncionarioOption[]>([]);
@@ -102,7 +115,7 @@ export function RelatorioSemanalModal({
 
   const hasSolicitacaoFilter = defaultSolicitacaoIds && defaultSolicitacaoIds.length > 0;
 
-  // Quando o modal abre com filtro de solicitações, buscar datas e funcionários automaticamente
+  // Quando o modal abre, define dateRange e (se houver solicitação) carrega funcionários do período correto.
   useEffect(() => {
     if (!open) {
       setShowFuncionarioFilter(false);
@@ -111,28 +124,46 @@ export function RelatorioSemanalModal({
       setSearchFuncionario('');
       setConferenciaPreview(null);
       setConferenciaSource([]);
+      setExpandidoSemana(false);
       return;
     }
 
-    if (hasSolicitacaoFilter) {
+    // Regra principal: se a tela passou um período (defaultDateRange), respeitamos exatamente.
+    // Caso contrário, fallback para min/max(data_inicio,data_fim) das solicitações; se nada, última semana.
+    if (hasScreenDateRange) {
+      setDateRange({ from: defaultDateRange!.from, to: defaultDateRange!.to });
+      if (hasSolicitacaoFilter) {
+        fetchFuncionariosFromSolicitacoes(
+          defaultSolicitacaoIds!,
+          format(defaultDateRange!.from!, 'yyyy-MM-dd'),
+          format(defaultDateRange!.to!, 'yyyy-MM-dd'),
+        );
+      }
+    } else if (hasSolicitacaoFilter) {
       (async () => {
         const { data } = await supabase
           .from('bd_diaria_solicitacoes')
           .select('data_inicio, data_fim')
           .in('id', defaultSolicitacaoIds!);
+        let minDate: Date;
+        let maxDate: Date;
         if (data && data.length > 0) {
           const starts = data.map(d => new Date(d.data_inicio + 'T12:00:00'));
           const ends = data.map(d => new Date(d.data_fim + 'T12:00:00'));
-          const minDate = new Date(Math.min(...starts.map(d => d.getTime())));
-          const maxDate = new Date(Math.max(...ends.map(d => d.getTime())));
-          setDateRange({ from: minDate, to: maxDate });
+          minDate = new Date(Math.min(...starts.map(d => d.getTime())));
+          maxDate = new Date(Math.max(...ends.map(d => d.getTime())));
         } else {
-          setDateRange(calcularUltimaSemana());
+          const fb = calcularUltimaSemana();
+          minDate = fb.from;
+          maxDate = fb.to;
         }
+        setDateRange({ from: minDate, to: maxDate });
+        fetchFuncionariosFromSolicitacoes(
+          defaultSolicitacaoIds!,
+          format(minDate, 'yyyy-MM-dd'),
+          format(maxDate, 'yyyy-MM-dd'),
+        );
       })();
-
-      // Fetch distinct employees from selected solicitations
-      fetchFuncionariosFromSolicitacoes(defaultSolicitacaoIds!);
     } else {
       setDateRange(calcularUltimaSemana());
     }
@@ -142,9 +173,50 @@ export function RelatorioSemanalModal({
     } else {
       setGerenteSelecionado('todos');
     }
-  }, [open, defaultGerenteId, gerentesRegionais, hasSolicitacaoFilter]);
+  }, [open, defaultGerenteId, gerentesRegionais, hasSolicitacaoFilter, hasScreenDateRange, defaultDateRange?.from?.getTime(), defaultDateRange?.to?.getTime()]);
 
-  const fetchFuncionariosFromSolicitacoes = async (solicitacaoIds: string[]) => {
+  // Detecta se o range atual difere do range original da tela => limpa flag de "expandido" se voltou a bater.
+  useEffect(() => {
+    if (!hasScreenDateRange || !dateRange?.from || !dateRange?.to) return;
+    const igualTela =
+      isSameDay(dateRange.from, defaultDateRange!.from!) &&
+      isSameDay(dateRange.to, defaultDateRange!.to!);
+    if (igualTela && expandidoSemana) setExpandidoSemana(false);
+  }, [dateRange?.from, dateRange?.to, hasScreenDateRange, defaultDateRange?.from, defaultDateRange?.to, expandidoSemana]);
+
+  const handleExpandirSemana = () => {
+    if (!dateRange?.from) return;
+    const seg = startOfWeek(dateRange.from, { weekStartsOn: 1 });
+    const dom = endOfWeek(dateRange.from, { weekStartsOn: 1 });
+    setDateRange({ from: seg, to: dom });
+    setExpandidoSemana(true);
+    if (hasSolicitacaoFilter) {
+      fetchFuncionariosFromSolicitacoes(
+        defaultSolicitacaoIds!,
+        format(seg, 'yyyy-MM-dd'),
+        format(dom, 'yyyy-MM-dd'),
+      );
+    }
+  };
+
+  const handleRestaurarPeriodoTela = () => {
+    if (!hasScreenDateRange) return;
+    setDateRange({ from: defaultDateRange!.from, to: defaultDateRange!.to });
+    setExpandidoSemana(false);
+    if (hasSolicitacaoFilter) {
+      fetchFuncionariosFromSolicitacoes(
+        defaultSolicitacaoIds!,
+        format(defaultDateRange!.from!, 'yyyy-MM-dd'),
+        format(defaultDateRange!.to!, 'yyyy-MM-dd'),
+      );
+    }
+  };
+
+  const fetchFuncionariosFromSolicitacoes = async (
+    solicitacaoIds: string[],
+    dataInicio?: string,
+    dataFim?: string,
+  ) => {
     setIsLoadingFuncionarios(true);
     try {
       // Fetch records from the view para montar a conferência real e a lista de funcionários
@@ -154,11 +226,13 @@ export function RelatorioSemanalModal({
       let hasMore = true;
 
       while (hasMore) {
-        const { data, error } = await supabase
+        let q = supabase
           .from('vw_relatorio_diarias_folha')
-          .select('funcionario_id, nome_funcionario, empresa_id, empresa_funcionario, solicitacao_id, numero_solicitacao, matricula_funcionario, presenca_status, hora_entrada, hora_saida')
-          .in('solicitacao_id', solicitacaoIds)
-          .range(from, from + pageSize - 1);
+          .select('funcionario_id, nome_funcionario, empresa_id, empresa_funcionario, solicitacao_id, numero_solicitacao, matricula_funcionario, presenca_status, hora_entrada, hora_saida, data')
+          .in('solicitacao_id', solicitacaoIds);
+        if (dataInicio) q = q.gte('data', dataInicio);
+        if (dataFim) q = q.lte('data', dataFim);
+        const { data, error } = await q.range(from, from + pageSize - 1);
         if (error) throw error;
         allRecords = allRecords.concat(data || []);
         hasMore = (data?.length || 0) === pageSize;
@@ -277,14 +351,16 @@ export function RelatorioSemanalModal({
         }
       }
 
+      // SEMPRE aplica o filtro de data, mesmo quando há solicitacao_id.
+      // Garante que o período do PDF == período exibido no modal.
       let baseQuery = supabase
         .from('vw_relatorio_diarias_folha')
-        .select('*');
+        .select('*')
+        .gte('data', dataInicio)
+        .lte('data', dataFim);
 
       if (hasSolicitacaoFilter) {
         baseQuery = baseQuery.in('solicitacao_id', defaultSolicitacaoIds!);
-      } else {
-        baseQuery = baseQuery.gte('data', dataInicio).lte('data', dataFim);
       }
 
       if (ccIds.length > 0) {
@@ -433,17 +509,59 @@ export function RelatorioSemanalModal({
           {/* Período */}
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">
-              {hasSolicitacaoFilter
-                ? `Período baseado em ${defaultSolicitacaoIds!.length} solicitação(ões)`
-                : 'Período (padrão: última semana completa)'}
+              {hasScreenDateRange
+                ? 'Período (vindo do filtro da tela Relatório/Folha)'
+                : hasSolicitacaoFilter
+                  ? `Período baseado em ${defaultSolicitacaoIds!.length} solicitação(ões)`
+                  : 'Período (padrão: última semana completa)'}
             </Label>
-            {hasSolicitacaoFilter && (
+
+            {hasScreenDateRange && !expandidoSemana && (
+              <div className="flex items-center gap-1.5 text-xs text-primary bg-primary/10 rounded px-2 py-1">
+                <Info className="h-3.5 w-3.5" />
+                Respeitando o período exato do filtro da tela: {periodoLabel}
+              </div>
+            )}
+
+            {expandidoSemana && (
+              <div className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-500/10 rounded px-2 py-1">
+                <Info className="h-3.5 w-3.5" />
+                Relatório semanal expandido: {periodoLabel} (Seg→Dom)
+              </div>
+            )}
+
+            {!hasScreenDateRange && hasSolicitacaoFilter && (
               <div className="flex items-center gap-1.5 text-xs text-primary bg-primary/10 rounded px-2 py-1">
                 <Info className="h-3.5 w-3.5" />
                 Datas calculadas automaticamente a partir das solicitações filtradas
               </div>
             )}
+
             <DatePickerWithRange value={dateRange} onChange={setDateRange} />
+
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={handleExpandirSemana}
+                disabled={!dateRange?.from}
+              >
+                Expandir para semana operacional (Seg→Dom)
+              </Button>
+              {hasScreenDateRange && expandidoSemana && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={handleRestaurarPeriodoTela}
+                >
+                  Restaurar período da tela
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Gerente */}

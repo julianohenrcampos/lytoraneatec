@@ -20,6 +20,13 @@ import {
   DollarSign,
   Search
 } from "lucide-react";
+import { lerConvocadosPre, derivarFuncionariosPlanos } from "@/lib/diarias/convocadosPreAdapter";
+
+function contarConvocados(sol: { convocados_pre?: unknown; data_inicio: string; data_fim: string }): number {
+  return derivarFuncionariosPlanos(
+    lerConvocadosPre(sol.convocados_pre, { inicio: sol.data_inicio, fim: sol.data_fim })
+  ).length;
+}
 
 import MainLayout from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -527,7 +534,7 @@ export default function DiariasSolicitacoes() {
                         <div className="flex items-center justify-between text-sm">
                           <div className="flex items-center gap-1 text-muted-foreground">
                             <Users className="h-3.5 w-3.5" />
-                            <span>{sol.convocados_pre?.length || 0} convocados</span>
+                            <span>{contarConvocados(sol)} convocados</span>
                           </div>
                           <div className="flex items-center gap-1 font-medium">
                             <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
@@ -658,7 +665,7 @@ export default function DiariasSolicitacoes() {
                           {(sol as any).engenheiro_solicitante?.nome_completo || '-'}
                         </TableCell>
                         <TableCell className="text-center">
-                          {sol.convocados_pre?.length || 0}
+                          {contarConvocados(sol)}
                         </TableCell>
                         <TableCell className="text-right font-medium">
                           {formatCurrencyValue(sol.valor_estimado_total || 0)}

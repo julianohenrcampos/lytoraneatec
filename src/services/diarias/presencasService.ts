@@ -3,6 +3,7 @@
 // =====================================================
 
 import { supabase } from '@/integrations/supabase/client';
+import { lerConvocadosPre, derivarFuncionariosPlanos } from '@/lib/diarias/convocadosPreAdapter';
 
 export type TipoDiaria = 'completa' | 'meia' | 'uma_e_meia' | 'nenhuma';
 export type TurnoDiaria = 'diurno' | 'noturno';
@@ -639,18 +640,31 @@ export async function editarHoraSaida(
     throw new Error('Presença não encontrada');
   }
 
-  // Buscar valor original do convocado_pre na solicitação
+  // Buscar valor original do convocado_pre na solicitação (via adapter, com fallback legado)
   const { data: solicitacao } = await supabase
     .from('bd_diaria_solicitacoes')
-    .select('convocados_pre')
+    .select('convocados_pre, data_inicio, data_fim')
     .eq('id', presenca.solicitacao_id)
     .single();
 
   let valorOriginal = presenca.valor_diaria_aplicada;
-  if (solicitacao?.convocados_pre && Array.isArray(solicitacao.convocados_pre)) {
-    const conv = (solicitacao.convocados_pre as any[]).find(
-      (c: any) => c.funcionario_id === presenca.funcionario_id
+  if (solicitacao) {
+    const view = lerConvocadosPre(solicitacao.convocados_pre, {
+      inicio: solicitacao.data_inicio,
+      fim: solicitacao.data_fim,
+    });
+    let conv: { valor_diaria?: number } | undefined = derivarFuncionariosPlanos(view).find(
+      (c) => c.funcionario_id === presenca.funcionario_id,
     );
+
+    // Fallback de paridade: convocados legados sem funcao_id são descartados
+    // pelo adapter; preservar comportamento anterior buscando direto no array bruto.
+    if (!conv && Array.isArray(solicitacao.convocados_pre)) {
+      conv = (solicitacao.convocados_pre as any[]).find(
+        (c: any) => c?.funcionario_id === presenca.funcionario_id,
+      );
+    }
+
     if (conv) {
       valorOriginal = conv.valor_diaria || presenca.valor_diaria_aplicada;
     }
