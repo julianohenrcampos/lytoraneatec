@@ -201,7 +201,12 @@ export async function cancelarApontamento(id: string, observacoes?: string) {
 }
 
 // Toggle edição liberada (SuperAdmin)
-export async function toggleEdicaoLiberada(id: string, liberada: boolean) {
+// Auditoria: registra em bd_diaria_logs (tipo_evento='edicao_liberada_toggled').
+export async function toggleEdicaoLiberada(
+  id: string,
+  liberada: boolean,
+  justificativa?: string
+) {
   const { data, error } = await supabase
     .from('bd_diaria_apontamentos')
     .update({
@@ -209,10 +214,32 @@ export async function toggleEdicaoLiberada(id: string, liberada: boolean) {
       updated_at: new Date().toISOString()
     })
     .eq('id', id)
-    .select()
+    .select('id, solicitacao_id')
     .single();
-  
+
   if (error) throw error;
+
+  // Log de auditoria (não bloqueia o fluxo se falhar)
+  try {
+    const { data: u } = await supabase.auth.getUser();
+    const usuarioId = u?.user?.id;
+    if (usuarioId && data?.solicitacao_id) {
+      await supabase.from('bd_diaria_logs' as any).insert({
+        solicitacao_id: data.solicitacao_id,
+        tipo_evento: 'edicao_liberada_toggled',
+        usuario_id: usuarioId,
+        justificativa: justificativa ?? null,
+        dados_extras: {
+          apontamento_id: id,
+          liberada,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    }
+  } catch (e) {
+    console.warn('[apontamentosService] falha ao gravar log edicao_liberada_toggled:', e);
+  }
+
   return data;
 }
 

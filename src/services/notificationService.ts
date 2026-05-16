@@ -35,7 +35,8 @@ export const notificationService = {
           mensagem,
           link,
           metadata,
-          created_at
+          created_at,
+          created_by
         )
       `)
       .eq('usuario_id', user.id)

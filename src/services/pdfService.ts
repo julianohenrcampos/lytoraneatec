@@ -282,7 +282,10 @@ export const generateSolicitacaoPDF = async (
     sabados: number;
     domingos: number;
     feriados: number;
-  }
+  },
+  estimativa?: import('@/utils/diariasEstimativaPorConvocadosPre').ResumoEstimativa,
+  aditivos?: import('@/services/diarias/aditivoService').Aditivo[],
+  nomesUsuariosAditivos?: Record<string, string>,
 ): Promise<void> => {
   try {
     // Carregar logo e assinaturas em paralelo
@@ -298,7 +301,10 @@ export const generateSolicitacaoPDF = async (
       dadosComplementares,
       logoUrl: logoUrl || undefined,
       analise,
+      estimativa,
       assinaturas: assinaturas.length > 0 ? assinaturas : undefined,
+      aditivos,
+      nomesUsuariosAditivos,
     });
     
     // Gerar o blob do PDF

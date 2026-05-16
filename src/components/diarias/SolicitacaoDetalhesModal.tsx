@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 import { toast } from "sonner";
 import { analisarPeriodo } from "@/utils/diariasPeriodoUtils";
+import { calcularEstimativaPorConvocadosPre } from "@/utils/diariasEstimativaPorConvocadosPre";
+import { itemConvocadoNaData } from "@/utils/diariasDiasSolicitadosFallback";
 import { useFeriadosPeriodo } from "@/hooks/diarias/useFeriados";
 import {
   Calendar,
@@ -14,6 +16,7 @@ import {
   CalendarCheck,
   CalendarX,
   CalendarDays,
+  CalendarPlus,
   FileText,
   Check,
   X,
@@ -25,6 +28,12 @@ import {
 import { lerConvocadosPre, derivarFuncionariosPlanos } from "@/lib/diarias/convocadosPreAdapter";
 import { DIARIAS_LOTES_UI_PREVIEW } from "@/config/diariasFlags";
 import { LotesPreviewPanel } from "@/components/diarias/preview/LotesPreviewPanel";
+import { AditivoSolicitarModal } from "@/components/diarias/AditivoSolicitarModal";
+import { AditivoConfirmacaoModal } from "@/components/diarias/AditivoConfirmacaoModal";
+import { useAditivos } from "@/hooks/diarias/useAditivos";
+import { usePermission } from "@/hooks/usePermission";
+import { useUserProfile } from "@/hooks/useUserProfile";
+
 
 import {
   Dialog,
@@ -51,6 +60,27 @@ import { EstimativaAviso } from "./EstimativaAviso";
 import { generateSolicitacaoPDF } from "@/services/pdfService";
 
 import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+
+function formatDateTimeBR(iso?: string | null): string {
+  if (!iso) return '—';
+  try {
+    return format(new Date(iso), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+  } catch {
+    return '—';
+  }
+}
+
+const TIPO_ADITIVO_LABEL: Record<string, string> = {
+  adicionar_dia: 'Adição de dia',
+  remover_dia: 'Remoção de dia',
+  adicionar_funcionario: 'Inclusão de funcionário',
+  remover_funcionario: 'Remoção de funcionário',
+  // Aliases legados
+  funcionario_inclusao: 'Inclusão de funcionário',
+  funcionario_remocao: 'Remoção de funcionário',
+};
 import type { DiariaSolicitacao, FuncionarioPreConvocado } from "@/types/diarias";
 import { removerFuncionarioConvocado } from "@/services/diarias/solicitacoesService";
 import { useSincronizarDiarias } from "@/hooks/diarias/useSincronizarDiarias";
@@ -81,8 +111,45 @@ export function SolicitacaoDetalhesModal({
 }: SolicitacaoDetalhesModalProps) {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [removingFuncId, setRemovingFuncId] = useState<string | null>(null);
+  const [aditivoOpen, setAditivoOpen] = useState(false);
+  const [aditivoAnaliseId, setAditivoAnaliseId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const sincronizarDiarias = useSincronizarDiarias();
+  const { hasActionPermission, isSuperAdmin } = usePermission();
+  const { user: profile } = useUserProfile();
+  const podeAprovarAditivo = isSuperAdmin || !!profile?.acesso_global;
+  const { data: aditivos = [] } = useAditivos(solicitacao?.id);
+
+  // Resolve nomes de solicitante/decisor dos aditivos (Fase I.4)
+  const userIdsAditivos = useMemo(() => {
+    const set = new Set<string>();
+    for (const a of aditivos) {
+      if (a.solicitado_por) set.add(a.solicitado_por);
+      if (a.decidido_por) set.add(a.decidido_por);
+    }
+    return Array.from(set);
+  }, [aditivos]);
+  const { data: nomesAditivosMap } = useQuery({
+    queryKey: ['aditivos-usuarios-nomes', userIdsAditivos.sort().join(',')],
+    enabled: userIdsAditivos.length > 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, nome_completo, email')
+        .in('id', userIdsAditivos);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      for (const p of (data ?? []) as any[]) {
+        map[p.id] = p.nome_completo || p.email || '—';
+      }
+      return map;
+    },
+  });
+  const podeSolicitarAditivo =
+    !!solicitacao &&
+    solicitacao.status === 'autorizada' &&
+    hasActionPermission('diarias_aditivo_solicitar', 'criar');
   
   // Re-analisar período para obter separação sábado/domingo
   const { data: feriados = [] } = useFeriadosPeriodo(
@@ -242,36 +309,22 @@ export function SolicitacaoDetalhesModal({
   const diasNormais = diasUteisReal; // apenas dias úteis pagam diária normal
   const diasExclusivos = sabadosReal + domingosReal + feriadosReal; // sábados, domingos e feriados pagam diária exclusiva
   const consideraFdsEFeriado = solicitacao.considera_fds_feriado;
-  // Se período é exclusivamente FDS/feriados, calcular sempre (mesmo se flag salvo como false)
-  const periodoExclusivoFDS = diasNormais === 0;
-  const deveCalcularExclusivos = consideraFdsEFeriado || periodoExclusivoFDS;
-  const mostrarColunaDiariaEspecial = deveCalcularExclusivos && diasExclusivos > 0;
 
-  let totalDiariasNormais = 0;
-  let totalDiariasExclusivas = 0;
-  let totalRefeicoes = 0;
-
-  convocadosPre.forEach(conv => {
-    const valorDiaria = conv.valor_diaria || 0;
-    const valorExclusiva = conv.valor_diaria_exclusiva || valorDiaria * 1.2;
-    const valorRefeicao = conv.valor_refeicao || 0;
-    const forcarExclusiva = conv.usar_diaria_exclusiva === true;
-    
-    if (forcarExclusiva) {
-      const totalDias = deveCalcularExclusivos ? diasNormais + diasExclusivos : diasNormais;
-      totalDiariasExclusivas += totalDias * valorExclusiva;
-      totalRefeicoes += totalDias * valorRefeicao;
-    } else {
-      totalDiariasNormais += diasNormais * valorDiaria;
-      if (deveCalcularExclusivos) {
-        totalDiariasExclusivas += diasExclusivos * valorExclusiva;
-      }
-      const diasParaRefeicao = deveCalcularExclusivos ? diasNormais + diasExclusivos : diasNormais;
-      totalRefeicoes += diasParaRefeicao * valorRefeicao;
-    }
+  // Fase G — fonte única de verdade: cálculo por par funcionário × data baseado em dias_solicitados.
+  const estimativa = calcularEstimativaPorConvocadosPre({
+    solicitacao,
+    convocadosPre,
+    datasClassificadas: analise?.datasClassificadas ?? [],
   });
 
-  const totalGeral = totalDiariasNormais + totalDiariasExclusivas + totalRefeicoes;
+  const totalDiariasNormais = estimativa.total_diarias_uteis;
+  const totalDiariasExclusivas = estimativa.total_diarias_fds_feriados;
+  const totalRefeicoes = estimativa.total_refeicoes;
+  const totalGeral = estimativa.total_geral;
+  const ocorrenciasUteis = estimativa.ocorrencias_uteis;
+  const ocorrenciasExclusivos = estimativa.ocorrencias_exclusivos;
+  const ocorrenciasRefeicao = estimativa.quantidade_pares_refeicao;
+  const mostrarColunaDiariaEspecial = ocorrenciasExclusivos > 0 || (consideraFdsEFeriado && diasExclusivos > 0);
   const handleDownloadPDF = async () => {
     if (!solicitacao) return;
     
@@ -288,7 +341,10 @@ export function SolicitacaoDetalhesModal({
           sabados: analise.sabados,
           domingos: analise.domingos,
           feriados: analise.feriados,
-        } : undefined
+        } : undefined,
+        estimativa,
+        aditivos,
+        nomesAditivosMap,
       );
       toast.success('PDF gerado com sucesso!');
     } catch (error) {
@@ -581,6 +637,145 @@ export function SolicitacaoDetalhesModal({
               </CardContent>
             </Card>
           )}
+
+          {/* Aditivos desta solicitação (leitura) */}
+          {aditivos.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <CalendarPlus className="h-4 w-4" />
+                  Aditivos desta solicitação ({aditivos.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {aditivos.map((a) => {
+                    const tipoLabel = TIPO_ADITIVO_LABEL[a.tipo] ?? a.tipo;
+                    const statusVariant: 'default' | 'secondary' | 'destructive' | 'outline' =
+                      a.status === 'aprovado' ? 'default' :
+                      a.status === 'reprovado' ? 'destructive' :
+                      a.status === 'cancelado' ? 'outline' :
+                      'secondary';
+                    const statusLabel =
+                      a.status === 'aprovado' ? 'Aprovado' :
+                      a.status === 'reprovado' ? 'Reprovado' :
+                      a.status === 'cancelado' ? 'Cancelado' :
+                      'Pendente';
+                    // "Sem impacto no planejamento vigente":
+                    // - reprovado/cancelado: nunca impactaram convocados_pre.
+                    // - adicionar_funcionario aprovado mas que NÃO consta mais
+                    //   no convocados_pre vigente para a data → foi superado
+                    //   por aditivo posterior (remoção/liberação).
+                    let semImpacto = false;
+                    if (a.status === 'reprovado' || a.status === 'cancelado') {
+                      semImpacto = true;
+                    } else if (
+                      a.status === 'aprovado' &&
+                      (a.tipo === 'adicionar_funcionario' || (a as any).tipo === 'funcionario_inclusao') &&
+                      a.funcionario_id
+                    ) {
+                      const itemConv = convocadosPre.find(
+                        (c) => c.funcionario_id === a.funcionario_id,
+                      );
+                      const vigente = itemConv
+                        ? itemConvocadoNaData(
+                            { funcionario_id: itemConv.funcionario_id, dias_solicitados: (itemConv as any).dias_solicitados },
+                            a.data_ajustada,
+                            { datasClassificadas: analise?.datasClassificadas ?? [], consideraFdsFeriado: !!consideraFdsEFeriado },
+                          ).convocado
+                        : false;
+                      semImpacto = !vigente;
+                    }
+                    const nomeSolicitante = a.solicitado_por ? (nomesAditivosMap?.[a.solicitado_por] ?? '—') : '—';
+                    const nomeDecisor = a.decidido_por ? (nomesAditivosMap?.[a.decidido_por] ?? '—') : null;
+                    const rotuloDecisao = a.status === 'aprovado'
+                      ? 'Aprovado em'
+                      : a.status === 'reprovado'
+                      ? 'Reprovado em'
+                      : a.status === 'cancelado'
+                      ? 'Cancelado em'
+                      : null;
+                    return (
+                      <div key={a.id} className="rounded-md border p-2 text-sm space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline">{tipoLabel}</Badge>
+                            <span className="text-muted-foreground text-xs">
+                              {formatBrazilianDateForDisplay(a.data_ajustada)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={statusVariant}>{statusLabel}</Badge>
+                            {semImpacto && (
+                              <Badge variant="outline" className="text-[10px] border-muted-foreground/40 text-muted-foreground">
+                                Sem impacto no planejamento vigente
+                              </Badge>
+                            )}
+                            {a.status === 'pendente' && podeAprovarAditivo && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => setAditivoAnaliseId(a.id)}
+                              >
+                                Analisar
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        {(a.tipo === 'adicionar_funcionario' || a.tipo === 'remover_funcionario' || a.tipo === 'funcionario_inclusao' || a.tipo === 'funcionario_remocao') && (() => {
+                          const snap = (a.snapshot_funcionario ?? {}) as any;
+                          const nomeFunc = snap?.nome || snap?.nome_completo || '—';
+                          const nomeFuncao = snap?.funcao_nome || snap?.nome_funcao || null;
+                          return (
+                            <div className="text-xs">
+                              <span className="font-medium text-muted-foreground">Funcionário: </span>
+                              <span className="text-foreground">{nomeFunc}</span>
+                              {nomeFuncao && (
+                                <>
+                                  <span className="text-muted-foreground"> · </span>
+                                  <span className="text-foreground">{nomeFuncao}</span>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })()}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                          <div>
+                            <span className="font-medium">Solicitado em:</span>{' '}
+                            {formatDateTimeBR(a.solicitado_em)}
+                            {nomeSolicitante !== '—' && <> por <span className="font-medium">{nomeSolicitante}</span></>}
+                          </div>
+                          {rotuloDecisao && a.decidido_em && (
+                            <div>
+                              <span className="font-medium">{rotuloDecisao}:</span>{' '}
+                              {formatDateTimeBR(a.decidido_em)}
+                              {nomeDecisor && <> por <span className="font-medium">{nomeDecisor}</span></>}
+                            </div>
+                          )}
+                        </div>
+
+                        {a.justificativa && (
+                          <p className="text-xs">
+                            <span className="font-medium text-muted-foreground">Justificativa: </span>
+                            <span className="text-foreground whitespace-pre-wrap">{a.justificativa}</span>
+                          </p>
+                        )}
+                        {a.observacao_aprovador && (
+                          <p className="text-xs">
+                            <span className="font-medium text-muted-foreground">Observação do aprovador: </span>
+                            <span className="text-foreground whitespace-pre-wrap">{a.observacao_aprovador}</span>
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Valor Total Estimado - FIXO na base */}
@@ -592,24 +787,21 @@ export function SolicitacaoDetalhesModal({
                 Valor Total Estimado
               </div>
               <div className="flex justify-between items-center text-sm">
-                <span>Diárias Úteis + Sáb ({diasNormais} {diasNormais === 1 ? 'dia' : 'dias'}, {convocadosPre.length} func.)</span>
+                <span>Diárias Úteis + Sáb ({ocorrenciasUteis} {ocorrenciasUteis === 1 ? 'ocorrência' : 'ocorrências'})</span>
                 <span className="font-medium">{formatCurrency(totalDiariasNormais)}</span>
               </div>
-              {mostrarColunaDiariaEspecial && (
+              {ocorrenciasExclusivos > 0 && (
                 <div className="flex justify-between items-center text-sm">
-                  <span>Diárias Dom/Feriados ({diasExclusivos} {diasExclusivos === 1 ? 'dia' : 'dias'}, {convocadosPre.length} func.)</span>
+                  <span>Diárias Dom/Feriados ({ocorrenciasExclusivos} {ocorrenciasExclusivos === 1 ? 'ocorrência' : 'ocorrências'})</span>
                   <span className="font-medium">{formatCurrency(totalDiariasExclusivas)}</span>
                 </div>
               )}
-              {totalRefeicoes > 0 && (() => {
-                const diasParaRefeicao = consideraFdsEFeriado ? diasNormais + diasExclusivos : diasNormais;
-                return (
-                  <div className="flex justify-between items-center text-sm">
-                    <span>Refeições ({diasParaRefeicao} {diasParaRefeicao === 1 ? 'dia' : 'dias'}, {convocadosPre.length} func.)</span>
-                    <span className="font-medium">{formatCurrency(totalRefeicoes)}</span>
-                  </div>
-                );
-              })()}
+              {totalRefeicoes > 0 && (
+                <div className="flex justify-between items-center text-sm">
+                  <span>Refeições ({ocorrenciasRefeicao} {ocorrenciasRefeicao === 1 ? 'ocorrência' : 'ocorrências'})</span>
+                  <span className="font-medium">{formatCurrency(totalRefeicoes)}</span>
+                </div>
+              )}
               <Separator />
               <div className="flex justify-between items-center">
                 <span className="font-semibold">TOTAL ESTIMADO</span>
@@ -641,7 +833,16 @@ export function SolicitacaoDetalhesModal({
             </Button>
           )}
           
-          <div className="flex gap-2 ml-auto">
+          <div className="flex gap-2 ml-auto flex-wrap">
+            {podeSolicitarAditivo && (
+              <Button
+                variant="outline"
+                onClick={() => setAditivoOpen(true)}
+              >
+                <CalendarPlus className="h-4 w-4 mr-2" />
+                Solicitar Aditivo
+              </Button>
+            )}
             <Button variant="outline" onClick={onClose}>
               Fechar
             </Button>
@@ -658,6 +859,20 @@ export function SolicitacaoDetalhesModal({
           </div>
         </DialogFooter>
       </DialogContent>
+
+      {podeSolicitarAditivo && (
+        <AditivoSolicitarModal
+          open={aditivoOpen}
+          onOpenChange={setAditivoOpen}
+          solicitacao={solicitacao}
+        />
+      )}
+
+      <AditivoConfirmacaoModal
+        aditivoId={aditivoAnaliseId}
+        open={!!aditivoAnaliseId}
+        onOpenChange={(v) => !v && setAditivoAnaliseId(null)}
+      />
     </Dialog>
   );
 }

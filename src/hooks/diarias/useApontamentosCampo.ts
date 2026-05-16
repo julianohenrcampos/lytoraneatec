@@ -128,8 +128,8 @@ export function useToggleEdicaoLiberada() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, liberada }: { id: string; liberada: boolean }) =>
-      toggleEdicaoLiberada(id, liberada),
+    mutationFn: ({ id, liberada, justificativa }: { id: string; liberada: boolean; justificativa?: string }) =>
+      toggleEdicaoLiberada(id, liberada, justificativa),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['diaria-apontamentos'] });
       toast.success(variables.liberada ? 'Edição liberada!' : 'Edição bloqueada!');

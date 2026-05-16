@@ -4,6 +4,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { lerConvocadosPre, derivarFuncionariosPlanos } from '@/lib/diarias/convocadosPreAdapter';
+import { sanearPayloadPresenca } from './_presencaPayloadGuard';
 
 export type TipoDiaria = 'completa' | 'meia' | 'uma_e_meia' | 'nenhuma';
 export type TurnoDiaria = 'diurno' | 'noturno';
@@ -242,7 +243,7 @@ export async function salvarPresencas(
     updated_at: new Date().toISOString()
   }));
 
-  return inserirPresencasIdempotente(presencasData);
+  return inserirPresencasIdempotente(presencasData.map(sanearPayloadPresenca));
 }
 
 // =====================================================
@@ -297,7 +298,7 @@ export async function salvarInicio(
     confirmado_em: new Date().toISOString(),
   }));
 
-  return inserirPresencasIdempotente(rows);
+  return inserirPresencasIdempotente(rows.map(sanearPayloadPresenca));
 }
 
 // Salvar INÍCIO PARCIAL — INSERT apenas para atrasados (durante fase de finalização)
@@ -327,7 +328,7 @@ export async function salvarInicioParcial(
     confirmado_em: new Date().toISOString(),
   }));
 
-  return inserirPresencasIdempotente(rows);
+  return inserirPresencasIdempotente(rows.map(sanearPayloadPresenca));
 }
 
 // Salvar FINALIZAÇÃO — UPDATE only, não toca hora_entrada
@@ -339,8 +340,13 @@ export async function salvarFinalizacao(
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData?.user?.id;
 
-  // Atualizar cada registro individualmente (update por funcionario_id + solicitacao_id + data)
-  const promises = registros.map(async (r) => {
+  // IMPORTANTE: serializar (for…of await) em vez de Promise.all.
+  // O trigger trg_recalcular_status_diaria recalcula bd_diaria_status a cada
+  // UPDATE; com paralelo + autocommit do PostgREST cada trigger lia snapshot
+  // sem os updates concorrentes ainda commitados e gravava 'iniciado'
+  // sobrepondo o 'finalizado' final. Serializar garante que o último UPDATE
+  // veja todas as horas_saida e o trigger persista 'finalizado'.
+  for (const r of registros) {
     const { error } = await supabase
       .from('bd_diaria_presencas')
       .update({
@@ -361,9 +367,7 @@ export async function salvarFinalizacao(
       console.error(`Erro ao finalizar presença de ${r.funcionario_id}:`, error);
       throw new Error(error.message);
     }
-  });
-
-  await Promise.all(promises);
+  }
 }
 
 // Salvar saída individual de um funcionário (sem finalizar o apontamento completo)
@@ -404,13 +408,25 @@ export async function atualizarFaltaParaPresente(
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData?.user?.id;
 
-  const promises = registros.map(async (r) => {
+  // Serializado pelo mesmo motivo de salvarFinalizacao: trg_recalcular_status_diaria
+  // precisa enxergar o estado consolidado da (solicitacao,data) para gravar
+  // status correto.
+  for (const r of registros) {
+    const sanitized = sanearPayloadPresenca({
+      presente: true,
+      hora_entrada: r.hora_entrada,
+      hora_saida: null,
+      valor_diaria_aplicada: r.valor_diaria_original,
+      tipo_diaria: null,
+    });
+
     const { error } = await supabase
       .from('bd_diaria_presencas')
       .update({
-        presente: true,
-        hora_entrada: r.hora_entrada,
-        valor_diaria_aplicada: r.valor_diaria_original,
+        presente: sanitized.presente,
+        hora_entrada: sanitized.hora_entrada,
+        valor_diaria_aplicada: sanitized.valor_diaria_aplicada,
+        tipo_diaria: sanitized.tipo_diaria,
         usar_diaria_exclusiva: r.usar_diaria_exclusiva,
         turno: r.turno || 'diurno',
         confirmado_por: userId,
@@ -423,18 +439,23 @@ export async function atualizarFaltaParaPresente(
       console.error(`Erro ao atualizar falta para presente (${r.id}):`, error);
       throw new Error(error.message);
     }
-  });
-
-  await Promise.all(promises);
+  }
 }
 
 // Inserir presenças completas (retroativos na correção pós-conclusão)
+// Auditoria: registra em bd_diaria_aprovacoes (legado) e bd_diaria_logs
+// (tipo_evento='presenca_retroativa') por funcionário inserido.
 export async function inserirPresencasCompletas(
   solicitacaoId: string,
   data: string,
   registros: CorrecaoFormData[],
   observacao: string
 ): Promise<ResultadoInsercaoIdempotente> {
+  // Justificativa mínima — alinhada ao mínimo retroativo das RPCs de aditivo.
+  if (!observacao || observacao.trim().length < 20) {
+    throw new Error('Justificativa retroativa obrigatória (mínimo 20 caracteres).');
+  }
+
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData?.user?.id;
 
@@ -459,7 +480,7 @@ export async function inserirPresencasCompletas(
     confirmado_em: new Date().toISOString(),
   }));
 
-  const resultado = await inserirPresencasIdempotente(rows);
+  const resultado = await inserirPresencasIdempotente(rows.map(sanearPayloadPresenca));
 
   // Registrar auditoria
   if (resultado.inseridos > 0) {
@@ -471,6 +492,27 @@ export async function inserirPresencasCompletas(
         acao: 'adicao_retroativa',
         comentario: justificativa
       });
+
+    // Novo log estruturado em bd_diaria_logs (não bloqueia em caso de erro)
+    try {
+      if (userId) {
+        await supabase.from('bd_diaria_logs' as any).insert({
+          solicitacao_id: solicitacaoId,
+          tipo_evento: 'presenca_retroativa',
+          usuario_id: userId,
+          justificativa: observacao.trim(),
+          dados_extras: {
+            data,
+            funcionarios: registros.map((r) => r.funcionario_id),
+            total_inseridos: resultado.inseridos,
+            total_ignorados: resultado.ignorados,
+            timestamp: new Date().toISOString(),
+          },
+        });
+      }
+    } catch (e) {
+      console.warn('[presencasService] falha ao gravar bd_diaria_logs:', e);
+    }
   }
 
   return resultado;
@@ -573,12 +615,22 @@ export async function salvarCorrecao(
   const justificativa = `[CORREÇÃO - EDIÇÃO LIBERADA] ${observacao} | Por: ${userId} em ${new Date().toISOString()}`;
 
   const promises = registros.map(async (r) => {
+    const sanitized = sanearPayloadPresenca({
+      solicitacao_id: solicitacaoId,
+      funcionario_id: r.funcionario_id,
+      data,
+      presente: r.presente,
+      hora_entrada: r.hora_entrada || null,
+      hora_saida: r.hora_saida || null,
+      tipo_diaria: r.tipo_diaria ?? null,
+      valor_diaria_aplicada: r.valor_diaria_aplicada,
+    });
     const updatePayload: any = {
-        presente: r.presente,
-        hora_entrada: r.hora_entrada || null,
-        hora_saida: r.hora_saida || null,
-        tipo_diaria: r.tipo_diaria,
-        valor_diaria_aplicada: r.valor_diaria_aplicada,
+        presente: sanitized.presente,
+        hora_entrada: sanitized.hora_entrada,
+        hora_saida: sanitized.hora_saida,
+        tipo_diaria: sanitized.tipo_diaria,
+        valor_diaria_aplicada: sanitized.valor_diaria_aplicada,
         recebe_refeicao: r.recebe_refeicao,
         valor_refeicao_aplicado: r.valor_refeicao_aplicado,
         turno: r.turno || 'diurno',

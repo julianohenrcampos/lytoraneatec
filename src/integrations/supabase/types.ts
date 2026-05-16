@@ -2702,6 +2702,121 @@ export type Database = {
           },
         ]
       }
+      bd_diaria_aditivos: {
+        Row: {
+          conflito_solicitacao_id: string | null
+          created_at: string
+          data_ajustada: string
+          decidido_em: string | null
+          decidido_por: string | null
+          funcionario_id: string | null
+          funcionarios_adicionados: Json | null
+          funcionarios_removidos: Json | null
+          id: string
+          impacto_financeiro: Json | null
+          justificativa: string
+          notificacao_id: string | null
+          observacao_aprovador: string | null
+          retroativo: boolean
+          snapshot_funcionario: Json | null
+          solicitacao_id: string
+          solicitado_em: string
+          solicitado_por: string
+          status: string
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          conflito_solicitacao_id?: string | null
+          created_at?: string
+          data_ajustada: string
+          decidido_em?: string | null
+          decidido_por?: string | null
+          funcionario_id?: string | null
+          funcionarios_adicionados?: Json | null
+          funcionarios_removidos?: Json | null
+          id?: string
+          impacto_financeiro?: Json | null
+          justificativa: string
+          notificacao_id?: string | null
+          observacao_aprovador?: string | null
+          retroativo?: boolean
+          snapshot_funcionario?: Json | null
+          solicitacao_id: string
+          solicitado_em?: string
+          solicitado_por: string
+          status?: string
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          conflito_solicitacao_id?: string | null
+          created_at?: string
+          data_ajustada?: string
+          decidido_em?: string | null
+          decidido_por?: string | null
+          funcionario_id?: string | null
+          funcionarios_adicionados?: Json | null
+          funcionarios_removidos?: Json | null
+          id?: string
+          impacto_financeiro?: Json | null
+          justificativa?: string
+          notificacao_id?: string | null
+          observacao_aprovador?: string | null
+          retroativo?: boolean
+          snapshot_funcionario?: Json | null
+          solicitacao_id?: string
+          solicitado_em?: string
+          solicitado_por?: string
+          status?: string
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_diaria_aditivos_conflito_solicitacao_id_fkey"
+            columns: ["conflito_solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_aditivos_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_aditivos_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_aditivos_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_aditivos_notificacao_id_fkey"
+            columns: ["notificacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_notificacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_aditivos_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_diaria_apontamentos: {
         Row: {
           created_at: string | null
@@ -8364,6 +8479,13 @@ export type Database = {
             foreignKeyName: "bd_ponto_diaria_integracao_presenca_diaria_id_fkey"
             columns: ["presenca_diaria_id"]
             isOneToOne: false
+            referencedRelation: "mv_relatorio_diarias_legacy_20260514"
+            referencedColumns: ["presenca_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_diaria_integracao_presenca_diaria_id_fkey"
+            columns: ["presenca_diaria_id"]
+            isOneToOne: false
             referencedRelation: "vw_diaria_relatorio_financeiro"
             referencedColumns: ["id"]
           },
@@ -11775,6 +11897,132 @@ export type Database = {
           recebe_refeicao: boolean | null
           solicitacao_id: string | null
           status_fluxo: string | null
+          tem_presenca_real: boolean | null
+          tipo_diaria: string | null
+          usar_diaria_exclusiva: boolean | null
+          valor_calculado: number | null
+          valor_diaria_bruto_historico: number | null
+          valor_diaria_suspeito_sem_presenca: number | null
+          valor_refeicao: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_diaria_presencas_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_presencas_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_presencas_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_presencas_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diaria_solicitacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcoes_publicas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mv_relatorio_diarias_legacy_20260514: {
+        Row: {
+          centro_custo_id: string | null
+          codigo_centro_custo: string | null
+          data: string | null
+          eh_excecao: boolean | null
+          funcao_id: string | null
+          funcionario_id: string | null
+          nome_centro_custo: string | null
+          nome_funcao: string | null
+          nome_funcionario: string | null
+          numero_solicitacao: string | null
+          presenca_id: string | null
+          presente: boolean | null
+          recebe_refeicao: boolean | null
+          solicitacao_id: string | null
+          status_fluxo: string | null
           tipo_diaria: string | null
           usar_diaria_exclusiva: boolean | null
           valor_calculado: number | null
@@ -13529,12 +13777,15 @@ export type Database = {
           presente: boolean | null
           recebe_refeicao: boolean | null
           solicitacao_id: string | null
+          tem_presenca_real: boolean | null
           tipo_apontamento: string | null
           tipo_diaria: string | null
           turno: string | null
           updated_at: string | null
           usar_diaria_exclusiva: boolean | null
           valor_diaria_aplicada: number | null
+          valor_diaria_bruto_historico: number | null
+          valor_diaria_suspeito_sem_presenca: number | null
           valor_financeiro_efetivo: number | null
           valor_refeicao_aplicado: number | null
           valor_refeicao_efetivo: number | null
@@ -13562,12 +13813,15 @@ export type Database = {
           presente?: boolean | null
           recebe_refeicao?: boolean | null
           solicitacao_id?: string | null
+          tem_presenca_real?: never
           tipo_apontamento?: string | null
           tipo_diaria?: string | null
           turno?: string | null
           updated_at?: string | null
           usar_diaria_exclusiva?: boolean | null
           valor_diaria_aplicada?: number | null
+          valor_diaria_bruto_historico?: never
+          valor_diaria_suspeito_sem_presenca?: never
           valor_financeiro_efetivo?: never
           valor_refeicao_aplicado?: number | null
           valor_refeicao_efetivo?: never
@@ -13595,12 +13849,15 @@ export type Database = {
           presente?: boolean | null
           recebe_refeicao?: boolean | null
           solicitacao_id?: string | null
+          tem_presenca_real?: never
           tipo_apontamento?: string | null
           tipo_diaria?: string | null
           turno?: string | null
           updated_at?: string | null
           usar_diaria_exclusiva?: boolean | null
           valor_diaria_aplicada?: number | null
+          valor_diaria_bruto_historico?: never
+          valor_diaria_suspeito_sem_presenca?: never
           valor_financeiro_efetivo?: never
           valor_refeicao_aplicado?: number | null
           valor_refeicao_efetivo?: never
@@ -13694,9 +13951,12 @@ export type Database = {
           solicitante_nome: string | null
           status_funcionario: string | null
           status_solicitacao: string | null
+          tem_presenca_real: boolean | null
           tipo_diaria: string | null
           usar_diaria_exclusiva: boolean | null
           valor_diaria_aplicada: number | null
+          valor_diaria_bruto_historico: number | null
+          valor_diaria_suspeito_sem_presenca: number | null
           valor_refeicao_aplicado: number | null
         }
         Relationships: [
@@ -13834,9 +14094,12 @@ export type Database = {
           solicitante_nome: string | null
           status_funcionario: string | null
           status_solicitacao: string | null
+          tem_presenca_real: boolean | null
           tipo_diaria: string | null
           usar_diaria_exclusiva: boolean | null
           valor_diaria_aplicada: number | null
+          valor_diaria_bruto_historico: number | null
+          valor_diaria_suspeito_sem_presenca: number | null
           valor_refeicao_aplicado: number | null
         }
         Relationships: [
@@ -16555,9 +16818,12 @@ export type Database = {
           solicitante_nome: string | null
           status_funcionario: string | null
           status_solicitacao: string | null
+          tem_presenca_real: boolean | null
           tipo_diaria: string | null
           usar_diaria_exclusiva: boolean | null
           valor_diaria_aplicada: number | null
+          valor_diaria_bruto_historico: number | null
+          valor_diaria_suspeito_sem_presenca: number | null
           valor_refeicao_aplicado: number | null
         }
         Relationships: [
@@ -17005,6 +17271,7 @@ export type Database = {
       }
     }
     Functions: {
+      __test_2d3e: { Args: { p_case: string }; Returns: Json }
       _map_tipo_aprovador_to_role: { Args: { p_tipo: string }; Returns: string }
       _map_tipo_aprovador_to_status: {
         Args: { p_tipo: string }
@@ -17049,6 +17316,10 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      aprovar_aditivo: {
+        Args: { p_aditivo_id: string; p_observacao?: string }
+        Returns: undefined
       }
       aprovar_diretor_adm: {
         Args: {
@@ -17168,6 +17439,10 @@ export type Database = {
       can_delete_agendamento_exame: {
         Args: { p_user_id?: string }
         Returns: boolean
+      }
+      cancelar_aditivo: {
+        Args: { p_aditivo_id: string; p_motivo?: string }
+        Returns: undefined
       }
       cancelar_lote_diaria: {
         Args: { p_lote_id: string; p_motivo: string }
@@ -17364,6 +17639,32 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      fn_aplicar_saneamento_auto: {
+        Args: {
+          p_aprovador_formal_id: string
+          p_dry_run?: boolean
+          p_filtro_solicitacao_ids?: string[]
+          p_limite_solicitacoes?: number
+          p_motivo_execucao: string
+        }
+        Returns: {
+          aplicado: boolean
+          confianca: string
+          criterio_match: string
+          diff: Json
+          dry_run: boolean
+          execution_id: string
+          fonte_sugestao: string
+          item_idx_jsonb: number
+          motivo_correcao: string
+          payload_proposto: Json
+          solicitacao_id: string
+          tipo_correcao: string
+          valor_anterior: Json
+          valor_novo: Json
+          warnings: Json
+        }[]
       }
       fn_arquivar_auditoria_log: { Args: { p_lote?: number }; Returns: number }
       fn_assign_user_role_secure: {
@@ -17864,6 +18165,23 @@ export type Database = {
         Args: { p_role_id: string; p_target_user_id: string }
         Returns: undefined
       }
+      fn_reverter_saneamento_auto: {
+        Args: {
+          p_aprovador_formal_id: string
+          p_dry_run?: boolean
+          p_execution_id: string
+          p_motivo_reversao: string
+        }
+        Returns: {
+          dry_run: boolean
+          item_idx_jsonb: number
+          revertido: boolean
+          solicitacao_id: string
+          tipo_correcao: string
+          valor_revertido_de: Json
+          valor_revertido_para: Json
+        }[]
+      }
       fn_role_is_protected: { Args: { p_role_id: string }; Returns: boolean }
       fn_solicitacao_tem_lote_pendente: {
         Args: { p_solicitacao_id: string }
@@ -18250,6 +18568,10 @@ export type Database = {
         }[]
       }
       remover_item_lote: { Args: { p_item_id: string }; Returns: undefined }
+      reprovar_aditivo: {
+        Args: { p_aditivo_id: string; p_motivo: string }
+        Returns: undefined
+      }
       reprovar_diretor_adm: {
         Args: { p_observacao?: string; p_solicitacao_id: string }
         Returns: undefined
@@ -18290,6 +18612,28 @@ export type Database = {
         Args: { p_registro_aplicacao_id: string }
         Returns: undefined
       }
+      solicitar_aditivo_dia: {
+        Args: {
+          p_data_ajustada: string
+          p_funcionarios: Json
+          p_impacto?: Json
+          p_justificativa: string
+          p_solicitacao_id: string
+          p_tipo: string
+        }
+        Returns: string
+      }
+      solicitar_aditivo_funcionario: {
+        Args: {
+          p_data_ajustada: string
+          p_funcionario_id: string
+          p_impacto?: Json
+          p_justificativa: string
+          p_snapshot: Json
+          p_solicitacao_id: string
+        }
+        Returns: string
+      }
       sync_convocados_pre_valores: { Args: never; Returns: number }
       sync_presencas_valores_funcao: { Args: never; Returns: Json }
       sync_profile_funcao_sistema: {
@@ -18308,6 +18652,10 @@ export type Database = {
       }
       user_has_permission: {
         Args: { permission_name: string; user_id: string }
+        Returns: boolean
+      }
+      user_has_permission_action: {
+        Args: { _acao: string; _codigo: string; _user_id: string }
         Returns: boolean
       }
       usuario_acessa_equipe: {

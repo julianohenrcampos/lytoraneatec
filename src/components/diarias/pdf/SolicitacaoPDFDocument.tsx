@@ -25,7 +25,26 @@ interface SolicitacaoPDFDocumentProps {
   };
   logoUrl?: string;
   analise?: AnalisePerido;
+  estimativa?: import('@/utils/diariasEstimativaPorConvocadosPre').ResumoEstimativa;
   assinaturas?: AssinaturaAprovacao[];
+  aditivos?: import('@/services/diarias/aditivoService').Aditivo[];
+  nomesUsuariosAditivos?: Record<string, string>;
+}
+
+const TIPO_ADITIVO_LABEL: Record<string, string> = {
+  adicionar_dia: 'Adição de dia',
+  remover_dia: 'Remoção de dia',
+  funcionario_inclusao: 'Inclusão de funcionário',
+  funcionario_remocao: 'Remoção de funcionário',
+};
+
+function formatDateTime(iso?: string | null): string {
+  if (!iso) return '—';
+  try {
+    return format(new Date(iso), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+  } catch {
+    return '—';
+  }
 }
 
 function formatCurrency(value: number): string {
@@ -60,7 +79,10 @@ export const SolicitacaoPDFDocument = ({
   dadosComplementares,
   logoUrl,
   analise,
-  assinaturas
+  estimativa,
+  assinaturas,
+  aditivos,
+  nomesUsuariosAditivos,
 }: SolicitacaoPDFDocumentProps) => {
   const consideraFdsEFeriado = solicitacao.considera_fds_feriado;
 
@@ -72,34 +94,56 @@ export const SolicitacaoPDFDocument = ({
 
   const diasNormais = diasUteisReal; // apenas dias úteis pagam diária normal
   const diasExclusivos = sabadosReal + domingosReal + feriadosReal; // sábados, domingos e feriados pagam diária exclusiva
-  const mostrarDiariasExclusivas = consideraFdsEFeriado && diasExclusivos > 0;
 
-  // Calcular totais
-  let totalDiariasNormais = 0;
-  let totalDiariasExclusivas = 0;
-  let totalRefeicoes = 0;
+  // Fase G — Se a estimativa foi pré-calculada (modal Detalhes), usar como fonte única.
+  let totalDiariasNormais: number;
+  let totalDiariasExclusivas: number;
+  let totalRefeicoes: number;
+  let totalGeral: number;
+  let ocorrenciasUteis: number;
+  let ocorrenciasExclusivos: number;
+  let ocorrenciasRefeicao: number;
+  let mostrarDiariasExclusivas: boolean;
 
-  convocados.forEach(conv => {
-    const valorDiaria = conv.valor_diaria || 0;
-    const valorExclusiva = conv.valor_diaria_exclusiva || valorDiaria * 1.2;
-    const valorRefeicao = conv.valor_refeicao || 0;
-    const forcarExclusiva = conv.usar_diaria_exclusiva === true;
+  if (estimativa) {
+    totalDiariasNormais = estimativa.total_diarias_uteis;
+    totalDiariasExclusivas = estimativa.total_diarias_fds_feriados;
+    totalRefeicoes = estimativa.total_refeicoes;
+    totalGeral = estimativa.total_geral;
+    ocorrenciasUteis = estimativa.ocorrencias_uteis;
+    ocorrenciasExclusivos = estimativa.ocorrencias_exclusivos;
+    ocorrenciasRefeicao = estimativa.quantidade_pares_refeicao;
+    mostrarDiariasExclusivas = ocorrenciasExclusivos > 0;
+  } else {
+    // Backwards-compat (chamadores externos sem estimativa).
+    mostrarDiariasExclusivas = consideraFdsEFeriado && diasExclusivos > 0;
+    totalDiariasNormais = 0;
+    totalDiariasExclusivas = 0;
+    totalRefeicoes = 0;
+    convocados.forEach(conv => {
+      const valorDiaria = conv.valor_diaria || 0;
+      const valorExclusiva = conv.valor_diaria_exclusiva || valorDiaria * 1.2;
+      const valorRefeicao = conv.valor_refeicao || 0;
+      const forcarExclusiva = conv.usar_diaria_exclusiva === true;
 
-    if (forcarExclusiva) {
-      const totalDias = consideraFdsEFeriado ? diasNormais + diasExclusivos : diasNormais;
-      totalDiariasExclusivas += totalDias * valorExclusiva;
-      totalRefeicoes += totalDias * valorRefeicao;
-    } else {
-      totalDiariasNormais += diasNormais * valorDiaria;
-      if (consideraFdsEFeriado) {
-        totalDiariasExclusivas += diasExclusivos * valorExclusiva;
+      if (forcarExclusiva) {
+        const totalDias = consideraFdsEFeriado ? diasNormais + diasExclusivos : diasNormais;
+        totalDiariasExclusivas += totalDias * valorExclusiva;
+        totalRefeicoes += totalDias * valorRefeicao;
+      } else {
+        totalDiariasNormais += diasNormais * valorDiaria;
+        if (consideraFdsEFeriado) {
+          totalDiariasExclusivas += diasExclusivos * valorExclusiva;
+        }
+        const diasParaRefeicao = consideraFdsEFeriado ? diasNormais + diasExclusivos : diasNormais;
+        totalRefeicoes += diasParaRefeicao * valorRefeicao;
       }
-      const diasParaRefeicao = consideraFdsEFeriado ? diasNormais + diasExclusivos : diasNormais;
-      totalRefeicoes += diasParaRefeicao * valorRefeicao;
-    }
-  });
-
-  const totalGeral = totalDiariasNormais + totalDiariasExclusivas + totalRefeicoes;
+    });
+    totalGeral = totalDiariasNormais + totalDiariasExclusivas + totalRefeicoes;
+    ocorrenciasUteis = diasNormais * convocados.length;
+    ocorrenciasExclusivos = diasExclusivos * convocados.length;
+    ocorrenciasRefeicao = (consideraFdsEFeriado ? diasNormais + diasExclusivos : diasNormais) * convocados.length;
+  }
   const centroCusto = `${solicitacao.bd_centros_custo?.codigo_centro_custo || ''} - ${solicitacao.bd_centros_custo?.nome_centro_custo || ''}`;
 
   return (
@@ -228,10 +272,10 @@ export const SolicitacaoPDFDocument = ({
 
         {/* Valor Total Estimado */}
         <View style={styles.totalsSection}>
-          {diasNormais > 0 && (
+          {(ocorrenciasUteis > 0 || totalDiariasNormais > 0) && (
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>
-                Diárias Úteis + Sáb ({diasNormais} {diasNormais === 1 ? 'dia' : 'dias'} × {convocados.length} func.)
+                Diárias Úteis + Sáb ({ocorrenciasUteis} {ocorrenciasUteis === 1 ? 'ocorrência' : 'ocorrências'})
               </Text>
               <Text style={styles.totalValue}>{formatCurrency(totalDiariasNormais)}</Text>
             </View>
@@ -239,7 +283,7 @@ export const SolicitacaoPDFDocument = ({
           {mostrarDiariasExclusivas && (
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>
-                Diárias Dom/Feriados ({diasExclusivos} {diasExclusivos === 1 ? 'dia' : 'dias'} × {convocados.length} func.)
+                Diárias Dom/Feriados ({ocorrenciasExclusivos} {ocorrenciasExclusivos === 1 ? 'ocorrência' : 'ocorrências'})
               </Text>
               <Text style={styles.totalValue}>{formatCurrency(totalDiariasExclusivas)}</Text>
             </View>
@@ -247,7 +291,7 @@ export const SolicitacaoPDFDocument = ({
           {totalRefeicoes > 0 && (
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>
-                Refeições ({consideraFdsEFeriado ? diasNormais + diasExclusivos : diasNormais} {(consideraFdsEFeriado ? diasNormais + diasExclusivos : diasNormais) === 1 ? 'dia' : 'dias'} × {convocados.length} func.)
+                Refeições ({ocorrenciasRefeicao} {ocorrenciasRefeicao === 1 ? 'ocorrência' : 'ocorrências'})
               </Text>
               <Text style={styles.totalValue}>{formatCurrency(totalRefeicoes)}</Text>
             </View>
@@ -274,6 +318,44 @@ export const SolicitacaoPDFDocument = ({
                 {solicitacao.observacao_gerente || 'Sem observações.'}
               </Text>
             </View>
+          </View>
+        )}
+
+        {/* Aditivos da Solicitação (Fase I.4) */}
+        {aditivos && aditivos.length > 0 && (
+          <View style={[styles.section, { marginTop: 16 }]}>
+            <Text style={styles.sectionTitle}>ADITIVOS DA SOLICITAÇÃO ({aditivos.length})</Text>
+            {aditivos.map((a) => {
+              const tipoLabel = TIPO_ADITIVO_LABEL[a.tipo] ?? a.tipo;
+              const statusLabel = (a.status || '').toUpperCase();
+              const nomeSolic = a.solicitado_por ? (nomesUsuariosAditivos?.[a.solicitado_por] ?? '—') : '—';
+              const nomeDec = a.decidido_por ? (nomesUsuariosAditivos?.[a.decidido_por] ?? '—') : null;
+              const rotuloDecisao =
+                a.status === 'aprovado' ? 'Aprovado em' :
+                a.status === 'reprovado' ? 'Reprovado em' :
+                a.status === 'cancelado' ? 'Cancelado em' : null;
+              return (
+                <View key={a.id} style={styles.observationBox} wrap={false}>
+                  <Text style={styles.infoValueBold}>
+                    {tipoLabel} — {formatDate(a.data_ajustada)} — Status: {statusLabel}
+                  </Text>
+                  <Text style={styles.observationText}>
+                    Solicitado em: {formatDateTime(a.solicitado_em)}{nomeSolic !== '—' ? ` por ${nomeSolic}` : ''}
+                  </Text>
+                  {rotuloDecisao && a.decidido_em && (
+                    <Text style={styles.observationText}>
+                      {rotuloDecisao}: {formatDateTime(a.decidido_em)}{nomeDec ? ` por ${nomeDec}` : ''}
+                    </Text>
+                  )}
+                  {a.justificativa && (
+                    <Text style={styles.observationText}>Justificativa: {a.justificativa}</Text>
+                  )}
+                  {a.observacao_aprovador && (
+                    <Text style={styles.observationText}>Observação do aprovador: {a.observacao_aprovador}</Text>
+                  )}
+                </View>
+              );
+            })}
           </View>
         )}
 

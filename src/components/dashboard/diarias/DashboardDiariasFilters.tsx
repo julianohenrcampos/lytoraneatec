@@ -111,24 +111,41 @@ export default function DashboardDiariasFilters({
     staleTime: 5 * 60 * 1000,
   });
 
-  // Funcionários presentes nos apontamentos
+  // Funcionários presentes nos apontamentos — restritos ao período do filtro
+  // (evita o cap de 1000 linhas do PostgREST e popula corretamente o combobox).
+  const dataInicioStr = filters.dataInicio
+    ? filters.dataInicio.toISOString().slice(0, 10)
+    : null;
+  const dataFimStr = filters.dataFim
+    ? filters.dataFim.toISOString().slice(0, 10)
+    : null;
+
   const { data: funcionarios = [] } = useQuery({
-    queryKey: ["funcionarios-presentes-dashboard"],
+    queryKey: ["funcionarios-presentes-dashboard", dataInicioStr, dataFimStr],
+    enabled: !!dataInicioStr && !!dataFimStr,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("vw_relatorio_diarias_folha")
-        .select("funcionario_id, nome_funcionario");
+      let q = supabase
+        .from("bd_diaria_presencas")
+        .select(
+          "funcionario_id, bd_funcionarios!bd_diaria_presencas_funcionario_id_fkey(id, nome_completo)"
+        )
+        .eq("presente", true)
+        .not("funcionario_id", "is", null);
+      if (dataInicioStr) q = q.gte("data", dataInicioStr);
+      if (dataFimStr) q = q.lte("data", dataFimStr);
+      const { data, error } = await q.limit(5000);
       if (error) throw error;
 
       const uniqueMap = new Map<string, string>();
       (data || []).forEach((p: any) => {
-        if (p.funcionario_id && p.nome_funcionario) {
-          uniqueMap.set(p.funcionario_id, p.nome_funcionario);
+        const f = p.bd_funcionarios;
+        if (f?.id && f?.nome_completo) {
+          uniqueMap.set(f.id, f.nome_completo);
         }
       });
       return Array.from(uniqueMap.entries())
         .map(([id, nome]) => ({ id, nome_completo: nome }))
-        .sort((a, b) => a.nome_completo.localeCompare(b.nome_completo));
+        .sort((a, b) => a.nome_completo.localeCompare(b.nome_completo, "pt-BR"));
     },
     staleTime: 5 * 60 * 1000,
   });

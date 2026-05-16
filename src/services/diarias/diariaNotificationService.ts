@@ -56,7 +56,7 @@ async function criarNotificacao(params: NotificacaoParams): Promise<void> {
 /**
  * Resolve funcionario_id → user_id via profiles.funcionario_id
  */
-async function resolverUserId(funcionarioId: string): Promise<string | null> {
+export async function resolverUserId(funcionarioId: string): Promise<string | null> {
   const { data, error } = await supabase
     .from('profiles')
     .select('id')
@@ -73,7 +73,7 @@ async function resolverUserId(funcionarioId: string): Promise<string | null> {
 /**
  * Busca o aprovador_diarias_id do centro de custo
  */
-async function getAprovadorDoCentroCusto(centroCustoId: string): Promise<string | null> {
+export async function getAprovadorDoCentroCusto(centroCustoId: string): Promise<string | null> {
   const { data, error } = await supabase
     .from('bd_centros_custo')
     .select('aprovador_diarias_id')

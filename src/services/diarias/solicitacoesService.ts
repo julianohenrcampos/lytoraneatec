@@ -368,6 +368,11 @@ async function sincronizarConvocadosPreControlado(
         nome_funcao: convocado.nome_funcao || '',
         cpf: convocado.cpf,
         matricula: convocado.matricula,
+        // Fase E — propaga matriz funcionário×data e flag legada de diária exclusiva.
+        dias_solicitados: Array.isArray((convocado as any).dias_solicitados)
+          ? ((convocado as any).dias_solicitados as string[])
+          : [],
+        usar_diaria_exclusiva: (convocado as any).usar_diaria_exclusiva ?? false,
       });
     }
   }
@@ -1061,6 +1066,10 @@ export interface FuncionarioConvocadoData {
   nome_funcao: string;
   cpf?: string;
   matricula?: string;
+  /** Fase E — dias marcados na matriz funcionário×data, persistidos no jsonb. */
+  dias_solicitados?: string[];
+  /** Fase E — flag opcional para uso de diária exclusiva (preservada no jsonb). */
+  usar_diaria_exclusiva?: boolean;
 }
 
 export async function adicionarFuncionarioConvocado(

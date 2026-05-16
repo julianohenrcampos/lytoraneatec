@@ -374,7 +374,7 @@ export function RelatorioSemanalModal({
       while (hasMore) {
         const { data, error } = await baseQuery.range(from, from + pageSize - 1);
         if (error) throw error;
-        allData = allData.concat((data || []) as RelatorioFolhaItem[]);
+        allData = allData.concat((data || []) as unknown as RelatorioFolhaItem[]);
         hasMore = (data?.length || 0) === pageSize;
         from += pageSize;
       }
@@ -402,6 +402,69 @@ export function RelatorioSemanalModal({
       console.table(conferencia.porEmpresa.map(item => ({ empresa: item.label, confirmados: item.totalConfirmados, registros: item.totalRegistros })));
       console.table(conferencia.porVinculo.map(item => ({ vinculo: item.label, confirmados: item.totalConfirmados, registros: item.totalRegistros })));
       console.table(conferencia.porSolicitacao.map(item => ({ solicitacao: item.label, confirmados: item.totalConfirmados, registros: item.totalRegistros })));
+
+      // ====================================================================
+      // [DIAG Semanal] — Diagnóstico observacional (não altera comportamento)
+      // Objetivo: confirmar de onde vem o corte de datas no PDF Sem Remessa.
+      // Remover após validação do plano .lovable/plan.md (passo 3).
+      // ====================================================================
+      try {
+        let solicitacoesPeriodo: { minDataInicio: string | null; maxDataFim: string | null } = {
+          minDataInicio: null,
+          maxDataFim: null,
+        };
+        if (hasSolicitacaoFilter) {
+          const { data: solDatas } = await supabase
+            .from('bd_diaria_solicitacoes')
+            .select('data_inicio, data_fim')
+            .in('id', defaultSolicitacaoIds!);
+          if (solDatas && solDatas.length > 0) {
+            const inicios = solDatas.map(s => s.data_inicio).filter(Boolean).sort();
+            const fins = solDatas.map(s => s.data_fim).filter(Boolean).sort();
+            solicitacoesPeriodo = {
+              minDataInicio: inicios[0] || null,
+              maxDataFim: fins[fins.length - 1] || null,
+            };
+          }
+        }
+
+        const porData: Record<string, number> = {};
+        const porDataConfirmados: Record<string, number> = {};
+        const porDataSemRemessaValor: Record<string, number> = {};
+        const { isRelatorioItemConfirmado, isRelatorioItemRemessa } = await import('@/services/diarias/relatorioMetrics');
+        allData.forEach(item => {
+          const d = String(item.data || '').substring(0, 10);
+          if (!d) return;
+          porData[d] = (porData[d] || 0) + 1;
+          if (isRelatorioItemConfirmado(item)) {
+            porDataConfirmados[d] = (porDataConfirmados[d] || 0) + 1;
+            if (!isRelatorioItemRemessa(item)) {
+              const valor = Number(item.valor_diaria_aplicada || 0) + Number(item.valor_refeicao_aplicado || 0);
+              porDataSemRemessaValor[d] = (porDataSemRemessaValor[d] || 0) + valor;
+            }
+          }
+        });
+
+        console.group('[DIAG Semanal] handleGerar — origem do corte de datas');
+        console.log('dateRange.from        :', dateRange?.from?.toISOString());
+        console.log('dateRange.to          :', dateRange?.to?.toISOString());
+        console.log('defaultDateRange      :', defaultDateRange ? {
+          from: defaultDateRange.from?.toISOString(),
+          to: defaultDateRange.to?.toISOString(),
+        } : null);
+        console.log('hasScreenDateRange    :', hasScreenDateRange);
+        console.log('hasSolicitacaoFilter  :', hasSolicitacaoFilter);
+        console.log('defaultSolicitacaoIds :', defaultSolicitacaoIds);
+        console.log('solicitacoesPeriodo   :', solicitacoesPeriodo);
+        console.log('queryParams           :', { dataInicio, dataFim });
+        console.log('vwRowsTotal           :', allData.length);
+        console.log('porData (registros)   :', porData);
+        console.log('porDataConfirmados    :', porDataConfirmados);
+        console.log('porDataSemRemessaValor:', porDataSemRemessaValor);
+        console.groupEnd();
+      } catch (diagErr) {
+        console.warn('[DIAG Semanal] falhou (sem impacto na geração):', diagErr);
+      }
 
       const filtros = { data_inicio: dataInicio, data_fim: dataFim };
 
