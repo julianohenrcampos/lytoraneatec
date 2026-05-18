@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
     const { data: disp, error: dispErr } = await supabase
       .from("bd_ponto_dispositivos")
       .select(
-        "id, nome, codigo_dispositivo, centro_custo_id, ativo, tipo, senha_hash",
+        "id, nome, codigo_dispositivo, centro_custo_id, ativo, tipo, senha_hash, latitude_fixa, longitude_fixa, centro_custo:bd_centros_custo(id, nome_centro_custo, latitude, longitude, raio_ponto_metros)",
       )
       .eq("codigo_dispositivo", codigo_dispositivo)
       .maybeSingle();
@@ -115,6 +115,8 @@ Deno.serve(async (req) => {
       `[PONTO][TOTEM_LOGIN] codigo=${codigo_dispositivo} ok dispositivo=${disp.id}`,
     );
 
+    const ccRaw: any = (disp as any).centro_custo;
+    const cc = Array.isArray(ccRaw) ? ccRaw[0] : ccRaw;
     return json({
       success: true,
       device_secret,
@@ -123,6 +125,18 @@ Deno.serve(async (req) => {
         nome: disp.nome,
         codigo_dispositivo: disp.codigo_dispositivo,
         centro_custo_id: disp.centro_custo_id,
+        latitude_fixa: (disp as any).latitude_fixa ?? null,
+        longitude_fixa: (disp as any).longitude_fixa ?? null,
+        centro_custo_nome: cc?.nome_centro_custo ?? null,
+        centro_custo: cc
+          ? {
+              id: cc.id,
+              nome: cc.nome_centro_custo,
+              latitude: cc.latitude,
+              longitude: cc.longitude,
+              raio_ponto_metros: cc.raio_ponto_metros,
+            }
+          : null,
       },
     });
   } catch (e) {
