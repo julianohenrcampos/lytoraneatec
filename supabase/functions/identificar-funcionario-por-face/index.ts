@@ -124,12 +124,26 @@ Deno.serve(async (req) => {
     );
 
     if (error) {
-      console.error("[identificar-face] rpc v2 error:", error);
+      console.error("[PONTO][MATCH_RPC_ERROR]", {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        dispositivo_id: disp.id,
+      });
+      const isRelacaoInexistente = error.code === "42P01";
       return json({
-        error: "erro_matching",
-        stage: "rpc_v2",
-        detail: error.message,
-      }, 500);
+        success: false,
+        found: false,
+        decisao: "rejeitado",
+        reason: isRelacaoInexistente ? "configuracao_dispositivo_invalida" : "erro_rpc_matching",
+        message: isRelacaoInexistente
+          ? "Configuração de centros de custo do dispositivo inválida."
+          : (error.message || "Erro ao executar matching facial."),
+        rpc_error_code: error.code ?? null,
+        rpc_error_details: error.details ?? null,
+        rpc_error_hint: error.hint ?? null,
+      }, 200);
     }
 
     const row = Array.isArray(data) && data.length > 0 ? data[0] : null;

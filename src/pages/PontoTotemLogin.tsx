@@ -81,7 +81,17 @@ const PontoTotemLogin: React.FC = () => {
       });
 
       console.log("[TOTEM_LOGIN] sucesso, redirecionando para /ponto-totem");
-      navigate("/ponto-totem", { replace: true });
+      let debugParam: string | null = null;
+      try { debugParam = new URLSearchParams(window.location.search).get("debug"); } catch {}
+      let storageDebug: string | null = null;
+      try { storageDebug = localStorage.getItem("ponto_debug"); } catch {}
+      if (debugParam === "1" || storageDebug === "1") {
+        try { localStorage.setItem("ponto_debug", "1"); } catch {}
+        navigate("/ponto-totem?debug=1", { replace: true });
+      } else {
+        navigate("/ponto-totem", { replace: true });
+      }
+
     } catch (err: any) {
       console.error("[TOTEM_LOGIN][EXCEPTION]", err);
       toast.error("Erro inesperado", {
