@@ -184,6 +184,29 @@ export default function ContratualTab({ form, onClose, setActiveTab }: Contratua
           )}
         />
 
+        {/* Tipo de Escala */}
+        <FormField
+          control={form.control}
+          name="tipo_escala"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Tipo de Escala *</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value || "normal"}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o tipo de escala" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="normal">Normal</SelectItem>
+                  <SelectItem value="12x36">Escala 12x36</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         {/* Data de Demissão */}
         <FormField
           control={form.control}

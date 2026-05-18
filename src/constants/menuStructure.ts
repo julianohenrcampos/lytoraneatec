@@ -263,6 +263,9 @@ export const menuStructure = [
         icon: ClipboardCheck,
         requiredPermission: "acesso_gestao_aprovacoes"
       }
+      // Removido do menu operacional: "Auditoria Ponto × Diárias (Shadow)".
+      // Rota /requisicoes/diarias/auditoria-ponto-shadow segue acessível
+      // apenas a SuperAdm como ferramenta de diagnóstico (sem botões operacionais).
     ]
   },
   {

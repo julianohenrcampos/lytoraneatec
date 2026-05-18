@@ -82,6 +82,7 @@ export interface FuncionarioFormData {
   data_ferias?: string | null;
   data_demissao?: string | null;
   status?: "Ativo" | "Ativo sem Registro" | "Inativo" | "Aviso Prévio" | "INSS" | "Férias";
+  tipo_escala: "normal" | "12x36";
   salario_base?: number;
   insalubridade?: number;
   periculosidade?: number;

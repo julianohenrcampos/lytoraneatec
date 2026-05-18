@@ -58,6 +58,7 @@ import { invalidatePendentes } from "@/hooks/diarias/useAditivosPendentes";
 import { cn } from "@/lib/utils";
 import type { DiariaApontamento } from "@/types/diarias";
 import { lerConvocadosPre, derivarFuncionariosPlanos } from "@/lib/diarias/convocadosPreAdapter";
+import { calcularDiariaAplicada } from "@/lib/diarias/calculoDiaria";
 import type { ConvocadoLote } from "@/types/diarias/lotes";
 
 type ConvocadoPreCompat = ConvocadoLote & Record<string, unknown>;
@@ -219,25 +220,29 @@ const TIPO_DIA_LABEL: Record<TipoDiaManual, string> = {
   ponte: 'Ponte',
 };
 
-// Calcula horas trabalhadas e tipo de diária
+// Calcula horas trabalhadas e tipo de diária (Fase 2.3 — P3: delega ao helper único)
 function calcularJornada(entrada: string | undefined, saida: string | undefined): { horas: number; tipo: TipoDiaria; excede12h: boolean } {
   if (!entrada || !saida) return { horas: 0, tipo: 'nenhuma', excede12h: false };
 
-  const [hE, mE] = entrada.split(':').map(Number);
-  const [hS, mS] = saida.split(':').map(Number);
-  
-  let totalMinutos = (hS * 60 + mS) - (hE * 60 + mE);
-  if (totalMinutos < 0) totalMinutos += 24 * 60;
-  
-  const horasBrutas = totalMinutos / 60;
-  // Descontar 1h de almoço se jornada bruta > 6h
-  const horas = horasBrutas > 6 ? horasBrutas - 1 : horasBrutas;
+  const out = calcularDiariaAplicada({
+    hora_entrada: entrada,
+    hora_saida: saida,
+    valor_base: 1, // sentinela: campo financeiro não faz parte do contrato público desta função
+  });
 
-  if (horasBrutas > 12) return { horas: horasBrutas, tipo: 'uma_e_meia', excede12h: true };
-  if (horas >= 9.75) return { horas, tipo: 'uma_e_meia', excede12h: false }; // >= 9:45
-  if (horas >= 4.5) return { horas, tipo: 'completa', excede12h: false };    // >= 4:30
-  if (horas > 0) return { horas, tipo: 'meia', excede12h: false };
-  return { horas, tipo: 'nenhuma', excede12h: false };
+  const tipo: TipoDiaria = (out.tipo_diaria ?? 'nenhuma') as TipoDiaria;
+
+  // Preserva a peculiaridade do comportamento original: quando excede 12h, retorna a jornada BRUTA.
+  let horas = out.horas_liquidas;
+  if (out.excede_12h) {
+    const [hE, mE] = entrada.split(':').map(Number);
+    const [hS, mS] = saida.split(':').map(Number);
+    let min = (hS * 60 + mS) - (hE * 60 + mE);
+    if (min < 0) min += 24 * 60;
+    horas = min / 60;
+  }
+
+  return { horas, tipo, excede12h: out.excede_12h };
 }
 
 function calcularValorDiaria(valorOriginal: number, tipo: TipoDiaria): number {

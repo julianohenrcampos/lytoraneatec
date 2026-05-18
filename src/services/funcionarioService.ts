@@ -377,7 +377,7 @@ export const createFuncionario = async (data: FuncionarioFormData): Promise<Func
 const EDITABLE_COLUMNS = [
   'nome_completo','cpf','data_nascimento','email','endereco_completo','escolaridade','genero',
   'funcao_id','departamento_id','centro_custo_id','empresa_id','equipe_id',
-  'data_admissao','data_ferias','data_demissao','status',
+  'data_admissao','data_ferias','data_demissao','status','tipo_escala',
   'salario_base','insalubridade','periculosidade','gratificacao','adicional_noturno',
   'custo_passagem','refeicao','diarias','observacoes',
   'banco','agencia','conta_corrente','chave_pix','imagem','matricula',
@@ -676,6 +676,7 @@ export const processImportData = async (
           data_ferias: formatExcelDate(item["Data de Férias"] || item.data_ferias),
           data_demissao: formatExcelDate(item["Data de Demissão"] || item.data_demissao),
           status: item.Status || item.status || "Ativo",
+          tipo_escala: (item['Tipo de Escala'] || item.tipo_escala || 'normal') === '12x36' ? '12x36' : 'normal',
           
           // Dados financeiros
           salario_base: parseNumericField(item["Salário Base"] || item.salario_base),

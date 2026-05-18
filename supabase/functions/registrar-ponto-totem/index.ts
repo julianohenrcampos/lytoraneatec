@@ -31,6 +31,7 @@ import {
   type ScoreRiscoFlags,
 } from "../_shared/ponto-helpers.ts";
 import { validarPayloadTotem } from "../_shared/ponto-validators.ts";
+import { integrarDiariaSeAtivado } from "../_shared/integracao-diaria.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -515,6 +516,13 @@ Deno.serve(async (req) => {
 
     // PASSO 16 — Auditoria
     await registrarAuditoria(supabaseAdmin, "bd_ponto_batidas", batida.id, "INSERT", batidaRow, null, ip);
+
+    // PASSO 16.1 — Hook Ponto → Diária (Fase A.2) gated por CC. Não bloqueante.
+    await integrarDiariaSeAtivado(supabaseAdmin, {
+      id: batida.id,
+      centro_custo_id: ccBatidaFinal,
+      data_operacional: dataOperacional,
+    });
 
     // PASSO 16.5 — Integração apontamento (entrada)
     if (payload.tipo_batida === "entrada") {

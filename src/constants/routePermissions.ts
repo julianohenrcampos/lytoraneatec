@@ -52,6 +52,8 @@ export const ROUTE_PERMISSIONS = {
   '/requisicoes/diarias/apontamento-campo': ['diarias_apontamento_view'],
   '/requisicoes/diarias/relatorio': ['diarias_relatorio_view'],
   '/gestao-aprovacoes-diarias': ['acesso_gestao_aprovacoes'],
+  // Shadow audit: gate sintético — apenas SuperAdmin passa pelo SecureRouteGuard.
+  '/requisicoes/diarias/auditoria-ponto-shadow': ['__superadmin_only__'],
 
   // SSO
   '/sso/checklists': ['acesso_sso_checklists'],

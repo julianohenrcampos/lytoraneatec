@@ -78,6 +78,7 @@ const DiariasSolicitacoes = lazy(() => import("@/pages/DiariasSolicitacoes"));
 const DiariasRelatorio = lazy(() => import("@/pages/DiariasRelatorio"));
 const DiariasApontamentoCampo = lazy(() => import("@/pages/DiariasApontamentoCampo"));
 const GestaoAprovacoesDiarias = lazy(() => import("@/pages/diarias/GestaoAprovacoesDiarias"));
+const PontoShadowAuditoria = lazy(() => import("@/pages/diarias/PontoShadowAuditoria"));
 
 const SSOChecklistList = lazy(() => import("@/pages/SSOChecklistList"));
 const SSODashboard = lazy(() => import("@/pages/SSODashboard"));
@@ -210,6 +211,7 @@ const App = () => {
                     <Route path="/requisicoes/diarias/relatorio" element={<Secure permission="diarias_relatorio_view"><DiariasRelatorio /></Secure>} />
                     <Route path="/requisicoes/diarias/apontamento-campo" element={<Secure permission="diarias_apontamento_view"><DiariasApontamentoCampo /></Secure>} />
                     <Route path="/gestao-aprovacoes-diarias" element={<Secure permission="acesso_gestao_aprovacoes"><GestaoAprovacoesDiarias /></Secure>} />
+                    <Route path="/requisicoes/diarias/auditoria-ponto-shadow" element={<Secure permission="__superadmin_only__"><PontoShadowAuditoria /></Secure>} />
 
                     {/* Licitações */}
                     <Route path="/licitacoes/dashboard" element={<Secure permission="dashboard_licitacoes_view"><RelatorioLicitacoes /></Secure>} />

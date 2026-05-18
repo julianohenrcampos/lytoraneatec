@@ -29,6 +29,7 @@ import {
   type ScoreRiscoFlags,
 } from "../_shared/ponto-helpers.ts";
 import { validarPayloadSyncOffline, type PayloadBatidaOffline } from "../_shared/ponto-validators.ts";
+import { integrarDiariaSeAtivado } from "../_shared/integracao-diaria.ts";
 
 interface ResultadoBatida {
   offline_uuid: string;
@@ -414,6 +415,13 @@ async function processarBatidaOffline(
 
   // Auditoria
   await registrarAuditoria(supabaseAdmin, "bd_ponto_batidas", inserted.id, "INSERT", batidaRow, userId, ip);
+
+  // Hook Ponto → Diária (Fase A.2) gated por CC. Não bloqueante.
+  await integrarDiariaSeAtivado(supabaseAdmin, {
+    id: inserted.id,
+    centro_custo_id: ccId,
+    data_operacional: dataOperacional,
+  });
 
   // Integração apontamento (entrada)
   if (batida.tipo_batida === "entrada") {
