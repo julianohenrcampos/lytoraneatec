@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { gerarPdfClassificacao } from "@/utils/pdf/gerarPdfClassificacao";
 import { gerarPdfSolicitacaoClassificacao } from "@/utils/pdf/gerarPdfSolicitacaoClassificacao";
+import { getNomeSolicitanteClassificacao } from "@/services/rh/getNomeSolicitanteClassificacao";
 
 export const useReimprimirClassificacao = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -43,13 +44,18 @@ export const useReimprimirClassificacao = () => {
           .maybeSingle();
 
         let solicitanteNome = "-";
+        let solicitanteEmail: string | null = null;
         if ((solic as any).solicitado_por) {
-          const { data: prof } = await supabase
-            .from("profiles")
-            .select("nome_completo, email")
-            .eq("id", (solic as any).solicitado_por)
-            .maybeSingle();
-          solicitanteNome = (prof as any)?.nome_completo || (prof as any)?.email || "-";
+          const info = await getNomeSolicitanteClassificacao(
+            (solic as any).solicitado_por,
+            { usarMetadataDoAuth: false }
+          );
+          solicitanteNome = info.nome;
+          solicitanteEmail = info.email;
+        } else {
+          console.warn("[NOVA_CLASSIFICACAO][SOLICITANTE_NAO_ENCONTRADO]", {
+            solicitacao_id: (solic as any).id,
+          });
         }
 
         gerarPdfSolicitacaoClassificacao({
@@ -57,18 +63,15 @@ export const useReimprimirClassificacao = () => {
           nome: (fSol as any)?.nome_completo || "-",
           matricula: (fSol as any)?.matricula ?? null,
           centro_custo: (fSol as any)?.bd_centros_custo?.nome_centro_custo || "-",
-          data_admissao: (fSol as any)?.data_admissao
-            ? new Date((fSol as any).data_admissao).toLocaleDateString("pt-BR")
-            : "-",
+          data_admissao: (fSol as any)?.data_admissao ?? null,
           cargo_atual: (solic as any).cargo_atual_nome || "-",
           novo_cargo: (solic as any).cargo_novo_nome || "-",
           motivo: (solic as any).motivo || "-",
-          data_efetivacao_desejada: (solic as any).data_efetivacao_desejada
-            ? new Date((solic as any).data_efetivacao_desejada).toLocaleDateString("pt-BR")
-            : "-",
+          data_efetivacao_desejada: (solic as any).data_efetivacao_desejada ?? null,
           precisa_exame: !!(solic as any).precisa_exame,
           solicitante: solicitanteNome,
-          data_solicitacao: new Date((solic as any).created_at).toLocaleString("pt-BR"),
+          solicitante_email: solicitanteEmail,
+          data_solicitacao: (solic as any).created_at,
         });
 
         toast.success("PDF de solicitação gerado.");

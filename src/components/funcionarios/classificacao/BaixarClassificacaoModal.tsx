@@ -31,6 +31,7 @@ import { criarSolicitacaoClassificacao } from "@/services/rh/classificacaoSolici
 import { Combobox } from "@/components/ui/combobox";
 import { useNavigate } from "react-router-dom";
 import { gerarPdfSolicitacaoClassificacao } from "@/utils/pdf/gerarPdfSolicitacaoClassificacao";
+import { getNomeSolicitanteClassificacao } from "@/services/rh/getNomeSolicitanteClassificacao";
 
 interface Props {
   open: boolean;
@@ -130,39 +131,78 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
         return;
       }
 
-      // Solicitante (usuário logado)
+      // Solicitante (usuário logado) — fonte canônica: profiles.funcionario_id → bd_funcionarios
       let solicitanteNome = "-";
+      let solicitanteEmail: string | null = null;
       try {
         const { data: userData } = await supabase.auth.getUser();
-        const u = userData?.user;
-        solicitanteNome =
-          (u?.user_metadata as any)?.nome ||
-          (u?.user_metadata as any)?.full_name ||
-          u?.email ||
-          "-";
+        const uid = userData?.user?.id;
+        if (uid) {
+          const info = await getNomeSolicitanteClassificacao(uid, { usarMetadataDoAuth: true });
+          solicitanteNome = info.nome;
+          solicitanteEmail = info.email;
+        }
       } catch {
         /* ignore */
       }
 
-      // PDF de protocolo (sem salário)
+      // Rehidratação do alvo (garante nome/CC/admissão/cargo mesmo se a listagem veio reduzida)
+      let alvoNome = funcionario.nome_completo;
+      let alvoMatricula: string | null = (funcionario as any).matricula ?? null;
+      let alvoDataAdmissao: string | null = funcionario.data_admissao ?? null;
+      let alvoCC = funcionario.bd_centros_custo?.nome_centro_custo ?? null;
+      let alvoCargoAtual = cargoAtualNome;
+      try {
+        const { data: alvo } = await supabase
+          .from("bd_funcionarios")
+          .select(
+            "nome_completo, matricula, data_admissao, bd_centros_custo(nome_centro_custo), bd_funcoes(nome_funcao)"
+          )
+          .eq("id", funcionario.id)
+          .maybeSingle();
+        if (alvo) {
+          alvoNome = (alvo as any).nome_completo || alvoNome;
+          alvoMatricula = (alvo as any).matricula ?? alvoMatricula;
+          alvoDataAdmissao = (alvo as any).data_admissao ?? alvoDataAdmissao;
+          alvoCC = (alvo as any).bd_centros_custo?.nome_centro_custo ?? alvoCC;
+          alvoCargoAtual =
+            (alvo as any).bd_funcoes?.nome_funcao || alvoCargoAtual;
+        }
+      } catch (e) {
+        console.warn("[NOVA_CLASSIFICACAO][PDF_DADOS_INCOMPLETOS]", {
+          funcionario_id: funcionario.id,
+          erro: (e as any)?.message,
+        });
+      }
+
+      const faltando = {
+        nome: !alvoNome,
+        centro_custo: !alvoCC,
+        data_admissao: !alvoDataAdmissao,
+      };
+      if (faltando.nome || faltando.centro_custo || faltando.data_admissao) {
+        console.warn("[NOVA_CLASSIFICACAO][PDF_DADOS_INCOMPLETOS]", {
+          funcionario_id: funcionario.id,
+          faltando,
+        });
+      }
+
+      // PDF de protocolo (sem salário, datas BR sem shift de fuso)
       try {
         gerarPdfSolicitacaoClassificacao({
           protocolo_id: result.id,
-          nome: funcionario.nome_completo,
-          matricula: (funcionario as any).matricula ?? null,
-          centro_custo: funcionario.bd_centros_custo?.nome_centro_custo || "-",
-          data_admissao: funcionario.data_admissao
-            ? new Date(funcionario.data_admissao).toLocaleDateString("pt-BR")
-            : "-",
-          cargo_atual: cargoAtualNome,
+          nome: alvoNome || "-",
+          matricula: alvoMatricula,
+          centro_custo: alvoCC || "-",
+          data_admissao: alvoDataAdmissao, // string YYYY-MM-DD do banco
+          cargo_atual: alvoCargoAtual || "-",
           novo_cargo: cargoSelecionado.nome_funcao,
           motivo,
-          data_efetivacao_desejada: dataEfetivacao
-            ? new Date(dataEfetivacao).toLocaleDateString("pt-BR")
-            : "-",
+          data_efetivacao_desejada: dataEfetivacao || null, // YYYY-MM-DD do input
           precisa_exame: precisaExame,
           solicitante: solicitanteNome,
-          data_solicitacao: new Date().toLocaleString("pt-BR"),
+          solicitante_email: solicitanteEmail,
+          data_solicitacao: new Date().toISOString(),
         });
       } catch (e) {
         console.error("Erro ao gerar PDF de solicitação:", e);

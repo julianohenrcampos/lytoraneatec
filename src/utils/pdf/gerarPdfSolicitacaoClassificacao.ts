@@ -1,20 +1,44 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 
 export interface DadosSolicitacaoClassificacaoPdf {
   protocolo_id: string;
   nome: string;
   matricula?: string | null;
   centro_custo: string;
-  data_admissao: string;
+  /** YYYY-MM-DD (do banco) — formatado internamente sem shift de fuso */
+  data_admissao: string | null;
   cargo_atual: string;
   novo_cargo: string;
   motivo: string;
-  data_efetivacao_desejada: string;
+  /** YYYY-MM-DD (do input <date>) */
+  data_efetivacao_desejada: string | null;
   precisa_exame: boolean;
   solicitante: string;
+  solicitante_email?: string | null;
+  /** ISO timestamp (created_at ou now().toISOString()) */
   data_solicitacao: string;
 }
+
+const fmtDateBR = (v?: string | null) => {
+  if (!v) return "-";
+  // YYYY-MM-DD → util já trata sem shift; ISO completo → formata manualmente em BR
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return formatBrazilianDateForDisplay(v);
+  if (/^\d{4}-\d{2}-\d{2}T/.test(v)) return formatBrazilianDateForDisplay(v.slice(0, 10));
+  return v;
+};
+
+const fmtDateTimeBR = (iso?: string | null) => {
+  if (!iso) return "-";
+  try {
+    return new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  } catch {
+    return iso;
+  }
+};
+
+
 
 export function gerarPdfSolicitacaoClassificacao(dados: DadosSolicitacaoClassificacaoPdf) {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -87,11 +111,11 @@ export function gerarPdfSolicitacaoClassificacao(dados: DadosSolicitacaoClassifi
     body: [[
       dados.matricula ? `${dados.nome} (Mat. ${dados.matricula})` : dados.nome,
       dados.centro_custo,
-      dados.data_admissao,
+      fmtDateBR(dados.data_admissao),
       dados.cargo_atual,
       dados.novo_cargo,
       dados.motivo,
-      dados.data_efetivacao_desejada,
+      fmtDateBR(dados.data_efetivacao_desejada),
       dados.precisa_exame ? "Sim" : "Não",
     ]],
   });
@@ -112,8 +136,13 @@ export function gerarPdfSolicitacaoClassificacao(dados: DadosSolicitacaoClassifi
       1: { halign: "left" },
     },
     body: [
-      ["Solicitante", dados.solicitante || "-"],
-      ["Data/Hora da solicitação", dados.data_solicitacao],
+      [
+        "Solicitante",
+        dados.solicitante_email
+          ? `${dados.solicitante || "-"}  (${dados.solicitante_email})`
+          : dados.solicitante || "-",
+      ],
+      ["Data/Hora da solicitação", fmtDateTimeBR(dados.data_solicitacao)],
     ],
   });
 
