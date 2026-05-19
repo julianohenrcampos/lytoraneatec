@@ -29,6 +29,7 @@ import ConfirmExameModal from "./ConfirmExameModal";
 import { toast } from "sonner";
 import { criarSolicitacaoClassificacao } from "@/services/rh/classificacaoSolicitacaoService";
 import { Combobox } from "@/components/ui/combobox";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { useNavigate } from "react-router-dom";
 import { gerarPdfSolicitacaoClassificacao } from "@/utils/pdf/gerarPdfSolicitacaoClassificacao";
 import { getNomeSolicitanteClassificacao } from "@/services/rh/getNomeSolicitanteClassificacao";
@@ -60,13 +61,15 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
     new Date().toISOString().slice(0, 10)
   );
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [salarioAtual, setSalarioAtual] = useState<number>(0);
+  const [novoSalarioInput, setNovoSalarioInput] = useState<number>(0);
 
   const { data: funcoes = [] } = useQuery({
     queryKey: ["bd_funcoes_classificacao"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bd_funcoes")
-        .select("id, nome_funcao")
+        .select("id, nome_funcao, salario_base")
         .order("nome_funcao");
       if (error) throw error;
       return data || [];
@@ -78,6 +81,23 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
       setNovoCargoId("");
       setMotivo("Promoção");
       setDataEfetivacao(new Date().toISOString().slice(0, 10));
+      setSalarioAtual(Number((funcionario as any).salario_base ?? 0));
+      setNovoSalarioInput(0);
+      // Rehidrata salário atual a partir de bd_funcionarios (caso a listagem venha reduzida)
+      (async () => {
+        try {
+          const { data: alvo } = await supabase
+            .from("bd_funcionarios")
+            .select("salario_base")
+            .eq("id", funcionario.id)
+            .maybeSingle();
+          if (alvo && (alvo as any).salario_base != null) {
+            setSalarioAtual(Number((alvo as any).salario_base));
+          }
+        } catch {
+          /* ignore */
+        }
+      })();
     }
   }, [open, funcionario]);
 
@@ -91,6 +111,13 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
     [funcoes]
   );
 
+  // Preenche automaticamente o Novo Salário ao escolher cargo; permanece editável.
+  useEffect(() => {
+    if (cargoSelecionado) {
+      setNovoSalarioInput(Number((cargoSelecionado as any).salario_base ?? 0));
+    }
+  }, [cargoSelecionado]);
+
   const cargoAtualNome = funcionario?.bd_funcoes?.nome_funcao || "-";
 
   const handleContinuar = () => {
@@ -100,6 +127,10 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
     }
     if (!motivo) {
       toast.error("Selecione o motivo");
+      return;
+    }
+    if (!novoSalarioInput || novoSalarioInput <= 0) {
+      toast.error("Informe o Novo Salário");
       return;
     }
     setConfirmOpen(true);
@@ -146,7 +177,9 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
         /* ignore */
       }
 
-      // Rehidratação do alvo (garante nome/CC/admissão/cargo mesmo se a listagem veio reduzida)
+      // Rehidratação do alvo (garante nome/CC/admissão/cargo mesmo se a listagem veio reduzida).
+      // Salário Atual e Novo Salário usam exatamente os valores exibidos no modal
+      // (state `salarioAtual` + memo `novoSalario`), garantindo identidade tela⇄PDF.
       let alvoNome = funcionario.nome_completo;
       let alvoMatricula: string | null = (funcionario as any).matricula ?? null;
       let alvoDataAdmissao: string | null = funcionario.data_admissao ?? null;
@@ -187,18 +220,40 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
         });
       }
 
-      // PDF de protocolo (sem salário, datas BR sem shift de fuso)
+      // Última classificação efetivada (RPC SECURITY DEFINER read-only).
+      // Retorna apenas a date de RECLASSIFICACAO/PROMOCAO_EFETIVADA mais recente.
+      let ultimaClassificacao: string | null = null;
+      try {
+        const { data: ultData, error: ultErr } = await supabase
+          .rpc("fn_ultima_classificacao_data" as any, {
+            p_funcionario_id: funcionario.id,
+          });
+        if (ultErr) throw ultErr;
+        ultimaClassificacao = (ultData as any) ?? null;
+        console.log("[CLASSIFICACAO][ULTIMA_DEBUG]", {
+          funcionario_id: funcionario.id,
+          ultimaClassificacao,
+        });
+      } catch (e) {
+        console.warn("[CLASSIFICACAO][ULTIMA_ERRO]", e);
+      }
+
+      // PDF de protocolo no layout antigo (com salário, Total Geral, assinaturas).
+      // salario_atual / novo_salario refletem exatamente os campos exibidos no modal.
       try {
         gerarPdfSolicitacaoClassificacao({
           protocolo_id: result.id,
           nome: alvoNome || "-",
           matricula: alvoMatricula,
           centro_custo: alvoCC || "-",
-          data_admissao: alvoDataAdmissao, // string YYYY-MM-DD do banco
+          data_admissao: alvoDataAdmissao,
+          ultima_classificacao: ultimaClassificacao,
           cargo_atual: alvoCargoAtual || "-",
+          salario_atual: salarioAtual,
           novo_cargo: cargoSelecionado.nome_funcao,
+          novo_salario: novoSalarioInput,
           motivo,
-          data_efetivacao_desejada: dataEfetivacao || null, // YYYY-MM-DD do input
+          data_efetivacao_desejada: dataEfetivacao || null,
           precisa_exame: precisaExame,
           solicitante: solicitanteNome,
           solicitante_email: solicitanteEmail,
@@ -325,6 +380,14 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
                 type="date"
                 value={dataEfetivacao}
                 onChange={(e) => setDataEfetivacao(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Novo Salário *</Label>
+              <CurrencyInput
+                value={novoSalarioInput}
+                onChange={setNovoSalarioInput}
+                placeholder="0,00"
               />
             </div>
           </div>

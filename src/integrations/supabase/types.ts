@@ -18674,6 +18674,10 @@ export type Database = {
         Args: { p_target_user_id: string }
         Returns: boolean
       }
+      fn_ultima_classificacao_data: {
+        Args: { p_funcionario_id: string }
+        Returns: string
+      }
       fn_update_managed_profile_access_scope: {
         Args: { p_acesso_global: boolean; p_target_user_id: string }
         Returns: undefined

@@ -9,8 +9,12 @@ export interface DadosSolicitacaoClassificacaoPdf {
   centro_custo: string;
   /** YYYY-MM-DD (do banco) — formatado internamente sem shift de fuso */
   data_admissao: string | null;
+  /** Penúltima data de classificação/efetivação (opcional) — YYYY-MM-DD ou ISO */
+  ultima_classificacao?: string | null;
   cargo_atual: string;
+  salario_atual: number;
   novo_cargo: string;
+  novo_salario: number;
   motivo: string;
   /** YYYY-MM-DD (do input <date>) */
   data_efetivacao_desejada: string | null;
@@ -23,7 +27,6 @@ export interface DadosSolicitacaoClassificacaoPdf {
 
 const fmtDateBR = (v?: string | null) => {
   if (!v) return "-";
-  // YYYY-MM-DD → util já trata sem shift; ISO completo → formata manualmente em BR
   if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return formatBrazilianDateForDisplay(v);
   if (/^\d{4}-\d{2}-\d{2}T/.test(v)) return formatBrazilianDateForDisplay(v.slice(0, 10));
   return v;
@@ -38,16 +41,29 @@ const fmtDateTimeBR = (iso?: string | null) => {
   }
 };
 
+const fmtBRL = (v: number) =>
+  (v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+const fmtNum = (v: number) =>
+  (v ?? 0).toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 
 export function gerarPdfSolicitacaoClassificacao(dados: DadosSolicitacaoClassificacaoPdf) {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  // Cabeçalho
+  const salarioAtual = Number(dados.salario_atual ?? 0);
+  const novoSalario = Number(dados.novo_salario ?? 0);
+  const diferencaValor = novoSalario - salarioAtual;
+  const diferencaPercentual =
+    salarioAtual > 0 ? ((novoSalario - salarioAtual) / salarioAtual) * 100 : 0;
+
+  // Cabeçalho corporativo (mesmo padrão do PDF de Classificação efetivada)
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
+  doc.setFontSize(14);
   doc.text(
     "PROTOCOLO DE SOLICITAÇÃO DE NOVA CLASSIFICAÇÃO — LYTORÂNEA",
     pageWidth / 2,
@@ -59,13 +75,21 @@ export function gerarPdfSolicitacaoClassificacao(dados: DadosSolicitacaoClassifi
   doc.setFontSize(8);
   const protocoloCurto = (dados.protocolo_id || "").slice(0, 8).toUpperCase();
   doc.text(
-    `Protocolo nº ${protocoloCurto}   |   Emitido em: ${new Date().toLocaleString("pt-BR")}   |   Status: Pendente de Aprovação`,
+    `Protocolo nº ${protocoloCurto}   |   Emitido em: ${new Date().toLocaleString(
+      "pt-BR",
+      { timeZone: "America/Sao_Paulo" }
+    )}   |   Status: Pendente de Aprovação`,
     pageWidth / 2,
     19,
     { align: "center" }
   );
 
-  // Tabela principal (sem salário)
+  const ultimaClass = dados.ultima_classificacao
+    ? fmtDateBR(dados.ultima_classificacao)
+    : "-";
+  const nomeExibido = dados.nome;
+
+  // Tabela principal — mesma estrutura do PDF antigo, com DIFERENÇA colSpan 2
   autoTable(doc, {
     startY: 25,
     theme: "grid",
@@ -92,64 +116,81 @@ export function gerarPdfSolicitacaoClassificacao(dados: DadosSolicitacaoClassifi
       0: { halign: "left" },
       1: { halign: "left" },
       2: { halign: "center" },
-      3: { halign: "left" },
+      3: { halign: "center" },
       4: { halign: "left" },
-      5: { halign: "left" },
-      6: { halign: "center" },
-      7: { halign: "center" },
+      5: { halign: "right" },
+      6: { halign: "left" },
+      7: { halign: "right" },
+      8: { halign: "right" },
+      9: { halign: "center" },
+      10: { halign: "center" },
     },
-    head: [[
-      "NOME",
-      "CENTRO DE CUSTO",
-      "DATA ADMISSÃO",
-      "CARGO ATUAL",
-      "NOVO CARGO SOLICITADO",
-      "MOTIVO",
-      "DATA EFETIVAÇÃO DESEJADA",
-      "PRECISA EXAME",
-    ]],
+    head: [
+      [
+        "NOME",
+        "CENTRO DE CUSTO",
+        "DATA ADMISSÃO",
+        "ÚLTIMA CLASSIFICAÇÃO",
+        "CARGO ATUAL",
+        "SALÁRIO ATUAL",
+        "NOVO CARGO",
+        "NOVO SALÁRIO",
+        { content: "DIFERENÇA", colSpan: 2 },
+        "DATA",
+      ],
+    ] as any,
     body: [[
-      dados.matricula ? `${dados.nome} (Mat. ${dados.matricula})` : dados.nome,
+      nomeExibido,
       dados.centro_custo,
       fmtDateBR(dados.data_admissao),
+      ultimaClass,
       dados.cargo_atual,
+      fmtBRL(salarioAtual),
       dados.novo_cargo,
-      dados.motivo,
+      fmtBRL(novoSalario),
+      `R$ ${fmtNum(diferencaValor)}`,
+      `${diferencaPercentual.toFixed(2)}%`,
       fmtDateBR(dados.data_efetivacao_desejada),
-      dados.precisa_exame ? "Sim" : "Não",
     ]],
   });
 
-  // Bloco solicitante
+  // TOTAL GERAL — tabela curta ancorada à direita
   let finalY = (doc as any).lastAutoTable?.finalY ?? 60;
+
+  const totalTableWidth = 110;
+  const startX = pageWidth - 14 - totalTableWidth;
+
   autoTable(doc, {
-    startY: finalY + 6,
+    startY: finalY + 4,
+    margin: { left: startX },
+    tableWidth: totalTableWidth,
     theme: "grid",
     styles: {
       fontSize: 8,
       cellPadding: 2,
+      valign: "middle",
       lineColor: [180, 180, 180],
       lineWidth: 0.1,
     },
     columnStyles: {
-      0: { halign: "left", fontStyle: "bold", fillColor: [230, 230, 230], cellWidth: 40 },
-      1: { halign: "left" },
+      0: { halign: "left", fontStyle: "bold", fillColor: [230, 230, 230], cellWidth: 35 },
+      1: { halign: "center", cellWidth: 20 },
+      2: { halign: "right", cellWidth: 27 },
+      3: { halign: "right", cellWidth: 28 },
     },
-    body: [
-      [
-        "Solicitante",
-        dados.solicitante_email
-          ? `${dados.solicitante || "-"}  (${dados.solicitante_email})`
-          : dados.solicitante || "-",
-      ],
-      ["Data/Hora da solicitação", fmtDateTimeBR(dados.data_solicitacao)],
-    ],
+    body: [[
+      "TOTAL GERAL",
+      `${diferencaPercentual.toFixed(2)}%`,
+      `R$ ${fmtNum(diferencaValor)}`,
+      fmtBRL(novoSalario),
+    ]],
   });
 
-  // Assinaturas
+  // Assinaturas (rodapé horizontal) — mesmo padrão do PDF antigo
   finalY = (doc as any).lastAutoTable?.finalY ?? finalY + 20;
-  let signaturesTop = finalY + 30;
-  if (signaturesTop > pageHeight - 20) {
+  let signaturesTop = finalY + 25;
+
+  if (signaturesTop > pageHeight - 30) {
     doc.addPage();
     signaturesTop = 30;
   }
@@ -158,7 +199,8 @@ export function gerarPdfSolicitacaoClassificacao(dados: DadosSolicitacaoClassifi
   const usableWidth = pageWidth - margin * 2;
   const colWidth = usableWidth / 3;
   const lineY = signaturesTop;
-  const labels = ["Solicitante", "Gestor RH", "Diretoria"];
+
+  const labels = ["Gerente Regional", "Diretor de Engenharia", "Diretor Financeiro"];
 
   doc.setDrawColor(0);
   doc.setLineWidth(0.3);
@@ -173,7 +215,7 @@ export function gerarPdfSolicitacaoClassificacao(dados: DadosSolicitacaoClassifi
     doc.text(label, colCenter, lineY + 5, { align: "center" });
   });
 
-  // Aviso
+  // Aviso final
   doc.setFont("helvetica", "italic");
   doc.setFontSize(7);
   doc.text(

@@ -26,7 +26,7 @@ export const useReimprimirClassificacao = () => {
         // Fallback Fase 2A: buscar última solicitação pendente
         const { data: solic, error: solErr } = await (supabase as any)
           .from("bd_funcionario_classificacao_solicitacoes")
-          .select("id, cargo_atual_nome, cargo_novo_nome, motivo, data_efetivacao_desejada, precisa_exame, created_at, solicitado_por")
+          .select("id, cargo_atual_nome, cargo_novo_id, cargo_novo_nome, motivo, data_efetivacao_desejada, precisa_exame, created_at, solicitado_por")
           .eq("funcionario_id", funcionarioId)
           .order("created_at", { ascending: false })
           .limit(1)
@@ -39,9 +39,20 @@ export const useReimprimirClassificacao = () => {
 
         const { data: fSol } = await supabase
           .from("bd_funcionarios")
-          .select("nome_completo, matricula, data_admissao, bd_centros_custo(nome_centro_custo)")
+          .select("nome_completo, matricula, data_admissao, salario_base, bd_centros_custo(nome_centro_custo)")
           .eq("id", funcionarioId)
           .maybeSingle();
+
+        // Salário do novo cargo (snapshot da função-alvo)
+        let novoSalarioSolic = 0;
+        if ((solic as any).cargo_novo_id) {
+          const { data: funcNova } = await supabase
+            .from("bd_funcoes")
+            .select("salario_base")
+            .eq("id", (solic as any).cargo_novo_id)
+            .maybeSingle();
+          novoSalarioSolic = Number((funcNova as any)?.salario_base ?? 0);
+        }
 
         let solicitanteNome = "-";
         let solicitanteEmail: string | null = null;
@@ -65,7 +76,9 @@ export const useReimprimirClassificacao = () => {
           centro_custo: (fSol as any)?.bd_centros_custo?.nome_centro_custo || "-",
           data_admissao: (fSol as any)?.data_admissao ?? null,
           cargo_atual: (solic as any).cargo_atual_nome || "-",
+          salario_atual: Number((fSol as any)?.salario_base ?? 0),
           novo_cargo: (solic as any).cargo_novo_nome || "-",
+          novo_salario: novoSalarioSolic,
           motivo: (solic as any).motivo || "-",
           data_efetivacao_desejada: (solic as any).data_efetivacao_desejada ?? null,
           precisa_exame: !!(solic as any).precisa_exame,
