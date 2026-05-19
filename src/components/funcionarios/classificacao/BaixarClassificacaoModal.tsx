@@ -1,3 +1,8 @@
+// NOTA: Nome de arquivo/componente mantido (BaixarClassificacaoModal) para
+// evitar diff grande. Visualmente, este modal agora é "Nova Classificação"
+// (Fase 2A). Ele apenas cria solicitação em
+// bd_funcionario_classificacao_solicitacoes e NÃO toca em
+// bd_historico_funcional nem em bd_funcionarios.
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Dialog,
@@ -17,27 +22,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import { Check, ChevronsUpDown } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Funcionario } from "@/types/funcionario";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import ConfirmExameModal from "./ConfirmExameModal";
-import { useBaixarClassificacao } from "@/hooks/useBaixarClassificacao";
 import { toast } from "sonner";
+import { criarSolicitacaoClassificacao } from "@/services/rh/classificacaoSolicitacaoService";
+import { Combobox } from "@/components/ui/combobox";
 
 interface Props {
   open: boolean;
@@ -52,34 +43,26 @@ const MOTIVOS = [
   "Ajuste Salarial",
 ];
 
-const fmtBRL = (v: number) =>
-  (v ?? 0).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  });
-
 const BaixarClassificacaoModal: React.FC<Props> = ({
   open,
   onOpenChange,
   funcionario,
 }) => {
-  const { salvar, isSubmitting, fetchUltimaClassificacao } =
-    useBaixarClassificacao();
+  const queryClient = useQueryClient();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [novoCargoId, setNovoCargoId] = useState<string>("");
-  const [openCargo, setOpenCargo] = useState(false);
   const [motivo, setMotivo] = useState<string>("Promoção");
   const [dataEfetivacao, setDataEfetivacao] = useState<string>(
     new Date().toISOString().slice(0, 10)
   );
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [ultimaClassificacao, setUltimaClassificacao] = useState<string>("-");
 
   const { data: funcoes = [] } = useQuery({
     queryKey: ["bd_funcoes_classificacao"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bd_funcoes")
-        .select("id, nome_funcao, salario_base")
+        .select("id, nome_funcao")
         .order("nome_funcao");
       if (error) throw error;
       return data || [];
@@ -91,24 +74,20 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
       setNovoCargoId("");
       setMotivo("Promoção");
       setDataEfetivacao(new Date().toISOString().slice(0, 10));
-      fetchUltimaClassificacao(funcionario.id).then((u) =>
-        setUltimaClassificacao(u || "-")
-      );
     }
-  }, [open, funcionario, fetchUltimaClassificacao]);
+  }, [open, funcionario]);
 
   const cargoSelecionado = useMemo(
     () => funcoes.find((f: any) => f.id === novoCargoId),
     [funcoes, novoCargoId]
   );
 
-  const salarioAtual = Number(funcionario?.salario_base ?? 0);
-  const novoSalario = Number(cargoSelecionado?.salario_base ?? 0);
-  const diferencaValor = novoSalario - salarioAtual;
-  const diferencaPct =
-    salarioAtual > 0
-      ? ((novoSalario - salarioAtual) / salarioAtual) * 100
-      : 0;
+  const cargoOptions = useMemo(
+    () => funcoes.map((f: any) => ({ value: f.id, label: f.nome_funcao })),
+    [funcoes]
+  );
+
+  const cargoAtualNome = funcionario?.bd_funcoes?.nome_funcao || "-";
 
   const handleContinuar = () => {
     if (!cargoSelecionado) {
@@ -124,20 +103,36 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
 
   const handleConfirm = async (precisaExame: boolean) => {
     if (!funcionario || !cargoSelecionado) return;
-    const res = await salvar(
-      {
-        funcionario,
-        novo_cargo_id: cargoSelecionado.id,
-        novo_cargo_nome: cargoSelecionado.nome_funcao,
-        novo_salario: Number(cargoSelecionado.salario_base ?? 0),
+    if (!funcionario.centro_custo_id) {
+      toast.error("Funcionário sem centro de custo vinculado.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const result = await criarSolicitacaoClassificacao({
+        funcionario_id: funcionario.id,
+        centro_custo_id: funcionario.centro_custo_id,
+        cargo_atual_id: (funcionario as any).funcao_id ?? null,
+        cargo_atual_nome: funcionario.bd_funcoes?.nome_funcao ?? null,
+        cargo_novo_id: cargoSelecionado.id,
+        cargo_novo_nome: cargoSelecionado.nome_funcao,
         motivo,
-        data_efetivacao: dataEfetivacao,
-      },
-      precisaExame
-    );
-    if (res.ok) {
+        observacao: null,
+        data_efetivacao_desejada: dataEfetivacao || null,
+        precisa_exame: precisaExame,
+      });
+
+      if (!result.ok) {
+        toast.error((result as { ok: false; message: string }).message);
+        return;
+      }
+
+      toast.success("Solicitação de nova classificação enviada com sucesso.");
+      queryClient.invalidateQueries({ queryKey: ["funcionarios"] });
       setConfirmOpen(false);
       onOpenChange(false);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -148,9 +143,9 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Baixar Classificação</DialogTitle>
+            <DialogTitle>Nova Classificação</DialogTitle>
             <DialogDescription>
-              Registrar promoção / reclassificação do colaborador.
+              Solicitar promoção ou reclassificação do colaborador.
             </DialogDescription>
           </DialogHeader>
 
@@ -176,81 +171,21 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
               </p>
             </div>
             <div>
-              <Label className="text-muted-foreground">
-                Última Classificação
-              </Label>
-              <p className="font-medium">{ultimaClassificacao}</p>
-            </div>
-            <div>
               <Label className="text-muted-foreground">Cargo Atual</Label>
-              <p className="font-medium">
-                {funcionario.bd_funcoes?.nome_funcao || "-"}
-              </p>
-            </div>
-            <div>
-              <Label className="text-muted-foreground">Salário Atual</Label>
-              <p className="font-medium">{fmtBRL(salarioAtual)}</p>
+              <p className="font-medium">{cargoAtualNome}</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t">
             <div>
               <Label>Novo Cargo *</Label>
-              <Popover open={openCargo} onOpenChange={setOpenCargo}>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={openCargo}
-                    className="w-full justify-between font-normal"
-                  >
-                    <span className="truncate">
-                      {cargoSelecionado?.nome_funcao ?? "Selecione o novo cargo"}
-                    </span>
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  className="z-[60] p-0 w-[--radix-popover-trigger-width] pointer-events-auto"
-                  align="start"
-                >
-                  <Command>
-                    <CommandInput placeholder="Buscar cargo..." />
-                    <CommandList>
-                      <CommandEmpty>Nenhum cargo encontrado.</CommandEmpty>
-                      <CommandGroup>
-                        {funcoes.map((f: any) => (
-                          <CommandItem
-                            key={f.id}
-                            value={f.id}
-                            onSelect={(val) => {
-                              setNovoCargoId(val);
-                              setOpenCargo(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                novoCargoId === f.id ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            {f.nome_funcao}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div>
-              <Label>Novo Salário</Label>
-              <Input
-                value={fmtBRL(novoSalario)}
-                readOnly
-                disabled
-                className="bg-muted"
+              <Combobox
+                options={cargoOptions}
+                value={novoCargoId}
+                onChange={setNovoCargoId}
+                placeholder="Selecione o novo cargo"
+                searchPlaceholder="Buscar cargo..."
+                emptyText="Nenhum cargo encontrado."
               />
             </div>
             <div>
@@ -269,7 +204,7 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
               </Select>
             </div>
             <div>
-              <Label>Data de Efetivação</Label>
+              <Label>Data de Efetivação Desejada</Label>
               <Input
                 type="date"
                 value={dataEfetivacao}
@@ -277,21 +212,6 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
               />
             </div>
           </div>
-
-          {cargoSelecionado && (
-            <div className="rounded-md border bg-muted/40 p-3 text-sm">
-              <div className="flex justify-between">
-                <span>Diferença:</span>
-                <span
-                  className={
-                    diferencaValor >= 0 ? "text-primary font-semibold" : "text-destructive font-semibold"
-                  }
-                >
-                  {fmtBRL(diferencaValor)} ({diferencaPct.toFixed(2)}%)
-                </span>
-              </div>
-            </div>
-          )}
 
           <DialogFooter>
             <Button
@@ -302,7 +222,7 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
               Cancelar
             </Button>
             <Button onClick={handleContinuar} disabled={isSubmitting || !novoCargoId}>
-              Continuar
+              Salvar Solicitação
             </Button>
           </DialogFooter>
         </DialogContent>

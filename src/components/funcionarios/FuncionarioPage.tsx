@@ -75,6 +75,9 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
   const canCreate = isSuperAdmin || hasActionPermission('gestao_rh_funcionarios_view', 'criar');
   const canEdit = isSuperAdmin || hasActionPermission('gestao_rh_funcionarios_view', 'editar');
   const canDelete = isSuperAdmin || hasActionPermission('gestao_rh_funcionarios_view', 'excluir');
+  const canSolicitarClassificacao =
+    isSuperAdmin ||
+    hasActionPermission('gestao_rh_funcionarios_classificacao_solicitar', 'criar');
   const DENIED_MSG = "Você não tem permissão para executar esta ação.";
 
   const handleOpenFormModal = (f?: Funcionario) => {
@@ -91,7 +94,7 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
     confirmDelete(f);
   };
   const handleBaixarClassificacaoGated = (f: Funcionario) => {
-    if (!canCreate) { toast.error(DENIED_MSG); return; }
+    if (!canSolicitarClassificacao) { toast.error(DENIED_MSG); return; }
     handleBaixarClassificacao(f);
   };
 
@@ -161,6 +164,7 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
         onRefetch={refetch}
         openImageModal={openImageModal}
         onBaixarClassificacao={handleBaixarClassificacaoGated}
+        canSolicitarClassificacao={canSolicitarClassificacao}
       />
 
       <FuncionarioFormModal

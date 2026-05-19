@@ -4619,6 +4619,200 @@ export type Database = {
           },
         ]
       }
+      bd_funcionario_classificacao_solicitacoes: {
+        Row: {
+          aprovado_em: string | null
+          aprovado_por: string | null
+          cancelado_em: string | null
+          cancelado_por: string | null
+          cargo_atual_id: string | null
+          cargo_atual_nome: string | null
+          cargo_novo_id: string
+          cargo_novo_nome: string
+          centro_custo_id: string
+          created_at: string
+          data_efetivacao_desejada: string | null
+          efetivado_em: string | null
+          efetivado_por: string | null
+          funcionario_id: string
+          historico_funcional_id: string | null
+          id: string
+          motivo: string
+          motivo_rejeicao: string | null
+          observacao: string | null
+          precisa_exame: boolean
+          solicitado_em: string
+          solicitado_por: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          cancelado_em?: string | null
+          cancelado_por?: string | null
+          cargo_atual_id?: string | null
+          cargo_atual_nome?: string | null
+          cargo_novo_id: string
+          cargo_novo_nome: string
+          centro_custo_id: string
+          created_at?: string
+          data_efetivacao_desejada?: string | null
+          efetivado_em?: string | null
+          efetivado_por?: string | null
+          funcionario_id: string
+          historico_funcional_id?: string | null
+          id?: string
+          motivo: string
+          motivo_rejeicao?: string | null
+          observacao?: string | null
+          precisa_exame?: boolean
+          solicitado_em?: string
+          solicitado_por?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          cancelado_em?: string | null
+          cancelado_por?: string | null
+          cargo_atual_id?: string | null
+          cargo_atual_nome?: string | null
+          cargo_novo_id?: string
+          cargo_novo_nome?: string
+          centro_custo_id?: string
+          created_at?: string
+          data_efetivacao_desejada?: string | null
+          efetivado_em?: string | null
+          efetivado_por?: string | null
+          funcionario_id?: string
+          historico_funcional_id?: string | null
+          id?: string
+          motivo?: string
+          motivo_rejeicao?: string | null
+          observacao?: string | null
+          precisa_exame?: boolean
+          solicitado_em?: string
+          solicitado_por?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_funcionario_classificacao_solici_historico_funcional_id_fkey"
+            columns: ["historico_funcional_id"]
+            isOneToOne: false
+            referencedRelation: "bd_historico_funcional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionario_classificacao_solicitacoes_cargo_atual_id_fkey"
+            columns: ["cargo_atual_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionario_classificacao_solicitacoes_cargo_atual_id_fkey"
+            columns: ["cargo_atual_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcoes_publicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionario_classificacao_solicitacoes_cargo_novo_id_fkey"
+            columns: ["cargo_novo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionario_classificacao_solicitacoes_cargo_novo_id_fkey"
+            columns: ["cargo_novo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcoes_publicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionario_classificacao_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionario_classificacao_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_funcionario_classificacao_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_funcionario_classificacao_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_funcionario_classificacao_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_funcionario_classificacao_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_funcionario_classificacao_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_funcionario_classificacao_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_funcionario_classificacao_solicitacoes_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionario_classificacao_solicitacoes_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_funcionario_classificacao_solicitacoes_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_funcionario_status_historico: {
         Row: {
           created_at: string | null
@@ -17866,6 +18060,10 @@ export type Database = {
           warnings: Json
         }[]
       }
+      fn_aprovar_classificacao_solicitacao: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
       fn_arquivar_auditoria_log: { Args: { p_lote?: number }; Returns: number }
       fn_assign_user_role_secure: {
         Args: { p_role_id: string; p_target_user_id: string }
@@ -18106,6 +18304,10 @@ export type Database = {
         Args: { p_user_id?: string }
         Returns: boolean
       }
+      fn_cancelar_classificacao_solicitacao: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
       fn_check_email_autorizado: {
         Args: { _email: string }
         Returns: {
@@ -18193,6 +18395,10 @@ export type Database = {
       fn_diaria_scope_centros_custo: {
         Args: { p_user_id?: string }
         Returns: string[]
+      }
+      fn_efetivar_classificacao: {
+        Args: { p_id: string; p_salario_atual?: number; p_salario_novo: number }
+        Returns: string
       }
       fn_funcionarios_can_select_row: {
         Args: { p_funcionario_id: string; p_user_id: string }
@@ -18396,6 +18602,10 @@ export type Database = {
       }
       fn_remove_user_role_secure: {
         Args: { p_role_id: string; p_target_user_id: string }
+        Returns: undefined
+      }
+      fn_reprovar_classificacao_solicitacao: {
+        Args: { p_id: string; p_motivo: string }
         Returns: undefined
       }
       fn_resolver_base_diaria: {

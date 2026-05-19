@@ -44,6 +44,7 @@ interface FuncionarioTableProps {
   canEdit?: boolean;
   canDelete?: boolean;
   canCreate?: boolean;
+  canSolicitarClassificacao?: boolean;
 }
 
 const FuncionarioTable: React.FC<FuncionarioTableProps> = ({
@@ -60,6 +61,7 @@ const FuncionarioTable: React.FC<FuncionarioTableProps> = ({
   canEdit = true,
   canDelete = true,
   canCreate = true,
+  canSolicitarClassificacao = false,
 }) => {
   const pagination = usePagination(funcionarios, { pageSize: 10 });
   const { reimprimir, isLoading: reimprimindo } = useReimprimirClassificacao();
@@ -149,12 +151,12 @@ const FuncionarioTable: React.FC<FuncionarioTableProps> = ({
                         <Pencil className="h-4 w-4" />
                       </Button>
                     )}
-                    {canCreate && (
+                    {canSolicitarClassificacao && (
                       <Button
                         variant="outline"
                         size="icon"
                         onClick={() => onBaixarClassificacao && onBaixarClassificacao(funcionario)}
-                        title="Baixar Classificação"
+                        title="Nova Classificação"
                       >
                         <ArrowUpCircle className="h-4 w-4" />
                       </Button>
