@@ -29,6 +29,8 @@ import ConfirmExameModal from "./ConfirmExameModal";
 import { toast } from "sonner";
 import { criarSolicitacaoClassificacao } from "@/services/rh/classificacaoSolicitacaoService";
 import { Combobox } from "@/components/ui/combobox";
+import { useNavigate } from "react-router-dom";
+import { gerarPdfSolicitacaoClassificacao } from "@/utils/pdf/gerarPdfSolicitacaoClassificacao";
 
 interface Props {
   open: boolean;
@@ -49,6 +51,7 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
   funcionario,
 }) => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [novoCargoId, setNovoCargoId] = useState<string>("");
   const [motivo, setMotivo] = useState<string>("Promoção");
@@ -127,10 +130,83 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
         return;
       }
 
-      toast.success("Solicitação de nova classificação enviada com sucesso.");
+      // Solicitante (usuário logado)
+      let solicitanteNome = "-";
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        const u = userData?.user;
+        solicitanteNome =
+          (u?.user_metadata as any)?.nome ||
+          (u?.user_metadata as any)?.full_name ||
+          u?.email ||
+          "-";
+      } catch {
+        /* ignore */
+      }
+
+      // PDF de protocolo (sem salário)
+      try {
+        gerarPdfSolicitacaoClassificacao({
+          protocolo_id: result.id,
+          nome: funcionario.nome_completo,
+          matricula: (funcionario as any).matricula ?? null,
+          centro_custo: funcionario.bd_centros_custo?.nome_centro_custo || "-",
+          data_admissao: funcionario.data_admissao
+            ? new Date(funcionario.data_admissao).toLocaleDateString("pt-BR")
+            : "-",
+          cargo_atual: cargoAtualNome,
+          novo_cargo: cargoSelecionado.nome_funcao,
+          motivo,
+          data_efetivacao_desejada: dataEfetivacao
+            ? new Date(dataEfetivacao).toLocaleDateString("pt-BR")
+            : "-",
+          precisa_exame: precisaExame,
+          solicitante: solicitanteNome,
+          data_solicitacao: new Date().toLocaleString("pt-BR"),
+        });
+      } catch (e) {
+        console.error("Erro ao gerar PDF de solicitação:", e);
+      }
+
       queryClient.invalidateQueries({ queryKey: ["funcionarios"] });
       setConfirmOpen(false);
       onOpenChange(false);
+
+      if (precisaExame) {
+        toast.success("Solicitação registrada. Redirecionando para agendamento de exame...");
+        const f: any = funcionario;
+        navigate("/sso/agendamento-exames", {
+          state: {
+            origem: "classificacao",
+            tipo_exame: "Mudança de Risco",
+            funcionario_id: funcionario.id,
+            funcao_nova_id: cargoSelecionado.id,
+            motivo_mudanca_risco: motivo,
+            classificacao_solicitacao_id: result.id,
+            funcionario_payload: {
+              id: funcionario.id,
+              nome: funcionario.nome_completo,
+              nome_completo: funcionario.nome_completo,
+              cpf: f.cpf || "",
+              rg: f.rg || "",
+              data_nascimento: funcionario.data_nascimento || "",
+              telefone: f.telefone || "",
+              email: f.email || "",
+              funcao: cargoAtualNome,
+              empresa: f.bd_empresas?.nome_empresa || "",
+              contrato: funcionario.bd_centros_custo?.nome_centro_custo || "",
+              endereco_rua: f.endereco_rua || "",
+              endereco_numero: f.endereco_numero || "",
+              endereco_bairro: f.endereco_bairro || "",
+              endereco_cidade: f.endereco_cidade || "",
+              endereco_estado: f.endereco_estado || "",
+              endereco_cep: f.endereco_cep || "",
+            },
+          },
+        });
+      } else {
+        toast.success("Solicitação registrada. PDF gerado.");
+      }
     } finally {
       setIsSubmitting(false);
     }

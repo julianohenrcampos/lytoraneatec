@@ -135,7 +135,7 @@ export function AditivoConfirmacaoModal({
     }
   }, [open]);
 
-  const funcionariosSnapshot = useMemo(() => {
+  const funcionariosSnapshotRaw = useMemo(() => {
     if (!aditivo) return [];
     // funcionarios_adicionados / removidos têm prioridade (operações de dia em lote)
     const arr =
@@ -150,6 +150,65 @@ export function AditivoConfirmacaoModal({
     if (aditivo.snapshot_funcionario) return [aditivo.snapshot_funcionario as any];
     return [];
   }, [aditivo]);
+
+  // Hidratação: para itens sem nome/funcao_nome, buscar em bd_funcionarios + convocados_pre
+  const idsParaHidratar = useMemo(() => {
+    return funcionariosSnapshotRaw
+      .filter((s: any) => s?.funcionario_id && (!s?.nome || !s?.funcao_nome))
+      .map((s: any) => s.funcionario_id as string);
+  }, [funcionariosSnapshotRaw]);
+
+  const { data: hidratacao, isLoading: isHidratando } = useQuery({
+    queryKey: ["aditivo-hidratar-funcionarios", aditivo?.id, idsParaHidratar.sort().join(","), aditivo?.solicitacao_id],
+    enabled: open && idsParaHidratar.length > 0 && !!aditivo?.solicitacao_id,
+    queryFn: async () => {
+      const [funcRes, solRes] = await Promise.all([
+        supabase
+          .from("bd_funcionarios")
+          .select("id, nome_completo, matricula, funcao_id, bd_funcoes(nome_funcao)")
+          .in("id", idsParaHidratar),
+        supabase
+          .from("bd_diaria_solicitacoes")
+          .select("convocados_pre")
+          .eq("id", aditivo!.solicitacao_id!)
+          .maybeSingle(),
+      ]);
+
+      const funcMap = new Map<string, any>();
+      for (const f of (funcRes.data ?? []) as any[]) {
+        funcMap.set(f.id, f);
+      }
+      const convocadosArr = Array.isArray((solRes.data as any)?.convocados_pre)
+        ? ((solRes.data as any).convocados_pre as any[])
+        : [];
+      const convMap = new Map<string, any>();
+      for (const c of convocadosArr) {
+        if (c?.funcionario_id) convMap.set(c.funcionario_id, c);
+      }
+      return { funcMap, convMap };
+    },
+  });
+
+  const funcionariosSnapshot = useMemo(() => {
+    if (!funcionariosSnapshotRaw.length) return [];
+    return funcionariosSnapshotRaw.map((s: any) => {
+      const fid = s?.funcionario_id as string | undefined;
+      if (!fid) return s;
+      const func = hidratacao?.funcMap.get(fid);
+      const conv = hidratacao?.convMap.get(fid);
+      return {
+        ...s,
+        nome: s?.nome ?? func?.nome_completo ?? conv?.nome_funcionario ?? conv?.nome ?? null,
+        matricula: s?.matricula ?? func?.matricula ?? conv?.matricula ?? null,
+        funcao_id: s?.funcao_id ?? func?.funcao_id ?? conv?.funcao_id ?? null,
+        funcao_nome:
+          s?.funcao_nome ?? func?.bd_funcoes?.nome_funcao ?? conv?.nome_funcao ?? conv?.funcao_nome ?? null,
+        valor_diaria: s?.valor_diaria ?? conv?.valor_diaria ?? 0,
+        valor_diaria_exclusiva: s?.valor_diaria_exclusiva ?? conv?.valor_diaria_exclusiva ?? null,
+        valor_refeicao: s?.valor_refeicao ?? conv?.valor_refeicao ?? 0,
+      };
+    });
+  }, [funcionariosSnapshotRaw, hidratacao]);
 
   const impacto = (aditivo?.impacto_financeiro as any) ?? {};
   const totalImpacto =
@@ -284,9 +343,12 @@ export function AditivoConfirmacaoModal({
             {funcionariosSnapshot.length > 0 && (
               <Card>
                 <CardContent className="py-3 space-y-2">
-                  <div className="text-sm font-semibold">
+                  <div className="text-sm font-semibold flex items-center gap-2">
                     Funcionário{funcionariosSnapshot.length > 1 ? "s" : ""} afetado
                     {funcionariosSnapshot.length > 1 ? "s" : ""} ({funcionariosSnapshot.length})
+                    {isHidratando && (
+                      <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                    )}
                   </div>
                   <div className="space-y-2">
                     {funcionariosSnapshot.map((s: any, idx: number) => (

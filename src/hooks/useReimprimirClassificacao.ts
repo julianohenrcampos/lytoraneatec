@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { gerarPdfClassificacao } from "@/utils/pdf/gerarPdfClassificacao";
+import { gerarPdfSolicitacaoClassificacao } from "@/utils/pdf/gerarPdfSolicitacaoClassificacao";
 
 export const useReimprimirClassificacao = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -21,7 +22,56 @@ export const useReimprimirClassificacao = () => {
 
       if (histErr) throw histErr;
       if (!hist) {
-        toast.error("Nenhuma classificação registrada para reimprimir.");
+        // Fallback Fase 2A: buscar última solicitação pendente
+        const { data: solic, error: solErr } = await (supabase as any)
+          .from("bd_funcionario_classificacao_solicitacoes")
+          .select("id, cargo_atual_nome, cargo_novo_nome, motivo, data_efetivacao_desejada, precisa_exame, created_at, solicitado_por")
+          .eq("funcionario_id", funcionarioId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (solErr || !solic) {
+          toast.error("Nenhuma classificação registrada para reimprimir.");
+          return;
+        }
+
+        const { data: fSol } = await supabase
+          .from("bd_funcionarios")
+          .select("nome_completo, matricula, data_admissao, bd_centros_custo(nome_centro_custo)")
+          .eq("id", funcionarioId)
+          .maybeSingle();
+
+        let solicitanteNome = "-";
+        if ((solic as any).solicitado_por) {
+          const { data: prof } = await supabase
+            .from("profiles")
+            .select("nome_completo, email")
+            .eq("id", (solic as any).solicitado_por)
+            .maybeSingle();
+          solicitanteNome = (prof as any)?.nome_completo || (prof as any)?.email || "-";
+        }
+
+        gerarPdfSolicitacaoClassificacao({
+          protocolo_id: (solic as any).id,
+          nome: (fSol as any)?.nome_completo || "-",
+          matricula: (fSol as any)?.matricula ?? null,
+          centro_custo: (fSol as any)?.bd_centros_custo?.nome_centro_custo || "-",
+          data_admissao: (fSol as any)?.data_admissao
+            ? new Date((fSol as any).data_admissao).toLocaleDateString("pt-BR")
+            : "-",
+          cargo_atual: (solic as any).cargo_atual_nome || "-",
+          novo_cargo: (solic as any).cargo_novo_nome || "-",
+          motivo: (solic as any).motivo || "-",
+          data_efetivacao_desejada: (solic as any).data_efetivacao_desejada
+            ? new Date((solic as any).data_efetivacao_desejada).toLocaleDateString("pt-BR")
+            : "-",
+          precisa_exame: !!(solic as any).precisa_exame,
+          solicitante: solicitanteNome,
+          data_solicitacao: new Date((solic as any).created_at).toLocaleString("pt-BR"),
+        });
+
+        toast.success("PDF de solicitação gerado.");
         return;
       }
 
