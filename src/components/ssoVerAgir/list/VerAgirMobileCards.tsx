@@ -4,8 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Eye, Edit, Trash2, CheckCircle, Image, ImageOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import { VerAgir, getStatusColor, getStatusLabel } from '@/types/ssoVerAgir';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatBrazilianDateForDisplay } from '@/utils/timezoneUtils';
 import { usePagination } from '@/hooks/usePagination';
 
 interface VerAgirMobileCardsProps {
@@ -67,7 +66,7 @@ export const VerAgirMobileCards: React.FC<VerAgirMobileCardsProps> = ({
             {/* Header: Data/Hora + Status */}
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-muted-foreground">
-                {format(new Date(registro.data_registro), 'dd/MM/yyyy', { locale: ptBR })} — {registro.hora_registro?.slice(0, 5)}
+                {formatBrazilianDateForDisplay(registro.data_registro)} — {registro.hora_registro?.slice(0, 5)}
               </span>
               <Badge className={getStatusColor(registro.status)}>
                 {getStatusLabel(registro.status)}

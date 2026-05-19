@@ -7,6 +7,7 @@ import { useVerAgir } from '@/hooks/ssoVerAgir';
 import { getStatusColor, getStatusLabel } from '@/types/ssoVerAgir';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatBrazilianDateForDisplay } from '@/utils/timezoneUtils';
 import { Loader2, Image, ImageOff } from 'lucide-react';
 
 interface VerAgirViewDialogProps {
@@ -104,7 +105,7 @@ export const VerAgirViewDialog: React.FC<VerAgirViewDialogProps> = ({
                 </div>
                 <div>
                   <span className="font-medium text-muted-foreground">Data:</span>
-                  <p>{format(new Date(registro.data_registro), 'dd/MM/yyyy', { locale: ptBR })}</p>
+                  <p>{formatBrazilianDateForDisplay(registro.data_registro)}</p>
                 </div>
                 <div>
                   <span className="font-medium text-muted-foreground">Hora:</span>
