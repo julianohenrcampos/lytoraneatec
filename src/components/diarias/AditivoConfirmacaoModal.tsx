@@ -55,10 +55,14 @@ export function AditivoConfirmacaoModal({
   onOpenChange,
 }: AditivoConfirmacaoModalProps) {
   const qc = useQueryClient();
-  const { isSuperAdmin } = usePermission();
+  const { isSuperAdmin, hasActionPermission } = usePermission();
   const { user: profile } = useUserProfile();
   const acessoGlobal = !!profile?.acesso_global;
-  const podeAprovar = isSuperAdmin || acessoGlobal;
+  // G2 — RBAC granular: aprovar/reprovar respeita permissão de ação
+  const podeAprovar =
+    isSuperAdmin ||
+    acessoGlobal ||
+    hasActionPermission('diarias_aditivo_aprovar', 'aprovar');
 
   const [modoReprovar, setModoReprovar] = useState(false);
   const [motivo, setMotivo] = useState("");
@@ -229,7 +233,19 @@ export function AditivoConfirmacaoModal({
 
   async function handleAprovar() {
     if (!aditivo) return;
-    await aprovarMut.mutateAsync({ aditivoId: aditivo.id, solicitacaoId: aditivo.solicitacao_id ?? undefined });
+    try {
+      await aprovarMut.mutateAsync({ aditivoId: aditivo.id, solicitacaoId: aditivo.solicitacao_id ?? undefined });
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.info('[AUDIT][aditivo:acao]', { acao: 'aprovar', aditivoId: aditivo.id, ok: true });
+      }
+    } catch (e: any) {
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.info('[AUDIT][aditivo:acao]', { acao: 'aprovar', aditivoId: aditivo.id, ok: false, error: e?.message });
+      }
+      throw e;
+    }
     invalidarTudo(aditivo.solicitacao_id ?? undefined);
     onOpenChange(false);
   }
@@ -237,11 +253,23 @@ export function AditivoConfirmacaoModal({
   async function handleReprovar() {
     if (!aditivo) return;
     if (motivo.trim().length < 5) return;
-    await reprovarMut.mutateAsync({
-      aditivoId: aditivo.id,
-      motivo: motivo.trim(),
-      solicitacaoId: aditivo.solicitacao_id ?? undefined,
-    });
+    try {
+      await reprovarMut.mutateAsync({
+        aditivoId: aditivo.id,
+        motivo: motivo.trim(),
+        solicitacaoId: aditivo.solicitacao_id ?? undefined,
+      });
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.info('[AUDIT][aditivo:acao]', { acao: 'reprovar', aditivoId: aditivo.id, ok: true });
+      }
+    } catch (e: any) {
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.info('[AUDIT][aditivo:acao]', { acao: 'reprovar', aditivoId: aditivo.id, ok: false, error: e?.message });
+      }
+      throw e;
+    }
     invalidarTudo(aditivo.solicitacao_id ?? undefined);
     onOpenChange(false);
   }
@@ -264,6 +292,28 @@ export function AditivoConfirmacaoModal({
 
   const isPendente = aditivo?.status === "pendente";
   const cc: any = (solicitacao as any)?.bd_centros_custo;
+
+  // [AUDIT] — aditivo (DEV-only)
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    if (!open) return;
+    // eslint-disable-next-line no-console
+    console.info('[AUDIT][aditivo]', {
+      userId: (profile as any)?.id,
+      aditivoId,
+      aditivoStatus: aditivo?.status,
+      isSuperAdmin,
+      acessoGlobal,
+      hasAprovar: hasActionPermission('diarias_aditivo_aprovar', 'aprovar'),
+      hasVisualizar: hasActionPermission('diarias_aditivo_aprovar', 'visualizar'),
+      podeAprovar,
+      botoesVisiveis: {
+        confirmar: !!(isPendente && podeAprovar && !modoReprovar),
+        reprovar: !!(isPendente && podeAprovar),
+      },
+      modoReprovar,
+    });
+  }, [open, aditivoId, aditivo?.status, podeAprovar, isSuperAdmin, acessoGlobal, isPendente, modoReprovar, profile, hasActionPermission]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -428,8 +478,9 @@ export function AditivoConfirmacaoModal({
               <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm flex items-start gap-2">
                 <ShieldAlert className="h-4 w-4 mt-0.5 text-amber-600 flex-shrink-0" />
                 <div>
-                  Apenas usuários <strong>SuperAdm</strong> ou com <strong>acesso global</strong>{" "}
-                  podem aprovar ou reprovar aditivos nesta fase.
+                  Seu perfil não possui a permissão <strong>Aprovar aditivo de diária</strong>.
+                  Solicite ao administrador para habilitar a ação <em>aprovar</em>
+                  em <code>diarias_aditivo_aprovar</code>.
                 </div>
               </div>
             )}

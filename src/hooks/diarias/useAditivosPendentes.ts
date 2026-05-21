@@ -73,6 +73,10 @@ export function invalidatePendentes(qc: ReturnType<typeof useQueryClient>, solic
   // Notificações
   qc.invalidateQueries({ queryKey: ['notifications-list'] });
   qc.invalidateQueries({ queryKey: ['notifications-unread-count'] });
+
+  // M5 — Gestão de Aprovações: linha/KPI precisa refletir status pós-aditivo
+  qc.invalidateQueries({ queryKey: ['gestao-aprovacoes-diarias'] });
+  qc.invalidateQueries({ queryKey: ['gestao-aprovacoes-kpis'] });
 }
 
 export function useAprovarAditivo() {

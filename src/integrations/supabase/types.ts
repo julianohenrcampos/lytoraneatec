@@ -18640,6 +18640,7 @@ export type Database = {
         }[]
       }
       fn_role_is_protected: { Args: { p_role_id: string }; Returns: boolean }
+      fn_server_now_brt: { Args: never; Returns: string }
       fn_solicitacao_tem_lote_pendente: {
         Args: { p_solicitacao_id: string }
         Returns: boolean

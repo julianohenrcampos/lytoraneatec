@@ -21,6 +21,7 @@ const WaitingApproval = lazy(() => import("@/pages/WaitingApproval"));
 const Register = lazy(() => import("@/pages/Register"));
 const ForgotPassword = lazy(() => import("@/pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
+const EscopoDebug = lazy(() => import("@/pages/dev/EscopoDebug"));
 
 const DashboardRH = lazy(() => import("@/pages/DashboardRH"));
 const GestaoEmpresas = lazy(() => import("@/pages/GestaoEmpresas"));
@@ -147,6 +148,11 @@ const App = () => {
 
                     {/* Portal */}
                     <Route path="/" element={<Auth><Portal /></Auth>} />
+
+                    {/* DEV-only: validação isolada do hook useEscopoOperacional (E2) */}
+                    {import.meta.env.DEV && (
+                      <Route path="/dev/escopo-debug" element={<Auth><EscopoDebug /></Auth>} />
+                    )}
 
                     {/* Dashboards */}
                     <Route path="/dashboard-rh" element={<Secure permission="dashboard_rh_view"><DashboardRH /></Secure>} />

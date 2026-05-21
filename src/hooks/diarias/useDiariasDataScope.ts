@@ -218,6 +218,54 @@ export function useDiariasDataScope(): DiariasDataScope {
         const funcId = profile?.funcionario_id || null;
         setFuncionarioId(funcId);
 
+        // 2c.bis — GerenteRegional PURO (sem AdmOBRA/AdmSede/AdmSSO/SuperAdm):
+        // popula centrosCustoGerenciados a partir da fonte canônica
+        // fn_diaria_scope_centros_custo(auth.uid()) e usa scope 'gerente'.
+        // Sem isso, o usuário cai em 'delegado_rls' com array vazio e os combos
+        // de Centro de Custo (Solicitações, Apontamento de Campo, Dashboard,
+        // Relatório/Folha) ficam vazios.
+        const isGerenteRegionalPuro =
+          hasRole('GerenteRegional') &&
+          !isSuperAdmin &&
+          !hasRole('AdmOBRA') &&
+          !hasRole('AdmSede') &&
+          !hasRole('AdmSSO');
+
+        if (isGerenteRegionalPuro) {
+          let ccIds: string[] = [];
+          try {
+            const { data, error } = await supabase.rpc(
+              'fn_diaria_scope_centros_custo',
+              { p_user_id: userId },
+            );
+            if (error) {
+              console.warn(
+                '[Diarias][Scope] GerenteRegional: fn_diaria_scope_centros_custo falhou — fail-closed',
+                { code: error.code, message: error.message },
+              );
+            } else if (Array.isArray(data)) {
+              ccIds = (data as any[])
+                .map((r: any) =>
+                  typeof r === 'string'
+                    ? r
+                    : r?.fn_diaria_scope_centros_custo ?? r?.id ?? null,
+                )
+                .filter((v: any): v is string => Boolean(v));
+            }
+          } catch (e: any) {
+            console.warn(
+              '[Diarias][Scope] GerenteRegional: erro inesperado em fn_diaria_scope_centros_custo',
+              e?.message ?? e,
+            );
+          }
+
+          setCentrosCustoGerenciados(ccIds);
+          setUserScope('gerente');
+          lastDeterminedUserId.current = userId;
+          setIsLoading(false);
+          return;
+        }
+
         // 2d. AdmOBRA / GerenteRegional / perfis compostos => delegar ao RLS
         // O RLS (fn_diaria_can_select_row) já cobre criador OR responsável de campo OR CC autorizado
         if (hasRole('AdmOBRA') || hasRole('GerenteRegional') || rolesAmplasPresentes.length > 1) {
@@ -452,10 +500,12 @@ export function useDiariasDataScope(): DiariasDataScope {
     if (userScope === 'apontador' && funcionarioId) {
       return { responsavel_campo_id: funcionarioId };
     }
-    if ((userScope === 'gerente' || userScope === 'admsede') && centrosCustoGerenciados.length > 0) {
+    // M3 — AdmSede mantém poda frontend (perfil legado).
+    if (userScope === 'admsede' && centrosCustoGerenciados.length > 0) {
       return { centro_custo_ids: centrosCustoGerenciados };
     }
-    // delegado_rls / admobra: sem filtro frontend, RLS resolve
+    // M3 — Paridade: GerenteRegional (gerente) usa o mesmo caminho que AdmOBRA (delegado_rls):
+    // sem filtro frontend, a RLS de bd_diaria_apontamentos resolve por vínculo de CC.
     return {};
   }, [userScope, funcionarioId, centrosCustoGerenciados]);
 

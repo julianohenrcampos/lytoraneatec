@@ -31,6 +31,7 @@ import { formatBrazilianDateForDisplay } from '@/utils/timezoneUtils';
 import { Building2, User, Calendar, Briefcase, AlertTriangle, MessageCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { validarJanelaClinica } from '@/utils/sso/validarJanelaClinica';
 
 interface Etapa2AgendamentoFormProps {
   etapa1Data: Etapa1FormData;
@@ -93,33 +94,13 @@ export const Etapa2AgendamentoForm: React.FC<Etapa2AgendamentoFormProps> = ({
   // Validação de disponibilidade da clínica
   useEffect(() => {
     if (!formData.local_atendimento_id || !formData.data_agendamento || !formData.horario_agendamento) return;
-
     const clinica = locais.find(l => l.id === formData.local_atendimento_id);
     if (!clinica) return;
 
-    const diasAtendimento = clinica.dias_atendimento || ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'];
-    const horarioInicio = clinica.horario_inicio || '07:00';
-    const horarioFim = clinica.horario_fim || '17:00';
-
-    // Verificar dia da semana
-    const dataSelecionada = new Date(formData.data_agendamento + 'T12:00:00');
-    const diaSemana = DIAS_SEMANA_MAP[dataSelecionada.getDay()];
-    
-    if (!diasAtendimento.includes(diaSemana)) {
-      setMotivoIndisponivel(`A clínica não atende às ${diaSemana}s. Dias disponíveis: ${diasAtendimento.join(', ')}.`);
+    const resultado = validarJanelaClinica(clinica, formData.data_agendamento, formData.horario_agendamento);
+    if (!resultado.ok) {
+      setMotivoIndisponivel(resultado.motivo || 'Indisponibilidade de agenda.');
       setShowIndisponivel(true);
-      return;
-    }
-
-    // Verificar horário
-    const horarioSelecionado = formData.horario_agendamento;
-    const inicioNorm = horarioInicio.substring(0, 5);
-    const fimNorm = horarioFim.substring(0, 5);
-
-    if (horarioSelecionado < inicioNorm || horarioSelecionado > fimNorm) {
-      setMotivoIndisponivel(`Horário fora do expediente da clínica (${inicioNorm} às ${fimNorm}).`);
-      setShowIndisponivel(true);
-      return;
     }
   }, [formData.local_atendimento_id, formData.data_agendamento, formData.horario_agendamento, locais]);
 

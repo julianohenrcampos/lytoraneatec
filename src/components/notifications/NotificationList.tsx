@@ -80,7 +80,14 @@ export const NotificationList = ({ onClose, onAbrirAditivo }: NotificationListPr
     // Navegar para o link
     if (notif.link) {
       onClose?.();
-      navigate(notif.link);
+      // Fase 3-B.4 — deep-link para Detalhes da Solicitação em notificações de
+      // diária pendente. Mantém o link original e apenas anexa o query param.
+      let destino = notif.link as string;
+      if (notif.tipo === 'diaria_pendente' && notif.metadata?.solicitacao_id) {
+        const sep = destino.includes('?') ? '&' : '?';
+        destino = `${destino}${sep}solicitacao_id=${encodeURIComponent(notif.metadata.solicitacao_id)}`;
+      }
+      navigate(destino);
     }
   };
 

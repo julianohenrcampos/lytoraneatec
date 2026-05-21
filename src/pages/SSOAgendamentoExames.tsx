@@ -7,6 +7,7 @@ import { AgendamentoExamesFilters, AgendamentoExamesTable } from '@/components/s
 import { BulkActionBar } from '@/components/ssoAgendamentoExames/list/BulkActionBar';
 import { AgendamentoExamesDialog, AgendamentoExamesViewDialog, AgendamentoDocumentosDialog } from '@/components/ssoAgendamentoExames/dialog';
 import { NovoAgendamentoDropdown } from '@/components/ssoAgendamentoExames/NovoAgendamentoDropdown';
+import { useClinicasAbertasAgora } from '@/hooks/sso/useClinicasAbertasAgora';
 import { FuncionarioSelectorDialog } from '@/components/ssoAgendamentoExames/FuncionarioSelectorDialog';
 import { ImportStatusCarteiraModal, ImportAlterdataModal } from '@/components/ssoAgendamentoExames/import';
 import { useAgendamentoExames } from '@/hooks/ssoAgendamentoExames';
@@ -86,6 +87,11 @@ const SSOAgendamentoExames: React.FC = () => {
   const canEdit = isSuperAdmin || hasActionPermission('acesso_sso_agendamento_exames', 'editar');
   const canDelete = isSuperAdmin || hasActionPermission('acesso_sso_agendamento_exames', 'excluir');
   const canChangeStatus = isSuperAdmin || hasActionPermission('acesso_sso_agendamento_exames', 'aprovar');
+
+  // Bloqueio do botão "Novo Agendamento" por horário das clínicas (relógio do servidor UTC-3).
+  // SuperAdm (acesso_global) bypassa para suporte.
+  const { podeAgendar, motivoBloqueio } = useClinicasAbertasAgora(canCreate && !isSuperAdmin);
+  const novoAgendamentoDisabled = !isSuperAdmin && !podeAgendar;
 
   // Permissões granulares por coluna — todas derivam da mesma permissão base + ação
   const canChangeStatusExame = isSuperAdmin || hasActionPermission('acesso_sso_agendamento_exames', 'aprovar');
@@ -421,6 +427,8 @@ const SSOAgendamentoExames: React.FC = () => {
                 onDemissional={handleDemissional}
                 onPeriodico={handlePeriodico}
                 onMudancaRisco={handleMudancaRisco}
+                disabled={novoAgendamentoDisabled}
+                tooltipReason={motivoBloqueio}
               />
             )}
           </div>

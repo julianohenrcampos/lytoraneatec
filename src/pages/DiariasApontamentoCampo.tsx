@@ -174,8 +174,27 @@ export default function DiariasApontamentoCampo() {
   const apontamentoScopeFilters = useMemo(() => getApontamentosFilter(), [getApontamentosFilter]);
   const { data: apontamentos = [], isLoading, refetch } = useApontamentosCampo(
     undefined,
-    apontamentoScopeFilters
+    apontamentoScopeFilters,
+    { enabled: !isLoadingScope }
   );
+
+  // [AUDIT] — apontamento campo (DEV-only)
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    // eslint-disable-next-line no-console
+    console.info('[AUDIT][apontamento:page]', {
+      userScope,
+      isLoadingScope,
+      canViewAllCcs,
+      scopeCcIdsLen: scopeCcIds?.length ?? null,
+      scopeCcIdsSample: (scopeCcIds || []).slice(0, 5),
+      apontamentoScopeFilters,
+      resultCount: apontamentos.length,
+      filtroStatus: statusFilter,
+      filtroPeriodo: !!periodoFilter,
+      centrosCustoDataLen: centrosCustoData.length,
+    });
+  }, [isLoadingScope, userScope, scopeCcIds, apontamentos.length, apontamentoScopeFilters, canViewAllCcs, statusFilter, periodoFilter, centrosCustoData.length]);
 
   // Sincroniza selectedApontamento com a versão fresca vinda do cache após mutações
   // (ex.: persistência de tipo do dia atualiza regras_operacionais_snapshot)

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { usePageTitle } from "@/contexts/PageTitleContext";
 import { useNavigate } from "react-router-dom";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
@@ -194,18 +195,43 @@ export default function DiariasSolicitacoes() {
     estimativasMap.get(sol.id) ?? sol.valor_estimado_total ?? 0;
   const getPendentes = (sol: DiariaSolicitacao) => pendentesMap?.get(sol.id) ?? [];
   
-  // Centro de custos
+  // Centro de custos — Fase 3-B.1: respeita escopo de dados (GerenteRegional/AdmOBRA)
+  const canViewAllCcs = isSuperAdmin || userScope === 'admsso';
+  const scopeCcIds = scopeFilters?.centro_custo_ids ?? [];
+  const scopeKey = canViewAllCcs ? 'all' : scopeCcIds.slice().sort().join(',');
   const { data: centrosCusto = [] } = useQuery({
-    queryKey: ['centros-custo', isSuperAdmin],
+    queryKey: ['centros-custo-solicitacoes', canViewAllCcs, scopeKey],
+    enabled: !isLoadingScope,
     queryFn: async () => {
+      // Fail-closed: usuário com escopo de CC mas sem CCs vinculados → lista vazia
+      if (!canViewAllCcs && scopeCcIds.length === 0) return [];
       let query = supabase
         .from('bd_centros_custo')
         .select('id, codigo_centro_custo, nome_centro_custo');
-      if (!isSuperAdmin) query = query.neq('codigo_centro_custo', 'DIR001');
+      if (canViewAllCcs) {
+        if (!isSuperAdmin) query = query.neq('codigo_centro_custo', 'DIR001');
+      } else {
+        query = query.in('id', scopeCcIds);
+      }
       const { data } = await query.order('nome_centro_custo');
       return data || [];
     }
   });
+
+  // Fase 3-B.4 — Abrir Detalhes via deep-link de notificação (?solicitacao_id=...)
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const solId = searchParams.get('solicitacao_id');
+    if (!solId) return;
+    const sol = solicitacoes.find((s) => s.id === solId);
+    if (sol) {
+      setDetalhesId(sol.id);
+      setIsDetalhesOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('solicitacao_id');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, solicitacoes, setSearchParams]);
 
   // Mutations
   const createMutation = useCreateSolicitacao();

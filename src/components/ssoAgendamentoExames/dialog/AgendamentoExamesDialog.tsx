@@ -43,6 +43,7 @@ import { ValeTransporteStep, ValeTransporteStepData } from '@/components/agendam
 import { LinhaTransporte } from '@/components/agendamento-exames/vale-transporte/LinhaTransporteItem';
 import { PENDING_HISTORICO_KEY } from '@/hooks/useBaixarClassificacao';
 import { gerarPdfClassificacao } from '@/utils/pdf/gerarPdfClassificacao';
+import { validarJanelaClinica } from '@/utils/sso/validarJanelaClinica';
 
 interface AgendamentoExamesDialogProps {
   open: boolean;
@@ -500,6 +501,30 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
     
     if (!isEtapa1Valid || !isEtapa2Valid) {
       toast.error('Preencha todos os campos obrigatórios');
+      return;
+    }
+
+    // Bloqueio de janela da clínica (dia + horário) — strict no submit
+    const clinicaSel = locais.find((l: any) => l.id === etapa2Data.local_atendimento_id);
+    const janela = validarJanelaClinica(
+      clinicaSel as any,
+      etapa2Data.data_agendamento,
+      etapa2Data.horario_agendamento,
+      { strict: true }
+    );
+    console.info('[janela-clinica][submit]', {
+      tipo_exame: etapa2Data.tipo_exame,
+      clinicaId: etapa2Data.local_atendimento_id,
+      data: etapa2Data.data_agendamento,
+      hora: etapa2Data.horario_agendamento,
+      dias_atendimento: (clinicaSel as any)?.dias_atendimento,
+      horario_inicio: (clinicaSel as any)?.horario_inicio,
+      horario_fim: (clinicaSel as any)?.horario_fim,
+      ok: janela.ok,
+      motivo: janela.motivo,
+    });
+    if (!janela.ok) {
+      toast.error(janela.motivo || 'Agendamento fora da janela de atendimento da clínica.');
       return;
     }
     
