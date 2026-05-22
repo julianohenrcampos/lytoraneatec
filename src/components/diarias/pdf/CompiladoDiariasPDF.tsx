@@ -5,6 +5,7 @@ import type { RelatorioFolhaItem, AssinaturaAprovacao } from '@/types/diarias';
 import { parseISO, format, differenceInDays } from 'date-fns';
 import { AssinaturaPDFBlock } from '@/components/assinatura/AssinaturaPDFBlock';
 import { isRelatorioItemConfirmado, isRelatorioItemRemessa } from '@/services/diarias/relatorioMetrics';
+import { classificarDiaParaRelatorio } from '@/lib/diarias/classificacaoDiaRelatorio';
 
 // =====================================================
 // TYPES
@@ -784,11 +785,25 @@ export function buildCompiladoData(
     const valorItem = Number(item.valor_diaria_aplicada || 0) + Number(item.valor_refeicao_aplicado || 0);
 
     const dataStr = item.data?.substring(0, 10) || '';
-    const dataObj = new Date(dataStr + 'T12:00:00');
-    const isDomingo = dataObj.getDay() === 0;
-    const isSabado = dataObj.getDay() === 6;
-    const isFeriado = feriadosSet.has(dataStr);
-    const isFS = isDomingo || isSabado || isFeriado;
+    // VISÃO DIRETIVA/GERENCIAL: usa o calendário operacional vigente para
+    // bater com o Dashboard. Valores financeiros por linha
+    // (valor_diaria_aplicada, valor_refeicao_aplicado) NÃO são recalculados —
+    // apenas o agrupamento (DIA ÚTIL vs FDS/FERIADO/PONTE) muda.
+    const classificacao = classificarDiaParaRelatorio(item, feriadosSet, { modo: 'operacional' });
+    const isFS = classificacao.usar_valor_exclusivo;
+    if (typeof console !== 'undefined') {
+      console.debug('[DIARIA][AGRUPAMENTO_DEBUG]', {
+        modo: 'operacional',
+        contexto: 'CompiladoDiariasPDF',
+        data: dataStr,
+        centro_custo: ccLabel,
+        usar_diaria_exclusiva: item.usar_diaria_exclusiva,
+        usar_diaria_exclusiva_calendario: (item as any).usar_diaria_exclusiva_calendario ?? null,
+        grupo_calculado: classificacao.grupo_relatorio,
+        origem_regra: classificacao.origem_regra,
+        valor_diaria_aplicada: item.valor_diaria_aplicada,
+      });
+    }
 
     const ccKey = item.centro_custo_id || 'sem-cc';
     const ccEmpresaKey = `${empresaNome}::${ccKey}`;

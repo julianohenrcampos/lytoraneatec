@@ -26,6 +26,7 @@ import {
 import { lerConvocadosPre, derivarFuncionariosPlanos } from "@/lib/diarias/convocadosPreAdapter";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAditivosPendentesPorSolicitacao } from "@/hooks/diarias/useAditivosPendentesPorSolicitacao";
+import { useHidratarNomesSolicitacoes } from "@/hooks/diarias/useHidratarNomesSolicitacoes";
 import { useEstimativasListagem } from "@/hooks/diarias/useEstimativasListagem";
 import { AditivoConfirmacaoModal } from "@/components/diarias/AditivoConfirmacaoModal";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -134,6 +135,7 @@ export default function DiariasSolicitacoes() {
   const {
     userScope,
     scopeFilters,
+    centrosCustoGerenciados,
     isLoading: isLoadingScope,
     canCreateSolicitacao,
     canEditSolicitacao,
@@ -191,14 +193,29 @@ export default function DiariasSolicitacoes() {
   // usuários que veem a solicitação. A ação de aprovar continua gateada por
   // `podeAnalisarAditivo` no botão.
   const { data: pendentesMap } = useAditivosPendentesPorSolicitacao(idsVisiveis);
+  // Hidratação de nomes via RPC SECURITY DEFINER (S1).
+  // Necessário porque a RLS de bd_funcionarios não libera funcionários
+  // de outros departamentos para GerenteRegional, fazendo os embeds
+  // PostgREST retornarem null para Eng. Solicitante / Resp. Campo.
+  const { nomesMap } = useHidratarNomesSolicitacoes(pagination.paginatedData);
   const getValorEstimado = (sol: DiariaSolicitacao) =>
     estimativasMap.get(sol.id) ?? sol.valor_estimado_total ?? 0;
   const getPendentes = (sol: DiariaSolicitacao) => pendentesMap?.get(sol.id) ?? [];
+  const getNomeEngenheiro = (sol: DiariaSolicitacao) =>
+    (sol as any).engenheiro_solicitante?.nome_completo
+      || (sol.engenheiro_solicitante_id ? nomesMap.get(sol.engenheiro_solicitante_id) : null)
+      || '-';
   
   // Centro de custos — Fase 3-B.1: respeita escopo de dados (GerenteRegional/AdmOBRA)
+  // Fonte do combo = centrosCustoGerenciados (sempre populado para gerente/admsede/admobra),
+  // independente de scopeFilters ficar {} quando o usuário tem diarias_relatorio_view:visualizar.
   const canViewAllCcs = isSuperAdmin || userScope === 'admsso';
-  const scopeCcIds = scopeFilters?.centro_custo_ids ?? [];
-  const scopeKey = canViewAllCcs ? 'all' : scopeCcIds.slice().sort().join(',');
+  const scopeCcIds = canViewAllCcs
+    ? []
+    : (centrosCustoGerenciados.length > 0
+        ? centrosCustoGerenciados
+        : (scopeFilters?.centro_custo_ids ?? []));
+  const scopeKey = canViewAllCcs ? 'all' : [...scopeCcIds].sort().join(',');
   const { data: centrosCusto = [] } = useQuery({
     queryKey: ['centros-custo-solicitacoes', canViewAllCcs, scopeKey],
     enabled: !isLoadingScope,
@@ -214,9 +231,22 @@ export default function DiariasSolicitacoes() {
         query = query.in('id', scopeCcIds);
       }
       const { data } = await query.order('nome_centro_custo');
+      if (import.meta.env.DEV) {
+        console.log('[AUDIT][diarias-solicitacoes:cc-combo]', {
+          userId,
+          userScope,
+          isSuperAdmin,
+          canViewAllCcs,
+          allowedCentroIds: scopeCcIds.length,
+          returnedCentrosCount: (data || []).length,
+          containsL498: (data || []).some((c: any) => c.codigo_centro_custo === 'L498'),
+          source: canViewAllCcs ? 'all' : (centrosCustoGerenciados.length > 0 ? 'centrosCustoGerenciados' : 'scopeFilters'),
+        });
+      }
       return data || [];
     }
   });
+
 
   // Fase 3-B.4 — Abrir Detalhes via deep-link de notificação (?solicitacao_id=...)
   const [searchParams, setSearchParams] = useSearchParams();
@@ -594,7 +624,7 @@ export default function DiariasSolicitacoes() {
                         <div className="flex items-center gap-2 text-sm">
                           <Users className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                           <span className="truncate">
-                            {(sol as any).engenheiro_solicitante?.nome_completo || '-'}
+                            {getNomeEngenheiro(sol)}
                           </span>
                         </div>
 
@@ -787,7 +817,7 @@ export default function DiariasSolicitacoes() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          {(sol as any).engenheiro_solicitante?.nome_completo || '-'}
+                          {getNomeEngenheiro(sol)}
                         </TableCell>
                         <TableCell className="text-center">
                           {contarConvocados(sol)}

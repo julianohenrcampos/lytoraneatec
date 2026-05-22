@@ -76,150 +76,58 @@ const applyFilters = (query: any, filters: FuncionarioFilter) => {
   return query;
 };
 
-// Fallback: load catalogs separately and merge with funcionarios
-const fetchFuncionariosFallback = async (filters: FuncionarioFilter): Promise<Funcionario[]> => {
-  console.log("🔄 Usando fallback para carregar funcionários...");
-  
-  // 1. Load base funcionarios without embeds
-  let query = supabase
-    .from("bd_funcionarios")
-    .select("id, nome_completo, cpf, data_nascimento, email, endereco_completo, escolaridade, genero, funcao_id, departamento_id, centro_custo_id, empresa_id, equipe_id, data_admissao, data_ferias, data_demissao, status, salario_base, insalubridade, periculosidade, gratificacao, adicional_noturno, custo_passagem, refeicao, diarias, observacoes, banco, agencia, conta_corrente, chave_pix, imagem, matricula, created_at, updated_at");
-  
-  query = applyFilters(query, filters);
-  
-  const { data: funcionariosBase, error: baseError } = await query;
-  
-  if (baseError) {
-    console.error("❌ Fallback também falhou:", baseError);
-    throw new Error(`Erro ao carregar funcionários: ${baseError.message}. Código: ${baseError.code || 'N/A'}. Detalhes: ${baseError.details || baseError.hint || 'N/A'}`);
-  }
-  
-  if (!funcionariosBase || funcionariosBase.length === 0) {
-    return [];
-  }
-  
-  // 2. Collect unique IDs for related tables
-  const funcaoIds = [...new Set(funcionariosBase.map(f => f.funcao_id).filter(Boolean))];
-  const departamentoIds = [...new Set(funcionariosBase.map(f => f.departamento_id).filter(Boolean))];
-  const centroCustoIds = [...new Set(funcionariosBase.map(f => f.centro_custo_id).filter(Boolean))];
-  const empresaIds = [...new Set(funcionariosBase.map(f => f.empresa_id).filter(Boolean))];
-  const equipeIds = [...new Set(funcionariosBase.map(f => f.equipe_id).filter(Boolean))];
-  
-  // 3. Load catalogs in parallel
-  const [funcoesRes, departamentosRes, centrosCustoRes, empresasRes, equipesRes] = await Promise.all([
-    funcaoIds.length > 0 
-      ? supabase.from("bd_funcoes").select("id, nome_funcao").in("id", funcaoIds)
-      : { data: [], error: null },
-    departamentoIds.length > 0 
-      ? supabase.from("bd_departamentos").select("id, nome_departamento").in("id", departamentoIds)
-      : { data: [], error: null },
-    centroCustoIds.length > 0 
-      ? supabase.from("bd_centros_custo").select("id, codigo_centro_custo, nome_centro_custo").in("id", centroCustoIds)
-      : { data: [], error: null },
-    empresaIds.length > 0 
-      ? supabase.from("bd_empresas").select("id, nome_empresa").in("id", empresaIds)
-      : { data: [], error: null },
-    equipeIds.length > 0 
-      ? supabase.from("bd_equipes").select("id, nome_equipe").in("id", equipeIds)
-      : { data: [], error: null },
-  ]);
-  
-  // Build lookup maps
-  const funcoesMap = new Map((funcoesRes.data || []).map(f => [f.id, f]));
-  const departamentosMap = new Map((departamentosRes.data || []).map(d => [d.id, d]));
-  const centrosCustoMap = new Map((centrosCustoRes.data || []).map(c => [c.id, c]));
-  const empresasMap = new Map((empresasRes.data || []).map(e => [e.id, e]));
-  const equipesMap = new Map((equipesRes.data || []).map(eq => [eq.id, eq]));
-  
-  // 4. Merge data
-  const funcionariosCompletos = funcionariosBase.map(func => ({
-    ...func,
-    bd_funcoes: func.funcao_id ? funcoesMap.get(func.funcao_id) || null : null,
-    bd_departamentos: func.departamento_id ? departamentosMap.get(func.departamento_id) || null : null,
-    bd_centros_custo: func.centro_custo_id ? centrosCustoMap.get(func.centro_custo_id) || null : null,
-    bd_empresas: func.empresa_id ? empresasMap.get(func.empresa_id) || null : null,
-    bd_equipes: func.equipe_id ? equipesMap.get(func.equipe_id) || null : null,
-  }));
-  
-  console.log("✅ Fallback carregou", funcionariosCompletos.length, "funcionários");
-  return funcionariosCompletos as unknown as Funcionario[];
-};
-
-// Function to fetch funcionarios with filters
+// Function to fetch funcionarios via RPC fn_rh_funcionarios_listar
+// - SECURITY DEFINER no banco: bypassa RLS pesada e aplica escopo internamente
+// - Retorno mínimo (sem campos financeiros/bancários/endereço/email/data_nascimento)
+// - CPF mascarado para todos os perfis
+// - Embeds já vêm no payload (sem N+1)
 export const fetchFuncionarios = async (filters: FuncionarioFilter = {}): Promise<Funcionario[]> => {
   try {
-    // First attempt: use explicit FK-based embeds for robustness
-    let query = supabase
-      .from("bd_funcionarios")
-      .select(`
-        id, nome_completo, cpf, data_nascimento, email, endereco_completo, escolaridade, genero,
-        funcao_id, departamento_id, centro_custo_id, empresa_id, equipe_id,
-        data_admissao, data_ferias, data_demissao, status,
-        salario_base, insalubridade, periculosidade, gratificacao, adicional_noturno,
-        custo_passagem, refeicao, diarias, observacoes,
-        banco, agencia, conta_corrente, chave_pix, imagem, matricula, created_at, updated_at,
-        bd_funcoes!bd_funcionarios_funcao_id_fkey ( id, nome_funcao ),
-        bd_departamentos!bd_funcionarios_departamento_id_fkey ( id, nome_departamento ),
-        bd_centros_custo!bd_funcionarios_centro_custo_id_fkey ( id, codigo_centro_custo, nome_centro_custo ),
-        bd_empresas!bd_funcionarios_empresa_id_fkey ( id, nome_empresa )
-      `);
+    const cpfDigits = filters.cpf ? filters.cpf.replace(/\D/g, '') : null;
 
-    query = applyFilters(query, filters);
-
-    const { data, error } = await query;
+    const { data, error } = await (supabase as any).rpc('fn_rh_funcionarios_listar', {
+      p_search: filters.nome_completo?.trim() || null,
+      p_cpf: cpfDigits || null,
+      p_matricula: filters.matricula?.trim() || null,
+      p_status: filters.status || null,
+      p_funcao_id: filters.funcao_id && filters.funcao_id !== 'sem_funcao' ? filters.funcao_id : null,
+      p_departamento_id: filters.departamento_id && filters.departamento_id !== 'sem_valor' ? filters.departamento_id : null,
+      p_centro_custo_id: filters.centro_custo_id && filters.centro_custo_id !== 'sem_valor' ? filters.centro_custo_id : null,
+      p_empresa_id: filters.empresa_id && filters.empresa_id !== 'sem_valor' ? filters.empresa_id : null,
+      p_equipe_id: filters.equipe_id && filters.equipe_id !== 'sem_valor' ? filters.equipe_id : null,
+      p_data_admissao_inicio: filters.data_admissao_inicio || null,
+      p_data_admissao_fim: filters.data_admissao_fim || null,
+      p_page: 1,
+      p_page_size: 2000,
+    });
 
     if (error) {
-      // Log full error for diagnosis
-      console.error("❌ Erro na query principal de funcionários:", {
+      console.error('❌ Erro na RPC fn_rh_funcionarios_listar:', {
         message: error.message,
         code: error.code,
         details: error.details,
         hint: error.hint,
       });
-      
-      // Try fallback approach
-      console.warn("⚠️ Tentando fallback sem embeds...");
-      return await fetchFuncionariosFallback(filters);
+      throw new Error(
+        `Erro ao carregar funcionários: ${error.message}. Código: ${error.code || 'N/A'}. Detalhes: ${error.details || error.hint || 'N/A'}`,
+      );
     }
-    
-    // Load equipes separately to avoid multiple FK conflict
-    const funcionariosComEquipes = await Promise.all(
-      (data || []).map(async (funcionario) => {
-        if (funcionario.equipe_id) {
-          const { data: equipe } = await supabase
-            .from("bd_equipes")
-            .select("id, nome_equipe")
-            .eq("id", funcionario.equipe_id)
-            .maybeSingle();
-          
-          return {
-            ...funcionario,
-            bd_equipes: equipe
-          };
-        }
-        return funcionario;
-      })
-    );
-    
-    return funcionariosComEquipes as unknown as Funcionario[];
+
+    // RPC retorna 1 linha { rows: jsonb[], total_count: bigint }
+    const row = Array.isArray(data) ? data[0] : data;
+    const rows = (row?.rows as unknown[]) || [];
+    return rows as unknown as Funcionario[];
   } catch (error: any) {
-    console.error("❌ Erro ao carregar funcionários:", {
+    console.error('❌ Erro ao carregar funcionários:', {
       message: error?.message,
       code: error?.code,
       details: error?.details,
       hint: error?.hint,
-      stack: error?.stack,
     });
-    
-    // Throw with detailed message
-    const errorMessage = error?.message || "Erro desconhecido";
-    const errorCode = error?.code ? ` (Código: ${error.code})` : "";
-    const errorHint = error?.hint ? `. Dica: ${error.hint}` : "";
-    const errorDetails = error?.details ? `. Detalhes: ${error.details}` : "";
-    
-    throw new Error(`${errorMessage}${errorCode}${errorHint}${errorDetails}`);
+    throw error instanceof Error ? error : new Error(String(error));
   }
 };
+
 
 // Function to get funcionario by ID
 export const getFuncionarioById = async (id: string): Promise<Funcionario> => {

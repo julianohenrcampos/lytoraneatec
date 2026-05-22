@@ -83,7 +83,7 @@ export default function DiariasRankingFuncoes({ filters }: Props) {
       const dRef = Math.ceil(Number(p.valor_diaria_aplicada || 0));
       const rRef = Math.ceil(Number(p.valor_refeicao_aplicado || 0));
       const lineTotal = dRef + rRef;
-      const cat = classificarDia(p.data, ds.feriadosSet);
+      const cat = classificarDia(p, ds.feriadosSet, { modo: "operacional" });
       if (cat === "uteis") {
         r.valorUteis += dRef;
         r.apontUteis += 1;

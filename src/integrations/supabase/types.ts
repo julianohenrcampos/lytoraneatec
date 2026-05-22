@@ -14207,6 +14207,7 @@ export type Database = {
           tem_presenca_real: boolean | null
           tipo_diaria: string | null
           usar_diaria_exclusiva: boolean | null
+          usar_diaria_exclusiva_calendario: boolean | null
           valor_diaria_aplicada: number | null
           valor_diaria_bruto_historico: number | null
           valor_diaria_suspeito_sem_presenca: number | null
@@ -14350,6 +14351,7 @@ export type Database = {
           tem_presenca_real: boolean | null
           tipo_diaria: string | null
           usar_diaria_exclusiva: boolean | null
+          usar_diaria_exclusiva_calendario: boolean | null
           valor_diaria_aplicada: number | null
           valor_diaria_bruto_historico: number | null
           valor_diaria_suspeito_sem_presenca: number | null
@@ -14486,6 +14488,7 @@ export type Database = {
           status_solicitacao: string | null
           tipo_diaria: string | null
           usar_diaria_exclusiva: boolean | null
+          usar_diaria_exclusiva_calendario: boolean | null
         }
         Relationships: [
           {
@@ -17213,6 +17216,7 @@ export type Database = {
           tem_presenca_real: boolean | null
           tipo_diaria: string | null
           usar_diaria_exclusiva: boolean | null
+          usar_diaria_exclusiva_calendario: boolean | null
           valor_diaria_aplicada: number | null
           valor_diaria_bruto_historico: number | null
           valor_diaria_suspeito_sem_presenca: number | null
@@ -18332,6 +18336,18 @@ export type Database = {
         Args: { p_criado_por: string; p_obra_id: string }
         Returns: boolean
       }
+      fn_diaria_aditivos_pendentes_escopo: {
+        Args: { p_solicitacao_ids: string[] }
+        Returns: {
+          data_ajustada: string
+          funcionario_id: string
+          id: string
+          solicitacao_id: string
+          solicitado_em: string
+          status: string
+          tipo: string
+        }[]
+      }
       fn_diaria_can_create: { Args: { p_user_id?: string }; Returns: boolean }
       fn_diaria_can_manage_row: {
         Args: { p_solicitacao_id: string; p_user_id?: string }
@@ -18391,6 +18407,14 @@ export type Database = {
       fn_diaria_has_global_access: {
         Args: { p_user_id?: string }
         Returns: boolean
+      }
+      fn_diaria_nomes_minimos: {
+        Args: { p_ids: string[] }
+        Returns: {
+          id: string
+          nome_completo: string
+          origem: string
+        }[]
       }
       fn_diaria_scope_centros_custo: {
         Args: { p_user_id?: string }
@@ -18637,6 +18661,27 @@ export type Database = {
           tipo_correcao: string
           valor_revertido_de: Json
           valor_revertido_para: Json
+        }[]
+      }
+      fn_rh_funcionarios_listar: {
+        Args: {
+          p_centro_custo_id?: string
+          p_cpf?: string
+          p_data_admissao_fim?: string
+          p_data_admissao_inicio?: string
+          p_departamento_id?: string
+          p_empresa_id?: string
+          p_equipe_id?: string
+          p_funcao_id?: string
+          p_matricula?: string
+          p_page?: number
+          p_page_size?: number
+          p_search?: string
+          p_status?: string
+        }
+        Returns: {
+          rows: Json
+          total_count: number
         }[]
       }
       fn_role_is_protected: { Args: { p_role_id: string }; Returns: boolean }

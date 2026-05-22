@@ -188,47 +188,71 @@ export function SolicitacaoDetalhesModal({
         }
       }
 
-      // Buscar nome do responsável em campo (apontador)
-      let apontadorNome = null;
-      if (solicitacao.responsavel_campo_id) {
-        const { data: apontador } = await supabase
-          .from('bd_funcionarios')
-          .select('nome_completo')
-          .eq('id', solicitacao.responsavel_campo_id)
-          .maybeSingle();
-        
-        if (apontador) {
-          apontadorNome = apontador.nome_completo;
+      // S1 — Nomes mínimos via RPC SECURITY DEFINER (fn_diaria_nomes_minimos).
+      // Necessário porque a RLS de bd_funcionarios/profiles não libera
+      // pessoas de outros departamentos para GerenteRegional, fazendo as
+      // queries diretas retornarem null e os campos virarem "-".
+      let apontadorNome: string | null = null;
+      let engenheiroSolicitanteNome: string | null = null;
+      let criadorNome: string | null = null;
+
+      const idsParaResolver = [
+        solicitacao.criado_por,
+        (solicitacao as any).engenheiro_solicitante_id,
+        solicitacao.responsavel_campo_id,
+        (solicitacao as any).autorizado_por,
+      ].filter((v): v is string => !!v);
+
+      const nomesMap = new Map<string, string>();
+      if (idsParaResolver.length > 0) {
+        const { data: nomesData, error: nomesErr } = await supabase.rpc(
+          'fn_diaria_nomes_minimos',
+          { p_ids: idsParaResolver },
+        );
+        if (nomesErr) {
+          console.warn(
+            '[SolicitacaoDetalhesModal] fn_diaria_nomes_minimos falhou',
+            nomesErr,
+          );
+        } else {
+          for (const row of (nomesData ?? []) as Array<{
+            id: string;
+            nome_completo: string;
+            origem: string;
+          }>) {
+            if (!nomesMap.has(row.id) && row.nome_completo) {
+              nomesMap.set(row.id, row.nome_completo);
+            }
+          }
         }
       }
 
-      // Buscar nome do engenheiro solicitante
-      let engenheiroSolicitanteNome = null;
-      if ((solicitacao as any).engenheiro_solicitante_id) {
-        const { data: engenheiro } = await supabase
-          .from('bd_funcionarios')
-          .select('nome_completo')
-          .eq('id', (solicitacao as any).engenheiro_solicitante_id)
-          .maybeSingle();
-        
-        if (engenheiro) {
-          engenheiroSolicitanteNome = engenheiro.nome_completo;
-        }
-      }
-
-      // Buscar nome do criador
-      let criadorNome = null;
       if (solicitacao.criado_por) {
-        const { data: criador } = await supabase
-          .from('profiles')
-          .select('nome_completo')
-          .eq('id', solicitacao.criado_por)
-          .maybeSingle();
-        
-        if (criador) {
-          criadorNome = criador.nome_completo;
-        }
+        criadorNome = nomesMap.get(solicitacao.criado_por) ?? null;
       }
+      if ((solicitacao as any).engenheiro_solicitante_id) {
+        engenheiroSolicitanteNome =
+          nomesMap.get((solicitacao as any).engenheiro_solicitante_id) ?? null;
+      }
+      if (solicitacao.responsavel_campo_id) {
+        apontadorNome = nomesMap.get(solicitacao.responsavel_campo_id) ?? null;
+      }
+
+      if (import.meta.env.DEV) {
+        console.log('[AUDIT][diarias-solicitacao-modal:nomes]', {
+          solicitacaoId: solicitacao.id,
+          criado_por: solicitacao.criado_por,
+          engenheiro_solicitante_id: (solicitacao as any).engenheiro_solicitante_id,
+          responsavel_campo_id: solicitacao.responsavel_campo_id,
+          autorizado_por: (solicitacao as any).autorizado_por,
+          hasSolicitanteNome: !!criadorNome,
+          hasEngenheiroNome: !!engenheiroSolicitanteNome,
+          hasResponsavelNome: !!apontadorNome,
+          nomesMapSize: nomesMap.size,
+        });
+      }
+
+
 
       // Fallback: buscar nomes de funcionários/funções se não existirem no JSON
       const convocadosRaw: FuncionarioPreConvocado[] = derivarFuncionariosPlanos(

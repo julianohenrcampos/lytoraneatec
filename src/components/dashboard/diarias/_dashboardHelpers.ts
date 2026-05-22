@@ -4,6 +4,10 @@
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { lerConvocadosPre, derivarFuncionariosPlanos } from "@/lib/diarias/convocadosPreAdapter";
+import {
+  classificarDiaParaRelatorio as classificarDiaParaRelatorioCore,
+  type OpcoesClassificacao,
+} from "@/lib/diarias/classificacaoDiaRelatorio";
 
 import {
   getCurrentDiariasReportContext,
@@ -62,6 +66,10 @@ export interface PresencaRow {
   tipo_diaria: string | null;
   valor_diaria_aplicada: number | null;
   valor_refeicao_aplicado: number | null;
+  /** Snapshot operacional gravado em bd_diaria_presencas (visão histórica/financeira). */
+  usar_diaria_exclusiva?: boolean | null;
+  /** Regra ATUAL do bd_diaria_calendario_operacional (visão operacional vigente). NULL = sem override. */
+  usar_diaria_exclusiva_calendario?: boolean | null;
 }
 
 export interface ConvocadoPre {
@@ -210,7 +218,7 @@ export async function fetchPresencasConfirmadas(
     let q = supabase
       .from(viewName as any)
       .select(
-        "presenca_id, data, centro_custo_id, codigo_centro_custo, nome_centro_custo, funcionario_id, nome_funcionario, funcao_id, nome_funcao, solicitacao_id, numero_solicitacao, presenca_status, hora_entrada, hora_saida, tipo_diaria, valor_diaria_aplicada, valor_refeicao_aplicado"
+        "presenca_id, data, centro_custo_id, codigo_centro_custo, nome_centro_custo, funcionario_id, nome_funcionario, funcao_id, nome_funcao, solicitacao_id, numero_solicitacao, presenca_status, hora_entrada, hora_saida, tipo_diaria, valor_diaria_aplicada, valor_refeicao_aplicado, usar_diaria_exclusiva, usar_diaria_exclusiva_calendario"
       )
       // Critério oficial de "confirmado" — alinhado com isRelatorioItemConfirmado e PDF Compilado.
       .eq("presenca_status", "true" as unknown as string)
@@ -252,7 +260,7 @@ export async function fetchPresencasConfirmadas(
         const fb = await supabase
           .from("vw_relatorio_diarias_folha")
           .select(
-            "presenca_id, data, centro_custo_id, codigo_centro_custo, nome_centro_custo, funcionario_id, nome_funcionario, funcao_id, nome_funcao, solicitacao_id, numero_solicitacao, presenca_status, hora_entrada, hora_saida, tipo_diaria, valor_diaria_aplicada, valor_refeicao_aplicado"
+            "presenca_id, data, centro_custo_id, codigo_centro_custo, nome_centro_custo, funcionario_id, nome_funcionario, funcao_id, nome_funcao, solicitacao_id, numero_solicitacao, presenca_status, hora_entrada, hora_saida, tipo_diaria, valor_diaria_aplicada, valor_refeicao_aplicado, usar_diaria_exclusiva, usar_diaria_exclusiva_calendario"
           )
           .eq("presenca_status", "true" as unknown as string)
           .not("hora_entrada", "is", null)
@@ -425,12 +433,33 @@ export async function fetchFeriadosSet(): Promise<Set<string>> {
 
 export type TipoDiaCategoria = "uteis" | "fds_feriado";
 
-export function classificarDia(dataISO: string, feriadosSet: Set<string>): TipoDiaCategoria {
-  if (feriadosSet.has(dataISO)) return "fds_feriado";
-  const d = new Date(dataISO + "T12:00:00");
-  const dow = d.getDay();
-  if (dow === 0 || dow === 6) return "fds_feriado";
-  return "uteis";
+/**
+ * Classificação de dia para Dashboard — DELEGA à fonte única em
+ * `src/lib/diarias/classificacaoDiaRelatorio.ts`.
+ *
+ * Dashboards de gestão DEVEM passar `{ modo: 'operacional' }` para refletir
+ * a regra ATUAL do calendário operacional. Sem `opts`, cai no default
+ * `'snapshot'` (visão histórica) — usar apenas em telas que precisam
+ * espelhar exatamente o PDF oficial.
+ */
+export function classificarDia(
+  input: string | { data: string | null | undefined; usar_diaria_exclusiva?: boolean | null; usar_diaria_exclusiva_calendario?: boolean | null },
+  feriadosSet: Set<string>,
+  opts?: OpcoesClassificacao,
+): TipoDiaCategoria {
+  const obj = typeof input === "string" ? { data: input } : input;
+  const { usar_valor_exclusivo, origem_regra } = classificarDiaParaRelatorioCore(obj, feriadosSet, opts);
+  if (import.meta.env.DEV) {
+    console.debug("[DIARIA][AGRUPAMENTO_DEBUG]", {
+      modo: opts?.modo ?? "snapshot",
+      data: typeof input === "string" ? input : input.data,
+      usar_diaria_exclusiva: typeof input === "string" ? undefined : input.usar_diaria_exclusiva,
+      usar_diaria_exclusiva_calendario: typeof input === "string" ? undefined : input.usar_diaria_exclusiva_calendario,
+      grupo_calculado: usar_valor_exclusivo ? "fds_feriado" : "uteis",
+      origem_regra,
+    });
+  }
+  return usar_valor_exclusivo ? "fds_feriado" : "uteis";
 }
 
 export interface BreakdownAgg {

@@ -6,9 +6,16 @@ import {
   Pie,
   Cell,
   ResponsiveContainer,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   Legend,
 } from "recharts";
+import { Info } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { classificarDia, type DiariasFilters } from "./_dashboardHelpers";
 import { useDiariasDataset } from "./useDiariasDataset";
 
@@ -34,7 +41,7 @@ export default function DiariasTipoDiaChart({ filters }: Props) {
       if (!p.data) continue;
       if (data.feriadosSet.has(p.data)) fer++;
       else {
-        const cat = classificarDia(p.data, data.feriadosSet);
+        const cat = classificarDia(p, data.feriadosSet, { modo: "operacional" });
         if (cat === "fds_feriado") fds++;
         else uteis++;
       }
@@ -49,7 +56,26 @@ export default function DiariasTipoDiaChart({ filters }: Props) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Distribuição por Tipo de Dia</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg">Distribuição por Tipo de Dia</CardTitle>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Sobre a classificação por tipo de dia"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Info className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="left" className="max-w-xs">
+                Este gráfico usa o calendário operacional vigente. PDFs oficiais
+                usam o histórico salvo no apontamento.
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -74,7 +100,7 @@ export default function DiariasTipoDiaChart({ filters }: Props) {
                   <Cell key={i} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip formatter={(v) => [v, "Dias"]} />
+              <RechartsTooltip formatter={(v) => [v, "Dias"]} />
               <Legend
                 verticalAlign="bottom"
                 formatter={(value) => {

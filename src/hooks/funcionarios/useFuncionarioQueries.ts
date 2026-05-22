@@ -22,27 +22,19 @@ export function useFuncionarioQueries(
   const queryClient = useQueryClient();
   const { departamentoId, centroCustoIds, shouldFilterByDepartment, shouldFilterByCentroCusto, isLoading: isSecurityLoading } = useRhSecurity();
 
-  // Aplicar filtro automaticamente baseado no contexto de segurança
-  // AdmObra multiobra:
-  //  - filtro CC dentro do escopo → enviar SOMENTE centro_custo_id
-  //  - filtro CC fora do escopo → ignora e usa centro_custo_ids do escopo
-  //  - sem filtro CC → usa centro_custo_ids do escopo
-  // Evita conflito eq + in que zerava resultado.
+  // Escopo agora é aplicado server-side pela RPC fn_rh_funcionarios_listar.
+  // Aqui só repassamos o filtro de CC do usuário se ele explicitamente escolheu um.
+  // Mantemos a injeção de departamento_id para perfis cuja política RH atual exige
+  // (AdmSede/AdmSSO/AdmTec... quando shouldFilterByDepartment=true).
   const secureFilters: FuncionarioFilter = (() => {
     if (shouldFilterByDepartment && departamentoId) {
       return { ...filters, departamento_id: departamentoId };
     }
-    if (shouldFilterByCentroCusto && centroCustoIds && centroCustoIds.length > 0) {
-      const requested = filters.centro_custo_id;
-      if (requested && requested !== 'sem_valor' && centroCustoIds.includes(requested)) {
-        const { centro_custo_ids: _omitIds, ...rest } = filters;
-        return { ...rest, centro_custo_id: requested };
-      }
-      const { centro_custo_id: _omitId, ...rest } = filters;
-      return { ...rest, centro_custo_ids: centroCustoIds };
-    }
-    return filters;
+    // Para GerenteRegional/AdmOBRA: não injetamos centro_custo_ids — escopo é server-side.
+    const { centro_custo_ids: _omit, ...rest } = filters;
+    return rest;
   })();
+
 
   // Query para buscar funcionários
   const { 
@@ -53,7 +45,25 @@ export function useFuncionarioQueries(
     refetch 
   } = useQuery({
     queryKey: ['funcionarios', secureFilters, departamentoId, shouldFilterByDepartment, shouldFilterByCentroCusto],
-    queryFn: () => fetchFuncionarios(secureFilters),
+    queryFn: async () => {
+      const result = await fetchFuncionarios(secureFilters);
+      if (import.meta.env.DEV) {
+        const mode = secureFilters.centro_custo_ids?.length
+          ? 'cc'
+          : secureFilters.centro_custo_id
+            ? 'cc-single'
+            : secureFilters.departamento_id
+              ? 'dept'
+              : 'none';
+        console.log('[AUDIT][rh-funcionarios:list]', {
+          mode,
+          centroCustoIdsCount: secureFilters.centro_custo_ids?.length ?? 0,
+          departamentoId: secureFilters.departamento_id ?? null,
+          returnedCount: Array.isArray(result) ? result.length : 0,
+        });
+      }
+      return result;
+    },
     enabled: !isSecurityLoading, // Aguarda carregar o contexto de segurança
     retry: 1, // Tentar apenas uma vez (fallback já é tentado internamente)
   });

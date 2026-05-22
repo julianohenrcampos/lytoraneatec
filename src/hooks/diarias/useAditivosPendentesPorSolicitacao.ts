@@ -4,6 +4,14 @@
 // Busca em uma única query todos os aditivos pendentes para um conjunto
 // de solicitações (usado pela listagem para exibir o ícone "Analisar
 // Aditivo" ao lado dos demais ícones de ação).
+//
+// Fase E5/S2 (mai/2026): a leitura agora passa pela RPC
+// `fn_diaria_aditivos_pendentes_escopo`, SECURITY DEFINER, que aplica
+// o filtro de escopo de centros de custo do usuário (e gateia papéis
+// permitidos — SuperAdm, acesso_global e GerenteRegional nesta fase).
+// A policy SELECT em `bd_diaria_aditivos` continua restrita a
+// solicitado_por / decidido_por / acesso_global; portanto a chamada
+// direta à tabela retornava 0 linhas para GerenteRegional.
 // =====================================================
 
 import { useQuery } from '@tanstack/react-query';
@@ -27,12 +35,10 @@ export function useAditivosPendentesPorSolicitacao(
     enabled: enabled && ids.length > 0,
     staleTime: 30_000,
     queryFn: async (): Promise<Map<string, AditivoPendenteRef[]>> => {
-      const { data, error } = await supabase
-        .from('bd_diaria_aditivos')
-        .select('id, solicitacao_id, solicitado_em')
-        .eq('status', 'pendente')
-        .in('solicitacao_id', ids)
-        .order('solicitado_em', { ascending: true });
+      const { data, error } = await supabase.rpc(
+        'fn_diaria_aditivos_pendentes_escopo',
+        { p_solicitacao_ids: ids },
+      );
 
       if (error) throw error;
 
@@ -45,6 +51,14 @@ export function useAditivosPendentesPorSolicitacao(
         const arr = map.get(row.solicitacao_id) ?? [];
         arr.push({ id: row.id, solicitado_em: row.solicitado_em });
         map.set(row.solicitacao_id, arr);
+      }
+      // Ordena cada bucket por solicitado_em ASC para preservar comportamento.
+      for (const arr of map.values()) {
+        arr.sort((a, b) => {
+          const ax = a.solicitado_em ?? '';
+          const bx = b.solicitado_em ?? '';
+          return ax < bx ? -1 : ax > bx ? 1 : 0;
+        });
       }
       return map;
     },

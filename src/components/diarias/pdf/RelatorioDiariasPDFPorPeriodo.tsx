@@ -6,6 +6,7 @@ import { ptBR } from 'date-fns/locale';
 import type { RelatorioFolhaItem, RelatorioFilters } from '@/types/diarias';
 import { isRelatorioItemConfirmado, isRelatorioItemRemessa } from '@/services/diarias/relatorioMetrics';
 import { calcularBreakdownDiaria } from '@/utils/diariaCalculo';
+import { classificarDiaParaRelatorio } from '@/lib/diarias/classificacaoDiaRelatorio';
 
 
 // =====================================================
@@ -118,10 +119,26 @@ function consolidarFuncionarios(
     if (!isRelatorioItemConfirmado(item)) return;
 
     const existing = funcionariosMap.get(item.funcionario_id);
-    const data = new Date(item.data + 'T12:00:00');
-    const diaSemana = data.getDay();
-    const isFds = diaSemana === 0 || diaSemana === 6;
-    const isFeriado = feriadosSet.has(item.data);
+    // VISÃO FINANCEIRA/HISTÓRICA: snapshot da presença é fonte de verdade.
+    // dias_feriados continua derivado de feriadosSet apenas como detalhe
+    // descritivo dentro do bloco FDS/Feriado (não altera totais).
+    const classificacao = classificarDiaParaRelatorio(item, feriadosSet, { modo: 'snapshot' });
+    const usar_valor_exclusivo = classificacao.usar_valor_exclusivo;
+    const isFeriado = feriadosSet.has((item.data || '').substring(0, 10));
+    const isFdsFer = usar_valor_exclusivo;
+    if (typeof console !== 'undefined') {
+      console.debug('[DIARIA][AGRUPAMENTO_DEBUG]', {
+        modo: 'snapshot',
+        contexto: 'RelatorioDiariasPDFPorPeriodo.consolidarFuncionarios',
+        data: (item.data || '').substring(0, 10),
+        centro_custo: item.codigo_centro_custo,
+        usar_diaria_exclusiva: item.usar_diaria_exclusiva,
+        usar_diaria_exclusiva_calendario: (item as any).usar_diaria_exclusiva_calendario ?? null,
+        grupo_calculado: classificacao.grupo_relatorio,
+        origem_regra: classificacao.origem_regra,
+        valor_diaria_aplicada: item.valor_diaria_aplicada,
+      });
+    }
 
     const breakdown = calcularBreakdownDiaria(item);
     const integralAdd = breakdown.diaria;
@@ -135,8 +152,8 @@ function consolidarFuncionarios(
       existing.valor_refeicao += refeicaoAdd;
       existing.valor_diaria_integral += integralAdd;
       existing.valor_meia_diaria += meiaAdd;
-      if (isFeriado) existing.dias_feriados += 1;
-      else if (isFds) existing.dias_fds += 1;
+      if (isFdsFer && isFeriado) existing.dias_feriados += 1;
+      else if (isFdsFer) existing.dias_fds += 1;
       else existing.dias_uteis += 1;
     } else {
       funcionariosMap.set(item.funcionario_id, {
@@ -151,9 +168,9 @@ function consolidarFuncionarios(
         conta: item.conta_funcionario || '-',
         chave_pix: item.pix_funcionario || '-',
         total_dias: 1,
-        dias_uteis: !isFds && !isFeriado ? 1 : 0,
-        dias_fds: isFds && !isFeriado ? 1 : 0,
-        dias_feriados: isFeriado ? 1 : 0,
+        dias_uteis: !isFdsFer ? 1 : 0,
+        dias_fds: isFdsFer && !isFeriado ? 1 : 0,
+        dias_feriados: isFdsFer && isFeriado ? 1 : 0,
         valor_total: totalLinha,
         valor_refeicao: refeicaoAdd,
         valor_diaria_integral: integralAdd,
@@ -178,12 +195,11 @@ function calcularTotaisDias(
     if (!isRelatorioItemConfirmado(item)) return;
     if (!datasUnicas.has(item.data)) {
       datasUnicas.add(item.data);
-      const data = new Date(item.data + 'T12:00:00');
-      const diaSemana = data.getDay();
-      const isFds = diaSemana === 0 || diaSemana === 6;
-      const isFeriado = feriadosSet.has(item.data);
-      if (isFeriado) diasFeriados += 1;
-      else if (isFds) diasFds += 1;
+      // VISÃO FINANCEIRA/HISTÓRICA: snapshot da presença é fonte de verdade.
+      const { usar_valor_exclusivo } = classificarDiaParaRelatorio(item, feriadosSet, { modo: 'snapshot' });
+      const isFeriado = feriadosSet.has((item.data || '').substring(0, 10));
+      if (usar_valor_exclusivo && isFeriado) diasFeriados += 1;
+      else if (usar_valor_exclusivo) diasFds += 1;
       else diasUteis += 1;
     }
   });

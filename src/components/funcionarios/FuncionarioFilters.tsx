@@ -68,7 +68,15 @@ const FuncionarioFilters: React.FC<FuncionarioFiltersProps> = ({
       }
       const { data, error } = await query.order('nome_centro_custo');
       if (error) throw error;
-      return data || [];
+      const result = data || [];
+      if (import.meta.env.DEV) {
+        console.log('[AUDIT][rh-funcionarios:cc-combo]', {
+          allowedCount: scopeCcIds?.length ?? 0,
+          returnedCount: result.length,
+          containsL498: result.some((c: any) => c.codigo_centro_custo === 'L498'),
+        });
+      }
+      return result;
     },
   });
 

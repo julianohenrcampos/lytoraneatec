@@ -25,7 +25,7 @@ export default function DiariasResumoFinanceiro({ filters }: Props) {
     const total = emptyAgg();
     for (const p of ds.presencas) {
       if (!p.data) continue;
-      const cat = classificarDia(p.data, ds.feriadosSet);
+      const cat = classificarDia(p, ds.feriadosSet, { modo: "operacional" });
       somarPresenca(cat === "uteis" ? uteis : fds, p);
       somarPresenca(total, p);
     }
