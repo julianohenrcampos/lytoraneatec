@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { usePageTitle } from "@/contexts/PageTitleContext";
 import { useNavigate } from "react-router-dom";
@@ -128,7 +128,7 @@ export default function DiariasSolicitacoes() {
   usePageTitle("Solicitações de Diária");
   const isMobile = useIsMobile();
   const navigate = useNavigate();
-  const { permissions, userId, isSuperAdmin, isLoading: isLoadingPermissions } = usePermission();
+  const { permissions, userId, isSuperAdmin, hasActionPermission, isLoading: isLoadingPermissions } = usePermission();
   const hasPermission = (perm: string) => permissions.includes(perm);
   
   // Hook de escopo de dados - RBAC
@@ -167,44 +167,128 @@ export default function DiariasSolicitacoes() {
   const [cancelAutorizacaoId, setCancelAutorizacaoId] = useState<string | null>(null);
   const [aditivoSolicitacaoId, setAditivoSolicitacaoId] = useState<string | null>(null);
   const [aditivoAnaliseId, setAditivoAnaliseId] = useState<string | null>(null);
+  const [aditivoAnaliseSolicitacao, setAditivoAnaliseSolicitacao] = useState<DiariaSolicitacao | null>(null);
+  const abrirAnaliseAditivo = (sol: DiariaSolicitacao) => {
+    const pendentes = getPendentes(sol);
+    if (!pendentes.length) return;
+    setAditivoAnaliseSolicitacao(sol);
+    setAditivoAnaliseId(pendentes[0].id);
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.debug('[AUDIT][aditivo-modal:open]', {
+        solicitacaoId: sol.id,
+        numeroSolicitacao: (sol as any).numero_solicitacao,
+        pendentesRecebidos: pendentes.length,
+        primeiroAditivoId: pendentes[0].id,
+        hasPermAprovar: isSuperAdmin || !!profile?.acesso_global || hasActionPermission('diarias_aditivo_aprovar', 'aprovar'),
+        source: 'pendentesMap',
+      });
+    }
+  };
   const podeSolicitarAditivo = (sol: DiariaSolicitacao) =>
     sol.status === 'autorizada' &&
     (isSuperAdmin || hasPermission('diarias_aditivo_solicitar'));
 
   // Acesso global para análise de aditivos (Fase I.4)
   const { user: profile } = useUserProfile();
-  const podeAnalisarAditivo = isSuperAdmin || !!profile?.acesso_global;
+
+  // Fonte defensiva de escopo: prioriza centrosCustoGerenciados, fallback para scopeFilters.
+  const allowedCentroIds = ((centrosCustoGerenciados?.length
+    ? centrosCustoGerenciados
+    : (scopeFilters?.centro_custo_ids ?? [])) as string[]);
+
+  // RBAC base para aprovar aditivo
+  const podeAnalisarAditivoBase =
+    isSuperAdmin ||
+    !!profile?.acesso_global ||
+    hasActionPermission('diarias_aditivo_aprovar', 'aprovar');
 
   // Queries - COM ESCOPO OBRIGATÓRIO
   const { data: solicitacoes = [], isLoading } = useSolicitacoesDiaria(filters, scopeFilters);
   const { data: resumo } = useSolicitacoesResumo(filters, scopeFilters);
 
+  // Aditivos pendentes da lista INTEIRA (pré-paginação), para permitir ordenação por pendências.
+  const idsTotais = useMemo(() => solicitacoes.map((s) => s.id), [solicitacoes]);
+  const { data: pendentesMap } = useAditivosPendentesPorSolicitacao(idsTotais);
+  const getPendentes = (sol: DiariaSolicitacao) => pendentesMap?.get(sol.id) ?? [];
+
+  // Ordenação: solicitações com mais aditivos pendentes primeiro; empate mantém ordem do service.
+  const solicitacoesOrdenadas = useMemo(() => {
+    const arr = solicitacoes.map((s, idx) => ({
+      s,
+      idx,
+      p: pendentesMap?.get(s.id)?.length ?? 0,
+    }));
+    arr.sort((a, b) => (b.p - a.p) || (a.idx - b.idx));
+    return arr.map((x) => x.s);
+  }, [solicitacoes, pendentesMap]);
+
   // Pagination
-  const pagination = usePagination(solicitacoes, { pageSize: 10 });
+  const pagination = usePagination(solicitacoesOrdenadas, { pageSize: 10 });
 
   // Estimativas recalculadas em tempo real (Fase I.4 — Ajuste B).
-  // Fonte oficial = mesma função usada em Detalhes/PDF.
   const estimativasMap = useEstimativasListagem(pagination.paginatedData);
 
-  // Aditivos pendentes por solicitação (Fase I.4 — Ajuste A).
-  // Query única agregada, não 1-por-linha.
-  const idsVisiveis = pagination.paginatedData.map((s) => s.id);
-  // Destaque visual de aditivo pendente é informativo e aparece para todos os
-  // usuários que veem a solicitação. A ação de aprovar continua gateada por
-  // `podeAnalisarAditivo` no botão.
-  const { data: pendentesMap } = useAditivosPendentesPorSolicitacao(idsVisiveis);
   // Hidratação de nomes via RPC SECURITY DEFINER (S1).
-  // Necessário porque a RLS de bd_funcionarios não libera funcionários
-  // de outros departamentos para GerenteRegional, fazendo os embeds
-  // PostgREST retornarem null para Eng. Solicitante / Resp. Campo.
   const { nomesMap } = useHidratarNomesSolicitacoes(pagination.paginatedData);
+
   const getValorEstimado = (sol: DiariaSolicitacao) =>
     estimativasMap.get(sol.id) ?? sol.valor_estimado_total ?? 0;
-  const getPendentes = (sol: DiariaSolicitacao) => pendentesMap?.get(sol.id) ?? [];
   const getNomeEngenheiro = (sol: DiariaSolicitacao) =>
     (sol as any).engenheiro_solicitante?.nome_completo
       || (sol.engenheiro_solicitante_id ? nomesMap.get(sol.engenheiro_solicitante_id) : null)
       || '-';
+
+  // Gate combinado: RBAC + escopo de CC + existência de pendentes.
+  const podeAprovarAditivo = (sol: DiariaSolicitacao): boolean => {
+    const pendentes = getPendentes(sol).length;
+    if (pendentes === 0) return false;
+    const bypass = isSuperAdmin || !!profile?.acesso_global;
+    const hasPermAprovar = bypass || hasActionPermission('diarias_aditivo_aprovar', 'aprovar');
+    const dentroDoEscopo = bypass || allowedCentroIds.includes(sol.centro_custo_id);
+    const ok = pendentes > 0 && hasPermAprovar && dentroDoEscopo;
+    if (import.meta.env.DEV) {
+      const motivoBloqueio = ok
+        ? null
+        : !hasPermAprovar
+          ? 'sem_permissao_diarias_aditivo_aprovar'
+          : !dentroDoEscopo
+            ? 'fora_do_escopo_cc'
+            : 'sem_pendentes';
+      // eslint-disable-next-line no-console
+      console.debug('[AUDIT][diarias-solicitacoes:aditivo-action]', {
+        solicitacaoId: sol.id,
+        numeroSolicitacao: (sol as any).numero_solicitacao,
+        centroCustoId: sol.centro_custo_id,
+        aditivosPendentesCount: pendentes,
+        userScope,
+        hasPermAprovar,
+        dentroDoEscopo,
+        podeAprovarAditivo: ok,
+        motivoBloqueio,
+      });
+    }
+    return ok;
+  };
+
+  // DEV-only: auditoria de ordenação por pendências.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const primeiraPagina = solicitacoesOrdenadas.slice(0, 10);
+    const counts = solicitacoesOrdenadas.map((s) => pendentesMap?.get(s.id)?.length ?? 0);
+    // eslint-disable-next-line no-console
+    console.debug('[AUDIT][diarias-solicitacoes:aditivo-sort]', {
+      totalSolicitacoes: solicitacoesOrdenadas.length,
+      comAditivoPendente: counts.filter((c) => c > 0).length,
+      maxAditivosPendentes: counts.length ? Math.max(...counts) : 0,
+      primeiraPaginaIds: primeiraPagina.map((s) => s.id),
+      primeiraPaginaComAditivos: primeiraPagina.map((s) => ({
+        id: s.id,
+        pendentes: pendentesMap?.get(s.id)?.length ?? 0,
+      })),
+    });
+  }, [solicitacoesOrdenadas, pendentesMap]);
+
   
   // Centro de custos — Fase 3-B.1: respeita escopo de dados (GerenteRegional/AdmOBRA)
   // Fonte do combo = centrosCustoGerenciados (sempre populado para gerente/admsede/admobra),
@@ -673,7 +757,7 @@ export default function DiariasSolicitacoes() {
                               <CalendarPlus className="h-4 w-4" />
                             </Button>
                           )}
-                          {podeAnalisarAditivo && getPendentes(sol).length > 0 && (
+                          {podeAprovarAditivo(sol) && (
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -681,7 +765,7 @@ export default function DiariasSolicitacoes() {
                                     variant="ghost"
                                     size="sm"
                                     className="h-8 w-8 p-0 relative text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                                    onClick={() => setAditivoAnaliseId(getPendentes(sol)[0].id)}
+                                    onClick={() => abrirAnaliseAditivo(sol)}
                                     aria-label="Analisar aditivo pendente"
                                   >
                                     <ClipboardCheck className="h-4 w-4" />
@@ -860,7 +944,7 @@ export default function DiariasSolicitacoes() {
                                 <CalendarPlus className="h-4 w-4" />
                               </Button>
                             )}
-                            {podeAnalisarAditivo && getPendentes(sol).length > 0 && (
+                            {podeAprovarAditivo(sol) && (
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -868,7 +952,7 @@ export default function DiariasSolicitacoes() {
                                       variant="ghost"
                                       size="sm"
                                       className="h-8 w-8 p-0 relative text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                                      onClick={() => setAditivoAnaliseId(getPendentes(sol)[0].id)}
+                                      onClick={() => abrirAnaliseAditivo(sol)}
                                       aria-label="Analisar aditivo pendente"
                                     >
                                       <ClipboardCheck className="h-4 w-4" />
@@ -1077,8 +1161,26 @@ export default function DiariasSolicitacoes() {
         {/* Aditivo — Análise rápida a partir da listagem (Fase I.4) */}
         <AditivoConfirmacaoModal
           aditivoId={aditivoAnaliseId}
+          aditivos={aditivoAnaliseSolicitacao ? getPendentes(aditivoAnaliseSolicitacao) : undefined}
+          solicitacaoInfo={
+            aditivoAnaliseSolicitacao
+              ? {
+                  id: aditivoAnaliseSolicitacao.id,
+                  numero_solicitacao: (aditivoAnaliseSolicitacao as any).numero_solicitacao,
+                  centro_custo_id: aditivoAnaliseSolicitacao.centro_custo_id,
+                  criado_por: (aditivoAnaliseSolicitacao as any).criado_por ?? null,
+                  bd_centros_custo: (aditivoAnaliseSolicitacao as any).bd_centros_custo ?? null,
+                  engenheiro_solicitante_id: (aditivoAnaliseSolicitacao as any).engenheiro_solicitante_id ?? null,
+                }
+              : undefined
+          }
           open={!!aditivoAnaliseId}
-          onOpenChange={(v) => !v && setAditivoAnaliseId(null)}
+          onOpenChange={(v) => {
+            if (!v) {
+              setAditivoAnaliseId(null);
+              setAditivoAnaliseSolicitacao(null);
+            }
+          }}
         />
 
         {/* Pagination */}

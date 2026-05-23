@@ -12,6 +12,11 @@
 // A policy SELECT em `bd_diaria_aditivos` continua restrita a
 // solicitado_por / decidido_por / acesso_global; portanto a chamada
 // direta à tabela retornava 0 linhas para GerenteRegional.
+//
+// Atualização (E5/S3): a RPC agora retorna o payload completo necessário
+// para o modal de confirmação (snapshots, impacto, justificativa,
+// solicitado_por, etc.), eliminando o SELECT direto em bd_diaria_aditivos
+// que ficava preso em loading infinito por RLS para GerenteRegional.
 // =====================================================
 
 import { useQuery } from '@tanstack/react-query';
@@ -19,7 +24,21 @@ import { supabase } from '@/integrations/supabase/client';
 
 export interface AditivoPendenteRef {
   id: string;
+  solicitacao_id: string;
+  tipo: string;
+  status: string;
+  data_ajustada: string | null;
   solicitado_em: string | null;
+  funcionario_id: string | null;
+  solicitado_por: string | null;
+  decidido_por: string | null;
+  retroativo: boolean | null;
+  justificativa: string | null;
+  motivo_reprovacao: string | null;
+  snapshot_funcionario: any | null;
+  funcionarios_adicionados: any | null;
+  funcionarios_removidos: any | null;
+  impacto_financeiro: any | null;
 }
 
 export function useAditivosPendentesPorSolicitacao(
@@ -43,14 +62,28 @@ export function useAditivosPendentesPorSolicitacao(
       if (error) throw error;
 
       const map = new Map<string, AditivoPendenteRef[]>();
-      for (const row of (data ?? []) as Array<{
-        id: string;
-        solicitacao_id: string;
-        solicitado_em: string | null;
-      }>) {
-        const arr = map.get(row.solicitacao_id) ?? [];
-        arr.push({ id: row.id, solicitado_em: row.solicitado_em });
-        map.set(row.solicitacao_id, arr);
+      for (const row of (data ?? []) as any[]) {
+        const ref: AditivoPendenteRef = {
+          id: row.id,
+          solicitacao_id: row.solicitacao_id,
+          tipo: row.tipo,
+          status: row.status,
+          data_ajustada: row.data_ajustada ?? null,
+          solicitado_em: row.solicitado_em ?? null,
+          funcionario_id: row.funcionario_id ?? null,
+          solicitado_por: row.solicitado_por ?? null,
+          decidido_por: row.decidido_por ?? null,
+          retroativo: row.retroativo ?? null,
+          justificativa: row.justificativa ?? null,
+          motivo_reprovacao: row.motivo_reprovacao ?? null,
+          snapshot_funcionario: row.snapshot_funcionario ?? null,
+          funcionarios_adicionados: row.funcionarios_adicionados ?? null,
+          funcionarios_removidos: row.funcionarios_removidos ?? null,
+          impacto_financeiro: row.impacto_financeiro ?? null,
+        };
+        const arr = map.get(ref.solicitacao_id) ?? [];
+        arr.push(ref);
+        map.set(ref.solicitacao_id, arr);
       }
       // Ordena cada bucket por solicitado_em ASC para preservar comportamento.
       for (const arr of map.values()) {

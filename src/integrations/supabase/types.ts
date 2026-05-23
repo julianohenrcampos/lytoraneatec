@@ -18340,10 +18340,19 @@ export type Database = {
         Args: { p_solicitacao_ids: string[] }
         Returns: {
           data_ajustada: string
+          decidido_por: string
           funcionario_id: string
+          funcionarios_adicionados: Json
+          funcionarios_removidos: Json
           id: string
+          impacto_financeiro: Json
+          justificativa: string
+          motivo_reprovacao: string
+          retroativo: boolean
+          snapshot_funcionario: Json
           solicitacao_id: string
           solicitado_em: string
+          solicitado_por: string
           status: string
           tipo: string
         }[]

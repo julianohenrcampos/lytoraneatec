@@ -3,6 +3,13 @@
 // =====================================================
 // Exibe os dados de um aditivo pendente e permite aprovar / reprovar via RPC.
 // Não faz update direto em bd_diaria_aditivos nem em convocados_pre.
+//
+// E5/S3 (mai/2026): aceita `aditivos` (lista pré-carregada pela RPC escopada
+// `fn_diaria_aditivos_pendentes_escopo`) e `solicitacaoInfo`. Quando fornecidos,
+// dispensa as queries diretas a `bd_diaria_aditivos`, `bd_diaria_solicitacoes`
+// e `profiles` — que ficavam bloqueadas por RLS para GerenteRegional e
+// causavam loading infinito. Suporta múltiplos pendentes via paginação interna
+// "X de N" e avança automaticamente após cada decisão.
 // =====================================================
 
 import { useEffect, useMemo, useState } from "react";
@@ -20,18 +27,32 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Check, X, ShieldAlert } from "lucide-react";
+import { Loader2, Check, X, ShieldAlert, ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAditivoById } from "@/hooks/diarias/useAditivos";
 import { useAprovarAditivo, useReprovarAditivo } from "@/hooks/diarias/useAditivosPendentes";
 import { usePermission } from "@/hooks/usePermission";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
+import type { AditivoPendenteRef } from "@/hooks/diarias/useAditivosPendentesPorSolicitacao";
+
+interface SolicitacaoInfo {
+  id: string;
+  numero_solicitacao?: string | number | null;
+  centro_custo_id?: string | null;
+  criado_por?: string | null;
+  bd_centros_custo?: { nome_centro_custo?: string | null; codigo_centro_custo?: string | null } | null;
+  engenheiro_solicitante_id?: string | null;
+}
 
 interface AditivoConfirmacaoModalProps {
   aditivoId: string | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  /** Lista pré-carregada (origem segura: RPC escopada). Quando presente, dispensa queries bloqueadas por RLS. */
+  aditivos?: AditivoPendenteRef[];
+  /** Dados básicos da solicitação já carregados na listagem. Evita SELECT direto em bd_diaria_solicitacoes. */
+  solicitacaoInfo?: SolicitacaoInfo;
 }
 
 function formatCurrency(value: number | null | undefined): string {
@@ -44,7 +65,6 @@ const TIPO_LABEL: Record<string, string> = {
   remover_dia: "Remoção de dia",
   adicionar_funcionario: "Inclusão de funcionário",
   remover_funcionario: "Remoção de funcionário",
-  // Aliases legados — manter compat com registros antigos
   funcionario_inclusao: "Inclusão de funcionário",
   funcionario_remocao: "Remoção de funcionário",
 };
@@ -53,26 +73,53 @@ export function AditivoConfirmacaoModal({
   aditivoId,
   open,
   onOpenChange,
+  aditivos,
+  solicitacaoInfo,
 }: AditivoConfirmacaoModalProps) {
   const qc = useQueryClient();
   const { isSuperAdmin, hasActionPermission } = usePermission();
   const { user: profile } = useUserProfile();
   const acessoGlobal = !!profile?.acesso_global;
-  // G2 — RBAC granular: aprovar/reprovar respeita permissão de ação
+  const bypass = isSuperAdmin || acessoGlobal;
   const podeAprovar =
-    isSuperAdmin ||
-    acessoGlobal ||
-    hasActionPermission('diarias_aditivo_aprovar', 'aprovar');
+    bypass || hasActionPermission('diarias_aditivo_aprovar', 'aprovar');
+
+  const usarPropAditivos = Array.isArray(aditivos) && aditivos.length > 0;
 
   const [modoReprovar, setModoReprovar] = useState(false);
   const [motivo, setMotivo] = useState("");
+  const [indiceAtual, setIndiceAtual] = useState(0);
 
-  const { data: aditivo, isLoading } = useAditivoById(aditivoId ?? undefined);
+  // Reset ao abrir/trocar solicitação
+  useEffect(() => {
+    if (!open) {
+      setModoReprovar(false);
+      setMotivo("");
+      setIndiceAtual(0);
+      return;
+    }
+    // Quando a lista mudar (nova solicitação), volta para o primeiro
+    setIndiceAtual(0);
+  }, [open, solicitacaoInfo?.id]);
 
-  // Solicitação relacionada (numero, centro de custo, solicitante original)
-  const { data: solicitacao } = useQuery({
+  // ---------- Fonte de dados: prop OU query (fallback retro) ----------
+  const aditivoPropAtual: AditivoPendenteRef | null = usarPropAditivos
+    ? aditivos![Math.min(indiceAtual, aditivos!.length - 1)] ?? null
+    : null;
+
+  const { data: aditivoQuery, isLoading: isLoadingQuery } = useAditivoById(
+    usarPropAditivos ? undefined : (aditivoId ?? undefined),
+  );
+
+  // Adaptador para campo único `aditivo` consumido pelo restante do componente
+  const aditivo: any = usarPropAditivos ? aditivoPropAtual : aditivoQuery;
+  const isLoading = usarPropAditivos ? false : isLoadingQuery;
+
+  // ---------- Solicitação ----------
+  // Quando vem por prop, usamos diretamente. Caso contrário, fallback à query antiga.
+  const { data: solicitacaoQuery } = useQuery({
     queryKey: ["aditivo-confirmacao-solic", aditivo?.solicitacao_id],
-    enabled: !!aditivo?.solicitacao_id && open,
+    enabled: !usarPropAditivos && !!aditivo?.solicitacao_id && open,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bd_diaria_solicitacoes")
@@ -84,64 +131,40 @@ export function AditivoConfirmacaoModal({
     },
   });
 
-  // Nome do solicitante do aditivo
-  const { data: solicitanteAditivo } = useQuery({
-    queryKey: ["aditivo-solicitante", aditivo?.solicitado_por],
-    enabled: !!aditivo?.solicitado_por && open,
+  const solicitacao: any = usarPropAditivos ? (solicitacaoInfo ?? null) : solicitacaoQuery;
+
+  // ---------- Nomes (solicitante original / solicitante do aditivo / aprovador) ----------
+  // Via RPC SECURITY DEFINER (fn_diaria_nomes_minimos) — uma chamada para todos os ids.
+  const idsParaNomes = useMemo(() => {
+    const ids: string[] = [];
+    if (aditivo?.solicitado_por) ids.push(aditivo.solicitado_por);
+    if (aditivo?.decidido_por) ids.push(aditivo.decidido_por);
+    if ((solicitacao as any)?.criado_por) ids.push((solicitacao as any).criado_por);
+    return Array.from(new Set(ids));
+  }, [aditivo?.solicitado_por, aditivo?.decidido_por, solicitacao]);
+
+  const { data: nomesMap } = useQuery({
+    queryKey: ["aditivo-nomes-rpc", idsParaNomes.slice().sort().join(",")],
+    enabled: open && idsParaNomes.length > 0,
+    staleTime: 60_000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("nome_completo, email")
-        .eq("id", aditivo!.solicitado_por)
-        .maybeSingle();
+      const { data, error } = await supabase.rpc('fn_diaria_nomes_minimos', { p_ids: idsParaNomes });
       if (error) throw error;
-      return data;
+      const m = new Map<string, string>();
+      for (const row of (data ?? []) as Array<{ id: string; nome_completo: string | null }>) {
+        if (row.id && row.nome_completo) m.set(row.id, row.nome_completo);
+      }
+      return m;
     },
   });
 
-  // Nome do solicitante original da diária (bd_diaria_solicitacoes.criado_por)
-  const { data: solicitanteOriginal } = useQuery({
-    queryKey: ["aditivo-solic-original", (solicitacao as any)?.criado_por],
-    enabled: !!(solicitacao as any)?.criado_por && open,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("nome_completo, email")
-        .eq("id", (solicitacao as any).criado_por)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-  });
+  const solicitanteAditivoNome = aditivo?.solicitado_por ? nomesMap?.get(aditivo.solicitado_por) ?? null : null;
+  const solicitanteOriginalNome = (solicitacao as any)?.criado_por ? nomesMap?.get((solicitacao as any).criado_por) ?? null : null;
+  const aprovadorNome = aditivo?.decidido_por ? nomesMap?.get(aditivo.decidido_por) ?? null : null;
 
-  // Nome do aprovador (decidido_por)
-  const { data: aprovador } = useQuery({
-    queryKey: ["aditivo-aprovador", aditivo?.decidido_por],
-    enabled: !!aditivo?.decidido_por && open,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("nome_completo, email")
-        .eq("id", aditivo!.decidido_por)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const aprovarMut = useAprovarAditivo();
-  const reprovarMut = useReprovarAditivo();
-
-  useEffect(() => {
-    if (!open) {
-      setModoReprovar(false);
-      setMotivo("");
-    }
-  }, [open]);
-
+  // ---------- Funcionários afetados (snapshot do JSONB) ----------
   const funcionariosSnapshotRaw = useMemo(() => {
     if (!aditivo) return [];
-    // funcionarios_adicionados / removidos têm prioridade (operações de dia em lote)
     const arr =
       (Array.isArray(aditivo.funcionarios_adicionados) && aditivo.funcionarios_adicionados.length > 0
         ? aditivo.funcionarios_adicionados
@@ -155,16 +178,18 @@ export function AditivoConfirmacaoModal({
     return [];
   }, [aditivo]);
 
-  // Hidratação: para itens sem nome/funcao_nome, buscar em bd_funcionarios + convocados_pre
+  // Hidratação opcional (apenas para SuperAdm/acesso_global, que conseguem ler bd_funcionarios).
+  // Para GerenteRegional pulamos para não esbarrar em RLS — o snapshot já traz nome/funcao/valores.
   const idsParaHidratar = useMemo(() => {
+    if (!bypass) return [] as string[];
     return funcionariosSnapshotRaw
       .filter((s: any) => s?.funcionario_id && (!s?.nome || !s?.funcao_nome))
       .map((s: any) => s.funcionario_id as string);
-  }, [funcionariosSnapshotRaw]);
+  }, [funcionariosSnapshotRaw, bypass]);
 
   const { data: hidratacao, isLoading: isHidratando } = useQuery({
-    queryKey: ["aditivo-hidratar-funcionarios", aditivo?.id, idsParaHidratar.sort().join(","), aditivo?.solicitacao_id],
-    enabled: open && idsParaHidratar.length > 0 && !!aditivo?.solicitacao_id,
+    queryKey: ["aditivo-hidratar-funcionarios", aditivo?.id, idsParaHidratar.slice().sort().join(","), aditivo?.solicitacao_id],
+    enabled: open && bypass && idsParaHidratar.length > 0 && !!aditivo?.solicitacao_id,
     queryFn: async () => {
       const [funcRes, solRes] = await Promise.all([
         supabase
@@ -231,23 +256,35 @@ export function AditivoConfirmacaoModal({
       ? "outline"
       : "secondary";
 
+  const aprovarMut = useAprovarAditivo();
+  const reprovarMut = useReprovarAditivo();
+
+  const totalPendentes = usarPropAditivos ? aditivos!.length : 0;
+  const avancarOuFechar = () => {
+    if (usarPropAditivos && indiceAtual < totalPendentes - 1) {
+      setIndiceAtual((i) => i + 1);
+      setModoReprovar(false);
+      setMotivo("");
+    } else {
+      onOpenChange(false);
+    }
+  };
+
   async function handleAprovar() {
     if (!aditivo) return;
     try {
       await aprovarMut.mutateAsync({ aditivoId: aditivo.id, solicitacaoId: aditivo.solicitacao_id ?? undefined });
       if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
         console.info('[AUDIT][aditivo:acao]', { acao: 'aprovar', aditivoId: aditivo.id, ok: true });
       }
     } catch (e: any) {
       if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
         console.info('[AUDIT][aditivo:acao]', { acao: 'aprovar', aditivoId: aditivo.id, ok: false, error: e?.message });
       }
       throw e;
     }
     invalidarTudo(aditivo.solicitacao_id ?? undefined);
-    onOpenChange(false);
+    avancarOuFechar();
   }
 
   async function handleReprovar() {
@@ -260,31 +297,25 @@ export function AditivoConfirmacaoModal({
         solicitacaoId: aditivo.solicitacao_id ?? undefined,
       });
       if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
         console.info('[AUDIT][aditivo:acao]', { acao: 'reprovar', aditivoId: aditivo.id, ok: true });
       }
     } catch (e: any) {
       if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
         console.info('[AUDIT][aditivo:acao]', { acao: 'reprovar', aditivoId: aditivo.id, ok: false, error: e?.message });
       }
       throw e;
     }
     invalidarTudo(aditivo.solicitacao_id ?? undefined);
-    onOpenChange(false);
+    avancarOuFechar();
   }
 
   function invalidarTudo(solicitacaoId?: string) {
-    // Listagem principal + estimativas recalculadas
     qc.invalidateQueries({ queryKey: ["diarias-solicitacoes"] });
-    // Detalhes da solicitação
     if (solicitacaoId) {
       qc.invalidateQueries({ queryKey: ["solicitacao-detalhes", solicitacaoId] });
     }
-    // Aditivos por solicitação e pendentes agregados (ícone Analisar na listagem)
     qc.invalidateQueries({ queryKey: ["diarias-aditivos"] });
     qc.invalidateQueries({ queryKey: ["aditivos-pendentes-por-solicitacao"] });
-    // Notificações e contadores
     qc.invalidateQueries({ queryKey: ["notifications-list"] });
     qc.invalidateQueries({ queryKey: ["notifications-unread-count"] });
     qc.invalidateQueries({ queryKey: ["diarias-pendentes-count"] });
@@ -292,45 +323,99 @@ export function AditivoConfirmacaoModal({
 
   const isPendente = aditivo?.status === "pendente";
   const cc: any = (solicitacao as any)?.bd_centros_custo;
+  const hasData = !!aditivo;
 
-  // [AUDIT] — aditivo (DEV-only)
+  // ---------- Logs DEV-only ----------
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     if (!open) return;
-    // eslint-disable-next-line no-console
-    console.info('[AUDIT][aditivo]', {
-      userId: (profile as any)?.id,
-      aditivoId,
-      aditivoStatus: aditivo?.status,
-      isSuperAdmin,
-      acessoGlobal,
-      hasAprovar: hasActionPermission('diarias_aditivo_aprovar', 'aprovar'),
-      hasVisualizar: hasActionPermission('diarias_aditivo_aprovar', 'visualizar'),
-      podeAprovar,
-      botoesVisiveis: {
-        confirmar: !!(isPendente && podeAprovar && !modoReprovar),
-        reprovar: !!(isPendente && podeAprovar),
-      },
-      modoReprovar,
+    console.info('[AUDIT][aditivo-modal:state]', {
+      isOpen: open,
+      isLoading,
+      hasData,
+      hasError: false,
+      pendentesCount: usarPropAditivos ? totalPendentes : (aditivo ? 1 : 0),
+      indiceAtual,
+      source: usarPropAditivos ? 'pendentesMap' : 'query',
     });
-  }, [open, aditivoId, aditivo?.status, podeAprovar, isSuperAdmin, acessoGlobal, isPendente, modoReprovar, profile, hasActionPermission]);
+  }, [open, isLoading, hasData, totalPendentes, indiceAtual, usarPropAditivos]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    if (!open) return;
+    console.info('[AUDIT][aditivo-modal:query]', {
+      enabled: !usarPropAditivos && !!aditivoId,
+      solicitacaoId: aditivo?.solicitacao_id ?? solicitacaoInfo?.id ?? null,
+      aditivoId: aditivo?.id ?? aditivoId,
+      loading: isLoading,
+      error: null,
+      resultCount: usarPropAditivos ? totalPendentes : (aditivo ? 1 : 0),
+    });
+  }, [open, aditivoId, isLoading, aditivo, usarPropAditivos, totalPendentes, solicitacaoInfo]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Confirmação de Aditivo de Diária</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            Confirmação de Aditivo de Diária
+            {usarPropAditivos && totalPendentes > 1 && (
+              <Badge variant="secondary">
+                {indiceAtual + 1} de {totalPendentes}
+              </Badge>
+            )}
+          </DialogTitle>
           <DialogDescription>
             Revise os dados do aditivo antes de aprovar ou reprovar.
           </DialogDescription>
         </DialogHeader>
 
-        {isLoading || !aditivo ? (
+        {isLoading ? (
           <div className="flex items-center justify-center py-10">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
+        ) : !aditivo ? (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-4 text-sm flex items-start gap-2">
+            <ShieldAlert className="h-4 w-4 mt-0.5 text-amber-600 flex-shrink-0" />
+            <div>
+              Não foi possível carregar os detalhes deste aditivo ou você não possui permissão de leitura.
+            </div>
+          </div>
         ) : (
           <div className="space-y-4">
+            {/* Navegação entre pendentes */}
+            {usarPropAditivos && totalPendentes > 1 && (
+              <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setIndiceAtual((i) => Math.max(0, i - 1));
+                    setModoReprovar(false);
+                    setMotivo("");
+                  }}
+                  disabled={indiceAtual === 0}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" /> Anterior
+                </Button>
+                <span className="text-muted-foreground">
+                  Aditivo {indiceAtual + 1} de {totalPendentes}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setIndiceAtual((i) => Math.min(totalPendentes - 1, i + 1));
+                    setModoReprovar(false);
+                    setMotivo("");
+                  }}
+                  disabled={indiceAtual >= totalPendentes - 1}
+                >
+                  Próximo <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            )}
+
             {/* Cabeçalho com tipo + status */}
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline" className="text-sm">
@@ -349,7 +434,7 @@ export function AditivoConfirmacaoModal({
               <CardContent className="py-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                 <div>
                   <span className="text-muted-foreground">Nº Solicitação:</span>{" "}
-                  <span className="font-medium">{solicitacao?.numero_solicitacao ?? "—"}</span>
+                  <span className="font-medium">{(solicitacao as any)?.numero_solicitacao ?? "—"}</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Centro de custo:</span>{" "}
@@ -367,13 +452,13 @@ export function AditivoConfirmacaoModal({
                 <div>
                   <span className="text-muted-foreground">Solicitante original da diária:</span>{" "}
                   <span className="font-medium">
-                    {solicitanteOriginal?.nome_completo ?? solicitanteOriginal?.email ?? "—"}
+                    {solicitanteOriginalNome ?? "—"}
                   </span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Solicitante do aditivo:</span>{" "}
                   <span className="font-medium">
-                    {solicitanteAditivo?.nome_completo ?? solicitanteAditivo?.email ?? "—"}
+                    {solicitanteAditivoNome ?? "—"}
                   </span>
                 </div>
                 {aditivo.decidido_por && (
@@ -382,7 +467,7 @@ export function AditivoConfirmacaoModal({
                       {aditivo.status === 'reprovado' ? 'Reprovado por:' : aditivo.status === 'cancelado' ? 'Cancelado por:' : 'Aprovado por:'}
                     </span>{" "}
                     <span className="font-medium">
-                      {aprovador?.nome_completo ?? aprovador?.email ?? "—"}
+                      {aprovadorNome ?? "—"}
                     </span>
                   </div>
                 )}
@@ -404,7 +489,7 @@ export function AditivoConfirmacaoModal({
                     {funcionariosSnapshot.map((s: any, idx: number) => (
                       <div key={idx} className="rounded border p-2 text-sm grid grid-cols-1 sm:grid-cols-2 gap-1">
                         <div className="sm:col-span-2 font-medium">
-                          {s?.nome ?? "—"}
+                          {s?.nome ?? (s?.funcionario_id ? `Funcionário ${String(s.funcionario_id).slice(0, 8)}` : "—")}
                           {s?.matricula ? (
                             <span className="text-muted-foreground"> · {s.matricula}</span>
                           ) : null}
@@ -485,13 +570,13 @@ export function AditivoConfirmacaoModal({
               </div>
             )}
 
-            {!isPendente && aditivo.observacao_aprovador && (
+            {!isPendente && (aditivo as any).observacao_aprovador && (
               <>
                 <Separator />
                 <div className="text-sm">
                   <div className="font-semibold">Observação do aprovador</div>
                   <p className="text-muted-foreground whitespace-pre-wrap">
-                    {aditivo.observacao_aprovador}
+                    {(aditivo as any).observacao_aprovador}
                   </p>
                 </div>
               </>
