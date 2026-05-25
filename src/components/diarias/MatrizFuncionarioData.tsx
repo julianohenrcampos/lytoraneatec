@@ -37,7 +37,13 @@ export type DadosRicosFunc = {
   valor_refeicao: number;
   matricula?: string | null;
   status?: string | null;
-  alocacao?: { codigo_centro_custo: string; numero_solicitacao: string } | null;
+  alocacao?: {
+    codigo_centro_custo: string;
+    numero_solicitacao: string;
+    severidade?: 'bloqueio' | 'alerta';
+    datas_bloqueio?: string[];
+    datas_alerta?: string[];
+  } | null;
   bloqueadoRPC: boolean;
 };
 
@@ -94,7 +100,17 @@ function badgesDoFuncionario(dados: DadosRicosFunc | undefined) {
   if (isFerias) out.push({ label: "Férias", variant: "default" });
   if (isInss) out.push({ label: "INSS", variant: "secondary" });
   if (isInativo) out.push({ label: "Inativo", variant: "secondary" });
-  if (dados.alocacao) out.push({ label: "Conflito", variant: "destructive" });
+  if (dados.alocacao) {
+    if (dados.alocacao.severidade === 'bloqueio') {
+      out.push({ label: "Conflito", variant: "destructive" });
+    } else {
+      out.push({
+        label: "Alerta",
+        variant: "outline",
+        className: "border-amber-400 text-amber-700 dark:text-amber-300",
+      });
+    }
+  }
   if (dados.bloqueadoRPC) out.push({ label: "Bloqueado", variant: "destructive" });
   return out;
 }
@@ -162,13 +178,29 @@ const MatrizRow = memo(function MatrizRow({
                   )}
                 </div>
                 {dados?.alocacao && (
-                  <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-[11px]">
-                    <div className="font-medium text-destructive">Conflito</div>
-                    <div>
-                      CC {dados.alocacao.codigo_centro_custo} —{" "}
-                      {dados.alocacao.numero_solicitacao}
+                  dados.alocacao.severidade === 'bloqueio' ? (
+                    <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-[11px]">
+                      <div className="font-medium text-destructive">Conflito (apontamento real)</div>
+                      <div>
+                        CC {dados.alocacao.codigo_centro_custo} — {dados.alocacao.numero_solicitacao}
+                      </div>
+                      {!!dados.alocacao.datas_bloqueio?.length && (
+                        <div className="mt-0.5 text-muted-foreground">
+                          Datas: {dados.alocacao.datas_bloqueio.map((d) => d.split('-').reverse().join('/')).join(', ')}
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  ) : (
+                    <div className="rounded-md border border-amber-400/50 bg-amber-500/5 p-2 text-[11px]">
+                      <div className="font-medium text-amber-700 dark:text-amber-300">Planejado em outra solicitação</div>
+                      <div>
+                        CC {dados.alocacao.codigo_centro_custo} — {dados.alocacao.numero_solicitacao}
+                      </div>
+                      <div className="mt-0.5 text-muted-foreground">
+                        Sem apontamento real. Inclusão liberada.
+                      </div>
+                    </div>
+                  )
                 )}
                 {badges.length > 0 && (
                   <div className="flex flex-wrap gap-1 pt-1">

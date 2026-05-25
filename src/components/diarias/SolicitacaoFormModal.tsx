@@ -540,8 +540,11 @@ export function SolicitacaoFormModal({
   // ainda em rascunho/aguardando, antes de gerarem presenças.
   // Confirmação técnica: NÃO existe tabela bd_diaria_convocados_pre. A fonte real
   // dos convocados planejados é a coluna jsonb bd_diaria_solicitacoes.convocados_pre.
+  // Fonte 1 — presenças EFETIVAS (com hora_entrada). Único critério de
+  // BLOQUEIO funcionário/data (paridade com fn_diaria_funcionario_elegibilidade).
+  // Regra idêntica para Normal e Extraordinária.
   const { data: presencasConflito = [] } = useQuery({
-    queryKey: ['presencas-conflito', dataInicio, dataFim, editingSolicitacao?.id],
+    queryKey: ['presencas-conflito-efetivas', dataInicio, dataFim, editingSolicitacao?.id],
     queryFn: async () => {
       if (!dataInicio || !dataFim) return [] as any[];
       let q = supabase
@@ -550,6 +553,7 @@ export function SolicitacaoFormModal({
           funcionario_id,
           data,
           solicitacao_id,
+          hora_entrada,
           bd_diaria_solicitacoes!inner (
             numero_solicitacao,
             status,
@@ -559,6 +563,7 @@ export function SolicitacaoFormModal({
         `)
         .gte('data', dataInicio)
         .lte('data', dataFim)
+        .not('hora_entrada', 'is', null)
         .neq('bd_diaria_solicitacoes.status', 'cancelado');
 
       if (editingSolicitacao?.id) {
@@ -567,7 +572,7 @@ export function SolicitacaoFormModal({
 
       const { data, error } = await q;
       if (error) {
-        console.error('[Diarias] Erro ao buscar presenças de conflito:', error);
+        console.error('[Diarias] Erro ao buscar presenças efetivas de conflito:', error);
         return [];
       }
       return data || [];
@@ -609,26 +614,56 @@ export function SolicitacaoFormModal({
     enabled: !!dataInicio && !!dataFim,
   });
 
-  // Map por funcionário (shape consumido por SmartFuncionarioSearch e pelo ConfirmDialog
-  // de conflito). `datas` agrega todos os dias conflitantes (efetivos + planejados),
-  // restritos à interseção com [dataInicio, dataFim].
+  // Map por funcionário com 2 níveis de severidade:
+  //   - datas_bloqueio: presenças EFETIVAS (hora_entrada IS NOT NULL) na MESMA data
+  //                     em outra solicitação ativa → bloqueio duro funcionário/data.
+  //   - datas_alerta:   convocados_pre planejado em outra solicitação ativa →
+  //                     apenas alerta, NUNCA bloqueia salvar.
+  // `datas` é a união (compat com callers que ainda leem o campo agregado).
+  // Regra idêntica para Normal e Extraordinária (diferença vive em
+  // assertSolicitacaoNormalValida e na matriz Fase D, não aqui).
+  type AlocacaoConflito = {
+    numero_solicitacao: string;
+    codigo_centro_custo: string;
+    solicitacao_id: string;
+    datas_bloqueio: string[];
+    datas_alerta: string[];
+    datas: string[];
+  };
+
   const alocacoesPorFuncionario = useMemo(() => {
-    const map = new Map<string, { numero_solicitacao: string; codigo_centro_custo: string; solicitacao_id: string; datas: string[] }>();
+    const map = new Map<string, AlocacaoConflito>();
 
     const upsert = (
       funcId: string,
       entry: { numero_solicitacao: string; codigo_centro_custo: string; solicitacao_id: string; datas: string[] },
+      severidade: 'bloqueio' | 'alerta',
     ) => {
       if (!funcId) return;
       const existing = map.get(funcId);
-      if (existing) {
-        for (const d of entry.datas) {
-          if (!existing.datas.includes(d)) existing.datas.push(d);
-        }
-        existing.datas.sort();
-      } else {
-        map.set(funcId, { ...entry, datas: [...entry.datas].sort() });
+      const alvo: AlocacaoConflito = existing ?? {
+        numero_solicitacao: entry.numero_solicitacao,
+        codigo_centro_custo: entry.codigo_centro_custo,
+        solicitacao_id: entry.solicitacao_id,
+        datas_bloqueio: [],
+        datas_alerta: [],
+        datas: [],
+      };
+      const bucket = severidade === 'bloqueio' ? alvo.datas_bloqueio : alvo.datas_alerta;
+      for (const d of entry.datas) {
+        if (!bucket.includes(d)) bucket.push(d);
       }
+      bucket.sort();
+      // Recalcula união
+      const uniao = new Set<string>([...alvo.datas_bloqueio, ...alvo.datas_alerta]);
+      alvo.datas = Array.from(uniao).sort();
+      // Bloqueio "ganha" para metadados visuais
+      if (severidade === 'bloqueio') {
+        alvo.numero_solicitacao = entry.numero_solicitacao || alvo.numero_solicitacao;
+        alvo.codigo_centro_custo = entry.codigo_centro_custo || alvo.codigo_centro_custo;
+        alvo.solicitacao_id = entry.solicitacao_id || alvo.solicitacao_id;
+      }
+      map.set(funcId, alvo);
     };
 
     // Helper local: enumera datas YYYY-MM-DD entre [ini, fim] inclusive (UTC, sem off-by-one).
@@ -646,19 +681,23 @@ export function SolicitacaoFormModal({
       return out;
     };
 
-    // Fonte 1 — efetivo (bd_diaria_presencas).
+    // Fonte 1 — efetivo com hora_entrada (BLOQUEIO).
     for (const p of presencasConflito as any[]) {
       const sol = p.bd_diaria_solicitacoes;
       if (!sol) continue;
-      upsert(p.funcionario_id, {
-        numero_solicitacao: sol.numero_solicitacao || '',
-        codigo_centro_custo: sol.bd_centros_custo?.codigo_centro_custo || '',
-        solicitacao_id: p.solicitacao_id,
-        datas: [p.data],
-      });
+      upsert(
+        p.funcionario_id,
+        {
+          numero_solicitacao: sol.numero_solicitacao || '',
+          codigo_centro_custo: sol.bd_centros_custo?.codigo_centro_custo || '',
+          solicitacao_id: p.solicitacao_id,
+          datas: [p.data],
+        },
+        'bloqueio',
+      );
     }
 
-    // Fonte 2 — planejado (bd_diaria_solicitacoes.convocados_pre).
+    // Fonte 2 — planejado em convocados_pre de outra solicitação (ALERTA).
     if (dataInicio && dataFim) {
       for (const sol of planejadoConflito as any[]) {
         const ini = sol.data_inicio > dataInicio ? sol.data_inicio : dataInicio;
@@ -670,12 +709,16 @@ export function SolicitacaoFormModal({
         for (const c of arr) {
           const fid = (c as any)?.funcionario_id;
           if (!fid) continue;
-          upsert(fid, {
-            numero_solicitacao: sol.numero_solicitacao || '',
-            codigo_centro_custo: codigo,
-            solicitacao_id: sol.id,
-            datas: datasIntersec,
-          });
+          upsert(
+            fid,
+            {
+              numero_solicitacao: sol.numero_solicitacao || '',
+              codigo_centro_custo: codigo,
+              solicitacao_id: sol.id,
+              datas: datasIntersec,
+            },
+            'alerta',
+          );
         }
       }
     }
@@ -1192,20 +1235,24 @@ export function SolicitacaoFormModal({
       return;
     }
 
-    // Fase C — bloqueio por conflito funcionário/data (planejado + efetivo).
-    // Belt-and-suspenders: além do SmartFuncionarioSearch, validamos aqui
-    // para cobrir caminhos que cheguem ao handler com forceAdd=false.
+    // Bloqueio funcionário/data — apenas presença EFETIVA (hora_entrada IS NOT NULL)
+    // em outra solicitação ativa na mesma data. Convocação planejada vira só alerta.
     const conflitoAloc = alocacoesPorFuncionario.get(funcId);
-    if (conflitoAloc && !forceAdd) {
+    if (conflitoAloc && conflitoAloc.datas_bloqueio.length > 0 && !forceAdd) {
       setConflitoPendente({
         funcionarioId: funcId,
         alocacao: {
           numero_solicitacao: conflitoAloc.numero_solicitacao,
           codigo_centro_custo: conflitoAloc.codigo_centro_custo,
         },
-        motivo: `Datas conflitantes: ${conflitoAloc.datas.map((d) => d.split('-').reverse().join('/')).join(', ')}`,
+        motivo: `Datas com apontamento real em outra solicitação: ${conflitoAloc.datas_bloqueio.map((d) => d.split('-').reverse().join('/')).join(', ')}`,
       });
       return;
+    }
+    if (conflitoAloc && conflitoAloc.datas_alerta.length > 0 && conflitoAloc.datas_bloqueio.length === 0) {
+      toast.info(
+        `${func.nome_completo} está planejado em ${conflitoAloc.numero_solicitacao} (CC ${conflitoAloc.codigo_centro_custo}) — sem apontamento real, inclusão liberada.`,
+      );
     }
 
     // Regra dura: bloqueado pela RPC de elegibilidade NUNCA passa, ignora forceAdd.
@@ -1265,10 +1312,11 @@ export function SolicitacaoFormModal({
       if (ccAlvoId && func.centro_custo_id !== ccAlvoId) { foraCc++; continue; }
       if (addedIds.has(func.id)) { jaExistentes++; continue; }
       if (!func.bd_funcoes) { semFuncao++; continue; }
-      // Fase C — bloqueio funcionário/data no add-em-lote (Adicionar por CC).
-      // Conflitos não abrem prompt individual no modo lote: são apenas filtrados
-      // e reportados no toast de resumo para resolução manual.
-      if (alocacoesPorFuncionario.has(func.id)) { bloqueadosConflito++; continue; }
+      // Bloqueio funcionário/data em lote: apenas presença EFETIVA em outra
+      // solicitação (datas_bloqueio). Alerta planejado (datas_alerta) NÃO bloqueia
+      // — funcionário entra na lista normalmente.
+      const alocLote = alocacoesPorFuncionario.get(func.id);
+      if (alocLote && alocLote.datas_bloqueio.length > 0) { bloqueadosConflito++; continue; }
 
       const statusFunc: string | null = (func as any).status_funcionario ?? (func as any).status ?? null;
       novos.push({
@@ -1575,6 +1623,9 @@ export function SolicitacaoFormModal({
           ? {
               codigo_centro_custo: (alocacao as any).codigo_centro_custo ?? "",
               numero_solicitacao: (alocacao as any).numero_solicitacao ?? "",
+              severidade: (alocacao as any).datas_bloqueio?.length > 0 ? 'bloqueio' : 'alerta',
+              datas_bloqueio: (alocacao as any).datas_bloqueio ?? [],
+              datas_alerta: (alocacao as any).datas_alerta ?? [],
             }
           : null,
         bloqueadoRPC: eleg?.status === "bloqueado",
@@ -1586,6 +1637,11 @@ export function SolicitacaoFormModal({
 
   // Fase D — Conflitos funcionário/data ainda presentes na lista atual.
   // Pré-computado para alimentar canSave (botão desabilitado) E o submit final.
+  // Conflitos REAIS ainda presentes: somente quando o funcionário tem
+  // datas_bloqueio (presença efetiva em outra solicitação) E essas datas
+  // estão marcadas para ele na matriz da solicitação atual.
+  // Convocação planejada (datas_alerta) nunca bloqueia o salvar.
+  // Regra idêntica para Normal e Extraordinária.
   const convocadosComConflito = useMemo(() => {
     const out: Array<{
       nome: string;
@@ -1595,17 +1651,19 @@ export function SolicitacaoFormModal({
     }> = [];
     for (const c of convocadosPre) {
       const aloc = alocacoesPorFuncionario.get(c.funcionario_id);
-      if (aloc && aloc.datas.length > 0) {
-        out.push({
-          nome: c.nome_funcionario,
-          numero_solicitacao: aloc.numero_solicitacao,
-          codigo_centro_custo: aloc.codigo_centro_custo,
-          datas: aloc.datas,
-        });
-      }
+      if (!aloc || aloc.datas_bloqueio.length === 0) continue;
+      const marcados = new Set(diasPorFuncionario[c.funcionario_id] || []);
+      const datasReais = aloc.datas_bloqueio.filter((d) => marcados.has(d));
+      if (datasReais.length === 0) continue;
+      out.push({
+        nome: c.nome_funcionario,
+        numero_solicitacao: aloc.numero_solicitacao,
+        codigo_centro_custo: aloc.codigo_centro_custo,
+        datas: datasReais,
+      });
     }
     return out;
-  }, [convocadosPre, alocacoesPorFuncionario]);
+  }, [convocadosPre, alocacoesPorFuncionario, diasPorFuncionario]);
 
   const temConflitoNaoResolvido = convocadosComConflito.length > 0;
   const canSave = canProceedToDados && canProceedToFuncionarios && !temConflitoNaoResolvido;
