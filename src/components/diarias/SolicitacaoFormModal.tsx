@@ -1081,8 +1081,14 @@ export function SolicitacaoFormModal({
   }, [carregarRegrasOperacionaisPeriodo]);
 
   // Verificar duplicidade por sobreposição de datas + centro de custo
+  // Regra: apenas solicitações NORMAL têm limite de 1 por CC/semana.
+  // Extraordinária pode coexistir com Normal e com outras Extraordinárias.
   useEffect(() => {
     if (!centroCustoId || !dataInicio || !dataFim || isEditing) {
+      setDuplicidadeDetectada(null);
+      return;
+    }
+    if (tipoSolicitacao === 'extraordinaria') {
       setDuplicidadeDetectada(null);
       return;
     }
@@ -1091,9 +1097,10 @@ export function SolicitacaoFormModal({
         .from('bd_diaria_solicitacoes')
         .select('id, numero_solicitacao')
         .eq('centro_custo_id', centroCustoId)
+        .eq('tipo_solicitacao', 'normal')
         .lte('data_inicio', dataFim)
         .gte('data_fim', dataInicio)
-        .neq('status', 'cancelado')
+        .not('status', 'in', '(cancelado,reprovada)')
         .limit(1);
       if (data && data.length > 0) {
         setDuplicidadeDetectada({ numero_solicitacao: data[0].numero_solicitacao, id: data[0].id });
@@ -1102,7 +1109,7 @@ export function SolicitacaoFormModal({
       }
     };
     checkDuplicate();
-  }, [centroCustoId, dataInicio, dataFim, isEditing]);
+  }, [centroCustoId, dataInicio, dataFim, isEditing, tipoSolicitacao]);
 
   // Get aprovador name
   // Get apontador name
@@ -2172,9 +2179,9 @@ export function SolicitacaoFormModal({
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription>
-                    <p className="font-medium">Já existe uma solicitação aberta para este Centro de Custo neste período.</p>
+                    <p className="font-medium">Já existe uma solicitação <strong>Normal</strong> aberta para este CC nesta semana. Use Extraordinária para necessidades específicas.</p>
                     <p className="text-xs mt-1">
-                      Solicitação Nº <strong>{duplicidadeDetectada.numero_solicitacao}</strong> — Para incluir novos funcionários, utilize o Apontamento de Campo.
+                      Solicitação Nº <strong>{duplicidadeDetectada.numero_solicitacao}</strong> — Para incluir novos funcionários na Normal, utilize o Apontamento de Campo.
                     </p>
                   </AlertDescription>
                 </Alert>

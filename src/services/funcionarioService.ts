@@ -131,39 +131,89 @@ export const fetchFuncionarios = async (filters: FuncionarioFilter = {}): Promis
 
 // Function to get funcionario by ID
 export const getFuncionarioById = async (id: string): Promise<Funcionario> => {
+  let userIdForLog: string | undefined;
   try {
+    try {
+      const { data: auth } = await supabase.auth.getUser();
+      userIdForLog = auth?.user?.id;
+    } catch {
+      // ignore — log auxiliar
+    }
+
     const { data, error } = await supabase
       .from("bd_funcionarios")
       .select(`
         *,
-        bd_funcoes (*),
-        bd_departamentos (*),
-        bd_centros_custo (*),
-        bd_empresas (*)
+        bd_funcoes ( id, nome_funcao ),
+        bd_departamentos ( id, nome_departamento ),
+        bd_centros_custo!bd_funcionarios_centro_custo_id_fkey (
+          id,
+          codigo_centro_custo,
+          nome_centro_custo
+        ),
+        bd_empresas ( id, nome_empresa )
       `)
       .eq("id", id)
       .single();
 
-    if (error) throw new Error(error.message);
-    
+    if (error) {
+      console.error("[FUNCIONARIOS][GET_BY_ID_ERROR]", {
+        funcionarioId: id,
+        userId: userIdForLog,
+        stage: "select_bd_funcionarios",
+        message: (error as any)?.message,
+        code: (error as any)?.code,
+        details: (error as any)?.details,
+        hint: (error as any)?.hint,
+        status: (error as any)?.status,
+        rawError: error,
+      });
+      throw new Error(error.message);
+    }
+
     // Buscar a equipe separadamente para evitar conflito de relacionamentos múltiplos
     let funcionarioComEquipe = data;
     if (data.equipe_id) {
-      const { data: equipe } = await supabase
+      const { data: equipe, error: equipeError } = await supabase
         .from("bd_equipes")
         .select("*")
         .eq("id", data.equipe_id)
         .single();
-      
+
+      if (equipeError) {
+        console.error("[FUNCIONARIOS][GET_BY_ID_ERROR]", {
+          funcionarioId: id,
+          userId: userIdForLog,
+          stage: "select_bd_equipes",
+          equipeId: data.equipe_id,
+          message: (equipeError as any)?.message,
+          code: (equipeError as any)?.code,
+          details: (equipeError as any)?.details,
+          hint: (equipeError as any)?.hint,
+          status: (equipeError as any)?.status,
+          rawError: equipeError,
+        });
+      }
+
       funcionarioComEquipe = {
         ...data,
         bd_equipes: equipe
       } as any;
     }
-    
+
     return funcionarioComEquipe as unknown as Funcionario;
   } catch (error) {
-    console.error(`Error fetching funcionario with id ${id}:`, error);
+    console.error("[FUNCIONARIOS][GET_BY_ID_ERROR]", {
+      funcionarioId: id,
+      userId: userIdForLog,
+      stage: "catch",
+      message: (error as any)?.message,
+      code: (error as any)?.code,
+      details: (error as any)?.details,
+      hint: (error as any)?.hint,
+      status: (error as any)?.status,
+      rawError: error,
+    });
     throw error;
   }
 };

@@ -1092,7 +1092,7 @@ export default function ApontamentoDiariasModal({
       try {
         const { data: presencasDoDia, error: errPres } = await supabase
           .from('bd_diaria_presencas')
-          .select('id, funcao_id, usar_diaria_exclusiva, valor_diaria_aplicada')
+          .select('id, funcao_id, usar_diaria_exclusiva, valor_diaria_aplicada, tipo_diaria, hora_entrada, hora_saida')
           .eq('solicitacao_id', solicitacao.id)
           .eq('data', data);
 
@@ -1134,12 +1134,51 @@ export default function ApontamentoDiariasModal({
             return valor;
           };
 
+          // Recalcula tipo/valor com base nas horas atuais quando disponíveis.
+          // Mantém a regra oficial (calcularDiariaAplicada) consistente entre tela, salvamento e relatório.
+          const calcularAlvoCompleto = (
+            funcaoId: string | null,
+            registroId: string,
+            entrada: string | null,
+            saida: string | null,
+            tipoAtual: string | null,
+          ): { tipo: TipoDiaria | null; valor: number } | null => {
+            const valorBase = calcularValorAlvo(funcaoId, registroId);
+            if (valorBase === null) return null;
+
+            if (entrada && saida) {
+              const calc = calcularDiariaAplicada({
+                hora_entrada: entrada,
+                hora_saida: saida,
+                valor_base: valorBase,
+              });
+              return {
+                tipo: (calc.tipo_diaria ?? null) as TipoDiaria | null,
+                valor: calc.valor_diaria_aplicada,
+              };
+            }
+            // Sem horas: preserva tipo atual e aplica apenas o multiplicador correspondente sobre o novo valor base.
+            const mult =
+              tipoAtual === 'uma_e_meia' ? 1.5
+              : tipoAtual === 'completa' ? 1
+              : tipoAtual === 'meia' ? 0.5
+              : 0;
+            return { tipo: (tipoAtual as TipoDiaria | null), valor: Math.round(valorBase * mult * 100) / 100 };
+          };
+
           const registrosDivergentes = presencasDoDia.filter((p) => {
-            const valorAlvo = calcularValorAlvo(p.funcao_id as string | null, p.id);
-            if (valorAlvo === null) return false;
+            const alvo = calcularAlvoCompleto(
+              p.funcao_id as string | null,
+              p.id,
+              (p as any).hora_entrada ?? null,
+              (p as any).hora_saida ?? null,
+              (p as any).tipo_diaria ?? null,
+            );
+            if (!alvo) return false;
             const flagDiferente = p.usar_diaria_exclusiva !== usarExclusivaApós;
-            const valorDiferente = Number(p.valor_diaria_aplicada ?? 0) !== valorAlvo;
-            return flagDiferente || valorDiferente;
+            const valorDiferente = Number(p.valor_diaria_aplicada ?? 0) !== alvo.valor;
+            const tipoDiferente = alvo.tipo !== null && (p as any).tipo_diaria !== alvo.tipo;
+            return flagDiferente || valorDiferente || tipoDiferente;
           });
 
           if (registrosDivergentes.length === 0) {
@@ -1153,30 +1192,42 @@ export default function ApontamentoDiariasModal({
           } else {
             const resultados = await Promise.all(
               registrosDivergentes.map(async (reg) => {
-                const valor = calcularValorAlvo(reg.funcao_id as string | null, reg.id);
-                if (valor === null) {
+                const alvo = calcularAlvoCompleto(
+                  reg.funcao_id as string | null,
+                  reg.id,
+                  (reg as any).hora_entrada ?? null,
+                  (reg as any).hora_saida ?? null,
+                  (reg as any).tipo_diaria ?? null,
+                );
+                if (!alvo) {
                   return { id: reg.id, ok: false as const, reason: 'funcao_nao_encontrada' };
+                }
+                const updatePayload: Record<string, any> = {
+                  usar_diaria_exclusiva: usarExclusivaApós,
+                  valor_diaria_aplicada: alvo.valor,
+                };
+                if (alvo.tipo !== null) {
+                  updatePayload.tipo_diaria = alvo.tipo;
                 }
                 // updated_at NÃO enviado — trigger update_bd_diaria_presencas_updated_at cuida.
                 const { data: updated, error: errUpd } = await supabase
                   .from('bd_diaria_presencas')
-                  .update({
-                    usar_diaria_exclusiva: usarExclusivaApós,
-                    valor_diaria_aplicada: valor,
-                  })
+                  .update(updatePayload)
                   .eq('id', reg.id)
-                  .select('id, valor_diaria_aplicada, usar_diaria_exclusiva')
+                  .select('id, valor_diaria_aplicada, usar_diaria_exclusiva, tipo_diaria')
                   .maybeSingle();
 
                 if (errUpd) {
                   console.error('[DIARIA][REPROCESSO_UPDATE_ERROR]', {
                     registro: reg.id,
                     funcao_id: reg.funcao_id,
-                    valor_alvo: valor,
+                    valor_alvo: alvo.valor,
+                    tipo_alvo: alvo.tipo,
                     error: errUpd,
                   });
                   return { id: reg.id, ok: false as const, reason: errUpd.message };
                 }
+
                 if (!updated) {
                   console.error('[DIARIA][REPROCESSO_UPDATE_ERROR]', {
                     registro: reg.id,

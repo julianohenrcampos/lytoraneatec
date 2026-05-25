@@ -58,6 +58,7 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
     setIsDetailsModalOpen,
     setIsImportModalOpen,
     setIsDeleteModalOpen,
+    setCurrentFuncionario,
     handleFilterChange,
     resetFilters,
     openFormModal,
@@ -169,7 +170,11 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
 
       <FuncionarioFormModal
         isOpen={isFormModalOpen}
-        onClose={() => setIsFormModalOpen(false)}
+        onClose={() => {
+          setIsFormModalOpen(false);
+          // Limpa funcionário selecionado para evitar vazamento entre create/edit
+          setTimeout(() => setCurrentFuncionario(null), 0);
+        }}
         funcionario={currentFuncionario}
         onSubmit={handleSaveFuncionario}
         isSubmitting={isSubmitting}
@@ -177,9 +182,13 @@ const FuncionarioPage: React.FC<FuncionarioPageProps> = ({ openImageModal }) => 
 
       <FuncionarioDetailsModal
         isOpen={isDetailsModalOpen}
-        onClose={() => setIsDetailsModalOpen(false)}
+        onClose={() => {
+          setIsDetailsModalOpen(false);
+          setTimeout(() => setCurrentFuncionario(null), 0);
+        }}
         funcionario={currentFuncionario}
       />
+
 
       <FuncionarioImportModal
         isOpen={isImportModalOpen}

@@ -18,8 +18,10 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  Trash2 } from
+  Trash2,
+  Info } from
 "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { generateCompiladoDiariasPDF, generateRelatorioDiariasPDFPorPeriodo } from "@/services/pdfService";
 import { generateRelatorioFolhaPDF } from "@/services/pdf/relatorioFolhaPdf";
@@ -243,7 +245,9 @@ export default function DiariasRelatorio() {
     if (di && df) return { inicio: di, fim: df };
     const hoje = new Date();
     const fim = format(hoje, 'yyyy-MM-dd');
-    const inicio = format(subDays(hoje, 29), 'yyyy-MM-dd');
+    // Janela ampla para o dropdown (365 dias) permite encontrar solicitações antigas
+    // como 2026-236, sem afetar a janela default da tabela (30 dias em ensurePeriodo).
+    const inicio = format(subDays(hoje, 364), 'yyyy-MM-dd');
     return { inicio, fim };
   }, [filters.data_inicio, filters.data_fim]);
 
@@ -743,10 +747,13 @@ export default function DiariasRelatorio() {
         </Card>
 
         {/* Aviso de período padrão (últimos 30 dias aplicados internamente) */}
-        {defaultPeriodApplied && (
-          <div className="text-xs text-muted-foreground italic px-1">
-            Exibindo os últimos 30 dias. Use os filtros para consultar outro período.
-          </div>
+        {defaultPeriodApplied && solicitacaoFilter.length === 0 && (
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              Exibindo apenas os últimos 30 dias. Defina <strong>Data Início</strong> e <strong>Data Fim</strong> para consultar outros períodos, ou selecione um <strong>Nº Solicitação</strong> para ignorar o período padrão.
+            </AlertDescription>
+          </Alert>
         )}
 
         {/* Table with 7 columns */}
