@@ -71,8 +71,9 @@ export default function DiariasApontamentoCampo() {
   } = useDiariasDataScope();
 
   const hasAccess = isSuperAdmin || hasPermission('diarias_apontamento_view') || hasPermission('diarias_view') || userScope === 'admsso';
-  // RBAC: capacidade de liberar edição de apontamentos finalizados (correção administrativa)
-  const canLiberarEdicao = isSuperAdmin || hasActionPermission('diarias_view', 'aprovar') || hasActionPermission('diarias_apontamento_view', 'editar');
+  // RBAC: liberação de edição retroativa é ação crítica exclusiva de SuperAdm.
+  // Não usar permissões genéricas (diarias_view:aprovar / diarias_apontamento_view:editar).
+  const canLiberarEdicao = isSuperAdmin;
 
   // Filters
   type StatusUI = '__all__' | 'pendente' | 'em_andamento' | 'concluido';
@@ -878,7 +879,24 @@ export default function DiariasApontamentoCampo() {
                             <div className="flex items-center gap-1.5">
                               <Switch
                                 checked={(apontamento as any).edicao_liberada || false}
-                                onCheckedChange={(checked) => toggleEdicao.mutate({ id: apontamento.id, liberada: checked })}
+                                onCheckedChange={(checked) => {
+                                  if (import.meta.env.DEV) {
+                                    console.info('[AUDIT][apontamento:liberar-retroativo]', {
+                                      isSuperAdmin,
+                                      solicitacaoId: apontamento.solicitacao_id,
+                                      numeroSolicitacao: (apontamento as any).bd_diaria_solicitacoes?.numero_solicitacao,
+                                      podeVerToggle: canLiberarEdicao,
+                                      tentouAcionar: true,
+                                      bloqueado: !isSuperAdmin,
+                                      motivo: isSuperAdmin ? 'ok' : 'nao_superadm',
+                                    });
+                                  }
+                                  if (!isSuperAdmin) {
+                                    toast.error('Apenas SuperAdm pode liberar edição retroativa.');
+                                    return;
+                                  }
+                                  toggleEdicao.mutate({ id: apontamento.id, liberada: checked });
+                                }}
                                 disabled={toggleEdicao.isPending}
                               />
                               <span className="text-xs text-muted-foreground whitespace-nowrap">Liberar</span>
