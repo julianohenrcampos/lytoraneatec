@@ -85,6 +85,12 @@ interface SmartFuncionarioSearchProps {
    * Quando ausente para um CC, faz fallback ao cálculo local.
    */
   totalFuncionariosPorCentroOverride?: Map<string, number>;
+  /**
+   * Tipo da solicitação. Em 'extraordinaria', vínculo/alerta/RPC bloqueado
+   * deixam de travar o clique — o funcionário entra na lista como alerta
+   * e o bloqueio real fica por célula (matriz) e por interseção no salvar.
+   */
+  tipoSolicitacao?: 'normal' | 'extraordinaria';
 }
 
 // Status de RH considerados bloqueio real de seleção (não-conflito).
@@ -104,6 +110,7 @@ export function SmartFuncionarioSearch({
   isSearching = false,
   elegibilidadeMap,
   totalFuncionariosPorCentroOverride,
+  tipoSolicitacao = 'normal',
 }: SmartFuncionarioSearchProps) {
   const isControlled = typeof onSearchChange === "function";
   const [open, setOpen] = React.useState(false)
@@ -290,15 +297,23 @@ export function SmartFuncionarioSearch({
                       isAlertaElegibilidade ||
                       (elegState === undefined && f.elegivel === false && !isStatusBloqueado);
 
-                    const isHardBlocked = isStatusBloqueado || isBloqueadoElegibilidade;
+                    const isExtra = tipoSolicitacao === 'extraordinaria';
+                    // Em Extraordinária, bloqueio da RPC (vínculo/período) não trava
+                    // o clique — apenas status RH estrutural barra. O conflito por
+                    // data específica é tratado na matriz e no salvar.
+                    const isHardBlocked = isExtra
+                      ? isStatusBloqueado
+                      : (isStatusBloqueado || isBloqueadoElegibilidade);
 
                     const podeSelecionarComConfirmacao =
                       hasConflito && !!onSelectFuncionarioComConflito && !isHardBlocked;
-                    const canSelect = !isAdded && !isHardBlocked && (!hasConflito || podeSelecionarComConfirmacao);
+                    const canSelect = !isAdded && !isHardBlocked && (!hasConflito || podeSelecionarComConfirmacao || isExtra);
 
                     const handleClick = () => {
                       if (!canSelect) return;
-                      if (hasConflito && onSelectFuncionarioComConflito) {
+                      // Em Extraordinária, ignora modal bloqueante de conflito —
+                      // adiciona direto; o handler do pai emite toast de alerta.
+                      if (hasConflito && onSelectFuncionarioComConflito && !isExtra) {
                         onSelectFuncionarioComConflito({
                           funcionarioId: f.id,
                           alocacao: alocacao
@@ -312,6 +327,7 @@ export function SmartFuncionarioSearch({
                       }
                       handleSelectFuncionario(f.id);
                     };
+
 
                     return (
                       <CommandItem

@@ -18437,6 +18437,30 @@ export type Database = {
         Args: { p_funcionario_id: string; p_user_id: string }
         Returns: boolean
       }
+      fn_get_classificacao_reimpressao_payload: {
+        Args: { p_solicitacao_id: string }
+        Returns: {
+          cargo_atual_nome: string
+          cargo_novo_nome: string
+          centro_custo_formatado: string
+          created_at: string
+          data_admissao: string
+          data_efetivacao_desejada: string
+          funcionario_id: string
+          matricula: string
+          motivo: string
+          nome_completo: string
+          novo_salario: number
+          precisa_exame: boolean
+          protocolo: string
+          salario_atual: number
+          solicitacao_id: string
+          solicitante_email: string
+          solicitante_nome: string
+          status: string
+          ultima_classificacao: string
+        }[]
+      }
       fn_get_funcionario_sensitive: {
         Args: { p_funcionario_id: string; p_origem?: string }
         Returns: Json

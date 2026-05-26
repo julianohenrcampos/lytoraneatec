@@ -61,15 +61,12 @@ export function gerarPdfSolicitacaoClassificacao(dados: DadosSolicitacaoClassifi
   const diferencaPercentual =
     salarioAtual > 0 ? ((novoSalario - salarioAtual) / salarioAtual) * 100 : 0;
 
-  // Cabeçalho corporativo (mesmo padrão do PDF de Classificação efetivada)
+  console.log("[CLASSIFICACAO][PDF_RENDER_DEBUG]", dados);
+
+  // Cabeçalho corporativo
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
-  doc.text(
-    "PROTOCOLO DE SOLICITAÇÃO DE NOVA CLASSIFICAÇÃO — LYTORÂNEA",
-    pageWidth / 2,
-    14,
-    { align: "center" }
-  );
+  doc.text("SOLICITAÇÃO CLASSIFICAÇÃO", pageWidth / 2, 14, { align: "center" });
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);

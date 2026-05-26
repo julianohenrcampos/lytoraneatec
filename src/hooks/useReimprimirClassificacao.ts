@@ -26,7 +26,7 @@ export const useReimprimirClassificacao = () => {
         // Fallback Fase 2A: buscar última solicitação pendente
         const { data: solic, error: solErr } = await (supabase as any)
           .from("bd_funcionario_classificacao_solicitacoes")
-          .select("id, cargo_atual_nome, cargo_novo_id, cargo_novo_nome, motivo, data_efetivacao_desejada, precisa_exame, created_at, solicitado_por")
+          .select("id")
           .eq("funcionario_id", funcionarioId)
           .order("created_at", { ascending: false })
           .limit(1)
@@ -37,55 +37,50 @@ export const useReimprimirClassificacao = () => {
           return;
         }
 
-        const { data: fSol } = await supabase
-          .from("bd_funcionarios")
-          .select("nome_completo, matricula, data_admissao, salario_base, bd_centros_custo(nome_centro_custo)")
-          .eq("id", funcionarioId)
-          .maybeSingle();
+        // RPC SECURITY DEFINER com gate explícito (espelho da policy SELECT)
+        const { data: rpcData, error: rpcErr } = await (supabase as any).rpc(
+          "fn_get_classificacao_reimpressao_payload",
+          { p_solicitacao_id: (solic as any).id }
+        );
 
-        // Salário do novo cargo (snapshot da função-alvo)
-        let novoSalarioSolic = 0;
-        if ((solic as any).cargo_novo_id) {
-          const { data: funcNova } = await supabase
-            .from("bd_funcoes")
-            .select("salario_base")
-            .eq("id", (solic as any).cargo_novo_id)
-            .maybeSingle();
-          novoSalarioSolic = Number((funcNova as any)?.salario_base ?? 0);
-        }
-
-        let solicitanteNome = "-";
-        let solicitanteEmail: string | null = null;
-        if ((solic as any).solicitado_por) {
-          const info = await getNomeSolicitanteClassificacao(
-            (solic as any).solicitado_por,
-            { usarMetadataDoAuth: false }
+        if (rpcErr) {
+          console.error("[CLASSIFICACAO][REIMPRESSAO_RPC_ERR]", rpcErr);
+          toast.error(
+            (rpcErr.message || "").toLowerCase().includes("permiss")
+              ? "Sem permissão para reimprimir esta solicitação."
+              : "Não foi possível carregar os dados da solicitação."
           );
-          solicitanteNome = info.nome;
-          solicitanteEmail = info.email;
-        } else {
-          console.warn("[NOVA_CLASSIFICACAO][SOLICITANTE_NAO_ENCONTRADO]", {
-            solicitacao_id: (solic as any).id,
-          });
+          return;
         }
 
-        gerarPdfSolicitacaoClassificacao({
-          protocolo_id: (solic as any).id,
-          nome: (fSol as any)?.nome_completo || "-",
-          matricula: (fSol as any)?.matricula ?? null,
-          centro_custo: (fSol as any)?.bd_centros_custo?.nome_centro_custo || "-",
-          data_admissao: (fSol as any)?.data_admissao ?? null,
-          cargo_atual: (solic as any).cargo_atual_nome || "-",
-          salario_atual: Number((fSol as any)?.salario_base ?? 0),
-          novo_cargo: (solic as any).cargo_novo_nome || "-",
-          novo_salario: novoSalarioSolic,
-          motivo: (solic as any).motivo || "-",
-          data_efetivacao_desejada: (solic as any).data_efetivacao_desejada ?? null,
-          precisa_exame: !!(solic as any).precisa_exame,
-          solicitante: solicitanteNome,
-          solicitante_email: solicitanteEmail,
-          data_solicitacao: (solic as any).created_at,
-        });
+        const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+        if (!row) {
+          toast.error("Sem permissão ou dados indisponíveis para reimpressão.");
+          return;
+        }
+
+        console.log("[CLASSIFICACAO][REIMPRESSAO_RPC_DEBUG]", row);
+
+        const payload = {
+          protocolo_id: row.solicitacao_id,
+          nome: row.nome_completo || "-",
+          matricula: row.matricula ?? null,
+          centro_custo: row.centro_custo_formatado || "-",
+          data_admissao: row.data_admissao ?? null,
+          ultima_classificacao: row.ultima_classificacao ?? null,
+          cargo_atual: row.cargo_atual_nome || "-",
+          salario_atual: Number(row.salario_atual ?? 0),
+          novo_cargo: row.cargo_novo_nome || "-",
+          novo_salario: Number(row.novo_salario ?? 0),
+          motivo: row.motivo || "-",
+          data_efetivacao_desejada: row.data_efetivacao_desejada ?? null,
+          precisa_exame: !!row.precisa_exame,
+          solicitante: row.solicitante_nome || "-",
+          solicitante_email: row.solicitante_email ?? null,
+          data_solicitacao: row.created_at,
+        };
+        console.log("[CLASSIFICACAO][PDF_PAYLOAD_DEBUG]", payload);
+        gerarPdfSolicitacaoClassificacao(payload);
 
         toast.success("PDF de solicitação gerado.");
         return;

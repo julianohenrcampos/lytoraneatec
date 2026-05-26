@@ -1237,17 +1237,29 @@ export function SolicitacaoFormModal({
 
     // Bloqueio funcionário/data — apenas presença EFETIVA (hora_entrada IS NOT NULL)
     // em outra solicitação ativa na mesma data. Convocação planejada vira só alerta.
+    // Em Extraordinária, mesmo `datas_bloqueio` NÃO impede a inclusão na lista —
+    // vira alerta; o bloqueio real fica por célula (matriz) e por interseção no salvar.
     const conflitoAloc = alocacoesPorFuncionario.get(funcId);
+    const isExtra = tipoSolicitacao === 'extraordinaria';
     if (conflitoAloc && conflitoAloc.datas_bloqueio.length > 0 && !forceAdd) {
-      setConflitoPendente({
-        funcionarioId: funcId,
-        alocacao: {
-          numero_solicitacao: conflitoAloc.numero_solicitacao,
-          codigo_centro_custo: conflitoAloc.codigo_centro_custo,
-        },
-        motivo: `Datas com apontamento real em outra solicitação: ${conflitoAloc.datas_bloqueio.map((d) => d.split('-').reverse().join('/')).join(', ')}`,
-      });
-      return;
+      if (isExtra) {
+        const datasFmt = conflitoAloc.datas_bloqueio.map((d) => d.split('-').reverse().slice(0, 2).join('/')).join(', ');
+        toast.warning(
+          `${func.nome_completo} tem apontamento real em ${conflitoAloc.numero_solicitacao} (CC ${conflitoAloc.codigo_centro_custo}) nas datas ${datasFmt}. Adicionado como alerta — essas células ficam bloqueadas na matriz.`,
+          { duration: 7000 },
+        );
+        // segue o fluxo (sem return)
+      } else {
+        setConflitoPendente({
+          funcionarioId: funcId,
+          alocacao: {
+            numero_solicitacao: conflitoAloc.numero_solicitacao,
+            codigo_centro_custo: conflitoAloc.codigo_centro_custo,
+          },
+          motivo: `Datas com apontamento real em outra solicitação: ${conflitoAloc.datas_bloqueio.map((d) => d.split('-').reverse().join('/')).join(', ')}`,
+        });
+        return;
+      }
     }
     if (conflitoAloc && conflitoAloc.datas_alerta.length > 0 && conflitoAloc.datas_bloqueio.length === 0) {
       toast.info(
@@ -1255,15 +1267,28 @@ export function SolicitacaoFormModal({
       );
     }
 
-    // Regra dura: bloqueado pela RPC de elegibilidade NUNCA passa, ignora forceAdd.
+    // Regra dura: bloqueado pela RPC de elegibilidade.
+    // Em Normal: NUNCA passa, ignora forceAdd.
+    // Em Extraordinária: vira alerta (geralmente vínculo semanal em outra solicitação).
     const eleg = elegibilidadeMap.get(funcId);
     if (eleg?.status === 'bloqueado') {
-      toast.error(eleg.motivo || `${func.nome_completo} está bloqueado para o período.`);
-      return;
+      if (isExtra) {
+        toast.warning(
+          eleg.motivo
+            ? `${func.nome_completo}: ${eleg.motivo}. Adicionado como alerta na extraordinária.`
+            : `${func.nome_completo} sinalizado pela elegibilidade — adicionado como alerta na extraordinária.`,
+          { duration: 6000 },
+        );
+        // segue o fluxo (sem return)
+      } else {
+        toast.error(eleg.motivo || `${func.nome_completo} está bloqueado para o período.`);
+        return;
+      }
     }
 
-    // Legacy/compat: elegivel=false sem confirmação ainda exige forceAdd.
-    if (!forceAdd && (func.elegivel === false || eleg?.status === 'alerta')) {
+    // Legacy/compat: elegivel=false sem confirmação ainda exige forceAdd em Normal.
+    // Em Extraordinária, alerta nunca bloqueia.
+    if (!forceAdd && !isExtra && (func.elegivel === false || eleg?.status === 'alerta')) {
       toast.warning(eleg?.alertaMensagem || eleg?.motivo || func.motivo_bloqueio || `${func.nome_completo} requer confirmação.`);
       return;
     }
@@ -1455,11 +1480,15 @@ export function SolicitacaoFormModal({
     return set;
   }, [diasOperacionaisSelecionados, regrasOperacionaisPorData]);
 
-  // Conflitos por (funcId, data) a partir de alocacoesPorFuncionario.datas.
+  // Conflitos por (funcId, data) a partir de datas_bloqueio (presença real com
+  // hora_entrada IS NOT NULL). datas_alerta é apenas visual e NÃO bloqueia a
+  // célula — convocação planejada em outra solicitação ou presença sem
+  // hora_entrada continuam permitindo seleção (regra igual para normal e
+  // extraordinária).
   const conflitosPorFuncData = useMemo(() => {
     const map = new Map<string, Set<string>>();
     for (const [funcId, info] of alocacoesPorFuncionario.entries()) {
-      map.set(funcId, new Set(info.datas));
+      map.set(funcId, new Set(info.datas_bloqueio));
     }
     return map;
   }, [alocacoesPorFuncionario]);
@@ -2264,6 +2293,7 @@ export function SolicitacaoFormModal({
                 isSearching={isFetchingFuncionarios}
                 elegibilidadeMap={elegibilidadeMap}
                 totalFuncionariosPorCentroOverride={totalFuncionariosPorCentroOverride}
+                tipoSolicitacao={tipoSolicitacao}
               />
 
               {/* Lista única: card "Equipe por dia" */}

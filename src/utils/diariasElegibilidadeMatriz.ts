@@ -70,7 +70,11 @@ export function avaliarCelula(ctx: ContextoCelula): ResultadoElegibilidade {
       tooltip: 'Funcionário já alocado em outra solicitação nesta data.',
     };
   }
-  if (ctx.bloqueadoElegibilidadeRPC) {
+  // Em Extraordinária, o bloqueio da RPC (vínculo/período semanal) NÃO
+  // trava células — o bloqueio por data específica vem via `temConflito`
+  // (datas_bloqueio = presença real). Status RH estrutural ainda barra
+  // logo abaixo. Em Normal, mantém o bloqueio duro.
+  if (ctx.bloqueadoElegibilidadeRPC && ctx.tipoSolicitacao !== 'extraordinaria') {
     return {
       podeMarcar: false,
       marcarPorPadrao: false,

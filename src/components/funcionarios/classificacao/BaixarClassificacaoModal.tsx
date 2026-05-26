@@ -81,19 +81,36 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
       setNovoCargoId("");
       setMotivo("Promoção");
       setDataEfetivacao(new Date().toISOString().slice(0, 10));
-      setSalarioAtual(Number((funcionario as any).salario_base ?? 0));
+      setSalarioAtual(0);
       setNovoSalarioInput(0);
-      // Rehidrata salário atual a partir de bd_funcionarios (caso a listagem venha reduzida)
+      // Rehidrata salário atual a partir de bd_funcoes (função atual) — sem embed
       (async () => {
         try {
-          const { data: alvo } = await supabase
+          const { data: base } = await supabase
             .from("bd_funcionarios")
-            .select("salario_base")
+            .select("funcao_id")
             .eq("id", funcionario.id)
             .maybeSingle();
-          if (alvo && (alvo as any).salario_base != null) {
-            setSalarioAtual(Number((alvo as any).salario_base));
+          const funcaoId = (base as any)?.funcao_id;
+          if (!funcaoId) {
+            setSalarioAtual(0);
+            return;
           }
+          const { data: fn } = await supabase
+            .from("bd_funcoes")
+            .select("nome_funcao, salario_base")
+            .eq("id", funcaoId)
+            .maybeSingle();
+          const salarioFuncao = Number((fn as any)?.salario_base ?? 0);
+          if (!salarioFuncao) {
+            console.log("[CLASSIFICACAO][SALARIO_ATUAL_DEBUG]", {
+              funcionario_id: funcionario.id,
+              funcao_id: funcaoId,
+              nome_funcao: (fn as any)?.nome_funcao,
+              salario_base: (fn as any)?.salario_base,
+            });
+          }
+          setSalarioAtual(salarioFuncao);
         } catch {
           /* ignore */
         }
@@ -177,36 +194,91 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
         /* ignore */
       }
 
-      // Rehidratação do alvo (garante nome/CC/admissão/cargo mesmo se a listagem veio reduzida).
-      // Salário Atual e Novo Salário usam exatamente os valores exibidos no modal
-      // (state `salarioAtual` + memo `novoSalario`), garantindo identidade tela⇄PDF.
+      // Rehidratação por queries separadas (sem embed) — evita falha silenciosa.
+      console.log("[CLASSIFICACAO][FUNCIONARIO_RECEBIDO_MODAL]", {
+        funcionario,
+        funcionario_id: funcionario?.id,
+        nome: funcionario?.nome_completo,
+        funcao_id: (funcionario as any)?.funcao_id,
+        centro_custo_id: funcionario?.centro_custo_id,
+      });
+
       let alvoNome = funcionario.nome_completo;
       let alvoMatricula: string | null = (funcionario as any).matricula ?? null;
       let alvoDataAdmissao: string | null = funcionario.data_admissao ?? null;
-      let alvoCC = funcionario.bd_centros_custo?.nome_centro_custo ?? null;
+      let alvoCC: string | null = null;
       let alvoCargoAtual = cargoAtualNome;
-      try {
-        const { data: alvo } = await supabase
-          .from("bd_funcionarios")
-          .select(
-            "nome_completo, matricula, data_admissao, bd_centros_custo(nome_centro_custo), bd_funcoes(nome_funcao)"
-          )
-          .eq("id", funcionario.id)
-          .maybeSingle();
-        if (alvo) {
-          alvoNome = (alvo as any).nome_completo || alvoNome;
-          alvoMatricula = (alvo as any).matricula ?? alvoMatricula;
-          alvoDataAdmissao = (alvo as any).data_admissao ?? alvoDataAdmissao;
-          alvoCC = (alvo as any).bd_centros_custo?.nome_centro_custo ?? alvoCC;
-          alvoCargoAtual =
-            (alvo as any).bd_funcoes?.nome_funcao || alvoCargoAtual;
+      let alvoSalarioAtual = salarioAtual;
+
+      const { data: baseFunc, error: errBase } = await supabase
+        .from("bd_funcionarios")
+        .select("nome_completo, matricula, data_admissao, funcao_id, centro_custo_id")
+        .eq("id", funcionario.id)
+        .maybeSingle();
+
+      let fnData: any = null;
+      let errFn: any = null;
+      let ccData: any = null;
+      let errCc: any = null;
+
+      if (baseFunc) {
+        alvoNome = (baseFunc as any).nome_completo || alvoNome;
+        alvoMatricula = (baseFunc as any).matricula ?? alvoMatricula;
+        alvoDataAdmissao = (baseFunc as any).data_admissao ?? alvoDataAdmissao;
+
+        const funcaoId = (baseFunc as any).funcao_id;
+        const ccId = (baseFunc as any).centro_custo_id;
+
+        if (funcaoId) {
+          const res = await supabase
+            .from("bd_funcoes")
+            .select("nome_funcao, salario_base")
+            .eq("id", funcaoId)
+            .maybeSingle();
+          fnData = res.data;
+          errFn = res.error;
+          if (fnData?.nome_funcao) alvoCargoAtual = fnData.nome_funcao;
+          const salarioFuncao = Number(fnData?.salario_base ?? 0);
+          if (!salarioFuncao) {
+            console.log("[CLASSIFICACAO][SALARIO_ATUAL_DEBUG]", {
+              funcionario_id: funcionario.id,
+              funcao_id: funcaoId,
+              nome_funcao: fnData?.nome_funcao,
+              salario_base: fnData?.salario_base,
+            });
+          }
+          alvoSalarioAtual = salarioFuncao || alvoSalarioAtual;
         }
-      } catch (e) {
-        console.warn("[NOVA_CLASSIFICACAO][PDF_DADOS_INCOMPLETOS]", {
+
+        if (ccId) {
+          const res = await supabase
+            .from("bd_centros_custo")
+            .select("codigo_centro_custo, nome_centro_custo")
+            .eq("id", ccId)
+            .maybeSingle();
+          ccData = res.data;
+          errCc = res.error;
+          if (ccData) {
+            alvoCC = `${ccData.codigo_centro_custo} - ${ccData.nome_centro_custo}`;
+          }
+        }
+      } else {
+        console.warn("[CLASSIFICACAO][FUNCIONARIO_NAO_ENCONTRADO]", {
           funcionario_id: funcionario.id,
-          erro: (e as any)?.message,
+          error: errBase,
         });
+        toast.error("Funcionário não encontrado ao gerar PDF.");
       }
+
+      console.log("[CLASSIFICACAO][FUNCIONARIO_REIDRATADO]", {
+        funcionario_id: funcionario.id,
+        baseFunc,
+        errBase,
+        fnData,
+        errFn,
+        ccData,
+        errCc,
+      });
 
       const faltando = {
         nome: !alvoNome,
@@ -221,7 +293,6 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
       }
 
       // Última classificação efetivada (RPC SECURITY DEFINER read-only).
-      // Retorna apenas a date de RECLASSIFICACAO/PROMOCAO_EFETIVADA mais recente.
       let ultimaClassificacao: string | null = null;
       try {
         const { data: ultData, error: ultErr } = await supabase
@@ -238,10 +309,10 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
         console.warn("[CLASSIFICACAO][ULTIMA_ERRO]", e);
       }
 
+
       // PDF de protocolo no layout antigo (com salário, Total Geral, assinaturas).
-      // salario_atual / novo_salario refletem exatamente os campos exibidos no modal.
       try {
-        gerarPdfSolicitacaoClassificacao({
+        const payload = {
           protocolo_id: result.id,
           nome: alvoNome || "-",
           matricula: alvoMatricula,
@@ -249,7 +320,7 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
           data_admissao: alvoDataAdmissao,
           ultima_classificacao: ultimaClassificacao,
           cargo_atual: alvoCargoAtual || "-",
-          salario_atual: salarioAtual,
+          salario_atual: alvoSalarioAtual,
           novo_cargo: cargoSelecionado.nome_funcao,
           novo_salario: novoSalarioInput,
           motivo,
@@ -258,7 +329,9 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
           solicitante: solicitanteNome,
           solicitante_email: solicitanteEmail,
           data_solicitacao: new Date().toISOString(),
-        });
+        };
+        console.log("[CLASSIFICACAO][PDF_PAYLOAD_DEBUG]", payload);
+        gerarPdfSolicitacaoClassificacao(payload);
       } catch (e) {
         console.error("Erro ao gerar PDF de solicitação:", e);
       }
