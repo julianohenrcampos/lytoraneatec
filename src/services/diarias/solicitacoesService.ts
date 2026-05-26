@@ -451,12 +451,18 @@ export async function createSolicitacao(formData: SolicitacaoFormData): Promise<
     throw new Error('Seu perfil não possui permissão de criação de solicitação de diária.');
   }
 
-  // Verificar duplicidade antes de criar
-  await verificarDuplicidadeSolicitacao(
-    formData.data_inicio,
-    formData.data_fim,
-    formData.convocados_pre || []
-  );
+  // Verificar duplicidade antes de criar — apenas para tipo 'normal'.
+  // Extraordinária libera overlap (memória Multi-Solicitação Diárias); bloqueio real
+  // de sobreposição de horário ocorre no Apontamento de Campo (presença com hora_entrada).
+  if (tipo === 'normal') {
+    await verificarDuplicidadeSolicitacao(
+      formData.data_inicio,
+      formData.data_fim,
+      formData.convocados_pre || []
+    );
+  } else {
+    console.info('[Diarias][createSolicitacao] extraordinária — bypass duplicidade semanal');
+  }
 
   // Gerar número de solicitação
   const numero_solicitacao = await generateNumeroSolicitacao();
@@ -741,12 +747,16 @@ export async function enviarParaAutorizacao(id: string): Promise<DiariaSolicitac
     // ou criadas por não-SuperAdm por caminhos alternativos não avancem de status.
     await assertRegraRetroativa(solicitacao.data_inicio, (solicitacao as any).justificativa);
 
-    await verificarDuplicidadeSolicitacao(
-      solicitacao.data_inicio,
-      solicitacao.data_fim,
-      Array.isArray(solicitacao.convocados_pre) ? solicitacao.convocados_pre as any[] : [],
-      id
-    );
+    if ((solicitacao.tipo_solicitacao || 'normal') === 'normal') {
+      await verificarDuplicidadeSolicitacao(
+        solicitacao.data_inicio,
+        solicitacao.data_fim,
+        Array.isArray(solicitacao.convocados_pre) ? solicitacao.convocados_pre as any[] : [],
+        id
+      );
+    } else {
+      console.info('[Diarias][enviarParaAutorizacao] extraordinária — bypass duplicidade semanal');
+    }
   }
 
   const { data, error } = await supabase

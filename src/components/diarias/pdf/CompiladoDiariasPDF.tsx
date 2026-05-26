@@ -636,6 +636,45 @@ export const CompiladoDiariasPDF = ({
     </View>
   );
 
+  // Bloco reutilizável p/ resumos (Dias Úteis e FDS/Feriado). Mesmo padrão visual do TotalGeralBlock.
+  const TotalResumoBlock = ({ titulo, quantidade, valor }: { titulo: string; quantidade: number; valor: number }) => (
+    <View wrap={false} style={s.totalBlock}>
+      <View style={s.totalTitleRow}>
+        <Text style={s.totalTitleText}>{titulo}</Text>
+      </View>
+      <View style={s.totalHeaderRow}>
+        <View style={s.totalCellBorder}><Text style={s.textHeaderBold}>QUANTIDADE</Text></View>
+        <View style={s.totalCell}><Text style={s.textHeaderBold}>VALOR</Text></View>
+      </View>
+      <View style={s.totalDataRow}>
+        <View style={s.totalCellBorder}><Text style={s.totalValue}>{quantidade}</Text></View>
+        <View style={s.totalCell}><Text style={s.totalValue}>{formatBRL(valor)}</Text></View>
+      </View>
+    </View>
+  );
+
+  // Subtotais a partir de periodsWeekday/periodsWeekend (já populados em
+  // buildCompiladoData via classificarDiaParaRelatorio modo 'operacional').
+  // Soma em centavos para evitar drift de ponto flutuante.
+  const toCents = (v: number) => Math.round((Number(v) || 0) * 100);
+  let qtdDU = 0, centsDU = 0, qtdFS = 0, centsFS = 0;
+  centros.forEach((cc) => {
+    cc.periodsWeekday.forEach((p) => { qtdDU += p.quantidade; centsDU += toCents(p.valor); });
+    cc.periodsWeekend.forEach((p) => { qtdFS += p.quantidade; centsFS += toCents(p.valor); });
+  });
+  const valorDU = centsDU / 100;
+  const valorFS = centsFS / 100;
+  const somaQtd = qtdDU + qtdFS;
+  const somaCents = centsDU + centsFS;
+  const totalCents = toCents(totalGeralValor);
+  if (somaQtd !== totalGeralQuantidade || Math.abs(somaCents - totalCents) > 0) {
+    // eslint-disable-next-line no-console
+    console.warn('[COMPILADO] Divergência subtotais vs TOTAL GERAL', {
+      qtdDU, qtdFS, somaQtd, totalGeralQuantidade,
+      valorDU, valorFS, somaValor: somaCents / 100, totalGeralValor,
+    });
+  }
+
   // If we have empresa groups, render each empresa on its own page
   if (groups) {
     return (
@@ -722,6 +761,8 @@ export const CompiladoDiariasPDF = ({
             <SubtotalCcRow cc={cc} />
           </React.Fragment>
         ))}
+        <TotalResumoBlock titulo="TOTAL GERAL DIAS ÚTEIS" quantidade={qtdDU} valor={valorDU} />
+        <TotalResumoBlock titulo="TOTAL GERAL FINAIS DE SEMANA / FERIADO" quantidade={qtdFS} valor={valorFS} />
         <TotalGeralBlock />
         {assinaturas && assinaturas.length > 0 && (
           <AssinaturaPDFBlock assinaturas={assinaturas} />
