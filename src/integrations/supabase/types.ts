@@ -18111,6 +18111,12 @@ export type Database = {
           centro_custo_id: string
         }[]
       }
+      fn_ativos_user_centros_custo_responsavel: {
+        Args: { p_user_id?: string }
+        Returns: {
+          centro_custo_id: string
+        }[]
+      }
       fn_audit_sensitive_read: {
         Args: {
           p_campos?: string[]
