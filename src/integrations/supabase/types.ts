@@ -10744,6 +10744,403 @@ export type Database = {
         }
         Relationships: []
       }
+      bd_solicitacao_desligamento_itens: {
+        Row: {
+          cargo_snapshot: string | null
+          centro_custo_id: string | null
+          centro_custo_snapshot: string | null
+          cpf_snapshot: string | null
+          created_at: string
+          data_admissao_snapshot: string | null
+          data_desligamento: string | null
+          data_exame: string | null
+          funcionario_id: string | null
+          id: string
+          matricula_snapshot: string | null
+          nome_snapshot: string
+          salario_manual: number | null
+          solicitacao_id: string
+          updated_at: string
+          valor_rescisao_manual: number | null
+        }
+        Insert: {
+          cargo_snapshot?: string | null
+          centro_custo_id?: string | null
+          centro_custo_snapshot?: string | null
+          cpf_snapshot?: string | null
+          created_at?: string
+          data_admissao_snapshot?: string | null
+          data_desligamento?: string | null
+          data_exame?: string | null
+          funcionario_id?: string | null
+          id?: string
+          matricula_snapshot?: string | null
+          nome_snapshot: string
+          salario_manual?: number | null
+          solicitacao_id: string
+          updated_at?: string
+          valor_rescisao_manual?: number | null
+        }
+        Update: {
+          cargo_snapshot?: string | null
+          centro_custo_id?: string | null
+          centro_custo_snapshot?: string | null
+          cpf_snapshot?: string | null
+          created_at?: string
+          data_admissao_snapshot?: string | null
+          data_desligamento?: string | null
+          data_exame?: string | null
+          funcionario_id?: string | null
+          id?: string
+          matricula_snapshot?: string | null
+          nome_snapshot?: string
+          salario_manual?: number | null
+          solicitacao_id?: string
+          updated_at?: string
+          valor_rescisao_manual?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_solicitacao_desligamento_itens_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_desligamento_itens_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_desligamento_itens_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_desligamento_itens_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_desligamento_itens_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_desligamento_itens_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_desligamento_itens_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_desligamento_itens_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_desligamento_itens_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_desligamento_itens_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_desligamento_itens_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_desligamento_itens_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_solicitacoes_desligamento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_solicitacao_transferencia_itens: {
+        Row: {
+          cargo_snapshot: string | null
+          centro_custo_destino_id: string | null
+          centro_custo_destino_snapshot: string | null
+          centro_custo_origem_id: string | null
+          centro_custo_origem_snapshot: string | null
+          cpf_snapshot: string | null
+          created_at: string
+          data_admissao_snapshot: string | null
+          data_transferencia: string | null
+          funcionario_id: string | null
+          id: string
+          matricula_snapshot: string | null
+          nome_snapshot: string
+          salario_manual: number | null
+          solicitacao_id: string
+          updated_at: string
+        }
+        Insert: {
+          cargo_snapshot?: string | null
+          centro_custo_destino_id?: string | null
+          centro_custo_destino_snapshot?: string | null
+          centro_custo_origem_id?: string | null
+          centro_custo_origem_snapshot?: string | null
+          cpf_snapshot?: string | null
+          created_at?: string
+          data_admissao_snapshot?: string | null
+          data_transferencia?: string | null
+          funcionario_id?: string | null
+          id?: string
+          matricula_snapshot?: string | null
+          nome_snapshot: string
+          salario_manual?: number | null
+          solicitacao_id: string
+          updated_at?: string
+        }
+        Update: {
+          cargo_snapshot?: string | null
+          centro_custo_destino_id?: string | null
+          centro_custo_destino_snapshot?: string | null
+          centro_custo_origem_id?: string | null
+          centro_custo_origem_snapshot?: string | null
+          cpf_snapshot?: string | null
+          created_at?: string
+          data_admissao_snapshot?: string | null
+          data_transferencia?: string | null
+          funcionario_id?: string | null
+          id?: string
+          matricula_snapshot?: string | null
+          nome_snapshot?: string
+          salario_manual?: number | null
+          solicitacao_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_solicitacao_transferencia_itens_centro_custo_destino_id_fkey"
+            columns: ["centro_custo_destino_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_transferencia_itens_centro_custo_destino_id_fkey"
+            columns: ["centro_custo_destino_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_transferencia_itens_centro_custo_destino_id_fkey"
+            columns: ["centro_custo_destino_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_transferencia_itens_centro_custo_destino_id_fkey"
+            columns: ["centro_custo_destino_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_transferencia_itens_centro_custo_destino_id_fkey"
+            columns: ["centro_custo_destino_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_transferencia_itens_centro_custo_destino_id_fkey"
+            columns: ["centro_custo_destino_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_transferencia_itens_centro_custo_destino_id_fkey"
+            columns: ["centro_custo_destino_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_transferencia_itens_centro_custo_destino_id_fkey"
+            columns: ["centro_custo_destino_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_transferencia_itens_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_transferencia_itens_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_transferencia_itens_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_transferencia_itens_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_transferencia_itens_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_transferencia_itens_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_transferencia_itens_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_transferencia_itens_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_transferencia_itens_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_transferencia_itens_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_transferencia_itens_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_transferencia_itens_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_solicitacoes_transferencia"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_solicitacoes_desligamento: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          data_solicitacao: string
+          diretor_area_nome_snapshot: string | null
+          diretoria_financeira_nome_snapshot: string | null
+          gerente_area_nome_snapshot: string | null
+          id: string
+          observacoes: string | null
+          protocolo: string
+          solicitante_id: string | null
+          solicitante_nome_snapshot: string | null
+          status: string
+          total_funcionarios: number
+          total_rescisao: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          data_solicitacao?: string
+          diretor_area_nome_snapshot?: string | null
+          diretoria_financeira_nome_snapshot?: string | null
+          gerente_area_nome_snapshot?: string | null
+          id?: string
+          observacoes?: string | null
+          protocolo: string
+          solicitante_id?: string | null
+          solicitante_nome_snapshot?: string | null
+          status?: string
+          total_funcionarios?: number
+          total_rescisao?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          data_solicitacao?: string
+          diretor_area_nome_snapshot?: string | null
+          diretoria_financeira_nome_snapshot?: string | null
+          gerente_area_nome_snapshot?: string | null
+          id?: string
+          observacoes?: string | null
+          protocolo?: string
+          solicitante_id?: string | null
+          solicitante_nome_snapshot?: string | null
+          status?: string
+          total_funcionarios?: number
+          total_rescisao?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       bd_solicitacoes_equip_aprovacoes: {
         Row: {
           aprovador_id: string | null
@@ -11243,6 +11640,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      bd_solicitacoes_transferencia: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          data_solicitacao: string
+          diretor_area_nome_snapshot: string | null
+          diretoria_financeira_nome_snapshot: string | null
+          gerente_area_nome_snapshot: string | null
+          id: string
+          observacoes: string | null
+          protocolo: string
+          solicitante_id: string | null
+          solicitante_nome_snapshot: string | null
+          status: string
+          total_funcionarios: number
+          total_salarios: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          data_solicitacao?: string
+          diretor_area_nome_snapshot?: string | null
+          diretoria_financeira_nome_snapshot?: string | null
+          gerente_area_nome_snapshot?: string | null
+          id?: string
+          observacoes?: string | null
+          protocolo: string
+          solicitante_id?: string | null
+          solicitante_nome_snapshot?: string | null
+          status?: string
+          total_funcionarios?: number
+          total_salarios?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          data_solicitacao?: string
+          diretor_area_nome_snapshot?: string | null
+          diretoria_financeira_nome_snapshot?: string | null
+          gerente_area_nome_snapshot?: string | null
+          id?: string
+          observacoes?: string | null
+          protocolo?: string
+          solicitante_id?: string | null
+          solicitante_nome_snapshot?: string | null
+          status?: string
+          total_funcionarios?: number
+          total_salarios?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       bd_sso_checklist_itens: {
         Row: {
