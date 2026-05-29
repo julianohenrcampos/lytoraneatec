@@ -311,27 +311,29 @@ export function AditivoSolicitarModal({
     });
   };
 
-  // ---- busca de funcionários (server-side, top 10) ----
+  // ---- busca de funcionários (server-side via RPC SECURITY DEFINER) ----
+  // Usa get_funcionarios_ativos_global para evitar RLS de escopo em bd_funcionarios:
+  // o aditivo é vinculado a uma solicitacao_id cujo CC já foi validado, então liberar
+  // a busca global é seguro e consistente com o fluxo de Nova Solicitação.
   const buscaQ = useQuery({
-    queryKey: ["aditivo-busca-func", buscaFunc.trim()],
+    queryKey: [
+      "aditivo-busca-func-rpc",
+      buscaFunc.trim(),
+      solicitacao.centro_custo_id ?? null,
+    ],
     queryFn: async () => {
       const term = buscaFunc.trim();
       if (term.length < 2) return [] as any[];
-      const { data, error } = await supabase
-        .from("bd_funcionarios")
-        .select(`
-          id,
-          nome_completo,
-          matricula,
-          status,
-          funcao_id,
-          bd_funcoes(id, nome_funcao, valor_diaria, valor_diaria_exclusiva, valor_refeicao)
-        `)
-        .ilike("nome_completo", `%${term}%`)
-        .in("status", ["Ativo", "Ativo sem Registro"])
-        .limit(10);
+      const { data, error } = await supabase.rpc(
+        "get_funcionarios_ativos_global",
+        {
+          p_search: term,
+          p_limit: 10,
+          p_centro_custo: solicitacao.centro_custo_id ?? null,
+        },
+      );
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as any[];
     },
     enabled: open && buscaFunc.trim().length >= 2,
     staleTime: 10_000,
@@ -339,19 +341,18 @@ export function AditivoSolicitarModal({
 
   const adicionarFuncionario = (row: any) => {
     if (linhas.some((l) => l.funcionario_id === row.id)) return;
-    const fn = row.bd_funcoes;
     const nova: FuncLinha = {
       funcionario_id: row.id,
       nome_funcionario: row.nome_completo,
       matricula: row.matricula ?? null,
-      funcao_id: row.funcao_id ?? fn?.id ?? null,
-      nome_funcao: fn?.nome_funcao ?? null,
-      valor_diaria: Number(fn?.valor_diaria) || 0,
+      funcao_id: row.funcao_id ?? null,
+      nome_funcao: row.nome_funcao ?? null,
+      valor_diaria: Number(row.valor_diaria) || 0,
       valor_diaria_exclusiva:
-        fn?.valor_diaria_exclusiva != null
-          ? Number(fn.valor_diaria_exclusiva)
+        row.valor_diaria_exclusiva != null
+          ? Number(row.valor_diaria_exclusiva)
           : null,
-      valor_refeicao: Number(fn?.valor_refeicao) || 0,
+      valor_refeicao: Number(row.valor_refeicao) || 0,
       existente: false,
     };
     setLinhas((prev) => [...prev, nova]);
