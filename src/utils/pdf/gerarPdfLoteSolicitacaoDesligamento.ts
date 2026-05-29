@@ -70,7 +70,16 @@ export function gerarPdfLoteSolicitacaoDesligamento(dados: DadosLoteSolicitacaoP
     margin: { left: marginLeft, right: marginRight },
     tableWidth: usableWidth,
     theme: 'grid',
-    headStyles: { fillColor: [60, 60, 60], textColor: 255, fontSize: 7 },
+    headStyles: {
+      fillColor: [230, 230, 230],
+      textColor: 20,
+      fontStyle: 'bold',
+      halign: 'center',
+      valign: 'middle',
+      lineColor: [180, 180, 180],
+      lineWidth: 0.1,
+      fontSize: 7,
+    },
     styles: { fontSize: 6.5, cellPadding: 1.2, lineColor: [180, 180, 180], lineWidth: 0.1, valign: 'middle', overflow: 'linebreak' },
     head: [[
       'Nome', 'Matrícula', 'CPF', 'Cargo', 'Centro de Custo',

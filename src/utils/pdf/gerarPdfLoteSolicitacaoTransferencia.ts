@@ -63,7 +63,16 @@ export function gerarPdfLoteSolicitacaoTransferencia(dados: DadosLoteTransferenc
   autoTable(doc, {
     startY: 26,
     theme: 'grid',
-    headStyles: { fillColor: [60, 60, 60], textColor: 255, fontSize: 8 },
+    headStyles: {
+      fillColor: [230, 230, 230],
+      textColor: 20,
+      fontStyle: 'bold',
+      halign: 'center',
+      valign: 'middle',
+      lineColor: [180, 180, 180],
+      lineWidth: 0.1,
+      fontSize: 8,
+    },
     styles: { fontSize: 7.5, cellPadding: 1.5, lineColor: [180, 180, 180], lineWidth: 0.1, valign: 'middle' },
     head: [[
       'Nome', 'Matrícula', 'Cargo', 'Centro de Custo Origem', 'Centro de Custo Destino',
