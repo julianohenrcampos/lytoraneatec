@@ -1305,7 +1305,7 @@ export function SolicitacaoFormModal({
       cpf: func.cpf || '',
       matricula: func.matricula || '',
       status: statusFunc,
-      usar_diaria_exclusiva: statusFunc === 'Férias',
+      usar_diaria_exclusiva: statusFunc === 'Férias' || tipoSolicitacao === 'extraordinaria',
     };
 
     setConvocadosPre([...convocadosPre, novoConvocado]);
@@ -1355,7 +1355,7 @@ export function SolicitacaoFormModal({
         cpf: func.cpf || '',
         matricula: func.matricula || '',
         status: statusFunc,
-        usar_diaria_exclusiva: statusFunc === 'Férias',
+        usar_diaria_exclusiva: statusFunc === 'Férias' || tipoSolicitacao === 'extraordinaria',
       });
     }
 
@@ -1427,6 +1427,24 @@ export function SolicitacaoFormModal({
         : c
     ));
   };
+
+  // Sincroniza usar_diaria_exclusiva em massa quando alterna tipo Normal ↔ Extraordinária.
+  // Extraordinária força exclusiva em todos. Voltar para Normal só desmarca quem NÃO
+  // está em Férias (Férias mantém exclusiva sempre).
+  useEffect(() => {
+    setConvocadosPre(prev => {
+      let mudou = false;
+      const next = prev.map(c => {
+        const alvo = c.status === 'Férias' || tipoSolicitacao === 'extraordinaria';
+        if ((c.usar_diaria_exclusiva ?? false) === alvo) return c;
+        mudou = true;
+        return { ...c, usar_diaria_exclusiva: alvo };
+      });
+      return mudou ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipoSolicitacao]);
+
 
   // Base histórica de presenças em FDS para refinar a estimativa de refeições
   // de fim de semana (objetivo 3). Usa apenas o ÚLTIMO sábado/domingo
@@ -1737,7 +1755,7 @@ export function SolicitacaoFormModal({
         valor_refeicao: c.valor_refeicao,
         nome_funcionario: c.nome_funcionario,
         nome_funcao: c.nome_funcao,
-        usar_diaria_exclusiva: c.usar_diaria_exclusiva || false,
+        usar_diaria_exclusiva: c.usar_diaria_exclusiva || tipoSolicitacao === 'extraordinaria' || false,
         cpf: c.cpf,
         matricula: c.matricula,
         dias_solicitados,

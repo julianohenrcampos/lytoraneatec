@@ -44,6 +44,9 @@ export function gerarPdfLoteSolicitacaoDesligamento(dados: DadosLoteSolicitacaoP
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
+  const marginLeft = 14;
+  const marginRight = 14;
+  const usableWidth = pageWidth - marginLeft - marginRight;
 
   const isLote = dados.itens.length > 1;
   const titulo = isLote
@@ -64,9 +67,11 @@ export function gerarPdfLoteSolicitacaoDesligamento(dados: DadosLoteSolicitacaoP
 
   autoTable(doc, {
     startY: 26,
+    margin: { left: marginLeft, right: marginRight },
+    tableWidth: usableWidth,
     theme: 'grid',
-    headStyles: { fillColor: [60, 60, 60], textColor: 255, fontSize: 8 },
-    styles: { fontSize: 7.5, cellPadding: 1.5, lineColor: [180, 180, 180], lineWidth: 0.1, valign: 'middle' },
+    headStyles: { fillColor: [60, 60, 60], textColor: 255, fontSize: 7 },
+    styles: { fontSize: 6.5, cellPadding: 1.2, lineColor: [180, 180, 180], lineWidth: 0.1, valign: 'middle', overflow: 'linebreak' },
     head: [[
       'Nome', 'Matrícula', 'CPF', 'Cargo', 'Centro de Custo',
       'Admissão', 'Salário Atual', 'Valor Rescisão', 'Data Exame', 'Data Desligamento',
@@ -84,14 +89,14 @@ export function gerarPdfLoteSolicitacaoDesligamento(dados: DadosLoteSolicitacaoP
       fmtDateBR(it.data_desligamento),
     ]),
     columnStyles: {
-      0: { cellWidth: 48 },
-      1: { cellWidth: 22 },
-      2: { cellWidth: 26 },
-      3: { cellWidth: 32 },
-      4: { cellWidth: 42 },
-      5: { cellWidth: 22, halign: 'center' },
-      6: { cellWidth: 26, halign: 'right' },
-      7: { cellWidth: 26, halign: 'right' },
+      0: { cellWidth: 42 },
+      1: { cellWidth: 18, halign: 'center' },
+      2: { cellWidth: 24, halign: 'center' },
+      3: { cellWidth: 30 },
+      4: { cellWidth: 38 },
+      5: { cellWidth: 20, halign: 'center' },
+      6: { cellWidth: 24, halign: 'right' },
+      7: { cellWidth: 24, halign: 'right' },
       8: { cellWidth: 22, halign: 'center' },
       9: { cellWidth: 26, halign: 'center' },
     },

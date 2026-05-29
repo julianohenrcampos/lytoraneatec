@@ -183,19 +183,20 @@ export function gerarPdfSolicitacaoClassificacao(dados: DadosSolicitacaoClassifi
     ]],
   });
 
-  // Assinaturas (rodapé horizontal) — mesmo padrão do PDF antigo
+  // Assinaturas ancoradas ao rodapé (padrão Desligamento/Transferência)
   finalY = (doc as any).lastAutoTable?.finalY ?? finalY + 20;
-  let signaturesTop = finalY + 25;
+  const minGapAposTabela = 12;
+  // Deixa folga acima do aviso italic em pageHeight - 8
+  let lineY = pageHeight - 25;
 
-  if (signaturesTop > pageHeight - 30) {
+  if (finalY + minGapAposTabela > lineY) {
     doc.addPage();
-    signaturesTop = 30;
+    lineY = doc.internal.pageSize.getHeight() - 25;
   }
 
   const margin = 14;
   const usableWidth = pageWidth - margin * 2;
   const colWidth = usableWidth / 3;
-  const lineY = signaturesTop;
 
   const labels = ["Gerente Regional", "Diretor de Engenharia", "Diretor Financeiro"];
 

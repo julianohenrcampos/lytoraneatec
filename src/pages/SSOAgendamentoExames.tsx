@@ -90,8 +90,8 @@ const SSOAgendamentoExames: React.FC = () => {
 
   // Bloqueio do botão "Novo Agendamento" por horário das clínicas (relógio do servidor UTC-3).
   // SuperAdm (acesso_global) bypassa para suporte.
-  const { podeAgendar, motivoBloqueio } = useClinicasAbertasAgora(canCreate && !isSuperAdmin);
-  const novoAgendamentoDisabled = !isSuperAdmin && !podeAgendar;
+  const { podeAgendar, motivoBloqueio } = useClinicasAbertasAgora(canCreate);
+  const novoAgendamentoDisabled = !podeAgendar;
 
   // Permissões granulares por coluna — todas derivam da mesma permissão base + ação
   const canChangeStatusExame = isSuperAdmin || hasActionPermission('acesso_sso_agendamento_exames', 'aprovar');

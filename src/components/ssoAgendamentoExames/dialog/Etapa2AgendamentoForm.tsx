@@ -69,6 +69,7 @@ export const Etapa2AgendamentoForm: React.FC<Etapa2AgendamentoFormProps> = ({
 }) => {
   const [showIndisponivel, setShowIndisponivel] = useState(false);
   const [motivoIndisponivel, setMotivoIndisponivel] = useState('');
+  const [mensagemDiaInvalido, setMensagemDiaInvalido] = useState<string | null>(null);
 
   const dataRegistroCarteira = etapa1Data.data_inicio_prevista 
     ? calcularDataRegistroCarteira(etapa1Data.data_inicio_prevista)
@@ -91,7 +92,28 @@ export const Etapa2AgendamentoForm: React.FC<Etapa2AgendamentoFormProps> = ({
   const showMotivo = !HIDE_MOTIVO_TIPOS.includes(formData.tipo_exame);
   const showDocsCheckbox = !HIDE_DOCS_TIPOS.includes(formData.tipo_exame);
 
-  // Validação de disponibilidade da clínica
+  // Validação só-por-dia (assim que local + data existirem, antes do horário)
+  useEffect(() => {
+    if (!formData.local_atendimento_id || !formData.data_agendamento) {
+      setMensagemDiaInvalido(null);
+      return;
+    }
+    const clinica = locais.find(l => l.id === formData.local_atendimento_id);
+    if (!clinica) {
+      setMensagemDiaInvalido(null);
+      return;
+    }
+    // Helper exige horário — usar horario_inicio da própria clínica como fallback técnico
+    const horarioTecnico = (clinica.horario_inicio || '00:00').substring(0, 5);
+    const resultado = validarJanelaClinica(clinica, formData.data_agendamento, horarioTecnico);
+    if (!resultado.ok && resultado.motivo?.includes('não atende às')) {
+      setMensagemDiaInvalido(resultado.motivo);
+    } else {
+      setMensagemDiaInvalido(null);
+    }
+  }, [formData.local_atendimento_id, formData.data_agendamento, locais]);
+
+  // Validação completa (dia + horário real) — abre AlertDialog
   useEffect(() => {
     if (!formData.local_atendimento_id || !formData.data_agendamento || !formData.horario_agendamento) return;
     const clinica = locais.find(l => l.id === formData.local_atendimento_id);
@@ -283,6 +305,12 @@ export const Etapa2AgendamentoForm: React.FC<Etapa2AgendamentoFormProps> = ({
               disabled={disabled}
               required
             />
+            {mensagemDiaInvalido && (
+              <p className="text-sm text-destructive flex items-start gap-1">
+                <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <span>{mensagemDiaInvalido}</span>
+              </p>
+            )}
           </div>
           
           <div className="space-y-2">

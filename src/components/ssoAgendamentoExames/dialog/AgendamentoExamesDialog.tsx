@@ -28,7 +28,7 @@ import {
   mapFuncionarioToEtapa1
 } from '@/types/ssoAgendamentoExames';
 import { useAgendamentoExames } from '@/hooks/ssoAgendamentoExames';
-import { useDesligamentos } from '@/hooks/useDesligamentos';
+import { agendamentoExamesService } from '@/services/ssoAgendamentoExames/agendamentoExamesService';
 import { agendamentoExamesStorageService } from '@/services/ssoAgendamentoExames/agendamentoExamesStorageService';
 import { valeTransporteService } from '@/services/valeTransporte/valeTransporteService';
 import { supabase } from '@/integrations/supabase/client';
@@ -139,7 +139,9 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   const [demissionalData, setDemissionalData] = useState<DemissionalFormData>(initialDemissionalData);
   
-  const { createDesligamento } = useDesligamentos();
+  // useDesligamentos removido: gravação auxiliar em bd_desligamentos passou a ser
+  // inline + não-bloqueante (ver handleSubmit), para silenciar toast global do
+  // hook neste fluxo de Agendamento sem alterar o hook usado em RH/DP.
 
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
 
@@ -389,20 +391,31 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
 
   // Validação da Etapa 2 (agora é step 2 = checklist, mas aqui mantemos a lógica original)
   const isEtapa2Valid = useMemo(() => {
-    const baseValid = (
+    const baseValid = !!(
       etapa2Data.tipo_exame &&
       etapa2Data.local_atendimento_id &&
       etapa2Data.data_agendamento &&
       etapa2Data.horario_agendamento
     );
+    if (!baseValid) return false;
+
+    // Janela da clínica (dia + horário) — bloqueia avanço se inválido
+    const clinicaSel = locais.find((l: any) => l.id === etapa2Data.local_atendimento_id);
+    const janela = validarJanelaClinica(
+      clinicaSel as any,
+      etapa2Data.data_agendamento,
+      etapa2Data.horario_agendamento,
+    );
+    if (!janela.ok) return false;
+
     if (etapa2Data.tipo_exame === 'Mudança de Risco') {
-      return baseValid && !!etapa2Data.motivo_mudanca_risco && !!etapa2Data.funcao_nova_id;
+      return !!etapa2Data.motivo_mudanca_risco && !!etapa2Data.funcao_nova_id;
     }
     if (etapa2Data.tipo_exame === 'Demissional') {
-      return baseValid && !!demissionalData.motivo;
+      return !!demissionalData.motivo;
     }
-    return baseValid;
-  }, [etapa2Data, demissionalData]);
+    return true;
+  }, [etapa2Data, demissionalData, locais]);
 
   // Validação VT (step 3) — opcional, mas se preenchido, validações se aplicam
   const isVtValid = useMemo(() => {
@@ -529,6 +542,22 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
     }
     
     try {
+      // Bloqueio de duplicidade: mesmo funcionário + mesmo tipo de exame com
+      // agendamento ativo (Pendente/Agendado). Ignora o próprio registro em edição.
+      if (funcionarioData?.id) {
+        const existente = await agendamentoExamesService.existeAgendamentoAtivo({
+          funcionario_id: funcionarioData.id,
+          tipo_exame: etapa2Data.tipo_exame,
+          ignoreId: agendamentoId ?? null,
+        });
+        if (existente) {
+          toast.error(
+            `Já existe um agendamento ativo deste tipo de exame para este colaborador (status: ${existente.status}).`
+          );
+          return;
+        }
+      }
+
       const formData: AgendamentoExameFormData = {
         ...etapa1Data,
         ...etapa2Data,
@@ -550,17 +579,57 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
         savedAgendamentoId = newAgendamento?.id;
       }
       
-      // Demissional
+      // Demissional — gravação AUXILIAR e NÃO-BLOQUEANTE em bd_desligamentos.
+      // Perfis sensíveis de RH (AdmRH/DP/Financeiro/SuperAdm) satisfazem a RLS
+      // e o registro é criado normalmente. Perfis operacionais (ex.: AdmObra)
+      // são bloqueados pela RLS sensível — o erro é apenas logado, sem toast,
+      // e o agendamento permanece válido. Insert inline para evitar o toast
+      // global do useDesligamentos (que continua valendo nas telas de RH).
       if (etapa2Data.tipo_exame === 'Demissional' && !agendamentoId && funcionarioData?.id) {
-        await createDesligamento.mutateAsync({
-          funcionario_id: funcionarioData.id,
-          tipo_desligamento: demissionalData.tipo_desligamento,
-          dias_aviso: demissionalData.dias_aviso,
-          motivo: demissionalData.motivo,
-          recontratavel: demissionalData.recontratavel,
-          observacoes: demissionalData.observacoes_desligamento,
-        });
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const hoje = new Date().toISOString().split('T')[0];
+            let data_fim_aviso: string | null = null;
+            let data_efetiva_prevista: string | null = hoje;
+            if (demissionalData.tipo_desligamento === 'com_aviso') {
+              const d = new Date();
+              d.setDate(d.getDate() + (demissionalData.dias_aviso || 0));
+              data_fim_aviso = d.toISOString().split('T')[0];
+              data_efetiva_prevista = data_fim_aviso;
+            }
+            const { error: errDesl } = await supabase.from('bd_desligamentos').insert({
+              funcionario_id: funcionarioData.id,
+              tipo_desligamento: demissionalData.tipo_desligamento,
+              dias_aviso:
+                demissionalData.tipo_desligamento === 'com_aviso'
+                  ? demissionalData.dias_aviso
+                  : null,
+              data_inicio_aviso:
+                demissionalData.tipo_desligamento === 'com_aviso' ? hoje : null,
+              data_fim_aviso,
+              data_efetiva_desligamento: data_efetiva_prevista,
+              motivo: demissionalData.motivo || null,
+              recontratavel: demissionalData.recontratavel,
+              observacoes: demissionalData.observacoes_desligamento || null,
+              status: 'pendente_aprovacao',
+              criado_por: user.id,
+            } as any);
+            if (errDesl) {
+              console.warn(
+                '[agendamento-exames][demissional] gravação auxiliar em bd_desligamentos ignorada (perfil sem permissão sensível de RH). Agendamento foi salvo normalmente.',
+                errDesl.message,
+              );
+            }
+          }
+        } catch (errAux) {
+          console.warn(
+            '[agendamento-exames][demissional] falha não-bloqueante na gravação auxiliar de bd_desligamentos:',
+            errAux,
+          );
+        }
       }
+
 
       // Vale Transporte (se não pulou)
       if (!vtData.skipped && savedAgendamentoId) {

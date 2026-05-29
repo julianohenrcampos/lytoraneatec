@@ -27,7 +27,37 @@ const sanitizeFormData = (formData: Partial<AgendamentoExameFormData>) => {
   };
 };
 
+/**
+ * Status de agendamento considerados "ativos" — bloqueiam novo agendamento
+ * para o mesmo funcionário + tipo de exame.
+ * Inativos (não bloqueiam): Apto, Inapto, Não Compareceu.
+ */
+export const STATUS_AGENDAMENTO_ATIVOS = ['Pendente', 'Agendado'] as const;
+
 export const agendamentoExamesService = {
+  /**
+   * Verifica se já existe agendamento ativo (Pendente/Agendado) para o
+   * mesmo funcionário e mesmo tipo de exame. Usado para impedir duplicidade
+   * antes de chamar `create`. Respeita a RLS atual do SELECT.
+   */
+  async existeAgendamentoAtivo(params: {
+    funcionario_id: string;
+    tipo_exame: string;
+    ignoreId?: string | null;
+  }): Promise<{ id: string; status: string; data_agendamento: string | null } | null> {
+    const { funcionario_id, tipo_exame, ignoreId } = params;
+    if (!funcionario_id || !tipo_exame) return null;
+    const { data, error } = await (supabase
+      .from('bd_agendamentos_exames' as any) as any)
+      .select('id, status, data_agendamento')
+      .eq('funcionario_id', funcionario_id)
+      .eq('tipo_exame', tipo_exame)
+      .in('status', STATUS_AGENDAMENTO_ATIVOS as unknown as string[]);
+    if (error) throw error;
+    const rows = (data || []) as Array<{ id: string; status: string; data_agendamento: string | null }>;
+    return rows.find((r) => r.id !== ignoreId) ?? null;
+  },
+
   async list(
     filters: AgendamentoExameFilters = {},
     opts?: { restrictContratos?: string[] },
