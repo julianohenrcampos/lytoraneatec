@@ -33,6 +33,7 @@ import { AditivoConfirmacaoModal } from "@/components/diarias/AditivoConfirmacao
 import { useAditivos } from "@/hooks/diarias/useAditivos";
 import { usePermission } from "@/hooks/usePermission";
 import { useUserProfile } from "@/hooks/useUserProfile";
+import { useDiariasDataScope } from "@/hooks/diarias/useDiariasDataScope";
 
 
 import {
@@ -117,7 +118,19 @@ export function SolicitacaoDetalhesModal({
   const sincronizarDiarias = useSincronizarDiarias();
   const { hasActionPermission, isSuperAdmin } = usePermission();
   const { user: profile } = useUserProfile();
-  const podeAprovarAditivo = isSuperAdmin || !!profile?.acesso_global;
+  const { centrosCustoGerenciados, scopeFilters } = useDiariasDataScope();
+  // Gate combinado (paridade com DiariasSolicitacoes.tsx): RBAC + escopo de CC.
+  // Antes restringia somente a SuperAdm/acesso_global, escondendo o botão
+  // "Analisar" do GerenteRegional aprovador formal do CC.
+  const allowedCentroIds = ((centrosCustoGerenciados?.length
+    ? centrosCustoGerenciados
+    : (scopeFilters?.centro_custo_ids ?? [])) as string[]);
+  const bypassAditivo = isSuperAdmin || !!profile?.acesso_global;
+  const podeAprovarAditivo =
+    bypassAditivo ||
+    (hasActionPermission('diarias_aditivo_aprovar', 'aprovar') &&
+      !!solicitacao?.centro_custo_id &&
+      allowedCentroIds.includes(solicitacao.centro_custo_id));
   const { data: aditivos = [] } = useAditivos(solicitacao?.id);
 
   // Resolve nomes de solicitante/decisor dos aditivos (Fase I.4)

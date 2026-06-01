@@ -38,12 +38,20 @@ const CAMPOS_CONHECIDOS = new Set<string>([
   'funcao_id',
   'nome_funcionario',
   'nome_funcao',
+  // Aliases legados do payload de Aditivo (RPC solicitar_aditivo_dia / aprovar_aditivo):
+  // - 'nome'        ↔ 'nome_funcionario'
+  // - 'funcao_nome' ↔ 'nome_funcao'
+  // Devem ser tratados como conhecidos para não vazarem em `extras` e
+  // duplicarem informação que o normalizador já consome via fallback.
+  'nome',
+  'funcao_nome',
   'cpf',
   'matricula',
   'valor_diaria',
   'valor_diaria_exclusiva',
   'valor_refeicao',
 ]);
+
 
 // ===== Helpers =====
 
@@ -127,11 +135,22 @@ function normalizarConvocado(item: unknown): ConvocadoLote | null {
     return null;
   }
 
+  // Fallback de leitura: payloads gerados pelo fluxo de Aditivo (legado)
+  // gravam `nome` em vez de `nome_funcionario` e `funcao_nome` em vez de
+  // `nome_funcao`. Aceitamos ambos para evitar cards sem nome na UI/PDF.
+  // A escrita continua canônica via `gravarConvocadosPre`.
+  const nomeFuncionario =
+    toRequiredString(item.nome_funcionario) ||
+    toRequiredString((item as Record<string, unknown>).nome);
+  const nomeFuncao =
+    toRequiredString(item.nome_funcao) ||
+    toRequiredString((item as Record<string, unknown>).funcao_nome);
+
   const convocado: ConvocadoLote = {
     funcionario_id,
     funcao_id,
-    nome_funcionario: toRequiredString(item.nome_funcionario),
-    nome_funcao: toRequiredString(item.nome_funcao),
+    nome_funcionario: nomeFuncionario,
+    nome_funcao: nomeFuncao,
     cpf: toNullableString(item.cpf),
     matricula: toNullableString(item.matricula),
     valor_diaria: toNumber(item.valor_diaria, 0),
@@ -144,6 +163,7 @@ function normalizarConvocado(item: unknown): ConvocadoLote | null {
 
   return convocado;
 }
+
 
 // ===== API pública =====
 

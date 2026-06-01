@@ -392,15 +392,20 @@ export function AditivoSolicitarModal({
         propostoSet.forEach((dia) => {
           const snapshot: SnapshotFuncionario = {
             funcionario_id: l.funcionario_id,
+            // Contrato canônico consumido por convocadosPreAdapter / UI / PDFs:
+            nome_funcionario: l.nome_funcionario,
+            nome_funcao: l.nome_funcao,
+            // Aliases legados mantidos para compatibilidade com RPCs/consumidores antigos:
             nome: l.nome_funcionario,
+            funcao_nome: l.nome_funcao,
             matricula: l.matricula,
             funcao_id: l.funcao_id,
-            funcao_nome: l.nome_funcao,
             centro_custo_id: solicitacao.bd_centros_custo?.id ?? null,
             valor_diaria: l.valor_diaria,
             valor_diaria_exclusiva: l.valor_diaria_exclusiva,
             valor_refeicao: l.valor_refeicao,
           };
+
           novoFuncPares.push({
             funcionario_id: l.funcionario_id,
             dia,
@@ -423,15 +428,20 @@ export function AditivoSolicitarModal({
       adicionados.forEach((dia) => {
         const snapshot: SnapshotFuncionario = {
           funcionario_id: l.funcionario_id,
+          // Contrato canônico consumido por convocadosPreAdapter / UI / PDFs:
+          nome_funcionario: l.nome_funcionario,
+          nome_funcao: l.nome_funcao,
+          // Aliases legados mantidos para compatibilidade com RPCs/consumidores antigos:
           nome: l.nome_funcionario,
+          funcao_nome: l.nome_funcao,
           matricula: l.matricula,
           funcao_id: l.funcao_id,
-          funcao_nome: l.nome_funcao,
           centro_custo_id: solicitacao.bd_centros_custo?.id ?? null,
           valor_diaria: l.valor_diaria,
           valor_diaria_exclusiva: l.valor_diaria_exclusiva,
           valor_refeicao: l.valor_refeicao,
         };
+
         const arr = adicionarPorData.get(dia) ?? [];
         arr.push({ funcionario_id: l.funcionario_id, snapshot });
         adicionarPorData.set(dia, arr);

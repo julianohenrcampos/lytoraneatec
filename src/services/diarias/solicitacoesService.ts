@@ -491,6 +491,47 @@ export async function createSolicitacao(formData: SolicitacaoFormData): Promise<
     status: 'rascunho'
   };
 
+
+  // ===== [DIARIAS][CREATE_AUTH_DIAG] — instrumentação temporária de diagnóstico =====
+  let __diagAuthUserId: string | null = null;
+  let __diagSessionUserId: string | null = null;
+  let __diagMatchAuthCriado: boolean | null = null;
+  try {
+    const [authUserResp, sessionResp] = await Promise.all([
+      supabase.auth.getUser(),
+      supabase.auth.getSession(),
+    ]);
+    const u = authUserResp.data?.user;
+    const s = sessionResp.data?.session;
+    __diagAuthUserId = u?.id ?? null;
+    __diagSessionUserId = s?.user?.id ?? null;
+    __diagMatchAuthCriado = __diagAuthUserId === insertData.criado_por;
+    const token = s?.access_token;
+    const expIso = s?.expires_at ? new Date(s.expires_at * 1000).toISOString() : null;
+    console.info('[DIARIAS][CREATE_AUTH_DIAG]', {
+      authUserId: __diagAuthUserId,
+      authUserEmail: u?.email ?? null,
+      sessionUserId: __diagSessionUserId,
+      sessionExpiresAt: s?.expires_at ?? null,
+      sessionExpiresAtIso: expIso,
+      hasAccessToken: !!token,
+      accessTokenPreview: token ? token.slice(0, 8) + '…' : null,
+      payload: {
+        criado_por: insertData.criado_por,
+        tipo_solicitacao: insertData.tipo_solicitacao,
+        centro_custo_id: insertData.centro_custo_id,
+        empresa_id: '(não enviado pelo cliente — derivado do centro_custo no servidor)',
+        status: insertData.status,
+      },
+      match_authUser_session: __diagAuthUserId === __diagSessionUserId,
+      match_authUser_criadoPor: __diagMatchAuthCriado,
+      match_session_criadoPor: __diagSessionUserId === insertData.criado_por,
+    });
+  } catch (diagErr) {
+    console.warn('[DIARIAS][CREATE_AUTH_DIAG] falha ao coletar diagnóstico', diagErr);
+  }
+  // ===== fim do bloco de diagnóstico =====
+
   console.info('[Diarias][createSolicitacao] tentativa de criação', {
     centro_custo_id: insertData.centro_custo_id,
     data_inicio: insertData.data_inicio,
@@ -515,7 +556,18 @@ export async function createSolicitacao(formData: SolicitacaoFormData): Promise<
       backendCanCreate,
       insertData,
     });
+    console.error('[DIARIAS][CREATE_RLS_ERROR]', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      criado_por_enviado: insertData.criado_por,
+      authUserId: __diagAuthUserId,
+      sessionUserId: __diagSessionUserId,
+      match_authUser_criadoPor: __diagMatchAuthCriado,
+    });
     throw new Error(traduzirErroCriacaoSolicitacao({ ...error, backendCanCreate }));
+
   }
 
   const { data: createdRow, error: createdRowError } = await supabase

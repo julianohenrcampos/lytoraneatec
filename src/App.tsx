@@ -47,6 +47,7 @@ const ChecklistSaida = lazy(() => import("@/pages/ChecklistSaida"));
 const Abastecimento = lazy(() => import("@/pages/GestaoAbastecimento"));
 
 const TestePonto = lazy(() => import("@/pages/dev/TestePonto"));
+const PwaStatus = lazy(() => import("@/pages/dev/PwaStatus"));
 const PontoDireto = lazy(() => import("@/pages/PontoDireto"));
 const PontoTotemLogin = lazy(() => import("@/pages/PontoTotemLogin"));
 const PontoTotem = lazy(() => import("@/pages/PontoTotem"));
@@ -235,6 +236,7 @@ const App = () => {
 
                     {/* Dev */}
                     <Route path="/dev/teste-ponto" element={<Auth><TestePonto /></Auth>} />
+                    <Route path="/dev/pwa-status" element={<Auth><PwaStatus /></Auth>} />
 
                     <Route path="*" element={<NotFound />} />
                   </Routes>

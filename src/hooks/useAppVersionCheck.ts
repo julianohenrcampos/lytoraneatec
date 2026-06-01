@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { APP_BUILD_ID } from '@/lib/version';
+import {
+  activateWaitingServiceWorker,
+  hasWaitingServiceWorker,
+  onServiceWorkerUpdate,
+} from '@/lib/pwa/registerSW';
 
 const DISMISS_KEY = 'lyto:update-dismissed-until';
 const POLL_MS = 5 * 60 * 1000; // 5 min
@@ -82,9 +87,17 @@ export function useAppVersionCheck(): AppVersionCheck {
       }
     };
     document.addEventListener('visibilitychange', onVisibility);
+
+    // Sinal adicional: novo Service Worker em waiting
+    if (hasWaitingServiceWorker()) setUpdateAvailable(true);
+    const offSW = onServiceWorkerUpdate(() => {
+      if (!isDismissed()) setUpdateAvailable(true);
+    });
+
     return () => {
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisibility);
+      offSW();
     };
   }, [enabled, check]);
 
@@ -94,6 +107,8 @@ export function useAppVersionCheck(): AppVersionCheck {
     } catch {
       // ignore
     }
+    // Se houver SW em waiting, ativa primeiro — controllerchange faz reload automático
+    if (activateWaitingServiceWorker()) return;
     window.location.reload();
   }, []);
 
