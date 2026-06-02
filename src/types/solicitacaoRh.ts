@@ -69,6 +69,9 @@ export interface SolicitacaoTransferenciaItem {
   data_admissao_snapshot: string | null;
   data_transferencia: string | null;
   salario_manual: number | null;
+  alteracao_passagem: boolean;
+  valor_passagem_atual: number | null;
+  valor_passagem_novo: number | null;
 }
 
 /** Payload de item no momento de salvar (sem id/solicitacao_id). */

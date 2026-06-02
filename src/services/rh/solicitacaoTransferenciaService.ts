@@ -101,7 +101,36 @@ export async function substituirItens(
     .eq('solicitacao_id', solicitacao_id);
   if (eDel) throw eDel;
   if (itens.length === 0) return;
-  const payload = itens.map((it) => ({ ...it, solicitacao_id }));
+
+  const toNum = (v: unknown): number | null => {
+    if (v === null || v === undefined || v === '') return null;
+    const n = typeof v === 'number' ? v : Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  // Payload explícito: apenas colunas conhecidas da tabela, sem spread.
+  const payload = itens.map((it) => {
+    const alteracao = Boolean(it.alteracao_passagem);
+    return {
+      solicitacao_id,
+      funcionario_id: it.funcionario_id ?? null,
+      nome_snapshot: it.nome_snapshot,
+      matricula_snapshot: it.matricula_snapshot ?? null,
+      cpf_snapshot: it.cpf_snapshot ?? null,
+      cargo_snapshot: it.cargo_snapshot ?? null,
+      centro_custo_origem_id: it.centro_custo_origem_id ?? null,
+      centro_custo_origem_snapshot: it.centro_custo_origem_snapshot ?? null,
+      centro_custo_destino_id: it.centro_custo_destino_id ?? null,
+      centro_custo_destino_snapshot: it.centro_custo_destino_snapshot ?? null,
+      data_admissao_snapshot: it.data_admissao_snapshot ?? null,
+      data_transferencia: it.data_transferencia ?? null,
+      salario_manual: toNum(it.salario_manual),
+      alteracao_passagem: alteracao,
+      valor_passagem_atual: alteracao ? toNum(it.valor_passagem_atual) : null,
+      valor_passagem_novo: alteracao ? toNum(it.valor_passagem_novo) : null,
+    };
+  });
+
   const { error: eIns } = await supabase.from(ITENS_TABLE).insert(payload as any);
   if (eIns) throw eIns;
 }

@@ -41,21 +41,21 @@ export const agendamentoExamesService = {
    * antes de chamar `create`. Respeita a RLS atual do SELECT.
    */
   async existeAgendamentoAtivo(params: {
-    funcionario_id: string;
+    cpf: string;
     tipo_exame: string;
     ignoreId?: string | null;
   }): Promise<{ id: string; status: string; data_agendamento: string | null } | null> {
-    const { funcionario_id, tipo_exame, ignoreId } = params;
-    if (!funcionario_id || !tipo_exame) return null;
+    const { cpf, tipo_exame, ignoreId } = params;
+    const cpfDigits = (cpf || '').replace(/\D/g, '');
+    if (!cpfDigits || !tipo_exame) return null;
     const { data, error } = await (supabase
       .from('bd_agendamentos_exames' as any) as any)
-      .select('id, status, data_agendamento')
-      .eq('funcionario_id', funcionario_id)
+      .select('id, status, data_agendamento, cpf')
       .eq('tipo_exame', tipo_exame)
       .in('status', STATUS_AGENDAMENTO_ATIVOS as unknown as string[]);
     if (error) throw error;
-    const rows = (data || []) as Array<{ id: string; status: string; data_agendamento: string | null }>;
-    return rows.find((r) => r.id !== ignoreId) ?? null;
+    const rows = (data || []) as Array<{ id: string; status: string; data_agendamento: string | null; cpf: string | null }>;
+    return rows.find((r) => (r.cpf || '').replace(/\D/g, '') === cpfDigits && r.id !== ignoreId) ?? null;
   },
 
   async list(

@@ -15,8 +15,11 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Combobox } from '@/components/ui/combobox';
 import {
-  Search, Loader2, User, Plus, Trash2, FileDown, AlertTriangle, RefreshCw, Save, Send, Ban,
+  Search, Loader2, User, Plus, Trash2, FileDown, AlertTriangle, RefreshCw, Save, Send, Ban, Bus,
 } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Checkbox } from '@/components/ui/checkbox';
+import { gerarPdfVTParaTransferencia } from '@/utils/pdf/gerarPdfVTParaTransferencia';
 import { useFuncionarioSearch } from '@/hooks/ssoAgendamentoExames/useFuncionarioSearch';
 import { useProfile } from '@/hooks/useProfile';
 import { supabase } from '@/integrations/supabase/client';
@@ -30,6 +33,11 @@ import {
 import * as svc from '@/services/rh/solicitacaoTransferenciaService';
 import { useSolicitacaoTransferencia } from '@/hooks/rh/useSolicitacoesTransferencia';
 import type { TransferenciaItemInput } from '@/types/solicitacaoRh';
+import {
+  resolverGerenteDaArea,
+  resolverDiretorDaArea,
+  resolverDiretoriaFinanceira,
+} from '@/components/desligamento/_resolverAssinaturas';
 
 interface Props {
   open: boolean;
@@ -39,6 +47,8 @@ interface Props {
 
 interface ItemEstado extends ItemLoteTransferencia {
   _persistedId?: string;
+  /** UI-only: se true, gera VT com apenas o nome preenchido. Não persiste. */
+  _vt_somente_nome?: boolean;
 }
 
 const statusBadge: Record<string, { label: string; cls: string }> = {
@@ -69,6 +79,7 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
   const [saving, setSaving] = useState(false);
   const [emitting, setEmitting] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [vtLoading, setVtLoading] = useState<Record<string, boolean>>({});
 
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const [canceling, setCanceling] = useState(false);
@@ -127,6 +138,9 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
         centro_custo_destino_nome: it.centro_custo_destino_snapshot,
         data_transferencia: it.data_transferencia,
         salario: it.salario_manual,
+        alteracao_passagem: !!it.alteracao_passagem,
+        valor_passagem_atual: it.valor_passagem_atual ?? null,
+        valor_passagem_novo: it.valor_passagem_novo ?? null,
       };
     });
     setItens(mapped);
@@ -170,6 +184,9 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
           centro_custo_destino_nome: null,
           data_transferencia: null,
           salario: null,
+          alteracao_passagem: false,
+          valor_passagem_atual: null,
+          valor_passagem_novo: null,
         },
       ]);
     } catch (e: any) {
@@ -203,6 +220,9 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
             data_admissao_snapshot: r.data_admissao,
             data_transferencia: r.data_transferencia,
             salario_manual: r.salario,
+            alteracao_passagem: !!r.alteracao_passagem,
+            valor_passagem_atual: r.alteracao_passagem ? (r.valor_passagem_atual ?? null) : null,
+            valor_passagem_novo: r.alteracao_passagem ? (r.valor_passagem_novo ?? null) : null,
           })),
         );
         await svc.atualizarRascunhoHeader(solId, totais);
@@ -226,10 +246,23 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
     setItens((prev) => prev.map((i) => (i.funcionario_id === funcId ? { ...i, ...patch } : i)));
   };
 
+  const itemPassagemValido = (it: ItemEstado): boolean => {
+    if (!it.alteracao_passagem) return true;
+    const atual = it.valor_passagem_atual;
+    const novo = it.valor_passagem_novo;
+    return atual != null && atual >= 0 && novo != null && novo > 0;
+  };
+
   const camposObrigatoriosOk = useMemo(
     () =>
       itens.length > 0 &&
-      itens.every((i) => !!i.centro_custo_destino_id && !!i.data_transferencia && i.salario != null),
+      itens.every(
+        (i) =>
+          !!i.centro_custo_destino_id &&
+          !!i.data_transferencia &&
+          i.salario != null &&
+          itemPassagemValido(i),
+      ),
     [itens],
   );
 
@@ -247,6 +280,9 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
       data_admissao_snapshot: it.data_admissao,
       data_transferencia: it.data_transferencia,
       salario_manual: it.salario,
+      alteracao_passagem: !!it.alteracao_passagem,
+      valor_passagem_atual: it.alteracao_passagem ? (it.valor_passagem_atual ?? null) : null,
+      valor_passagem_novo: it.alteracao_passagem ? (it.valor_passagem_novo ?? null) : null,
     }));
 
   const garantirRascunho = async (): Promise<string> => {
@@ -280,8 +316,22 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
   };
 
   const emitir = async () => {
-    if (!camposObrigatoriosOk) {
-      toast.error('Preencha centro destino, data de transferência e salário de todos.');
+    if (itens.length === 0) {
+      toast.error('Adicione pelo menos um funcionário.');
+      return;
+    }
+    const semObrig = itens.find(
+      (i) => !i.centro_custo_destino_id || !i.data_transferencia || i.salario == null,
+    );
+    if (semObrig) {
+      toast.error(`Preencha CC destino, data e salário de ${semObrig.nome}.`);
+      return;
+    }
+    const semPassagem = itens.find((i) => !itemPassagemValido(i));
+    if (semPassagem) {
+      toast.error(
+        `${semPassagem.nome}: alteração de passagem marcada como Sim exige Valor Atual ≥ R$ 0,00 e Novo Valor > R$ 0,00.`,
+      );
       return;
     }
     setEmitting(true);
@@ -302,6 +352,21 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
     }
   };
 
+  const baixarVT = async (it: ItemEstado) => {
+    setVtLoading((p) => ({ ...p, [it.funcionario_id]: true }));
+    try {
+      await gerarPdfVTParaTransferencia({
+        funcionario_id: it.funcionario_id,
+        nome: it.nome,
+        somenteNome: !!it._vt_somente_nome,
+      });
+    } catch (e: any) {
+      toast.error('Erro ao gerar VT: ' + (e?.message ?? 'falha'));
+    } finally {
+      setVtLoading((p) => ({ ...p, [it.funcionario_id]: false }));
+    }
+  };
+
   const gerarPdf = async () => {
     setGeneratingPdf(true);
     try {
@@ -310,15 +375,44 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
         const got = await svc.obterSolicitacao(solId);
         header = got.header;
       }
+
+      // Assinaturas: snapshot primeiro, fallback pelos helpers se vazios.
+      let gerente: string | null = header?.gerente_area_nome_snapshot ?? null;
+      let diretor: string | null = header?.diretor_area_nome_snapshot ?? null;
+      let financeira: string | null = header?.diretoria_financeira_nome_snapshot ?? null;
+
+      if (!gerente || !diretor || !financeira) {
+        const ccIds = itens
+          .map((i) => i.centro_custo_origem_id)
+          .filter(Boolean) as string[];
+        const unicos = Array.from(new Set(ccIds));
+        if (unicos.length > 1) {
+          console.warn('[TRANSFERENCIA][ASSINATURAS_CC_HETEROGENEO]', { unicos });
+        }
+        const ccsParaResolver = unicos.length > 1 ? [unicos[0]] : unicos;
+        try {
+          const [g, d, f] = await Promise.all([
+            gerente ? Promise.resolve(gerente) : resolverGerenteDaArea(ccsParaResolver),
+            diretor ? Promise.resolve(diretor) : resolverDiretorDaArea(ccsParaResolver),
+            financeira ? Promise.resolve(financeira) : resolverDiretoriaFinanceira(),
+          ]);
+          gerente = gerente ?? g;
+          diretor = diretor ?? d;
+          financeira = financeira ?? f;
+        } catch (e) {
+          console.warn('[TRANSFERENCIA][ASSINATURAS_FALLBACK_FALHOU]', e);
+        }
+      }
+
       gerarPdfLoteSolicitacaoTransferencia({
         protocolo: protocolo || header?.protocolo || '—',
         data_emissao: header?.data_solicitacao ? new Date(header.data_solicitacao) : new Date(),
         solicitante: header?.solicitante_nome_snapshot || perfil?.nome_completo || '—',
         observacoes: observacoes || null,
-        itens: itens.map(({ _persistedId, ...rest }) => rest),
-        nome_gerente_area: header?.gerente_area_nome_snapshot ?? null,
-        nome_diretor_area: header?.diretor_area_nome_snapshot ?? null,
-        nome_diretoria_financeira: header?.diretoria_financeira_nome_snapshot ?? null,
+        itens: itens.map(({ _persistedId, _vt_somente_nome, ...rest }) => rest),
+        nome_gerente_area: gerente,
+        nome_diretor_area: diretor,
+        nome_diretoria_financeira: financeira,
       });
     } catch (e: any) {
       toast.error('Erro ao gerar PDF: ' + e.message);
@@ -418,9 +512,6 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
                 </Badge>
               )}
             </span>
-            <span className="text-xs font-normal text-muted-foreground">
-              Protocolo: <strong className="text-foreground">{protocolo || '—'}</strong>
-            </span>
           </DialogTitle>
         </DialogHeader>
 
@@ -514,6 +605,109 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
                               }}
                             />
                           </div>
+                        </div>
+
+                        {/* Alteração de Passagem (Vale Transporte) */}
+                        <div className="pt-2 border-t space-y-2">
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <Label className="text-xs font-semibold">Alteração de Passagem?</Label>
+                            <RadioGroup
+                              className="flex items-center gap-4"
+                              value={it.alteracao_passagem ? 'sim' : 'nao'}
+                              disabled={readOnly}
+                              onValueChange={(v) => {
+                                const ativo = v === 'sim';
+                                atualizarItem(it.funcionario_id, {
+                                  alteracao_passagem: ativo,
+                                  ...(ativo ? {} : { valor_passagem_atual: null, valor_passagem_novo: null }),
+                                });
+                              }}
+                            >
+                              <div className="flex items-center gap-1">
+                                <RadioGroupItem value="nao" id={`alt-nao-${it.funcionario_id}`} />
+                                <Label htmlFor={`alt-nao-${it.funcionario_id}`} className="text-xs font-normal cursor-pointer">Não</Label>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <RadioGroupItem value="sim" id={`alt-sim-${it.funcionario_id}`} />
+                                <Label htmlFor={`alt-sim-${it.funcionario_id}`} className="text-xs font-normal cursor-pointer">Sim</Label>
+                              </div>
+                            </RadioGroup>
+                          </div>
+
+                          {it.alteracao_passagem && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <Label className="text-xs">Valor Atual Passagem *</Label>
+                                <Input
+                                  inputMode="numeric"
+                                  placeholder="R$ 0,00"
+                                  disabled={readOnly}
+                                  value={
+                                    it.valor_passagem_atual != null
+                                      ? fmtBRLInput(String(Math.round(it.valor_passagem_atual * 100)))
+                                      : ''
+                                  }
+                                  onChange={(e) => {
+                                    const formatted = fmtBRLInput(e.target.value);
+                                    atualizarItem(it.funcionario_id, {
+                                      valor_passagem_atual: parseBRL(formatted),
+                                    });
+                                  }}
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Novo Valor Passagem *</Label>
+                                <Input
+                                  inputMode="numeric"
+                                  placeholder="R$ 0,00"
+                                  disabled={readOnly}
+                                  value={
+                                    it.valor_passagem_novo != null
+                                      ? fmtBRLInput(String(Math.round(it.valor_passagem_novo * 100)))
+                                      : ''
+                                  }
+                                  onChange={(e) => {
+                                    const formatted = fmtBRLInput(e.target.value);
+                                    atualizarItem(it.funcionario_id, {
+                                      valor_passagem_novo: parseBRL(formatted),
+                                    });
+                                  }}
+                                />
+                              </div>
+
+                              <div className="md:col-span-2 flex items-center justify-between flex-wrap gap-2 pt-1">
+                                <div className="flex items-center gap-2">
+                                  <Checkbox
+                                    id={`vt-nome-${it.funcionario_id}`}
+                                    checked={!!it._vt_somente_nome}
+                                    onCheckedChange={(c) =>
+                                      atualizarItem(it.funcionario_id, { _vt_somente_nome: !!c })
+                                    }
+                                  />
+                                  <Label
+                                    htmlFor={`vt-nome-${it.funcionario_id}`}
+                                    className="text-xs font-normal cursor-pointer"
+                                  >
+                                    Gerar VT apenas com nome preenchido
+                                  </Label>
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => baixarVT(it)}
+                                  disabled={!!vtLoading[it.funcionario_id]}
+                                >
+                                  {vtLoading[it.funcionario_id] ? (
+                                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                  ) : (
+                                    <Bus className="h-3 w-3 mr-1" />
+                                  )}
+                                  Baixar Solicitação VT
+                                </Button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </Card>
                     ))}

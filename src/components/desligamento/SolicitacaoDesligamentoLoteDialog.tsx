@@ -421,9 +421,6 @@ export const SolicitacaoDesligamentoLoteDialog: React.FC<Props> = ({
                 </Badge>
               )}
             </span>
-            <span className="text-xs font-normal text-muted-foreground">
-              Protocolo: <strong className="text-foreground">{protocolo || '—'}</strong>
-            </span>
           </DialogTitle>
         </DialogHeader>
 

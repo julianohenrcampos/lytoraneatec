@@ -542,11 +542,11 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
     }
     
     try {
-      // Bloqueio de duplicidade: mesmo funcionário + mesmo tipo de exame com
+      // Bloqueio de duplicidade: mesmo CPF + mesmo tipo de exame com
       // agendamento ativo (Pendente/Agendado). Ignora o próprio registro em edição.
-      if (funcionarioData?.id) {
+      if (etapa1Data.cpf) {
         const existente = await agendamentoExamesService.existeAgendamentoAtivo({
-          funcionario_id: funcionarioData.id,
+          cpf: etapa1Data.cpf,
           tipo_exame: etapa2Data.tipo_exame,
           ignoreId: agendamentoId ?? null,
         });
@@ -710,9 +710,10 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
       }
 
       onOpenChange(false);
-    } catch (error) {
+    } catch (error: any) {
       setIsUploadingFiles(false);
-      console.error('Erro ao salvar:', error);
+      console.error('[SSO_AGENDAMENTO][CRIAR_ERROR]', error);
+      toast.error(error?.message || 'Não foi possível salvar o agendamento.');
     }
   };
 

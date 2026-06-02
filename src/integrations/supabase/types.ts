@@ -10888,6 +10888,7 @@ export type Database = {
       }
       bd_solicitacao_transferencia_itens: {
         Row: {
+          alteracao_passagem: boolean
           cargo_snapshot: string | null
           centro_custo_destino_id: string | null
           centro_custo_destino_snapshot: string | null
@@ -10904,8 +10905,11 @@ export type Database = {
           salario_manual: number | null
           solicitacao_id: string
           updated_at: string
+          valor_passagem_atual: number | null
+          valor_passagem_novo: number | null
         }
         Insert: {
+          alteracao_passagem?: boolean
           cargo_snapshot?: string | null
           centro_custo_destino_id?: string | null
           centro_custo_destino_snapshot?: string | null
@@ -10922,8 +10926,11 @@ export type Database = {
           salario_manual?: number | null
           solicitacao_id: string
           updated_at?: string
+          valor_passagem_atual?: number | null
+          valor_passagem_novo?: number | null
         }
         Update: {
+          alteracao_passagem?: boolean
           cargo_snapshot?: string | null
           centro_custo_destino_id?: string | null
           centro_custo_destino_snapshot?: string | null
@@ -10940,6 +10947,8 @@ export type Database = {
           salario_manual?: number | null
           solicitacao_id?: string
           updated_at?: string
+          valor_passagem_atual?: number | null
+          valor_passagem_novo?: number | null
         }
         Relationships: [
           {

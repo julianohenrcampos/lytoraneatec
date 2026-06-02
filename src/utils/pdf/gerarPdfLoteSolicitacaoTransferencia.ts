@@ -16,6 +16,9 @@ export interface ItemLoteTransferencia {
   centro_custo_destino_nome: string | null;
   data_transferencia: string | null;
   salario: number | null;
+  alteracao_passagem?: boolean;
+  valor_passagem_atual?: number | null;
+  valor_passagem_novo?: number | null;
 }
 
 export interface DadosLoteTransferenciaPdf {
@@ -73,32 +76,42 @@ export function gerarPdfLoteSolicitacaoTransferencia(dados: DadosLoteTransferenc
       lineWidth: 0.1,
       fontSize: 8,
     },
-    styles: { fontSize: 7.5, cellPadding: 1.5, lineColor: [180, 180, 180], lineWidth: 0.1, valign: 'middle' },
+    styles: { fontSize: 7.5, cellPadding: 1.5, lineColor: [180, 180, 180], lineWidth: 0.1, valign: 'middle', halign: 'center' },
     head: [[
-      'Nome', 'Matrícula', 'Cargo', 'Centro de Custo Origem', 'Centro de Custo Destino',
-      'CPF', 'Admissão', 'Data Transferência', 'Salário',
+      'Nome', 'Matrícula', 'Cargo', 'CC Origem', 'CC Destino',
+      'CPF', 'Admissão', 'Data Transf.', 'Salário',
+      'Alt.Pass', 'Valor Atual', 'Novo Valor',
     ]],
-    body: dados.itens.map((it) => [
-      it.nome,
-      it.matricula || '—',
-      it.cargo,
-      it.centro_custo_origem,
-      it.centro_custo_destino_nome || '—',
-      it.cpf,
-      fmtDateBR(it.data_admissao),
-      fmtDateBR(it.data_transferencia),
-      it.salario != null ? fmtBRL(it.salario) : '—',
-    ]),
+    body: dados.itens.map((it) => {
+      const alt = !!it.alteracao_passagem;
+      return [
+        it.nome,
+        it.matricula || '—',
+        it.cargo,
+        it.centro_custo_origem,
+        it.centro_custo_destino_nome || '—',
+        it.cpf,
+        fmtDateBR(it.data_admissao),
+        fmtDateBR(it.data_transferencia),
+        it.salario != null ? fmtBRL(it.salario) : '—',
+        alt ? 'SIM' : 'NÃO',
+        alt && it.valor_passagem_atual != null ? fmtBRL(it.valor_passagem_atual) : '—',
+        alt && it.valor_passagem_novo != null ? fmtBRL(it.valor_passagem_novo) : '—',
+      ];
+    }),
     columnStyles: {
-      0: { cellWidth: 46 },
-      1: { cellWidth: 20 },
-      2: { cellWidth: 30 },
-      3: { cellWidth: 42 },
-      4: { cellWidth: 42 },
-      5: { cellWidth: 26 },
-      6: { cellWidth: 22, halign: 'center' },
-      7: { cellWidth: 24, halign: 'center' },
-      8: { cellWidth: 26, halign: 'right' },
+      0: { cellWidth: 34 },
+      1: { cellWidth: 14 },
+      2: { cellWidth: 22 },
+      3: { cellWidth: 28 },
+      4: { cellWidth: 28 },
+      5: { cellWidth: 22 },
+      6: { cellWidth: 17 },
+      7: { cellWidth: 19 },
+      8: { cellWidth: 20 },
+      9: { cellWidth: 14 },
+      10: { cellWidth: 23 },
+      11: { cellWidth: 24 },
     },
     didDrawPage: () => {
       const str = `Página ${doc.getNumberOfPages()}`;
