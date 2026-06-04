@@ -15,29 +15,32 @@ export const useAgendamentoExames = (agendamentoId?: string, filters?: Agendamen
   const queryClient = useQueryClient();
   const activeFilters = filters || {};
 
-  const { isGlobal, allowedNomes, isLoading: isLoadingEscopo } = useEscopoCentrosCusto();
+  const { isGlobal, allowedNomes, allowedContratos, isLoading: isLoadingEscopo } = useEscopoCentrosCusto();
 
-  // Restrição server-side por contrato (nome_centro_custo) para usuários NÃO globais.
-  const restrictContratos = isGlobal ? undefined : allowedNomes;
+  // Restrição server-side por contrato (texto livre) para usuários NÃO globais.
+  // Usa allowedContratos (inclui nome puro e formato legado "CODIGO - NOME")
+  // porque a coluna bd_agendamentos_exames.contrato foi gravada em ambos os formatos.
+  const restrictContratos = isGlobal ? undefined : allowedContratos;
 
   // Query: Listar agendamentos
   const listQuery = useQuery({
-    queryKey: ['agendamentos-exames', activeFilters, isGlobal ? '__global__' : (allowedNomes.join(',') || '__empty__')],
+    queryKey: ['agendamentos-exames', activeFilters, isGlobal ? '__global__' : (allowedContratos.join(',') || '__empty__')],
     queryFn: async () => {
       // Se !isGlobal e escopo vazio, não consulta servidor.
-      if (!isGlobal && (allowedNomes?.length ?? 0) === 0) {
+      if (!isGlobal && (allowedContratos?.length ?? 0) === 0) {
         return [];
       }
       const data = await agendamentoExamesService.list(activeFilters, { restrictContratos });
       // Defesa em profundidade client-side: oculta contrato null ou divergente para não-globais.
       if (!isGlobal) {
-        const allowed = new Set(allowedNomes);
+        const allowed = new Set(allowedContratos);
         return data.filter((a) => !!a.contrato && allowed.has(a.contrato));
       }
       return data;
     },
     enabled: !agendamentoId && !isLoadingEscopo,
   });
+
 
   // Query: Buscar agendamento por ID
   const detailQuery = useQuery({

@@ -51,6 +51,12 @@ export interface EscopoCentrosCusto {
   isGlobal: boolean;
   allowedCentroIds: string[]; // ordenado
   allowedNomes: string[]; // ordenado
+  /**
+   * Variações de `contrato` (texto livre em bd_agendamentos_exames e similares)
+   * que correspondem aos CCs do escopo. Inclui o nome puro e o formato
+   * legado "CODIGO - NOME" para casar registros antigos.
+   */
+  allowedContratos: string[]; // ordenado
   isLoading: boolean;
 }
 
@@ -58,6 +64,7 @@ const EMPTY_GLOBAL: EscopoCentrosCusto = {
   isGlobal: true,
   allowedCentroIds: [],
   allowedNomes: [],
+  allowedContratos: [],
   isLoading: false,
 };
 
@@ -65,8 +72,10 @@ const EMPTY_RESTRITO: EscopoCentrosCusto = {
   isGlobal: false,
   allowedCentroIds: [],
   allowedNomes: [],
+  allowedContratos: [],
   isLoading: false,
 };
+
 
 export function useEscopoCentrosCusto(): EscopoCentrosCusto {
   const { userId, isSuperAdmin, isLoading: isLoadingPerm } = usePermission();
@@ -177,16 +186,26 @@ export function useEscopoCentrosCusto(): EscopoCentrosCusto {
       const allowedCentroIds = Array.from(ids).sort();
 
       let allowedNomes: string[] = [];
+      let allowedContratos: string[] = [];
       if (allowedCentroIds.length > 0) {
         const { data: ccData, error: ccErr } = await supabase
           .from('bd_centros_custo')
-          .select('id, nome_centro_custo')
+          .select('id, nome_centro_custo, codigo_centro_custo')
           .in('id', allowedCentroIds);
         if (!ccErr && ccData) {
-          allowedNomes = (ccData as any[])
-            .map((c: any) => c.nome_centro_custo)
-            .filter(Boolean)
-            .sort();
+          const nomesSet = new Set<string>();
+          const contratosSet = new Set<string>();
+          (ccData as any[]).forEach((c: any) => {
+            const nome = (c?.nome_centro_custo ?? '').toString().trim();
+            const codigo = (c?.codigo_centro_custo ?? '').toString().trim();
+            if (nome) {
+              nomesSet.add(nome);
+              contratosSet.add(nome);
+              if (codigo) contratosSet.add(`${codigo} - ${nome}`);
+            }
+          });
+          allowedNomes = Array.from(nomesSet).sort();
+          allowedContratos = Array.from(contratosSet).sort();
         }
       }
 
@@ -194,6 +213,7 @@ export function useEscopoCentrosCusto(): EscopoCentrosCusto {
         isGlobal: false,
         allowedCentroIds,
         allowedNomes,
+        allowedContratos,
         isLoading: false,
       };
     },
@@ -205,9 +225,11 @@ export function useEscopoCentrosCusto(): EscopoCentrosCusto {
         isGlobal: false,
         allowedCentroIds: [],
         allowedNomes: [],
+        allowedContratos: [],
         isLoading: true,
       };
     }
     return query.data ?? EMPTY_RESTRITO;
   }, [isLoadingPerm, query.isLoading, query.data]);
 }
+

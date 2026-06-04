@@ -9,7 +9,6 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 import { OfflinePermissionStatus } from "@/components/pwa/OfflinePermissionStatus";
-import { AppUpdateBanner } from "@/components/pwa/AppUpdateBanner";
 import { useOfflinePermissionsSync } from "@/hooks/useOfflinePermissionsSync";
 import { usePermission } from "@/hooks/usePermission";
 
@@ -68,7 +67,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
         
         <SidebarInset className="flex-1 overflow-hidden">
           <div className="flex flex-col h-screen">
-            <AppUpdateBanner />
             <AppHeader 
               user={!isLoading ? user : null}
               updateUserImage={updateUserImage}

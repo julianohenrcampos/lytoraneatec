@@ -24,6 +24,7 @@ import UserProfileModal from "@/components/user/UserProfileModal";
 import UserImageUploadModal from "@/components/user/UserImageUploadModal";
 import AssinaturaDigitalModal from "@/components/user/AssinaturaDigitalModal";
 import { PWAInstallButton } from "@/components/pwa/PWAInstallButton";
+import { AppUpdateButton } from "@/components/pwa/AppUpdateButton";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { useOnlineUsers } from "@/hooks/useOnlineUsers";
@@ -153,6 +154,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         </div>
         
         <div className="flex items-center gap-1 sm:gap-2">
+          <AppUpdateButton />
           <ThemeToggle />
           <NotificationBell />
           
