@@ -1,144 +1,145 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { debugLog } from "@/lib/debug";
-import { excludeRestrictedCC } from "@/utils/centroCustoRestrictions";
 
 /**
- * Fetch centros de custo filtered by user role and permissions
- * @param userId - Current user ID
- * @param isSuperAdmin - Whether the user is a SuperAdmin
+ * Fetch centros de custo filtered by user role and permissions.
+ *
+ * Escopo (frontend — espelha as regras já existentes nos hooks de escopo,
+ * sem alterar RLS/RPC/banco):
+ *  - SuperAdm/acesso_global → todos os CCs ativos.
+ *  - Demais usuários → união, deduplicada, entre:
+ *      a) CCs onde profile.funcionario_id figura como
+ *         adm_obra_funcionario_id, adm_sede_funcionario_id
+ *         ou aprovador_diarias_id em bd_centros_custo (situação Ativo);
+ *      b) Retorno da RPC oficial fn_diaria_scope_centros_custo(auth.uid()),
+ *         que cobre Gerente/Apontador/escopo operacional.
+ *  - Sem vínculo nem escopo → lista vazia (fail-closed).
+ *
+ * NÃO há mais fallback "todos os CCs ativos" para usuário não-SuperAdm.
  */
 export const fetchCentrosCustoFiltered = async (
   userId: string | null = null,
   isSuperAdmin: boolean = false
 ): Promise<{ id: string; nome_centro_custo: string }[]> => {
   try {
-    console.log("👨‍💼 fetchCentrosCustoFiltered - userId:", userId, "isSuperAdmin:", isSuperAdmin);
-    
+    if (import.meta.env.DEV) {
+      console.log("[centrosCustoFiltered] userId:", userId, "isSuperAdmin:", isSuperAdmin);
+    }
+
+    // ---------- SuperAdm: vê todos ----------
     if (isSuperAdmin) {
-      // SuperAdmin sees all centros de custo
-      console.log("👑 Loading all centros de custo for SuperAdmin");
       const { data, error } = await supabase
         .from('bd_centros_custo')
         .select('id, nome_centro_custo')
         .eq('situacao', 'Ativo')
         .order('nome_centro_custo');
-      // SuperAdmin sees all including DIR001
 
       if (error) {
-        console.error("❌ Error loading centros de custo for SuperAdmin:", error);
-        debugLog("Supabase Error", error);
+        debugLog("Supabase Error (SuperAdm)", error);
         throw error;
       }
-      
-      console.log(`✅ Loaded ${data?.length || 0} centros de custo for SuperAdmin`);
       return data || [];
     }
 
+    // ---------- Sem usuário → fail-closed ----------
     if (!userId) {
-      console.log("⚠️ No userId provided, loading all active centros de custo");
-      // If no userId provided, return all active centros de custo
-      let query = supabase
+      console.warn("[centrosCustoFiltered] sem userId — retornando lista vazia");
+      return [];
+    }
+
+    // ---------- Resolver profile.funcionario_id e flag acesso_global ----------
+    const { data: profile, error: profileErr } = await supabase
+      .from('profiles')
+      .select('funcionario_id, acesso_global')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (profileErr) {
+      console.warn("[centrosCustoFiltered] erro ao buscar profile:", profileErr.message);
+    }
+
+    if (profile?.acesso_global === true) {
+      const { data, error } = await supabase
         .from('bd_centros_custo')
         .select('id, nome_centro_custo')
         .eq('situacao', 'Ativo')
         .order('nome_centro_custo');
-      query = excludeRestrictedCC(query, false);
-      const { data, error } = await query;
-
-      if (error) {
-        console.error("❌ Error loading centros de custo:", error);
-        debugLog("Supabase Error", error);
-        throw error;
-      }
-      
-      console.log(`✅ Loaded ${data?.length || 0} centros de custo (fallback)`);
+      if (error) throw error;
       return data || [];
     }
 
-    // For non-SuperAdmin users, try to get centros de custo related to their work
-    console.log("👤 Loading filtered centros de custo for user:", userId);
-    
-    // First try to get from user's teams/equipes
-    const { data: userData, error: userError } = await supabase
-      .from('bd_funcionarios')
-      .select('equipe_id, centro_custo_id')
-      .eq('id', userId);
+    const funcionarioId = profile?.funcionario_id || null;
+    const merged = new Map<string, { id: string; nome_centro_custo: string }>();
 
-    if (userError) {
-      console.error("❌ Error loading user's data:", userError);
-      // Fallback to all centros de custo if user query fails
-      let fallbackQuery = supabase
+    // ---------- (a) Vínculos diretos em bd_centros_custo ----------
+    if (funcionarioId) {
+      const { data: ccVinc, error: vincErr } = await supabase
         .from('bd_centros_custo')
         .select('id, nome_centro_custo')
         .eq('situacao', 'Ativo')
-        .order('nome_centro_custo');
-      fallbackQuery = excludeRestrictedCC(fallbackQuery, false);
-      const { data: fallbackData, error: fallbackError } = await fallbackQuery;
-      
-      return fallbackData || [];
+        .or(
+          `adm_obra_funcionario_id.eq.${funcionarioId},` +
+          `adm_sede_funcionario_id.eq.${funcionarioId},` +
+          `aprovador_diarias_id.eq.${funcionarioId}`
+        );
+
+      if (vincErr) {
+        console.warn("[centrosCustoFiltered] erro vínculos diretos:", vincErr.message);
+      }
+      (ccVinc || []).forEach((c) => merged.set(c.id, c));
     }
 
-    // If user has direct centro de custo assignment
-    if (userData && userData.length > 0 && userData[0].centro_custo_id) {
-      console.log(`✅ Found user's direct centro de custo assignment`);
-      
-      // Get the actual centro de custo data
-      const { data: centroCustoData, error: centroCustoError } = await supabase
-        .from('bd_centros_custo')
-        .select('id, nome_centro_custo')
-        .eq('id', userData[0].centro_custo_id)
-        .eq('situacao', 'Ativo')
-        .single();
+    // ---------- (b) RPC oficial de escopo ----------
+    try {
+      const { data: scopeRows, error: scopeErr } = await supabase.rpc(
+        'fn_diaria_scope_centros_custo' as any,
+        { p_user_id: userId } as any,
+      );
 
-      if (centroCustoError || !centroCustoData) {
-        console.log("⚠️ Centro de custo not found or inactive, falling back to all");
-        // Fallback to all active centros de custo
-        let fallbackQuery2 = supabase
+      if (scopeErr) {
+        console.warn("[centrosCustoFiltered] erro RPC scope:", scopeErr.message);
+      }
+
+      const ids = Array.from(new Set(
+        (Array.isArray(scopeRows) ? scopeRows : []).map((r: any) => {
+          if (typeof r === 'string') return r;
+          return r?.fn_diaria_scope_centros_custo || r?.centro_custo_id || r?.id || null;
+        }).filter((v: any): v is string => !!v),
+      )).filter((id) => !merged.has(id));
+
+      if (ids.length > 0) {
+        const { data: ccScope, error: ccScopeErr } = await supabase
           .from('bd_centros_custo')
           .select('id, nome_centro_custo')
           .eq('situacao', 'Ativo')
-          .order('nome_centro_custo');
-        fallbackQuery2 = excludeRestrictedCC(fallbackQuery2, false);
-        const { data: fallbackData, error: fallbackError } = await fallbackQuery2;
-        
-        return fallbackData || [];
+          .in('id', ids);
+
+        if (ccScopeErr) {
+          console.warn("[centrosCustoFiltered] erro hydrate scope:", ccScopeErr.message);
+        }
+        (ccScope || []).forEach((c) => merged.set(c.id, c));
       }
-
-      console.log(`✅ Returning user's centro de custo: ${centroCustoData.nome_centro_custo}`);
-      return [centroCustoData];
+    } catch (e: any) {
+      console.warn("[centrosCustoFiltered] RPC scope indisponível:", e?.message);
     }
 
-    // If no direct assignment, fallback to all active centros de custo
-    console.log("⚠️ No direct centro de custo found, falling back to all active centros");
-    let fallbackQuery3 = supabase
-      .from('bd_centros_custo')
-      .select('id, nome_centro_custo')
-      .eq('situacao', 'Ativo')
-      .order('nome_centro_custo');
-    fallbackQuery3 = excludeRestrictedCC(fallbackQuery3, false);
-    const { data: fallbackData, error: fallbackError } = await fallbackQuery3;
-    
-    return fallbackData || [];
+    const result = Array.from(merged.values()).sort((a, b) =>
+      a.nome_centro_custo.localeCompare(b.nome_centro_custo, 'pt-BR'),
+    );
+
+    if (import.meta.env.DEV) {
+      console.log("[centrosCustoFiltered] resultado:", {
+        userId,
+        funcionarioId,
+        ccCount: result.length,
+      });
+    }
+
+    return result;
   } catch (error) {
-    console.error("❗ Error in fetchCentrosCustoFiltered:", error);
+    console.error("[centrosCustoFiltered] erro fatal:", error);
     debugLog("Error Details", error);
-    
-    // Final fallback - return all active centros de custo
-    try {
-      let fallbackQuery4 = supabase
-        .from('bd_centros_custo')
-        .select('id, nome_centro_custo')
-        .eq('situacao', 'Ativo')
-        .order('nome_centro_custo');
-      fallbackQuery4 = excludeRestrictedCC(fallbackQuery4, false);
-      const { data: fallbackData } = await fallbackQuery4;
-      
-      console.log("📋 Using fallback - loaded all active centros de custo");
-      return fallbackData || [];
-    } catch (fallbackError) {
-      console.error("❌ Even fallback failed:", fallbackError);
-      return [];
-    }
+    // Fail-closed: nenhum fallback amplo para não-SuperAdm
+    return [];
   }
 };

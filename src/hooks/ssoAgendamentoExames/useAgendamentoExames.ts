@@ -15,7 +15,7 @@ export const useAgendamentoExames = (agendamentoId?: string, filters?: Agendamen
   const queryClient = useQueryClient();
   const activeFilters = filters || {};
 
-  const { isGlobal, allowedNomes, allowedContratos, isLoading: isLoadingEscopo } = useEscopoCentrosCusto();
+  const { isGlobal, allowedCentroIds, allowedContratos, isLoading: isLoadingEscopo } = useEscopoCentrosCusto();
 
   // Restrição server-side por contrato (texto livre) para usuários NÃO globais.
   // Usa allowedContratos (inclui nome puro e formato legado "CODIGO - NOME")
@@ -86,8 +86,10 @@ export const useAgendamentoExames = (agendamentoId?: string, filters?: Agendamen
         .order('nome_centro_custo');
       if (error) throw error;
       return data || [];
-    }
+    },
+    enabled: !isLoadingEscopo,
   });
+
 
   // Query: Listar anexos
   const anexosQuery = useQuery({
@@ -246,14 +248,17 @@ export const useAgendamentoExames = (agendamentoId?: string, filters?: Agendamen
     }
   });
 
-  // Aplica escopo no dropdown de centros de custo (filtros).
-  // SuperAdm/global vê todos; AdmOBRA vê apenas CCs do escopo.
+  // Aplica escopo no dropdown de centros de custo (filtros e modal).
+  // SuperAdm/global vê todos; AdmOBRA/restritos veem apenas CCs do escopo.
+  // Filtra por `id` (chave estável) em vez de `nome_centro_custo` para
+  // evitar perdas por normalização/whitespace nos nomes.
   const centrosCustoEscopados = useMemo(() => {
     const all = centrosCustoQuery.data || [];
     if (isGlobal) return all;
-    const allowedNomesSet = new Set(allowedNomes);
-    return all.filter((cc: any) => allowedNomesSet.has(cc.nome_centro_custo));
-  }, [centrosCustoQuery.data, isGlobal, allowedNomes]);
+    const allowedIdsSet = new Set(allowedCentroIds);
+    return all.filter((cc: any) => allowedIdsSet.has(cc.id));
+  }, [centrosCustoQuery.data, isGlobal, allowedCentroIds]);
+
 
   return {
     // Queries

@@ -136,10 +136,12 @@ export function useEscopoCentrosCusto(): EscopoCentrosCusto {
 
       if (isGlobal) return EMPTY_GLOBAL;
 
-      // 2) Restrito: une CC vinculado ao funcionário do profile + fn_diaria_scope_centros_custo
+      // 2) Restrito: une CC vinculado ao funcionário do profile +
+      //    fn_diaria_scope_centros_custo + vínculos diretos em bd_centros_custo
+      //    (adm_obra_funcionario_id / adm_sede_funcionario_id / aprovador_diarias_id).
       const funcionarioId: string | null = profile?.funcionario_id || null;
 
-      const [vinculoRes, diariaScopeRes] = await Promise.allSettled([
+      const [vinculoRes, diariaScopeRes, ccDiretosRes] = await Promise.allSettled([
         funcionarioId
           ? supabase
               .from('bd_funcionarios')
@@ -150,6 +152,17 @@ export function useEscopoCentrosCusto(): EscopoCentrosCusto {
         supabase.rpc('fn_diaria_scope_centros_custo' as any, {
           p_user_id: userId,
         } as any),
+        funcionarioId
+          ? supabase
+              .from('bd_centros_custo')
+              .select('id')
+              .eq('situacao', 'Ativo')
+              .or(
+                `adm_obra_funcionario_id.eq.${funcionarioId},` +
+                  `adm_sede_funcionario_id.eq.${funcionarioId},` +
+                  `aprovador_diarias_id.eq.${funcionarioId}`,
+              )
+          : Promise.resolve({ data: [], error: null } as any),
       ]);
 
       const ids = new Set<string>();
@@ -183,6 +196,22 @@ export function useEscopoCentrosCusto(): EscopoCentrosCusto {
         );
       }
 
+      if (
+        ccDiretosRes.status === 'fulfilled' &&
+        !(ccDiretosRes.value as any).error
+      ) {
+        const rows = ((ccDiretosRes.value as any).data as any[]) || [];
+        rows.forEach((r: any) => {
+          if (r?.id) ids.add(r.id as string);
+        });
+      } else {
+        console.warn(
+          '[useEscopoCentrosCusto] vínculos diretos em bd_centros_custo falharam',
+          ccDiretosRes,
+        );
+      }
+
+
       const allowedCentroIds = Array.from(ids).sort();
 
       let allowedNomes: string[] = [];
@@ -209,6 +238,15 @@ export function useEscopoCentrosCusto(): EscopoCentrosCusto {
         }
       }
 
+      if (import.meta.env.DEV) {
+        console.log('[useEscopoCentrosCusto] restrito resolvido', {
+          userId,
+          funcionarioId,
+          ccCount: allowedCentroIds.length,
+          ids: allowedCentroIds,
+        });
+      }
+
       return {
         isGlobal: false,
         allowedCentroIds,
@@ -216,6 +254,7 @@ export function useEscopoCentrosCusto(): EscopoCentrosCusto {
         allowedContratos,
         isLoading: false,
       };
+
     },
   });
 
