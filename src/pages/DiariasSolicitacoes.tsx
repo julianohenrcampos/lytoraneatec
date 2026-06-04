@@ -670,6 +670,8 @@ export default function DiariasSolicitacoes() {
                     <Card
                       key={sol.id}
                       className={cn(
+                        sol.status === 'rascunho' && 'bg-muted/40',
+                        sol.status === 'enviada' && 'bg-amber-50 border-l-4 border-l-amber-500',
                         sol.status === 'reprovada' && 'border-destructive/50 bg-destructive/5',
                         temAditivoPendente && 'bg-amber-50/70 border-l-4 border-l-amber-500',
                       )}
@@ -865,6 +867,8 @@ export default function DiariasSolicitacoes() {
                         key={sol.id}
                         className={cn(
                           "transition-colors",
+                          sol.status === 'rascunho' && 'bg-muted/40 hover:bg-muted/60',
+                          sol.status === 'enviada' && 'bg-amber-50 hover:bg-amber-100',
                           sol.status === 'reprovada' && 'bg-red-50 hover:bg-red-100',
                           temAditivoPendente && 'bg-amber-50/70 border-l-4 border-l-amber-500 hover:bg-amber-100/70',
                         )}
