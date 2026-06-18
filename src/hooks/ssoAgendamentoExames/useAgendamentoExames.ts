@@ -32,9 +32,17 @@ export const useAgendamentoExames = (agendamentoId?: string, filters?: Agendamen
       }
       const data = await agendamentoExamesService.list(activeFilters, { restrictContratos });
       // Defesa em profundidade client-side: oculta contrato null ou divergente para não-globais.
+      // Comparação por chave normalizada (UPPER+TRIM) para resistir a espaços/caixa residuais.
       if (!isGlobal) {
-        const allowed = new Set(allowedContratos);
-        return data.filter((a) => !!a.contrato && allowed.has(a.contrato));
+        const normKey = (s: unknown) =>
+          typeof s === 'string' ? s.trim().toUpperCase() : '';
+        const allowedNorm = new Set(
+          allowedContratos.map(normKey).filter(Boolean),
+        );
+        return data.filter((a) => {
+          const k = normKey(a.contrato);
+          return !!k && allowedNorm.has(k);
+        });
       }
       return data;
     },

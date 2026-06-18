@@ -21,7 +21,8 @@ import {
   Briefcase,
   FileSearch,
   Clock,
-  ScanFace
+  ScanFace,
+  HardHat
 } from "lucide-react";
 
 export const menuStructure = [
@@ -100,6 +101,18 @@ export const menuStructure = [
         href: "/sso/clinicas",
         icon: Building2,
         requiredPermission: "acesso_sso_clinica"
+      }
+    ]
+  },
+  {
+    groupIcon: HardHat,
+    title: "Engenharia",
+    items: [
+      {
+        name: "Planejamento Macro da Obra",
+        href: "/engenharia/planejamento-macro",
+        icon: ClipboardList,
+        requiredPermission: "engenharia_planejamento_macro_view"
       }
     ]
   },

@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import GlobalErrorBoundary from "@/components/error/GlobalErrorBoundary";
 import { useBodyPointerEvents } from "@/hooks/useBodyPointerEvents";
@@ -39,6 +39,7 @@ const GestaoCaminhoes = lazy(() => import("@/pages/GestaoCaminhoes"));
 const GestaoUsinas = lazy(() => import("@/pages/GestaoUsinas"));
 const RelatorioMedicao = lazy(() => import("@/pages/RelatorioMedicao"));
 const GestaoSolicitacoesEquipamento = lazy(() => import("@/pages/GestaoSolicitacoesEquipamento"));
+const PlanejamentoMacroObra = lazy(() => import("@/pages/PlanejamentoMacroObra"));
 const GestaoDisponibilidade = lazy(() => import("@/pages/GestaoDisponibilidade"));
 const GestaoPortfolio = lazy(() => import("@/pages/GestaoPortfolio"));
 const LinhasOperacionaisPage = lazy(() => import("@/pages/LinhasOperacionaisPage"));
@@ -182,6 +183,11 @@ const App = () => {
                     <Route path="/gestao-maquinas/linhas-operacionais" element={<Perm><LinhasOperacionaisPage /></Perm>} />
                     <Route path="/gestao-maquinas/central-transporte" element={<Secure permission="gestao_maquinas_caminhoes_view"><CentralTransporte /></Secure>} />
                     <Route path="/gestao-maquinas/checklist-saida/:movimentacaoId" element={<Perm><ChecklistSaida /></Perm>} />
+                    {/* FASE 1/2: rota antiga mantida apenas como redirect para a nova rota definitiva em /engenharia. */}
+                    <Route path="/gestao-maquinas/planejamento-macro" element={<Navigate to="/engenharia/planejamento-macro" replace />} />
+
+                    {/* Engenharia */}
+                    <Route path="/engenharia/planejamento-macro" element={<Secure permission="engenharia_planejamento_macro_view"><PlanejamentoMacroObra /></Secure>} />
 
                     {/* Requisições */}
                     <Route path="/programacao-entrega" element={<Secure permission="requisicoes_programacao_entrega_view"><ProgramacaoEntrega /></Secure>} />

@@ -225,12 +225,26 @@ export function useEscopoCentrosCusto(): EscopoCentrosCusto {
           const nomesSet = new Set<string>();
           const contratosSet = new Set<string>();
           (ccData as any[]).forEach((c: any) => {
-            const nome = (c?.nome_centro_custo ?? '').toString().trim();
-            const codigo = (c?.codigo_centro_custo ?? '').toString().trim();
-            if (nome) {
-              nomesSet.add(nome);
-              contratosSet.add(nome);
-              if (codigo) contratosSet.add(`${codigo} - ${nome}`);
+            const nomeRaw = (c?.nome_centro_custo ?? '').toString();
+            const codigoRaw = (c?.codigo_centro_custo ?? '').toString();
+            const nomeTrim = nomeRaw.trim();
+            const codigoTrim = codigoRaw.trim();
+            if (nomeTrim) {
+              nomesSet.add(nomeTrim);
+              // Inclui variantes para casar com `contrato` (texto livre)
+              // que pode ter sido gravado com espaços residuais.
+              // Adiciona também variante com 1 espaço ao final, pois há
+              // registros legados como 'MAZOMBINHA ' em bd_agendamentos_exames.
+              contratosSet.add(nomeTrim);
+              contratosSet.add(`${nomeTrim} `);
+              if (nomeRaw !== nomeTrim) contratosSet.add(nomeRaw);
+              if (codigoTrim) {
+                contratosSet.add(`${codigoTrim} - ${nomeTrim}`);
+                contratosSet.add(`${codigoTrim} - ${nomeTrim} `);
+                if (nomeRaw !== nomeTrim) {
+                  contratosSet.add(`${codigoTrim} - ${nomeRaw}`);
+                }
+              }
             }
           });
           allowedNomes = Array.from(nomesSet).sort();

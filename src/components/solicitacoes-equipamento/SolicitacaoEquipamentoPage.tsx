@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import OrigemPlanejamentoMacroBanner from "./OrigemPlanejamentoMacroBanner";
 import { CheckCircle, XCircle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -24,6 +26,9 @@ import { Label } from "@/components/ui/label";
 const SolicitacaoEquipamentoPage: React.FC = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const origemPlanejamentoMacro = searchParams.get("origem") === "planejamento_macro";
+  const centroCustoIdOrigem = searchParams.get("centro_custo_id");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [matchingResult, setMatchingResult] = useState<any>(null);
   const [isMatchingOpen, setIsMatchingOpen] = useState(false);
@@ -105,6 +110,9 @@ const SolicitacaoEquipamentoPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {origemPlanejamentoMacro && (
+        <OrigemPlanejamentoMacroBanner centroCustoId={centroCustoIdOrigem} />
+      )}
       <div className="flex justify-end">
         <Button onClick={() => setIsFormOpen(true)} className="text-white">
           <Plus className="mr-2 h-4 w-4" />
@@ -130,6 +138,8 @@ const SolicitacaoEquipamentoPage: React.FC = () => {
         onClose={() => setIsFormOpen(false)}
         onSubmit={handleCreate}
         isSubmitting={createMutation.isPending}
+        initialCentroCustoId={centroCustoIdOrigem}
+        initialOrigem={origemPlanejamentoMacro ? "planejamento_macro" : null}
       />
 
       <SolicitacaoMatchingResultModal
