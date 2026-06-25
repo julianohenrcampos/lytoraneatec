@@ -1,0 +1,73 @@
+CREATE OR REPLACE FUNCTION public.identificar_funcionario_por_descriptor_v2(p_dispositivo_id uuid, p_descriptor vector)
+ RETURNS TABLE(top1_funcionario_id uuid, top1_distancia_euclid double precision, top1_confidence double precision, top2_funcionario_id uuid, top2_distancia_euclid double precision, top2_confidence double precision, margem_euclid double precision, delta_confidence double precision, nome text, matricula text, cpf text, funcao text, centro_custo text, foto_url text)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_ccs uuid[];
+BEGIN
+  SELECT array_agg(centro_custo_id)
+    INTO v_ccs
+    FROM public.bd_ponto_dispositivo_centros_custo
+    WHERE dispositivo_id = p_dispositivo_id
+      AND ativo = true;
+
+  IF v_ccs IS NULL OR array_length(v_ccs, 1) IS NULL THEN
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  WITH candidatos AS (
+    SELECT
+      f.id AS fid,
+      (b.descriptor <-> p_descriptor)::double precision AS dist,
+      f.nome_completo,
+      f.matricula,
+      f.cpf,
+      fn.nome_funcao AS funcao_nome,
+      cc.nome_centro_custo AS cc_nome,
+      b.foto_url AS foto
+    FROM public.bd_funcionarios_biometria_facial b
+    JOIN public.bd_funcionarios f ON f.id = b.funcionario_id
+    LEFT JOIN public.bd_funcoes fn ON fn.id = f.funcao_id
+    LEFT JOIN public.bd_centros_custo cc ON cc.id = f.centro_custo_id
+    WHERE b.ativo = true
+      AND b.status_validacao = 'aprovado'
+      AND f.status IN ('Ativo', 'Ativo sem Registro')
+      AND f.centro_custo_id = ANY(v_ccs)
+    ORDER BY b.descriptor <-> p_descriptor ASC
+    LIMIT 2
+  ),
+  ranked AS (
+    SELECT c.*, row_number() OVER (ORDER BY dist ASC) AS rn
+    FROM candidatos c
+  )
+  SELECT
+    (SELECT fid FROM ranked WHERE rn = 1) AS top1_funcionario_id,
+    (SELECT dist FROM ranked WHERE rn = 1) AS top1_distancia_euclid,
+    GREATEST(0, 1 - (SELECT dist FROM ranked WHERE rn = 1) / 2.0)::double precision AS top1_confidence,
+    (SELECT fid FROM ranked WHERE rn = 2) AS top2_funcionario_id,
+    (SELECT dist FROM ranked WHERE rn = 2) AS top2_distancia_euclid,
+    CASE WHEN (SELECT dist FROM ranked WHERE rn = 2) IS NULL
+      THEN NULL
+      ELSE GREATEST(0, 1 - (SELECT dist FROM ranked WHERE rn = 2) / 2.0)::double precision
+    END AS top2_confidence,
+    CASE WHEN (SELECT dist FROM ranked WHERE rn = 2) IS NULL
+      THEN NULL
+      ELSE ((SELECT dist FROM ranked WHERE rn = 2) - (SELECT dist FROM ranked WHERE rn = 1))::double precision
+    END AS margem_euclid,
+    CASE WHEN (SELECT dist FROM ranked WHERE rn = 2) IS NULL
+      THEN NULL
+      ELSE (GREATEST(0, 1 - (SELECT dist FROM ranked WHERE rn = 1) / 2.0)
+          - GREATEST(0, 1 - (SELECT dist FROM ranked WHERE rn = 2) / 2.0))::double precision
+    END AS delta_confidence,
+    (SELECT nome_completo FROM ranked WHERE rn = 1) AS nome,
+    (SELECT matricula FROM ranked WHERE rn = 1) AS matricula,
+    (SELECT cpf FROM ranked WHERE rn = 1) AS cpf,
+    (SELECT funcao_nome FROM ranked WHERE rn = 1) AS funcao,
+    (SELECT cc_nome FROM ranked WHERE rn = 1) AS centro_custo,
+    (SELECT foto FROM ranked WHERE rn = 1) AS foto_url
+  WHERE EXISTS (SELECT 1 FROM ranked WHERE rn = 1);
+END;
+$function$;

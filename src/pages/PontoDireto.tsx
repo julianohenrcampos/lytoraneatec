@@ -28,6 +28,7 @@ import { pontoLog } from "@/lib/ponto/pontoLog";
 import { useCameraDevices } from "@/hooks/ponto/useCameraDevices";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { IndicadorQualidadeRosto } from "@/components/ponto/IndicadorQualidadeRosto";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type Status =
   | "carregando"
@@ -86,18 +87,19 @@ const TIPOS: { value: TipoBatida; label: string; icon: string }[] = [
 // AJUSTE TEMPORÁRIO DE CALIBRAÇÃO — revisar com logs reais.
 // Centraliza thresholds locais do gate de match. NÃO espalhar valores no código.
 const CALIBRACAO_MATCH = {
-  DIST_LOCAL_GATE: 0.42, // antes 0.35
-  CONFIANCA_MIN: 0.88,   // antes 0.92
+  DIST_LOCAL_GATE: 0.50, // alinhado com strong-confidence da Edge
+  CONFIANCA_MIN: 0.75,   // alinhado com strong-confidence da Edge
 } as const;
 
 const TICK_MS = 600;
-const THRESHOLD = 0.40; // distância máxima aceita pelo edge equivalente
+const THRESHOLD = 2.0; // escala face-api 128D real (dist ∈ [0,2]); confianca = 1 - dist/2
 const DIST_LOCAL_GATE = CALIBRACAO_MATCH.DIST_LOCAL_GATE;
 const CONFIANCA_MIN = CALIBRACAO_MATCH.CONFIANCA_MIN;
 const REQUIRED_MATCH_FRAMES = 3;
 const MAX_TENTATIVAS = 3;
-// GPS — limite de precisão para mobile
-const GPS_PRECISAO_MAX_MOBILE = 50; // metros
+// GPS — limites de precisão (verde/silencioso x bloqueio). Alerta = entre OK e BLOQUEIO.
+// BLOQUEIO alinhado com backend (registrar-ponto: >150m → 403).
+const GPS_LIMITE_BLOQUEIO = 150; // metros — hard-block frontend
 
 type BiometriaEstado = {
   modeloCarregado: boolean;
@@ -119,7 +121,7 @@ const BIOMETRIA_INICIAL: BiometriaEstado = {
   livenessOk: false,
   matchValido: false,
   framesValidos: 0,
-  motivoBloqueio: "Carregando reconhecimento facial...",
+  motivoBloqueio: "Carregando…",
   qualidadeNivel: "ruim",
 };
 
@@ -209,6 +211,9 @@ export default function PontoDireto() {
   const { validarRostoSeguro, resetBiometriaSegura } = useBiometriaSegura();
   // Seleção de câmera (USB ou frontal). Persiste deviceId em localStorage.
   const { devices: cameraDevices, selectedDeviceId, setSelectedDeviceId, refresh: refreshCameras } = useCameraDevices();
+  // Limite de precisão GPS por plataforma. Mobile mais rígido; desktop tolera Wi-Fi/IP.
+  const isMobileDevice = useIsMobile();
+  const GPS_LIMITE_OK = isMobileDevice ? 50 : 100; // verde/silencioso
   useEffect(() => { statusRef.current = status; }, [status]);
 
   // Relógio + online/offline
@@ -346,26 +351,27 @@ export default function PontoDireto() {
           descriptor,
         });
 
-        // Carrega modelos para reconhecimento (com retry interno no loader)
-        try {
-          await loadFaceApiModels();
-          setModeloErro(null);
-          setBiometria((b) => ({ ...b, modeloCarregado: true, motivoBloqueio: "Aguardando rosto" }));
-        } catch (modelErr) {
-          pontoLog("FACEAPI", "ERRO", "error", { message: (modelErr as Error)?.message });
-          if (cancelled) return;
-          setModeloErro("Falha ao carregar reconhecimento facial");
-          setBiometria((b) => ({ ...b, modeloCarregado: false, motivoBloqueio: "Reconhecimento facial indisponível" }));
-          setStatus("falha");
-          return;
-        }
-        if (cancelled) return;
-
+        // Libera UI imediatamente; modelos carregam em paralelo
         if (!descriptor) {
           setStatus("sem_biometria");
         } else {
           setStatus("escaneando");
         }
+
+        // Carrega modelos em paralelo (loop de tick aguarda modeloCarregado via validarRostoSeguro)
+        loadFaceApiModels()
+          .then(() => {
+            if (cancelled) return;
+            setModeloErro(null);
+            setBiometria((b) => ({ ...b, modeloCarregado: true, motivoBloqueio: "Posicione o rosto" }));
+          })
+          .catch((modelErr) => {
+            pontoLog("FACEAPI", "ERRO", "error", { message: (modelErr as Error)?.message });
+            if (cancelled) return;
+            setModeloErro("Falha ao carregar reconhecimento facial");
+            setBiometria((b) => ({ ...b, modeloCarregado: false, motivoBloqueio: "Reconhecimento facial indisponível" }));
+            setStatus("falha");
+          });
       } catch (e) {
         console.error("[PontoDireto][BOOT]", e);
         if (!cancelled) {
@@ -445,10 +451,14 @@ export default function PontoDireto() {
     }
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
-        setGps({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-          precisao: Math.round(pos.coords.accuracy),
+        const novaPrecisao = Math.round(pos.coords.accuracy);
+        // Estabilização: só aceita se ainda não há gps, ou se nova amostra é melhor
+        // (até 20% pior tolerado), ou se a atual está fora do limite mobile
+        setGps((prev) => {
+          if (!prev) return { latitude: pos.coords.latitude, longitude: pos.coords.longitude, precisao: novaPrecisao };
+          if (prev.precisao > GPS_LIMITE_BLOQUEIO) return { latitude: pos.coords.latitude, longitude: pos.coords.longitude, precisao: novaPrecisao };
+          if (novaPrecisao <= prev.precisao * 1.2) return { latitude: pos.coords.latitude, longitude: pos.coords.longitude, precisao: novaPrecisao };
+          return prev;
         });
         setGpsError(null);
         setGpsBloqueado(false);
@@ -466,7 +476,7 @@ export default function PontoDireto() {
         if (err.code === 1) setGpsPermissao("denied");
         console.warn("[BIOMETRIA][GPS_BLOQUEADO]", { code: err.code, message: err.message });
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 2000 },
     );
   }, []);
 
@@ -552,12 +562,14 @@ export default function PontoDireto() {
   }, [iniciarWatchGPS]);
 
   // CC detectado por GPS — APENAS auditoria visual / log (não decide permissão)
+  // Congelado após reconhecimento para não oscilar a UI
   useEffect(() => {
     if (!gps) return;
+    if (status === "reconhecido" || status === "registrando" || status === "sucesso") return;
     detectarCentroCustoPorGPS(gps.latitude, gps.longitude).then((r) => {
       setCC({ id: r.centro_custo_id, nome: r.nome, distancia: r.distancia_metros });
     });
-  }, [gps]);
+  }, [gps, status]);
 
   // Carrega batidas do dia
   const carregarBatidas = useCallback(async () => {
@@ -599,7 +611,7 @@ export default function PontoDireto() {
 
   // Loop de reconhecimento facial (1×1)
   useEffect(() => {
-    if (status !== "escaneando" || !cameraReady || !perfil?.descriptor) return;
+    if (status !== "escaneando" || !cameraReady || !perfil?.descriptor || !biometria.modeloCarregado) return;
 
     const tick = async () => {
       if (statusRef.current !== "escaneando" || inflightRef.current) return;
@@ -620,7 +632,7 @@ export default function PontoDireto() {
             livenessOk: !!resultado.livenessOk,
             matchValido: false,
             framesValidos: 0,
-            motivoBloqueio: resultado.motivo ?? "Aguardando rosto",
+            motivoBloqueio: resultado.motivo ?? "Posicione o rosto",
             qualidadeNivel: resultado.qualidadeNivel ?? "ruim",
           }));
           if (resultado.motivo === "Possível uso de imagem/foto") {
@@ -695,7 +707,7 @@ export default function PontoDireto() {
       if (tickRef.current) window.clearInterval(tickRef.current);
       tickRef.current = null;
     };
-  }, [status, cameraReady, perfil?.descriptor, validarRostoSeguro]);
+  }, [status, cameraReady, perfil?.descriptor, biometria.modeloCarregado, validarRostoSeguro]);
 
   // Reset para scanner
   const reset = useCallback(() => {
@@ -711,7 +723,7 @@ export default function PontoDireto() {
       livenessOk: false,
       matchValido: false,
       framesValidos: 0,
-      motivoBloqueio: b.modeloCarregado ? "Aguardando rosto" : "Carregando reconhecimento facial...",
+      motivoBloqueio: b.modeloCarregado ? "Posicione o rosto" : "Carregando…",
     }));
     setStatus("escaneando");
   }, [resetBiometriaSegura]);
@@ -752,11 +764,15 @@ export default function PontoDireto() {
       pontoLog("GPS", "HARD_BLOCK", "error", { motivo: "gps_ausente" });
       toast.error("Aguardando localização..."); return;
     }
-    // Hard-block por precisão GPS (mobile)
-    if (!Number.isFinite(gps.precisao) || gps.precisao > GPS_PRECISAO_MAX_MOBILE) {
-      const msg = `GPS impreciso (±${Math.round(gps.precisao)}m, máx ${GPS_PRECISAO_MAX_MOBILE}m). Vá para um local aberto e tente novamente.`;
-      pontoLog("GPS", "HARD_BLOCK", "error", { motivo: "gps_impreciso", accuracy: gps.precisao, limite: GPS_PRECISAO_MAX_MOBILE });
+    // Hard-block por precisão GPS (alinhado com backend: >150m)
+    if (!Number.isFinite(gps.precisao) || gps.precisao > GPS_LIMITE_BLOQUEIO) {
+      const msg = `GPS muito impreciso (±${Math.round(gps.precisao)}m, máx ${GPS_LIMITE_BLOQUEIO}m). Vá para um local aberto e tente novamente.`;
+      pontoLog("GPS", "HARD_BLOCK", "error", { motivo: "gps_impreciso", accuracy: gps.precisao, limite: GPS_LIMITE_BLOQUEIO });
       setErrMsg(msg); toast.error(msg); return;
+    }
+    // Soft-warning: entre OK e BLOQUEIO, permite mas avisa (backend marca score_risco)
+    if (gps.precisao > GPS_LIMITE_OK) {
+      toast.warning(`Precisão GPS baixa (±${Math.round(gps.precisao)}m) — registro será revisado.`);
     }
     if (!ccEsperado) {
       const msg = "Funcionário sem centro de custo vinculado. Procure o RH.";
@@ -858,10 +874,10 @@ export default function PontoDireto() {
       if (respondeu.data_operacional) setDataOperacional(respondeu.data_operacional);
 
       setStatus("sucesso");
+      // Mantém tela de sucesso por 3s e redireciona para o portal (rota inicial real)
       window.setTimeout(() => {
-        carregarBatidas();
-        reset();
-      }, 4000);
+        navigate("/", { replace: true });
+      }, 3000);
     } catch (e: any) {
       console.error("[PontoDireto][REGISTRO]", e);
       const msg = e?.message || "Erro ao registrar ponto";
@@ -921,7 +937,7 @@ export default function PontoDireto() {
     Number.isFinite(gps.latitude) &&
     Number.isFinite(gps.longitude) &&
     Number.isFinite(gps.precisao) &&
-    gps.precisao <= GPS_PRECISAO_MAX_MOBILE
+    gps.precisao <= GPS_LIMITE_BLOQUEIO
   ), [gps]);
 
   // Razão de bloqueio do botão Confirmar (string null = pode confirmar)
@@ -932,8 +948,8 @@ export default function PontoDireto() {
     if (!gps) {
       return "Aguardando localização...";
     }
-    if (gps.precisao > GPS_PRECISAO_MAX_MOBILE) {
-      return `GPS impreciso (±${gps.precisao}m, máx ${GPS_PRECISAO_MAX_MOBILE}m). Vá para um local aberto.`;
+    if (gps.precisao > GPS_LIMITE_BLOQUEIO) {
+      return `GPS muito impreciso (±${gps.precisao}m, máx ${GPS_LIMITE_BLOQUEIO}m). Vá para um local aberto.`;
     }
     if (!ccEsperado) {
       return "Funcionário sem centro de custo vinculado. Procure o RH.";
@@ -1020,7 +1036,7 @@ export default function PontoDireto() {
         <div className="flex items-center gap-2 min-w-0">
           <button
             type="button"
-            onClick={() => navigate("/dashboard", { replace: true })}
+            onClick={() => navigate("/", { replace: true })}
             aria-label="Voltar ao sistema LYTOTEC"
             title="Voltar ao sistema"
             className="flex items-center gap-2 min-w-0 rounded hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60"
@@ -1361,23 +1377,6 @@ function CameraView({
         muted
         className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
       />
-      {cameraDevices.length > 1 && (
-        <div className="absolute top-2 right-2 z-20 max-w-[60%]">
-          <Select
-            value={selectedDeviceId ?? ""}
-            onValueChange={(v) => setSelectedDeviceId(v || null)}
-          >
-            <SelectTrigger className="h-8 text-xs bg-background/80 backdrop-blur-sm">
-              <SelectValue placeholder="Câmera" />
-            </SelectTrigger>
-            <SelectContent>
-              {cameraDevices.map((d) => (
-                <SelectItem key={d.deviceId} value={d.deviceId}>{d.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
       {!cameraReady && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 gap-3 bg-slate-900">
           <Camera className="h-12 w-12 opacity-40" />
@@ -1393,7 +1392,7 @@ function CameraView({
         </div>
       </div>
       {escaneando && cameraReady && (
-        <div className="absolute top-2 left-2 z-20">
+        <div className="absolute top-3 inset-x-0 z-20 flex justify-center pointer-events-none">
           <IndicadorQualidadeRosto
             qualidadeNivel={qualidadeNivel}
             rostoDetectado={rostoDetectado}
@@ -1401,10 +1400,14 @@ function CameraView({
           />
         </div>
       )}
-      <div className="absolute bottom-3 inset-x-0 text-center px-4">
+      <div className="absolute bottom-3 inset-x-0 flex justify-center px-4">
         <p className={cn(
-          "text-base font-semibold drop-shadow",
-          reconhecido ? "text-emerald-200" : estado === "falha" ? "text-rose-200" : "text-cyan-200",
+          "text-base font-semibold px-4 py-2 rounded-full bg-slate-950/70 backdrop-blur-md border",
+          reconhecido
+            ? "text-emerald-200 border-emerald-400/40"
+            : estado === "falha"
+              ? "text-rose-200 border-rose-400/40"
+              : "text-cyan-100 border-cyan-400/40",
         )}>
           {overlayLabel}
         </p>

@@ -46,6 +46,8 @@ const statusColorMap: Record<string, string> = {
 function canActOn(role: GestaoFluxoRole, statusFluxo: string | null): boolean {
   if (role === 'superadmin') return statusFluxo !== 'finalizado';
   if (role === 'gerente_adm') return statusFluxo === 'aguardando_aprovacao_gerenteadm';
+  // D1 Fase 2: GerenteRegional atua na mesma etapa do GerenteAdm.
+  if (role === 'gerente_regional') return statusFluxo === 'aguardando_aprovacao_gerenteadm';
   if (role === 'diretor_operacional') return statusFluxo === 'aguardando_aprovacao_diretor_operacional';
   if (role === 'diretor_adm') return statusFluxo === 'aguardando_aprovacao_diretor_adm';
   return false;
@@ -61,7 +63,10 @@ export default function GestaoAprovacoesTabelaDesktop({
   onReprovar,
 }: Props) {
   // D1.1: detectar segregação para tooltip e bloqueio do botão Aprovar.
-  const { userId, isSuperAdmin } = usePermission();
+  const { userId, isSuperAdmin, hasActionPermission } = usePermission();
+  // D1 Fase 2: gate defensivo extra para GerenteRegional.
+  const gerenteRegionalSemPermissao =
+    userFluxoRole === 'gerente_regional' && !hasActionPermission('diarias_aprovar', 'aprovar');
   if (!solicitacoes.length) {
     return (
       <div className="flex items-center justify-center min-h-[200px] text-muted-foreground text-sm">
@@ -92,7 +97,7 @@ export default function GestaoAprovacoesTabelaDesktop({
             const statusKey = sol.status_fluxo || '';
             const badge = statusBadgeConfig[statusKey];
             const colorClass = statusColorMap[statusKey] || 'bg-muted text-muted-foreground';
-            const showActions = canActOn(userFluxoRole, sol.status_fluxo);
+            const showActions = canActOn(userFluxoRole, sol.status_fluxo) && !gerenteRegionalSemPermissao;
             // D1.1: criador não pode aprovar a própria solicitação (segregação).
             const bloqueadoPorSegregacao =
               !isSuperAdmin && !!userId && !!sol.criado_por && sol.criado_por === userId;

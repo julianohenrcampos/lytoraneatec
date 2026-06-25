@@ -5,6 +5,7 @@ import type { RelatorioFolhaItem, AssinaturaAprovacao } from '@/types/diarias';
 import { parseISO, format, differenceInDays } from 'date-fns';
 import { AssinaturaPDFBlock } from '@/components/assinatura/AssinaturaPDFBlock';
 import { isRelatorioItemConfirmado, isRelatorioItemRemessa } from '@/services/diarias/relatorioMetrics';
+import { classificarDiaParaRelatorio } from '@/lib/diarias/classificacaoDiaRelatorio';
 
 // =====================================================
 // TYPES
@@ -635,6 +636,45 @@ export const CompiladoDiariasPDF = ({
     </View>
   );
 
+  // Bloco reutilizável p/ resumos (Dias Úteis e FDS/Feriado). Mesmo padrão visual do TotalGeralBlock.
+  const TotalResumoBlock = ({ titulo, quantidade, valor }: { titulo: string; quantidade: number; valor: number }) => (
+    <View wrap={false} style={s.totalBlock}>
+      <View style={s.totalTitleRow}>
+        <Text style={s.totalTitleText}>{titulo}</Text>
+      </View>
+      <View style={s.totalHeaderRow}>
+        <View style={s.totalCellBorder}><Text style={s.textHeaderBold}>QUANTIDADE</Text></View>
+        <View style={s.totalCell}><Text style={s.textHeaderBold}>VALOR</Text></View>
+      </View>
+      <View style={s.totalDataRow}>
+        <View style={s.totalCellBorder}><Text style={s.totalValue}>{quantidade}</Text></View>
+        <View style={s.totalCell}><Text style={s.totalValue}>{formatBRL(valor)}</Text></View>
+      </View>
+    </View>
+  );
+
+  // Subtotais a partir de periodsWeekday/periodsWeekend (já populados em
+  // buildCompiladoData via classificarDiaParaRelatorio modo 'operacional').
+  // Soma em centavos para evitar drift de ponto flutuante.
+  const toCents = (v: number) => Math.round((Number(v) || 0) * 100);
+  let qtdDU = 0, centsDU = 0, qtdFS = 0, centsFS = 0;
+  centros.forEach((cc) => {
+    cc.periodsWeekday.forEach((p) => { qtdDU += p.quantidade; centsDU += toCents(p.valor); });
+    cc.periodsWeekend.forEach((p) => { qtdFS += p.quantidade; centsFS += toCents(p.valor); });
+  });
+  const valorDU = centsDU / 100;
+  const valorFS = centsFS / 100;
+  const somaQtd = qtdDU + qtdFS;
+  const somaCents = centsDU + centsFS;
+  const totalCents = toCents(totalGeralValor);
+  if (somaQtd !== totalGeralQuantidade || Math.abs(somaCents - totalCents) > 0) {
+    // eslint-disable-next-line no-console
+    console.warn('[COMPILADO] Divergência subtotais vs TOTAL GERAL', {
+      qtdDU, qtdFS, somaQtd, totalGeralQuantidade,
+      valorDU, valorFS, somaValor: somaCents / 100, totalGeralValor,
+    });
+  }
+
   // If we have empresa groups, render each empresa on its own page
   if (groups) {
     return (
@@ -721,6 +761,8 @@ export const CompiladoDiariasPDF = ({
             <SubtotalCcRow cc={cc} />
           </React.Fragment>
         ))}
+        <TotalResumoBlock titulo="TOTAL GERAL DIAS ÚTEIS" quantidade={qtdDU} valor={valorDU} />
+        <TotalResumoBlock titulo="TOTAL GERAL FINAIS DE SEMANA / FERIADO" quantidade={qtdFS} valor={valorFS} />
         <TotalGeralBlock />
         {assinaturas && assinaturas.length > 0 && (
           <AssinaturaPDFBlock assinaturas={assinaturas} />
@@ -781,14 +823,28 @@ export function buildCompiladoData(
     const ccLabel = cc?.codigo_centro_custo || item.codigo_centro_custo || '';
     const ccNome = cc?.nome_centro_custo || item.nome_centro_custo || '';
     const empresaNome = item.empresa_funcionario || 'Empresa não informada';
-    const valorItem = Math.ceil(item.valor_diaria_aplicada || 0) + Math.ceil(item.valor_refeicao_aplicado || 0);
+    const valorItem = Number(item.valor_diaria_aplicada || 0) + Number(item.valor_refeicao_aplicado || 0);
 
     const dataStr = item.data?.substring(0, 10) || '';
-    const dataObj = new Date(dataStr + 'T12:00:00');
-    const isDomingo = dataObj.getDay() === 0;
-    const isSabado = dataObj.getDay() === 6;
-    const isFeriado = feriadosSet.has(dataStr);
-    const isFS = isDomingo || isSabado || isFeriado;
+    // VISÃO DIRETIVA/GERENCIAL: usa o calendário operacional vigente para
+    // bater com o Dashboard. Valores financeiros por linha
+    // (valor_diaria_aplicada, valor_refeicao_aplicado) NÃO são recalculados —
+    // apenas o agrupamento (DIA ÚTIL vs FDS/FERIADO/PONTE) muda.
+    const classificacao = classificarDiaParaRelatorio(item, feriadosSet, { modo: 'operacional' });
+    const isFS = classificacao.usar_valor_exclusivo;
+    if (typeof console !== 'undefined') {
+      console.debug('[DIARIA][AGRUPAMENTO_DEBUG]', {
+        modo: 'operacional',
+        contexto: 'CompiladoDiariasPDF',
+        data: dataStr,
+        centro_custo: ccLabel,
+        usar_diaria_exclusiva: item.usar_diaria_exclusiva,
+        usar_diaria_exclusiva_calendario: (item as any).usar_diaria_exclusiva_calendario ?? null,
+        grupo_calculado: classificacao.grupo_relatorio,
+        origem_regra: classificacao.origem_regra,
+        valor_diaria_aplicada: item.valor_diaria_aplicada,
+      });
+    }
 
     const ccKey = item.centro_custo_id || 'sem-cc';
     const ccEmpresaKey = `${empresaNome}::${ccKey}`;

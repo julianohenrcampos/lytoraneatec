@@ -41,12 +41,17 @@ const isValidISODate = (v: unknown): v is string =>
 
 /**
  * Garante que o período enviado ao Postgres seja sempre válido.
- * Aplica default de 30 dias inclusivos (hoje-29 até hoje) se QUALQUER
- * uma das datas estiver ausente/inválida. Usa data local BR (não UTC).
+ *
+ * - Se ambas as datas são ISO válidas, usa-as (sem default).
+ * - Se há filtro por solicitação (solicitacao_ids ou solicitacao_id) e o usuário
+ *   NÃO informou datas, faz BYPASS do fallback de 30 dias — a query confiará
+ *   apenas em solicitacao_id IN (...). Permite localizar solicitações antigas
+ *   escolhidas no dropdown sem janela artificial.
+ * - Caso contrário, aplica default de 30 dias inclusivos (hoje-29 até hoje).
  */
 function ensurePeriodo(filters?: RelatorioFilters): {
-  data_inicio: string;
-  data_fim: string;
+  data_inicio?: string;
+  data_fim?: string;
   appliedDefault: boolean;
 } {
   const di = isValidISODate(filters?.data_inicio) ? (filters!.data_inicio as string) : undefined;
@@ -58,6 +63,14 @@ function ensurePeriodo(filters?: RelatorioFilters): {
         recebido: { data_inicio: filters?.data_inicio, data_fim: filters?.data_fim },
       });
     }
+
+    const hasSolicitacaoFilter =
+      (filters?.solicitacao_ids && filters.solicitacao_ids.length > 0) ||
+      !!filters?.solicitacao_id;
+    if (hasSolicitacaoFilter) {
+      return { data_inicio: undefined, data_fim: undefined, appliedDefault: false };
+    }
+
     const hoje = new Date();
     return {
       data_inicio: format(subDays(hoje, 29), 'yyyy-MM-dd'),
@@ -68,6 +81,7 @@ function ensurePeriodo(filters?: RelatorioFilters): {
 
   return { data_inicio: di, data_fim: df, appliedDefault: false };
 }
+
 
 // =====================================================
 // BUILDER ÚNICO DE QUERY — fonte da verdade para tela e exportações
@@ -141,8 +155,11 @@ async function buildRelatorioQuery(
   if (scope?.criado_por) query = query.eq('solicitante_id', scope.criado_por);
   if (scope?.centro_custo_ids?.length) query = query.in('centro_custo_id', scope.centro_custo_ids);
 
-  // Período (sempre garantido pelo ensurePeriodo)
-  query = query.gte('data', effectiveFilters.data_inicio!).lte('data', effectiveFilters.data_fim!);
+  // Período: aplica apenas quando ambas as datas estiverem definidas.
+  // Pode ser bypassed quando há filtro por solicitação (ver ensurePeriodo).
+  if (effectiveFilters.data_inicio && effectiveFilters.data_fim) {
+    query = query.gte('data', effectiveFilters.data_inicio).lte('data', effectiveFilters.data_fim);
+  }
 
   // Centros de custo (multi/single + via gerente)
   if (ccFilterIds?.length) query = query.in('centro_custo_id', ccFilterIds);
@@ -470,8 +487,8 @@ export async function getPresencaResumo(filters?: RelatorioFilters): Promise<Pre
     ausentes: ausentes.length,
     pendentes: pendentes.length,
     substituidos: substituidos.length,
-    valor_total_presentes: presentes.reduce((acc, r) => acc + Math.ceil(r.valor_diaria_aplicada || 0), 0),
-    valor_total_previsto: relatorio.reduce((acc, r) => acc + Math.ceil(r.valor_diaria_aplicada || 0), 0)
+    valor_total_presentes: presentes.reduce((acc, r) => acc + Number(r.valor_diaria_aplicada || 0) + Number(r.valor_refeicao_aplicado || 0), 0),
+    valor_total_previsto: relatorio.reduce((acc, r) => acc + Number(r.valor_diaria_aplicada || 0) + Number(r.valor_refeicao_aplicado || 0), 0)
   };
 }
 

@@ -16,6 +16,7 @@ interface DocumentoInfo {
   nome: string;
   path: string;
   tipo: 'pdf' | 'imagem';
+  bucket?: string;
 }
 
 interface AgendamentoDocumentosDialogProps {
@@ -102,7 +103,7 @@ export const AgendamentoDocumentosDialog: React.FC<AgendamentoDocumentosDialogPr
     cleanupViewer();
     setLoadingAction(doc.path);
     try {
-      const blob = await valeTransporteService.downloadBlob(doc.path);
+      const blob = await valeTransporteService.downloadBlob(doc.path, doc.bucket);
       const type = detectType(blob, doc.path);
       const fileName = doc.path.split('/').pop() || doc.nome;
 
@@ -127,7 +128,7 @@ export const AgendamentoDocumentosDialog: React.FC<AgendamentoDocumentosDialogPr
   const handleDownload = async (doc: DocumentoInfo) => {
     setLoadingAction(`download-${doc.path}`);
     try {
-      const blob = await valeTransporteService.downloadBlob(doc.path);
+      const blob = await valeTransporteService.downloadBlob(doc.path, doc.bucket);
       const url = URL.createObjectURL(blob);
       const fileName = doc.path.split('/').pop() || 'documento';
       const link = document.createElement('a');

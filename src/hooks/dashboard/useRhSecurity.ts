@@ -140,6 +140,61 @@ export const useRhSecurity = (): RhSecurityContext => {
           }
         }
 
+        // GerenteRegional: escopo via fn_diaria_scope_centros_custo
+        // Espelha o conceito de AdmOBRA mas usando a RPC oficial de escopo operacional.
+        if (hasRole(funcoes, 'GerenteRegional')) {
+          const { data: scopeRows, error: scopeErr } = await supabase.rpc(
+            'fn_diaria_scope_centros_custo' as any,
+            { p_user_id: userId! } as any,
+          );
+
+          if (scopeErr) {
+            console.warn('⚠️ GerenteRegional - erro ao buscar escopo CC:', scopeErr);
+          }
+
+          const rows = Array.isArray(scopeRows) ? scopeRows : [];
+          const grIds = Array.from(new Set(
+            rows.map((r: any) => {
+              if (typeof r === 'string') return r;
+              return r?.fn_diaria_scope_centros_custo || r?.centro_custo_id || r?.id || null;
+            }).filter((v: any): v is string => !!v),
+          ));
+
+          if (import.meta.env.DEV) {
+            console.log('[AUDIT][rh-funcionarios:scope]', {
+              userId,
+              roles: funcoes,
+              isSuperAdmin: false,
+              branch: 'GerenteRegional',
+              ccCount: grIds.length,
+              deptUsed: false,
+            });
+          }
+
+          if (grIds.length > 0) {
+            setSecurityContext({
+              departamentoId: undefined,
+              centroCustoId: grIds[0],
+              centroCustoIds: grIds,
+              departamentoNome,
+              isLoading: false,
+              canViewAllData: false,
+              shouldFilterByDepartment: false,
+              shouldFilterByCentroCusto: true,
+            });
+            return;
+          }
+
+          // Fail-closed: sem escopo, sem dados
+          setSecurityContext({
+            isLoading: false,
+            canViewAllData: false,
+            shouldFilterByDepartment: false,
+            shouldFilterByCentroCusto: false,
+          });
+          return;
+        }
+
         if (hasRole(funcoes, 'AdmOBRA')) {
           // AdmObra MULTIOBRA: escopo oficial = bd_centros_custo.adm_obra_funcionario_id
           // Resolve TODOS os CCs administrados via profile.funcionario_id

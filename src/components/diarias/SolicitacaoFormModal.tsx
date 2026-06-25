@@ -2,8 +2,9 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { format, startOfWeek, endOfWeek, parseISO, eachDayOfInterval, isWeekend } from "date-fns";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 import { Combobox } from "@/components/ui/combobox";
-import { Plus, Trash2, Loader2, Users, FileText, Check, ChevronRight, ChevronLeft, Info, Lock, User, Send, ClipboardCheck, AlertTriangle, Calendar, Shield } from "lucide-react";
+import { Plus, Trash2, Loader2, Users, FileText, Check, ChevronRight, ChevronLeft, Info, Lock, User, Send, ClipboardCheck, AlertTriangle, Calendar, Shield, Globe2 } from "lucide-react";
 import { SmartFuncionarioSearch, type ConflitoSelecao } from "./SmartFuncionarioSearch";
+import { MatrizFuncionarioData } from "./MatrizFuncionarioData";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,6 +12,7 @@ import { usePermission } from "@/hooks/usePermission";
 import { useDiariasDataScope } from "@/hooks/diarias";
 import { RESTRICTED_CC_CODE } from "@/utils/centroCustoRestrictions";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { lerConvocadosPre, derivarFuncionariosPlanos } from "@/lib/diarias/convocadosPreAdapter";
 
 import {
   Dialog,
@@ -63,6 +65,8 @@ import {
 import { PeriodoResumo } from "./PeriodoResumo";
 import { EstimativaAviso } from "./EstimativaAviso";
 import { SimulacaoValores } from "./SimulacaoValores";
+import { calcularEstimativaPorMatriz } from "@/utils/diariasEstimativaMatriz";
+import { avaliarCelula, type ResultadoElegibilidade } from "@/utils/diariasElegibilidadeMatriz";
 import {
   resolverRegraOperacional,
   salvarRegraCalendarioOperacional,
@@ -195,10 +199,22 @@ export function SolicitacaoFormModal({
   const [attemptedNext, setAttemptedNext] = useState(false);
   const [regrasOperacionaisPorData, setRegrasOperacionaisPorData] = useState<Record<string, CalendarioOperacionalResolvido>>({});
   const [diasOperacionaisSelecionados, setDiasOperacionaisSelecionados] = useState<string[]>([]);
+  // Fase A — verde: dias solicitados normais (trabalho), sem exigência de justificativa.
+  // diasOperacionaisSelecionados (laranja) = ponte/feriado operacional, exige justificativa.
+  // União dos dois = dias solicitados para trabalho (entram na matriz Fase B).
+  const [diasSolicitadosSelecionados, setDiasSolicitadosSelecionados] = useState<string[]>([]);
   const [justificativaOperacional, setJustificativaOperacional] = useState(JUSTIFICATIVA_OPERACIONAL_PADRAO);
   const [isSavingRegrasOperacionais, setIsSavingRegrasOperacionais] = useState(false);
   const [regrasOperacionaisDirty, setRegrasOperacionaisDirty] = useState(false);
   const ultimoContextoRegrasCarregadoRef = useRef<string | null>(null);
+
+  // Fase B — Matriz funcionário × data (apenas em memória).
+  // NÃO é serializada no payload `convocados_pre` neste build.
+  const [diasPorFuncionario, setDiasPorFuncionario] = useState<Record<string, string[]>>({});
+  const [diaAtivoMatriz, setDiaAtivoMatriz] = useState<string | null>(null);
+  // Fase E — guarda se a matriz foi hidratada do JSON persistido (edição).
+  const matrizHidratadaDaEdicaoRef = useRef(false);
+  const contextoMatrizProntoRef = useRef(false);
 
   // Calcular semana automaticamente a partir da data início
   const semanaCalculada = useMemo(() => {
@@ -518,61 +534,197 @@ export function SolicitacaoFormModal({
     enabled: !!user?.id
   });
 
-  // Query alocações ativas para detectar conflitos
-  const { data: alocacoesAtivas = [] } = useQuery({
-    queryKey: ['alocacoes-ativas', dataInicio, dataFim],
+  // Fase C — conflito funcionário/data unificado.
+  // Fonte 1 (efetivo): bd_diaria_presencas — solicitações já autorizadas/apontadas.
+  // Fonte 2 (planejado): bd_diaria_solicitacoes.convocados_pre (jsonb) — solicitações
+  // ainda em rascunho/aguardando, antes de gerarem presenças.
+  // Confirmação técnica: NÃO existe tabela bd_diaria_convocados_pre. A fonte real
+  // dos convocados planejados é a coluna jsonb bd_diaria_solicitacoes.convocados_pre.
+  // Fonte 1 — presenças EFETIVAS (com hora_entrada). Único critério de
+  // BLOQUEIO funcionário/data (paridade com fn_diaria_funcionario_elegibilidade).
+  // Regra idêntica para Normal e Extraordinária.
+  const { data: presencasConflito = [] } = useQuery({
+    queryKey: ['presencas-conflito-efetivas', dataInicio, dataFim, editingSolicitacao?.id],
     queryFn: async () => {
-      if (!dataInicio || !dataFim) return [];
-      const { data, error } = await supabase
-        .from('bd_funcionarios_alocacoes' as any)
-        .select('funcionario_id, solicitacao_id, centro_custo_id, data_inicio, data_fim')
-        .eq('status', 'ativo')
-        .lte('data_inicio', dataFim)
-        .gte('data_fim', dataInicio);
-      
+      if (!dataInicio || !dataFim) return [] as any[];
+      let q = supabase
+        .from('bd_diaria_presencas')
+        .select(`
+          funcionario_id,
+          data,
+          solicitacao_id,
+          hora_entrada,
+          bd_diaria_solicitacoes!inner (
+            numero_solicitacao,
+            status,
+            centro_custo_id,
+            bd_centros_custo ( codigo_centro_custo )
+          )
+        `)
+        .gte('data', dataInicio)
+        .lte('data', dataFim)
+        .not('hora_entrada', 'is', null)
+        .neq('bd_diaria_solicitacoes.status', 'cancelado');
+
+      if (editingSolicitacao?.id) {
+        q = q.neq('solicitacao_id', editingSolicitacao.id);
+      }
+
+      const { data, error } = await q;
       if (error) {
-        console.error('Erro ao buscar alocações:', error);
+        console.error('[Diarias] Erro ao buscar presenças efetivas de conflito:', error);
         return [];
       }
-
-      // Enrich with solicitacao number and centro custo code
-      const enriched = [];
-      for (const aloc of (data || [])) {
-        const { data: sol } = await supabase
-          .from('bd_diaria_solicitacoes')
-          .select('numero_solicitacao')
-          .eq('id', (aloc as any).solicitacao_id)
-          .maybeSingle();
-        const { data: cc } = await supabase
-          .from('bd_centros_custo')
-          .select('codigo_centro_custo')
-          .eq('id', (aloc as any).centro_custo_id)
-          .maybeSingle();
-        enriched.push({
-          ...(aloc as any),
-          numero_solicitacao: sol?.numero_solicitacao || '',
-          codigo_centro_custo: cc?.codigo_centro_custo || ''
-        });
-      }
-      return enriched;
+      return data || [];
     },
-    enabled: !!dataInicio && !!dataFim
+    enabled: !!dataInicio && !!dataFim,
   });
 
-  // Map de alocações por funcionario_id para rápido acesso
+  // Fase C — fonte planejada (status != cancelado, com período sobreposto ao do form).
+  const { data: planejadoConflito = [] } = useQuery({
+    queryKey: ['planejado-conflito', dataInicio, dataFim, editingSolicitacao?.id],
+    queryFn: async () => {
+      if (!dataInicio || !dataFim) return [] as any[];
+      let q = supabase
+        .from('bd_diaria_solicitacoes')
+        .select(`
+          id,
+          numero_solicitacao,
+          status,
+          data_inicio,
+          data_fim,
+          convocados_pre,
+          bd_centros_custo ( codigo_centro_custo )
+        `)
+        .lte('data_inicio', dataFim)
+        .gte('data_fim', dataInicio)
+        .neq('status', 'cancelado');
+
+      if (editingSolicitacao?.id) {
+        q = q.neq('id', editingSolicitacao.id);
+      }
+
+      const { data, error } = await q;
+      if (error) {
+        console.error('[Diarias] Erro ao buscar solicitações planejadas para conflito:', error);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: !!dataInicio && !!dataFim,
+  });
+
+  // Map por funcionário com 2 níveis de severidade:
+  //   - datas_bloqueio: presenças EFETIVAS (hora_entrada IS NOT NULL) na MESMA data
+  //                     em outra solicitação ativa → bloqueio duro funcionário/data.
+  //   - datas_alerta:   convocados_pre planejado em outra solicitação ativa →
+  //                     apenas alerta, NUNCA bloqueia salvar.
+  // `datas` é a união (compat com callers que ainda leem o campo agregado).
+  // Regra idêntica para Normal e Extraordinária (diferença vive em
+  // assertSolicitacaoNormalValida e na matriz Fase D, não aqui).
+  type AlocacaoConflito = {
+    numero_solicitacao: string;
+    codigo_centro_custo: string;
+    solicitacao_id: string;
+    datas_bloqueio: string[];
+    datas_alerta: string[];
+    datas: string[];
+  };
+
   const alocacoesPorFuncionario = useMemo(() => {
-    const map = new Map<string, { numero_solicitacao: string; codigo_centro_custo: string; solicitacao_id: string }>();
-    for (const aloc of alocacoesAtivas) {
-      // Excluir alocações da própria solicitação em edição
-      if (editingSolicitacao && aloc.solicitacao_id === editingSolicitacao.id) continue;
-      map.set(aloc.funcionario_id, {
-        numero_solicitacao: aloc.numero_solicitacao,
-        codigo_centro_custo: aloc.codigo_centro_custo,
-        solicitacao_id: aloc.solicitacao_id
-      });
+    const map = new Map<string, AlocacaoConflito>();
+
+    const upsert = (
+      funcId: string,
+      entry: { numero_solicitacao: string; codigo_centro_custo: string; solicitacao_id: string; datas: string[] },
+      severidade: 'bloqueio' | 'alerta',
+    ) => {
+      if (!funcId) return;
+      const existing = map.get(funcId);
+      const alvo: AlocacaoConflito = existing ?? {
+        numero_solicitacao: entry.numero_solicitacao,
+        codigo_centro_custo: entry.codigo_centro_custo,
+        solicitacao_id: entry.solicitacao_id,
+        datas_bloqueio: [],
+        datas_alerta: [],
+        datas: [],
+      };
+      const bucket = severidade === 'bloqueio' ? alvo.datas_bloqueio : alvo.datas_alerta;
+      for (const d of entry.datas) {
+        if (!bucket.includes(d)) bucket.push(d);
+      }
+      bucket.sort();
+      // Recalcula união
+      const uniao = new Set<string>([...alvo.datas_bloqueio, ...alvo.datas_alerta]);
+      alvo.datas = Array.from(uniao).sort();
+      // Bloqueio "ganha" para metadados visuais
+      if (severidade === 'bloqueio') {
+        alvo.numero_solicitacao = entry.numero_solicitacao || alvo.numero_solicitacao;
+        alvo.codigo_centro_custo = entry.codigo_centro_custo || alvo.codigo_centro_custo;
+        alvo.solicitacao_id = entry.solicitacao_id || alvo.solicitacao_id;
+      }
+      map.set(funcId, alvo);
+    };
+
+    // Helper local: enumera datas YYYY-MM-DD entre [ini, fim] inclusive (UTC, sem off-by-one).
+    const enumerar = (ini: string, fim: string): string[] => {
+      if (!ini || !fim || fim < ini) return [];
+      const out: string[] = [];
+      const d0 = new Date(`${ini}T00:00:00Z`);
+      const d1 = new Date(`${fim}T00:00:00Z`);
+      if (Number.isNaN(d0.getTime()) || Number.isNaN(d1.getTime())) return [];
+      const cursor = new Date(d0);
+      while (cursor <= d1) {
+        out.push(cursor.toISOString().slice(0, 10));
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+      return out;
+    };
+
+    // Fonte 1 — efetivo com hora_entrada (BLOQUEIO).
+    for (const p of presencasConflito as any[]) {
+      const sol = p.bd_diaria_solicitacoes;
+      if (!sol) continue;
+      upsert(
+        p.funcionario_id,
+        {
+          numero_solicitacao: sol.numero_solicitacao || '',
+          codigo_centro_custo: sol.bd_centros_custo?.codigo_centro_custo || '',
+          solicitacao_id: p.solicitacao_id,
+          datas: [p.data],
+        },
+        'bloqueio',
+      );
     }
+
+    // Fonte 2 — planejado em convocados_pre de outra solicitação (ALERTA).
+    if (dataInicio && dataFim) {
+      for (const sol of planejadoConflito as any[]) {
+        const ini = sol.data_inicio > dataInicio ? sol.data_inicio : dataInicio;
+        const fim = sol.data_fim < dataFim ? sol.data_fim : dataFim;
+        const datasIntersec = enumerar(ini, fim);
+        if (datasIntersec.length === 0) continue;
+        const arr = Array.isArray(sol.convocados_pre) ? sol.convocados_pre : [];
+        const codigo = sol.bd_centros_custo?.codigo_centro_custo || '';
+        for (const c of arr) {
+          const fid = (c as any)?.funcionario_id;
+          if (!fid) continue;
+          upsert(
+            fid,
+            {
+              numero_solicitacao: sol.numero_solicitacao || '',
+              codigo_centro_custo: codigo,
+              solicitacao_id: sol.id,
+              datas: datasIntersec,
+            },
+            'alerta',
+          );
+        }
+      }
+    }
+
     return map;
-  }, [alocacoesAtivas, editingSolicitacao]);
+  }, [presencasConflito, planejadoConflito, dataInicio, dataFim]);
 
   const diasOperacionaisResumo = useMemo(() => {
     return diasOperacionaisSelecionados.map((data) => ({
@@ -658,10 +810,21 @@ export function SolicitacaoFormModal({
     return resolvida;
   }, [centroCustoId]);
 
+  // Fase 2 — Dias laranja vindos do snapshot da própria solicitação (escopo LOCAL).
+  // Não confundir com regras GLOBAIS do calendário operacional do CC.
+  const snapshotLaranjaIniciais = useMemo(() => {
+    const datas = (editingSolicitacao as any)?.regras_operacionais_snapshot?.datas;
+    if (!datas || typeof datas !== 'object') return [] as string[];
+    return Object.entries(datas)
+      .filter(([, v]: [string, any]) => v?.ativa === true)
+      .map(([k]) => k);
+  }, [editingSolicitacao]);
+
   const carregarRegrasOperacionaisPeriodo = useCallback(async (force = false) => {
     if (!datasPeriodo.length || !centroCustoId) {
       setRegrasOperacionaisPorData({});
-      setDiasOperacionaisSelecionados([]);
+      // Fase A fix: NÃO limpar diasSolicitadosSelecionados/diasOperacionaisSelecionados aqui.
+      // São estado puro de UI; o reset correto acontece no useEffect de open/close do modal.
       setJustificativaOperacional(JUSTIFICATIVA_OPERACIONAL_PADRAO);
       setRegrasOperacionaisDirty(false);
       ultimoContextoRegrasCarregadoRef.current = null;
@@ -687,27 +850,93 @@ export function SolicitacaoFormModal({
     );
 
     const regrasMap = Object.fromEntries(regrasEntries);
-    const diasAtivos = regrasEntries
+    const diasGlobais = regrasEntries
       .filter(([, regra]) => regra?.encontrada && regra.tipoDiaOperacional === 'operacional')
       .map(([data]) => data);
     const descricaoAtiva = regrasEntries.find(([, regra]) => regra?.descricao?.trim())?.[1].descricao?.trim();
 
     setRegrasOperacionaisPorData(regrasMap);
-    setDiasOperacionaisSelecionados(diasAtivos);
-    setJustificativaOperacional(diasAtivos.length > 0 ? (descricaoAtiva || JUSTIFICATIVA_OPERACIONAL_PADRAO) : JUSTIFICATIVA_OPERACIONAL_PADRAO);
+
+    const novoContexto = ultimoContextoRegrasCarregadoRef.current !== contextoRegrasOperacionais;
+
+    // Fase A fix: ao mudar de contexto (CC/período), limpar seleções fora do novo período.
+    if (novoContexto) {
+      const diasValidos = new Set(datasPeriodo.map((d) => d.value));
+      setDiasSolicitadosSelecionados((prev) => prev.filter((d) => diasValidos.has(d)));
+      setDiasOperacionaisSelecionados((prev) => prev.filter((d) => diasValidos.has(d)));
+    }
+
+    // Fase 2 — primeira carga do contexto: seed dos laranjas é união(snapshot LOCAL ∪ globais).
+    // Snapshot LOCAL só vale para edição (vem da própria solicitação salva).
+    if (novoContexto || !regrasOperacionaisDirty) {
+      const diasValidos = new Set(datasPeriodo.map((d) => d.value));
+      const seedLocal = editingSolicitacao
+        ? snapshotLaranjaIniciais.filter((d) => diasValidos.has(d))
+        : [];
+      const uniao = Array.from(new Set<string>([...seedLocal, ...diasGlobais]));
+      setDiasOperacionaisSelecionados(uniao);
+      if (uniao.length > 0) {
+        const laranjaSet = new Set(uniao);
+        setDiasSolicitadosSelecionados((prev) => prev.filter((d) => !laranjaSet.has(d)));
+      }
+    }
+    // Fase A — back-compat: ao editar uma solicitação existente, todos os dias do período
+    // que não estão como laranja (snapshot OU global) viram "verdes" (solicitados normais).
+    if (editingSolicitacao && (novoContexto || !regrasOperacionaisDirty)) {
+      const diasValidos = new Set(datasPeriodo.map((d) => d.value));
+      const seedLocal = snapshotLaranjaIniciais.filter((d) => diasValidos.has(d));
+      const laranjaSet = new Set<string>([...seedLocal, ...diasGlobais]);
+      const verdes = datasPeriodo
+        .map((d) => d.value)
+        .filter((v) => !laranjaSet.has(v));
+      setDiasSolicitadosSelecionados(verdes);
+    }
+    // Justificativa: prioriza descrição do snapshot/global; senão, padrão.
+    const descricaoSnapshot = (editingSolicitacao as any)?.regras_operacionais_snapshot?.observacao?.trim();
+    const haLaranja = diasGlobais.length > 0 || (editingSolicitacao && snapshotLaranjaIniciais.length > 0);
+    setJustificativaOperacional(
+      haLaranja
+        ? (descricaoSnapshot || descricaoAtiva || JUSTIFICATIVA_OPERACIONAL_PADRAO)
+        : JUSTIFICATIVA_OPERACIONAL_PADRAO,
+    );
     setRegrasOperacionaisDirty(false);
     ultimoContextoRegrasCarregadoRef.current = contextoRegrasOperacionais;
-  }, [datasPeriodo, centroCustoId, contextoRegrasOperacionais, regrasOperacionaisDirty]);
+  }, [datasPeriodo, centroCustoId, contextoRegrasOperacionais, regrasOperacionaisDirty, editingSolicitacao, snapshotLaranjaIniciais]);
 
-  const alternarDiaOperacional = useCallback((data: string) => {
+  // Fase A — União dos dias solicitados para trabalho (verde + laranja).
+  // É a fonte verdadeira de "dias da solicitação" para a matriz e validações.
+  const diasSolicitadosTotais = useMemo(() => {
+    const set = new Set<string>([
+      ...diasSolicitadosSelecionados,
+      ...diasOperacionaisSelecionados,
+    ]);
+    return Array.from(set).sort();
+  }, [diasSolicitadosSelecionados, diasOperacionaisSelecionados]);
+
+  // Fase A — Ciclo de estados ao clicar no chip de um dia:
+  //   cinza (não solicitado) → verde (solicitado normal) → laranja (ponte/feriado operacional) → cinza
+  const alternarDiaPeriodo = useCallback((data: string) => {
     setRegrasOperacionaisDirty(true);
-    setDiasOperacionaisSelecionados((prev) => (
-      prev.includes(data)
-        ? prev.filter((item) => item !== data)
-        : [...prev, data]
-    ));
-  }, []);
+    const isVerde = diasSolicitadosSelecionados.includes(data);
+    const isLaranja = diasOperacionaisSelecionados.includes(data);
+    if (!isVerde && !isLaranja) {
+      // cinza → verde: defensivo, garante que data não esteja em laranja
+      setDiasOperacionaisSelecionados((prev) => prev.filter((d) => d !== data));
+      setDiasSolicitadosSelecionados((prev) => (prev.includes(data) ? prev : [...prev, data]));
+    } else if (isVerde) {
+      // verde → laranja: remove de verde, adiciona em laranja
+      setDiasSolicitadosSelecionados((prev) => prev.filter((d) => d !== data));
+      setDiasOperacionaisSelecionados((prev) => (prev.includes(data) ? prev : [...prev, data]));
+    } else {
+      // laranja → cinza: remove de ambos por segurança
+      setDiasOperacionaisSelecionados((prev) => prev.filter((d) => d !== data));
+      setDiasSolicitadosSelecionados((prev) => prev.filter((d) => d !== data));
+    }
+  }, [diasSolicitadosSelecionados, diasOperacionaisSelecionados]);
 
+  // Fase 3 (futuro) — Reservado para a ação RBAC "Aplicar ao calendário operacional do centro".
+  // NÃO chamar a partir do fluxo padrão de criação/edição: o modal de solicitação não pode mais
+  // gravar automaticamente em bd_diaria_calendario_operacional.
   const persistirRegrasOperacionaisSelecionadas = useCallback(async () => {
     if (!centroCustoId) return true;
 
@@ -825,12 +1054,38 @@ export function SolicitacaoFormModal({
         setEngenheiroSolicitanteId(editingSolicitacao.engenheiro_solicitante_id || '');
         setTipoSolicitacao(editingSolicitacao.tipo_solicitacao || 'normal');
         setJustificativaExtraordinaria(editingSolicitacao.justificativa_extraordinaria || '');
-        const convocadosRaw = editingSolicitacao.convocados_pre;
-        if (convocadosRaw && Array.isArray(convocadosRaw)) {
-          setConvocadosPre(convocadosRaw);
-        } else {
-          setConvocadosPre([]);
+        const convocadosNormalizados = derivarFuncionariosPlanos(
+          lerConvocadosPre(editingSolicitacao.convocados_pre, {
+            inicio: editingSolicitacao.data_inicio,
+            fim: editingSolicitacao.data_fim,
+          }),
+        ).map((c) => {
+          // Re-espalha `extras` no root para preservar campos legados
+          // consumidos pelo form (ex.: `usar_diaria_exclusiva`, `dias_solicitados`).
+          const { extras, ...rest } = c;
+          return { ...(extras ?? {}), ...rest };
+        });
+        setConvocadosPre(convocadosNormalizados as any);
+        // Fase E — reidrata diasPorFuncionario a partir do jsonb persistido.
+        // Se nenhum convocado tiver `dias_solicitados`, deixa vazio para que o
+        // efeito de sincronização (linhas ~1449) caia no fallback legado e
+        // popule cada funcionário com seus dias elegíveis padrão.
+        const hidratado: Record<string, string[]> = {};
+        let temDiasPersistidos = false;
+        for (const c of convocadosNormalizados as any[]) {
+          if (Array.isArray(c.dias_solicitados) && c.dias_solicitados.length > 0) {
+            hidratado[c.funcionario_id] = [...c.dias_solicitados];
+            temDiasPersistidos = true;
+            console.debug('[DIARIA][REIDRATACAO_DIAS_SOLICITADOS]', {
+              funcionario_id: c.funcionario_id,
+              dias_solicitados_do_json: c.dias_solicitados,
+              dias_aplicados_na_matriz: hidratado[c.funcionario_id],
+            });
+          }
         }
+        matrizHidratadaDaEdicaoRef.current = temDiasPersistidos;
+        contextoMatrizProntoRef.current = false;
+        setDiasPorFuncionario(temDiasPersistidos ? hidratado : {});
       } else {
         // Default da Normal: começa na primeira data válida não retroativa
         // (hoje para usuário comum quando estamos no meio da semana; segunda da semana
@@ -847,12 +1102,17 @@ export function SolicitacaoFormModal({
         setEngenheiroSolicitanteId('');
         setTipoSolicitacao('normal');
         setJustificativaExtraordinaria('');
+        setDiasPorFuncionario({});
+        matrizHidratadaDaEdicaoRef.current = false;
+        contextoMatrizProntoRef.current = false;
       }
       setStep('dados');
       setAttemptedNext(false);
       setDuplicidadeDetectada(null);
       setRegrasOperacionaisPorData({});
       setDiasOperacionaisSelecionados([]);
+      setDiasSolicitadosSelecionados([]);
+      setDiaAtivoMatriz(null);
       setJustificativaOperacional(JUSTIFICATIVA_OPERACIONAL_PADRAO);
       setRegrasOperacionaisDirty(false);
       ultimoContextoRegrasCarregadoRef.current = null;
@@ -864,8 +1124,14 @@ export function SolicitacaoFormModal({
   }, [carregarRegrasOperacionaisPeriodo]);
 
   // Verificar duplicidade por sobreposição de datas + centro de custo
+  // Regra: apenas solicitações NORMAL têm limite de 1 por CC/semana.
+  // Extraordinária pode coexistir com Normal e com outras Extraordinárias.
   useEffect(() => {
     if (!centroCustoId || !dataInicio || !dataFim || isEditing) {
+      setDuplicidadeDetectada(null);
+      return;
+    }
+    if (tipoSolicitacao === 'extraordinaria') {
       setDuplicidadeDetectada(null);
       return;
     }
@@ -874,9 +1140,10 @@ export function SolicitacaoFormModal({
         .from('bd_diaria_solicitacoes')
         .select('id, numero_solicitacao')
         .eq('centro_custo_id', centroCustoId)
+        .eq('tipo_solicitacao', 'normal')
         .lte('data_inicio', dataFim)
         .gte('data_fim', dataInicio)
-        .neq('status', 'cancelado')
+        .not('status', 'in', '(cancelado,reprovada)')
         .limit(1);
       if (data && data.length > 0) {
         setDuplicidadeDetectada({ numero_solicitacao: data[0].numero_solicitacao, id: data[0].id });
@@ -885,7 +1152,7 @@ export function SolicitacaoFormModal({
       }
     };
     checkDuplicate();
-  }, [centroCustoId, dataInicio, dataFim, isEditing]);
+  }, [centroCustoId, dataInicio, dataFim, isEditing, tipoSolicitacao]);
 
   // Get aprovador name
   // Get apontador name
@@ -968,19 +1235,65 @@ export function SolicitacaoFormModal({
       return;
     }
 
-    // Regra dura: bloqueado pela RPC de elegibilidade NUNCA passa, ignora forceAdd.
-    const eleg = elegibilidadeMap.get(funcId);
-    if (eleg?.status === 'bloqueado') {
-      toast.error(eleg.motivo || `${func.nome_completo} está bloqueado para o período.`);
-      return;
+    // Bloqueio funcionário/data — apenas presença EFETIVA (hora_entrada IS NOT NULL)
+    // em outra solicitação ativa na mesma data. Convocação planejada vira só alerta.
+    // Em Extraordinária, mesmo `datas_bloqueio` NÃO impede a inclusão na lista —
+    // vira alerta; o bloqueio real fica por célula (matriz) e por interseção no salvar.
+    const conflitoAloc = alocacoesPorFuncionario.get(funcId);
+    const isExtra = tipoSolicitacao === 'extraordinaria';
+    if (conflitoAloc && conflitoAloc.datas_bloqueio.length > 0 && !forceAdd) {
+      if (isExtra) {
+        const datasFmt = conflitoAloc.datas_bloqueio.map((d) => d.split('-').reverse().slice(0, 2).join('/')).join(', ');
+        toast.warning(
+          `${func.nome_completo} tem apontamento real em ${conflitoAloc.numero_solicitacao} (CC ${conflitoAloc.codigo_centro_custo}) nas datas ${datasFmt}. Adicionado como alerta — essas células ficam bloqueadas na matriz.`,
+          { duration: 7000 },
+        );
+        // segue o fluxo (sem return)
+      } else {
+        setConflitoPendente({
+          funcionarioId: funcId,
+          alocacao: {
+            numero_solicitacao: conflitoAloc.numero_solicitacao,
+            codigo_centro_custo: conflitoAloc.codigo_centro_custo,
+          },
+          motivo: `Datas com apontamento real em outra solicitação: ${conflitoAloc.datas_bloqueio.map((d) => d.split('-').reverse().join('/')).join(', ')}`,
+        });
+        return;
+      }
+    }
+    if (conflitoAloc && conflitoAloc.datas_alerta.length > 0 && conflitoAloc.datas_bloqueio.length === 0) {
+      toast.info(
+        `${func.nome_completo} está planejado em ${conflitoAloc.numero_solicitacao} (CC ${conflitoAloc.codigo_centro_custo}) — sem apontamento real, inclusão liberada.`,
+      );
     }
 
-    // Legacy/compat: elegivel=false sem confirmação ainda exige forceAdd.
-    if (!forceAdd && (func.elegivel === false || eleg?.status === 'alerta')) {
+    // Regra dura: bloqueado pela RPC de elegibilidade.
+    // Em Normal: NUNCA passa, ignora forceAdd.
+    // Em Extraordinária: vira alerta (geralmente vínculo semanal em outra solicitação).
+    const eleg = elegibilidadeMap.get(funcId);
+    if (eleg?.status === 'bloqueado') {
+      if (isExtra) {
+        toast.warning(
+          eleg.motivo
+            ? `${func.nome_completo}: ${eleg.motivo}. Adicionado como alerta na extraordinária.`
+            : `${func.nome_completo} sinalizado pela elegibilidade — adicionado como alerta na extraordinária.`,
+          { duration: 6000 },
+        );
+        // segue o fluxo (sem return)
+      } else {
+        toast.error(eleg.motivo || `${func.nome_completo} está bloqueado para o período.`);
+        return;
+      }
+    }
+
+    // Legacy/compat: elegivel=false sem confirmação ainda exige forceAdd em Normal.
+    // Em Extraordinária, alerta nunca bloqueia.
+    if (!forceAdd && !isExtra && (func.elegivel === false || eleg?.status === 'alerta')) {
       toast.warning(eleg?.alertaMensagem || eleg?.motivo || func.motivo_bloqueio || `${func.nome_completo} requer confirmação.`);
       return;
     }
 
+    const statusFunc: string | null = (func as any).status_funcionario ?? (func as any).status ?? null;
     const novoConvocado: FuncionarioPreConvocado = {
       funcionario_id: func.id,
       funcao_id: func.funcao_id,
@@ -990,7 +1303,9 @@ export function SolicitacaoFormModal({
       nome_funcionario: func.nome_completo,
       nome_funcao: func.bd_funcoes.nome_funcao,
       cpf: func.cpf || '',
-      matricula: func.matricula || ''
+      matricula: func.matricula || '',
+      status: statusFunc,
+      usar_diaria_exclusiva: statusFunc === 'Férias' || tipoSolicitacao === 'extraordinaria',
     };
 
     setConvocadosPre([...convocadosPre, novoConvocado]);
@@ -1015,13 +1330,20 @@ export function SolicitacaoFormModal({
     let jaExistentes = 0;
     let semFuncao = 0;
     let foraCc = 0;
+    let bloqueadosConflito = 0;
     const totalEncontrados = lista.length;
 
     for (const func of lista) {
       if (ccAlvoId && func.centro_custo_id !== ccAlvoId) { foraCc++; continue; }
       if (addedIds.has(func.id)) { jaExistentes++; continue; }
       if (!func.bd_funcoes) { semFuncao++; continue; }
+      // Bloqueio funcionário/data em lote: apenas presença EFETIVA em outra
+      // solicitação (datas_bloqueio). Alerta planejado (datas_alerta) NÃO bloqueia
+      // — funcionário entra na lista normalmente.
+      const alocLote = alocacoesPorFuncionario.get(func.id);
+      if (alocLote && alocLote.datas_bloqueio.length > 0) { bloqueadosConflito++; continue; }
 
+      const statusFunc: string | null = (func as any).status_funcionario ?? (func as any).status ?? null;
       novos.push({
         funcionario_id: func.id,
         funcao_id: func.funcao_id,
@@ -1032,12 +1354,14 @@ export function SolicitacaoFormModal({
         nome_funcao: func.bd_funcoes.nome_funcao,
         cpf: func.cpf || '',
         matricula: func.matricula || '',
+        status: statusFunc,
+        usar_diaria_exclusiva: statusFunc === 'Férias' || tipoSolicitacao === 'extraordinaria',
       });
     }
 
     if (novos.length > 0) setConvocadosPre([...convocadosPre, ...novos]);
 
-    const elegiveis = totalEncontrados - foraCc - semFuncao;
+    const elegiveis = totalEncontrados - foraCc - semFuncao - bloqueadosConflito;
     const resumo = [
       `Encontrados no CC: ${totalEncontrados - foraCc}`,
       `Elegíveis: ${elegiveis}`,
@@ -1045,14 +1369,15 @@ export function SolicitacaoFormModal({
       `Já na lista: ${jaExistentes}`,
       `Sem função: ${semFuncao}`,
     ];
+    if (bloqueadosConflito > 0) resumo.push(`Bloqueados por conflito: ${bloqueadosConflito}`);
     if (foraCc > 0) resumo.push(`Fora do CC: ${foraCc}`);
 
     const mensagem = resumo.join(' • ');
 
     if (novos.length > 0) toast.success(mensagem);
-    else if (jaExistentes > 0) toast.info(mensagem);
+    else if (jaExistentes > 0 || bloqueadosConflito > 0) toast.info(mensagem);
     else toast.warning(mensagem);
-  }, [convocadosPre]);
+  }, [convocadosPre, alocacoesPorFuncionario]);
 
   // "Adicionar por CC" — usa o cache completo paginado para superar o cap de
   // 200 da RPC. fetchTodosFuncionariosPorCC já filtra por CC e deduplica.
@@ -1103,6 +1428,24 @@ export function SolicitacaoFormModal({
     ));
   };
 
+  // Sincroniza usar_diaria_exclusiva em massa quando alterna tipo Normal ↔ Extraordinária.
+  // Extraordinária força exclusiva em todos. Voltar para Normal só desmarca quem NÃO
+  // está em Férias (Férias mantém exclusiva sempre).
+  useEffect(() => {
+    setConvocadosPre(prev => {
+      let mudou = false;
+      const next = prev.map(c => {
+        const alvo = c.status === 'Férias' || tipoSolicitacao === 'extraordinaria';
+        if ((c.usar_diaria_exclusiva ?? false) === alvo) return c;
+        mudou = true;
+        return { ...c, usar_diaria_exclusiva: alvo };
+      });
+      return mudou ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipoSolicitacao]);
+
+
   // Base histórica de presenças em FDS para refinar a estimativa de refeições
   // de fim de semana (objetivo 3). Usa apenas o ÚLTIMO sábado/domingo
   // anteriores ao período da solicitação, restrito ao CC.
@@ -1111,142 +1454,266 @@ export function SolicitacaoFormModal({
     periodoInicio: dataInicio || null,
   });
 
-  // Calculate simulação de valores
+  // Fase C — Estimativa calculada exclusivamente pelos pares funcionário × data
+  // marcados na matriz Fase B (`diasPorFuncionario`). Não usa média de FDS,
+  // não agrega por período inteiro e não conta valor para par desmarcado.
   const simulacao = useMemo(() => {
-    const base = calcularEstimativaTotal(convocadosPre, analise, consideraFdsFeriado, tipoSolicitacao, regrasOperacionaisSnapshot);
-
-    // Override de FDS quando há histórico real do CC no último FDS encontrado.
-    // A base histórica passa a alimentar TANTO as diárias FDS QUANTO as refeições FDS.
-    // Dias úteis (diárias e refeições) permanecem inalterados — vindos da lista convocada.
-    if (
-      mediaFds &&
-      mediaFds.fonte === 'ultimo_fds' &&
-      consideraFdsFeriado &&
-      convocadosPre.length > 0 &&
-      (resumoSimulacaoPeriodo.sabados > 0 ||
-        resumoSimulacaoPeriodo.domingos > 0 ||
-        resumoSimulacaoPeriodo.feriados > 0 ||
-        resumoSimulacaoPeriodo.diasOperacionais > 0)
-    ) {
-      // Fonte de valores médios: lista atual primeiro, depois cache do CC.
-      const cacheCc = centroCustoId ? funcionariosFullCcCache[centroCustoId] : undefined;
-
-      const refeicoesLista = convocadosPre.map((c) => c.valor_refeicao || 0).filter((v) => v > 0);
-      const refeicoesCc = (cacheCc || [])
-        .map((f: any) => f?.bd_funcoes?.valor_refeicao || 0)
-        .filter((v: number) => v > 0);
-      const fonteRefeicoes = refeicoesLista.length > 0 ? refeicoesLista : refeicoesCc;
-      const valorMedioRefeicao =
-        fonteRefeicoes.length > 0
-          ? fonteRefeicoes.reduce((s, n) => s + n, 0) / fonteRefeicoes.length
-          : 0;
-
-      const exclusivaLista = convocadosPre
-        .map((c) => c.valor_diaria_exclusiva || (c.valor_diaria ? c.valor_diaria * 1.2 : 0))
-        .filter((v) => v > 0);
-      const exclusivaCc = (cacheCc || [])
-        .map((f: any) => {
-          const fn = f?.bd_funcoes;
-          const ex = fn?.valor_diaria_exclusiva || 0;
-          if (ex > 0) return ex;
-          const dn = fn?.valor_diaria || 0;
-          return dn > 0 ? dn * 1.2 : 0;
-        })
-        .filter((v: number) => v > 0);
-      const fonteExclusiva = exclusivaLista.length > 0 ? exclusivaLista : exclusivaCc;
-      const valorMedioDiariaExclusiva =
-        fonteExclusiva.length > 0
-          ? fonteExclusiva.reduce((s, n) => s + n, 0) / fonteExclusiva.length
-          : 0;
-
-      // Bases por dia: usa contagem própria do dia se houver, senão a média.
-      const baseSab = mediaFds.sabadoAnteriorCount ?? mediaFds.mediaFimSemanaAnterior;
-      const baseDom = mediaFds.domingoAnteriorCount ?? mediaFds.mediaFimSemanaAnterior;
-      const baseOutrosExclusivos = mediaFds.mediaFimSemanaAnterior; // feriados/dias operacionais
-
-      if (baseSab === 0 && baseDom === 0) {
-        return {
-          ...base,
-          _fonteRefeicaoFds: 'fallback' as const,
-        } as typeof base & { _fonteRefeicaoFds?: 'ultimo_fds' | 'fallback' };
-      }
-
-      const qtdSab = resumoSimulacaoPeriodo.sabados;
-      const qtdDom = resumoSimulacaoPeriodo.domingos;
-      const qtdOutros = resumoSimulacaoPeriodo.feriados + resumoSimulacaoPeriodo.diasOperacionais;
-      const qtdDiasUteis = resumoSimulacaoPeriodo.diasUteis;
-
-      // === DIAS ÚTEIS — ISOLADO, regra original ===
-      // Não sofre nenhum ajuste pela média histórica de FDS.
-      // Replica a mesma lógica original APENAS para dias úteis:
-      //  - matrícula && tipo != 'extraordinaria' && !usar_diaria_exclusiva ⇒ bloqueado em úteis
-      //  - quem usa exclusiva paga valor_diaria_exclusiva (ou valor_diaria*1.2) também nos úteis
-      let totalDiasUteisOriginal = 0;
-      let refeicoesDiasUteisOriginal = 0;
-      for (const c of convocadosPre) {
-        const temMatricula = !!c.matricula;
-        const forcarExclusiva = (c as any).usar_diaria_exclusiva === true;
-        const bloqueado =
-          temMatricula && tipoSolicitacao !== 'extraordinaria' && !forcarExclusiva;
-        const dias = bloqueado ? 0 : qtdDiasUteis;
-        const valorDiariaUtil = forcarExclusiva
-          ? (c.valor_diaria_exclusiva || (c.valor_diaria ? c.valor_diaria * 1.2 : 0))
-          : (c.valor_diaria || 0);
-        totalDiasUteisOriginal += dias * valorDiariaUtil;
-        refeicoesDiasUteisOriginal += dias * (c.valor_refeicao || 0);
-      }
-
-      // === FDS/FERIADOS — base histórica × valor exclusiva ===
-      const totalFdsHistorico =
-        (baseSab * qtdSab + baseDom * qtdDom + baseOutrosExclusivos * qtdOutros) *
-        valorMedioDiariaExclusiva;
-
-      // === REFEIÇÕES FDS — base histórica × valor refeição ===
-      const refeicoesFdsHistorico =
-        (baseSab * qtdSab + baseDom * qtdDom + baseOutrosExclusivos * qtdOutros) *
-        valorMedioRefeicao;
-
-      const novoTotalRefeicoes = refeicoesDiasUteisOriginal + refeicoesFdsHistorico;
-      const novoTotalEstimado =
-        totalDiasUteisOriginal + totalFdsHistorico + novoTotalRefeicoes;
-
-      return {
-        ...base,
-        totalDiasUteisESabados: totalDiasUteisOriginal, // somente úteis (sábado sai daqui)
-        totalDomFeriados: totalFdsHistorico,            // sáb + dom + feriados/operacionais via histórico
-        totalRefeicoes: novoTotalRefeicoes,
-        totalEstimado: novoTotalEstimado,
-        // aliases deprecados mantidos coerentes
-        totalDiasUteis: totalDiasUteisOriginal,
-        totalFdsFeriados: totalFdsHistorico,
-        _fonteRefeicaoFds: 'ultimo_fds' as const,
-        _sabadoAnteriorCount: mediaFds.sabadoAnteriorCount,
-        _domingoAnteriorCount: mediaFds.domingoAnteriorCount,
-        _datasFdsConsideradas: mediaFds.datasConsideradas,
-        _qtdFdsUsados: mediaFds.qtdFdsUsados,
-        _fdsRecentes: mediaFds.fdsRecentes,
-      } as typeof base & {
-        _fonteRefeicaoFds?: 'ultimo_fds' | 'fallback';
-        _sabadoAnteriorCount?: number | null;
-        _domingoAnteriorCount?: number | null;
-        _datasFdsConsideradas?: { sabado: string | null; domingo: string | null };
-        _qtdFdsUsados?: number;
-        _fdsRecentes?: Array<{ sabado: string; domingo: string; qtdSab: number; qtdDom: number }>;
-      };
+    // Mescla regras operacionais locais (snapshot da solicitação) + globais (calendário do CC).
+    const regrasMerged: Record<string, { ativa: boolean }> = {};
+    for (const data of diasOperacionaisSelecionados) {
+      regrasMerged[data] = { ativa: true };
     }
-
-    return {
-      ...base,
-      _fonteRefeicaoFds: 'fallback' as const,
-    } as typeof base & { _fonteRefeicaoFds?: 'ultimo_fds' | 'fallback' };
-  }, [convocadosPre, analise, consideraFdsFeriado, tipoSolicitacao, regrasOperacionaisSnapshot, mediaFds, resumoSimulacaoPeriodo, centroCustoId, funcionariosFullCcCache]);
+    for (const [data, regra] of Object.entries(regrasOperacionaisPorData)) {
+      if (regra?.encontrada && regra.tipoDiaOperacional === 'operacional') {
+        regrasMerged[data] = { ativa: true };
+      }
+    }
+    return calcularEstimativaPorMatriz({
+      convocadosPre: convocadosPre as any,
+      diasPorFuncionario,
+      datasClassificadas: analise.datasClassificadas,
+      regrasOperacionaisPorData: regrasMerged,
+      tipoSolicitacao,
+    });
+  }, [convocadosPre, diasPorFuncionario, analise.datasClassificadas, regrasOperacionaisPorData, diasOperacionaisSelecionados, tipoSolicitacao]);
 
   // Validation
   const isExtraordinariaValida = tipoSolicitacao === 'normal' || (tipoSolicitacao === 'extraordinaria' && justificativaExtraordinaria.trim().length >= 20);
   const justificativaRetroativaOk = !isRetroativo || isEditing || justificativa.trim().length >= 20;
-  const canProceedToDados = dataInicio && dataFim && centroCustoId && periodoValidacao.valido && responsavelCampoId && engenheiroSolicitanteId && !duplicidadeDetectada && isExtraordinariaValida && justificativaRetroativaOk;
-  const canProceedToFuncionarios = convocadosPre.length > 0 && justificativa.trim().length >= minJustificativa;
-  const canSave = canProceedToDados && canProceedToFuncionarios;
+  // Fase A — exige ≥1 dia solicitado (verde ou laranja).
+  const canProceedToDados = !!dataInicio && !!dataFim && !!centroCustoId && periodoValidacao.valido && !!responsavelCampoId && !!engenheiroSolicitanteId && !duplicidadeDetectada && isExtraordinariaValida && justificativaRetroativaOk && diasSolicitadosTotais.length > 0;
+
+  // Fase D — Mapa rápido de classificação por data e regras operacionais mescladas.
+  const tipoDiaPorData = useMemo(() => {
+    const map: Record<string, 'util' | 'sabado' | 'fds' | 'feriado'> = {};
+    for (const dc of analise.datasClassificadas) map[dc.data] = dc.tipo;
+    return map;
+  }, [analise.datasClassificadas]);
+
+  const operacionalPorData = useMemo(() => {
+    const set = new Set<string>(diasOperacionaisSelecionados);
+    for (const [data, regra] of Object.entries(regrasOperacionaisPorData)) {
+      if (regra?.encontrada && regra.tipoDiaOperacional === 'operacional') set.add(data);
+    }
+    return set;
+  }, [diasOperacionaisSelecionados, regrasOperacionaisPorData]);
+
+  // Conflitos por (funcId, data) a partir de datas_bloqueio (presença real com
+  // hora_entrada IS NOT NULL). datas_alerta é apenas visual e NÃO bloqueia a
+  // célula — convocação planejada em outra solicitação ou presença sem
+  // hora_entrada continuam permitindo seleção (regra igual para normal e
+  // extraordinária).
+  const conflitosPorFuncData = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const [funcId, info] of alocacoesPorFuncionario.entries()) {
+      map.set(funcId, new Set(info.datas_bloqueio));
+    }
+    return map;
+  }, [alocacoesPorFuncionario]);
+
+  // Resolve dados de funcionário (matricula/status) preferindo cache global,
+  // caindo para snapshot do convocado quando o cache não tem o id.
+  const resolveFuncDados = useCallback((funcId: string): { matricula: string | null; status: string | null } => {
+    const f = funcionariosBusca.find((x: any) => x.id === funcId) || (funcionarios as any[]).find((x: any) => x.id === funcId);
+    if (f) {
+      return {
+        matricula: (f.matricula ?? null) as string | null,
+        status: (f.status_funcionario ?? f.status ?? null) as string | null,
+      };
+    }
+    const conv = convocadosPre.find((c) => c.funcionario_id === funcId);
+    return {
+      matricula: conv?.matricula ?? null,
+      status: (conv as any)?.status ?? null,
+    };
+  }, [funcionariosBusca, funcionarios, convocadosPre]);
+
+  // Avalia uma célula da matriz (funcionário × data) com regra centralizada.
+  const avaliarCelulaMatriz = useCallback((funcId: string, data: string): ResultadoElegibilidade => {
+    const dados = resolveFuncDados(funcId);
+    const tipoDia = tipoDiaPorData[data] ?? 'util';
+    const isOperacional = operacionalPorData.has(data);
+    const conflitoSet = conflitosPorFuncData.get(funcId);
+    const temConflito = !!conflitoSet?.has(data);
+    const eleg = elegibilidadeMap.get(funcId);
+    const bloqueadoElegibilidadeRPC = eleg?.status === 'bloqueado';
+    return avaliarCelula({
+      temMatricula: !!dados.matricula,
+      status: dados.status,
+      tipoDia,
+      isOperacional,
+      temConflito,
+      bloqueadoElegibilidadeRPC,
+      tipoSolicitacao,
+    });
+  }, [resolveFuncDados, tipoDiaPorData, operacionalPorData, conflitosPorFuncData, elegibilidadeMap, tipoSolicitacao]);
+
+  // Map por funcId → Map por data → ResultadoElegibilidade. Repassado à matriz.
+  const elegibilidadeCelulaMap = useMemo(() => {
+    const out = new Map<string, Map<string, ResultadoElegibilidade>>();
+    for (const c of convocadosPre) {
+      const inner = new Map<string, ResultadoElegibilidade>();
+      for (const data of diasSolicitadosTotais) {
+        inner.set(data, avaliarCelulaMatriz(c.funcionario_id, data));
+      }
+      out.set(c.funcionario_id, inner);
+    }
+    return out;
+  }, [convocadosPre, diasSolicitadosTotais, avaliarCelulaMatriz]);
+
+  // Dias que devem nascer marcados ao adicionar/sincronizar funcionário.
+  const getDiasElegiveisDefault = useCallback((funcId: string): string[] => {
+    return diasSolicitadosTotais.filter((d) => avaliarCelulaMatriz(funcId, d).marcarPorPadrao);
+  }, [diasSolicitadosTotais, avaliarCelulaMatriz]);
+
+
+  // Regras (Fase D):
+  //  - novo funcionário ganha por padrão somente os dias ELEGÍVEIS;
+  //  - funcionário removido sai da matriz;
+  //  - dia removido do período some da lista de cada funcionário;
+  //  - dia novo NÃO é auto-adicionado a funcionários existentes (usuário decide);
+  //  - dias presentes na lista mas que se tornaram inelegíveis (conflito, etc.) são removidos.
+  useEffect(() => {
+    // Contexto pronto = totais carregados E todas as datas resolvidas em regras operacionais.
+    // Enquanto não pronto, NÃO mexe em diasPorFuncionario (preserva hidratação da Fase E).
+    const contextoPronto =
+      diasSolicitadosTotais.length > 0 &&
+      diasSolicitadosTotais.every((d) => regrasOperacionaisPorData[d] !== undefined);
+
+    if (!contextoPronto) {
+      setDiaAtivoMatriz((prev) => (prev ?? (diasSolicitadosTotais[0] || null)));
+      return;
+    }
+    contextoMatrizProntoRef.current = true;
+
+    setDiasPorFuncionario((prev) => {
+      const next: Record<string, string[]> = {};
+      const diasSet = new Set(diasSolicitadosTotais);
+      for (const c of convocadosPre) {
+        if (c.funcionario_id in prev) {
+          // Já inicializado (manualmente, hidratado da Fase E ou recém-criado):
+          // apenas sanitiza, NÃO repopula com defaults — preserva ação do usuário.
+          const antes = prev[c.funcionario_id] ?? [];
+          const depois = antes.filter((d) => {
+            if (!diasSet.has(d)) return false;
+            const av = avaliarCelulaMatriz(c.funcionario_id, d);
+            return av.podeMarcar;
+          });
+          if (antes.length !== depois.length) {
+            console.debug('[DIARIA][SYNC_DIAS_POR_FUNCIONARIO]', {
+              funcionario_id: c.funcionario_id,
+              antes,
+              depois,
+              removidos: antes.filter((d) => !depois.includes(d)),
+              motivo_remocao: 'fora_do_periodo_ou_inelegivel',
+            });
+          }
+          next[c.funcionario_id] = depois;
+        } else {
+          // Funcionário entrando agora na matriz: aplica default elegível.
+          next[c.funcionario_id] = getDiasElegiveisDefault(c.funcionario_id);
+        }
+      }
+      return next;
+    });
+    setDiaAtivoMatriz((prev) => (prev && diasSolicitadosTotais.includes(prev) ? prev : (diasSolicitadosTotais[0] || null)));
+  }, [convocadosPre, diasSolicitadosTotais, avaliarCelulaMatriz, getDiasElegiveisDefault, regrasOperacionaisPorData]);
+
+  // Fase B — dias do período sem nenhum funcionário convocado.
+  const diasSemEquipe = useMemo(() => {
+    if (diasSolicitadosTotais.length === 0) return [];
+    const cobertos = new Set<string>();
+    for (const lista of Object.values(diasPorFuncionario)) {
+      for (const d of lista) cobertos.add(d);
+    }
+    return diasSolicitadosTotais.filter((d) => !cobertos.has(d));
+  }, [diasPorFuncionario, diasSolicitadosTotais]);
+
+  const canProceedToFuncionarios = convocadosPre.length > 0
+    && justificativa.trim().length >= minJustificativa
+    && diasSemEquipe.length === 0;
+
+  const toggleFuncionarioNoDia = useCallback((funcId: string, data: string) => {
+    // Defesa em profundidade: ignora toggle em célula inelegível.
+    const av = avaliarCelulaMatriz(funcId, data);
+    if (!av.podeMarcar) return;
+    setDiasPorFuncionario((prev) => {
+      const atual = prev[funcId] ?? [];
+      const jaMarcado = atual.includes(data);
+      // Bloqueia desmarcar o último dia: funcionário não pode ficar sem dias.
+      if (jaMarcado && atual.length === 1) {
+        toast.error(
+          "Funcionário precisa ter pelo menos um dia marcado. Para remover da solicitação, use a lixeira."
+        );
+        return prev;
+      }
+      const novo = jaMarcado ? atual.filter((d) => d !== data) : [...atual, data].sort();
+      return { ...prev, [funcId]: novo };
+    });
+  }, [avaliarCelulaMatriz]);
+
+  // Dados ricos por funcionário para o card matriz (hovercard + filtro + badges).
+  const dadosRicosPorFuncionario = useMemo(() => {
+    const out: Record<string, import("./MatrizFuncionarioData").DadosRicosFunc> = {};
+    for (const c of convocadosPre) {
+      const dados = resolveFuncDados(c.funcionario_id);
+      const alocacao = alocacoesPorFuncionario.get(c.funcionario_id) ?? null;
+      const eleg = elegibilidadeMap.get(c.funcionario_id);
+      out[c.funcionario_id] = {
+        funcao: c.nome_funcao,
+        valor_diaria: c.valor_diaria,
+        valor_diaria_exclusiva: c.valor_diaria_exclusiva || c.valor_diaria * 1.2,
+        valor_refeicao: c.valor_refeicao || 0,
+        matricula: dados.matricula,
+        status: dados.status,
+        alocacao: alocacao
+          ? {
+              codigo_centro_custo: (alocacao as any).codigo_centro_custo ?? "",
+              numero_solicitacao: (alocacao as any).numero_solicitacao ?? "",
+              severidade: (alocacao as any).datas_bloqueio?.length > 0 ? 'bloqueio' : 'alerta',
+              datas_bloqueio: (alocacao as any).datas_bloqueio ?? [],
+              datas_alerta: (alocacao as any).datas_alerta ?? [],
+            }
+          : null,
+        bloqueadoRPC: eleg?.status === "bloqueado",
+      };
+    }
+    return out;
+  }, [convocadosPre, resolveFuncDados, alocacoesPorFuncionario, elegibilidadeMap]);
+
+
+  // Fase D — Conflitos funcionário/data ainda presentes na lista atual.
+  // Pré-computado para alimentar canSave (botão desabilitado) E o submit final.
+  // Conflitos REAIS ainda presentes: somente quando o funcionário tem
+  // datas_bloqueio (presença efetiva em outra solicitação) E essas datas
+  // estão marcadas para ele na matriz da solicitação atual.
+  // Convocação planejada (datas_alerta) nunca bloqueia o salvar.
+  // Regra idêntica para Normal e Extraordinária.
+  const convocadosComConflito = useMemo(() => {
+    const out: Array<{
+      nome: string;
+      numero_solicitacao: string;
+      codigo_centro_custo: string;
+      datas: string[];
+    }> = [];
+    for (const c of convocadosPre) {
+      const aloc = alocacoesPorFuncionario.get(c.funcionario_id);
+      if (!aloc || aloc.datas_bloqueio.length === 0) continue;
+      const marcados = new Set(diasPorFuncionario[c.funcionario_id] || []);
+      const datasReais = aloc.datas_bloqueio.filter((d) => marcados.has(d));
+      if (datasReais.length === 0) continue;
+      out.push({
+        nome: c.nome_funcionario,
+        numero_solicitacao: aloc.numero_solicitacao,
+        codigo_centro_custo: aloc.codigo_centro_custo,
+        datas: datasReais,
+      });
+    }
+    return out;
+  }, [convocadosPre, alocacoesPorFuncionario, diasPorFuncionario]);
+
+  const temConflitoNaoResolvido = convocadosComConflito.length > 0;
+  const canSave = canProceedToDados && canProceedToFuncionarios && !temConflitoNaoResolvido;
   const justificativaOperacionalInvalida = diasOperacionaisSelecionados.length > 0 && justificativaOperacional.trim().length < 10;
 
   // Build form data
@@ -1265,18 +1732,35 @@ export function SolicitacaoFormModal({
     qtde_fds_estimado: resumoSimulacaoPeriodo.sabados + resumoSimulacaoPeriodo.domingos + resumoSimulacaoPeriodo.diasOperacionais,
     qtde_feriados_estimado: resumoSimulacaoPeriodo.feriados,
     valor_estimado_total: simulacao.totalEstimado,
-    convocados_pre: convocadosPre.map(c => ({
-      funcionario_id: c.funcionario_id,
-      funcao_id: c.funcao_id,
-      valor_diaria: c.valor_diaria,
-      valor_diaria_exclusiva: c.valor_diaria_exclusiva,
-      valor_refeicao: c.valor_refeicao,
-      nome_funcionario: c.nome_funcionario,
-      nome_funcao: c.nome_funcao,
-      usar_diaria_exclusiva: c.usar_diaria_exclusiva || false,
-      cpf: c.cpf,
-      matricula: c.matricula
-    })),
+    convocados_pre: convocadosPre.map(c => {
+      // Fase E — `dias_solicitados` reflete EXCLUSIVAMENTE as células marcadas
+      // na matriz Fase B/D, filtrando defensivamente:
+      //  (1) somente datas dentro do período/dias solicitados da solicitação;
+      //  (2) somente células elegíveis (defesa contra estado obsoleto);
+      //  (3) ordenadas asc e deduplicadas.
+      const setSolicitados = new Set(diasSolicitadosTotais);
+      const brutos = diasPorFuncionario[c.funcionario_id] || [];
+      const dias_solicitados = Array.from(new Set(
+        brutos.filter((d) => {
+          if (!setSolicitados.has(d)) return false;
+          const av = elegibilidadeCelulaMap.get(c.funcionario_id)?.get(d);
+          return av ? av.podeMarcar : true;
+        })
+      )).sort();
+      return {
+        funcionario_id: c.funcionario_id,
+        funcao_id: c.funcao_id,
+        valor_diaria: c.valor_diaria,
+        valor_diaria_exclusiva: c.valor_diaria_exclusiva,
+        valor_refeicao: c.valor_refeicao,
+        nome_funcionario: c.nome_funcionario,
+        nome_funcao: c.nome_funcao,
+        usar_diaria_exclusiva: c.usar_diaria_exclusiva || tipoSolicitacao === 'extraordinaria' || false,
+        cpf: c.cpf,
+        matricula: c.matricula,
+        dias_solicitados,
+      };
+    }),
     responsavel_campo_id: responsavelCampoId || undefined,
     engenheiro_solicitante_id: engenheiroSolicitanteId || undefined,
     regras_operacionais_por_data: regrasOperacionaisSnapshot
@@ -1296,8 +1780,92 @@ export function SolicitacaoFormModal({
     } catch (e) { /* silencioso */ }
   };
 
+  // Fase D — Validação dura compartilhada antes de qualquer submit.
+  // Bloqueia: (1) dias considerados = 0 → equivale a período sem datas;
+  // (2) lista de convocados vazia; (3) qualquer conflito funcionário/data
+  // não resolvido. Funcionários bloqueados por elegibilidade já são impedidos
+  // de entrar em handleAddFuncionarioById, então não chegam aqui.
+  const validarSubmitOuToast = (): boolean => {
+    if (!dataInicio || !dataFim) {
+      toast.error('Selecione um período válido para a solicitação.');
+      return false;
+    }
+    if (convocadosPre.length === 0) {
+      toast.error('Adicione ao menos um funcionário válido antes de salvar.');
+      return false;
+    }
+    if (convocadosComConflito.length > 0) {
+      const top = convocadosComConflito.slice(0, 3).map((c) => {
+        const datas = c.datas.map((d) => d.split('-').reverse().join('/')).join(', ');
+        return `${c.nome} já está em ${c.numero_solicitacao} (CC ${c.codigo_centro_custo}) nas datas ${datas}`;
+      }).join(' • ');
+      const restante = convocadosComConflito.length - 3;
+      toast.error(
+        restante > 0
+          ? `${convocadosComConflito.length} conflito(s) funcionário/data não resolvidos. ${top} • +${restante} outro(s).`
+          : `Conflito funcionário/data não resolvido: ${top}`,
+        { duration: 8000 },
+      );
+      return false;
+    }
+
+    // Fase E3 — bloqueios de coerência matriz × convocados.
+    const setSolicitados = new Set(diasSolicitadosTotais);
+    // (a) funcionário sem nenhum dia marcado.
+    for (const c of convocadosPre) {
+      const dias = (diasPorFuncionario[c.funcionario_id] || []).filter((d) => setSolicitados.has(d));
+      if (dias.length === 0) {
+        toast.error(`Funcionário "${c.nome_funcionario}" não está marcado em nenhum dia da matriz.`);
+        return false;
+      }
+    }
+    // (b) dia solicitado sem nenhum funcionário marcado.
+    for (const d of diasSolicitadosTotais) {
+      const algum = convocadosPre.some((c) => (diasPorFuncionario[c.funcionario_id] || []).includes(d));
+      if (!algum) {
+        toast.error(`Dia ${d.split('-').reverse().join('/')} não tem nenhum funcionário marcado na matriz.`);
+        return false;
+      }
+    }
+    // (c) saneamento defensivo: bloqueia se algum dia marcado for inelegível.
+    for (const c of convocadosPre) {
+      const dias = diasPorFuncionario[c.funcionario_id] || [];
+      for (const d of dias) {
+        const av = elegibilidadeCelulaMap.get(c.funcionario_id)?.get(d);
+        if (av && !av.podeMarcar) {
+          toast.error(`"${c.nome_funcionario}" tem o dia ${d.split('-').reverse().join('/')} marcado mas inelegível. Desmarque antes de salvar.`);
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  // Fase E5 — log temporário de auditoria da matriz persistida em convocados_pre.
+  const logPersistenciaConvocadosPre = (payload: SolicitacaoFormData) => {
+    const lista = (payload.convocados_pre || []) as Array<any>;
+    const totalDias = lista.reduce(
+      (acc, c) => acc + (Array.isArray(c.dias_solicitados) ? c.dias_solicitados.length : 0),
+      0,
+    );
+    const fallbackLegado = lista.length > 0 && lista.every(
+      (c) => !Array.isArray(c.dias_solicitados) || c.dias_solicitados.length === 0,
+    );
+    console.info('[DIARIA][CONVOCADOS_PRE_PERSISTENCIA]', {
+      total_convocados: lista.length,
+      total_dias_solicitados: totalDias,
+      fallback_legado: fallbackLegado,
+      amostra: lista.slice(0, 3).map((c) => ({
+        funcionario_id: c.funcionario_id,
+        nome_funcionario: c.nome_funcionario,
+        dias_solicitados: c.dias_solicitados ?? null,
+      })),
+    });
+  };
+
   // Handle save as draft
   const handleSave = async () => {
+    if (!validarSubmitOuToast()) return;
     const payload = buildFormData();
 
     console.info('[Diarias][Modal] salvar rascunho', {
@@ -1306,6 +1874,7 @@ export function SolicitacaoFormModal({
       permissions,
       payload,
     });
+    logPersistenciaConvocadosPre(payload);
 
     try {
       await onSave(payload);
@@ -1317,6 +1886,7 @@ export function SolicitacaoFormModal({
 
   // Handle save and send for authorization
   const handleSaveAndSend = async () => {
+    if (!validarSubmitOuToast()) return;
     const payload = buildFormData();
 
     console.info('[Diarias][Modal] salvar e enviar', {
@@ -1325,6 +1895,7 @@ export function SolicitacaoFormModal({
       permissions,
       payload,
     });
+    logPersistenciaConvocadosPre(payload);
 
     try {
       if (onSaveAndSend) {
@@ -1373,264 +1944,26 @@ export function SolicitacaoFormModal({
           {/* Step 1: Dados Básicos */}
           {step === 'dados' && (
             <div className="space-y-4">
-              {/* Período */}
-              <div className="space-y-2">
-                <Label>Período da Solicitação *</Label>
-                <p className="text-xs text-muted-foreground">
-                  {(tipoSolicitacao || 'normal') === 'normal' ? (
-                    <>
-                      Escolha qualquer dia da semana desejada — o sistema fixa o domingo como Data Fim.
-                      Para a semana atual, a Data Início começa em <strong>hoje</strong> (ou na primeira data válida não retroativa).
-                    </>
-                  ) : (
-                    <>Período Extraordinário: pode haver mais de uma solicitação na mesma semana e centro de custo.</>
-                  )}
-                </p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Data Início</Label>
-                    <Input
-                      type="date"
-                      value={dataInicio}
-                      min={!isSuperAdmin ? format(primeiraDataValidaNormal(new Date(), false), 'yyyy-MM-dd') : undefined}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        if (!raw) {
-                          setDataInicio('');
-                          setDataFim('');
-                          return;
-                        }
-                        const escolhida = parseISO(raw);
-                        const domingo = endOfWeek(escolhida, { weekStartsOn: 1 });
-
-                        if (isSuperAdmin) {
-                          // SuperAdm: aceita literalmente a data escolhida (mesmo retroativa).
-                          setDataInicio(format(escolhida, 'yyyy-MM-dd'));
-                          setDataFim(format(domingo, 'yyyy-MM-dd'));
-                          return;
-                        }
-
-                        // Usuário comum: snap para a mínima (hoje) se tentar retroativo.
-                        const minima = primeiraDataValidaNormal(new Date(), false);
-                        if (escolhida < minima) {
-                          toast.warning('Somente SuperAdm pode criar Solicitação de Diária retroativa.');
-                        }
-                        const inicioReal = escolhida < minima ? minima : escolhida;
-                        setDataInicio(format(inicioReal, 'yyyy-MM-dd'));
-                        setDataFim(format(endOfWeek(inicioReal, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
-                      }}
-                      disabled={isEditing}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Data Fim (Domingo)</Label>
-                    <Input
-                      type="date"
-                      value={dataFim}
-                      readOnly
-                      disabled
-                      tabIndex={-1}
-                      className="cursor-not-allowed bg-muted"
-                    />
-                  </div>
-                </div>
-                {isEditing && (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Lock className="h-3 w-3" />
-                    Período bloqueado na edição. Esta correção permite apenas ajustar responsáveis e dados da solicitação.
-                  </p>
-                )}
-               {!periodoValidacao.valido && periodoValidacao.erro && (
-                  <p className="text-sm text-destructive">{periodoValidacao.erro}</p>
-                )}
-                {isRetroativo && isSuperAdmin && !isEditing && (
-                  <div className="space-y-2 p-3 border border-amber-300 bg-amber-50 rounded-md">
-                    <div className="flex items-start gap-2">
-                      <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                      <div className="text-amber-800 text-xs">
-                        <strong>Solicitação Retroativa (SuperAdm):</strong> Você selecionou uma data anterior a hoje. Justifique abaixo (mínimo 20 caracteres).
-                      </div>
-                    </div>
-                    <Label htmlFor="justificativa-retroativa-step1" className="sr-only">
-                      Justificativa para criação retroativa
-                    </Label>
-                    <Textarea
-                      id="justificativa-retroativa-step1"
-                      value={justificativa}
-                      onChange={(e) => setJustificativa(e.target.value)}
-                      placeholder="Explique o motivo da criação retroativa desta solicitação..."
-                      rows={3}
-                    />
-                    <p className="text-xs text-amber-800">
-                      {justificativa.trim().length}/20 caracteres mínimos
-                    </p>
-                  </div>
-                )}
-               </div>
-
-              {/* Semana Calculada */}
-              {semanaCalculada && periodoValidacao.valido && (
-                <div className="flex items-center gap-3 p-3 border rounded-lg bg-primary/5 border-primary/20">
-                  <Calendar className="h-5 w-5 text-primary shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">Semana de referência</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatBrazilianDateForDisplay(semanaCalculada.data_inicio_semana)} (Seg) — {formatBrazilianDateForDisplay(semanaCalculada.data_fim_semana)} (Dom)
-                    </p>
-                  </div>
-                  <Badge variant="outline" className="text-xs">Automático</Badge>
-                </div>
-              )}
-
-              {dataInicio && dataFim && (
-                <div className="space-y-3 rounded-lg border p-3">
-                  <div>
-                    <Label>Configuração dos dias do período</Label>
-                    <p className="text-xs text-muted-foreground">Selecione os dias que devem ser tratados como feriado/ponte operacional.</p>
-                  </div>
-                  {listaDiasGerados.length > 0 ? (
-                    <>
-                      <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
-                        {listaDiasGerados.map((dia) => {
-                          const selecionado = diasOperacionaisSelecionados.includes(dia.value);
-                          return (
-                            <button
-                              key={dia.value}
-                              type="button"
-                              onClick={() => alternarDiaOperacional(dia.value)}
-                              className={cn(
-                                "flex h-11 items-center justify-center rounded-md border text-sm font-semibold transition-colors",
-                                selecionado
-                                  ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                                  : "border-border bg-muted text-foreground hover:bg-accent",
-                              )}
-                            >
-                              {dia.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="justificativa-operacional">Justificativa da alteração *</Label>
-                        <Textarea
-                          id="justificativa-operacional"
-                          value={justificativaOperacional}
-                          onChange={(e) => {
-                            setRegrasOperacionaisDirty(true);
-                            setJustificativaOperacional(e.target.value);
-                          }}
-                          placeholder={JUSTIFICATIVA_OPERACIONAL_PADRAO}
-                          rows={3}
-                          className="min-h-[88px]"
-                        />
-                        {diasOperacionaisSelecionados.length > 0 && justificativaOperacional.trim().length < 10 && (
-                          <p className="text-xs text-destructive">
-                            Informe ao menos 10 caracteres para aplicar os dias selecionados.
-                          </p>
-                        )}
-                      </div>
-                    </>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Selecione um período válido para gerar os dias automaticamente.
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Alerta de Duplicidade */}
-              {duplicidadeDetectada && (
-                <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>
-                    <p className="font-medium">Já existe uma solicitação aberta para este Centro de Custo neste período.</p>
-                    <p className="text-xs mt-1">
-                      Solicitação Nº <strong>{duplicidadeDetectada.numero_solicitacao}</strong> — Para incluir novos funcionários, utilize o Apontamento de Campo.
-                    </p>
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {/* Tipo de Solicitação */}
-              <div className="space-y-3 p-3 border rounded-lg">
-                <Label className="flex items-center gap-2">
-                  <Shield className="h-3.5 w-3.5 text-muted-foreground" />
-                  Tipo de Solicitação
-                </Label>
+              {/* Tipo de Solicitação — compacto, alinhado à direita */}
+              <div className="flex items-center justify-end gap-3">
+                <Label className="text-sm text-muted-foreground">Tipo de Solicitação</Label>
                 <RadioGroup
                   value={tipoSolicitacao}
                   onValueChange={(v) => setTipoSolicitacao(v as 'normal' | 'extraordinaria')}
-                  className="flex gap-6"
+                  className="flex gap-4"
                 >
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="normal" id="tipo-normal" />
-                    <Label htmlFor="tipo-normal" className="cursor-pointer">Normal</Label>
+                    <Label htmlFor="tipo-normal" className="cursor-pointer text-sm">Normal</Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="extraordinaria" id="tipo-extra" />
-                    <Label htmlFor="tipo-extra" className="cursor-pointer text-amber-700">Extraordinária</Label>
+                    <Label htmlFor="tipo-extra" className="cursor-pointer text-sm text-amber-700">Extraordinária</Label>
                   </div>
                 </RadioGroup>
+              </div>
 
-                {tipoSolicitacao === 'extraordinaria' && (
-                  <div className="space-y-2">
-                    <Alert className="border-amber-300 bg-amber-50">
-                      <Shield className="h-4 w-4 text-amber-600" />
-                      <AlertDescription className="text-amber-800 text-xs">
-                        Solicitações extraordinárias liberam funcionários registrados em qualquer dia e são auditadas.
-                      </AlertDescription>
-                    </Alert>
-                    <div>
-                      <Label className="text-sm">Justificativa Extraordinária <span className="text-destructive">*</span></Label>
-                      <Textarea
-                        value={justificativaExtraordinaria}
-                        onChange={(e) => setJustificativaExtraordinaria(e.target.value)}
-                        placeholder="Explique o motivo da solicitação extraordinária (mín. 20 caracteres)..."
-                        className="mt-1"
-                        rows={2}
-                      />
-                      {justificativaExtraordinaria.length > 0 && justificativaExtraordinaria.length < 20 && (
-                        <p className="text-xs text-destructive mt-1">
-                          Mínimo 20 caracteres ({justificativaExtraordinaria.length}/20)
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-              
-              {/* Indicador automático FDS/Feriados */}
-              <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
-                <div className="space-y-0.5">
-                  <Label className="text-sm font-medium">
-                    Finais de semana e feriados
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    {consideraFdsFeriado 
-                      ? 'Detectado automaticamente — FDS/feriados incluídos no cálculo'
-                      : 'Período contém apenas dias úteis — sem FDS/feriados'}
-                  </p>
-                </div>
-                <Badge variant={consideraFdsFeriado ? 'default' : 'outline'}>
-                  {consideraFdsFeriado ? 'Incluso' : 'N/A'}
-                </Badge>
-              </div>
-              
-              {/* Resumo do Período */}
-              {periodoValidacao.valido && (
-                <PeriodoResumo
-                  dataInicio={dataInicio}
-                  dataFim={dataFim}
-                  analise={analise}
-                  consideraFdsFeriado={consideraFdsFeriado}
-                />
-              )}
-              
-              {/* Aviso de Estimativa */}
-              <EstimativaAviso />
-              
-              {/* Centro de Custo + Engenheiro lado a lado */}
+              {/* Centro de Custo + Engenheiro */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Centro de Custo *</Label>
@@ -1669,31 +2002,7 @@ export function SolicitacaoFormModal({
                 </div>
               </div>
 
-              {/* Aprovador info */}
-              {selectedCentroCusto && (
-                <div className="p-3 bg-muted rounded-md space-y-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <User className="h-4 w-4 text-primary" />
-                    <span className="font-medium">Aprovador:</span>
-                    <span>
-                      {aprovadorNome || <span className="text-destructive">Não definido</span>}
-                    </span>
-                  </div>
-                  {selectedCentroCusto.aprovador_diarias_id ? (
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Check className="h-3 w-3 text-primary" />
-                      Este centro de custo tem aprovador definido
-                    </p>
-                  ) : (
-                    <p className="text-xs text-amber-600 flex items-center gap-1">
-                      <Info className="h-3 w-3" />
-                      Sem aprovador definido - qualquer administrador pode aprovar
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Apontador + Responsável lado a lado */}
+              {/* Apontador + Responsável pela Solicitação */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="flex items-center gap-2">
@@ -1725,7 +2034,7 @@ export function SolicitacaoFormModal({
                     <Lock className="h-3.5 w-3.5 text-muted-foreground" />
                     Responsável pela Solicitação
                   </Label>
-                  <div className="mt-1.5 p-3 bg-muted/50 border rounded-md flex items-center gap-2">
+                  <div className="mt-1.5 p-2.5 bg-muted/50 border rounded-md flex items-center gap-2">
                     <User className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm font-medium">
                       {usuarioLogado?.nome_completo || user?.email || 'Carregando...'}
@@ -1736,6 +2045,252 @@ export function SolicitacaoFormModal({
                   </p>
                 </div>
               </div>
+
+              {/* Data Início + Data Fim */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Data Início</Label>
+                  <Input
+                    type="date"
+                    value={dataInicio}
+                    min={!isSuperAdmin ? format(primeiraDataValidaNormal(new Date(), false), 'yyyy-MM-dd') : undefined}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (!raw) {
+                        setDataInicio('');
+                        setDataFim('');
+                        return;
+                      }
+                      const escolhida = parseISO(raw);
+                      const domingo = endOfWeek(escolhida, { weekStartsOn: 1 });
+
+                      if (isSuperAdmin) {
+                        setDataInicio(format(escolhida, 'yyyy-MM-dd'));
+                        setDataFim(format(domingo, 'yyyy-MM-dd'));
+                        return;
+                      }
+
+                      const minima = primeiraDataValidaNormal(new Date(), false);
+                      if (escolhida < minima) {
+                        toast.warning('Somente SuperAdm pode criar Solicitação de Diária retroativa.');
+                      }
+                      const inicioReal = escolhida < minima ? minima : escolhida;
+                      setDataInicio(format(inicioReal, 'yyyy-MM-dd'));
+                      setDataFim(format(endOfWeek(inicioReal, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+                    }}
+                    disabled={isEditing}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Data Fim (Domingo)</Label>
+                  <Input
+                    type="date"
+                    value={dataFim}
+                    readOnly
+                    disabled
+                    tabIndex={-1}
+                    className="cursor-not-allowed bg-muted"
+                  />
+                </div>
+              </div>
+
+              {isEditing && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Lock className="h-3 w-3" />
+                  Período bloqueado na edição. Esta correção permite apenas ajustar responsáveis e dados da solicitação.
+                </p>
+              )}
+              {!periodoValidacao.valido && periodoValidacao.erro && (
+                <p className="text-sm text-destructive">{periodoValidacao.erro}</p>
+              )}
+
+              {/* Justificativa retroativa (SuperAdm) */}
+              {isRetroativo && isSuperAdmin && !isEditing && (
+                <div className="space-y-2 p-3 border border-amber-300 bg-amber-50 rounded-md">
+                  <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                    <div className="text-amber-800 text-xs">
+                      <strong>Solicitação Retroativa (SuperAdm):</strong> Você selecionou uma data anterior a hoje. Justifique abaixo (mínimo 20 caracteres).
+                    </div>
+                  </div>
+                  <Label htmlFor="justificativa-retroativa-step1" className="sr-only">
+                    Justificativa para criação retroativa
+                  </Label>
+                  <Textarea
+                    id="justificativa-retroativa-step1"
+                    value={justificativa}
+                    onChange={(e) => setJustificativa(e.target.value)}
+                    placeholder="Explique o motivo da criação retroativa desta solicitação..."
+                    rows={3}
+                  />
+                  <p className="text-xs text-amber-800">
+                    {justificativa.trim().length}/20 caracteres mínimos
+                  </p>
+                </div>
+              )}
+
+              {/* Dias solicitados para trabalho */}
+              {dataInicio && dataFim && (
+                <div className="space-y-3 rounded-lg border p-3">
+                  <div>
+                    <Label>Dias solicitados para trabalho</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Clique para alternar: <span className="font-medium">cinza</span> = não solicitado;{' '}
+                      <span className="font-medium text-emerald-700">verde</span> = solicitado para trabalho (Sáb/Dom/Feriado também — não exige justificativa);{' '}
+                      <span className="font-medium text-amber-700">laranja tracejado</span> = configuração especial somente nesta solicitação (exige justificativa);{' '}
+                      <span className="font-medium text-amber-700">laranja sólido com globo</span> = regra do calendário operacional do centro (governança global; somente admin altera).
+                    </p>
+                  </div>
+                  {listaDiasGerados.length > 0 ? (
+                    <>
+                      <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
+                        {listaDiasGerados.map((dia) => {
+                          const isVerde = diasSolicitadosSelecionados.includes(dia.value);
+                          const isLaranja = diasOperacionaisSelecionados.includes(dia.value);
+                          const regraGlobal = regrasOperacionaisPorData[dia.value];
+                          const isLaranjaGlobal =
+                            !!(regraGlobal?.encontrada && regraGlobal.tipoDiaOperacional === 'operacional');
+                          const isLaranjaLocal = isLaranja && !isLaranjaGlobal;
+                          const diaDate = parseISO(dia.value);
+                          const dow = diaDate.getDay();
+                          const tipoNatural = dia.isFeriado
+                            ? 'Feriado'
+                            : dow === 6
+                              ? 'Sáb'
+                              : dow === 0
+                                ? 'Dom'
+                                : null;
+                          const estadoTitle = isVerde
+                            ? 'Solicitado normal'
+                            : isLaranjaGlobal
+                              ? 'Calendário operacional do centro (afeta outras solicitações)'
+                              : isLaranjaLocal
+                                ? 'Configuração especial somente nesta solicitação'
+                                : 'Não solicitado';
+                          const title = tipoNatural ? `${estadoTitle} — ${tipoNatural}` : estadoTitle;
+                          return (
+                            <button
+                              key={dia.value}
+                              type="button"
+                              onClick={() => alternarDiaPeriodo(dia.value)}
+                              title={title}
+                              className={cn(
+                                "relative flex h-11 flex-col items-center justify-center rounded-md border text-sm font-semibold transition-colors",
+                                isVerde && "border-emerald-600 bg-emerald-500 text-white shadow-sm hover:bg-emerald-600",
+                                isLaranjaGlobal && "border-amber-700 bg-amber-500 text-white shadow-sm hover:bg-amber-600",
+                                isLaranjaLocal && "border-2 border-dashed border-amber-600 bg-amber-500/85 text-white shadow-sm hover:bg-amber-600",
+                                !isVerde && !isLaranja && "border-border bg-muted text-foreground hover:bg-accent",
+                              )}
+                            >
+                              {isLaranjaGlobal && (
+                                <Globe2 className="absolute right-0.5 top-0.5 h-3 w-3 opacity-90" aria-hidden />
+                              )}
+                              <span>{dia.label}</span>
+                              {tipoNatural && <span className="text-[9px] opacity-80">{tipoNatural}</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                        <span>Solicitados (verde + laranja): <strong className="text-foreground">{diasSolicitadosTotais.length}</strong></span>
+                        <span>Normais: <strong className="text-emerald-700">{diasSolicitadosSelecionados.length}</strong></span>
+                        <span>Ponte/feriado operacional: <strong className="text-amber-700">{diasOperacionaisSelecionados.length}</strong></span>
+                      </div>
+
+                      {diasOperacionaisSelecionados.length > 0 && (
+                        <div className="space-y-2">
+                          <Label htmlFor="justificativa-operacional">Justificativa da configuração especial *</Label>
+                          <Textarea
+                            id="justificativa-operacional"
+                            value={justificativaOperacional}
+                            onChange={(e) => {
+                              setRegrasOperacionaisDirty(true);
+                              setJustificativaOperacional(e.target.value);
+                            }}
+                            placeholder={JUSTIFICATIVA_OPERACIONAL_PADRAO}
+                            rows={3}
+                            className="min-h-[88px]"
+                          />
+                          {justificativaOperacional.trim().length < 10 && (
+                            <p className="text-xs text-destructive">
+                              Informe ao menos 10 caracteres para aplicar os dias marcados como ponte/feriado operacional.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Selecione um período válido para gerar os dias automaticamente.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Justificativa Extraordinária (condicional) */}
+              {tipoSolicitacao === 'extraordinaria' && (
+                <div className="space-y-2">
+                  <Alert className="border-amber-300 bg-amber-50">
+                    <Shield className="h-4 w-4 text-amber-600" />
+                    <AlertDescription className="text-amber-800 text-xs">
+                      Solicitações extraordinárias liberam funcionários registrados em qualquer dia e são auditadas.
+                    </AlertDescription>
+                  </Alert>
+                  <div>
+                    <Label className="text-sm">Justificativa Extraordinária <span className="text-destructive">*</span></Label>
+                    <Textarea
+                      value={justificativaExtraordinaria}
+                      onChange={(e) => setJustificativaExtraordinaria(e.target.value)}
+                      placeholder="Explique o motivo da solicitação extraordinária (mín. 20 caracteres)..."
+                      className="mt-1"
+                      rows={2}
+                    />
+                    {justificativaExtraordinaria.length > 0 && justificativaExtraordinaria.length < 20 && (
+                      <p className="text-xs text-destructive mt-1">
+                        Mínimo 20 caracteres ({justificativaExtraordinaria.length}/20)
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Aprovador info */}
+              {selectedCentroCusto && (
+                <div className="p-3 bg-muted rounded-md space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <User className="h-4 w-4 text-primary" />
+                    <span className="font-medium">Aprovador:</span>
+                    <span>
+                      {aprovadorNome || <span className="text-destructive">Não definido</span>}
+                    </span>
+                  </div>
+                  {selectedCentroCusto.aprovador_diarias_id ? (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Check className="h-3 w-3 text-primary" />
+                      Este centro de custo tem aprovador definido
+                    </p>
+                  ) : (
+                    <p className="text-xs text-amber-600 flex items-center gap-1">
+                      <Info className="h-3 w-3" />
+                      Sem aprovador definido - qualquer administrador pode aprovar
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Alerta de Duplicidade */}
+              {duplicidadeDetectada && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    <p className="font-medium">Já existe uma solicitação <strong>Normal</strong> aberta para este CC nesta semana. Use Extraordinária para necessidades específicas.</p>
+                    <p className="text-xs mt-1">
+                      Solicitação Nº <strong>{duplicidadeDetectada.numero_solicitacao}</strong> — Para incluir novos funcionários na Normal, utilize o Apontamento de Campo.
+                    </p>
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
           )}
 
@@ -1756,112 +2311,46 @@ export function SolicitacaoFormModal({
                 isSearching={isFetchingFuncionarios}
                 elegibilidadeMap={elegibilidadeMap}
                 totalFuncionariosPorCentroOverride={totalFuncionariosPorCentroOverride}
+                tipoSolicitacao={tipoSolicitacao}
               />
 
-              {/* Meio: lista com scroll isolado */}
+              {/* Lista única: card "Equipe por dia" */}
               {convocadosPre.length === 0 ? (
                 <Alert>
                   <AlertDescription>
                     Nenhum funcionário adicionado. Selecione ao menos um funcionário para prosseguir.
                   </AlertDescription>
                 </Alert>
+              ) : diasSolicitadosTotais.length === 0 ? (
+                <Alert>
+                  <AlertDescription>
+                    Selecione pelo menos um dia no período para visualizar a matriz de equipe.
+                  </AlertDescription>
+                </Alert>
               ) : (
-                <ScrollArea className="h-[280px] border rounded-md">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Funcionário</TableHead>
-                        <TableHead>Função</TableHead>
-                        <TableHead className="text-right">Diária</TableHead>
-                        <TableHead className="text-right">FDS/Fer</TableHead>
-                        <TableHead className="text-right">Refeição</TableHead>
-                        <TableHead className="text-center">D/Férias</TableHead>
-                        <TableHead className="w-[50px]"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {convocadosPre.map((conv) => {
-                        const funcData = funcionarios.find((f: any) => f.id === conv.funcionario_id);
-                        const temMatricula = !!funcData?.matricula;
-                        const alocacao = alocacoesPorFuncionario.get(conv.funcionario_id);
-                        // Remessa bloqueado: tem matrícula, período tem dias úteis, sem D/Férias, solicitação normal
-                        const remessaBloqueado = false; // Removed visual blocking per user request
-                        const detalheSimulacao = simulacao.detalhePorFuncionario.find(d => d.funcionario_id === conv.funcionario_id);
-                        
-                        return (
-                        <TableRow key={conv.funcionario_id}>
-                          <TableCell className="text-xs">
-                            <div className="flex flex-col gap-0.5">
-                              <span>{conv.nome_funcionario}</span>
-                              <div className="flex gap-1 flex-wrap">
-                                {temMatricula && (
-                                  <Badge variant="outline" className="text-[10px] px-1 py-0 border-amber-400 text-amber-700">
-                                    Remessa
-                                  </Badge>
-                                )}
-                                {remessaBloqueado && (
-                                  <Badge variant="destructive" className="text-[10px] px-1 py-0">
-                                    🚫 Não elegível p/ dias úteis
-                                  </Badge>
-                                )}
-                                {alocacao && (
-                                  <Badge variant="destructive" className="text-[10px] px-1 py-0">
-                                    Convocado: {alocacao.codigo_centro_custo} — {alocacao.numero_solicitacao}
-                                  </Badge>
-                                )}
-                                {!remessaBloqueado && temDiasUteis && temMatricula && conv.usar_diaria_exclusiva && (
-                                  <span className="text-[10px] text-amber-600 flex items-center gap-0.5">
-                                    <AlertTriangle className="h-3 w-3" /> D/Férias ativado
-                                  </span>
-                                )}
-                                {diasOperacionaisSelecionados.length > 0 && (
-                                  <span className="text-[10px] text-primary flex items-center gap-0.5">
-                                    <Calendar className="h-3 w-3" /> Feriado/ponte operacional no período
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-xs">{conv.nome_funcao}</TableCell>
-                          <TableCell className="text-right text-xs">
-                            {formatCurrency(conv.valor_diaria)}
-                          </TableCell>
-                          <TableCell className="text-right text-xs">
-                            {formatCurrency(conv.valor_diaria_exclusiva || conv.valor_diaria * 1.2)}
-                          </TableCell>
-                          <TableCell className="text-right text-xs">
-                            {formatCurrency(conv.valor_refeicao || 0)}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Checkbox
-                              checked={conv.usar_diaria_exclusiva || false}
-                              onCheckedChange={(checked) => handleTipoDiariaChange(conv.funcionario_id, !!checked)}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleRemoveFuncionario(conv.funcionario_id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </ScrollArea>
+                <MatrizFuncionarioData
+                  convocados={convocadosPre}
+                  diasSolicitados={diasSolicitadosTotais}
+                  diasVerdes={diasSolicitadosSelecionados}
+                  diasLaranjas={diasOperacionaisSelecionados}
+                  diasPorFuncionario={diasPorFuncionario}
+                  diaAtivo={diaAtivoMatriz}
+                  onChangeDiaAtivo={setDiaAtivoMatriz}
+                  onToggle={toggleFuncionarioNoDia}
+                  onRemover={handleRemoveFuncionario}
+                  diasSemEquipe={diasSemEquipe}
+                  elegibilidadeCelulaMap={elegibilidadeCelulaMap}
+                  dadosRicosPorFuncionario={dadosRicosPorFuncionario}
+                />
               )}
 
               {/* Baixo fixo: Simulação + Justificativa */}
               {convocadosPre.length > 0 && (
                 <SimulacaoValores
                   simulacao={simulacao}
-                  diasUteis={resumoSimulacaoPeriodo.diasUteis}
-                  diasFds={resumoSimulacaoPeriodo.diasExclusivos}
-                  diasParaRefeicao={resumoSimulacaoPeriodo.diasParaRefeicao}
+                  diasUteis={simulacao.diasNormaisCount}
+                  diasFds={simulacao.diasExclusivosCount}
+                  diasParaRefeicao={simulacao.diasRefeicaoCount}
                 />
               )}
 
@@ -1901,13 +2390,23 @@ export function SolicitacaoFormModal({
 
           {/* Step 3: Revisão */}
           {step === 'revisao' && (
-            <div className="space-y-4">
+            <div className="space-y-5">
+              {/* Bloco principal estilo PDF */}
               <Card>
-                <CardContent className="pt-4 space-y-3">
-                  <div className="grid grid-cols-2 gap-4">
+                <CardContent className="pt-5 space-y-5">
+                  {/* Linha 1 */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <Label className="text-muted-foreground">Período</Label>
-                      <p className="font-medium">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Centro de Custo</p>
+                      <p className="text-sm font-medium text-foreground mt-1">
+                        {selectedCentroCusto
+                          ? `${selectedCentroCusto.codigo_centro_custo} - ${selectedCentroCusto.nome_centro_custo}`
+                          : '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Período</p>
+                      <p className="text-sm font-medium text-foreground mt-1">
                         {formatBrazilianDateForDisplay(dataInicio)}
                         {dataFim !== dataInicio && (
                           <> → {formatBrazilianDateForDisplay(dataFim)}</>
@@ -1915,143 +2414,79 @@ export function SolicitacaoFormModal({
                       </p>
                     </div>
                     <div>
-                      <Label className="text-muted-foreground">Centro de Custo</Label>
-                      <p className="font-medium">
-                        {selectedCentroCusto?.codigo_centro_custo} - {selectedCentroCusto?.nome_centro_custo}
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Solicitante</p>
+                      <p className="text-sm font-medium text-foreground mt-1">
+                        {usuarioLogado?.nome_completo || user?.email || '—'}
                       </p>
                     </div>
                   </div>
-                  
-                  <div className="grid grid-cols-4 gap-4">
+
+                  {/* Linha 2 */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <Label className="text-muted-foreground">Seg-Sex</Label>
-                      <p className="font-medium">{resumoSimulacaoPeriodo.diasUteis}</p>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground">Sábados</Label>
-                      <p className="font-medium">{resumoSimulacaoPeriodo.sabados}</p>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground">Domingos</Label>
-                      <p className="font-medium">{resumoSimulacaoPeriodo.domingos}</p>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground">Feriados</Label>
-                      <p className="font-medium">{resumoSimulacaoPeriodo.feriados + resumoSimulacaoPeriodo.diasOperacionais}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="text-muted-foreground">Considera FDS/Feriados</Label>
-                      <Badge variant={consideraFdsFeriado ? 'default' : 'outline'}>
-                        {consideraFdsFeriado ? 'Sim' : 'Não'}
-                      </Badge>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground">Aprovador</Label>
-                      <p className="font-medium">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Aprovador do CC</p>
+                      <p className="text-sm font-medium text-foreground mt-1">
                         {aprovadorNome || 'Não definido (qualquer admin)'}
                       </p>
                     </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-muted-foreground">Responsável</Label>
-                      <p className="font-medium">
-                        {usuarioLogado?.nome_completo || user?.email || '-'}
-                      </p>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground">Apontador</Label>
-                      <p className="font-medium">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Responsável em Campo</p>
+                      <p className="text-sm font-medium text-foreground mt-1">
                         {apontadorNome || 'Não definido'}
                       </p>
                     </div>
-                  </div>
-                  
-                  <div>
-                    <Label className="text-muted-foreground">Justificativa</Label>
-                    <p className="text-sm">{justificativa}</p>
-                  </div>
-
-                  {diasOperacionaisResumo.length > 0 && (
-                    <div className="space-y-3 border-t pt-3">
-                      <div>
-                        <Label className="text-muted-foreground">Dias operacionais do período</Label>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {diasOperacionaisResumo.map((item) => (
-                            <Badge key={item.data} variant="secondary" className="text-xs">
-                              {formatBrazilianDateForDisplay(item.data)}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label className="text-muted-foreground">Classificação</Label>
-                          <p className="font-medium">Feriado / ponte operacional</p>
-                        </div>
-                        <div>
-                          <Label className="text-muted-foreground">Observação</Label>
-                          <p className="text-sm">{justificativaOperacional.trim()}</p>
-                        </div>
-                      </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Considera FDS/Feriados</p>
+                      <p className="text-sm font-medium text-foreground mt-1">
+                        {consideraFdsFeriado ? 'Sim' : 'Não'}
+                      </p>
                     </div>
-                  )}
+                  </div>
+
+                  {/* Mini-cards de contagem */}
+                  <div className="grid grid-cols-4 gap-3 pt-1">
+                    {[
+                      { label: 'Seg-Sex', value: resumoSimulacaoPeriodo.diasUteis },
+                      { label: 'Sábados', value: resumoSimulacaoPeriodo.sabados },
+                      { label: 'Domingos', value: resumoSimulacaoPeriodo.domingos },
+                      { label: 'Feriados', value: resumoSimulacaoPeriodo.feriados + resumoSimulacaoPeriodo.diasOperacionais },
+                    ].map((c) => (
+                      <div key={c.label} className="rounded-lg border bg-muted/30 p-3 text-center">
+                        <p className="text-2xl font-bold text-foreground leading-none">{c.value}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{c.label}</p>
+                      </div>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardContent className="pt-4">
-                  <Label className="text-muted-foreground mb-2 block">
-                    Funcionários Convocados ({convocadosPre.length})
-                  </Label>
-                  <Table>
-                    <TableHeader>
-                    <TableRow>
-                        <TableHead>Funcionário</TableHead>
-                        <TableHead>Função</TableHead>
-                        <TableHead className="text-right">Diária</TableHead>
-                        <TableHead className="text-right">FDS/Fer</TableHead>
-                        <TableHead className="text-right">Refeição</TableHead>
-                        <TableHead className="text-center">D/Férias</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {convocadosPre.map((conv) => (
-                        <TableRow key={conv.funcionario_id}>
-                          <TableCell>{conv.nome_funcionario}</TableCell>
-                          <TableCell>{conv.nome_funcao}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(conv.valor_diaria)}</TableCell>
-                          <TableCell className="text-right">
-                            {formatCurrency(conv.valor_diaria_exclusiva || conv.valor_diaria * 1.2)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {formatCurrency(conv.valor_refeicao || 0)}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {conv.usar_diaria_exclusiva && (
-                              <Badge variant="default" className="text-xs">D/Férias</Badge>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
+              {/* Justificativa */}
+              <div className="space-y-2">
+                <p className="text-sm font-bold tracking-wide text-foreground">JUSTIFICATIVA</p>
+                <div className="h-0.5 bg-primary" />
+                <div className="rounded-md border bg-muted/20 p-3 text-sm text-foreground">
+                  {justificativa?.trim() ? justificativa : 'Não informado.'}
+                </div>
+              </div>
 
-              {/* Valor Total Estimado */}
+              {/* Funcionários Convocados */}
+              <div className="space-y-2">
+                <p className="text-sm font-bold tracking-wide text-foreground">
+                  FUNCIONÁRIOS CONVOCADOS ({convocadosPre.length})
+                </p>
+                <div className="h-0.5 bg-primary" />
+                <p className="text-xs text-muted-foreground">
+                  A lista detalhada foi definida na etapa Funcionários.
+                </p>
+              </div>
+
+              {/* Simulação de Valores (mantida — sem alteração de cálculo) */}
               <SimulacaoValores
                 simulacao={simulacao}
-                diasUteis={resumoSimulacaoPeriodo.diasUteis}
-                diasFds={resumoSimulacaoPeriodo.diasExclusivos}
-                diasParaRefeicao={resumoSimulacaoPeriodo.diasParaRefeicao}
+                diasUteis={simulacao.diasNormaisCount}
+                diasFds={simulacao.diasExclusivosCount}
+                diasParaRefeicao={simulacao.diasRefeicaoCount}
               />
-              
-              <EstimativaAviso />
             </div>
           )}
         </div>
@@ -2072,38 +2507,45 @@ export function SolicitacaoFormModal({
           </Button>
           
           {step === 'dados' && (
-            <Button 
-              onClick={async () => {
+            <Button
+              onClick={() => {
                 setAttemptedNext(true);
                 if (!canProceedToDados || justificativaOperacionalInvalida) return;
-                console.info('[Diarias][Modal] avançando para funcionários', {
+                // Fase 1 — NÃO persistir mais em bd_diaria_calendario_operacional aqui.
+                // O laranja é local da solicitação e vai no regras_operacionais_snapshot via buildFormData.
+                console.info('[Diarias][Modal] avançando para funcionários (sem gravar calendário global)', {
                   centroCustoId,
                   dataInicio,
                   dataFim,
                   diasOperacionaisSelecionados,
                 });
-                const persisted = await persistirRegrasOperacionaisSelecionadas();
-                if (persisted) setStep('funcionarios');
+                setStep('funcionarios');
               }}
-              disabled={isSavingRegrasOperacionais}
             >
-              {isSavingRegrasOperacionais && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Próximo
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           )}
+
           
           {step === 'funcionarios' && (
-            <Button 
-              onClick={() => {
-                // Cálculo financeiro silencioso: remessa com dias úteis zerados automaticamente
-                setStep('revisao');
-              }}
-              disabled={!canProceedToFuncionarios}
-            >
-              Próximo
-              <ChevronRight className="h-4 w-4 ml-1" />
-            </Button>
+            <div className="flex flex-col items-end gap-1">
+              <Button
+                onClick={() => {
+                  setStep('revisao');
+                }}
+                disabled={!canProceedToFuncionarios}
+              >
+                Próximo
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+              {diasSemEquipe.length > 0 && (
+                <span className="text-[11px] text-destructive">
+                  Sem equipe em {diasSemEquipe[0].split('-').reverse().join('/')}
+                  {diasSemEquipe.length > 1 ? ` (+${diasSemEquipe.length - 1})` : ''}
+                </span>
+              )}
+            </div>
           )}
           
           {step === 'revisao' && (

@@ -58,6 +58,12 @@ Deno.serve(async (req) => {
     const origem = String(body.origem || "");
     const descriptor = body.descriptor;
     const fotoB64 = body.foto_base64 ? String(body.foto_base64) : null;
+    // Fase 5 M4: qualidade_score (opcional, modo aviso). Aceita number 0..1; senão NULL.
+    const qualidadeRaw = body.qualidade_score;
+    const qualidade_score: number | null =
+      typeof qualidadeRaw === "number" && qualidadeRaw >= 0 && qualidadeRaw <= 1
+        ? qualidadeRaw
+        : null;
 
     if (!Array.isArray(descriptor) || descriptor.length !== 128) {
       return json({ error: "descriptor_invalido" }, 400);
@@ -154,6 +160,7 @@ Deno.serve(async (req) => {
         status_validacao: "aprovado",
         validado_por_user_id: cadastrado_por_user_id,
         validado_em: nowIso,
+        qualidade_score,
       })
       .select("id")
       .single();

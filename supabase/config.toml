@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.fix-empty-rbac-roles]
 verify_jwt = false
+
+[functions.ponto-diaria-shadow]
+verify_jwt = false

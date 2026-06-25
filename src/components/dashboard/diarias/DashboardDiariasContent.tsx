@@ -36,7 +36,7 @@ export default function DashboardDiariasContent({ filters }: DashboardDiariasCon
       {/* 3b. Tabela executiva de Centros de Custo (largura total) */}
       <DiariasRankingCentrosCusto filters={filters} />
 
-      {/* 3c. Evolução mensal do gasto total */}
+      {/* 3d. Evolução mensal do gasto total */}
       <DiariasEvolucaoMensalChart filters={filters} />
 
       {/* 4. Resumo Financeiro por Tipo de Dia (alinhado ao PDF) */}

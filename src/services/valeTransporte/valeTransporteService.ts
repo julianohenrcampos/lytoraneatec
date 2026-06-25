@@ -2,18 +2,20 @@ import { supabase } from '@/integrations/supabase/client';
 import { ValeTransporteStepData } from '@/components/agendamento-exames/vale-transporte/ValeTransporteStep';
 
 const BUCKET = 'documentos-rh';
+const BUCKET_ANEXOS = 'exames_agendamentos';
 
 interface DocumentoInfo {
   nome: string;
   path: string;
   tipo: 'pdf' | 'imagem';
+  bucket?: string;
 }
 
-function normalizePath(path: string): string {
+function normalizePath(path: string, bucket: string = BUCKET): string {
   if (path.startsWith('http')) {
     const match = path.match(/\/object\/(?:public|sign)\/[^/]+\/(.+)/);
     if (match) return decodeURIComponent(match[1]);
-    const bucketMatch = path.match(new RegExp(`${BUCKET}/(.+)`));
+    const bucketMatch = path.match(new RegExp(`${bucket}/(.+)`));
     if (bucketMatch) return decodeURIComponent(bucketMatch[1]);
   }
   return path;
@@ -115,6 +117,7 @@ export const valeTransporteService = {
               nome: df.label(tipo),
               path: url,
               tipo: isImage ? 'imagem' : 'pdf',
+              bucket: BUCKET,
             });
           }
         }
@@ -134,6 +137,7 @@ export const valeTransporteService = {
           nome: anexo.arquivo_nome || 'Anexo',
           path: anexo.arquivo_path,
           tipo: isImage ? 'imagem' : 'pdf',
+          bucket: BUCKET_ANEXOS,
         });
       }
     }
@@ -141,10 +145,10 @@ export const valeTransporteService = {
     return docs;
   },
 
-  async downloadBlob(path: string): Promise<Blob> {
-    const normalizedPath = normalizePath(path);
+  async downloadBlob(path: string, bucket: string = BUCKET): Promise<Blob> {
+    const normalizedPath = normalizePath(path, bucket);
     const { data, error } = await supabase.storage
-      .from(BUCKET)
+      .from(bucket)
       .download(normalizedPath);
     if (error) throw error;
     return data;

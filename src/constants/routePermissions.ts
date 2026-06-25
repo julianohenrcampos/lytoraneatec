@@ -22,7 +22,12 @@ export const ROUTE_PERMISSIONS = {
   '/gestao-rh/funcoes': ['gestao_rh_funcoes_view'],
   '/gestao-rh/funcionarios': ['gestao_rh_funcionarios_view'],
   '/gestao-rh/equipes': ['gestao_rh_equipes_view'],
-  '/gestao-rh/desligamentos': ['gestao_rh_funcionarios_view'],
+  '/gestao-rh/desligamentos': [
+    'gestao_rh_funcionarios_view', // compatibilidade transitória
+    'gestao_rh_desligamentos_view',
+    'gestao_rh_solicitacoes_desligamento_view',
+    'gestao_rh_solicitacoes_transferencia_view',
+  ],
   '/gestao-rh/arquivo-morto': ['gestao_rh_arquivo_morto_view'],
 
   // Veículos / Equipamentos
@@ -52,6 +57,8 @@ export const ROUTE_PERMISSIONS = {
   '/requisicoes/diarias/apontamento-campo': ['diarias_apontamento_view'],
   '/requisicoes/diarias/relatorio': ['diarias_relatorio_view'],
   '/gestao-aprovacoes-diarias': ['acesso_gestao_aprovacoes'],
+  // Shadow audit: gate sintético — apenas SuperAdmin passa pelo SecureRouteGuard.
+  '/requisicoes/diarias/auditoria-ponto-shadow': ['__superadmin_only__'],
 
   // SSO
   '/sso/checklists': ['acesso_sso_checklists'],

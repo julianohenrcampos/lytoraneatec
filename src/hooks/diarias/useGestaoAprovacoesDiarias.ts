@@ -3,8 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { usePermission } from '@/hooks/usePermission';
 import { hasRole } from '@/utils/roleUtils';
+import { useDiariasDataScope } from '@/hooks/diarias/useDiariasDataScope';
 
-export type GestaoFluxoRole = 'superadmin' | 'gerente_adm' | 'diretor_operacional' | 'diretor_adm' | 'viewer';
+export type GestaoFluxoRole = 'superadmin' | 'gerente_adm' | 'gerente_regional' | 'diretor_operacional' | 'diretor_adm' | 'viewer';
 
 export interface GestaoAprovacoesFiltros {
   centro_custo_id?: string;
@@ -57,6 +58,7 @@ const STATUS_FLUXO_ATIVOS = [
 
 export function useGestaoAprovacoesDiarias(filtros: GestaoAprovacoesFiltros) {
   const { userId, isSuperAdmin, isLoading: isLoadingPerms } = usePermission();
+  const dataScope = useDiariasDataScope();
   const [userFluxoRole, setUserFluxoRole] = useState<GestaoFluxoRole>('viewer');
   const [roleLoading, setRoleLoading] = useState(true);
 
@@ -86,17 +88,27 @@ export function useGestaoAprovacoesDiarias(filtros: GestaoAprovacoesFiltros) {
           console.debug('[DIARIAS][APROVACOES][ROLES_DETECTADAS]', { userId, roleNames });
         }
 
+        let resolved: GestaoFluxoRole;
         if (hasRole(roleNames, 'DiretorAdm')) {
-          setUserFluxoRole('diretor_adm');
+          resolved = 'diretor_adm';
         } else if (hasRole(roleNames, 'DiretorOperacional')) {
-          setUserFluxoRole('diretor_operacional');
+          resolved = 'diretor_operacional';
         } else if (hasRole(roleNames, 'GerenteAdm')) {
-          setUserFluxoRole('gerente_adm');
+          resolved = 'gerente_adm';
+        } else if (hasRole(roleNames, 'GerenteRegional')) {
+          // D1 Fase 1: GerenteRegional atua na mesma etapa do GerenteAdm,
+          // restrito ao escopo operacional (centro de custo).
+          resolved = 'gerente_regional';
         } else {
           // Sem fallback para profiles.funcoes — RBAC (bd_user_roles) é fonte única.
-          // Se o usuário não tem role de fluxo (Diretor/Gerente), trata como viewer.
-          setUserFluxoRole('viewer');
+          resolved = 'viewer';
         }
+
+        if (import.meta.env.DEV) {
+          console.debug('[AUDIT][gestao-aprovacoes:role]', { userId, roleNames, userFluxoRole: resolved });
+        }
+
+        setUserFluxoRole(resolved);
       } catch {
         setUserFluxoRole('viewer');
       } finally {
@@ -111,15 +123,34 @@ export function useGestaoAprovacoesDiarias(filtros: GestaoAprovacoesFiltros) {
   const autoStatusFilter = useMemo(() => {
     switch (userFluxoRole) {
       case 'gerente_adm': return 'aguardando_aprovacao_gerenteadm';
+      case 'gerente_regional': return 'aguardando_aprovacao_gerenteadm'; // D1 Fase 1
       case 'diretor_operacional': return 'aguardando_aprovacao_diretor_operacional';
       case 'diretor_adm': return 'aguardando_aprovacao_diretor_adm';
       default: return null; // superadmin/viewer see all
     }
   }, [userFluxoRole]);
 
+  // D1 Fase 3: escopo do GerenteRegional (restrito por CC).
+  const isEscopoRestrito =
+    userFluxoRole === 'gerente_regional' &&
+    dataScope.userScope === 'gerente' &&
+    dataScope.centrosCustoGerenciados.length > 0;
+  const escopoCcIds = isEscopoRestrito ? dataScope.centrosCustoGerenciados : [];
+  const escopoKey = escopoCcIds.join('|');
+
+  if (import.meta.env.DEV && userFluxoRole === 'gerente_regional' && !dataScope.isLoading) {
+    console.debug('[AUDIT][gestao-aprovacoes:scope]', {
+      userScope: dataScope.userScope,
+      ccCount: escopoCcIds.length,
+      sample: escopoCcIds.slice(0, 3),
+      isEscopoRestrito,
+    });
+  }
+
+
   // Main query
   const queryResult = useQuery({
-    queryKey: ['gestao-aprovacoes-diarias', filtros, autoStatusFilter, userFluxoRole],
+    queryKey: ['gestao-aprovacoes-diarias', filtros, autoStatusFilter, userFluxoRole, escopoKey],
     queryFn: async () => {
       let query = supabase
         .from('bd_diaria_solicitacoes')
@@ -145,6 +176,11 @@ export function useGestaoAprovacoesDiarias(filtros: GestaoAprovacoesFiltros) {
       // Auto filter by role (non-superadmin)
       if (autoStatusFilter && !filtros.status_fluxo) {
         query = query.eq('status_fluxo', autoStatusFilter);
+      }
+
+      // D1 Fase 3: escopo do GerenteRegional restringe por CC.
+      if (isEscopoRestrito) {
+        query = query.in('centro_custo_id', escopoCcIds);
       }
 
       // UI filters
@@ -187,8 +223,9 @@ export function useGestaoAprovacoesDiarias(filtros: GestaoAprovacoesFiltros) {
         profiles: item.criado_por ? { id: item.criado_por, nome_completo: profilesMap[item.criado_por] || '-' } : null,
       })) as SolicitacaoGestao[];
     },
-    enabled: !roleLoading && !isLoadingPerms,
+    enabled: !roleLoading && !isLoadingPerms && !dataScope.isLoading,
   });
+
 
   // KPIs from ALL data (separate query without UI filters for accurate counts)
   const kpisQuery = useQuery({
@@ -225,20 +262,27 @@ export function useGestaoAprovacoesDiarias(filtros: GestaoAprovacoesFiltros) {
 
   // Filter options
   const centrosCustoQuery = useQuery({
-    queryKey: ['gestao-aprovacoes-ccs'],
+    queryKey: ['gestao-aprovacoes-ccs', escopoKey],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from('bd_centros_custo')
         .select('id, codigo_centro_custo, nome_centro_custo')
         .eq('situacao', 'Ativo')
         .order('codigo_centro_custo');
+      // D1 Fase 3: combo restrito ao escopo do GerenteRegional.
+      if (isEscopoRestrito) {
+        q = q.in('id', escopoCcIds);
+      }
+      const { data, error } = await q;
       if (error) throw error;
       return (data || []).map(cc => ({
         value: cc.id,
         label: `${cc.codigo_centro_custo} - ${cc.nome_centro_custo}`,
       }));
     },
+    enabled: !roleLoading && !isLoadingPerms && !dataScope.isLoading,
   });
+
 
   const solicitantesQuery = useQuery({
     queryKey: ['gestao-aprovacoes-solicitantes'],

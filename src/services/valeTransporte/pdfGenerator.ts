@@ -50,6 +50,8 @@ interface BeneficiarioData {
   motivo: string;
   data_solicitacao: string;
   logoBase64?: string;
+  /** Quando definido, substitui o título "SOLICITAÇÃO DE 1ª VIA DE VALE TRANSPORTE". */
+  tituloOverride?: string;
 }
 
 interface NaoBeneficiarioData {
@@ -99,8 +101,8 @@ export async function gerarPdfBeneficiario(dados: BeneficiarioData): Promise<voi
     } catch (e) { console.warn('Erro ao embutir logo no PDF VT:', e); }
   }
 
-  // Título centralizado
-  const titulo = 'SOLICITAÇÃO DE 1ª VIA DE VALE TRANSPORTE';
+  // Título centralizado (parametrizável)
+  const titulo = dados.tituloOverride || 'SOLICITAÇÃO DE 1ª VIA DE VALE TRANSPORTE';
   const tituloW = fontBold.widthOfTextAtSize(titulo, 12);
   drawText(titulo, (595 - tituloW) / 2, 800, 12, true);
 
@@ -183,7 +185,7 @@ export async function gerarPdfBeneficiario(dados: BeneficiarioData): Promise<voi
 
   y -= SPACING_LINE;
   for (let i = 0; i < 4; i++) {
-    const linha = dados.linhas[i] || { nome: '', numero: '', tarifa: 0, operadora: 'Jaé' };
+    const linha = dados.linhas[i] || { nome: '', numero: '', tarifa: 0, operadora: '' as any };
 
     drawText(`LINHA ${i + 1}:`, 50, y, 9, true);
     drawLine(100, y - 5, 230, y - 5);
@@ -266,7 +268,10 @@ export async function gerarPdfBeneficiario(dados: BeneficiarioData): Promise<voi
 
   const pdfBytes = await pdfDoc.save();
   const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
-  saveAs(blob, `VT_${dados.nome.replace(/\s+/g, '_')}.pdf`);
+  const fileName = dados.tituloOverride
+    ? `SolicitacaoAlteracaoPassagem_${dados.nome.replace(/\s+/g, '_')}.pdf`
+    : `VT_${dados.nome.replace(/\s+/g, '_')}.pdf`;
+  saveAs(blob, fileName);
 }
 
 export async function gerarPdfNaoBeneficiario(dados: NaoBeneficiarioData): Promise<void> {

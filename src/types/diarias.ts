@@ -157,6 +157,15 @@ export interface FuncionarioPreConvocado {
   usar_diaria_exclusiva?: boolean; // Forçar diária exclusiva independente do dia
   cpf?: string; // Snapshot para resiliência a ID órfão
   matricula?: string; // Snapshot para resiliência a ID órfão
+  status?: string | null; // UI-only — usado pela matriz Fase D para elegibilidade
+  /**
+   * Fase E — datas (YYYY-MM-DD) em que o funcionário foi efetivamente marcado
+   * na matriz funcionário×data da solicitação. Persistido como campo extra
+   * dentro de `bd_diaria_solicitacoes.convocados_pre` (jsonb), preservado pela
+   * RPC `gerenciar_convocado_diaria` (que grava o objeto inteiro, sem whitelist).
+   * Opcional para retrocompatibilidade com solicitações criadas antes da Fase E.
+   */
+  dias_solicitados?: string[];
 }
 
 export interface SolicitacaoFormData {
@@ -311,6 +320,8 @@ export interface RelatorioFolhaItem {
   valor_refeicao_aplicado: number | null;
   tipo_diaria: string | null;
   usar_diaria_exclusiva: boolean | null;
+  /** Regra ATUAL do calendário operacional (CC+data, ativo=true). NULL = sem override vigente. */
+  usar_diaria_exclusiva_calendario?: boolean | null;
   turno: string | null;
   status_funcionario: string | null;
   status_solicitacao: StatusSolicitacao;

@@ -8,6 +8,7 @@ import {
   type DiariasFilters,
 } from "./_dashboardHelpers";
 import { useDiariasDataset } from "./useDiariasDataset";
+import { lerConvocadosPre, derivarFuncionariosPlanos } from "@/lib/diarias/convocadosPreAdapter";
 
 interface Props {
   filters: DiariasFilters;
@@ -62,7 +63,9 @@ export default function DiariasRankingFuncoes({ filters }: Props) {
     };
 
     for (const s of ds.solicitacoes) {
-      const conv = Array.isArray(s.convocados_pre) ? s.convocados_pre : [];
+      const conv = derivarFuncionariosPlanos(
+        lerConvocadosPre(s.convocados_pre, { inicio: s.data_inicio, fim: s.data_fim }),
+      );
       for (const c of conv) {
         const id = c.funcao_id || "__sem_funcao__";
         const nome = c.nome_funcao || "Sem função";
@@ -80,7 +83,7 @@ export default function DiariasRankingFuncoes({ filters }: Props) {
       const dRef = Math.ceil(Number(p.valor_diaria_aplicada || 0));
       const rRef = Math.ceil(Number(p.valor_refeicao_aplicado || 0));
       const lineTotal = dRef + rRef;
-      const cat = classificarDia(p.data, ds.feriadosSet);
+      const cat = classificarDia(p, ds.feriadosSet, { modo: "operacional" });
       if (cat === "uteis") {
         r.valorUteis += dRef;
         r.apontUteis += 1;

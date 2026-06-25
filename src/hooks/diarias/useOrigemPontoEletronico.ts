@@ -1,5 +1,9 @@
 // Hook auxiliar — identifica presenças de diária originadas pelo ponto eletrônico
-// (Fase 1: integração Ponto → Diária). Não-bloqueante: erro vira Set vazio.
+// (integração Ponto → Diária). Não-bloqueante: erro vira Set vazio.
+//
+// IMPORTANTE (Fase 1 Shadow): só consideramos origem REAL quando status === 'auto_apontado'.
+// Registros com sufixo '_simulado' (ex.: 'auto_apontado_simulado') são apenas observabilidade
+// shadow e NÃO devem ser tratados como integração real até a Fase 2.
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";

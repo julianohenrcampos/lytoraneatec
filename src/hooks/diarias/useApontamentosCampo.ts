@@ -30,11 +30,22 @@ export function useApontamentosCampo(
     data_inicio?: string;
     data_fim?: string;
   },
-  scope?: ApontamentoScopeFilters
+  scope?: ApontamentoScopeFilters,
+  options?: { enabled?: boolean }
 ) {
   return useQuery({
     queryKey: ['diaria-apontamentos', filters, scope],
-    queryFn: () => getApontamentos(filters, scope)
+    queryFn: () => {
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.info('[AUDIT][apontamento:hook]', {
+          queryKey: ['diaria-apontamentos', filters, scope],
+          enabled: options?.enabled ?? true,
+        });
+      }
+      return getApontamentos(filters, scope);
+    },
+    enabled: options?.enabled ?? true
   });
 }
 
@@ -128,8 +139,8 @@ export function useToggleEdicaoLiberada() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, liberada }: { id: string; liberada: boolean }) =>
-      toggleEdicaoLiberada(id, liberada),
+    mutationFn: ({ id, liberada, justificativa }: { id: string; liberada: boolean; justificativa?: string }) =>
+      toggleEdicaoLiberada(id, liberada, justificativa),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['diaria-apontamentos'] });
       toast.success(variables.liberada ? 'Edição liberada!' : 'Edição bloqueada!');

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { usePageTitle } from "@/contexts/PageTitleContext";
 import { useNavigate } from "react-router-dom";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
@@ -18,13 +19,29 @@ import {
   Eye,
   Users,
   DollarSign,
-  Search
+  Search,
+  CalendarPlus,
+  ClipboardCheck
 } from "lucide-react";
+import { lerConvocadosPre, derivarFuncionariosPlanos } from "@/lib/diarias/convocadosPreAdapter";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAditivosPendentesPorSolicitacao } from "@/hooks/diarias/useAditivosPendentesPorSolicitacao";
+import { useHidratarNomesSolicitacoes } from "@/hooks/diarias/useHidratarNomesSolicitacoes";
+import { useEstimativasListagem } from "@/hooks/diarias/useEstimativasListagem";
+import { AditivoConfirmacaoModal } from "@/components/diarias/AditivoConfirmacaoModal";
+import { useUserProfile } from "@/hooks/useUserProfile";
+
+function contarConvocados(sol: { convocados_pre?: unknown; data_inicio: string; data_fim: string }): number {
+  return derivarFuncionariosPlanos(
+    lerConvocadosPre(sol.convocados_pre, { inicio: sol.data_inicio, fim: sol.data_fim })
+  ).length;
+}
 
 import MainLayout from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -81,6 +98,7 @@ import type { StatusSolicitacao, SolicitacaoFormData, SolicitacaoFilters, Diaria
 import { SolicitacaoFormModal } from "@/components/diarias/SolicitacaoFormModal";
 import { AprovacaoModal } from "@/components/diarias/AprovacaoModal";
 import { SolicitacaoDetalhesModal } from "@/components/diarias/SolicitacaoDetalhesModal";
+import { AditivoSolicitarModal } from "@/components/diarias/AditivoSolicitarModal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { usePagination } from "@/hooks/usePagination";
 import TablePagination from "@/components/ui/table-pagination";
@@ -110,13 +128,14 @@ export default function DiariasSolicitacoes() {
   usePageTitle("Solicitações de Diária");
   const isMobile = useIsMobile();
   const navigate = useNavigate();
-  const { permissions, userId, isSuperAdmin, isLoading: isLoadingPermissions } = usePermission();
+  const { permissions, userId, isSuperAdmin, hasActionPermission, isLoading: isLoadingPermissions } = usePermission();
   const hasPermission = (perm: string) => permissions.includes(perm);
   
   // Hook de escopo de dados - RBAC
   const {
     userScope,
     scopeFilters,
+    centrosCustoGerenciados,
     isLoading: isLoadingScope,
     canCreateSolicitacao,
     canEditSolicitacao,
@@ -146,26 +165,187 @@ export default function DiariasSolicitacoes() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [cancelAutorizacaoDialogOpen, setCancelAutorizacaoDialogOpen] = useState(false);
   const [cancelAutorizacaoId, setCancelAutorizacaoId] = useState<string | null>(null);
+  const [aditivoSolicitacaoId, setAditivoSolicitacaoId] = useState<string | null>(null);
+  const [aditivoAnaliseId, setAditivoAnaliseId] = useState<string | null>(null);
+  const [aditivoAnaliseSolicitacao, setAditivoAnaliseSolicitacao] = useState<DiariaSolicitacao | null>(null);
+  const abrirAnaliseAditivo = (sol: DiariaSolicitacao) => {
+    const pendentes = getPendentes(sol);
+    if (!pendentes.length) return;
+    setAditivoAnaliseSolicitacao(sol);
+    setAditivoAnaliseId(pendentes[0].id);
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.debug('[AUDIT][aditivo-modal:open]', {
+        solicitacaoId: sol.id,
+        numeroSolicitacao: (sol as any).numero_solicitacao,
+        pendentesRecebidos: pendentes.length,
+        primeiroAditivoId: pendentes[0].id,
+        hasPermAprovar: isSuperAdmin || !!profile?.acesso_global || hasActionPermission('diarias_aditivo_aprovar', 'aprovar'),
+        source: 'pendentesMap',
+      });
+    }
+  };
+  const podeSolicitarAditivo = (sol: DiariaSolicitacao) =>
+    sol.status === 'autorizada' &&
+    (isSuperAdmin || hasPermission('diarias_aditivo_solicitar'));
+
+  // Acesso global para análise de aditivos (Fase I.4)
+  const { user: profile } = useUserProfile();
+
+  // Fonte defensiva de escopo: prioriza centrosCustoGerenciados, fallback para scopeFilters.
+  const allowedCentroIds = ((centrosCustoGerenciados?.length
+    ? centrosCustoGerenciados
+    : (scopeFilters?.centro_custo_ids ?? [])) as string[]);
+
+  // RBAC base para aprovar aditivo
+  const podeAnalisarAditivoBase =
+    isSuperAdmin ||
+    !!profile?.acesso_global ||
+    hasActionPermission('diarias_aditivo_aprovar', 'aprovar');
 
   // Queries - COM ESCOPO OBRIGATÓRIO
   const { data: solicitacoes = [], isLoading } = useSolicitacoesDiaria(filters, scopeFilters);
   const { data: resumo } = useSolicitacoesResumo(filters, scopeFilters);
-  
+
+  // Aditivos pendentes da lista INTEIRA (pré-paginação), para permitir ordenação por pendências.
+  const idsTotais = useMemo(() => solicitacoes.map((s) => s.id), [solicitacoes]);
+  const { data: pendentesMap } = useAditivosPendentesPorSolicitacao(idsTotais);
+  const getPendentes = (sol: DiariaSolicitacao) => pendentesMap?.get(sol.id) ?? [];
+
+  // Ordenação: solicitações com mais aditivos pendentes primeiro; empate mantém ordem do service.
+  const solicitacoesOrdenadas = useMemo(() => {
+    const arr = solicitacoes.map((s, idx) => ({
+      s,
+      idx,
+      p: pendentesMap?.get(s.id)?.length ?? 0,
+    }));
+    arr.sort((a, b) => (b.p - a.p) || (a.idx - b.idx));
+    return arr.map((x) => x.s);
+  }, [solicitacoes, pendentesMap]);
+
   // Pagination
-  const pagination = usePagination(solicitacoes, { pageSize: 10 });
+  const pagination = usePagination(solicitacoesOrdenadas, { pageSize: 10 });
+
+  // Estimativas recalculadas em tempo real (Fase I.4 — Ajuste B).
+  const estimativasMap = useEstimativasListagem(pagination.paginatedData);
+
+  // Hidratação de nomes via RPC SECURITY DEFINER (S1).
+  const { nomesMap } = useHidratarNomesSolicitacoes(pagination.paginatedData);
+
+  const getValorEstimado = (sol: DiariaSolicitacao) =>
+    estimativasMap.get(sol.id) ?? sol.valor_estimado_total ?? 0;
+  const getNomeEngenheiro = (sol: DiariaSolicitacao) =>
+    (sol as any).engenheiro_solicitante?.nome_completo
+      || (sol.engenheiro_solicitante_id ? nomesMap.get(sol.engenheiro_solicitante_id) : null)
+      || '-';
+
+  // Gate combinado: RBAC + escopo de CC + existência de pendentes.
+  const podeAprovarAditivo = (sol: DiariaSolicitacao): boolean => {
+    const pendentes = getPendentes(sol).length;
+    if (pendentes === 0) return false;
+    const bypass = isSuperAdmin || !!profile?.acesso_global;
+    const hasPermAprovar = bypass || hasActionPermission('diarias_aditivo_aprovar', 'aprovar');
+    const dentroDoEscopo = bypass || allowedCentroIds.includes(sol.centro_custo_id);
+    const ok = pendentes > 0 && hasPermAprovar && dentroDoEscopo;
+    if (import.meta.env.DEV) {
+      const motivoBloqueio = ok
+        ? null
+        : !hasPermAprovar
+          ? 'sem_permissao_diarias_aditivo_aprovar'
+          : !dentroDoEscopo
+            ? 'fora_do_escopo_cc'
+            : 'sem_pendentes';
+      // eslint-disable-next-line no-console
+      console.debug('[AUDIT][diarias-solicitacoes:aditivo-action]', {
+        solicitacaoId: sol.id,
+        numeroSolicitacao: (sol as any).numero_solicitacao,
+        centroCustoId: sol.centro_custo_id,
+        aditivosPendentesCount: pendentes,
+        userScope,
+        hasPermAprovar,
+        dentroDoEscopo,
+        podeAprovarAditivo: ok,
+        motivoBloqueio,
+      });
+    }
+    return ok;
+  };
+
+  // DEV-only: auditoria de ordenação por pendências.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const primeiraPagina = solicitacoesOrdenadas.slice(0, 10);
+    const counts = solicitacoesOrdenadas.map((s) => pendentesMap?.get(s.id)?.length ?? 0);
+    // eslint-disable-next-line no-console
+    console.debug('[AUDIT][diarias-solicitacoes:aditivo-sort]', {
+      totalSolicitacoes: solicitacoesOrdenadas.length,
+      comAditivoPendente: counts.filter((c) => c > 0).length,
+      maxAditivosPendentes: counts.length ? Math.max(...counts) : 0,
+      primeiraPaginaIds: primeiraPagina.map((s) => s.id),
+      primeiraPaginaComAditivos: primeiraPagina.map((s) => ({
+        id: s.id,
+        pendentes: pendentesMap?.get(s.id)?.length ?? 0,
+      })),
+    });
+  }, [solicitacoesOrdenadas, pendentesMap]);
+
   
-  // Centro de custos
+  // Centro de custos — Fase 3-B.1: respeita escopo de dados (GerenteRegional/AdmOBRA)
+  // Fonte do combo = centrosCustoGerenciados (sempre populado para gerente/admsede/admobra),
+  // independente de scopeFilters ficar {} quando o usuário tem diarias_relatorio_view:visualizar.
+  const canViewAllCcs = isSuperAdmin || userScope === 'admsso';
+  const scopeCcIds = canViewAllCcs
+    ? []
+    : (centrosCustoGerenciados.length > 0
+        ? centrosCustoGerenciados
+        : (scopeFilters?.centro_custo_ids ?? []));
+  const scopeKey = canViewAllCcs ? 'all' : [...scopeCcIds].sort().join(',');
   const { data: centrosCusto = [] } = useQuery({
-    queryKey: ['centros-custo', isSuperAdmin],
+    queryKey: ['centros-custo-solicitacoes', canViewAllCcs, scopeKey],
+    enabled: !isLoadingScope,
     queryFn: async () => {
+      // Fail-closed: usuário com escopo de CC mas sem CCs vinculados → lista vazia
+      if (!canViewAllCcs && scopeCcIds.length === 0) return [];
       let query = supabase
         .from('bd_centros_custo')
         .select('id, codigo_centro_custo, nome_centro_custo');
-      if (!isSuperAdmin) query = query.neq('codigo_centro_custo', 'DIR001');
+      if (canViewAllCcs) {
+        if (!isSuperAdmin) query = query.neq('codigo_centro_custo', 'DIR001');
+      } else {
+        query = query.in('id', scopeCcIds);
+      }
       const { data } = await query.order('nome_centro_custo');
+      if (import.meta.env.DEV) {
+        console.log('[AUDIT][diarias-solicitacoes:cc-combo]', {
+          userId,
+          userScope,
+          isSuperAdmin,
+          canViewAllCcs,
+          allowedCentroIds: scopeCcIds.length,
+          returnedCentrosCount: (data || []).length,
+          containsL498: (data || []).some((c: any) => c.codigo_centro_custo === 'L498'),
+          source: canViewAllCcs ? 'all' : (centrosCustoGerenciados.length > 0 ? 'centrosCustoGerenciados' : 'scopeFilters'),
+        });
+      }
       return data || [];
     }
   });
+
+
+  // Fase 3-B.4 — Abrir Detalhes via deep-link de notificação (?solicitacao_id=...)
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const solId = searchParams.get('solicitacao_id');
+    if (!solId) return;
+    const sol = solicitacoes.find((s) => s.id === solId);
+    if (sol) {
+      setDetalhesId(sol.id);
+      setIsDetalhesOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('solicitacao_id');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, solicitacoes, setSearchParams]);
 
   // Mutations
   const createMutation = useCreateSolicitacao();
@@ -480,8 +660,21 @@ export default function DiariasSolicitacoes() {
               isMobile ? (
                 /* Mobile Card View */
                 <div className="p-3 space-y-3">
-                  {pagination.paginatedData.map((sol) => (
-                    <Card key={sol.id} className={sol.status === 'reprovada' ? 'border-destructive/50 bg-destructive/5' : ''}>
+                  {pagination.paginatedData.map((sol) => {
+                    const qtdAditivosPendentes = getPendentes(sol).length;
+                    const temAditivoPendente = qtdAditivosPendentes > 0;
+                    const labelAditivoPendente = qtdAditivosPendentes === 1
+                      ? "Aditivo pendente"
+                      : `${qtdAditivosPendentes} aditivos pendentes`;
+                    return (
+                    <Card
+                      key={sol.id}
+                      className={cn(
+                        sol.status === 'reprovada' && 'border-destructive/50 bg-destructive/5',
+                        temAditivoPendente && 'bg-amber-50/70 border-l-4 border-l-amber-500',
+                      )}
+                      title={temAditivoPendente ? 'Esta solicitação possui aditivo pendente de aprovação.' : undefined}
+                    >
                       <CardContent className="p-4 space-y-3">
                         {/* Header: Nº + Status */}
                         <div className="flex items-center justify-between">
@@ -493,7 +686,14 @@ export default function DiariasSolicitacoes() {
                               {formatBrazilianDateForDisplay(sol.created_at?.split('T')[0])}
                             </p>
                           </div>
-                          <StatusBadge status={sol.status} />
+                          <div className="flex flex-col items-end gap-1">
+                            <StatusBadge status={sol.status} />
+                            {temAditivoPendente && (
+                              <Badge variant="outline" className="border-amber-500 text-amber-700 bg-amber-50 w-fit px-1.5 py-0 text-[10px] leading-4 font-medium">
+                                {labelAditivoPendente}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
 
                         {/* Centro de Custo */}
@@ -508,7 +708,7 @@ export default function DiariasSolicitacoes() {
                         <div className="flex items-center gap-2 text-sm">
                           <Users className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                           <span className="truncate">
-                            {(sol as any).engenheiro_solicitante?.nome_completo || '-'}
+                            {getNomeEngenheiro(sol)}
                           </span>
                         </div>
 
@@ -527,11 +727,11 @@ export default function DiariasSolicitacoes() {
                         <div className="flex items-center justify-between text-sm">
                           <div className="flex items-center gap-1 text-muted-foreground">
                             <Users className="h-3.5 w-3.5" />
-                            <span>{sol.convocados_pre?.length || 0} convocados</span>
+                            <span>{contarConvocados(sol)} convocados</span>
                           </div>
                           <div className="flex items-center gap-1 font-medium">
                             <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span>{formatCurrencyValue(sol.valor_estimado_total || 0)}</span>
+                            <span>{formatCurrencyValue(getValorEstimado(sol))}</span>
                           </div>
                         </div>
 
@@ -546,6 +746,40 @@ export default function DiariasSolicitacoes() {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
+                          {podeSolicitarAditivo(sol) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-primary hover:bg-primary/10"
+                              onClick={() => setAditivoSolicitacaoId(sol.id)}
+                              title="Solicitação de Aditivo"
+                            >
+                              <CalendarPlus className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {podeAprovarAditivo(sol) && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 relative text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                    onClick={() => abrirAnaliseAditivo(sol)}
+                                    aria-label="Analisar aditivo pendente"
+                                  >
+                                    <ClipboardCheck className="h-4 w-4" />
+                                    {getPendentes(sol).length > 1 && (
+                                      <span className="absolute -top-1 -right-1 bg-amber-600 text-white rounded-full text-[10px] leading-none px-1 py-0.5">
+                                        {getPendentes(sol).length}
+                                      </span>
+                                    )}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Esta solicitação possui aditivo pendente de aprovação.</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                           {sol.status === 'enviada' && canUserAutorizar(sol) && (
                             <>
                               <Button 
@@ -601,7 +835,8 @@ export default function DiariasSolicitacoes() {
                         </div>
                       </CardContent>
                     </Card>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 /* Desktop Table View */
@@ -619,10 +854,21 @@ export default function DiariasSolicitacoes() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {pagination.paginatedData.map((sol) => (
-                      <TableRow 
+                    {pagination.paginatedData.map((sol) => {
+                      const qtdAditivosPendentes = getPendentes(sol).length;
+                      const temAditivoPendente = qtdAditivosPendentes > 0;
+                      const labelAditivoPendente = qtdAditivosPendentes === 1
+                        ? "Aditivo pendente"
+                        : `${qtdAditivosPendentes} aditivos pendentes`;
+                      return (
+                      <TableRow
                         key={sol.id}
-                        className={sol.status === 'reprovada' ? 'bg-red-50 hover:bg-red-100' : ''}
+                        className={cn(
+                          "transition-colors",
+                          sol.status === 'reprovada' && 'bg-red-50 hover:bg-red-100',
+                          temAditivoPendente && 'bg-amber-50/70 border-l-4 border-l-amber-500 hover:bg-amber-100/70',
+                        )}
+                        title={temAditivoPendente ? 'Esta solicitação possui aditivo pendente de aprovação.' : undefined}
                       >
                         <TableCell>
                           <div>
@@ -655,16 +901,23 @@ export default function DiariasSolicitacoes() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          {(sol as any).engenheiro_solicitante?.nome_completo || '-'}
+                          {getNomeEngenheiro(sol)}
                         </TableCell>
                         <TableCell className="text-center">
-                          {sol.convocados_pre?.length || 0}
+                          {contarConvocados(sol)}
                         </TableCell>
                         <TableCell className="text-right font-medium">
-                          {formatCurrencyValue(sol.valor_estimado_total || 0)}
+                          {formatCurrencyValue(getValorEstimado(sol))}
                         </TableCell>
                         <TableCell>
-                          <StatusBadge status={sol.status} />
+                          <div className="flex flex-col gap-1">
+                            <StatusBadge status={sol.status} />
+                            {temAditivoPendente && (
+                              <Badge variant="outline" className="border-amber-500 text-amber-700 bg-amber-50 w-fit px-1.5 py-0 text-[10px] leading-4 font-medium">
+                                {labelAditivoPendente}
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -679,6 +932,40 @@ export default function DiariasSolicitacoes() {
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
+                            )}
+                            {podeSolicitarAditivo(sol) && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-primary hover:bg-primary/10"
+                                onClick={() => setAditivoSolicitacaoId(sol.id)}
+                                title="Solicitação de Aditivo"
+                              >
+                                <CalendarPlus className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {podeAprovarAditivo(sol) && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0 relative text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                      onClick={() => abrirAnaliseAditivo(sol)}
+                                      aria-label="Analisar aditivo pendente"
+                                    >
+                                      <ClipboardCheck className="h-4 w-4" />
+                                      {getPendentes(sol).length > 1 && (
+                                        <span className="absolute -top-1 -right-1 bg-amber-600 text-white rounded-full text-[10px] leading-none px-1 py-0.5">
+                                          {getPendentes(sol).length}
+                                        </span>
+                                      )}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Esta solicitação possui aditivo pendente de aprovação.</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
                             )}
                             {/* Botões diretos de aprovação para status "enviada" */}
                             {sol.status === 'enviada' && canUserAutorizar(sol) && (
@@ -787,7 +1074,8 @@ export default function DiariasSolicitacoes() {
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )
@@ -854,6 +1142,44 @@ export default function DiariasSolicitacoes() {
           onReprovar={(sol) => {
             setIsDetalhesOpen(false);
             setTimeout(() => handleOpenAprovacao(sol, 'reprovar'), 300);
+          }}
+        />
+
+        {/* Aditivo Modal (Fase I.3) */}
+        {(() => {
+          const sol = solicitacoes.find((s) => s.id === aditivoSolicitacaoId);
+          if (!sol) return null;
+          return (
+            <AditivoSolicitarModal
+              open={!!aditivoSolicitacaoId}
+              onOpenChange={(o) => !o && setAditivoSolicitacaoId(null)}
+              solicitacao={sol}
+            />
+          );
+        })()}
+
+        {/* Aditivo — Análise rápida a partir da listagem (Fase I.4) */}
+        <AditivoConfirmacaoModal
+          aditivoId={aditivoAnaliseId}
+          aditivos={aditivoAnaliseSolicitacao ? getPendentes(aditivoAnaliseSolicitacao) : undefined}
+          solicitacaoInfo={
+            aditivoAnaliseSolicitacao
+              ? {
+                  id: aditivoAnaliseSolicitacao.id,
+                  numero_solicitacao: (aditivoAnaliseSolicitacao as any).numero_solicitacao,
+                  centro_custo_id: aditivoAnaliseSolicitacao.centro_custo_id,
+                  criado_por: (aditivoAnaliseSolicitacao as any).criado_por ?? null,
+                  bd_centros_custo: (aditivoAnaliseSolicitacao as any).bd_centros_custo ?? null,
+                  engenheiro_solicitante_id: (aditivoAnaliseSolicitacao as any).engenheiro_solicitante_id ?? null,
+                }
+              : undefined
+          }
+          open={!!aditivoAnaliseId}
+          onOpenChange={(v) => {
+            if (!v) {
+              setAditivoAnaliseId(null);
+              setAditivoAnaliseSolicitacao(null);
+            }
           }}
         />
 

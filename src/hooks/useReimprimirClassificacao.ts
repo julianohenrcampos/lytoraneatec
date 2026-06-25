@@ -2,6 +2,8 @@ import { useCallback, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { gerarPdfClassificacao } from "@/utils/pdf/gerarPdfClassificacao";
+import { gerarPdfSolicitacaoClassificacao } from "@/utils/pdf/gerarPdfSolicitacaoClassificacao";
+import { getNomeSolicitanteClassificacao } from "@/services/rh/getNomeSolicitanteClassificacao";
 
 export const useReimprimirClassificacao = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -21,7 +23,66 @@ export const useReimprimirClassificacao = () => {
 
       if (histErr) throw histErr;
       if (!hist) {
-        toast.error("Nenhuma classificação registrada para reimprimir.");
+        // Fallback Fase 2A: buscar última solicitação pendente
+        const { data: solic, error: solErr } = await (supabase as any)
+          .from("bd_funcionario_classificacao_solicitacoes")
+          .select("id")
+          .eq("funcionario_id", funcionarioId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (solErr || !solic) {
+          toast.error("Nenhuma classificação registrada para reimprimir.");
+          return;
+        }
+
+        // RPC SECURITY DEFINER com gate explícito (espelho da policy SELECT)
+        const { data: rpcData, error: rpcErr } = await (supabase as any).rpc(
+          "fn_get_classificacao_reimpressao_payload",
+          { p_solicitacao_id: (solic as any).id }
+        );
+
+        if (rpcErr) {
+          console.error("[CLASSIFICACAO][REIMPRESSAO_RPC_ERR]", rpcErr);
+          toast.error(
+            (rpcErr.message || "").toLowerCase().includes("permiss")
+              ? "Sem permissão para reimprimir esta solicitação."
+              : "Não foi possível carregar os dados da solicitação."
+          );
+          return;
+        }
+
+        const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+        if (!row) {
+          toast.error("Sem permissão ou dados indisponíveis para reimpressão.");
+          return;
+        }
+
+        console.log("[CLASSIFICACAO][REIMPRESSAO_RPC_DEBUG]", row);
+
+        const payload = {
+          protocolo_id: row.solicitacao_id,
+          nome: row.nome_completo || "-",
+          matricula: row.matricula ?? null,
+          centro_custo: row.centro_custo_formatado || "-",
+          data_admissao: row.data_admissao ?? null,
+          ultima_classificacao: row.ultima_classificacao ?? null,
+          cargo_atual: row.cargo_atual_nome || "-",
+          salario_atual: Number(row.salario_atual ?? 0),
+          novo_cargo: row.cargo_novo_nome || "-",
+          novo_salario: Number(row.novo_salario ?? 0),
+          motivo: row.motivo || "-",
+          data_efetivacao_desejada: row.data_efetivacao_desejada ?? null,
+          precisa_exame: !!row.precisa_exame,
+          solicitante: row.solicitante_nome || "-",
+          solicitante_email: row.solicitante_email ?? null,
+          data_solicitacao: row.created_at,
+        };
+        console.log("[CLASSIFICACAO][PDF_PAYLOAD_DEBUG]", payload);
+        gerarPdfSolicitacaoClassificacao(payload);
+
+        toast.success("PDF de solicitação gerado.");
         return;
       }
 

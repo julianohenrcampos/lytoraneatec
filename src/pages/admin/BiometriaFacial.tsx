@@ -45,6 +45,7 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import MainLayout from "@/components/layout/MainLayout";
 import { usePageTitle } from "@/contexts/PageTitleContext";
+import { evaluateFaceQuality, type QualityResult } from "@/lib/faceapi/qualityGate";
 
 interface FuncionarioRow {
   id: string;
@@ -116,6 +117,8 @@ const BiometriaFacial: React.FC = () => {
   const [detectStatus, setDetectStatus] = useState<DetectStatus>("idle");
   const [detectScore, setDetectScore] = useState<number | null>(null);
   const [detectMessage, setDetectMessage] = useState<string>("");
+  const qualityRef = useRef<QualityResult | null>(null);
+  const [qualityResult, setQualityResult] = useState<QualityResult | null>(null);
 
   // Assinatura do funcionário
   const [assinaturaPreview, setAssinaturaPreview] = useState<string | null>(null);
@@ -406,10 +409,12 @@ const BiometriaFacial: React.FC = () => {
 
   // ---------- Queries (sem joins ambíguos) ----------
   const carregar = async () => {
+    console.log("[BIOMETRIA][LOAD_START]");
     setLoading(true);
     setLoadError(null);
     try {
       // 1) Funcionários ativos — paginado para passar do limite de 1000
+      console.log("[BIOMETRIA][LOAD_FUNCIONARIOS_START]");
       const funcs = await fetchAllPaginated<any>(() =>
         supabase
           .from("bd_funcionarios")
@@ -417,6 +422,7 @@ const BiometriaFacial: React.FC = () => {
           .in("status", ["Ativo", "Ativo sem Registro"])
           .order("nome_completo", { ascending: true }),
       );
+      console.log("[BIOMETRIA][LOAD_FUNCIONARIOS_OK]", { total: funcs?.length });
 
       const ids = funcs.map((f: any) => f.id);
       const funcaoIds = Array.from(
@@ -427,6 +433,7 @@ const BiometriaFacial: React.FC = () => {
       ) as string[];
 
       // 2) Lookups paralelos (em batches para evitar limite do .in)
+      console.log("[BIOMETRIA][LOAD_BIOMETRIAS_START]");
       const [funcoesData, ccData, biosData] = await Promise.all([
         funcaoIds.length
           ? fetchInBatches<any>(funcaoIds, (slice) =>
@@ -452,6 +459,7 @@ const BiometriaFacial: React.FC = () => {
             )
           : Promise.resolve([] as any[]),
       ]);
+      console.log("[BIOMETRIA][LOAD_BIOMETRIAS_OK]", { total: biosData?.length });
 
       const mapFuncao = new Map<string, string>(
         (funcoesData || []).map((r: any) => [r.id, r.nome_funcao]),
@@ -504,17 +512,23 @@ const BiometriaFacial: React.FC = () => {
         if (a.tem_biometria !== b.tem_biometria) return a.tem_biometria ? 1 : -1;
         return a.nome_completo.localeCompare(b.nome_completo, "pt-BR");
       });
+      console.log("[BIOMETRIA][SET_STATE]", {
+        funcionariosTotal: rows.length,
+        biometriasTotal: biosData?.length ?? 0,
+      });
       setFuncionarios(rows);
     } catch (e: any) {
-      console.error("[BIOMETRIA][LOAD] erro:", e);
+      console.error("[BIOMETRIA][LOAD_ERROR]", e);
       setLoadError(e?.message || "Erro ao carregar funcionários");
       toast.error(e?.message || "Erro ao carregar funcionários");
     } finally {
+      console.log("[BIOMETRIA][LOAD_FINALLY]");
       setLoading(false);
     }
   };
 
   const carregarPendentes = async () => {
+    console.log("[BIOMETRIA][PEND_START]");
     setLoadingPend(true);
     try {
       // 1) Pendentes — paginado por segurança
@@ -582,11 +596,13 @@ const BiometriaFacial: React.FC = () => {
           };
         }),
       );
+      console.log("[BIOMETRIA][PEND_OK]", { total: rows.length });
       setPendentes(rows);
     } catch (e: any) {
-      console.error("[BIOMETRIA][PEND] erro:", e);
+      console.error("[BIOMETRIA][PEND_ERROR]", e);
       toast.error(e?.message || "Erro ao carregar pendentes");
     } finally {
+      console.log("[BIOMETRIA][PEND_FINALLY]");
       setLoadingPend(false);
     }
   };
@@ -746,11 +762,16 @@ const BiometriaFacial: React.FC = () => {
     return { dataUrl, img };
   }, []);
 
-  /** Processa uma imagem com face-api e devolve descriptor + score. */
+  /** Processa uma imagem com face-api e devolve descriptor + score + box + landmarks. */
   const processDescriptor = useCallback(
     async (
       img: HTMLImageElement,
-    ): Promise<{ descriptor: Float32Array; score: number } | null> => {
+    ): Promise<{
+      descriptor: Float32Array;
+      score: number;
+      box: { x: number; y: number; width: number; height: number };
+      landmarks: faceapi.FaceLandmarks68;
+    } | null> => {
       const det = await faceapi
         .detectSingleFace(
           img,
@@ -759,7 +780,12 @@ const BiometriaFacial: React.FC = () => {
         .withFaceLandmarks()
         .withFaceDescriptor();
       if (!det) return null;
-      return { descriptor: det.descriptor as Float32Array, score: det.detection.score };
+      return {
+        descriptor: det.descriptor as Float32Array,
+        score: det.detection.score,
+        box: det.detection.box,
+        landmarks: det.landmarks,
+      };
     },
     [],
   );
@@ -772,6 +798,8 @@ const BiometriaFacial: React.FC = () => {
       setDetectScore(null);
       descriptorRef.current = null;
       setHasDescriptor(false);
+      qualityRef.current = null;
+      setQualityResult(null);
       try {
         const captured = source ?? (await captureFrame());
         console.log("[BIOMETRIA][CAPTURA] frame capturado", { len: captured.dataUrl.length });
@@ -786,6 +814,36 @@ const BiometriaFacial: React.FC = () => {
           setDetectMessage("Nenhum rosto detectado. Reposicione e tente novamente.");
           return;
         }
+
+        // === Fase 5 M4: Quality Gate (modo aviso, NÃO bloqueia) ===
+        try {
+          const q = evaluateFaceQuality(captured.img, {
+            box: result.box,
+            landmarks: result.landmarks,
+            score: result.score,
+          });
+          qualityRef.current = q;
+          setQualityResult(q);
+          console.log("[BIOMETRIA][QUALITY_GATE]", {
+            score: Number(q.scoreComposto.toFixed(3)),
+            nivel: q.nivel,
+            warnings: q.warnings,
+            metricas: {
+              detectorScore: Number(q.metricas.detectorScore.toFixed(3)),
+              faceRatio: Number(q.metricas.faceRatio.toFixed(3)),
+              yaw: Number(q.metricas.yaw.toFixed(1)),
+              pitch: Number(q.metricas.pitch.toFixed(1)),
+              blur: Number(q.metricas.blur.toFixed(1)),
+              brilho: Number(q.metricas.brilho.toFixed(1)),
+              crop: q.metricas.cropResolution,
+            },
+          });
+        } catch (qErr) {
+          console.warn("[BIOMETRIA][QUALITY_GATE] falhou:", qErr);
+          qualityRef.current = null;
+          setQualityResult(null);
+        }
+
         if (result.score < QUALITY_THRESHOLD) {
           setDetectScore(result.score);
           setDetectStatus("low_quality");
@@ -873,6 +931,8 @@ const BiometriaFacial: React.FC = () => {
     setDetectStatus("idle");
     setDetectScore(null);
     setDetectMessage("");
+    qualityRef.current = null;
+    setQualityResult(null);
     if (assinaturaPreview && assinaturaPreview.startsWith("blob:")) URL.revokeObjectURL(assinaturaPreview);
     setAssinaturaPreview(null);
     setAssinaturaFile(null);
@@ -917,12 +977,15 @@ const BiometriaFacial: React.FC = () => {
       score: detectScore,
     });
 
+    const qScore = qualityRef.current?.scoreComposto;
     const { data, error } = await supabase.functions.invoke("cadastrar-biometria-facial", {
       body: {
         origem: "admin_upload",
         funcionario_id: funcSelecionado.id,
         descriptor: Array.from(descriptorRef.current),
         foto_base64: fotoBase64,
+        qualidade_score:
+          typeof qScore === "number" && qScore >= 0 && qScore <= 1 ? qScore : null,
       },
     });
     if (error) throw new Error(error.message);
@@ -1524,6 +1587,33 @@ const BiometriaFacial: React.FC = () => {
                       <RefreshCcw className="h-3.5 w-3.5 mr-1" /> Recapturar
                     </Button>
                   )}
+              </div>
+            )}
+
+            {/* Fase 5 M4: Badge de qualidade biométrica (informativo, não bloqueia) */}
+            {qualityResult && (
+              <div
+                className={
+                  "rounded-md px-3 py-2 text-xs flex items-start gap-2 border " +
+                  (qualityResult.nivel === "boa"
+                    ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200"
+                    : qualityResult.nivel === "media"
+                      ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200"
+                      : "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800 text-red-800 dark:text-red-200")
+                }
+                aria-live="polite"
+              >
+                <div className="flex-1">
+                  <p className="font-medium">
+                    Qualidade biométrica: {qualityResult.nivel.toUpperCase()} (
+                    {Math.round(qualityResult.scoreComposto * 100)}%)
+                  </p>
+                  {qualityResult.mensagens.length > 0 && (
+                    <p className="opacity-80 mt-0.5">
+                      {qualityResult.mensagens.slice(0, 2).join(" • ")}
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 

@@ -99,3 +99,27 @@ export {
   contarInclusoesPendentes,
   notificarAprovadorInclusao
 } from './inclusaoFuncionarioService';
+
+// Aditivos (Fase I.2 — service layer)
+export {
+  solicitarAditivoFuncionario,
+  solicitarAditivoDia,
+  aprovarAditivo,
+  reprovarAditivo,
+  cancelarAditivo,
+  getAditivoById,
+  listarAditivosPorSolicitacao,
+  listarAditivosPendentes,
+  contarAditivosPendentes,
+} from './aditivoService';
+export type {
+  Aditivo,
+  AditivoTipo,
+  AditivoStatus,
+  AditivoDiaAcao,
+  SnapshotFuncionario,
+  ImpactoFinanceiro,
+  SolicitarAditivoFuncionarioInput,
+  SolicitarAditivoDiaInput,
+  ListarAditivosPendentesFiltros,
+} from './aditivoService';

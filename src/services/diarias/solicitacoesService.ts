@@ -174,6 +174,26 @@ export async function getSolicitacoes(
     !scope.responsavel_campo_id &&
     !(scope.centro_custo_ids && scope.centro_custo_ids.length)
   );
+  const semPeriodo = !filters?.periodo_inicio && !filters?.periodo_fim;
+
+  // SAFETY NET: chamada sem período E sem scope pode varrer toda a tabela
+  // (com 2 joins e ORDER BY created_at DESC), causando statement timeout 57014.
+  // Aplicar janela últimos 90 dias + limit 500 e logar warning explícito.
+  if (scopeVazio && semPeriodo) {
+    const hoje = new Date();
+    const inicio = new Date(hoje);
+    inicio.setDate(inicio.getDate() - 90);
+    const yyyy = inicio.getFullYear();
+    const mm = String(inicio.getMonth() + 1).padStart(2, '0');
+    const dd = String(inicio.getDate()).padStart(2, '0');
+    const janelaInicio = `${yyyy}-${mm}-${dd}`;
+    console.warn(
+      '[Diarias][getSolicitacoes][SAFETY_NET] Chamada sem periodo_inicio e sem scope — aplicando janela últimos 90 dias e limit=500.',
+      { janelaInicio, limit: 500, motivo: 'sem periodo_inicio e sem scope' },
+    );
+    query = query.gte('data_inicio', janelaInicio).limit(500);
+  }
+
   if (scopeVazio && import.meta.env.DEV) {
     console.debug('[Diarias][getSolicitacoes] sem scope frontend, delegado ao RLS');
   }
@@ -348,6 +368,11 @@ async function sincronizarConvocadosPreControlado(
         nome_funcao: convocado.nome_funcao || '',
         cpf: convocado.cpf,
         matricula: convocado.matricula,
+        // Fase E — propaga matriz funcionário×data e flag legada de diária exclusiva.
+        dias_solicitados: Array.isArray((convocado as any).dias_solicitados)
+          ? ((convocado as any).dias_solicitados as string[])
+          : [],
+        usar_diaria_exclusiva: (convocado as any).usar_diaria_exclusiva ?? false,
       });
     }
   }
@@ -426,12 +451,18 @@ export async function createSolicitacao(formData: SolicitacaoFormData): Promise<
     throw new Error('Seu perfil não possui permissão de criação de solicitação de diária.');
   }
 
-  // Verificar duplicidade antes de criar
-  await verificarDuplicidadeSolicitacao(
-    formData.data_inicio,
-    formData.data_fim,
-    formData.convocados_pre || []
-  );
+  // Verificar duplicidade antes de criar — apenas para tipo 'normal'.
+  // Extraordinária libera overlap (memória Multi-Solicitação Diárias); bloqueio real
+  // de sobreposição de horário ocorre no Apontamento de Campo (presença com hora_entrada).
+  if (tipo === 'normal') {
+    await verificarDuplicidadeSolicitacao(
+      formData.data_inicio,
+      formData.data_fim,
+      formData.convocados_pre || []
+    );
+  } else {
+    console.info('[Diarias][createSolicitacao] extraordinária — bypass duplicidade semanal');
+  }
 
   // Gerar número de solicitação
   const numero_solicitacao = await generateNumeroSolicitacao();
@@ -460,6 +491,47 @@ export async function createSolicitacao(formData: SolicitacaoFormData): Promise<
     status: 'rascunho'
   };
 
+
+  // ===== [DIARIAS][CREATE_AUTH_DIAG] — instrumentação temporária de diagnóstico =====
+  let __diagAuthUserId: string | null = null;
+  let __diagSessionUserId: string | null = null;
+  let __diagMatchAuthCriado: boolean | null = null;
+  try {
+    const [authUserResp, sessionResp] = await Promise.all([
+      supabase.auth.getUser(),
+      supabase.auth.getSession(),
+    ]);
+    const u = authUserResp.data?.user;
+    const s = sessionResp.data?.session;
+    __diagAuthUserId = u?.id ?? null;
+    __diagSessionUserId = s?.user?.id ?? null;
+    __diagMatchAuthCriado = __diagAuthUserId === insertData.criado_por;
+    const token = s?.access_token;
+    const expIso = s?.expires_at ? new Date(s.expires_at * 1000).toISOString() : null;
+    console.info('[DIARIAS][CREATE_AUTH_DIAG]', {
+      authUserId: __diagAuthUserId,
+      authUserEmail: u?.email ?? null,
+      sessionUserId: __diagSessionUserId,
+      sessionExpiresAt: s?.expires_at ?? null,
+      sessionExpiresAtIso: expIso,
+      hasAccessToken: !!token,
+      accessTokenPreview: token ? token.slice(0, 8) + '…' : null,
+      payload: {
+        criado_por: insertData.criado_por,
+        tipo_solicitacao: insertData.tipo_solicitacao,
+        centro_custo_id: insertData.centro_custo_id,
+        empresa_id: '(não enviado pelo cliente — derivado do centro_custo no servidor)',
+        status: insertData.status,
+      },
+      match_authUser_session: __diagAuthUserId === __diagSessionUserId,
+      match_authUser_criadoPor: __diagMatchAuthCriado,
+      match_session_criadoPor: __diagSessionUserId === insertData.criado_por,
+    });
+  } catch (diagErr) {
+    console.warn('[DIARIAS][CREATE_AUTH_DIAG] falha ao coletar diagnóstico', diagErr);
+  }
+  // ===== fim do bloco de diagnóstico =====
+
   console.info('[Diarias][createSolicitacao] tentativa de criação', {
     centro_custo_id: insertData.centro_custo_id,
     data_inicio: insertData.data_inicio,
@@ -484,7 +556,18 @@ export async function createSolicitacao(formData: SolicitacaoFormData): Promise<
       backendCanCreate,
       insertData,
     });
+    console.error('[DIARIAS][CREATE_RLS_ERROR]', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      criado_por_enviado: insertData.criado_por,
+      authUserId: __diagAuthUserId,
+      sessionUserId: __diagSessionUserId,
+      match_authUser_criadoPor: __diagMatchAuthCriado,
+    });
     throw new Error(traduzirErroCriacaoSolicitacao({ ...error, backendCanCreate }));
+
   }
 
   const { data: createdRow, error: createdRowError } = await supabase
@@ -716,12 +799,16 @@ export async function enviarParaAutorizacao(id: string): Promise<DiariaSolicitac
     // ou criadas por não-SuperAdm por caminhos alternativos não avancem de status.
     await assertRegraRetroativa(solicitacao.data_inicio, (solicitacao as any).justificativa);
 
-    await verificarDuplicidadeSolicitacao(
-      solicitacao.data_inicio,
-      solicitacao.data_fim,
-      Array.isArray(solicitacao.convocados_pre) ? solicitacao.convocados_pre as any[] : [],
-      id
-    );
+    if ((solicitacao.tipo_solicitacao || 'normal') === 'normal') {
+      await verificarDuplicidadeSolicitacao(
+        solicitacao.data_inicio,
+        solicitacao.data_fim,
+        Array.isArray(solicitacao.convocados_pre) ? solicitacao.convocados_pre as any[] : [],
+        id
+      );
+    } else {
+      console.info('[Diarias][enviarParaAutorizacao] extraordinária — bypass duplicidade semanal');
+    }
   }
 
   const { data, error } = await supabase
@@ -1041,6 +1128,10 @@ export interface FuncionarioConvocadoData {
   nome_funcao: string;
   cpf?: string;
   matricula?: string;
+  /** Fase E — dias marcados na matriz funcionário×data, persistidos no jsonb. */
+  dias_solicitados?: string[];
+  /** Fase E — flag opcional para uso de diária exclusiva (preservada no jsonb). */
+  usar_diaria_exclusiva?: boolean;
 }
 
 export async function adicionarFuncionarioConvocado(

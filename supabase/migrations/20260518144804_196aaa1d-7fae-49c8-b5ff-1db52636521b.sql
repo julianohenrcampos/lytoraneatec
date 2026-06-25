@@ -1,0 +1,1 @@
+INSERT INTO public.bd_ponto_config (centro_custo_id, integracao_diaria_ativa) VALUES ('299e6a35-e71e-49e1-a450-a46f5747db98', false) ON CONFLICT DO NOTHING;

@@ -3,6 +3,11 @@
 // =====================================================
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { lerConvocadosPre, derivarFuncionariosPlanos } from "@/lib/diarias/convocadosPreAdapter";
+import {
+  classificarDiaParaRelatorio as classificarDiaParaRelatorioCore,
+  type OpcoesClassificacao,
+} from "@/lib/diarias/classificacaoDiaRelatorio";
 
 import {
   getCurrentDiariasReportContext,
@@ -61,6 +66,10 @@ export interface PresencaRow {
   tipo_diaria: string | null;
   valor_diaria_aplicada: number | null;
   valor_refeicao_aplicado: number | null;
+  /** Snapshot operacional gravado em bd_diaria_presencas (visão histórica/financeira). */
+  usar_diaria_exclusiva?: boolean | null;
+  /** Regra ATUAL do bd_diaria_calendario_operacional (visão operacional vigente). NULL = sem override. */
+  usar_diaria_exclusiva_calendario?: boolean | null;
 }
 
 export interface ConvocadoPre {
@@ -188,6 +197,13 @@ export async function fetchPresencasConfirmadas(
   filters: DiariasFilters,
   solIdSet?: Set<string> | null
 ): Promise<PresencaRow[]> {
+  // Gate defensivo: nunca consultar a view sem janela de período (evita varredura
+  // total e timeout). Tela do Dashboard sempre passa dataInicio/dataFim.
+  if (!filters.dataInicio || !filters.dataFim) {
+    console.warn('[Dashboard Diárias] fetchPresencasConfirmadas chamado sem dataInicio/dataFim — abortando.');
+    return [];
+  }
+
   const ini = fmtDate(filters.dataInicio);
   const fim = fmtDate(filters.dataFim);
 
@@ -202,7 +218,7 @@ export async function fetchPresencasConfirmadas(
     let q = supabase
       .from(viewName as any)
       .select(
-        "presenca_id, data, centro_custo_id, codigo_centro_custo, nome_centro_custo, funcionario_id, nome_funcionario, funcao_id, nome_funcao, solicitacao_id, numero_solicitacao, presenca_status, hora_entrada, hora_saida, tipo_diaria, valor_diaria_aplicada, valor_refeicao_aplicado"
+        "presenca_id, data, centro_custo_id, codigo_centro_custo, nome_centro_custo, funcionario_id, nome_funcionario, funcao_id, nome_funcao, solicitacao_id, numero_solicitacao, presenca_status, hora_entrada, hora_saida, tipo_diaria, valor_diaria_aplicada, valor_refeicao_aplicado, usar_diaria_exclusiva, usar_diaria_exclusiva_calendario"
       )
       // Critério oficial de "confirmado" — alinhado com isRelatorioItemConfirmado e PDF Compilado.
       .eq("presenca_status", "true" as unknown as string)
@@ -244,7 +260,7 @@ export async function fetchPresencasConfirmadas(
         const fb = await supabase
           .from("vw_relatorio_diarias_folha")
           .select(
-            "presenca_id, data, centro_custo_id, codigo_centro_custo, nome_centro_custo, funcionario_id, nome_funcionario, funcao_id, nome_funcao, solicitacao_id, numero_solicitacao, presenca_status, hora_entrada, hora_saida, tipo_diaria, valor_diaria_aplicada, valor_refeicao_aplicado"
+            "presenca_id, data, centro_custo_id, codigo_centro_custo, nome_centro_custo, funcionario_id, nome_funcionario, funcao_id, nome_funcao, solicitacao_id, numero_solicitacao, presenca_status, hora_entrada, hora_saida, tipo_diaria, valor_diaria_aplicada, valor_refeicao_aplicado, usar_diaria_exclusiva, usar_diaria_exclusiva_calendario"
           )
           .eq("presenca_status", "true" as unknown as string)
           .not("hora_entrada", "is", null)
@@ -292,6 +308,124 @@ export async function fetchPresencasUltimosMeses(
   return fetchPresencasConfirmadas(ampl, solIdSet);
 }
 
+export interface SerieMensalItem {
+  mes: string; // YYYY-MM
+  diarias: number;
+  refeicoes: number;
+  total: number;
+}
+
+/**
+ * Série mensal dedicada para o gráfico Evolução Mensal.
+ * - Janela: últimos N meses até filters.dataFim (ou mês atual).
+ * - Fonte: mesma view oficial (vw_diarias_* segundo contexto), com fallback p/ vw_relatorio_diarias_folha.
+ * - Fórmula: Math.ceil(valor_diaria_aplicada || 0) + Math.ceil(valor_refeicao_aplicado || 0).
+ * - Sempre retorna N buckets (preenche 0 quando não houver dado).
+ */
+export async function fetchSerieMensalDiarias(
+  filters: DiariasFilters,
+  meses = 12
+): Promise<SerieMensalItem[]> {
+  const ref = filters.dataFim || new Date();
+  const inicioDate = new Date(ref.getFullYear(), ref.getMonth() - (meses - 1), 1);
+  const fimDate = new Date(ref.getFullYear(), ref.getMonth() + 1, 0);
+  const ini = fmtDate(inicioDate)!;
+  const fim = fmtDate(fimDate)!;
+
+  // Buckets vazios em ordem cronológica
+  const buckets = new Map<string, SerieMensalItem>();
+  for (let i = 0; i < meses; i++) {
+    const d = new Date(inicioDate.getFullYear(), inicioDate.getMonth() + i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    buckets.set(key, { mes: key, diarias: 0, refeicoes: 0, total: 0 });
+  }
+
+  const ccIds = await resolveCentroCustoIds(filters);
+  if (ccIds !== null && ccIds.length === 0) return Array.from(buckets.values());
+
+  const solIdSet =
+    !!filters.solicitacaoId ||
+    !!filters.engenheiroSolicitanteId ||
+    (filters.gerenteRegionalIds && filters.gerenteRegionalIds.length > 0)
+      ? await buildSolIdSet({ ...filters, dataInicio: inicioDate, dataFim: fimDate })
+      : null;
+  if (solIdSet !== null && solIdSet.size === 0) return Array.from(buckets.values());
+
+  const safeSolSet = solIdSet && solIdSet.size > 800 ? null : solIdSet;
+  const viewName = await getDashboardView();
+
+  const SELECT =
+    "presenca_id, data, funcionario_id, solicitacao_id, valor_diaria_aplicada, valor_refeicao_aplicado";
+
+  const buildQ = (vname: string) => {
+    let q = supabase
+      .from(vname as any)
+      .select(SELECT)
+      .eq("presenca_status", "true" as unknown as string)
+      .not("hora_entrada", "is", null)
+      .not("hora_saida", "is", null)
+      .gte("data", ini)
+      .lte("data", fim)
+      // Ordenação determinística — evita pular/duplicar linhas no .range() por página.
+      .order("data", { ascending: true })
+      .order("funcionario_id", { ascending: true })
+      .order("solicitacao_id", { ascending: true })
+      .order("presenca_id", { ascending: true });
+    if (ccIds && ccIds.length > 0) q = q.in("centro_custo_id", ccIds);
+    if (filters.funcionarioId) q = q.eq("funcionario_id", filters.funcionarioId);
+    if (filters.solicitacaoId) q = q.eq("solicitacao_id", filters.solicitacaoId);
+    if (safeSolSet && safeSolSet.size > 0 && !filters.solicitacaoId) {
+      q = q.in("solicitacao_id", Array.from(safeSolSet));
+    }
+    return q;
+  };
+
+  const pageSize = 1000;
+  let from = 0;
+  let usedView = viewName;
+  let triedFallback = false;
+  while (true) {
+    const { data, error } = await buildQ(usedView).range(from, from + pageSize - 1);
+    if (error) {
+      if (!triedFallback && usedView !== "vw_relatorio_diarias_folha") {
+        console.warn(
+          `[Evolução Mensal] fallback ${usedView} → vw_relatorio_diarias_folha:`,
+          error.message
+        );
+        usedView = "vw_relatorio_diarias_folha";
+        triedFallback = true;
+        from = 0;
+        continue;
+      }
+      throw error;
+    }
+    const rows = ((data || []) as unknown) as Array<{
+      data: string | null;
+      valor_diaria_aplicada: number | null;
+      valor_refeicao_aplicado: number | null;
+    }>;
+    for (const r of rows) {
+      if (!r.data) continue;
+      const key = r.data.slice(0, 7);
+      const b = buckets.get(key);
+      if (!b) continue;
+      const d = Math.ceil(Number(r.valor_diaria_aplicada || 0));
+      const ref = Math.ceil(Number(r.valor_refeicao_aplicado || 0));
+      b.diarias += d;
+      b.refeicoes += ref;
+      b.total += d + ref;
+    }
+    if (rows.length < pageSize) break;
+    from += pageSize;
+  }
+
+  const out = Array.from(buckets.values());
+  if (typeof window !== "undefined") {
+    console.debug("[Evolução Mensal] série", { ini, fim, view: usedView, out });
+  }
+  return out;
+}
+
 export async function fetchFeriadosSet(): Promise<Set<string>> {
   const { data } = await supabase.from("bd_feriados").select("data");
   return new Set((data || []).map((f) => f.data));
@@ -299,12 +433,33 @@ export async function fetchFeriadosSet(): Promise<Set<string>> {
 
 export type TipoDiaCategoria = "uteis" | "fds_feriado";
 
-export function classificarDia(dataISO: string, feriadosSet: Set<string>): TipoDiaCategoria {
-  if (feriadosSet.has(dataISO)) return "fds_feriado";
-  const d = new Date(dataISO + "T12:00:00");
-  const dow = d.getDay();
-  if (dow === 0 || dow === 6) return "fds_feriado";
-  return "uteis";
+/**
+ * Classificação de dia para Dashboard — DELEGA à fonte única em
+ * `src/lib/diarias/classificacaoDiaRelatorio.ts`.
+ *
+ * Dashboards de gestão DEVEM passar `{ modo: 'operacional' }` para refletir
+ * a regra ATUAL do calendário operacional. Sem `opts`, cai no default
+ * `'snapshot'` (visão histórica) — usar apenas em telas que precisam
+ * espelhar exatamente o PDF oficial.
+ */
+export function classificarDia(
+  input: string | { data: string | null | undefined; usar_diaria_exclusiva?: boolean | null; usar_diaria_exclusiva_calendario?: boolean | null },
+  feriadosSet: Set<string>,
+  opts?: OpcoesClassificacao,
+): TipoDiaCategoria {
+  const obj = typeof input === "string" ? { data: input } : input;
+  const { usar_valor_exclusivo, origem_regra } = classificarDiaParaRelatorioCore(obj, feriadosSet, opts);
+  if (import.meta.env.DEV) {
+    console.debug("[DIARIA][AGRUPAMENTO_DEBUG]", {
+      modo: opts?.modo ?? "snapshot",
+      data: typeof input === "string" ? input : input.data,
+      usar_diaria_exclusiva: typeof input === "string" ? undefined : input.usar_diaria_exclusiva,
+      usar_diaria_exclusiva_calendario: typeof input === "string" ? undefined : input.usar_diaria_exclusiva_calendario,
+      grupo_calculado: usar_valor_exclusivo ? "fds_feriado" : "uteis",
+      origem_regra,
+    });
+  }
+  return usar_valor_exclusivo ? "fds_feriado" : "uteis";
 }
 
 export interface BreakdownAgg {
@@ -466,7 +621,9 @@ export function calcularEstimadoCorrigidoSolicitacao(
 ): { total: number; usouHistorico: boolean } {
   const original = Number(s.valor_estimado_total || 0);
   const qtdFds = Number(s.qtde_fds_estimado || 0) + Number(s.qtde_feriados_estimado || 0);
-  const convocados = Array.isArray(s.convocados_pre) ? s.convocados_pre : [];
+  const convocados = derivarFuncionariosPlanos(
+    lerConvocadosPre(s.convocados_pre, { inicio: s.data_inicio, fim: s.data_fim }),
+  ).map(({ extras, ...rest }) => ({ ...(extras ?? {}), ...rest }));
 
   if (!mediaFdsCc || mediaFdsCc.base <= 0 || qtdFds <= 0 || convocados.length === 0) {
     return { total: original, usouHistorico: false };
@@ -523,4 +680,24 @@ export async function calcularEstimadoCorrigidoTotal(
     }
   }
   return { total, porCc };
+}
+
+// =====================================================
+// Helper: detecta se o filtro está exatamente no padrão "semana atual"
+// (segunda → domingo) sem nenhum filtro opcional adicional.
+// =====================================================
+import { startOfWeek as _startOfWeek, endOfWeek as _endOfWeek } from "date-fns";
+
+export function isSemanaAtualPadrao(filters: DiariasFilters): boolean {
+  if (!filters.dataInicio || !filters.dataFim) return false;
+  const ini = _startOfWeek(new Date(), { weekStartsOn: 1 });
+  const fim = _endOfWeek(new Date(), { weekStartsOn: 1 });
+  if (fmtDate(filters.dataInicio) !== fmtDate(ini)) return false;
+  if (fmtDate(filters.dataFim) !== fmtDate(fim)) return false;
+  if ((filters.centroCustoIds || []).length > 0) return false;
+  if ((filters.gerenteRegionalIds || []).length > 0) return false;
+  if (filters.solicitacaoId) return false;
+  if (filters.engenheiroSolicitanteId) return false;
+  if (filters.funcionarioId) return false;
+  return true;
 }

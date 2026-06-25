@@ -26,8 +26,107 @@ import { useBiometriaSegura } from "@/hooks/ponto/useBiometriaSegura";
 import { verificarCooldownBatida } from "@/lib/ponto/verificarCooldownBatida";
 import { pontoLog } from "@/lib/ponto/pontoLog";
 import { useCameraDevices } from "@/hooks/ponto/useCameraDevices";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { IndicadorQualidadeRosto } from "@/components/ponto/IndicadorQualidadeRosto";
+
+/**
+ * Debug do fluxo Totem.
+ * Ativo SOMENTE quando `?debug=1` está na URL OU `localStorage.ponto_debug === "1"`.
+ * Usa console.error porque o esbuild de produção remove console.log/info/warn.
+ */
+function isTotemDebugEnabled(): boolean {
+  try {
+    if (typeof window === "undefined") return false;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("debug") === "1") return true;
+    return localStorage.getItem("ponto_debug") === "1";
+  } catch {
+    return false;
+  }
+}
+function totemDebug(evento: string, payload?: Record<string, unknown>) {
+  if (!isTotemDebugEnabled()) return;
+  // eslint-disable-next-line no-console
+  console.error(`[PONTO_TOTEM][DEBUG][${evento}]`, payload ?? {});
+}
+
+// ============================================================
+// Erro operacional explicativo (substitui mensagens genéricas)
+// ============================================================
+type ErroIdentificacao = {
+  titulo: string;
+  mensagem: string;
+  motivo?: string;
+  status?: number;
+  decisao?: string;
+  distancia?: number;
+  confianca?: number;
+  margem?: number;
+  rpcErrorCode?: string | null;
+  rpcErrorDetails?: string | null;
+  rpcErrorHint?: string | null;
+};
+
+function mapearErroIdentificacao(args: {
+  motivo?: string | null;
+  status?: number;
+  message?: string | null;
+  decisao?: string | null;
+  distancia?: number | null;
+  confianca?: number | null;
+  margem?: number | null;
+  rpcErrorCode?: string | null;
+  rpcErrorDetails?: string | null;
+  rpcErrorHint?: string | null;
+}): ErroIdentificacao {
+  const m = (args.motivo ?? "").toString().toLowerCase();
+  const base = {
+    motivo: args.motivo ?? undefined,
+    status: args.status,
+    decisao: args.decisao ?? undefined,
+    distancia: args.distancia ?? undefined,
+    confianca: args.confianca ?? undefined,
+    margem: args.margem ?? undefined,
+    rpcErrorCode: args.rpcErrorCode ?? undefined,
+    rpcErrorDetails: args.rpcErrorDetails ?? undefined,
+    rpcErrorHint: args.rpcErrorHint ?? undefined,
+  };
+  switch (m) {
+    case "sem_candidato":
+      return { ...base, titulo: "Funcionário não encontrado", mensagem: "Nenhuma biometria compatível foi encontrada para este dispositivo ou centro de custo." };
+    case "baixa_confianca":
+    case "not_strong_enough":
+    case "low_confidence":
+      return { ...base, titulo: "Reconhecimento com baixa confiança", mensagem: "O rosto foi detectado, mas a similaridade ficou abaixo do limite necessário." };
+    case "ambiguous_match":
+      return { ...base, titulo: "Reconhecimento ambíguo", mensagem: "O sistema encontrou mais de um possível funcionário. Procure o RH para revisar a biometria." };
+    case "dispositivo_invalido":
+    case "sessao_invalida":
+    case "sessao_expirada":
+      return { ...base, titulo: "Dispositivo não configurado", mensagem: "Este Totem não está ativo ou não foi configurado corretamente." };
+    case "configuracao_dispositivo_invalida":
+      return { ...base, titulo: "Dispositivo sem centros de custo", mensagem: "Vincule centros de custo a este dispositivo no Admin de Dispositivos." };
+    case "erro_rpc_matching":
+      return { ...base, titulo: "Erro no matching facial", mensagem: args.message || "O servidor encontrou um erro ao comparar a biometria. Contate o TI." };
+    case "motivo_nao_informado":
+      return { ...base, titulo: "Erro ao identificar funcionário", mensagem: "Motivo técnico não informado pela Edge." };
+
+    case "sem_vinculo":
+    case "funcionario_sem_vinculo_obra":
+      return { ...base, titulo: "Funcionário sem vínculo com esta obra", mensagem: "A biometria foi encontrada, mas o funcionário não possui vínculo com o centro de custo deste Totem." };
+    case "erro_interno":
+    case "erro_dispositivo":
+      return { ...base, titulo: "Erro interno", mensagem: "O servidor não conseguiu concluir a identificação." };
+    case "modelo_nao_carregado":
+    case "camera_nao_pronta":
+    case "descriptor_nao_gerado":
+    case "deteccao_fraca":
+    case "frame_invalido":
+      return { ...base, titulo: "Identificação não enviada ao servidor", mensagem: "O sistema não conseguiu gerar a biometria facial para consulta." };
+    default:
+      return { ...base, titulo: "Erro ao identificar funcionário", mensagem: args.message || "Não foi possível concluir a identificação." };
+  }
+}
 
 type TipoBatida = "entrada" | "intervalo_inicio" | "intervalo_fim" | "saida";
 type Status =
@@ -39,11 +138,22 @@ type Status =
   | "sucesso"
   | "falha";
 
+interface CentroCustoInfo {
+  id: string;
+  nome: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  raio_ponto_metros: number | null;
+}
 interface DispositivoInfo {
   id: string;
   nome?: string;
   codigo_dispositivo: string;
+  centro_custo_id?: string | null;
   centro_custo_nome?: string;
+  latitude_fixa?: number | null;
+  longitude_fixa?: number | null;
+  centro_custo?: CentroCustoInfo | null;
 }
 
 interface FuncionarioReconhecido {
@@ -123,6 +233,29 @@ const BIOMETRIA_INICIAL: BiometriaEstado = {
 const PontoTotem: React.FC = () => {
   const navigate = useNavigate();
 
+  // Persistência + estado explícito do debug visual
+  const [debugEnabled, setDebugEnabled] = useState<boolean>(false);
+  useEffect(() => {
+    let fromUrl = false;
+    let fromStorage = false;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      fromUrl = params.get("debug") === "1";
+      fromStorage = localStorage.getItem("ponto_debug") === "1";
+      if (fromUrl) localStorage.setItem("ponto_debug", "1");
+    } catch {}
+    const enabled = fromUrl || fromStorage;
+    setDebugEnabled(enabled);
+    // eslint-disable-next-line no-console
+    console.error("[PONTO_TOTEM][DEBUG_BOOT]", {
+      href: typeof window !== "undefined" ? window.location.href : null,
+      search: typeof window !== "undefined" ? window.location.search : null,
+      storageDebug: (() => { try { return localStorage.getItem("ponto_debug"); } catch { return null; } })(),
+      debugEnabledCalculado: enabled,
+    });
+  }, []);
+
+
   // Sessão
   const [dispositivo, setDispositivo] = useState<DispositivoInfo | null>(null);
   const [deviceSecret, setDeviceSecret] = useState<string | null>(null);
@@ -150,6 +283,7 @@ const PontoTotem: React.FC = () => {
     funcionario_id: string; nome: string; matricula: string | null; funcao: string | null; centro_custo: string | null;
   }>>([]);
   const [edgeErroMsg, setEdgeErroMsg] = useState<string | null>(null);
+  const [erroIdentificacaoDetalhado, setErroIdentificacaoDetalhado] = useState<ErroIdentificacao | null>(null);
   const [matchDebug, setMatchDebug] = useState<MatchDebug>({
     top1_distancia: null,
     top2_distancia: null,
@@ -164,10 +298,98 @@ const PontoTotem: React.FC = () => {
   const [qualidadeMsg, setQualidadeMsg] = useState<string | null>(null);
   const [modeloErro, setModeloErro] = useState<string | null>(null);
   const [biometria, setBiometria] = useState<BiometriaEstado>(BIOMETRIA_INICIAL);
+  // Painel de debug visual (somente quando isTotemDebugEnabled()) — não afeta fluxo
+  const [debugInfo, setDebugInfo] = useState<{
+    detectionScore: number | null;
+    mediaScore: number | null;
+    limiteMedia: number | null;
+    limiteUltimo: number | null;
+    faceRatio: number | null;
+    faceRatioMin: number | null;
+    faceRatioMax: number | null;
+    yaw: number | null;
+    yawMax: number | null;
+    centerOk: boolean | null;
+    areaOk: boolean | null;
+    motivoBloqueio: string | null;
+    codigoBloqueio: string | null;
+    qualidadeNivel: string | null;
+    framesConfirmados: number | null;
+    descriptorGerado: boolean;
+    descriptorLen: number | null;
+    edgeChamou: boolean;
+    edgeFound: boolean | null;
+  }>({
+    detectionScore: null,
+    mediaScore: null,
+    limiteMedia: null,
+    limiteUltimo: null,
+    faceRatio: null,
+    faceRatioMin: null,
+    faceRatioMax: null,
+    yaw: null,
+    yawMax: null,
+    centerOk: null,
+    areaOk: null,
+    motivoBloqueio: null,
+    codigoBloqueio: null,
+    qualidadeNivel: null,
+    framesConfirmados: null,
+    descriptorGerado: false,
+    descriptorLen: null,
+    edgeChamou: false,
+    edgeFound: null,
+  });
+  const debugLastCodigoRef = useRef<string | null>(null);
+  const debugLastLogTsRef = useRef<number>(0);
   // GPS
   const [gpsStatus, setGpsStatus] = useState<"idle" | "capturando" | "ok" | "impreciso" | "indisponivel">("idle");
   const [gpsPrecisao, setGpsPrecisao] = useState<number | null>(null);
   const [gpsTentativaAtual, setGpsTentativaAtual] = useState<number>(0);
+
+  // F2 — Localização fixa do TOTEM (sem GPS do navegador)
+  const localizacaoFixa = useMemo<
+    { latitude: number; longitude: number; origem: "dispositivo" | "centro_custo"; raio: number | null } | null
+  >(() => {
+    if (!dispositivo) return null;
+    const lat = dispositivo.latitude_fixa;
+    const lon = dispositivo.longitude_fixa;
+    if (lat != null && lon != null && Number.isFinite(Number(lat)) && Number.isFinite(Number(lon))) {
+      return {
+        latitude: Number(lat),
+        longitude: Number(lon),
+        origem: "dispositivo",
+        raio: dispositivo.centro_custo?.raio_ponto_metros ?? null,
+      };
+    }
+    const cc = dispositivo.centro_custo;
+    if (cc && cc.latitude != null && cc.longitude != null && Number.isFinite(Number(cc.latitude)) && Number.isFinite(Number(cc.longitude))) {
+      return {
+        latitude: Number(cc.latitude),
+        longitude: Number(cc.longitude),
+        origem: "centro_custo",
+        raio: cc.raio_ponto_metros ?? null,
+      };
+    }
+    return null;
+  }, [dispositivo]);
+
+  const semLocalizacaoConfigurada = !!dispositivo && !localizacaoFixa;
+
+  // Quando o dispositivo carregar com localização fixa, marca GPS como OK sem chamar navigator.geolocation
+  useEffect(() => {
+    if (!localizacaoFixa) return;
+    setGpsStatus("ok");
+    setGpsPrecisao(0);
+    setGpsTentativaAtual(0);
+    totemDebug("GPS_FIXO", {
+      origem: localizacaoFixa.origem,
+      latitude: localizacaoFixa.latitude,
+      longitude: localizacaoFixa.longitude,
+      centro_custo_id: dispositivo?.centro_custo?.id ?? dispositivo?.centro_custo_id ?? null,
+      raio: localizacaoFixa.raio,
+    });
+  }, [localizacaoFixa, dispositivo]);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -227,9 +449,11 @@ const PontoTotem: React.FC = () => {
         setModeloErro(null);
         setBiometria((b) => ({ ...b, modeloCarregado: true, motivoBloqueio: "Aguardando rosto" }));
         setStatus("escaneando");
+        totemDebug("MODELO_CARREGADO", { modeloCarregado: true });
       })
       .catch((e) => {
         pontoLog("FACEAPI", "ERRO", "error", { message: (e as Error)?.message });
+        totemDebug("MODELO_ERRO", { message: (e as Error)?.message });
         setModeloErro("Falha ao carregar reconhecimento facial");
         setBiometria((b) => ({ ...b, modeloCarregado: false, motivoBloqueio: "Reconhecimento facial indisponível" }));
         setStatus("falha");
@@ -254,6 +478,7 @@ const PontoTotem: React.FC = () => {
       if (!v) return;
       if (v.videoWidth > 0 && v.videoHeight > 0) {
         console.log("[TOTEM][CAMERA] frame válido", v.videoWidth, "x", v.videoHeight);
+        totemDebug("CAMERA_READY", { deviceId: selectedDeviceId, videoWidth: v.videoWidth, videoHeight: v.videoHeight });
         setCameraReady(true);
         setCameraError(null);
       }
@@ -338,6 +563,9 @@ const PontoTotem: React.FC = () => {
     setQualidadeMsg(null);
     setLastReason(null);
     setTentativasSemMatch(0);
+    setEdgeStatus("idle");
+    setEdgeErroMsg(null);
+    setErroIdentificacaoDetalhado(null);
     setBiometria((b) => ({
       ...b,
       rostoDetectado: false,
@@ -375,8 +603,84 @@ const PontoTotem: React.FC = () => {
       try {
         const resultado = await validarRostoSeguro(v, "totem");
         if (statusRef.current !== "escaneando") return;
+
+        // === Diagnóstico unificado (apenas em modo debug) ===
+        const r: any = resultado;
+        const diagSnapshot = {
+          detectionScore: r.detectionScore ?? null,
+          mediaScore: r.mediaScore ?? null,
+          limiteMedia: r.limiteMedia ?? null,
+          limiteUltimo: r.limiteUltimo ?? null,
+          faceRatio: r.faceRatio ?? null,
+          faceRatioMin: r.faceRatioMin ?? null,
+          faceRatioMax: r.faceRatioMax ?? null,
+          yaw: r.yaw ?? null,
+          yawMax: r.yawMax ?? null,
+          centerOk: r.centerOk ?? null,
+          areaOk: r.areaOk ?? null,
+          motivoBloqueio: resultado.motivo ?? null,
+          codigoBloqueio: (resultado.codigoBloqueio as string | null | undefined) ?? null,
+          qualidadeNivel: resultado.qualidadeNivel ?? null,
+          framesConfirmados: r.framesConfirmados ?? null,
+          descriptorGerado: !!r.descriptorGerado || !!resultado.descriptor,
+        };
+        setDebugInfo((prev) => ({ ...prev, ...diagSnapshot }));
+        if (debugEnabled || isTotemDebugEnabled()) {
+          const agora = Date.now();
+          const codigo = diagSnapshot.codigoBloqueio;
+          const mudou = codigo !== debugLastCodigoRef.current;
+          if (mudou || agora - debugLastLogTsRef.current >= 500) {
+            debugLastLogTsRef.current = agora;
+            debugLastCodigoRef.current = codigo;
+            // eslint-disable-next-line no-console
+            console.error("[PONTO_TOTEM][DEBUG][DETECCAO_STATUS]", diagSnapshot);
+          }
+        }
+
         if (!resultado.valido || !resultado.descriptor) {
-          setQualidadeMsg(resultado.motivo ?? null);
+          // NÃO limpar resultado remoto aqui: frames inválidos intermitentes
+          // (SEM_ROSTO / AGUARDANDO_BUFFER) ocorrem entre chamadas Edge e
+          // apagariam o erro remoto recém-exibido. A limpeza ocorre
+          // exclusivamente quando uma nova chamada Edge é despachada
+          // (linhas ~720-722) ou em reset().
+
+
+          // Deriva mensagem local humana a partir do código de bloqueio
+          const codigo = (r.codigoBloqueio as string | null | undefined) ?? null;
+          const faceRatio = (r.faceRatio as number | null | undefined) ?? null;
+          const faceRatioMin = (r.faceRatioMin as number | null | undefined) ?? null;
+          const faceRatioMax = (r.faceRatioMax as number | null | undefined) ?? null;
+          let msgLocal: string | null = null;
+          switch (codigo) {
+            case "SEM_ROSTO":
+              msgLocal = null; // texto inferior já cobre "Procurando rosto..."
+              break;
+            case "DETECCAO_FRACA":
+              msgLocal = "Melhore a iluminação ou aproxime-se um pouco.";
+              break;
+            case "FRAME_INVALIDO":
+              if (faceRatio != null && faceRatioMax != null && faceRatio > faceRatioMax) {
+                msgLocal = "Afaste-se um pouco da câmera.";
+              } else if (faceRatio != null && faceRatioMin != null && faceRatio < faceRatioMin) {
+                msgLocal = "Aproxime-se da câmera.";
+              } else {
+                msgLocal = "Centralize o rosto no círculo.";
+              }
+              break;
+            case "YAW_ALTO":
+              msgLocal = "Olhe diretamente para a câmera.";
+              break;
+            case "AGUARDANDO_BUFFER":
+            case "DETECCAO_AGUARDANDO_BUFFER":
+              msgLocal = "Mantenha-se parado.";
+              break;
+            default:
+              msgLocal =
+                resultado.motivo && resultado.motivo !== "Nenhum rosto detectado"
+                  ? resultado.motivo
+                  : null;
+          }
+          setQualidadeMsg(msgLocal);
           setConfiancaAtual(resultado.confidence ?? null);
           // Frame inválido quebra a sequência
           matchBufferRef.current = [];
@@ -391,11 +695,6 @@ const PontoTotem: React.FC = () => {
             motivoBloqueio: resultado.motivo ?? "Aguardando rosto",
             qualidadeNivel: resultado.qualidadeNivel ?? "ruim",
           }));
-          if (resultado.motivo === "Nenhum rosto detectado") {
-            setQualidadeMsg(null);
-          } else if (resultado.motivo && resultado.motivo !== "Confirmando identidade...") {
-            setTentativasSemMatch((x) => x + 1);
-          }
           return;
         }
 
@@ -404,36 +703,87 @@ const PontoTotem: React.FC = () => {
         setBiometria((b) => ({ ...b, rostoDetectado: true, qualidadeOk: true, rostoValido: true, livenessOk: true, motivoBloqueio: "Identificando...", qualidadeNivel: resultado.qualidadeNivel ?? "boa" }));
 
         const descriptor = Array.from(resultado.descriptor);
+        totemDebug("DESCRIPTOR_GERADO", {
+          dispositivo_codigo: dispositivo.codigo_dispositivo,
+          descriptorGerado: true,
+          descriptorLen: descriptor.length,
+          detectionScore: (resultado as any).detectionScore ?? null,
+          faceRatio: (resultado as any).faceRatio ?? null,
+          qualidadeNivel: resultado.qualidadeNivel ?? null,
+        });
+        setDebugInfo((prev) => ({
+          ...prev,
+          descriptorGerado: true,
+          descriptorLen: descriptor.length,
+          detectionScore: (resultado as any).detectionScore ?? null,
+          faceRatio: (resultado as any).faceRatio ?? null,
+          edgeChamou: true,
+        }));
         setEdgeStatus("consultando");
         setEdgeErroMsg(null);
+        setErroIdentificacaoDetalhado(null);
 
-        const invokePromise = supabase.functions.invoke(
-          "identificar-funcionario-por-face",
-          {
-            headers: { "x-device-secret": deviceSecret },
-            body: {
-              codigo_dispositivo: dispositivo.codigo_dispositivo,
-              face_descriptor: descriptor,
+        // fetch direto: captura body mesmo em status não-2xx.
+        // Edge `identificar-funcionario-por-face` tem verify_jwt=false e valida apenas x-device-secret.
+        const SUPA_URL = (supabase as any).supabaseUrl as string;
+        const ANON = (supabase as any).supabaseKey as string;
+        let httpStatus: number | undefined;
+        let data: any = null;
+        let error: { message: string; __timeout?: true } | null = null;
+        try {
+          const ctrl = new AbortController();
+          const tId = setTimeout(() => ctrl.abort(), 2500);
+          const resp = await fetch(
+            `${SUPA_URL}/functions/v1/identificar-funcionario-por-face`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                apikey: ANON,
+                "x-device-secret": deviceSecret,
+              },
+              body: JSON.stringify({
+                codigo_dispositivo: dispositivo.codigo_dispositivo,
+                face_descriptor: descriptor,
+              }),
+              signal: ctrl.signal,
             },
-          },
-        );
-        const timeoutPromise = new Promise<{ data: null; error: { message: string; __timeout: true } }>(
-          (resolve) =>
-            setTimeout(
-              () => resolve({ data: null, error: { message: "timeout_2s", __timeout: true } }),
-              2500,
-            ),
-        );
-
-        const { data, error } = (await Promise.race([invokePromise, timeoutPromise])) as any;
+          );
+          clearTimeout(tId);
+          httpStatus = resp.status;
+          try { data = await resp.json(); } catch { data = null; }
+          if (!resp.ok) {
+            error = { message: data?.message ?? data?.error ?? `http_${resp.status}` };
+          }
+        } catch (e: any) {
+          if (e?.name === "AbortError") {
+            error = { message: "timeout_2s", __timeout: true };
+          } else {
+            error = { message: e?.message ?? "network_error" };
+          }
+        }
 
         if (error) {
           if (error.__timeout) {
             setEdgeStatus("timeout");
             setEdgeErroMsg("Falha na comunicação com servidor");
+            setErroIdentificacaoDetalhado(mapearErroIdentificacao({
+              motivo: "erro_interno",
+              status: httpStatus,
+              message: "Tempo de resposta esgotado (2.5s).",
+            }));
           } else {
             setEdgeStatus("erro");
             setEdgeErroMsg("Erro ao identificar funcionário");
+            setErroIdentificacaoDetalhado(mapearErroIdentificacao({
+              motivo: data?.reason ?? data?.motivo ?? data?.error ?? "erro_interno",
+              status: httpStatus,
+              message: data?.message ?? data?.detail ?? error.message,
+              decisao: data?.decisao ?? null,
+              distancia: data?.top1_distancia ?? null,
+              confianca: data?.top1_confidence ?? data?.confianca ?? null,
+              margem: data?.margem ?? null,
+            }));
           }
           setConfiancaAtual(null);
           return;
@@ -441,10 +791,26 @@ const PontoTotem: React.FC = () => {
         if (!data || data.error) {
           setEdgeStatus("erro");
           setEdgeErroMsg(data?.error ? `Erro: ${data.error}` : "Erro ao identificar funcionário");
+          setErroIdentificacaoDetalhado(mapearErroIdentificacao({
+            motivo: data?.error ?? data?.reason ?? "erro_interno",
+            status: httpStatus,
+            message: data?.message ?? data?.detail ?? null,
+          }));
           setConfiancaAtual(null);
           return;
         }
         setEdgeStatus("idle");
+        totemDebug("EDGE_RESPONSE", {
+          edgeStatus: "idle",
+          found: (data as any)?.found ?? null,
+          decisao: (data as any)?.decisao ?? null,
+          motivo: (data as any)?.reason ?? (data as any)?.motivo ?? null,
+          top1_distancia: (data as any)?.top1_distancia ?? null,
+          margem: (data as any)?.margem ?? null,
+        });
+        console.error("[PONTO_TOTEM][EDGE_PAYLOAD_FINAL]", data);
+        setDebugInfo((prev) => ({ ...prev, edgeFound: (data as any)?.found ?? null }));
+
 
         // Atualiza painel debug com métricas reais
         setMatchDebug((prev) => ({
@@ -461,19 +827,40 @@ const PontoTotem: React.FC = () => {
         }));
 
         if (!data.found || data.decisao === "rejeitado") {
+          const motivoRaw = (data.reason ?? data.motivo ?? null) as string | null;
+          if (!motivoRaw) {
+            // eslint-disable-next-line no-console
+            console.error("[PONTO_TOTEM][MATCH_REJEITADO_PAYLOAD]", data);
+          }
+          const motivo = motivoRaw ?? "motivo_nao_informado";
           setConfiancaAtual(null);
-          setLastReason((data.reason as any) ?? "sem_candidato");
+          setLastReason(motivo as any);
           matchBufferRef.current = [];
           setTentativasSemMatch((x) => x + 1);
           setBiometria((b) => ({ ...b, matchValido: false, framesValidos: 0, motivoBloqueio: "Rosto detectado, mas não reconhecido" }));
+          setEdgeStatus("erro");
           setEdgeErroMsg("Rosto detectado, mas não reconhecido");
+          setErroIdentificacaoDetalhado(mapearErroIdentificacao({
+            motivo,
+            status: httpStatus,
+            message: data.message ?? data.error ?? null,
+            decisao: data.decisao ?? null,
+            distancia: data.top1_distancia ?? null,
+            confianca: data.top1_confidence ?? data.confianca ?? null,
+            margem: data.margem ?? null,
+            rpcErrorCode: data.rpc_error_code ?? null,
+            rpcErrorDetails: data.rpc_error_details ?? null,
+            rpcErrorHint: data.rpc_error_hint ?? null,
+          }));
           pontoLog("BIOMETRIA", "MATCH_REJEITADO_BACKEND", "warn", {
-            reason: data.reason ?? "sem_candidato",
+            reason: motivo,
             top1Conf: data.top1_confidence ?? null,
             top1Dist: data.top1_distancia ?? null,
           });
           return;
         }
+
+
 
         const top1d = Number(data.top1_distancia);
         const margem = Number(data.margem);
@@ -497,22 +884,34 @@ const PontoTotem: React.FC = () => {
           thresholds_backend: data.thresholds ?? null,
         });
 
-        // GATE ÚNICO E AND ESTRITO (calibrado via CALIBRACAO_MATCH)
-        const matchOk =
+        // Sem gate local: confiar na decisão da Edge (aprovado/provisorio aceitos)
+        const decisaoEdge = String(data.decisao ?? "").toLowerCase();
+        const aceito =
           !!funcionarioId &&
-          Number.isFinite(top1d) &&
-          top1d < DIST_LOCAL_GATE &&
-          margem >= MARGEM_MIN &&
-          confianca >= CONFIANCA_MIN;
-        if (!matchOk) {
+          data.found === true &&
+          (decisaoEdge === "aprovado" || decisaoEdge === "provisorio");
+
+        if (!aceito) {
+          console.error("[PONTO_TOTEM][EDGE_PAYLOAD_INESPERADO]", data);
           setConfiancaAtual(null);
           matchBufferRef.current = [];
-          setBiometria((b) => ({ ...b, matchValido: false, framesValidos: 0, motivoBloqueio: "Rosto detectado, mas não reconhecido" }));
-          setEdgeErroMsg("Rosto detectado, mas não reconhecido");
+          setBiometria((b) => ({ ...b, matchValido: false, framesValidos: 0, motivoBloqueio: "Resposta inesperada do servidor de reconhecimento" }));
+          setEdgeStatus("erro");
+          setEdgeErroMsg("Resposta inesperada do servidor de reconhecimento");
           setTentativasSemMatch((x) => x + 1);
-          pontoLog("BIOMETRIA", "MATCH_INVALIDO", "warn", { dist: top1d, margem, confianca, funcionario_id: funcionarioId });
+          setErroIdentificacaoDetalhado(mapearErroIdentificacao({
+            motivo: "motivo_nao_informado",
+            status: httpStatus,
+            decisao: data.decisao ?? null,
+            distancia: Number.isFinite(top1d) ? top1d : null,
+            confianca: Number.isFinite(confianca) ? confianca : null,
+            margem: Number.isFinite(margem) ? margem : null,
+          }));
+          pontoLog("BIOMETRIA", "EDGE_INESPERADO", "warn", { dist: top1d, margem, confianca, funcionario_id: funcionarioId, decisao: data.decisao });
           return;
         }
+
+
 
         pontoLog("BIOMETRIA", "MATCH", "info", { confianca, funcionario_id: funcionarioId, dist: top1d, aprovado: true });
 
@@ -537,6 +936,7 @@ const PontoTotem: React.FC = () => {
         console.log("[BIOMETRIA][CONFIRMACAO]", { aprovado: true, framesConfirmados, funcionario_id: funcionarioId });
         setConfiancaAtual(confianca);
         setLastReason(null);
+        setErroIdentificacaoDetalhado(null);
         setMatchDebug((prev) => ({ ...prev, frames_ok: framesConfirmados }));
         setBiometria((b) => ({ ...b, matchValido: true, framesValidos: framesConfirmados, motivoBloqueio: null }));
         setFuncionario(data as FuncionarioReconhecido);
@@ -628,10 +1028,11 @@ const PontoTotem: React.FC = () => {
 
   // Pré-captura GPS assim que reconhecimento provisório acontece
   useEffect(() => {
+    if (localizacaoFixa) return; // F2: totem fixo não usa GPS do navegador
     if (status === "reconhecido_provisorio" && (gpsStatus === "idle" || gpsStatus === "indisponivel")) {
       capturarGPSComRetry(3).catch(() => undefined);
     }
-  }, [status, gpsStatus, capturarGPSComRetry]);
+  }, [status, gpsStatus, capturarGPSComRetry, localizacaoFixa]);
 
   // Validação visual + gates derivados (devem vir antes de confirmarBatida)
   // GPS válido = lat/lon finitos + accuracy ≤ limite (NÃO aceita "impreciso" automaticamente)
@@ -667,12 +1068,15 @@ const PontoTotem: React.FC = () => {
     if (!biometria.livenessOk) return "Mova-se ligeiramente (anti-foto)";
     if (!biometria.matchValido) return biometria.motivoBloqueio ?? "Identificando...";
     if (biometria.framesValidos < REQUIRED_MATCH_FRAMES) return "Confirmando identidade...";
-    if (gpsPrecisao == null) return "Aguardando GPS";
-    if (gpsPrecisao > GPS_PRECISAO_MAX_TOTEM) return `GPS impreciso (±${Math.round(gpsPrecisao)}m). Tente novamente.`;
-    if (!gpsValido) return "Aguardando GPS";
+    if (semLocalizacaoConfigurada) return "Dispositivo sem localização configurada";
+    if (!localizacaoFixa) {
+      if (gpsPrecisao == null) return "Aguardando GPS";
+      if (gpsPrecisao > GPS_PRECISAO_MAX_TOTEM) return `GPS impreciso (±${Math.round(gpsPrecisao)}m). Tente novamente.`;
+      if (!gpsValido) return "Aguardando GPS";
+    }
     if (!faceValida) return "Aguardando confirmação";
     return null;
-  }, [biometria, gpsValido, gpsPrecisao, faceValida, modeloErro, cameraError]);
+  }, [biometria, gpsValido, gpsPrecisao, faceValida, modeloErro, cameraError, localizacaoFixa, semLocalizacaoConfigurada]);
 
   // Confirmar batida
   const confirmarBatida = useCallback(async () => {
@@ -693,11 +1097,13 @@ const PontoTotem: React.FC = () => {
     if (modeloErro) {
       console.warn("[BIOMETRIA][BLOQUEIO_PRE_EDGE]", { motivo: "modelo_nao_carregado" });
       toast.error("Reconhecimento facial indisponível");
+      setErroIdentificacaoDetalhado(mapearErroIdentificacao({ motivo: "modelo_nao_carregado" }));
       return;
     }
     if (!cameraReady) {
       console.warn("[BIOMETRIA][BLOQUEIO_PRE_EDGE]", { motivo: "camera_indisponivel" });
       toast.error("Câmera necessária");
+      setErroIdentificacaoDetalhado(mapearErroIdentificacao({ motivo: "camera_nao_pronta" }));
       return;
     }
     const cooldown = await verificarCooldownBatida(funcionario.funcionario_id);
@@ -721,26 +1127,34 @@ const PontoTotem: React.FC = () => {
       resetTimerRef.current = null;
     }
 
-    // Garante GPS válido com retry antes de chamar a edge
+    // F2 — Totem fixo: usa coordenadas cadastradas; senão tenta GPS do navegador
     let gps: { latitude: number; longitude: number; precisao_gps_metros: number } | null = null;
-    if (gpsStatus === "ok" || gpsStatus === "impreciso") {
-      gps = await capturarGPSUmaVez(); // refresh rápido
-    }
-    if (!gps) {
-      gps = await capturarGPSComRetry(3);
-    }
-    if (!gps) {
-      pontoLog("GPS", "HARD_BLOCK", "error", { motivo: "gps_invalido" });
-      toast.error("Não foi possível obter localização. Ative o GPS para registrar o ponto.");
-      return;
-    }
-    // Hard-block por precisão (defesa em camadas — botão já bloqueia, mas garantimos aqui)
-    const accuracy = gps.precisao_gps_metros;
-    if (!Number.isFinite(accuracy) || accuracy > GPS_PRECISAO_MAX_TOTEM) {
-      pontoLog("GPS", "HARD_BLOCK", "error", { motivo: "gps_impreciso", accuracy, limite: GPS_PRECISAO_MAX_TOTEM });
-      toast.error(`GPS impreciso (±${Math.round(accuracy)}m). Tente novamente em local aberto.`);
-      setStatus("escaneando");
-      return;
+    if (localizacaoFixa) {
+      gps = {
+        latitude: localizacaoFixa.latitude,
+        longitude: localizacaoFixa.longitude,
+        precisao_gps_metros: 0,
+      };
+      totemDebug("BATIDA_GPS_FIXO", { origem: localizacaoFixa.origem, ...gps });
+    } else {
+      if (gpsStatus === "ok" || gpsStatus === "impreciso") {
+        gps = await capturarGPSUmaVez();
+      }
+      if (!gps) {
+        gps = await capturarGPSComRetry(3);
+      }
+      if (!gps) {
+        pontoLog("GPS", "HARD_BLOCK", "error", { motivo: "gps_invalido" });
+        toast.error("Não foi possível obter localização. Ative o GPS para registrar o ponto.");
+        return;
+      }
+      const accuracy = gps.precisao_gps_metros;
+      if (!Number.isFinite(accuracy) || accuracy > GPS_PRECISAO_MAX_TOTEM) {
+        pontoLog("GPS", "HARD_BLOCK", "error", { motivo: "gps_impreciso", accuracy, limite: GPS_PRECISAO_MAX_TOTEM });
+        toast.error(`GPS impreciso (±${Math.round(accuracy)}m). Tente novamente em local aberto.`);
+        setStatus("escaneando");
+        return;
+      }
     }
 
     setStatus("registrando");
@@ -807,7 +1221,7 @@ const PontoTotem: React.FC = () => {
       setStatus("falha");
       resetTimerRef.current = window.setTimeout(reset, 3000);
     }
-  }, [dispositivo, deviceSecret, funcionario, cameraReady, modeloErro, gpsStatus, capturarFotoBase64, capturarGPSUmaVez, capturarGPSComRetry, tipoBatida, reset, podeConfirmar, motivoBotao, biometria]);
+  }, [dispositivo, deviceSecret, funcionario, cameraReady, modeloErro, gpsStatus, capturarFotoBase64, capturarGPSUmaVez, capturarGPSComRetry, tipoBatida, reset, podeConfirmar, motivoBotao, biometria, localizacaoFixa]);
 
   // Confirmação humana "Sou eu" → registra no log + promove para "reconhecido"
   const confirmarMatch = useCallback(async () => {
@@ -872,8 +1286,15 @@ const PontoTotem: React.FC = () => {
         podeRetentar: false,
       };
     }
+    if (semLocalizacaoConfigurada) {
+      return {
+        titulo: "Dispositivo sem localização configurada",
+        descricao: "Este dispositivo não possui coordenadas fixas e o centro de custo principal também não está geolocalizado. Procure o administrador.",
+        podeRetentar: false,
+      };
+    }
     return null;
-  }, [modeloErro, cameraError]);
+  }, [modeloErro, cameraError, semLocalizacaoConfigurada]);
 
   // Handler de busca/seleção manual
   const buscarManual = useCallback(async () => {
@@ -1028,36 +1449,47 @@ const PontoTotem: React.FC = () => {
             {online ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
             {online ? "Online" : "Offline"}
           </div>
-          <div
-            className={cn(
-              "flex items-center gap-1 text-xs px-2 py-1 rounded border",
-              gpsStatus === "ok" && "border-emerald-500/40 text-emerald-300",
-              gpsStatus === "impreciso" && "border-amber-500/40 text-amber-300",
-              gpsStatus === "indisponivel" && "border-red-500/40 text-red-300",
-              gpsStatus === "capturando" && "border-cyan-500/40 text-cyan-300",
-              gpsStatus === "idle" && "border-slate-700 text-slate-400",
-            )}
-            title={
-              gpsStatus === "ok" ? `GPS preciso (${Math.round(gpsPrecisao ?? 0)}m)`
-              : gpsStatus === "impreciso" ? `GPS impreciso (${Math.round(gpsPrecisao ?? 0)}m)`
-              : gpsStatus === "indisponivel" ? "GPS indisponível"
-              : gpsStatus === "capturando" ? "Capturando GPS..."
-              : "GPS"
-            }
-          >
-            {gpsStatus === "indisponivel" ? (
-              <MapPinOff className="h-3 w-3" />
-            ) : gpsStatus === "capturando" ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
+          {localizacaoFixa ? (
+            <div
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded border border-cyan-500/40 text-cyan-200 bg-cyan-500/10"
+              title={`Localização fixa (${localizacaoFixa.origem === "dispositivo" ? "dispositivo" : "centro de custo"})${localizacaoFixa.raio ? ` • raio ${localizacaoFixa.raio}m` : ""}`}
+            >
               <MapPin className="h-3 w-3" />
-            )}
-            {gpsStatus === "ok" && `GPS ${Math.round(gpsPrecisao ?? 0)}m`}
-            {gpsStatus === "impreciso" && `GPS ~${Math.round(gpsPrecisao ?? 0)}m`}
-            {gpsStatus === "indisponivel" && "Sem GPS"}
-            {gpsStatus === "capturando" && "GPS..."}
-            {gpsStatus === "idle" && "GPS"}
-          </div>
+              Localização fixa
+              {localizacaoFixa.raio ? <span className="text-cyan-300/70">• {localizacaoFixa.raio}m</span> : null}
+            </div>
+          ) : (
+            <div
+              className={cn(
+                "flex items-center gap-1 text-xs px-2 py-1 rounded border",
+                gpsStatus === "ok" && "border-emerald-500/40 text-emerald-300",
+                gpsStatus === "impreciso" && "border-amber-500/40 text-amber-300",
+                gpsStatus === "indisponivel" && "border-red-500/40 text-red-300",
+                gpsStatus === "capturando" && "border-cyan-500/40 text-cyan-300",
+                gpsStatus === "idle" && "border-slate-700 text-slate-400",
+              )}
+              title={
+                gpsStatus === "ok" ? `GPS preciso (${Math.round(gpsPrecisao ?? 0)}m)`
+                : gpsStatus === "impreciso" ? `GPS impreciso (${Math.round(gpsPrecisao ?? 0)}m)`
+                : gpsStatus === "indisponivel" ? "GPS indisponível"
+                : gpsStatus === "capturando" ? "Capturando GPS..."
+                : "GPS"
+              }
+            >
+              {gpsStatus === "indisponivel" ? (
+                <MapPinOff className="h-3 w-3" />
+              ) : gpsStatus === "capturando" ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <MapPin className="h-3 w-3" />
+              )}
+              {gpsStatus === "ok" && `GPS ${Math.round(gpsPrecisao ?? 0)}m`}
+              {gpsStatus === "impreciso" && `GPS ~${Math.round(gpsPrecisao ?? 0)}m`}
+              {gpsStatus === "indisponivel" && "Sem GPS"}
+              {gpsStatus === "capturando" && "GPS..."}
+              {gpsStatus === "idle" && "GPS"}
+            </div>
+          )}
           <button
             onClick={sairDispositivo}
             className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-700 text-slate-400 hover:text-red-400 hover:border-red-500/50 transition-colors text-sm"
@@ -1094,13 +1526,13 @@ const PontoTotem: React.FC = () => {
       )}
 
       {/* Banner de GPS capturando/indisponível (visível durante reconhecimento provisório) */}
-      {(status === "reconhecido_provisorio" || status === "reconhecido") && gpsStatus === "capturando" && (
+      {!localizacaoFixa && (status === "reconhecido_provisorio" || status === "reconhecido") && gpsStatus === "capturando" && (
         <div className="absolute top-20 right-6 z-40 px-3 py-2 rounded-lg bg-amber-500/15 border border-amber-400/40 text-amber-200 text-xs flex items-center gap-2">
           <Loader2 className="h-3 w-3 animate-spin" />
           Obtendo localização... ({gpsTentativaAtual}/3)
         </div>
       )}
-      {(status === "reconhecido_provisorio" || status === "reconhecido") && gpsStatus === "indisponivel" && (
+      {!localizacaoFixa && (status === "reconhecido_provisorio" || status === "reconhecido") && gpsStatus === "indisponivel" && (
         <div className="absolute top-20 right-6 z-40 px-3 py-2 rounded-lg bg-rose-500/20 border border-rose-400/50 text-rose-100 text-xs flex items-center gap-2">
           <MapPinOff className="h-3 w-3" />
           GPS indisponível — registro bloqueado
@@ -1124,24 +1556,6 @@ const PontoTotem: React.FC = () => {
               muted
               className="absolute inset-0 w-full h-full object-cover opacity-90 scale-x-[-1]"
             />
-            {cameraDevices.length > 1 && (
-              <div className="absolute top-3 right-3 z-20 max-w-[60%]">
-                <Select
-                  value={selectedDeviceId ?? ""}
-                  onValueChange={(v) => setSelectedDeviceId(v || null)}
-                >
-                  <SelectTrigger className="h-9 text-sm bg-background/80 backdrop-blur-sm">
-                    <SelectValue placeholder="Câmera" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {cameraDevices.map((d) => (
-                      <SelectItem key={d.deviceId} value={d.deviceId}>{d.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
             {!cameraReady && (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 gap-3 bg-slate-900">
                 <Camera className="h-16 w-16 opacity-40" />
@@ -1225,21 +1639,16 @@ const PontoTotem: React.FC = () => {
                   lastReason === "low_confidence" && "text-rose-300",
                   lastReason === "ambiguous_match" && "text-amber-300",
                   lastReason === "not_strong_enough" && "text-cyan-300",
-                  lastReason === "sem_candidato" && "text-slate-400",
+                  lastReason === "sem_candidato" && "text-rose-300",
                 )}>
                   {lastReason === "low_confidence" && "Rosto não reconhecido"}
                   {lastReason === "ambiguous_match" && "Ambiguidade detectada — tente novamente"}
                   {lastReason === "not_strong_enough" && "Aproxime o rosto / melhore iluminação"}
-                  {lastReason === "sem_candidato" && "Procurando rosto..."}
+                  {lastReason === "sem_candidato" && "Funcionário não encontrado. Procure o RH para cadastrar sua biometria."}
                 </p>
               )}
-              {status === "escaneando" && qualidadeMsg && (
+              {status === "escaneando" && !lastReason && qualidadeMsg && (
                 <p className="text-sm mt-1 font-medium text-amber-300">{qualidadeMsg}</p>
-              )}
-              {status === "escaneando" && tentativasSemMatch >= 8 && edgeStatus === "idle" && (
-                <p className="text-rose-300 text-base font-semibold mt-2">
-                  Funcionário não encontrado. Procure o RH para cadastrar sua biometria.
-                </p>
               )}
             </div>
 
@@ -1350,6 +1759,46 @@ const PontoTotem: React.FC = () => {
                 <p className="mt-4 text-sm text-amber-300 font-medium">{motivoBotao}</p>
               )}
             </div>
+          ) : erroIdentificacaoDetalhado ? (
+            <div className="flex-1 rounded-3xl border-2 border-rose-500/60 bg-rose-950/30 p-8 flex flex-col gap-4 text-rose-100">
+              <h3 className="text-2xl font-bold text-rose-200">{erroIdentificacaoDetalhado.titulo}</h3>
+              <p className="text-base text-rose-100/90">{erroIdentificacaoDetalhado.mensagem}</p>
+              <dl className="text-xs text-rose-200/80 grid grid-cols-[auto,1fr] gap-x-4 gap-y-1 mt-2">
+                {erroIdentificacaoDetalhado.motivo && (
+                  <><dt className="font-semibold">Motivo</dt><dd className="font-mono">{erroIdentificacaoDetalhado.motivo}</dd></>
+                )}
+                {erroIdentificacaoDetalhado.status != null && (
+                  <><dt className="font-semibold">HTTP</dt><dd className="font-mono">{erroIdentificacaoDetalhado.status}</dd></>
+                )}
+                {erroIdentificacaoDetalhado.decisao && (
+                  <><dt className="font-semibold">Decisão</dt><dd className="font-mono">{erroIdentificacaoDetalhado.decisao}</dd></>
+                )}
+                {erroIdentificacaoDetalhado.distancia != null && (
+                  <><dt className="font-semibold">Distância</dt><dd className="font-mono">{Number(erroIdentificacaoDetalhado.distancia).toFixed(3)}</dd></>
+                )}
+                {erroIdentificacaoDetalhado.confianca != null && (
+                  <><dt className="font-semibold">Confiança</dt><dd className="font-mono">{Number(erroIdentificacaoDetalhado.confianca).toFixed(3)}</dd></>
+                )}
+                {erroIdentificacaoDetalhado.margem != null && (
+                  <><dt className="font-semibold">Margem</dt><dd className="font-mono">{Number(erroIdentificacaoDetalhado.margem).toFixed(3)}</dd></>
+                )}
+                {erroIdentificacaoDetalhado.rpcErrorCode && (
+                  <><dt className="font-semibold">RPC code</dt><dd className="font-mono">{erroIdentificacaoDetalhado.rpcErrorCode}</dd></>
+                )}
+                {erroIdentificacaoDetalhado.rpcErrorDetails && (
+                  <><dt className="font-semibold">RPC details</dt><dd className="font-mono break-all">{erroIdentificacaoDetalhado.rpcErrorDetails}</dd></>
+                )}
+                {erroIdentificacaoDetalhado.rpcErrorHint && (
+                  <><dt className="font-semibold">RPC hint</dt><dd className="font-mono break-all">{erroIdentificacaoDetalhado.rpcErrorHint}</dd></>
+                )}
+              </dl>
+              <button
+                onClick={reset}
+                className="mt-4 self-start rounded-lg bg-rose-500 hover:bg-rose-400 text-white px-6 py-3 font-semibold transition-colors"
+              >
+                Tentar novamente
+              </button>
+            </div>
           ) : (
             <div className="flex-1 rounded-3xl border-2 border-dashed border-slate-700 bg-slate-900/40 flex flex-col items-center justify-center text-slate-500 gap-4 p-8">
               <ScanFace className="h-24 w-24 opacity-30" />
@@ -1362,6 +1811,119 @@ const PontoTotem: React.FC = () => {
           )}
         </section>
       </main>
+
+      {debugEnabled && (
+        <div
+          data-testid="totem-debug-badge"
+          style={{
+            position: "fixed", top: 8, left: "50%", transform: "translateX(-50%)",
+            zIndex: 2147483647, background: "#22d3ee", color: "#000",
+            padding: "6px 14px", borderRadius: 999, fontWeight: 800, fontSize: 12,
+            fontFamily: "monospace", letterSpacing: 1, textTransform: "uppercase",
+            boxShadow: "0 4px 12px rgba(0,0,0,.4)",
+          }}
+        >
+          DEBUG TOTEM ATIVO
+        </div>
+      )}
+      {debugEnabled && (
+        <div
+          data-testid="totem-debug-panel"
+          style={{
+            position: "fixed", top: 56, right: 12, zIndex: 2147483647,
+            width: 380, maxHeight: "78vh", overflow: "auto",
+            background: "rgba(0,0,0,0.92)", color: "#fff",
+            border: "2px solid #22d3ee", borderRadius: 12, padding: 12,
+            fontSize: 12, fontFamily: "monospace",
+          }}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-cyan-300 font-bold uppercase text-sm">Debug Totem</span>
+            <button
+              type="button"
+              onClick={() => { try { localStorage.removeItem("ponto_debug"); } catch {} window.location.href = "/ponto-totem"; }}
+              className="px-2 py-1 rounded bg-rose-500 text-white text-[11px] font-semibold hover:bg-rose-600"
+              aria-label="Desligar debug"
+            >Desligar debug</button>
+          </div>
+          {(() => {
+            const v = videoRef.current;
+            const yes = <span className="text-emerald-300">true</span>;
+            const no = <span className="text-rose-300">false</span>;
+            const bool = (b: boolean | null | undefined) => (b === true ? yes : b === false ? no : <span className="text-slate-500">—</span>);
+            const val = (x: unknown) => (x === null || x === undefined || x === "" ? <span className="text-slate-500">—</span> : <span className="text-amber-200">{String(x)}</span>);
+            const Row = ({ k, v }: { k: string; v: React.ReactNode }) => (
+              <div className="flex justify-between gap-2"><span className="text-slate-400">{k}:</span><span className="text-right break-all">{v}</span></div>
+            );
+            const Sec = ({ t, children }: { t: string; children: React.ReactNode }) => (
+              <div className="mb-2">
+                <div className="text-cyan-300 uppercase text-[11px] mb-1 border-b border-slate-800">{t}</div>
+                {children}
+              </div>
+            );
+            return (
+              <>
+                <Sec t="Modelo">
+                  <Row k="debugEnabled" v={bool(true)} />
+                  <Row k="modeloCarregado" v={bool(biometria.modeloCarregado)} />
+                  <Row k="modeloErro" v={val(modeloErro)} />
+                </Sec>
+
+                <Sec t="Validação">
+                  <Row k="codigoBloqueio" v={debugInfo.codigoBloqueio == null ? <span className="text-emerald-300">ok</span> : <span className="text-amber-300">{debugInfo.codigoBloqueio}</span>} />
+                  <Row k="motivoBloqueio" v={val(debugInfo.motivoBloqueio)} />
+                  <Row k="detectionScore" v={val(`${debugInfo.detectionScore?.toFixed?.(3) ?? "—"} / min ${debugInfo.limiteUltimo ?? "—"}`)} />
+                  <Row k="mediaScore" v={val(`${debugInfo.mediaScore?.toFixed?.(3) ?? "—"} / min ${debugInfo.limiteMedia ?? "—"}`)} />
+                  <Row k="faceRatio" v={val(`${debugInfo.faceRatio?.toFixed?.(3) ?? "—"} (${debugInfo.faceRatioMin ?? "—"}…${debugInfo.faceRatioMax ?? "—"})`)} />
+                  <Row k="yaw" v={val(`${debugInfo.yaw?.toFixed?.(3) ?? "—"} / max ${debugInfo.yawMax ?? "—"}`)} />
+                  <Row k="centerOk" v={bool(debugInfo.centerOk)} />
+                  <Row k="areaOk" v={bool(debugInfo.areaOk)} />
+                  <Row k="qualidadeNivel" v={val(debugInfo.qualidadeNivel)} />
+                  <Row k="framesConfirmados" v={val(debugInfo.framesConfirmados)} />
+                  <Row k="descriptorGerado" v={bool(debugInfo.descriptorGerado)} />
+                </Sec>
+                <Sec t="Câmera">
+                  <Row k="cameraReady" v={bool(cameraReady)} />
+                  <Row k="videoWidth" v={val(v?.videoWidth ?? null)} />
+                  <Row k="videoHeight" v={val(v?.videoHeight ?? null)} />
+                  <Row k="deviceId" v={val(selectedDeviceId ? `…${selectedDeviceId.slice(-8)}` : null)} />
+                  <Row k="cameraError" v={val(cameraError)} />
+                </Sec>
+                <Sec t="Detecção">
+                  <Row k="detectionScore" v={val(debugInfo.detectionScore?.toFixed?.(3) ?? debugInfo.detectionScore)} />
+                  <Row k="faceRatio" v={val(debugInfo.faceRatio?.toFixed?.(3) ?? debugInfo.faceRatio)} />
+                  <Row k="qualidadeNivel" v={val(biometria.qualidadeNivel)} />
+                  <Row k="motivoBloqueio" v={val(biometria.motivoBloqueio)} />
+                  <Row k="descriptorGerado" v={bool(debugInfo.descriptorGerado)} />
+                  <Row k="descriptorLen" v={val(debugInfo.descriptorLen)} />
+                </Sec>
+                <Sec t="Edge">
+                  <Row k="edgeChamou" v={bool(debugInfo.edgeChamou)} />
+                  <Row k="edgeStatus" v={val(edgeStatus)} />
+                  <Row k="found" v={bool(debugInfo.edgeFound)} />
+                  <Row k="decisao" v={val(matchDebug.decisao)} />
+                  <Row k="motivo" v={val(matchDebug.motivo ?? edgeErroMsg)} />
+                  <Row k="top1_distancia" v={val(matchDebug.top1_distancia?.toFixed?.(4) ?? matchDebug.top1_distancia)} />
+                  <Row k="margem" v={val(matchDebug.margem?.toFixed?.(4) ?? matchDebug.margem)} />
+                </Sec>
+                <Sec t="Dispositivo">
+                  <Row k="codigo" v={val(dispositivo?.codigo_dispositivo)} />
+                  <Row k="centro_custo_id" v={val(dispositivo?.centro_custo?.id ?? dispositivo?.centro_custo_id)} />
+                  <Row k="centro_custo" v={val(dispositivo?.centro_custo?.nome ?? dispositivo?.centro_custo_nome)} />
+                </Sec>
+                <Sec t="GPS / Localização">
+                  <Row k="gpsStatus" v={val(gpsStatus)} />
+                  <Row k="aguardandoGPS" v={bool(gpsStatus === "capturando")} />
+                  <Row k="gpsPrecisao" v={val(gpsPrecisao)} />
+                  <Row k="origem" v={val(localizacaoFixa ? `fixa (${localizacaoFixa.origem})` : "navegador")} />
+                  {localizacaoFixa && <Row k="lat,lng" v={val(`${localizacaoFixa.latitude.toFixed(5)}, ${localizacaoFixa.longitude.toFixed(5)}`)} />}
+                  {localizacaoFixa && <Row k="raio" v={val(localizacaoFixa.raio)} />}
+                </Sec>
+              </>
+            );
+          })()}
+        </div>
+      )}
 
       <style>{`
         @keyframes scan {

@@ -25,7 +25,11 @@ const funcionarioSchema = z.object({
   data_admissao: z.string().nullable().optional(),
   salario_base: z.number().min(0, { message: "Salário deve ser positivo" }).optional(),
   data_ferias: z.string().nullable().optional(),
-  status: z.enum(["Ativo", "Ativo sem Registro", "Inativo", "Aviso Prévio", "INSS"]).optional(),
+  status: z.enum(["Ativo", "Ativo sem Registro", "Inativo", "Aviso Prévio", "INSS", "Férias"]).optional(),
+  tipo_escala: z.enum(["normal", "12x36"], {
+    required_error: "Tipo de Escala é obrigatório",
+    invalid_type_error: "Tipo de Escala é obrigatório",
+  }),
   data_demissao: z.string().nullable().optional(),
   insalubridade: z.number().min(0, { message: "Valor deve ser positivo" }).optional(),
   periculosidade: z.number().min(0, { message: "Valor deve ser positivo" }).optional(),
@@ -45,6 +49,41 @@ const funcionarioSchema = z.object({
 
 export type FuncionarioFormSchema = z.infer<typeof funcionarioSchema>;
 
+const EMPTY_FUNCIONARIO_DEFAULTS: FuncionarioFormData = {
+  nome_completo: "",
+  cpf: "",
+  data_nascimento: null,
+  genero: "",
+  matricula: "",
+  escolaridade: "",
+  email: "",
+  endereco_completo: "",
+  funcao_id: "",
+  departamento_id: "",
+  empresa_id: "",
+  centro_custo_id: "",
+  equipe_id: "",
+  data_admissao: null,
+  salario_base: undefined,
+  data_ferias: null,
+  status: "Ativo",
+  tipo_escala: "normal",
+  data_demissao: null,
+  insalubridade: undefined,
+  periculosidade: undefined,
+  gratificacao: undefined,
+  adicional_noturno: undefined,
+  custo_passagem: undefined,
+  refeicao: undefined,
+  diarias: undefined,
+  observacoes: "",
+  banco: "",
+  agencia: "",
+  conta_corrente: "",
+  chave_pix: "",
+};
+
+
 export const useFuncionarioForm = (
   funcionario: Funcionario | null,
   isOpen: boolean
@@ -57,43 +96,12 @@ export const useFuncionarioForm = (
 
   const form = useForm<FuncionarioFormData>({
     resolver: zodResolver(funcionarioSchema),
-    defaultValues: {
-      nome_completo: "",
-      cpf: "",
-      data_nascimento: null,
-      genero: "",
-      matricula: "",
-      escolaridade: "",
-      email: "",
-      endereco_completo: "",
-      funcao_id: "",
-      departamento_id: "",
-      empresa_id: "",
-      centro_custo_id: "",
-      equipe_id: "",
-      data_admissao: null,
-      salario_base: undefined,
-      data_ferias: null,
-      status: "Ativo",
-      data_demissao: null,
-      insalubridade: undefined,
-      periculosidade: undefined,
-      gratificacao: undefined,
-      adicional_noturno: undefined,
-      custo_passagem: undefined,
-      refeicao: undefined,
-      diarias: undefined,
-      observacoes: "",
-      banco: "",
-      agencia: "",
-      conta_corrente: "",
-      chave_pix: "",
-    },
+    defaultValues: EMPTY_FUNCIONARIO_DEFAULTS,
   });
 
   useEffect(() => {
     if (funcionario) {
-      form.reset({
+      const next: FuncionarioFormData = {
         nome_completo: funcionario.nome_completo || "",
         cpf: funcionario.cpf || "",
         data_nascimento: funcionario.data_nascimento || null,
@@ -111,6 +119,7 @@ export const useFuncionarioForm = (
         salario_base: funcionario.salario_base ?? undefined,
         data_ferias: funcionario.data_ferias || null,
         status: funcionario.status || "Ativo",
+        tipo_escala: (funcionario.tipo_escala === "12x36" ? "12x36" : "normal"),
         data_demissao: funcionario.data_demissao || null,
         insalubridade: funcionario.insalubridade ?? undefined,
         periculosidade: funcionario.periculosidade ?? undefined,
@@ -124,12 +133,34 @@ export const useFuncionarioForm = (
         agencia: funcionario.agencia || "",
         conta_corrente: funcionario.conta_corrente || "",
         chave_pix: funcionario.chave_pix || "",
-      });
+      };
+      form.reset(next);
       setUploadedImageUrl(funcionario.foto_url || null);
       setImagePreview(funcionario.foto_url || null);
+      if (import.meta.env.DEV) {
+        console.log("[FUNCIONARIOS][FORM_RESET]", {
+          modo: "edit",
+          funcionarioId: funcionario.id,
+          nome: next.nome_completo,
+          cpf: next.cpf,
+          matricula: next.matricula,
+        });
+      }
     } else {
       const hoje = getCurrentBrazilianDate();
-      form.setValue("data_admissao", hoje);
+      form.reset({ ...EMPTY_FUNCIONARIO_DEFAULTS, data_admissao: hoje });
+      setUploadedImageUrl(null);
+      setImagePreview(null);
+      setImageFile(null);
+      if (import.meta.env.DEV) {
+        console.log("[FUNCIONARIOS][FORM_RESET]", {
+          modo: "create",
+          funcionarioId: null,
+          nome: "",
+          cpf: "",
+          matricula: "",
+        });
+      }
     }
   }, [funcionario, form]);
 

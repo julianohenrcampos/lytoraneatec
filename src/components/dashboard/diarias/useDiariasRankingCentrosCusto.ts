@@ -97,7 +97,7 @@ export function useDiariasRankingCentrosCusto(filters: DiariasFilters) {
         const r = ensureRow(p.centro_custo_id);
         const dRef = Math.ceil(Number(p.valor_diaria_aplicada || 0));
         const rRef = Math.ceil(Number(p.valor_refeicao_aplicado || 0));
-        const cat = classificarDia(p.data, feriadosSet);
+        const cat = classificarDia(p, feriadosSet, { modo: "operacional" });
         if (cat === "uteis") {
           r.valorUteis += dRef;
           r.funcUteis += 1;

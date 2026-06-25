@@ -4,8 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Eye, Edit, Trash2, CheckCircle, Image, ImageOff } from 'lucide-react';
 import { VerAgir, getStatusColor, getStatusLabel } from '@/types/ssoVerAgir';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatBrazilianDateForDisplay } from '@/utils/timezoneUtils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { VerAgirMobileCards } from './VerAgirMobileCards';
 
@@ -93,7 +92,7 @@ export const VerAgirTable: React.FC<VerAgirTableProps> = ({
           {registros.map((registro) => (
             <TableRow key={registro.id}>
               <TableCell>
-                {format(new Date(registro.data_registro), 'dd/MM/yyyy', { locale: ptBR })}
+                {formatBrazilianDateForDisplay(registro.data_registro)}
               </TableCell>
               <TableCell>{registro.hora_registro?.slice(0, 5)}</TableCell>
               <TableCell className="max-w-[200px] truncate" title={registro.obra}>

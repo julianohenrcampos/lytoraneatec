@@ -54,8 +54,14 @@ import {
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { invalidatePendentes } from "@/hooks/diarias/useAditivosPendentes";
 import { cn } from "@/lib/utils";
-import type { DiariaApontamento, FuncionarioPreConvocado } from "@/types/diarias";
+import type { DiariaApontamento } from "@/types/diarias";
+import { lerConvocadosPre, derivarFuncionariosPlanos } from "@/lib/diarias/convocadosPreAdapter";
+import { calcularDiariaAplicada } from "@/lib/diarias/calculoDiaria";
+import type { ConvocadoLote } from "@/types/diarias/lotes";
+
+type ConvocadoPreCompat = ConvocadoLote & Record<string, unknown>;
 import {
   getPresencasPorSolicitacao,
   salvarInicio,
@@ -99,9 +105,13 @@ import {
   salvarPresencaComExcecao,
   solicitarTransferenciaExcecao,
 } from "@/services/diarias/excecaoService";
+import { solicitarAditivoFuncionario, solicitarAditivoDia, notificarAprovadorAditivo } from "@/services/diarias/aditivoService";
+import { useAditivos } from "@/hooks/diarias/useAditivos";
+import { LinhaFantasmaAditivo } from "@/components/diarias/LinhaFantasmaAditivo";
 import { ConflitoExcecaoModal, type ConflitoExcecaoData } from "@/components/diarias/ConflitoExcecaoModal";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermission } from "@/hooks/usePermission";
+import { useProfile } from "@/hooks/useProfile";
 import { useOrigemPontoEletronico } from "@/hooks/diarias/useOrigemPontoEletronico";
 import { useSincronizarDiarias } from "@/hooks/diarias/useSincronizarDiarias";
 import { useFuncionariosBuscaAtivos } from "@/hooks/diarias/useFuncionariosBuscaAtivos";
@@ -116,6 +126,26 @@ interface ApontamentoDiariasModalProps {
   edicaoLiberada?: boolean;
   initialDate?: string;
   isSuperAdmin?: boolean;
+}
+
+/**
+ * Fase F + compatibilidade legado.
+ * Item novo: respeita `dias_solicitados`.
+ * Item legado (sem o campo): considerado convocado em qualquer data
+ * dentro do período em que o modal foi aberto — o operador escolhe o dia.
+ */
+function funcionarioConvocadoNaData(
+  conv: { funcionario_id: string; dias_solicitados?: unknown },
+  selectedDate: string
+): { convocado: boolean; fallbackLegado: boolean } {
+  const raw = (conv as any).dias_solicitados;
+  const dias = Array.isArray(raw)
+    ? (raw.filter((d) => typeof d === 'string') as string[])
+    : null;
+  if (!dias || dias.length === 0) {
+    return { convocado: true, fallbackLegado: true };
+  }
+  return { convocado: dias.includes(selectedDate), fallbackLegado: false };
 }
 
 interface ColaboradorPresenca extends PresencaFormData {
@@ -190,25 +220,29 @@ const TIPO_DIA_LABEL: Record<TipoDiaManual, string> = {
   ponte: 'Ponte',
 };
 
-// Calcula horas trabalhadas e tipo de diária
+// Calcula horas trabalhadas e tipo de diária (Fase 2.3 — P3: delega ao helper único)
 function calcularJornada(entrada: string | undefined, saida: string | undefined): { horas: number; tipo: TipoDiaria; excede12h: boolean } {
   if (!entrada || !saida) return { horas: 0, tipo: 'nenhuma', excede12h: false };
 
-  const [hE, mE] = entrada.split(':').map(Number);
-  const [hS, mS] = saida.split(':').map(Number);
-  
-  let totalMinutos = (hS * 60 + mS) - (hE * 60 + mE);
-  if (totalMinutos < 0) totalMinutos += 24 * 60;
-  
-  const horasBrutas = totalMinutos / 60;
-  // Descontar 1h de almoço se jornada bruta > 6h
-  const horas = horasBrutas > 6 ? horasBrutas - 1 : horasBrutas;
+  const out = calcularDiariaAplicada({
+    hora_entrada: entrada,
+    hora_saida: saida,
+    valor_base: 1, // sentinela: campo financeiro não faz parte do contrato público desta função
+  });
 
-  if (horasBrutas > 12) return { horas: horasBrutas, tipo: 'uma_e_meia', excede12h: true };
-  if (horas >= 9.75) return { horas, tipo: 'uma_e_meia', excede12h: false }; // >= 9:45
-  if (horas >= 4.5) return { horas, tipo: 'completa', excede12h: false };    // >= 4:30
-  if (horas > 0) return { horas, tipo: 'meia', excede12h: false };
-  return { horas, tipo: 'nenhuma', excede12h: false };
+  const tipo: TipoDiaria = (out.tipo_diaria ?? 'nenhuma') as TipoDiaria;
+
+  // Preserva a peculiaridade do comportamento original: quando excede 12h, retorna a jornada BRUTA.
+  let horas = out.horas_liquidas;
+  if (out.excede_12h) {
+    const [hE, mE] = entrada.split(':').map(Number);
+    const [hS, mS] = saida.split(':').map(Number);
+    let min = (hS * 60 + mS) - (hE * 60 + mE);
+    if (min < 0) min += 24 * 60;
+    horas = min / 60;
+  }
+
+  return { horas, tipo, excede12h: out.excede_12h };
 }
 
 function calcularValorDiaria(valorOriginal: number, tipo: TipoDiaria): number {
@@ -300,12 +334,23 @@ export default function ApontamentoDiariasModal({
   // RBAC: decisão de ação vem do sistema de permissões, não de role string.
   // A prop isSuperAdmin é mantida apenas para retrocompatibilidade (display/legado).
   const { isSuperAdmin: isSuperAdminPerm, hasActionPermission } = usePermission();
+  const { perfil } = useProfile();
   const isSuperAdmin = isSuperAdminProp || isSuperAdminPerm;
-  // Pode editar apontamentos em fase concluída (correção pós-conclusão / adicionar funcionário tardio)
+  // responsável de campo (apontador) da solicitação atual — usado para liberar
+  // edição operacional sem depender de permissão administrativa.
+  const solicitacaoForGate: any = apontamento?.bd_diaria_solicitacoes;
+  const isResponsavelCampoLogado =
+    !!perfil?.funcionario_id &&
+    !!solicitacaoForGate?.responsavel_campo_id &&
+    perfil.funcionario_id === solicitacaoForGate.responsavel_campo_id;
+  // Pode editar apontamentos em fase concluída (correção pós-conclusão / adicionar funcionário tardio).
+  // Regra: SuperAdm OU permissão administrativa OU apontador responsável pela obra
+  // (espelha a RLS fn_diaria_can_update_row para responsavel_campo_id).
   const canEditarConcluido =
     isSuperAdminPerm ||
     hasActionPermission('diarias_view', 'aprovar') ||
     hasActionPermission('diarias_apontamento_view', 'editar') ||
+    isResponsavelCampoLogado ||
     isSuperAdminProp;
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [hasValidatedDateStructure, setHasValidatedDateStructure] = useState(false);
@@ -373,6 +418,11 @@ export default function ApontamentoDiariasModal({
     centroCustoNome?: string;
   } | null>(null);
   const [isResolvingConflito, setIsResolvingConflito] = useState(false);
+
+  // Estado de submissão do aditivo (inclusão/remoção via aditivo).
+  // A justificativa é coletada APENAS no painel "Adicionar Funcionário"
+  // (ou no ConfirmDialog de liberação) — não há mais 2º modal de justificativa.
+  const [isSubmittingAditivo, setIsSubmittingAditivo] = useState(false);
   
   // Estado para confirmação de liberação de funcionário
   const [releaseConfirm, setReleaseConfirm] = useState<{
@@ -513,6 +563,23 @@ export default function ApontamentoDiariasModal({
     queryFn: () => listarInclusoesPendentes(solicitacao?.id),
     enabled: isOpen && !!solicitacao?.id,
   });
+
+  // Aditivos da solicitação (linha fantasma "Aguardando aprovação")
+  const { data: aditivosSolic = [] } = useAditivos(solicitacao?.id);
+  const aditivosFuncionarioPendentesNoDia = useMemo(() => {
+    if (!selectedDate) return [];
+    return aditivosSolic.filter(
+      (a) =>
+        a.status === 'pendente' &&
+        (a.tipo === 'adicionar_funcionario' || (a as any).tipo === 'funcionario_inclusao') &&
+        a.data_ajustada === selectedDate,
+    );
+  }, [aditivosSolic, selectedDate]);
+  const funcionariosComAditivoPendente = useMemo(
+    () => new Set(aditivosFuncionarioPendentesNoDia.map((a) => a.funcionario_id).filter(Boolean) as string[]),
+    [aditivosFuncionarioPendentesNoDia],
+  );
+
 
   const universoBusca = funcionariosAtivos as FuncionarioBuscaItem[];
   const idsJaPresentes = useMemo(() => new Set(colaboradores.map(c => c.funcionario_id)), [colaboradores]);
@@ -660,9 +727,19 @@ export default function ApontamentoDiariasModal({
     return item?.tipo_dia ?? null;
   }, [getSnapshotTipoDia]);
 
+  // Fase F — Loop fix: o callback abaixo é dep de useEffect (linha ~810) que
+  // chama setRegrasOperacionaisPorData. Antes dependia diretamente de
+  // `regrasOperacionaisPorData`, recriando-se a cada setState e re-disparando
+  // o effect → "Maximum update depth exceeded". Agora lemos o estado via ref,
+  // mantendo o callback estável.
+  const regrasOperacionaisPorDataRef = useRef(regrasOperacionaisPorData);
+  useEffect(() => {
+    regrasOperacionaisPorDataRef.current = regrasOperacionaisPorData;
+  }, [regrasOperacionaisPorData]);
+
   const aplicarOverrideSolicitacaoNaRegra = useCallback((data: string, regraBase?: CalendarioOperacionalResolvido | null): CalendarioOperacionalResolvido => {
     const snapshotItem = getSnapshotTipoDia(data);
-    const base = regraBase ?? regrasOperacionaisPorData[data] ?? {
+    const base = regraBase ?? regrasOperacionaisPorDataRef.current[data] ?? {
       encontrada: false,
       disponivel: true,
       regra: null,
@@ -710,7 +787,7 @@ export default function ApontamentoDiariasModal({
       exigeAprovacaoAdicao: false,
       descricao: snapshotItem.descricao || 'Tipo do dia definido manualmente na solicitação: ponte.',
     };
-  }, [getSnapshotTipoDia, regrasOperacionaisPorData]);
+  }, [getSnapshotTipoDia]);
 
   /**
    * Fonte ÚNICA de verdade do valor base da diária.
@@ -786,14 +863,19 @@ export default function ApontamentoDiariasModal({
     return { label: 'Normal', variant: 'secondary', descricao: 'Dia normal', manual: false } as const;
   }, [resolveTipoDiaManual]);
 
-  // Parsear convocados_pre
-  const convocadosPre = useMemo((): FuncionarioPreConvocado[] => {
-    if (!solicitacao?.convocados_pre) return [];
-    if (Array.isArray(solicitacao.convocados_pre)) {
-      return solicitacao.convocados_pre as FuncionarioPreConvocado[];
-    }
-    return [];
-  }, [solicitacao?.convocados_pre]);
+  // Parsear convocados_pre via adapter (lote legado), reespalhando extras no root
+  // para preservar campos legados como `usar_diaria_exclusiva` consumidos pela UI.
+  const convocadosPre = useMemo<ConvocadoPreCompat[]>(() => {
+    if (!solicitacao) return [];
+    const view = lerConvocadosPre(solicitacao.convocados_pre, {
+      inicio: solicitacao.data_inicio,
+      fim: solicitacao.data_fim,
+    });
+    return derivarFuncionariosPlanos(view).map((c): ConvocadoPreCompat => ({
+      ...(c.extras ?? {}),
+      ...c,
+    }));
+  }, [solicitacao?.convocados_pre, solicitacao?.data_inicio, solicitacao?.data_fim]);
   const idsJaConvocados = useMemo(() => new Set(convocadosPre.map(c => c.funcionario_id)), [convocadosPre]);
 
   const [isPrinting, setIsPrinting] = useState(false);
@@ -1010,7 +1092,7 @@ export default function ApontamentoDiariasModal({
       try {
         const { data: presencasDoDia, error: errPres } = await supabase
           .from('bd_diaria_presencas')
-          .select('id, funcao_id, usar_diaria_exclusiva, valor_diaria_aplicada')
+          .select('id, funcao_id, usar_diaria_exclusiva, valor_diaria_aplicada, tipo_diaria, hora_entrada, hora_saida')
           .eq('solicitacao_id', solicitacao.id)
           .eq('data', data);
 
@@ -1052,12 +1134,51 @@ export default function ApontamentoDiariasModal({
             return valor;
           };
 
+          // Recalcula tipo/valor com base nas horas atuais quando disponíveis.
+          // Mantém a regra oficial (calcularDiariaAplicada) consistente entre tela, salvamento e relatório.
+          const calcularAlvoCompleto = (
+            funcaoId: string | null,
+            registroId: string,
+            entrada: string | null,
+            saida: string | null,
+            tipoAtual: string | null,
+          ): { tipo: TipoDiaria | null; valor: number } | null => {
+            const valorBase = calcularValorAlvo(funcaoId, registroId);
+            if (valorBase === null) return null;
+
+            if (entrada && saida) {
+              const calc = calcularDiariaAplicada({
+                hora_entrada: entrada,
+                hora_saida: saida,
+                valor_base: valorBase,
+              });
+              return {
+                tipo: (calc.tipo_diaria ?? null) as TipoDiaria | null,
+                valor: calc.valor_diaria_aplicada,
+              };
+            }
+            // Sem horas: preserva tipo atual e aplica apenas o multiplicador correspondente sobre o novo valor base.
+            const mult =
+              tipoAtual === 'uma_e_meia' ? 1.5
+              : tipoAtual === 'completa' ? 1
+              : tipoAtual === 'meia' ? 0.5
+              : 0;
+            return { tipo: (tipoAtual as TipoDiaria | null), valor: Math.round(valorBase * mult * 100) / 100 };
+          };
+
           const registrosDivergentes = presencasDoDia.filter((p) => {
-            const valorAlvo = calcularValorAlvo(p.funcao_id as string | null, p.id);
-            if (valorAlvo === null) return false;
+            const alvo = calcularAlvoCompleto(
+              p.funcao_id as string | null,
+              p.id,
+              (p as any).hora_entrada ?? null,
+              (p as any).hora_saida ?? null,
+              (p as any).tipo_diaria ?? null,
+            );
+            if (!alvo) return false;
             const flagDiferente = p.usar_diaria_exclusiva !== usarExclusivaApós;
-            const valorDiferente = Number(p.valor_diaria_aplicada ?? 0) !== valorAlvo;
-            return flagDiferente || valorDiferente;
+            const valorDiferente = Number(p.valor_diaria_aplicada ?? 0) !== alvo.valor;
+            const tipoDiferente = alvo.tipo !== null && (p as any).tipo_diaria !== alvo.tipo;
+            return flagDiferente || valorDiferente || tipoDiferente;
           });
 
           if (registrosDivergentes.length === 0) {
@@ -1071,30 +1192,42 @@ export default function ApontamentoDiariasModal({
           } else {
             const resultados = await Promise.all(
               registrosDivergentes.map(async (reg) => {
-                const valor = calcularValorAlvo(reg.funcao_id as string | null, reg.id);
-                if (valor === null) {
+                const alvo = calcularAlvoCompleto(
+                  reg.funcao_id as string | null,
+                  reg.id,
+                  (reg as any).hora_entrada ?? null,
+                  (reg as any).hora_saida ?? null,
+                  (reg as any).tipo_diaria ?? null,
+                );
+                if (!alvo) {
                   return { id: reg.id, ok: false as const, reason: 'funcao_nao_encontrada' };
+                }
+                const updatePayload: Record<string, any> = {
+                  usar_diaria_exclusiva: usarExclusivaApós,
+                  valor_diaria_aplicada: alvo.valor,
+                };
+                if (alvo.tipo !== null) {
+                  updatePayload.tipo_diaria = alvo.tipo;
                 }
                 // updated_at NÃO enviado — trigger update_bd_diaria_presencas_updated_at cuida.
                 const { data: updated, error: errUpd } = await supabase
                   .from('bd_diaria_presencas')
-                  .update({
-                    usar_diaria_exclusiva: usarExclusivaApós,
-                    valor_diaria_aplicada: valor,
-                  })
+                  .update(updatePayload)
                   .eq('id', reg.id)
-                  .select('id, valor_diaria_aplicada, usar_diaria_exclusiva')
+                  .select('id, valor_diaria_aplicada, usar_diaria_exclusiva, tipo_diaria')
                   .maybeSingle();
 
                 if (errUpd) {
                   console.error('[DIARIA][REPROCESSO_UPDATE_ERROR]', {
                     registro: reg.id,
                     funcao_id: reg.funcao_id,
-                    valor_alvo: valor,
+                    valor_alvo: alvo.valor,
+                    tipo_alvo: alvo.tipo,
                     error: errUpd,
                   });
                   return { id: reg.id, ok: false as const, reason: errUpd.message };
                 }
+
                 if (!updated) {
                   console.error('[DIARIA][REPROCESSO_UPDATE_ERROR]', {
                     registro: reg.id,
@@ -1302,7 +1435,7 @@ export default function ApontamentoDiariasModal({
       }
 
       // Buscar snapshots do convocados_pre para fallback final
-      const convocadosPreMap = new Map<string, FuncionarioPreConvocado>();
+      const convocadosPreMap = new Map<string, (typeof convocadosPre)[number]>();
       convocadosPre.forEach(c => convocadosPreMap.set(c.funcionario_id, c));
 
       const itens: ListaPresencaItem[] = colaboradores.map(colab => {
@@ -1413,6 +1546,36 @@ export default function ApontamentoDiariasModal({
         ];
       };
 
+      // ===== Fase F — filtrar convocados pelo dias_solicitados =====
+      const avaliacoes = convocadosPre.map((c) => ({
+        conv: c,
+        ...funcionarioConvocadoNaData(c, selectedDate || ''),
+      }));
+      const convocadosNaData = avaliacoes.filter((a) => a.convocado).map((a) => a.conv);
+      const idsConvocadosNaData = new Set(convocadosNaData.map((c) => c.funcionario_id));
+      const fallbackCount = avaliacoes.filter((a) => a.fallbackLegado).length;
+
+      console.log('[DIARIA][APONTAMENTO_CONVOCADOS_POR_DATA]', {
+        solicitacao_id: solicitacao?.id,
+        selectedDate,
+        total_convocados_pre: convocadosPre.length,
+        total_convocados_na_data: convocadosNaData.length,
+        total_filtrados_fora_data: convocadosPre.length - convocadosNaData.length,
+        fallback_legado_count: fallbackCount,
+        amostra: convocadosNaData.slice(0, 5).map((c) => ({
+          funcionario_id: c.funcionario_id,
+          nome: c.nome_funcionario,
+          dias_solicitados: (c as any).dias_solicitados ?? null,
+        })),
+      });
+      if (fallbackCount > 0) {
+        console.log('[DIARIA][APONTAMENTO_FALLBACK_LEGADO_DIAS_SOLICITADOS]', {
+          solicitacao_id: solicitacao?.id,
+          selectedDate,
+          fallback_legado_count: fallbackCount,
+        });
+      }
+
       try {
         const existentes = selectedDate
           ? await getPresencasPorSolicitacao(
@@ -1423,7 +1586,13 @@ export default function ApontamentoDiariasModal({
 
         if (existentes.length > 0) {
           setHasExistingData(true);
-            const mapped: ColaboradorPresenca[] = convocadosPre.map((conv, index) => {
+          // Fase F: incluir apenas convocados da data + funcionários (do convocadosPre)
+          // que já tenham presença gravada para esta data (preservação F3).
+          const idsExistentesNoDia = new Set(existentes.map((e) => e.funcionario_id));
+          const baseConvocadosMap = convocadosPre.filter(
+            (c) => idsConvocadosNaData.has(c.funcionario_id) || idsExistentesNoDia.has(c.funcionario_id)
+          );
+            const mapped: ColaboradorPresenca[] = baseConvocadosMap.map((conv, index) => {
             const existente = existentes.find(
               (e) => e.funcionario_id === conv.funcionario_id
             );
@@ -1544,7 +1713,7 @@ export default function ApontamentoDiariasModal({
           setFase(determinarFase(mappedFinal, true));
         } else {
           setHasExistingData(false);
-          const mapped: ColaboradorPresenca[] = convocadosPre.map((conv, index) => {
+          const mapped: ColaboradorPresenca[] = convocadosNaData.map((conv, index) => {
             const dateSel2 = selectedDate ? parseBrazilianDate(selectedDate) : null;
             const isDomingo2 = dateSel2 ? dateSel2.getDay() === 0 : false;
             const isSabado2 = dateSel2 ? dateSel2.getDay() === 6 : false;
@@ -1583,7 +1752,12 @@ export default function ApontamentoDiariasModal({
           // Se a data é passada e não há registros, marcar como concluído (falta) e bloquear
             const hojeStr = getCurrentBrazilianDate();
             const isDataPassada = !!selectedDate && selectedDate < hojeStr;
-            if (isDataPassada && !(edicaoLiberada && canEditarConcluido)) {
+            // SuperAdm/acesso_global pode regularizar retroativo sem depender do
+            // toggle `edicao_liberada`. AdmOBRA/Apontador continuam bloqueados
+            // (caem em fase=concluido somente leitura).
+            const podeRegularizarRetro =
+              (edicaoLiberada && canEditarConcluido) || isSuperAdminPerm;
+            if (isDataPassada && !podeRegularizarRetro) {
             setFase('concluido');
           } else {
             setFase('inicio');
@@ -1591,7 +1765,7 @@ export default function ApontamentoDiariasModal({
         }
       } catch (error) {
         console.error("Erro ao carregar presenças:", error);
-      const mapped: ColaboradorPresenca[] = convocadosPre.map((conv, index) => {
+      const mapped: ColaboradorPresenca[] = convocadosNaData.map((conv, index) => {
           const funcaoAtualErr = funcoesCompletas.find(f => f.id === conv.funcao_id);
           const vNormal = funcaoAtualErr?.valor_diaria ?? conv.valor_diaria;
           const vExclusiva = funcaoAtualErr?.valor_diaria_exclusiva ?? conv.valor_diaria_exclusiva ?? vNormal;
@@ -2009,7 +2183,10 @@ export default function ApontamentoDiariasModal({
     };
   }, [selectedDate, centroCusto?.id, diretoriaId, legacyMode, regraOperacionalFallback, aplicarOverrideSolicitacaoNaRegra, getSnapshotTipoDia, feriados]);
 
-  const handleAdicionarFuncionario = async (funcionario: FuncionarioBuscaItem) => {
+  const handleAdicionarFuncionario = async (
+    funcionario: FuncionarioBuscaItem,
+    justificativa?: string,
+  ) => {
     if (!solicitacao?.id) return;
     console.log('[DIARIA][ADICIONAR_FUNCIONARIO_CLICK]', {
       funcionario_id: funcionario.id,
@@ -2039,7 +2216,6 @@ export default function ApontamentoDiariasModal({
       });
 
       if (conflito.emOutra && conflito.solicitacaoId) {
-        // Abre modal único: usuário escolhe transferir, incluir como exceção, ou cancelar
         setConflitoExcecao({
           funcionario,
           outraSolicitacaoId: conflito.solicitacaoId,
@@ -2051,6 +2227,27 @@ export default function ApontamentoDiariasModal({
         return;
       }
 
+      // ── Gatilho de ADITIVO ──
+      // Solicitação já enviada/autorizada/aprovada → inclusão vira
+      // aditivo pendente (sem inserir presença/convocados_pre direto).
+      // Justificativa única vem do painel "Adicionar Funcionário".
+      const statusSol = String(solicitacao.status || '').toLowerCase();
+      const requerAditivo = ['enviada', 'autorizada', 'aprovada'].includes(statusSol);
+
+      if (requerAditivo) {
+        if (funcionariosComAditivoPendente.has(funcionario.id)) {
+          toast.info('Já existe um aditivo pendente para este funcionário neste dia.');
+          return;
+        }
+        const just = (justificativa ?? '').trim();
+        if (just.length < 10) {
+          toast.error('Justificativa obrigatória (mínimo 10 caracteres).');
+          return;
+        }
+        await executarAditivoFuncionario(funcionario, just);
+        return;
+      }
+
       const classificacao = await classificarAdicaoOperacional(funcionario);
       if (classificacao.status === 'ignorado') {
         toast.error(classificacao.mensagem);
@@ -2059,10 +2256,8 @@ export default function ApontamentoDiariasModal({
 
       const inserido = await persistirFuncionarioSelecionado(funcionario, classificacao);
       if (!inserido) {
-        // Toast de erro já emitido dentro de persistirFuncionarioSelecionado.
         return;
       }
-      // Sincronização única: invalida + refetch das queries de diárias
       await sincronizarDiarias(solicitacao.id);
 
       toast.success(classificacao.mensagem || `${funcionario.nome_completo} adicionado à lista de convocados.`);
@@ -2075,13 +2270,217 @@ export default function ApontamentoDiariasModal({
     }
   };
 
-  // Handler para remover/liberar funcionário da lista
-  // IMPORTANTE: NÃO usar filtro local — UI deve refletir refetch do banco
-  const handleRemoverFuncionario = async (funcionarioId: string, nomeFuncionario: string, forcarRemocao?: boolean) => {
+  // Executor do aditivo de funcionário — chamado pelo JustificativaAditivoModal.
+  // Calcula impacto financeiro FDS-aware reutilizando resolveTipoDiaManual + feriados
+  // (mesma regra de resolverValorOriginalParaData) e envia snapshot com chaves
+  // compatíveis com o contrato oficial do convocados_pre (nome_funcionario/nome_funcao),
+  // mantendo nome/funcao_nome por compatibilidade.
+  const executarAditivoFuncionario = async (
+    funcionario: FuncionarioBuscaItem,
+    justificativa: string,
+  ) => {
+    if (!solicitacao?.id || !selectedDate) return;
+
+    const valorDiariaSnap =
+      funcionario.valor_diaria ?? funcionario.bd_funcoes?.valor_diaria ?? 0;
+    const valorExclusivaSnap =
+      funcionario.bd_funcoes?.valor_diaria_exclusiva ?? null;
+    const valorRefeicaoSnap =
+      funcionario.valor_refeicao ?? funcionario.bd_funcoes?.valor_refeicao ?? 0;
+
+    // Resolução FDS-aware (mesma regra de resolverValorOriginalParaData)
+    const tipoManual = resolveTipoDiaManual(selectedDate);
+    let usarExclusiva: boolean;
+    if (tipoManual === 'feriado' || tipoManual === 'ponte') {
+      usarExclusiva = true;
+    } else if (tipoManual === 'normal') {
+      usarExclusiva = false;
+    } else {
+      const isFeriadoCalendario = feriados.some((f) => f.data === selectedDate);
+      const dow = parseBrazilianDate(selectedDate).getDay();
+      const isFDS = dow === 0 || dow === 6;
+      usarExclusiva = isFeriadoCalendario || isFDS;
+    }
+    const valorDiariaAplicado = usarExclusiva
+      ? (valorExclusivaSnap ?? valorDiariaSnap ?? 0)
+      : (valorDiariaSnap ?? 0);
+    const totalImpacto = (valorDiariaAplicado || 0) + (valorRefeicaoSnap || 0);
+
+    // Snapshot no padrão oficial do convocados_pre.
+    // Inclui nome_funcionario/nome_funcao (chaves canônicas usadas pelo adapter)
+    // e mantém nome/funcao_nome por compatibilidade.
+    const nomeFunc = funcionario.nome_completo;
+    const nomeFuncao =
+      funcionario.funcao_nome ?? funcionario.bd_funcoes?.nome_funcao ?? null;
+
+    const snapshot = {
+      funcionario_id: funcionario.id,
+      nome_funcionario: nomeFunc,
+      nome: nomeFunc,
+      nome_funcao: nomeFuncao,
+      funcao_nome: nomeFuncao,
+      funcao_id: funcionario.funcao_id ?? null,
+      matricula: funcionario.matricula ?? null,
+      centro_custo_id:
+        (funcionario as any).centro_custo_id ?? centroCusto?.id ?? null,
+      centro_custo_nome:
+        (funcionario as any).centro_custo_nome ?? centroCusto?.nome_centro_custo ?? null,
+      valor_diaria: valorDiariaSnap,
+      valor_diaria_exclusiva: valorExclusivaSnap,
+      valor_refeicao: valorRefeicaoSnap,
+      usar_diaria_exclusiva: usarExclusiva,
+      dias_solicitados: [selectedDate],
+    };
+
+    setIsSubmittingAditivo(true);
+    try {
+      const aditivoId = await solicitarAditivoFuncionario({
+        solicitacaoId: solicitacao.id,
+        funcionarioId: funcionario.id,
+        dataAjustada: selectedDate,
+        snapshotFuncionario: snapshot as any,
+        justificativa,
+        impacto: {
+          valor_diaria: valorDiariaAplicado,
+          valor_refeicao: valorRefeicaoSnap || 0,
+          total: totalImpacto,
+        },
+      });
+
+      const ccId =
+        (funcionario as any).centro_custo_id ?? centroCusto?.id ?? null;
+      if (ccId) {
+        void notificarAprovadorAditivo({ aditivoId, centroCustoId: ccId });
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['diarias-aditivos'] });
+      queryClient.invalidateQueries({ queryKey: ['aditivos-pendentes-por-solicitacao'] });
+
+      console.log('[DIARIA][ADITIVO_FUNCIONARIO_CRIADO]', {
+        aditivoId,
+        funcionario_id: funcionario.id,
+        data_ajustada: selectedDate,
+        usar_exclusiva: usarExclusiva,
+        impacto_total: totalImpacto,
+      });
+
+      toast.success(
+        `Aditivo de inclusão criado para ${nomeFunc}. Aguardando aprovação.`,
+      );
+      setSearchTerm('');
+      // Limpeza visual do painel de adição (justificativa única)
+      setAddSelectedFunc(null);
+      setAddJustificativa('');
+      setAddFerias(false);
+    } catch (err: any) {
+      toast.error(err?.message || 'Erro ao solicitar aditivo de funcionário.');
+    } finally {
+      setIsSubmittingAditivo(false);
+    }
+  };
+
+
+  // Tracking de aditivos de REMOÇÃO pendentes (linha fantasma — liberação).
+  const funcionariosComRemocaoPendente = useMemo(() => {
+    if (!selectedDate) return new Set<string>();
+    const ids = aditivosSolic
+      .filter(
+        (a) =>
+          a.status === 'pendente' &&
+          (a.tipo === 'remover_dia' ||
+            a.tipo === 'remover_funcionario' ||
+            (a as any).tipo === 'funcionario_remocao') &&
+          a.data_ajustada === selectedDate,
+      )
+      .map((a) => a.funcionario_id)
+      .filter(Boolean) as string[];
+    return new Set(ids);
+  }, [aditivosSolic, selectedDate]);
+
+  // Handler para remover/liberar funcionário da lista.
+  // - rascunho           → remoção direta (fluxo legado).
+  // - enviada/autorizada/aprovada → cria aditivo `remover_dia` (não toca
+  //   convocados_pre direto; aprovação é via RPC aprovar_aditivo).
+  const handleRemoverFuncionario = async (
+    funcionarioId: string,
+    nomeFuncionario: string,
+    forcarRemocao?: boolean,
+    justificativa?: string,
+  ) => {
     if (!solicitacao?.id) return;
+    const statusSol = String(solicitacao.status || '').toLowerCase();
+    const requerAditivo = ['enviada', 'autorizada', 'aprovada'].includes(statusSol);
+
+    if (requerAditivo) {
+      if (!selectedDate) {
+        toast.error('Selecione a data antes de liberar o funcionário.');
+        return;
+      }
+      if (funcionariosComRemocaoPendente.has(funcionarioId)) {
+        toast.info('Já existe um aditivo de remoção pendente para este funcionário neste dia.');
+        return;
+      }
+      const just = (justificativa ?? '').trim();
+      if (just.length < 10) {
+        toast.error('Justificativa obrigatória (mínimo 10 caracteres) para liberar funcionário.');
+        return;
+      }
+
+      setIsSubmittingAditivo(true);
+      try {
+        // Impacto estimado (mesma regra FDS-aware usada na inclusão).
+        const conv = colaboradores.find((c) => c.funcionario_id === funcionarioId);
+        const valorDiariaSnap = (conv as any)?.valor_diaria ?? 0;
+        const valorExclusivaSnap = (conv as any)?.valor_diaria_exclusiva ?? null;
+        const valorRefeicaoSnap = (conv as any)?.valor_refeicao ?? 0;
+        const tipoManual = resolveTipoDiaManual(selectedDate);
+        let usarExclusiva: boolean;
+        if (tipoManual === 'feriado' || tipoManual === 'ponte') usarExclusiva = true;
+        else if (tipoManual === 'normal') usarExclusiva = false;
+        else {
+          const isFeriadoCalendario = feriados.some((f) => f.data === selectedDate);
+          const dow = parseBrazilianDate(selectedDate).getDay();
+          usarExclusiva = isFeriadoCalendario || dow === 0 || dow === 6;
+        }
+        const valorDiariaAplicado = usarExclusiva
+          ? (valorExclusivaSnap ?? valorDiariaSnap ?? 0)
+          : (valorDiariaSnap ?? 0);
+        const totalImpacto = -((valorDiariaAplicado || 0) + (valorRefeicaoSnap || 0));
+
+        const aditivoId = await solicitarAditivoDia({
+          solicitacaoId: solicitacao.id,
+          dataAjustada: selectedDate,
+          acao: 'remover_dia',
+          funcionarios: [{ funcionario_id: funcionarioId }],
+          justificativa: just,
+          impacto: {
+            valor_diaria: valorDiariaAplicado,
+            valor_refeicao: valorRefeicaoSnap || 0,
+            total: totalImpacto,
+          },
+        });
+
+        const ccId = (conv as any)?.centro_custo_id ?? centroCusto?.id ?? null;
+        if (ccId) {
+          void notificarAprovadorAditivo({ aditivoId, centroCustoId: ccId });
+        }
+
+        invalidatePendentes(queryClient, solicitacao.id);
+        toast.success(
+          `Liberação de ${nomeFuncionario} enviada como aditivo. Aguardando aprovação.`,
+        );
+      } catch (error: any) {
+        console.error('Erro ao solicitar aditivo de remoção:', error);
+        toast.error(error.message || 'Erro ao solicitar liberação do funcionário.');
+      } finally {
+        setIsSubmittingAditivo(false);
+      }
+      return;
+    }
+
+    // Rascunho → fluxo direto legado.
     try {
       await removerFuncionarioConvocado(solicitacao.id, funcionarioId, forcarRemocao);
-      // Sincronização única: invalida + refetch de TODAS as queries relacionadas
       await sincronizarDiarias(solicitacao.id);
       toast.success(`${nomeFuncionario} liberado da lista.`);
     } catch (error: any) {
@@ -2852,7 +3251,26 @@ export default function ApontamentoDiariasModal({
 
   return (
     <>
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(next) => {
+        if (next) return;
+        // Bloquear fechamento por ESC/overlay enquanto há operação em curso —
+        // evita perder estado quando uma mutação ainda está salvando.
+        if (isSaving || isAddingFuncionario || isAddingAllCentroCusto || isSendingApproval) {
+          console.info('[DIARIA][APONTAMENTO_CLOSE_BLOCKED]', {
+            motivo: 'operacao_em_curso',
+            isSaving,
+            isAddingFuncionario,
+            isAddingAllCentroCusto,
+            isSendingApproval,
+          });
+          return;
+        }
+        console.info('[DIARIA][APONTAMENTO_CLOSE]', { motivo: 'dialog_close', fase });
+        onClose();
+      }}
+    >
       <DialogContent className="w-[96vw] max-h-[95vh] overflow-y-auto p-3 sm:max-w-[980px] sm:p-6">
         <DialogHeader className="space-y-1">
           <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
@@ -3136,6 +3554,44 @@ export default function ApontamentoDiariasModal({
             )}
           </div>
 
+          {/* Banner regularização retroativa para SuperAdm (independe de edicao_liberada) */}
+          {(() => {
+            const hojeStr = getCurrentBrazilianDate();
+            const isPast = !!selectedDate && selectedDate < hojeStr;
+            const showRetroBanner = isPast && isSuperAdminPerm && !edicaoLiberada;
+            if (!showRetroBanner) return null;
+            return (
+              <div className="space-y-2">
+                <Alert className="border-amber-500/60 bg-amber-500/10">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-xs text-amber-900 dark:text-amber-200">
+                    <strong>Regularização retroativa — ação auditada.</strong>{" "}
+                    Você está editando um apontamento em data passada como
+                    SuperAdm. Preencha o motivo no campo abaixo (mínimo 20
+                    caracteres). O evento será registrado em{" "}
+                    <code>bd_diaria_logs</code>.
+                  </AlertDescription>
+                </Alert>
+                <div>
+                  <Label className="text-xs font-medium text-destructive">
+                    Motivo da regularização retroativa *
+                  </Label>
+                  <Textarea
+                    placeholder="Descreva o motivo da regularização (mínimo 20 caracteres)..."
+                    value={observacaoCorrecao}
+                    onChange={(e) => setObservacaoCorrecao(e.target.value)}
+                    className="text-xs min-h-[60px] mt-1"
+                  />
+                  {observacaoCorrecao.trim().length < 20 && (
+                    <p className="text-[10px] text-destructive mt-1">
+                      Mínimo 20 caracteres — obrigatório para salvar.
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Banner edição liberada + observação obrigatória */}
           {edicaoLiberada && canEditarConcluido && (
             <div className="space-y-2">
@@ -3266,15 +3722,24 @@ export default function ApontamentoDiariasModal({
                             <Button
                               className="w-full"
                               size="sm"
-                              disabled={isAddingFuncionario || addJustificativa.trim().length < 5}
+                              disabled={isAddingFuncionario || isSubmittingAditivo || addJustificativa.trim().length < 10}
                               onClick={() => {
-                                handleAdicionarFuncionario(addSelectedFunc);
-                                setAddSelectedFunc(null);
-                                setAddJustificativa("");
-                                setAddFerias(false);
+                                const just = addJustificativa.trim();
+                                const func = addSelectedFunc;
+                                // Não limpar state aqui — handleAdicionarFuncionario
+                                // limpa só após sucesso (caminho aditivo) ou abaixo (caminho direto).
+                                handleAdicionarFuncionario(func, just).then(() => {
+                                  const statusSol = String(solicitacao?.status || '').toLowerCase();
+                                  const ehRascunho = !['enviada', 'autorizada', 'aprovada'].includes(statusSol);
+                                  if (ehRascunho) {
+                                    setAddSelectedFunc(null);
+                                    setAddJustificativa('');
+                                    setAddFerias(false);
+                                  }
+                                });
                               }}
                             >
-                              {isAddingFuncionario && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                              {(isAddingFuncionario || isSubmittingAditivo) && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
                               Confirmar Adição
                             </Button>
 
@@ -3441,9 +3906,17 @@ export default function ApontamentoDiariasModal({
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 <span className="ml-2 text-muted-foreground">Carregando...</span>
               </div>
-            ) : colaboradores.length > 0 ? (
+            ) : colaboradores.length > 0 || aditivosFuncionarioPendentesNoDia.length > 0 ? (
               <div className="border rounded-md p-2 sm:p-4">
                 <div className="space-y-3 sm:space-y-4">
+                  {aditivosFuncionarioPendentesNoDia.map((a) => (
+                    <LinhaFantasmaAditivo
+                      key={`ghost-${a.id}`}
+                      aditivoId={a.id}
+                      data={a.data_ajustada as string}
+                      snapshot={a.snapshot_funcionario as any}
+                    />
+                  ))}
                   {colaboradoresFiltrados.length === 0 && filtroColaboradoresNorm && (
                     <div className="text-center text-xs text-muted-foreground py-4">
                       Nenhum funcionário encontrado para "{filtroColaboradores}".
@@ -3522,8 +3995,20 @@ export default function ApontamentoDiariasModal({
                                 ) : (
                                   <>
                                     <Badge variant="destructive" className="text-[10px] sm:text-xs">Falta</Badge>
+                                    {funcionariosComRemocaoPendente.has(colaborador.funcionario_id) && (
+                                      <Badge variant="warning" className="text-[10px] sm:text-xs">
+                                        Aguardando aprovação — liberação
+                                      </Badge>
+                                    )}
                                     {!readOnly && (!colaborador.presencaId || canEditarConcluido) && (
-                                      <Button variant="ghost" size="xs" onClick={() => setReleaseConfirm({ funcionarioId: colaborador.funcionario_id, nomeFuncionario: colaborador.nome_funcionario, hasPresenca: !!colaborador.presencaId && colaborador.presente === true && !!colaborador.hora_entrada })} className="h-5 w-5 p-0 text-destructive hover:text-destructive" title="Liberar funcionário">
+                                      <Button
+                                        variant="ghost"
+                                        size="xs"
+                                        disabled={funcionariosComRemocaoPendente.has(colaborador.funcionario_id) || isSubmittingAditivo}
+                                        onClick={() => setReleaseConfirm({ funcionarioId: colaborador.funcionario_id, nomeFuncionario: colaborador.nome_funcionario, hasPresenca: !!colaborador.presencaId && colaborador.presente === true && !!colaborador.hora_entrada })}
+                                        className="h-5 w-5 p-0 text-destructive hover:text-destructive"
+                                        title={funcionariosComRemocaoPendente.has(colaborador.funcionario_id) ? 'Liberação pendente de aprovação' : 'Liberar funcionário'}
+                                      >
                                         <X className="h-3.5 w-3.5" />
                                       </Button>
                                     )}
@@ -3737,7 +4222,7 @@ export default function ApontamentoDiariasModal({
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 {selectedDate || legacyMode
-                  ? "Nenhum funcionário convocado para esta solicitação."
+                  ? "Nenhum funcionário convocado para esta data."
                   : "Selecione uma data para ver os funcionários."}
               </div>
             )}
@@ -3831,6 +4316,9 @@ export default function ApontamentoDiariasModal({
       </DialogContent>
     </Dialog>
 
+      {/* JustificativaAditivoModal removido — justificativa única vem do painel
+          "Adicionar Funcionário" (P1). */}
+
       <ConflitoExcecaoModal
         isOpen={!!conflitoExcecao}
         conflito={
@@ -3851,44 +4339,76 @@ export default function ApontamentoDiariasModal({
         onIncluirExcecao={handleIncluirComoExcecao}
       />
 
-      <ConfirmDialog
-        isOpen={!!releaseConfirm}
-        onClose={() => { setReleaseConfirm(null); setReleaseJustificativa(''); }}
-        onConfirm={async () => {
-          if (releaseConfirm) {
-            const forcar = !!releaseConfirm.hasPresenca;
-            await handleRemoverFuncionario(releaseConfirm.funcionarioId, releaseConfirm.nomeFuncionario, forcar);
-            setReleaseConfirm(null);
-            setReleaseJustificativa('');
-          }
-        }}
-        title={releaseConfirm?.hasPresenca ? "Liberar funcionário (retroativo)" : "Liberar funcionário"}
-        description={releaseConfirm
-          ? releaseConfirm.hasPresenca
-            ? `⚠️ ${releaseConfirm.nomeFuncionario} já possui presença registrada com horários. A liberação retroativa irá EXCLUIR os registros de presença existentes. Esta ação é irreversível. Informe a justificativa antes de confirmar.`
-            : `Deseja remover ${releaseConfirm.nomeFuncionario} da lista de convocados desta solicitação? Ele ficará disponível para ser alocado em outra.`
-          : ''
-        }
-        confirmText={releaseConfirm?.hasPresenca ? "Confirmar liberação retroativa" : "Liberar"}
-        cancelText="Cancelar"
-        variant={releaseConfirm?.hasPresenca ? "danger" : "warning"}
-        confirmDisabled={!!releaseConfirm?.hasPresenca && releaseJustificativa.trim().length < 5}
-      >
-        {releaseConfirm?.hasPresenca && (
-          <div className="mt-3">
-            <label className="text-sm font-medium mb-1.5 block">Justificativa <span className="text-destructive">*</span></label>
-            <textarea
-              className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              placeholder="Informe o motivo da liberação retroativa (mínimo 5 caracteres)..."
-              value={releaseJustificativa}
-              onChange={(e) => setReleaseJustificativa(e.target.value)}
-            />
-            {releaseJustificativa.length > 0 && releaseJustificativa.trim().length < 5 && (
-              <p className="text-xs text-destructive mt-1">Mínimo de 5 caracteres</p>
+      {(() => {
+        const statusSol = String(solicitacao?.status || '').toLowerCase();
+        const requerAditivo = ['enviada', 'autorizada', 'aprovada'].includes(statusSol);
+        // Em solicitação não-rascunho, a liberação SEMPRE vira aditivo
+        // remover_dia (justificativa obrigatória ≥ 10 chars).
+        const justObrigatoria = requerAditivo || !!releaseConfirm?.hasPresenca;
+        const minChars = requerAditivo ? 10 : 5;
+        const justInvalida = justObrigatoria && releaseJustificativa.trim().length < minChars;
+        return (
+          <ConfirmDialog
+            isOpen={!!releaseConfirm}
+            onClose={() => { setReleaseConfirm(null); setReleaseJustificativa(''); }}
+            onConfirm={async () => {
+              if (releaseConfirm) {
+                const forcar = !!releaseConfirm.hasPresenca;
+                await handleRemoverFuncionario(
+                  releaseConfirm.funcionarioId,
+                  releaseConfirm.nomeFuncionario,
+                  forcar,
+                  releaseJustificativa.trim(),
+                );
+                setReleaseConfirm(null);
+                setReleaseJustificativa('');
+              }
+            }}
+            title={
+              requerAditivo
+                ? 'Solicitar liberação (aditivo)'
+                : releaseConfirm?.hasPresenca
+                ? 'Liberar funcionário (retroativo)'
+                : 'Liberar funcionário'
+            }
+            description={releaseConfirm
+              ? requerAditivo
+                ? `A solicitação já foi enviada. A liberação de ${releaseConfirm.nomeFuncionario} será registrada como aditivo de remoção pendente de aprovação. Informe a justificativa abaixo.`
+                : releaseConfirm.hasPresenca
+                ? `⚠️ ${releaseConfirm.nomeFuncionario} já possui presença registrada com horários. A liberação retroativa irá EXCLUIR os registros de presença existentes. Esta ação é irreversível. Informe a justificativa antes de confirmar.`
+                : `Deseja remover ${releaseConfirm.nomeFuncionario} da lista de convocados desta solicitação? Ele ficará disponível para ser alocado em outra.`
+              : ''
+            }
+            confirmText={
+              requerAditivo
+                ? 'Solicitar liberação'
+                : releaseConfirm?.hasPresenca
+                ? 'Confirmar liberação retroativa'
+                : 'Liberar'
+            }
+            cancelText="Cancelar"
+            variant={requerAditivo ? 'warning' : releaseConfirm?.hasPresenca ? 'danger' : 'warning'}
+            confirmDisabled={justInvalida || isSubmittingAditivo}
+          >
+            {justObrigatoria && (
+              <div className="mt-3">
+                <label className="text-sm font-medium mb-1.5 block">
+                  Justificativa <span className="text-destructive">*</span>
+                </label>
+                <textarea
+                  className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  placeholder={`Informe o motivo da liberação (mínimo ${minChars} caracteres)...`}
+                  value={releaseJustificativa}
+                  onChange={(e) => setReleaseJustificativa(e.target.value)}
+                />
+                {releaseJustificativa.length > 0 && releaseJustificativa.trim().length < minChars && (
+                  <p className="text-xs text-destructive mt-1">Mínimo de {minChars} caracteres</p>
+                )}
+              </div>
             )}
-          </div>
-        )}
-      </ConfirmDialog>
+          </ConfirmDialog>
+        );
+      })()}
     </>
   );
 }

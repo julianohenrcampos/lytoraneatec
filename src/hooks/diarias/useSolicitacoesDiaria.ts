@@ -26,9 +26,35 @@ const QUERY_KEY = 'diarias-solicitacoes';
 interface SolicitacaoScopeFilters {
   criado_por?: string;
   centro_custo_ids?: string[];
+  responsavel_campo_id?: string;
+}
+
+/**
+ * Utilitário de telemetria: indica se a chamada tem ao menos um critério mínimo
+ * (scope efetivo ou período). Quando não tem, o service `getSolicitacoes`
+ * aplica safety net (janela 90d + limit 500). Mantido exportado caso outros
+ * consumidores queiram detectar essa condição, mas **não** é usado como gate
+ * de `enabled` aqui — perfis SuperAdm/AdmOBRA/GerenteRegional legitimamente
+ * delegam ao RLS com scope vazio e devem ver a lista.
+ */
+export function hasMinimumScopeOrPeriod(
+  filters?: SolicitacaoFilters,
+  scope?: SolicitacaoScopeFilters,
+): boolean {
+  return (
+    !!scope?.criado_por ||
+    !!scope?.responsavel_campo_id ||
+    !!(scope?.centro_custo_ids && scope.centro_custo_ids.length) ||
+    !!filters?.periodo_inicio
+  );
 }
 
 export function useSolicitacoesDiaria(filters?: SolicitacaoFilters, scope?: SolicitacaoScopeFilters) {
+  if (!hasMinimumScopeOrPeriod(filters, scope)) {
+    console.warn(
+      '[Diarias][useSolicitacoesDiaria] chamada sem scope efetivo e sem periodo_inicio — service aplicará safety net (janela 90d + limit 500).',
+    );
+  }
   return useQuery({
     queryKey: [QUERY_KEY, filters, scope],
     queryFn: () => getSolicitacoes(filters, scope),

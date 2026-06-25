@@ -38,7 +38,9 @@ import { useApontamentosCampo, useToggleEdicaoLiberada } from "@/hooks/diarias/u
 import { useDiariasDataScope } from "@/hooks/diarias";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { StatusApontamento, FuncionarioPreConvocado, DiariaApontamento } from "@/types/diarias";
+import type { StatusApontamento, DiariaApontamento } from "@/types/diarias";
+import { lerConvocadosPre, derivarFuncionariosPlanos } from "@/lib/diarias/convocadosPreAdapter";
+import type { ConvocadoLote } from "@/types/diarias/lotes";
 import ApontamentoDiariasModal from "@/components/diarias/ApontamentoDiariasModal";
 import { toast } from "sonner";
 import { usePagination } from "@/hooks/usePagination";
@@ -69,8 +71,9 @@ export default function DiariasApontamentoCampo() {
   } = useDiariasDataScope();
 
   const hasAccess = isSuperAdmin || hasPermission('diarias_apontamento_view') || hasPermission('diarias_view') || userScope === 'admsso';
-  // RBAC: capacidade de liberar edição de apontamentos finalizados (correção administrativa)
-  const canLiberarEdicao = isSuperAdmin || hasActionPermission('diarias_view', 'aprovar') || hasActionPermission('diarias_apontamento_view', 'editar');
+  // RBAC: liberação de edição retroativa é ação crítica exclusiva de SuperAdm.
+  // Não usar permissões genéricas (diarias_view:aprovar / diarias_apontamento_view:editar).
+  const canLiberarEdicao = isSuperAdmin;
 
   // Filters
   type StatusUI = '__all__' | 'pendente' | 'em_andamento' | 'concluido';
@@ -172,8 +175,27 @@ export default function DiariasApontamentoCampo() {
   const apontamentoScopeFilters = useMemo(() => getApontamentosFilter(), [getApontamentosFilter]);
   const { data: apontamentos = [], isLoading, refetch } = useApontamentosCampo(
     undefined,
-    apontamentoScopeFilters
+    apontamentoScopeFilters,
+    { enabled: !isLoadingScope }
   );
+
+  // [AUDIT] — apontamento campo (DEV-only)
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    // eslint-disable-next-line no-console
+    console.info('[AUDIT][apontamento:page]', {
+      userScope,
+      isLoadingScope,
+      canViewAllCcs,
+      scopeCcIdsLen: scopeCcIds?.length ?? null,
+      scopeCcIdsSample: (scopeCcIds || []).slice(0, 5),
+      apontamentoScopeFilters,
+      resultCount: apontamentos.length,
+      filtroStatus: statusFilter,
+      filtroPeriodo: !!periodoFilter,
+      centrosCustoDataLen: centrosCustoData.length,
+    });
+  }, [isLoadingScope, userScope, scopeCcIds, apontamentos.length, apontamentoScopeFilters, canViewAllCcs, statusFilter, periodoFilter, centrosCustoData.length]);
 
   // Sincroniza selectedApontamento com a versão fresca vinda do cache após mutações
   // (ex.: persistência de tipo do dia atualiza regras_operacionais_snapshot)
@@ -376,7 +398,7 @@ export default function DiariasApontamentoCampo() {
       }
 
       // Collect all solicitacao IDs and date ranges
-      const solicitacaoData: { id: string; numero: string; dataInicio: string; dataFim: string; convocados: FuncionarioPreConvocado[] }[] = [];
+      const solicitacaoData: { id: string; numero: string; dataInicio: string; dataFim: string; convocados: ConvocadoLote[] }[] = [];
       for (const apt of apontamentosCC) {
         const sol = (apt as any).bd_diaria_solicitacoes;
         if (!sol?.data_inicio || !sol?.data_fim) continue;
@@ -385,7 +407,7 @@ export default function DiariasApontamentoCampo() {
           numero: sol.numero_solicitacao || '',
           dataInicio: sol.data_inicio,
           dataFim: sol.data_fim,
-          convocados: parseConvocados(sol.convocados_pre),
+          convocados: parseConvocados(sol.convocados_pre, { inicio: sol.data_inicio, fim: sol.data_fim }),
         });
       }
 
@@ -574,14 +596,16 @@ export default function DiariasApontamentoCampo() {
     );
   }
 
-  // Parse convocados helper - handles null, array, and stringified JSON
-  const parseConvocados = (convocadosPre: any): FuncionarioPreConvocado[] => {
-    if (!convocadosPre) return [];
-    if (typeof convocadosPre === 'string') {
-      try { return JSON.parse(convocadosPre); } catch { return []; }
+  // Parse convocados via adapter — preserva tolerância a string JSON legada
+  const parseConvocados = (
+    convocadosPre: unknown,
+    periodo: { inicio: string; fim: string },
+  ): ConvocadoLote[] => {
+    let raw: unknown = convocadosPre;
+    if (typeof raw === 'string') {
+      try { raw = JSON.parse(raw); } catch { raw = []; }
     }
-    if (Array.isArray(convocadosPre)) return convocadosPre;
-    return [];
+    return derivarFuncionariosPlanos(lerConvocadosPre(raw, periodo));
   };
 
   // Data de hoje para comparação
@@ -713,7 +737,9 @@ export default function DiariasApontamentoCampo() {
           <div className="grid gap-4">
             {pagination.paginatedData.map((apontamento: any) => {
               const solicitacao = apontamento.bd_diaria_solicitacoes;
-              const convocados = parseConvocados(solicitacao?.convocados_pre);
+              const convocados = solicitacao
+                ? parseConvocados(solicitacao.convocados_pre, { inicio: solicitacao.data_inicio, fim: solicitacao.data_fim })
+                : [];
               const centroCusto = solicitacao?.bd_centros_custo;
 
               // Gerar todas as datas do período (IIFE para evitar hook dentro do map)
@@ -853,7 +879,24 @@ export default function DiariasApontamentoCampo() {
                             <div className="flex items-center gap-1.5">
                               <Switch
                                 checked={(apontamento as any).edicao_liberada || false}
-                                onCheckedChange={(checked) => toggleEdicao.mutate({ id: apontamento.id, liberada: checked })}
+                                onCheckedChange={(checked) => {
+                                  if (import.meta.env.DEV) {
+                                    console.info('[AUDIT][apontamento:liberar-retroativo]', {
+                                      isSuperAdmin,
+                                      solicitacaoId: apontamento.solicitacao_id,
+                                      numeroSolicitacao: (apontamento as any).bd_diaria_solicitacoes?.numero_solicitacao,
+                                      podeVerToggle: canLiberarEdicao,
+                                      tentouAcionar: true,
+                                      bloqueado: !isSuperAdmin,
+                                      motivo: isSuperAdmin ? 'ok' : 'nao_superadm',
+                                    });
+                                  }
+                                  if (!isSuperAdmin) {
+                                    toast.error('Apenas SuperAdm pode liberar edição retroativa.');
+                                    return;
+                                  }
+                                  toggleEdicao.mutate({ id: apontamento.id, liberada: checked });
+                                }}
                                 disabled={toggleEdicao.isPending}
                               />
                               <span className="text-xs text-muted-foreground whitespace-nowrap">Liberar</span>

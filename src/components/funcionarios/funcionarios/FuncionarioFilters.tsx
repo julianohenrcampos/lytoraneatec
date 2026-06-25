@@ -12,6 +12,7 @@ import { useIsSmallScreen, useIsMobile } from "@/hooks/use-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermission } from "@/hooks/usePermission";
+import { useEscopoOperacional } from "@/hooks/useEscopoOperacional";
 import { RESTRICTED_CC_CODE } from "@/utils/centroCustoRestrictions";
 
 interface FuncionarioFiltersProps {
@@ -27,7 +28,35 @@ const FuncionarioFilters: React.FC<FuncionarioFiltersProps> = ({
 }) => {
   const isSmallScreen = useIsSmallScreen();
   const isMobile = useIsMobile();
-  const { isSuperAdmin } = usePermission();
+  const { isSuperAdmin, userId } = usePermission();
+
+  // M4 — Fonte única de escopo operacional (paridade GerenteRegional ↔ AdmOBRA).
+  const {
+    isGlobal: isEscopoGlobal,
+    allowedCentroIds,
+    userScope: escopoUserScope,
+    isLoading: isLoadingEscopo,
+  } = useEscopoOperacional();
+
+  // G4 — Roles do usuário (multivalorado) para classificar como "RH-global"
+  const { data: roleSet = [] } = useQuery({
+    queryKey: ['user-roles-nomes', userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('bd_user_roles')
+        .select('bd_roles!inner(nome)')
+        .eq('user_id', userId!);
+      if (error) throw error;
+      return (data || [])
+        .map((r: any) => r?.bd_roles?.nome)
+        .filter(Boolean) as string[];
+    },
+  });
+
+  const RH_GLOBAL_ROLES = ['AdmRH', 'DP', 'DepartamentoPessoal', 'AdmSede', 'Financeiro'];
+  // RH-global override: roles RH precisam visão cross-CC mesmo sem acesso_global.
+  const isRhGlobal = isSuperAdmin || isEscopoGlobal || roleSet.some((r) => RH_GLOBAL_ROLES.includes(r));
 
   // Fetch funções
   const { data: funcoes = [] } = useQuery({
@@ -43,18 +72,81 @@ const FuncionarioFilters: React.FC<FuncionarioFiltersProps> = ({
     },
   });
 
-  // Fetch centros de custo
+  // M4 — Combo CC: fonte única useEscopoOperacional; sem race com roleSet.
+  const roleKey = [...roleSet].sort().join(',');
+  const allowedKey = allowedCentroIds.slice().sort().join(',');
   const { data: centrosCusto = [] } = useQuery({
-    queryKey: ['filter-centros-custo', isSuperAdmin],
+    queryKey: ['filter-centros-custo', isRhGlobal, userId, roleKey, allowedKey, escopoUserScope],
+    enabled: !!userId && !isLoadingEscopo,
     queryFn: async () => {
-      let query = supabase
+      // RH-global: todos os CCs ativos (comportamento original).
+      if (isRhGlobal) {
+        let query = supabase
+          .from('bd_centros_custo')
+          .select('id, codigo_centro_custo, nome_centro_custo')
+          .eq('situacao', 'Ativo');
+        if (!isSuperAdmin) {
+          query = query.neq('codigo_centro_custo', RESTRICTED_CC_CODE);
+        }
+        const { data, error } = await query.order('nome_centro_custo');
+        if (import.meta.env.DEV) {
+          // eslint-disable-next-line no-console
+          console.info('[AUDIT][rh-combo]', {
+            userId,
+            roles: roleSet,
+            isSuperAdmin,
+            isRhGlobal,
+            branch: 'rh-global',
+            escopoUserScope,
+            allowedCentroIdsCount: allowedCentroIds.length,
+            l498Presente: (data || []).some((c: any) => c.codigo_centro_custo === 'L498'),
+            returnedCount: (data || []).length,
+            supabaseError: error?.message ?? null,
+          });
+        }
+        if (error) throw error;
+        return data || [];
+      }
+
+      // Escopado: GerenteRegional / AdmOBRA / etc. — fail-closed se escopo vazio.
+      if (escopoUserScope === 'nenhum' || allowedCentroIds.length === 0) {
+        if (import.meta.env.DEV) {
+          // eslint-disable-next-line no-console
+          console.info('[AUDIT][rh-combo]', {
+            userId,
+            roles: roleSet,
+            branch: 'escopado-vazio',
+            escopoUserScope,
+            allowedCentroIdsCount: 0,
+            returnedCount: 0,
+          });
+        }
+        return [];
+      }
+
+      const { data, error } = await supabase
         .from('bd_centros_custo')
         .select('id, codigo_centro_custo, nome_centro_custo')
-        .eq('situacao', 'Ativo');
-      if (!isSuperAdmin) {
-        query = query.neq('codigo_centro_custo', RESTRICTED_CC_CODE);
+        .eq('situacao', 'Ativo')
+        .in('id', allowedCentroIds)
+        .neq('codigo_centro_custo', RESTRICTED_CC_CODE)
+        .order('nome_centro_custo');
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.info('[AUDIT][rh-combo]', {
+          userId,
+          roles: roleSet,
+          isSuperAdmin,
+          isRhGlobal,
+          branch: 'escopado',
+          escopoUserScope,
+          allowedCentroIdsCount: allowedCentroIds.length,
+          allowedIdsSample: allowedCentroIds.slice(0, 5),
+          l498Presente: (data || []).some((c: any) => c.codigo_centro_custo === 'L498'),
+          returnedCount: (data || []).length,
+          supabaseError: error?.message ?? null,
+        });
       }
-      const { data, error } = await query.order('nome_centro_custo');
       if (error) throw error;
       return data || [];
     },
@@ -112,6 +204,15 @@ const FuncionarioFilters: React.FC<FuncionarioFiltersProps> = ({
     { value: "sem_valor", label: "Sem Centro de Custo" },
     ...centrosCusto.map(c => ({ value: c.id, label: `${c.codigo_centro_custo} - ${c.nome_centro_custo}` })),
   ], [centrosCusto]);
+
+  if (import.meta.env.DEV) {
+    // eslint-disable-next-line no-console
+    console.info('[AUDIT][rh-combo:render]', {
+      optionsCount: centroCustoOptions.length,
+      primeirasOptions: centroCustoOptions.slice(0, 5).map((o) => o.label),
+      uiFallbackReason: centrosCusto.length === 0 ? 'lista_vazia' : null,
+    });
+  }
 
   const departamentoOptions: ComboboxOption[] = useMemo(() => [
     { value: "", label: "Todos" },

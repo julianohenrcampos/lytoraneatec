@@ -1,6 +1,8 @@
 
 import { useCallback, useState } from "react";
 import { Funcionario, FuncionarioFormData } from "@/types/funcionario";
+import { getFuncionarioById } from "@/services/funcionarioService";
+import { toast } from "sonner";
 import { useFuncionarioState } from "./funcionarios/useFuncionarioState";
 import { useFuncionarioQueries } from "./funcionarios/useFuncionarioQueries";
 import { useFuncionarioExcel } from "./funcionarios/useFuncionarioExcel";
@@ -74,14 +76,64 @@ export function useFuncionarioActions() {
     state.setFilters({});
   }, [state]);
 
-  const openFormModal = useCallback((funcionario?: Funcionario) => {
-    state.setCurrentFuncionario(funcionario || null);
+  const openFormModal = useCallback(async (funcionario?: Funcionario) => {
     state.setIsSubmitting(false);
+    if (!funcionario) {
+      // Modo create — limpar QUALQUER funcionário anterior antes de abrir
+      state.setCurrentFuncionario(null);
+      state.setIsFormModalOpen(true);
+      if (import.meta.env.DEV) {
+        console.log("[FUNCIONARIOS][OPEN_CREATE_MODAL]", { modo: "create" });
+      }
+      return;
+    }
+    // Modo edit — buscar registro completo (lista usa RPC com payload mínimo / CPF mascarado)
+    try {
+      const full = await getFuncionarioById(funcionario.id);
+      state.setCurrentFuncionario(full);
+    } catch (err) {
+      console.error("[FUNCIONARIOS][OPEN_MODAL_ERROR]", {
+        funcionarioId: funcionario.id,
+        origem: "edit",
+        fellBackToPartial: true,
+        message: (err as any)?.message,
+        code: (err as any)?.code,
+        details: (err as any)?.details,
+        hint: (err as any)?.hint,
+        status: (err as any)?.status,
+        rawError: err,
+      });
+      toast.error("Não foi possível carregar todos os dados do funcionário.");
+      state.setCurrentFuncionario(funcionario);
+    }
     state.setIsFormModalOpen(true);
   }, [state]);
 
-  const openDetailsModal = useCallback((funcionario: Funcionario) => {
-    state.setCurrentFuncionario(funcionario);
+  const openDetailsModal = useCallback(async (funcionario: Funcionario) => {
+    try {
+      const full = await getFuncionarioById(funcionario.id);
+      state.setCurrentFuncionario(full);
+      if (import.meta.env.DEV) {
+        console.log("[FUNCIONARIOS][OPEN_DETAILS_MODAL]", {
+          funcionarioId: full.id,
+          hasDadosCompletos: !!(full.cpf && full.email !== undefined),
+        });
+      }
+    } catch (err) {
+      console.error("[FUNCIONARIOS][OPEN_MODAL_ERROR]", {
+        funcionarioId: funcionario.id,
+        origem: "details",
+        fellBackToPartial: true,
+        message: (err as any)?.message,
+        code: (err as any)?.code,
+        details: (err as any)?.details,
+        hint: (err as any)?.hint,
+        status: (err as any)?.status,
+        rawError: err,
+      });
+      toast.error("Não foi possível carregar os detalhes do funcionário.");
+      state.setCurrentFuncionario(funcionario);
+    }
     state.setIsDetailsModalOpen(true);
   }, [state]);
 
@@ -167,6 +219,7 @@ export function useFuncionarioActions() {
     // Ações
     setIsFormModalOpen: state.setIsFormModalOpen,
     setIsDetailsModalOpen: state.setIsDetailsModalOpen,
+    setCurrentFuncionario: state.setCurrentFuncionario,
     setIsImportModalOpen: state.setIsImportModalOpen,
     setIsDeleteModalOpen: state.setIsDeleteModalOpen,
     handleFilterChange,

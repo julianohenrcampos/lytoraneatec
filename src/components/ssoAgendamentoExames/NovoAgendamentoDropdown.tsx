@@ -7,6 +7,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Plus, ChevronDown, UserPlus, RotateCcw, UserMinus, RefreshCw, ArrowLeftRight } from 'lucide-react';
 
 interface NovoAgendamentoDropdownProps {
@@ -15,6 +21,8 @@ interface NovoAgendamentoDropdownProps {
   onDemissional: () => void;
   onPeriodico: () => void;
   onMudancaRisco: () => void;
+  disabled?: boolean;
+  tooltipReason?: string;
 }
 
 export const NovoAgendamentoDropdown: React.FC<NovoAgendamentoDropdownProps> = ({
@@ -22,8 +30,33 @@ export const NovoAgendamentoDropdown: React.FC<NovoAgendamentoDropdownProps> = (
   onRetorno,
   onDemissional,
   onPeriodico,
-  onMudancaRisco
+  onMudancaRisco,
+  disabled = false,
+  tooltipReason,
 }) => {
+  if (disabled) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-block">
+              <Button disabled className="opacity-60 cursor-not-allowed">
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Agendamento
+                <ChevronDown className="h-4 w-4 ml-2" />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          {tooltipReason && (
+            <TooltipContent className="max-w-xs">
+              <p className="text-sm">{tooltipReason}</p>
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

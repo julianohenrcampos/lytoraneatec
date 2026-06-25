@@ -21,6 +21,7 @@ const WaitingApproval = lazy(() => import("@/pages/WaitingApproval"));
 const Register = lazy(() => import("@/pages/Register"));
 const ForgotPassword = lazy(() => import("@/pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
+const EscopoDebug = lazy(() => import("@/pages/dev/EscopoDebug"));
 
 const DashboardRH = lazy(() => import("@/pages/DashboardRH"));
 const GestaoEmpresas = lazy(() => import("@/pages/GestaoEmpresas"));
@@ -46,6 +47,7 @@ const ChecklistSaida = lazy(() => import("@/pages/ChecklistSaida"));
 const Abastecimento = lazy(() => import("@/pages/GestaoAbastecimento"));
 
 const TestePonto = lazy(() => import("@/pages/dev/TestePonto"));
+const PwaStatus = lazy(() => import("@/pages/dev/PwaStatus"));
 const PontoDireto = lazy(() => import("@/pages/PontoDireto"));
 const PontoTotemLogin = lazy(() => import("@/pages/PontoTotemLogin"));
 const PontoTotem = lazy(() => import("@/pages/PontoTotem"));
@@ -78,6 +80,7 @@ const DiariasSolicitacoes = lazy(() => import("@/pages/DiariasSolicitacoes"));
 const DiariasRelatorio = lazy(() => import("@/pages/DiariasRelatorio"));
 const DiariasApontamentoCampo = lazy(() => import("@/pages/DiariasApontamentoCampo"));
 const GestaoAprovacoesDiarias = lazy(() => import("@/pages/diarias/GestaoAprovacoesDiarias"));
+const PontoShadowAuditoria = lazy(() => import("@/pages/diarias/PontoShadowAuditoria"));
 
 const SSOChecklistList = lazy(() => import("@/pages/SSOChecklistList"));
 const SSODashboard = lazy(() => import("@/pages/SSODashboard"));
@@ -147,6 +150,11 @@ const App = () => {
                     {/* Portal */}
                     <Route path="/" element={<Auth><Portal /></Auth>} />
 
+                    {/* DEV-only: validação isolada do hook useEscopoOperacional (E2) */}
+                    {import.meta.env.DEV && (
+                      <Route path="/dev/escopo-debug" element={<Auth><EscopoDebug /></Auth>} />
+                    )}
+
                     {/* Dashboards */}
                     <Route path="/dashboard-rh" element={<Secure permission="dashboard_rh_view"><DashboardRH /></Secure>} />
                     <Route path="/dashboard-maquinas" element={<Secure permission="dashboard_maquinas_view"><DashboardMaquinas /></Secure>} />
@@ -210,6 +218,7 @@ const App = () => {
                     <Route path="/requisicoes/diarias/relatorio" element={<Secure permission="diarias_relatorio_view"><DiariasRelatorio /></Secure>} />
                     <Route path="/requisicoes/diarias/apontamento-campo" element={<Secure permission="diarias_apontamento_view"><DiariasApontamentoCampo /></Secure>} />
                     <Route path="/gestao-aprovacoes-diarias" element={<Secure permission="acesso_gestao_aprovacoes"><GestaoAprovacoesDiarias /></Secure>} />
+                    <Route path="/requisicoes/diarias/auditoria-ponto-shadow" element={<Secure permission="__superadmin_only__"><PontoShadowAuditoria /></Secure>} />
 
                     {/* Licitações */}
                     <Route path="/licitacoes/dashboard" element={<Secure permission="dashboard_licitacoes_view"><RelatorioLicitacoes /></Secure>} />
@@ -227,6 +236,7 @@ const App = () => {
 
                     {/* Dev */}
                     <Route path="/dev/teste-ponto" element={<Auth><TestePonto /></Auth>} />
+                    <Route path="/dev/pwa-status" element={<Auth><PwaStatus /></Auth>} />
 
                     <Route path="*" element={<NotFound />} />
                   </Routes>

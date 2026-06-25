@@ -114,3 +114,18 @@ export {
   type MediaPresencaFdsResult,
   type FonteMediaFds,
 } from './useMediaPresencaFds';
+
+// Aditivos (Fase I.2)
+export {
+  useAditivos,
+  useAditivoById,
+  useSolicitarAditivoFuncionario,
+  useSolicitarAditivoDia,
+  useCancelarAditivo,
+} from './useAditivos';
+export {
+  useAditivosPendentes,
+  useContarAditivosPendentes,
+  useAprovarAditivo,
+  useReprovarAditivo,
+} from './useAditivosPendentes';

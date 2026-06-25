@@ -37,6 +37,8 @@ const statusLabelMap: Record<string, string> = {
 function canActOn(role: GestaoFluxoRole, statusFluxo: string | null): boolean {
   if (role === 'superadmin') return statusFluxo !== 'finalizado';
   if (role === 'gerente_adm') return statusFluxo === 'aguardando_aprovacao_gerenteadm';
+  // D1 Fase 2: GerenteRegional atua na mesma etapa do GerenteAdm.
+  if (role === 'gerente_regional') return statusFluxo === 'aguardando_aprovacao_gerenteadm';
   if (role === 'diretor_operacional') return statusFluxo === 'aguardando_aprovacao_diretor_operacional';
   if (role === 'diretor_adm') return statusFluxo === 'aguardando_aprovacao_diretor_adm';
   return false;
@@ -52,7 +54,10 @@ export default function GestaoAprovacoesMobileCards({
   onReprovar,
 }: Props) {
   // D1.1: detectar segregação para legenda inline e bloqueio do botão Aprovar.
-  const { userId, isSuperAdmin } = usePermission();
+  const { userId, isSuperAdmin, hasActionPermission } = usePermission();
+  // D1 Fase 2: gate defensivo extra para GerenteRegional.
+  const gerenteRegionalSemPermissao =
+    userFluxoRole === 'gerente_regional' && !hasActionPermission('diarias_aprovar', 'aprovar');
   if (!solicitacoes.length) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
@@ -70,7 +75,7 @@ export default function GestaoAprovacoesMobileCards({
       {solicitacoes.map((sol) => {
         const statusKey = sol.status_fluxo || '';
         const colorClass = statusColorMap[statusKey] || 'bg-muted text-muted-foreground';
-        const showActions = canActOn(userFluxoRole, sol.status_fluxo);
+        const showActions = canActOn(userFluxoRole, sol.status_fluxo) && !gerenteRegionalSemPermissao;
         // D1.1: criador não pode aprovar a própria solicitação (segregação).
         const bloqueadoPorSegregacao =
           !isSuperAdmin && !!userId && !!sol.criado_por && sol.criado_por === userId;
