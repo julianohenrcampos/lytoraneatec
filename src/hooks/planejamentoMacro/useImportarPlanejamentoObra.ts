@@ -179,6 +179,9 @@ export function useImportarPlanejamentoObra() {
           is_resumo: a.is_resumo ?? false,
           is_marco: a.is_marco ?? false,
           arquivo_origem_nome: resultado.nomeArquivo,
+          // Fase 1C
+          is_critica: a.is_critica ?? false,
+          quantidade_origem: a.quantidade_origem ?? null,
         }));
 
       if (!atividades.length) {

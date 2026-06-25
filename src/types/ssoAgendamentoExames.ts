@@ -3,7 +3,7 @@
 export type TipoExame = 'Admissional' | 'Periódico' | 'Mudança de Risco' | 'Demissional' | 'Retorno ao Trabalho';
 export type StatusAgendamento = 'Pendente' | 'Agendado' | 'Apto' | 'Apto com Restrição' | 'Inapto' | 'Não Compareceu';
 export type StatusIntegracao = 'Sem integração' | 'Integrado';
-export type StatusCarteira = 'Pendente' | 'Registrado' | 'Revisado';
+export type StatusCarteira = 'Pendente' | 'Registrado' | 'Revisado' | 'Desistencia';
 export type ModoAgendamento = 'novo' | 'funcionario_existente';
 export type MotivoMudancaRisco = 'Promoção' | 'Mudança de Setor';
 export const MOTIVOS_MUDANCA_RISCO: MotivoMudancaRisco[] = ['Promoção', 'Mudança de Setor'];
@@ -13,7 +13,12 @@ export const MOTIVOS_CONTRATACAO: MotivoContratacao[] = ['Nova Contratação', '
 export const TIPOS_EXAME: TipoExame[] = ['Admissional', 'Periódico', 'Mudança de Risco', 'Demissional', 'Retorno ao Trabalho'];
 export const STATUS_AGENDAMENTO: StatusAgendamento[] = ['Pendente', 'Agendado', 'Apto', 'Apto com Restrição', 'Inapto', 'Não Compareceu'];
 export const STATUS_INTEGRACAO: StatusIntegracao[] = ['Sem integração', 'Integrado'];
-export const STATUS_CARTEIRA: StatusCarteira[] = ['Pendente', 'Registrado', 'Revisado'];
+export const STATUS_CARTEIRA: StatusCarteira[] = ['Pendente', 'Registrado', 'Revisado', 'Desistencia'];
+
+export const getStatusCarteiraLabel = (status: string): string => {
+  if (status === 'Desistencia') return 'Desistência';
+  return status;
+};
 
 export interface LocalAtendimento {
   id: string;
@@ -285,6 +290,7 @@ export const getStatusCarteiraColor = (status: string): "default" | "secondary" 
   switch (status) {
     case 'Registrado': return 'success';
     case 'Revisado': return 'info';
+    case 'Desistencia': return 'destructive';
     default: return 'secondary';
   }
 };
@@ -321,7 +327,12 @@ export const calcularPrazoContratacao = (dataResultado: string | null): { diasRe
 };
 
 export const isPrazoVencido = (dataResultado: string | null, statusCarteira: string): boolean => {
-  if (!dataResultado || statusCarteira === 'Registrado' || statusCarteira === 'Revisado') return false;
+  if (
+    !dataResultado ||
+    statusCarteira === 'Registrado' ||
+    statusCarteira === 'Revisado' ||
+    statusCarteira === 'Desistencia'
+  ) return false;
   const { diasRestantes } = calcularPrazoContratacao(dataResultado);
   return diasRestantes <= 0;
 };

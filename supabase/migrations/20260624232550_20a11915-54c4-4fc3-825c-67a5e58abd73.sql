@@ -1,0 +1,1 @@
+REVOKE DELETE ON public.bd_solicitacoes_classificacao FROM authenticated;

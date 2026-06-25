@@ -27,6 +27,13 @@ export type PrioridadeAtividade = "baixa" | "media" | "alta";
 
 export type StatusOrigemRecurso = "Planejado" | "Solicitado" | "Aprovado";
 
+/** Fase C — Fonte do progresso da atividade no ERP. */
+export type FonteProgressoAtividade =
+  | "manual"
+  | "importado"
+  | "apontamento"
+  | "diario";
+
 export interface PlanejamentoMacro {
   id: string;
   centro_custo_id: string;
@@ -45,12 +52,24 @@ export interface AtividadePlanejada {
   inicio: string; // ISO
   fim: string;    // ISO
   status: StatusAtividadePlanejada;
-  status_tecnico?: string; // raw DB status: planejada | em_andamento | concluida | atrasada | cancelada
+  status_tecnico?: string;
   prioridade?: PrioridadeAtividade;
   quantidade_prevista?: number;
   unidade?: string;
   codigo_wbs?: string | null;
   descricao?: string | null;
+  /** Avanço importado do cronograma (MS Project). NÃO é avanço real do ERP. */
+  percentual_concluido_importado?: number | null;
+  /** Fase C — Avanço manual informado no ERP (0–100). */
+  percentual_manual?: number | null;
+  percentual_manual_observacao?: string | null;
+  percentual_manual_atualizado_por?: string | null;
+  percentual_manual_atualizado_em?: string | null;
+  fonte_progresso?: FonteProgressoAtividade | null;
+  /** Fase 1C — Atividade crítica do cronograma (MS Project <Critical>). */
+  is_critica?: boolean;
+  /** Fase 1C — Origem do par quantidade/unidade. */
+  quantidade_origem?: "msproject_extattr" | "planilha" | "manual" | "indefinido" | null;
 }
 
 export interface RecursoPlanejado {

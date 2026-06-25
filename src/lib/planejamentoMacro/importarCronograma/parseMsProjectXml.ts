@@ -67,9 +67,36 @@ const ALIASES_FAMILIA_NORM = new Set([
   "outlinecode1",
 ]);
 
+// Fase 1C — aliases ExtendedAttribute para quantidade/unidade física.
+const ALIASES_QUANTIDADE_NORM = new Set([
+  "quantidade",
+  "quantidade prevista",
+  "quantity",
+  "qtd",
+  "qtde",
+]);
+const ALIASES_UNIDADE_NORM = new Set([
+  "unidade",
+  "unidade de medida",
+  "unit",
+  "uom",
+]);
+
 function ehAliasFamilia(alias: string | null | undefined, fieldName: string | null | undefined): boolean {
   if (ALIASES_FAMILIA_NORM.has(normAlias(alias))) return true;
   if (ALIASES_FAMILIA_NORM.has(normAlias(fieldName))) return true;
+  return false;
+}
+
+function ehAliasQuantidade(alias: string | null | undefined, fieldName: string | null | undefined): boolean {
+  if (ALIASES_QUANTIDADE_NORM.has(normAlias(alias))) return true;
+  if (ALIASES_QUANTIDADE_NORM.has(normAlias(fieldName))) return true;
+  return false;
+}
+
+function ehAliasUnidade(alias: string | null | undefined, fieldName: string | null | undefined): boolean {
+  if (ALIASES_UNIDADE_NORM.has(normAlias(alias))) return true;
+  if (ALIASES_UNIDADE_NORM.has(normAlias(fieldName))) return true;
   return false;
 }
 
@@ -201,6 +228,37 @@ export function parseMsProjectXml(
     return null;
   }
 
+  // Fase 1C — resolve quantidade física via ExtendedAttribute (Number/Text com alias).
+  function resolverQuantidadeDeExtAttrs(node: Record<string, unknown>): number | null {
+    const eas = asArray((node["ExtendedAttribute"] ?? null) as unknown);
+    for (const ea of eas) {
+      const r = ea as Record<string, unknown>;
+      const fid = textOrNull(r["FieldID"]);
+      if (!fid) continue;
+      const info = extAttrMap.get(fid);
+      if (!info) continue;
+      if (!ehAliasQuantidade(info.alias, info.fieldName)) continue;
+      const v = numOrNull(r["Value"]);
+      if (v != null) return v;
+    }
+    return null;
+  }
+
+  function resolverUnidadeDeExtAttrs(node: Record<string, unknown>): string | null {
+    const eas = asArray((node["ExtendedAttribute"] ?? null) as unknown);
+    for (const ea of eas) {
+      const r = ea as Record<string, unknown>;
+      const fid = textOrNull(r["FieldID"]);
+      if (!fid) continue;
+      const info = extAttrMap.get(fid);
+      if (!info) continue;
+      if (!ehAliasUnidade(info.alias, info.fieldName)) continue;
+      const v = textOrNull(r["Value"]);
+      if (v) return v;
+    }
+    return null;
+  }
+
   // --- Tasks ---
   const tasksRoot = project["Tasks"] as { Task?: unknown } | undefined;
   const tasks = asArray(tasksRoot?.Task) as Array<Record<string, unknown>>;
@@ -216,6 +274,10 @@ export function parseMsProjectXml(
       trabalho_previsto_horas: number | null;
       percentual_concluido_importado: number | null;
       familia: string | null;
+      // Fase 1C
+      is_critica: boolean;
+      quantidade_ext: number | null;
+      unidade_ext: string | null;
     }
   >();
 
@@ -235,6 +297,10 @@ export function parseMsProjectXml(
     const trabalhoHoras = durationIsoParaHoras(t["Work"]);
     const pct = numOrNull(t["PercentComplete"]);
     const familia = resolverFamiliaDeExtAttrs(t);
+    // Fase 1C — Critical + ExtendedAttributes opcionais (quantidade/unidade).
+    const isCritica = boolFromMsp(t["Critical"]);
+    const quantidadeExt = resolverQuantidadeDeExtAttrs(t);
+    const unidadeExt = resolverUnidadeDeExtAttrs(t);
 
     tasksRows.push({
       "UID Tarefa": uid,
@@ -257,6 +323,9 @@ export function parseMsProjectXml(
       trabalho_previsto_horas: trabalhoHoras,
       percentual_concluido_importado: pct,
       familia,
+      is_critica: isCritica,
+      quantidade_ext: quantidadeExt,
+      unidade_ext: unidadeExt,
     });
 
     if (!familia) {
@@ -292,6 +361,15 @@ export function parseMsProjectXml(
     a.duracao_horas = enr.duracao_horas;
     a.trabalho_previsto_horas = enr.trabalho_previsto_horas;
     a.percentual_concluido_importado = enr.percentual_concluido_importado;
+    // Fase 1C — criticidade + quantidade/unidade via ExtendedAttribute.
+    a.is_critica = enr.is_critica;
+    if (enr.quantidade_ext != null) a.quantidade_prevista = enr.quantidade_ext;
+    if (enr.unidade_ext) a.unidade = enr.unidade_ext;
+    if (enr.quantidade_ext != null || (enr.unidade_ext ?? "").trim() !== "") {
+      a.quantidade_origem = "msproject_extattr";
+    } else {
+      a.quantidade_origem = "indefinido";
+    }
     // ID externo do MS Project (vem do <ID> da tarefa)
     const tIdx = a.linhaOriginal - 2;
     const rawTask = tasks[tIdx];

@@ -22,7 +22,7 @@ import type {
 } from "@/lib/planejamentoMacro/planoSemanal/tipos";
 
 const ATIVIDADE_COLS =
-  "id, planejamento_id, codigo_wbs, outline_number, outline_level, nome, frente_servico, data_inicio, data_fim, status, is_marco, is_resumo, duracao_horas, quantidade_prevista, unidade";
+  "id, planejamento_id, codigo_wbs, outline_number, outline_level, nome, frente_servico, data_inicio, data_fim, status, is_marco, is_resumo, is_critica, duracao_horas, quantidade_prevista, unidade, percentual_concluido_importado, percentual_manual, percentual_manual_observacao, percentual_manual_atualizado_em, fonte_progresso";
 
 const RECURSO_COLS =
   "id, planejamento_id, atividade_id, tipo_recurso, funcao_id, descricao, unidade, quantidade_prevista, horas_previstas, data_necessaria_inicio, data_necessaria_fim, grupo, familia";

@@ -14,7 +14,7 @@ const PLANEJAMENTO_COLUMNS =
   "id, centro_custo_id, periodo_inicio, periodo_fim, versao, origem, status, observacao, criado_por, aprovado_por, aprovado_em, created_at, updated_at";
 
 const ATIVIDADE_COLUMNS =
-  "id, planejamento_id, codigo_wbs, nome, descricao, frente_servico, data_inicio, data_fim, unidade, quantidade_prevista, producao_prevista, prioridade, status, ordem_execucao, criado_por, created_at, updated_at";
+  "id, planejamento_id, codigo_wbs, nome, descricao, frente_servico, data_inicio, data_fim, unidade, quantidade_prevista, producao_prevista, prioridade, status, ordem_execucao, percentual_concluido_importado, percentual_manual, percentual_manual_observacao, percentual_manual_atualizado_por, percentual_manual_atualizado_em, fonte_progresso, is_critica, quantidade_origem, criado_por, created_at, updated_at";
 
 export class PlanejamentoVigenteDuplicadoError extends Error {
   constructor() {
@@ -189,6 +189,8 @@ export async function inserirAtividadesPlanejamento(
         is_resumo: a.is_resumo,
         is_marco: a.is_marco,
         arquivo_origem_nome: a.arquivo_origem_nome,
+        is_critica: a.is_critica ?? false,
+        quantidade_origem: a.quantidade_origem ?? null,
       };
       return filtrarPayloadPersistivel(bruto, COLUNAS_ATIVIDADES_PERSISTIVEIS_7A);
     });
@@ -286,6 +288,25 @@ export async function atualizarAtividadePlanejada(
     .select(ATIVIDADE_COLUMNS)
     .single();
 
+  if (error) throw mapSupabaseError(error);
+  return data as PlanejamentoAtividadeRow;
+}
+
+// ---------- Fase C — Progresso manual da atividade ----------
+
+export async function atualizarProgressoManualAtividade(
+  atividadeId: string,
+  percentual: number | null,
+  observacao: string | null
+): Promise<PlanejamentoAtividadeRow> {
+  const { data, error } = await (supabase as any).rpc(
+    "fn_atualizar_progresso_manual_atividade",
+    {
+      p_atividade_id: atividadeId,
+      p_percentual: percentual,
+      p_observacao: observacao,
+    }
+  );
   if (error) throw mapSupabaseError(error);
   return data as PlanejamentoAtividadeRow;
 }

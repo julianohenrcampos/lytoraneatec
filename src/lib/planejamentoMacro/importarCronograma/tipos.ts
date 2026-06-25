@@ -56,6 +56,10 @@ export interface AtividadeImportadaPreview {
   trabalho_previsto_horas?: number | null;
   /** Apenas preview/diagnóstico nesta fase — nunca persiste em 7A. */
   percentual_concluido_importado?: number | null;
+  // Fase 1C — atividade crítica do MS Project (<Critical>).
+  is_critica?: boolean;
+  // Fase 1C — origem do par quantidade/unidade.
+  quantidade_origem?: "msproject_extattr" | "planilha" | "manual" | "indefinido" | null;
 }
 
 export interface CcDoArquivo {
@@ -256,5 +260,8 @@ export interface AtividadeParaInserir {
   is_resumo?: boolean;
   is_marco?: boolean;
   arquivo_origem_nome?: string | null;
+  // Fase 1C
+  is_critica?: boolean;
+  quantidade_origem?: "msproject_extattr" | "planilha" | "manual" | "indefinido" | null;
 }
 

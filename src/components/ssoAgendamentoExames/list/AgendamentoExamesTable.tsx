@@ -25,6 +25,7 @@ import {
   STATUS_INTEGRACAO,
   STATUS_CARTEIRA,
   getStatusCarteiraColor,
+  getStatusCarteiraLabel,
   isPrazoVencido
 } from '@/types/ssoAgendamentoExames';
 import { Eye, Pencil, Trash2, Paperclip, ChevronDown } from 'lucide-react';
@@ -134,8 +135,12 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
 
   // Função para verificar se a linha está irregular (apenas para Admissional)
   const getRowClassName = (agendamento: AgendamentoExame) => {
+    const statusCart = agendamento.status_carteira || 'Pendente';
     const isHiring = showHiringFields(agendamento.tipo_exame);
-    const vencido = isHiring && isPrazoVencido(agendamento.data_registro_carteira, agendamento.status_carteira || 'Pendente');
+    const vencido = isHiring && isPrazoVencido(agendamento.data_registro_carteira, statusCart);
+    if (statusCart === 'Desistencia') {
+      return 'bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-950/50';
+    }
     if (vencido) {
       return 'bg-destructive/10 hover:bg-destructive/15 border-l-4 border-l-destructive';
     }
@@ -176,7 +181,7 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
         </TableHeader>
         <TableBody>
           {pagination.paginatedData.map((agendamento) => (
-            <TableRow key={agendamento.id} className={getRowClassName(agendamento)}>
+            <TableRow key={agendamento.id} className={cn(getRowClassName(agendamento))}>
               <TableCell>
                 <Checkbox
                   checked={selectedIds.includes(agendamento.id)}
@@ -289,36 +294,42 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
                 {showHiringFields(agendamento.tipo_exame) ? (
                   canChangeCarteira && onCarteiraChange ? (
                     <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="p-0 h-auto">
-                          <Badge 
-                            variant={
-                              isPrazoVencido(agendamento.data_registro_carteira, agendamento.status_carteira || 'Pendente') 
-                                ? 'destructive' 
-                                : getStatusCarteiraColor(agendamento.status_carteira || 'Pendente')
-                            }
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="p-0 h-auto">
+                        <Badge 
+                          variant={
+                            isPrazoVencido(agendamento.data_registro_carteira, agendamento.status_carteira || 'Pendente') 
+                              ? 'destructive' 
+                              : getStatusCarteiraColor(agendamento.status_carteira || 'Pendente')
+                          }
+                        >
+                          {isPrazoVencido(agendamento.data_registro_carteira, agendamento.status_carteira || 'Pendente') 
+                            ? 'IRREGULAR' 
+                            : getStatusCarteiraLabel(agendamento.status_carteira || 'Pendente')
+                          }
+                          <ChevronDown className="h-3 w-3 ml-1" />
+                        </Badge>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      {STATUS_CARTEIRA.map((status) => (
+                        <DropdownMenuItem
+                          key={status}
+                          onClick={() => onCarteiraChange(agendamento.id, status)}
+                        >
+                          <Badge
+                            variant={getStatusCarteiraColor(status)}
+                            className={cn(
+                              'mr-2',
+                              status === 'Desistencia' && 'bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-950/50 dark:text-red-300'
+                            )}
                           >
-                            {isPrazoVencido(agendamento.data_registro_carteira, agendamento.status_carteira || 'Pendente') 
-                              ? 'IRREGULAR' 
-                              : (agendamento.status_carteira || 'Pendente')
-                            }
-                            <ChevronDown className="h-3 w-3 ml-1" />
+                            {getStatusCarteiraLabel(status)}
                           </Badge>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        {STATUS_CARTEIRA.map((status) => (
-                          <DropdownMenuItem
-                            key={status}
-                            onClick={() => onCarteiraChange(agendamento.id, status)}
-                          >
-                            <Badge variant={getStatusCarteiraColor(status)} className="mr-2">
-                              {status}
-                            </Badge>
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   ) : (
                     <Badge 
                       variant={
@@ -329,7 +340,7 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
                     >
                       {isPrazoVencido(agendamento.data_registro_carteira, agendamento.status_carteira || 'Pendente') 
                         ? 'IRREGULAR' 
-                        : (agendamento.status_carteira || 'Pendente')
+                        : getStatusCarteiraLabel(agendamento.status_carteira || 'Pendente')
                       }
                     </Badge>
                   )

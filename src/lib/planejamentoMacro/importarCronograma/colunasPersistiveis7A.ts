@@ -26,6 +26,9 @@ export const COLUNAS_ATIVIDADES_PERSISTIVEIS_7A = [
   "status",
   "ordem_execucao",
   "arquivo_origem_nome",
+  // Fase 1C
+  "is_critica",
+  "quantidade_origem",
 ] as const;
 
 export type ColunaAtividadePersistivel7A =

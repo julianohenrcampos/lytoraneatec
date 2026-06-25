@@ -1,5 +1,7 @@
 // Fase 6G — Modal de edição individual de atividade planejada (SuperAdm).
-import React, { useEffect } from "react";
+// Fase 1C-2B — Modo Saneamento: edita apenas quantidade/unidade e usa RPC transacional
+// com auditoria (auth.uid() server-side, marca quantidade_origem='manual').
+import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -22,20 +24,25 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Info } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Info, ChevronDown } from "lucide-react";
 import {
   atividadeEditSchema,
   type AtividadeEditValues,
 } from "./schemas";
 import type { PlanejamentoAtividadeRow } from "@/services/planejamentoMacro/planejamentoMacroService";
 import { useAtualizarAtividadePlanejada } from "@/hooks/planejamentoMacro/useAtualizarAtividadePlanejada";
+import { useCorrigirQuantitativoAtividade } from "@/hooks/planejamentoMacro/useCorrigirQuantitativoAtividade";
 
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   atividade: PlanejamentoAtividadeRow | null;
   planejamentoStatus: "rascunho" | "vigente" | "arquivado" | null;
+  /** Fase 1C-2B — quando true, exibe apenas quantidade/unidade + observação e usa RPC. */
+  modoSaneamento?: boolean;
 }
+
 
 const toFormDefaults = (
   a: PlanejamentoAtividadeRow | null
@@ -75,8 +82,11 @@ const EditarAtividadeDialog: React.FC<Props> = ({
   onOpenChange,
   atividade,
   planejamentoStatus,
+  modoSaneamento = false,
 }) => {
   const mutation = useAtualizarAtividadePlanejada();
+  const corrigir = useCorrigirQuantitativoAtividade();
+  const [observacao, setObservacao] = useState("");
 
   const form = useForm<AtividadeEditValues>({
     resolver: zodResolver(atividadeEditSchema),
@@ -86,6 +96,7 @@ const EditarAtividadeDialog: React.FC<Props> = ({
   useEffect(() => {
     if (open && atividade) {
       form.reset(toFormDefaults(atividade) as AtividadeEditValues);
+      setObservacao("");
     }
   }, [open, atividade, form]);
 
@@ -94,6 +105,17 @@ const EditarAtividadeDialog: React.FC<Props> = ({
   const onSubmit = async (values: AtividadeEditValues) => {
     if (!atividade) return;
     try {
+      if (modoSaneamento) {
+        await corrigir.mutateAsync({
+          atividadeId: atividade.id,
+          planejamentoId: atividade.planejamento_id,
+          quantidadePrevista: values.quantidade_prevista ?? null,
+          unidade: values.unidade ?? null,
+          observacao: observacao.trim() || null,
+        });
+        onOpenChange(false);
+        return;
+      }
       // Fase 6G.2 — codigo_wbs NÃO é enviado: campo estrutural importado do cronograma.
       await mutation.mutateAsync({
         id: atividade.id,
@@ -119,13 +141,83 @@ const EditarAtividadeDialog: React.FC<Props> = ({
   };
 
   const errors = form.formState.errors;
+  const pending = modoSaneamento ? corrigir.isPending : mutation.isPending;
+
+  if (modoSaneamento) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Corrigir quantidade/unidade</DialogTitle>
+            <DialogDescription>
+              {atividade?.nome
+                ? `Atividade: ${atividade.nome}.`
+                : "Atualize quantidade e unidade desta atividade."}{" "}
+              A correção marca a origem como <strong>Manual</strong> e é auditada.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="quantidade_prevista">Quantidade prevista</Label>
+                <Input
+                  id="quantidade_prevista"
+                  type="number"
+                  min={0}
+                  step="any"
+                  {...form.register("quantidade_prevista")}
+                />
+                {errors.quantidade_prevista && (
+                  <p className="text-xs text-destructive mt-1">
+                    {errors.quantidade_prevista.message}
+                  </p>
+                )}
+              </div>
+              <div>
+                <Label htmlFor="unidade">Unidade (m, m², m³, un...)</Label>
+                <Input id="unidade" {...form.register("unidade")} />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="observacao">Observação da correção (opcional)</Label>
+              <Textarea
+                id="observacao"
+                rows={3}
+                value={observacao}
+                onChange={(e) => setObservacao(e.target.value)}
+                placeholder="Ex.: quantidade conferida em projeto executivo."
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Vai apenas para o log de auditoria.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={pending}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={pending}>
+                {pending ? "Salvando..." : "Salvar correção"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+
         <DialogHeader>
-          <DialogTitle>Editar atividade planejada</DialogTitle>
+          <DialogTitle>Editar atividade do cronograma</DialogTitle>
           <DialogDescription>
+            As alterações afetam a atividade inteira do cronograma, não apenas a semana atual.
             Apenas SuperAdm. Datas em formato YYYY-MM-DD.
           </DialogDescription>
         </DialogHeader>
@@ -150,6 +242,14 @@ const EditarAtividadeDialog: React.FC<Props> = ({
         )}
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          {/* === Dados operacionais === */}
+          <div className="space-y-1">
+            <h3 className="text-sm font-semibold text-foreground">Dados operacionais</h3>
+            <p className="text-xs text-muted-foreground">
+              Campos usados no dia a dia da obra.
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <Label htmlFor="nome">Nome *</Label>
@@ -159,19 +259,6 @@ const EditarAtividadeDialog: React.FC<Props> = ({
               )}
             </div>
 
-            <div>
-              <Label htmlFor="codigo_wbs" title="EAP corresponde ao código WBS importado do MS Project.">Código EAP</Label>
-              <Input
-                id="codigo_wbs"
-                readOnly
-                disabled
-                className="bg-muted cursor-not-allowed"
-                {...form.register("codigo_wbs")}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Código estrutural importado do cronograma. Não editável nesta fase.
-              </p>
-            </div>
             <div>
               <Label htmlFor="frente_servico">Frente</Label>
               <Input id="frente_servico" {...form.register("frente_servico")} />
@@ -202,22 +289,12 @@ const EditarAtividadeDialog: React.FC<Props> = ({
             </div>
 
             <div>
-              <Label htmlFor="unidade">Unidade</Label>
-              <Input id="unidade" {...form.register("unidade")} />
-            </div>
-            <div>
-              <Label htmlFor="ordem_execucao">Ordem de execução</Label>
-              <Input
-                id="ordem_execucao"
-                type="number"
-                min={0}
-                step={1}
-                {...form.register("ordem_execucao")}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="quantidade_prevista">Quantidade prevista</Label>
+              <Label
+                htmlFor="quantidade_prevista"
+                title="Quantidade total prevista de escopo (ex.: 120 m³, 50 un). Vem do MS Project quando disponível."
+              >
+                Quantidade prevista (escopo)
+              </Label>
               <Input
                 id="quantidade_prevista"
                 type="number"
@@ -232,7 +309,12 @@ const EditarAtividadeDialog: React.FC<Props> = ({
               )}
             </div>
             <div>
-              <Label htmlFor="producao_prevista">Produção prevista</Label>
+              <Label
+                htmlFor="producao_prevista"
+                title="Meta de produtividade por dia ou turno. Não representa avanço real — esse virá de apontamento/Diário de Obra."
+              >
+                Produção prevista (por dia/turno)
+              </Label>
               <Input
                 id="producao_prevista"
                 type="number"
@@ -290,6 +372,72 @@ const EditarAtividadeDialog: React.FC<Props> = ({
               </Select>
             </div>
           </div>
+
+          {/* === Campos avançados === */}
+          <Collapsible>
+            <CollapsibleTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full justify-between text-sm font-medium border-t pt-3 mt-2 rounded-none hover:bg-transparent"
+              >
+                <span>Campos avançados</span>
+                <ChevronDown className="h-4 w-4 transition-transform data-[state=open]:rotate-180" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-2">
+              <p className="text-xs text-muted-foreground mb-3">
+                Campos estruturais vindos da importação do cronograma. Geralmente não precisam ser alterados.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label
+                    htmlFor="codigo_wbs"
+                    title="EAP corresponde ao código WBS importado do MS Project."
+                  >
+                    Código EAP
+                  </Label>
+                  <Input
+                    id="codigo_wbs"
+                    readOnly
+                    disabled
+                    className="bg-muted cursor-not-allowed"
+                    {...form.register("codigo_wbs")}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Estrutural, importado do cronograma. Não editável.
+                  </p>
+                </div>
+                <div>
+                  <Label
+                    htmlFor="unidade"
+                    title="Unidade de medida da atividade. Vem do MS Project quando disponível."
+                  >
+                    Unidade de medida (ex.: m, m², un)
+                  </Label>
+                  <Input id="unidade" {...form.register("unidade")} />
+                </div>
+                <div>
+                  <Label
+                    htmlFor="ordem_execucao"
+                    title="Sequência interna gerada pelo parser durante a importação (não vem do MS Project)."
+                  >
+                    Sequência de leitura (importação)
+                  </Label>
+                  <Input
+                    id="ordem_execucao"
+                    type="number"
+                    min={0}
+                    step={1}
+                    {...form.register("ordem_execucao")}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Índice de ordenação gerado na importação. Não é prioridade.
+                  </p>
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
 
           <DialogFooter>
             <Button

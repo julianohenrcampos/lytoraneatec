@@ -150,6 +150,8 @@ export function construirPreview(input: ConstruirPreviewInput): ResultadoParse {
       warnings: [],
       errors: [],
       ignored: false,
+      is_critica: false,
+      quantidade_origem: null,
     };
 
     if (isSummary) {
@@ -176,6 +178,13 @@ export function construirPreview(input: ConstruirPreviewInput): ResultadoParse {
       const r = parseNumeroBR(row[mapa.producao_prevista]);
       ativ.producao_prevista = r.value;
       if (r.warning) ativ.warnings.push(r.warning);
+    }
+
+    // Fase 1C — origem da quantidade/unidade (CSV/XLSX).
+    if (ativ.quantidade_prevista != null || (ativ.unidade ?? "").trim() !== "") {
+      ativ.quantidade_origem = "planilha";
+    } else {
+      ativ.quantidade_origem = "indefinido";
     }
 
     // prioridade

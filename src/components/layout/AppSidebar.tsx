@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { usePermission } from "@/hooks/usePermission";
 import { menuStructure } from "@/constants/menuStructure";
 import { useDiariasPendentes } from "@/hooks/diarias/useDiariasPendentes";
+import { useOrdemDiariaCampoAccess } from "@/hooks/ordemDiariaCampo/useOrdemDiariaCampoAccess";
 import { ChevronRight } from "lucide-react";
 import {
   Sidebar,
@@ -36,9 +37,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const isCollapsed = state === "collapsed";
   const { isSuperAdmin, userRole, permissions, isLoading } = usePermission();
   const { count: pendentesCount } = useDiariasPendentes();
+  const { data: hasOrdemCampoAccess } = useOrdemDiariaCampoAccess();
 
   const canAccessItem = (item: any) => {
     if (isSuperAdmin) return true;
+    // Caso especial: Ordem do Dia também é liberada por responsabilidade
+    // operacional (responsável principal/de item de ordem emitida), sem
+    // exigir permissão administrativa explícita.
+    if (item.customAccessKey === "ordemDiariaCampo" && hasOrdemCampoAccess === true) {
+      return true;
+    }
     if (!item.requiredPermission && !item.requiredPermissions?.length) return true;
     if (item.requiredPermission) return permissions.includes(item.requiredPermission);
     if (item.requiredPermissions?.length) {

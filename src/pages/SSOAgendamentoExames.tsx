@@ -137,9 +137,9 @@ const SSOAgendamentoExames: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state, classificacaoHandled, podeAgendar]);
 
-  // Filter agendamentos by carteira status
+  // Filter agendamentos by carteira status (Desistência encerra a obrigação → não conta como pendência)
   const agendamentosFiltrados = filterSemPendencia
-    ? agendamentos.filter(a => ['Registrado', 'Revisado'].includes(a.status_carteira || ''))
+    ? agendamentos.filter(a => ['Registrado', 'Revisado', 'Desistencia'].includes(a.status_carteira || ''))
     : agendamentos;
 
   // Handlers para dropdown

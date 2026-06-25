@@ -28,6 +28,23 @@ interface Props {
   planVigenteFim?: string | null;
   onEditarAtividade?: (id: string) => void;
   onPlanejarRecursos?: (id: string) => void;
+  onAbrirNaSemana?: (atividadeId: string, dataInicioIso: string | null) => void;
+  tabAtiva?: string;
+  onTabChange?: (tab: string) => void;
+  semanaAlvoIso?: string | null;
+  onSemanaAlvoConsumida?: () => void;
+  ccLabel?: string | null;
+  // Fase 1C-2A — rastreabilidade do Saneamento
+  semanaSelecionadaIso?: string | null;
+  onSemanaSelecionadaChange?: (inicioIso: string) => void;
+  atividadeAlvoId?: string | null;
+  onAtividadeAlvoConsumida?: () => void;
+  onAbrirNoCronograma?: (atividadeId: string) => void;
+  // Fase 1C-2B — correção assistida
+  onCorrigirQuantidade?: (atividadeId: string) => void;
+  canCorrigirQuantidade?: boolean;
+  onDesignarEquipe?: (atividadeId: string) => void;
+  canDesignarEquipe?: boolean;
 }
 
 const PlanejamentoMacroTabs: React.FC<Props> = ({
@@ -45,6 +62,21 @@ const PlanejamentoMacroTabs: React.FC<Props> = ({
   planVigenteFim = null,
   onEditarAtividade,
   onPlanejarRecursos,
+  onAbrirNaSemana,
+  tabAtiva,
+  onTabChange,
+  semanaAlvoIso = null,
+  onSemanaAlvoConsumida,
+  ccLabel = null,
+  semanaSelecionadaIso = null,
+  onSemanaSelecionadaChange,
+  atividadeAlvoId = null,
+  onAtividadeAlvoConsumida,
+  onAbrirNoCronograma,
+  onCorrigirQuantidade,
+  canCorrigirQuantidade = false,
+  onDesignarEquipe,
+  canDesignarEquipe = false,
 }) => {
   if (!centroCustoId) {
     return (
@@ -58,8 +90,16 @@ const PlanejamentoMacroTabs: React.FC<Props> = ({
     );
   }
 
+  const canEditarAtividade =
+    !!isSuperAdmin && planejamentoStatus !== "arquivado" && !!onEditarAtividade;
+
   return (
-    <Tabs defaultValue="visao-geral" className="w-full">
+    <Tabs
+      value={tabAtiva}
+      defaultValue={tabAtiva ? undefined : "visao-geral"}
+      onValueChange={onTabChange}
+      className="w-full"
+    >
       <div className="overflow-x-auto">
         <TabsList className="flex flex-wrap h-auto gap-1">
           <TabsTrigger value="visao-geral">Resumo da Obra</TabsTrigger>
@@ -69,9 +109,7 @@ const PlanejamentoMacroTabs: React.FC<Props> = ({
           <TabsTrigger value="equipamentos">Equipamentos Planejados</TabsTrigger>
           <TabsTrigger value="materiais">Materiais Planejados</TabsTrigger>
           <TabsTrigger value="pendencias">Saneamento / Pendências</TabsTrigger>
-          <TabsTrigger value="ordem-diaria" title="Fase futura — visível para referência do fluxo.">
-            Ordem Diária — Fase futura
-          </TabsTrigger>
+          <TabsTrigger value="ordem-diaria">Ordem Diária</TabsTrigger>
         </TabsList>
       </div>
 
@@ -98,18 +136,24 @@ const PlanejamentoMacroTabs: React.FC<Props> = ({
             planejamentoStatus !== "arquivado" &&
             !!onPlanejarRecursos
           }
+          onEditarAtividade={onEditarAtividade}
+          canEditarAtividade={canEditarAtividade}
+          semanaAlvoIso={semanaAlvoIso}
+          onSemanaAlvoConsumida={onSemanaAlvoConsumida}
+          onSemanaSelecionadaChange={onSemanaSelecionadaChange}
         />
       </TabsContent>
 
       <TabsContent value="atividades" className="mt-4">
-        <TabIntro text="Lista completa das atividades importadas do MS Project, com filtros, EAP e ações de edição/planejamento de recursos." />
+        <TabIntro text="Lista completa das atividades importadas do MS Project. Visão macro de consulta — ações operacionais (editar atividade e recursos) ficam em Planejamento Semanal → Tarefas da Semana." />
         <AtividadesTab
           atividades={atividades ?? []}
           isSuperAdmin={isSuperAdmin}
           planejamentoStatus={planejamentoStatus}
           planejamentoId={planejamentoId}
-          onEditarAtividade={onEditarAtividade}
-          onPlanejarRecursos={onPlanejarRecursos}
+          onAbrirNaSemana={onAbrirNaSemana}
+          atividadeAlvoId={atividadeAlvoId}
+          onAtividadeAlvoConsumida={onAtividadeAlvoConsumida}
         />
       </TabsContent>
       <TabsContent value="mao-obra" className="mt-4">
@@ -137,10 +181,23 @@ const PlanejamentoMacroTabs: React.FC<Props> = ({
         <MateriaisTab />
       </TabsContent>
       <TabsContent value="pendencias" className="mt-4">
-        <PendenciasTab planejamentoId={planejamentoId} />
+        <PendenciasTab
+          planejamentoId={planejamentoId}
+          semanaSelecionadaIso={semanaSelecionadaIso}
+          onAbrirNoCronograma={onAbrirNoCronograma}
+          onAbrirNaSemana={(id, ini) => onAbrirNaSemana?.(id, ini)}
+          onCorrigirQuantidade={onCorrigirQuantidade}
+          canCorrigirQuantidade={canCorrigirQuantidade}
+          onDesignarEquipe={onDesignarEquipe}
+          canDesignarEquipe={canDesignarEquipe}
+        />
       </TabsContent>
       <TabsContent value="ordem-diaria" className="mt-4">
-        <OrdemDiariaTab />
+        <OrdemDiariaTab
+          centroCustoId={centroCustoId}
+          planejamentoId={planejamentoId}
+          ccLabel={ccLabel}
+        />
       </TabsContent>
     </Tabs>
   );

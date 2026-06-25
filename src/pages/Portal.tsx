@@ -3,6 +3,7 @@ import { PortalLayout } from "@/components/portal/PortalLayout";
 import { PortalCard } from "@/components/portal/PortalCard";
 import { usePermission } from "@/hooks/usePermission";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrdemDiariaCampoAccess } from "@/hooks/ordemDiariaCampo/useOrdemDiariaCampoAccess";
 import {
   Truck,
   Users,
@@ -12,6 +13,7 @@ import {
   ShieldCheck,
   Settings,
   Clock,
+  HardHat,
 } from "lucide-react";
 
 interface ModuleTarget {
@@ -75,6 +77,17 @@ const portalModules: PortalModule[] = [
       { route: "/requisicoes/apontamento-caminhoes", permission: "requisicoes_apontamento_caminhoes_view" },
       { route: "/requisicoes/chamados-os", permission: "requisicoes_chamados_os_view" },
       { route: "/requisicoes/gestao-os", permission: "requisicoes_gestao_os_view" },
+    ],
+  },
+  {
+    id: "engenharia",
+    title: "Engenharia",
+    description: "Planejamento Macro da Obra — cronograma, ordem do dia e execução",
+    icon: HardHat,
+    color: "hsl(15, 90%, 45%)",
+    targets: [
+      { route: "/engenharia/planejamento-macro", permission: "engenharia_planejamento_macro_view" },
+      { route: "/engenharia/ordem-do-dia", permission: "engenharia_ordem_diaria_campo_view" },
     ],
   },
   {
@@ -144,6 +157,7 @@ const portalModules: PortalModule[] = [
 
 export default function Portal() {
   const { permissions, isSuperAdmin, isLoading, permissionsError, clearCache } = usePermission();
+  const { data: hasOrdemCampoAccess } = useOrdemDiariaCampoAccess();
   const [userName, setUserName] = useState<string>("");
   const [slowMessage, setSlowMessage] = useState<string>("Carregando...");
 
@@ -197,7 +211,10 @@ export default function Portal() {
     }
   }, [isLoading, isSuperAdmin, permissions, hasWildcard, permissionsError]);
 
-  const resolveTarget = (targets: ModuleTarget[]): { accessible: boolean; route: string } => {
+  const resolveTarget = (
+    module: PortalModule
+  ): { accessible: boolean; route: string } => {
+    const { targets } = module;
     if (targets.length === 0) return { accessible: false, route: "/" };
     if (isSuperAdmin || hasWildcard) {
       return { accessible: true, route: targets[0].route };
@@ -205,6 +222,12 @@ export default function Portal() {
     const match = targets.find((t) => permissions.includes(t.permission));
     if (match) {
       return { accessible: true, route: match.route };
+    }
+    // Override Engenharia: responsabilidade operacional (responsável principal/
+    // de item de ordem emitida) libera apenas a rota Ordem do Dia. Nunca
+    // abre Planejamento Macro administrativo.
+    if (module.id === "engenharia" && hasOrdemCampoAccess === true) {
+      return { accessible: true, route: "/engenharia/ordem-do-dia" };
     }
     return { accessible: false, route: targets[0].route };
   };
@@ -260,7 +283,7 @@ export default function Portal() {
         {/* Modules grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
           {portalModules.map((module) => {
-            const { accessible, route } = resolveTarget(module.targets);
+            const { accessible, route } = resolveTarget(module);
             return (
               <div key={module.id}>
                 <PortalCard

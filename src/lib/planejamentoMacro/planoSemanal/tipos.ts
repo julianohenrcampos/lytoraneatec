@@ -31,6 +31,16 @@ export interface AtividadeBruta {
   duracao_horas: number | null;
   quantidade_prevista: number | null;
   unidade: string | null;
+  /** Fase C — progresso da atividade. */
+  percentual_concluido_importado?: number | null;
+  percentual_manual?: number | null;
+  percentual_manual_observacao?: string | null;
+  percentual_manual_atualizado_em?: string | null;
+  fonte_progresso?: "manual" | "importado" | "apontamento" | "diario" | null;
+  /** Fase 1C — atividade crítica importada do MS Project. */
+  is_critica?: boolean;
+  /** Fase 1C — origem do quantitativo: 'planilha' | 'indefinido' | 'manual'. */
+  quantidade_origem?: string | null;
 }
 
 export interface RecursoBruto {
@@ -119,8 +129,24 @@ export type TipoPendencia =
   | "EQUIPAMENTO_SEM_CATALOGO"
   | "MATERIAL_SEM_UNIDADE"
   | "RECURSO_SEM_ATIVIDADE"
+  // Fase 1C — saneamento da atividade:
+  | "ATIVIDADE_SEM_QUANTIDADE"
+  | "ATIVIDADE_SEM_UNIDADE"
+  | "ATIVIDADE_CRITICA_SEM_EQUIPE"
   // Mantido só para compatibilidade com chamadas antigas:
   | "funcao_sem_mapeamento";
+
+export type SeveridadePendenciaOp = "aviso" | "critica";
+
+/** Fase 1C-2A — agrupamento visual da pendência na aba Saneamento. */
+export type GrupoPendencia =
+  | "critica"
+  | "atividade"
+  | "mao_obra"
+  | "equipamento"
+  | "material"
+  | "fora_escopo"
+  | "outros";
 
 export interface Pendencia {
   tipo: TipoPendencia;
@@ -133,6 +159,20 @@ export interface Pendencia {
   familiaDetectada?: string | null;
   /** Fase 7B — item alvo (descrição do recurso/equipamento). */
   item?: string;
+  /** Fase 1C — severidade operacional ('aviso' por padrão). */
+  severidade?: SeveridadePendenciaOp;
+  // ===== Fase 1C-2A — Rastreabilidade =====
+  grupo?: GrupoPendencia;
+  eap?: string | null;
+  periodoInicio?: string | null;
+  periodoFim?: string | null;
+  statusAtividade?: string | null;
+  isCritica?: boolean;
+  quantidadePrevista?: number | null;
+  unidade?: string | null;
+  quantidadeOrigem?: string | null;
+  /** True quando a atividade cruza a semana ativa do usuário no Planejamento Semanal. */
+  dentroDaSemanaSelecionada?: boolean;
 }
 
 export const JORNADA_DIARIA_HORAS = 8;

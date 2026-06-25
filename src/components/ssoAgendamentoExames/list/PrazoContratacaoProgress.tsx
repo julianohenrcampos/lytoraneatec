@@ -14,6 +14,15 @@ export const PrazoContratacaoProgress: React.FC<PrazoContratacaoProgressProps> =
   statusExame,
   statusCarteira
 }) => {
+  // Desistência encerra a obrigação (status final, não-sucesso)
+  if (statusCarteira === 'Desistencia') {
+    return (
+      <Badge variant="destructive" className="whitespace-nowrap">
+        Desistência
+      </Badge>
+    );
+  }
+
   // Se carteira já registrada ou revisada, mostrar badge de sucesso
   if (statusCarteira === 'Registrado' || statusCarteira === 'Revisado') {
     return (
@@ -22,6 +31,7 @@ export const PrazoContratacaoProgress: React.FC<PrazoContratacaoProgressProps> =
       </Badge>
     );
   }
+
 
   // Se status não é Apto, não mostrar contador
   const statusAptoList = ['Apto', 'Apto com Restrição'];

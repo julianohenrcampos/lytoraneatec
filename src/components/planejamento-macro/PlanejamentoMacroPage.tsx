@@ -67,6 +67,16 @@ const PlanejamentoMacroPage: React.FC = () => {
   const [estruturaOpen, setEstruturaOpen] = useState(false);
   const [editingAtividadeId, setEditingAtividadeId] = useState<string | null>(null);
   const [planejarRecursosId, setPlanejarRecursosId] = useState<string | null>(null);
+  const [planejarRecursosTab, setPlanejarRecursosTab] =
+    useState<"funcoes" | "equipe">("funcoes");
+  const [tabAtiva, setTabAtiva] = useState<string>("visao-geral");
+  const [semanaAlvoIso, setSemanaAlvoIso] = useState<string | null>(null);
+  // Fase 1C-2A — semana ativa do usuário no Planejamento Semanal, usada pelo Saneamento.
+  const [semanaSelecionadaIso, setSemanaSelecionadaIso] = useState<string | null>(null);
+  // Fase 1C-2A — alvo do "Abrir no Cronograma".
+  const [atividadeAlvoId, setAtividadeAlvoId] = useState<string | null>(null);
+  // Fase 1C-2B — alvo do modo Saneamento do EditarAtividadeDialog.
+  const [saneamentoAtividadeId, setSaneamentoAtividadeId] = useState<string | null>(null);
 
   const centrosCustoFiltrados = useMemo(() => {
     const all = ccQuery.data ?? [];
@@ -344,7 +354,41 @@ const PlanejamentoMacroPage: React.FC = () => {
         planVigenteInicio={real.planejamento?.periodo_inicio ?? null}
         planVigenteFim={real.planejamento?.periodo_fim ?? null}
         onEditarAtividade={(id) => setEditingAtividadeId(id)}
-        onPlanejarRecursos={(id) => setPlanejarRecursosId(id)}
+        onPlanejarRecursos={(id) => {
+          setPlanejarRecursosTab("funcoes");
+          setPlanejarRecursosId(id);
+        }}
+        onAbrirNaSemana={(_id, inicioIso) => {
+          if (!inicioIso) return;
+          setSemanaAlvoIso(inicioIso);
+          setTabAtiva("plano-semanal");
+        }}
+        tabAtiva={tabAtiva}
+        onTabChange={setTabAtiva}
+        semanaAlvoIso={semanaAlvoIso}
+        onSemanaAlvoConsumida={() => setSemanaAlvoIso(null)}
+        ccLabel={ccLabel}
+        semanaSelecionadaIso={semanaSelecionadaIso}
+        onSemanaSelecionadaChange={setSemanaSelecionadaIso}
+        atividadeAlvoId={atividadeAlvoId}
+        onAtividadeAlvoConsumida={() => setAtividadeAlvoId(null)}
+        onAbrirNoCronograma={(id) => {
+          setAtividadeAlvoId(id);
+          setTabAtiva("atividades");
+        }}
+        canCorrigirQuantidade={
+          isSuperAdmin &&
+          (real.planejamento?.status as string | undefined) !== "arquivado"
+        }
+        onCorrigirQuantidade={(id) => setSaneamentoAtividadeId(id)}
+        canDesignarEquipe={
+          isSuperAdmin &&
+          (real.planejamento?.status as string | undefined) !== "arquivado"
+        }
+        onDesignarEquipe={(id) => {
+          setPlanejarRecursosTab("equipe");
+          setPlanejarRecursosId(id);
+        }}
       />
 
       <EditarAtividadeDialog
@@ -352,6 +396,18 @@ const PlanejamentoMacroPage: React.FC = () => {
         onOpenChange={(v) => !v && setEditingAtividadeId(null)}
         atividade={editingAtividadeId ? real.atividadesRawById[editingAtividadeId] ?? null : null}
         planejamentoStatus={(real.planejamento?.status as "rascunho" | "vigente" | "arquivado" | undefined) ?? null}
+      />
+
+      <EditarAtividadeDialog
+        open={!!saneamentoAtividadeId}
+        onOpenChange={(v) => !v && setSaneamentoAtividadeId(null)}
+        atividade={
+          saneamentoAtividadeId
+            ? real.atividadesRawById[saneamentoAtividadeId] ?? null
+            : null
+        }
+        planejamentoStatus={(real.planejamento?.status as "rascunho" | "vigente" | "arquivado" | undefined) ?? null}
+        modoSaneamento
       />
 
       <PlanejarRecursosDialog
@@ -366,6 +422,8 @@ const PlanejamentoMacroPage: React.FC = () => {
                   id: a.id,
                   nome: a.nome,
                   planejamento_id: real.planejamento!.id,
+                  data_inicio: (a as any).data_inicio ?? null,
+                  data_fim: (a as any).data_fim ?? null,
                 };
               })()
             : null
@@ -374,7 +432,9 @@ const PlanejamentoMacroPage: React.FC = () => {
           isSuperAdmin &&
           (real.planejamento?.status as string | undefined) !== "arquivado"
         }
+        defaultTab={planejarRecursosTab}
       />
+
 
       <EstruturaWbsDialog
         open={estruturaOpen}

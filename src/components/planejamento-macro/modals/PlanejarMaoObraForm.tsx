@@ -20,6 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Trash2, Loader2, Plus, Pencil, Check, X } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { useRecursosPorAtividade } from "@/hooks/planejamentoMacro/useRecursosPorAtividade";
 import { useCriarRecursoPlanejado } from "@/hooks/planejamentoMacro/useCriarRecursoPlanejado";
@@ -98,6 +99,7 @@ const PlanejarMaoObraForm: React.FC<Props> = ({
   const [horas, setHoras] = useState<string>("");
   const [dias, setDias] = useState<string>("");
   const [observacao, setObservacao] = useState<string>("");
+  const [addOpen, setAddOpen] = useState<boolean>(false);
 
   const resetAdd = () => {
     setFuncaoId("");
@@ -105,6 +107,11 @@ const PlanejarMaoObraForm: React.FC<Props> = ({
     setHoras("");
     setDias("");
     setObservacao("");
+  };
+
+  const cancelAdd = () => {
+    resetAdd();
+    setAddOpen(false);
   };
 
   // ----- Estado: editar inline -----
@@ -214,6 +221,7 @@ const PlanejarMaoObraForm: React.FC<Props> = ({
         observacao: parsed.data.observacao ?? null,
       });
       resetAdd();
+      setAddOpen(false);
     } catch {
       // toast tratado pelo hook
     }
@@ -396,100 +404,131 @@ const PlanejarMaoObraForm: React.FC<Props> = ({
         )}
       </div>
 
-      {/* Form de adição */}
+      {/* Form de adição — colapsado por padrão */}
       {canEdit && (
-        <div className="border rounded-md p-4 space-y-3 bg-muted/30">
-          <h4 className="text-sm font-semibold">Adicionar nova função</h4>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="md:col-span-2">
-              <Label className="text-xs">Função *</Label>
-              <Combobox
-                options={options}
-                value={funcaoId}
-                onChange={setFuncaoId}
-                placeholder={
-                  funcoesQuery.isLoading
-                    ? "Carregando funções..."
-                    : "Selecione uma função"
-                }
-                searchPlaceholder="Buscar função..."
-                emptyText="Nenhuma função ativa encontrada"
-                disabled={funcoesQuery.isLoading}
-              />
-            </div>
-
-            <div>
-              <Label className="text-xs">Quantidade prevista *</Label>
-              <Input
-                type="number"
-                min="0"
-                step="1"
-                inputMode="numeric"
-                value={quantidade}
-                onChange={(e) => setQuantidade(e.target.value)}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Horas previstas</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  inputMode="decimal"
-                  value={horas}
-                  onChange={(e) => setHoras(e.target.value)}
-                  placeholder="—"
-                />
-              </div>
-              <div>
-                <Label className="text-xs">Dias previstos</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  inputMode="decimal"
-                  value={dias}
-                  onChange={(e) => setDias(e.target.value)}
-                  placeholder="—"
-                />
-              </div>
-            </div>
-
-            <div className="md:col-span-2">
-              <Label className="text-xs">Observação</Label>
-              <Textarea
-                value={observacao}
-                onChange={(e) => setObservacao(e.target.value)}
-                rows={2}
-                maxLength={500}
-                placeholder="Opcional"
-              />
-            </div>
-          </div>
-
-          <p className="text-xs text-muted-foreground">
-            Informe ao menos horas ou dias previstos.
-          </p>
-
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              onClick={handleAdicionar}
-              disabled={criar.isPending || !funcaoId}
-              className="gap-2"
-            >
-              {criar.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
+        <Collapsible open={addOpen} onOpenChange={setAddOpen}>
+          {!addOpen && (
+            <CollapsibleTrigger asChild>
+              <Button type="button" variant="outline" className="w-full gap-2">
                 <Plus className="h-4 w-4" />
-              )}
-              Adicionar
-            </Button>
-          </div>
-        </div>
+                Adicionar função necessária
+              </Button>
+            </CollapsibleTrigger>
+          )}
+
+          <CollapsibleContent className="border rounded-md p-4 space-y-3 bg-muted/30 mt-2">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold">Adicionar função necessária</h4>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Fechar"
+                onClick={cancelAdd}
+                disabled={criar.isPending}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="md:col-span-2">
+                <Label className="text-xs">Função *</Label>
+                <Combobox
+                  options={options}
+                  value={funcaoId}
+                  onChange={setFuncaoId}
+                  placeholder={
+                    funcoesQuery.isLoading
+                      ? "Carregando funções..."
+                      : "Selecione uma função"
+                  }
+                  searchPlaceholder="Buscar função..."
+                  emptyText="Nenhuma função ativa encontrada"
+                  disabled={funcoesQuery.isLoading}
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs">Quantidade prevista *</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  value={quantidade}
+                  onChange={(e) => setQuantidade(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Horas previstas</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    inputMode="decimal"
+                    value={horas}
+                    onChange={(e) => setHoras(e.target.value)}
+                    placeholder="—"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Dias previstos</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    inputMode="decimal"
+                    value={dias}
+                    onChange={(e) => setDias(e.target.value)}
+                    placeholder="—"
+                  />
+                </div>
+              </div>
+
+              <div className="md:col-span-2">
+                <Label className="text-xs">Observação</Label>
+                <Textarea
+                  value={observacao}
+                  onChange={(e) => setObservacao(e.target.value)}
+                  rows={2}
+                  maxLength={500}
+                  placeholder="Opcional"
+                />
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Informe ao menos horas ou dias previstos.
+            </p>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={cancelAdd}
+                disabled={criar.isPending}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={handleAdicionar}
+                disabled={criar.isPending || !funcaoId}
+                className="gap-2"
+              >
+                {criar.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+                Adicionar
+              </Button>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       )}
     </div>
   );

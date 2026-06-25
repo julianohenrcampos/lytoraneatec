@@ -31,6 +31,12 @@ function adaptarAtividade(row: PlanejamentoAtividadeRow): AtividadePlanejada {
       ? (row.prioridade as PrioridadeAtividade)
       : undefined;
 
+  const pctRaw = (row as { percentual_concluido_importado?: number | string | null })
+    .percentual_concluido_importado;
+  const pct = pctRaw == null ? null : Number(pctRaw);
+  const pctManualRaw = (row as { percentual_manual?: number | string | null }).percentual_manual;
+  const pctManual = pctManualRaw == null ? null : Number(pctManualRaw);
+  const rowAny = row as Record<string, unknown>;
   return {
     id: row.id,
     planejamento_id: row.planejamento_id ?? undefined,
@@ -46,6 +52,14 @@ function adaptarAtividade(row: PlanejamentoAtividadeRow): AtividadePlanejada {
     unidade: row.unidade ?? undefined,
     codigo_wbs: row.codigo_wbs ?? null,
     descricao: row.descricao ?? null,
+    percentual_concluido_importado: pct != null && Number.isFinite(pct) ? pct : null,
+    percentual_manual: pctManual != null && Number.isFinite(pctManual) ? pctManual : null,
+    percentual_manual_observacao: (rowAny.percentual_manual_observacao as string | null) ?? null,
+    percentual_manual_atualizado_por: (rowAny.percentual_manual_atualizado_por as string | null) ?? null,
+    percentual_manual_atualizado_em: (rowAny.percentual_manual_atualizado_em as string | null) ?? null,
+    fonte_progresso: (rowAny.fonte_progresso as AtividadePlanejada["fonte_progresso"]) ?? null,
+    is_critica: Boolean(rowAny.is_critica),
+    quantidade_origem: (rowAny.quantidade_origem as AtividadePlanejada["quantidade_origem"]) ?? null,
   };
 }
 
