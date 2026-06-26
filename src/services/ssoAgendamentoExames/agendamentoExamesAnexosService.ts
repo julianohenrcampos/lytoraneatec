@@ -24,6 +24,12 @@ export const agendamentoExamesAnexosService = {
     // Upload do arquivo para o storage
     const { path } = await agendamentoExamesStorageService.upload(agendamentoId, file);
 
+    console.debug('[SSO_AGENDAMENTO_DIAG][ANEXO_INSERT]', {
+      agendamento_id: agendamentoId,
+      tipo: tipo ?? null,
+      arquivo_ext: file.name.split('.').pop() ?? null,
+    });
+
     // Criar registro no banco
     const { data, error } = await (supabase
       .from('bd_agendamentos_exames_anexos' as any) as any)
@@ -41,6 +47,12 @@ export const agendamentoExamesAnexosService = {
       .single();
 
     if (error) {
+      console.error('[SSO_AGENDAMENTO_DIAG][ANEXO_INSERT_ERROR]', {
+        code: (error as any).code,
+        message: error.message,
+        details: (error as any).details,
+        hint: (error as any).hint,
+      });
       // Se falhar, tentar remover o arquivo do storage
       await agendamentoExamesStorageService.delete(path);
       throw error;

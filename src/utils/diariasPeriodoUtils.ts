@@ -429,6 +429,57 @@ export function assertPeriodoValidoOuFalhar(
 }
 
 /**
+ * Validador específico da Solicitação EXTRAORDINÁRIA.
+ *
+ * Regras:
+ *  - data_inicio e data_fim obrigatórias.
+ *  - data_fim >= data_inicio.
+ *  - intervalo <= maxDias (default 30).
+ *  - NÃO exige segunda-feira nem domingo.
+ *  - Retroativo (inicio < hoje): permitido apenas para SuperAdm (criação).
+ *
+ * A justificativa ≥20 chars para retroativa é validada no service
+ * (assertRegraRetroativa) e no banco.
+ */
+export function validarPeriodoExtraordinario(
+  dataInicio: string,
+  dataFim: string,
+  maxDias: number = 30,
+  isSuperAdmin: boolean = false,
+  isEditing: boolean = false
+): { valido: boolean; erro?: string; isRetroativo?: boolean } {
+  if (!dataInicio || !dataFim) {
+    return { valido: false, erro: 'Selecione as datas de início e fim' };
+  }
+
+  const inicio = parseISO(dataInicio);
+  const fim = parseISO(dataFim);
+
+  if (fim < inicio) {
+    return { valido: false, erro: 'Data fim deve ser igual ou posterior à data início' };
+  }
+
+  const dias = differenceInDays(fim, inicio) + 1;
+  if (dias > maxDias) {
+    return { valido: false, erro: `Período máximo é de ${maxDias} dias` };
+  }
+
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const isRetroativo = inicio < hoje;
+
+  if (!isEditing && isRetroativo && !isSuperAdmin) {
+    return {
+      valido: false,
+      erro: 'Solicitação extraordinária retroativa permitida apenas para SuperAdm.',
+      isRetroativo,
+    };
+  }
+
+  return { valido: true, isRetroativo };
+}
+
+/**
  * Verifica se uma data ISO (YYYY-MM-DD) é anterior a hoje (data local).
  * Usa parseISO + comparação a hoje@00:00 local — sem toISOString/UTC.
  */

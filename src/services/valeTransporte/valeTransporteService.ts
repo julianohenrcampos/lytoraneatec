@@ -208,17 +208,45 @@ export const valeTransporteService = {
     // Check if record already exists → update; otherwise → insert
     const existing = await this.getByAgendamento(agendamentoId);
 
+    console.debug('[SSO_AGENDAMENTO_DIAG][VT_SALVAR]', {
+      agendamento_id: agendamentoId,
+      operacao: existing ? 'UPDATE' : 'INSERT',
+      existing_id: existing?.id ?? null,
+      existing_created_by: existing?.created_by ?? null,
+      tipo,
+      has_pdf_assinado: !!pdfAssinadoUrl,
+      has_comprovante: !!comprovanteUrl,
+    });
+
     if (existing) {
       const { error } = await supabase
         .from('bd_vale_transporte' as any)
         .update(payload as any)
         .eq('id', existing.id);
-      if (error) throw error;
+      if (error) {
+        console.error('[SSO_AGENDAMENTO_DIAG][VT_SALVAR_ERROR]', {
+          operacao: 'UPDATE',
+          code: (error as any).code,
+          message: error.message,
+          details: (error as any).details,
+          hint: (error as any).hint,
+        });
+        throw error;
+      }
     } else {
       const { error } = await supabase
         .from('bd_vale_transporte' as any)
         .insert(payload as any);
-      if (error) throw error;
+      if (error) {
+        console.error('[SSO_AGENDAMENTO_DIAG][VT_SALVAR_ERROR]', {
+          operacao: 'INSERT',
+          code: (error as any).code,
+          message: error.message,
+          details: (error as any).details,
+          hint: (error as any).hint,
+        });
+        throw error;
+      }
     }
   },
 };

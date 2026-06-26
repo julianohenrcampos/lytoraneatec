@@ -56,6 +56,7 @@ import {
   resumirPeriodoParaSimulacao,
   validarPeriodo,
   validarPeriodoNormal,
+  validarPeriodoExtraordinario,
   primeiraDataValidaNormal,
   calcularJanelaSemanal,
   formatCurrency,
@@ -251,7 +252,7 @@ export function SolicitacaoFormModal({
     if ((tipoSolicitacao || 'normal') === 'normal') {
       return validarPeriodoNormal(dataInicio, dataFim, isSuperAdmin, !!editingSolicitacao);
     }
-    return validarPeriodo(dataInicio, dataFim, 30, isSuperAdmin, !!editingSolicitacao);
+    return validarPeriodoExtraordinario(dataInicio, dataFim, 30, isSuperAdmin, !!editingSolicitacao);
   }, [dataInicio, dataFim, isSuperAdmin, editingSolicitacao, tipoSolicitacao]);
 
   const isEditing = !!editingSolicitacao;
@@ -2062,6 +2063,15 @@ export function SolicitacaoFormModal({
                         return;
                       }
                       const escolhida = parseISO(raw);
+
+                      // Extraordinária: sem força de semana operacional.
+                      // Sugere dataFim = dataInicio; usuário pode editar livremente.
+                      if ((tipoSolicitacao || 'normal') === 'extraordinaria') {
+                        setDataInicio(format(escolhida, 'yyyy-MM-dd'));
+                        setDataFim(format(escolhida, 'yyyy-MM-dd'));
+                        return;
+                      }
+
                       const domingo = endOfWeek(escolhida, { weekStartsOn: 1 });
 
                       if (isSuperAdmin) {
@@ -2082,14 +2092,22 @@ export function SolicitacaoFormModal({
                   />
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground">Data Fim (Domingo)</Label>
+                  <Label className="text-xs text-muted-foreground">
+                    {(tipoSolicitacao || 'normal') === 'extraordinaria' ? 'Data Fim' : 'Data Fim (Domingo)'}
+                  </Label>
                   <Input
                     type="date"
                     value={dataFim}
-                    readOnly
-                    disabled
-                    tabIndex={-1}
-                    className="cursor-not-allowed bg-muted"
+                    min={dataInicio || undefined}
+                    onChange={(e) => {
+                      if ((tipoSolicitacao || 'normal') === 'extraordinaria') {
+                        setDataFim(e.target.value);
+                      }
+                    }}
+                    readOnly={(tipoSolicitacao || 'normal') !== 'extraordinaria'}
+                    disabled={isEditing || (tipoSolicitacao || 'normal') !== 'extraordinaria'}
+                    tabIndex={(tipoSolicitacao || 'normal') === 'extraordinaria' ? 0 : -1}
+                    className={(tipoSolicitacao || 'normal') === 'extraordinaria' ? '' : 'cursor-not-allowed bg-muted'}
                   />
                 </div>
               </div>
