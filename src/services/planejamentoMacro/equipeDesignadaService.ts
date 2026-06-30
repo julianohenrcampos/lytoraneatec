@@ -149,39 +149,38 @@ export async function designarFuncionario(input: DesignarInput): Promise<string>
   return data as string;
 }
 
-export async function removerDesignacao(id: string, status: StatusEquipe): Promise<void> {
-  if (status === "rascunho") {
-    const { error } = await supabase
-      .from("bd_planejamento_atividade_equipe")
-      .delete()
-      .eq("id", id);
-    if (error) throw error;
-  } else {
-    const { error } = await supabase
-      .from("bd_planejamento_atividade_equipe")
-      .update({ status: "cancelado" })
-      .eq("id", id);
-    if (error) throw error;
-  }
+export async function removerDesignacao(id: string): Promise<"deleted" | "cancelled"> {
+  const { data, error } = await supabase.rpc("fn_remover_designacao_equipe", {
+    p_id: id,
+  });
+  if (error) throw error;
+  return (data as "deleted" | "cancelled") ?? "deleted";
+}
+
+export interface AtualizarDesignacaoPatch {
+  papel_na_tarefa?: PapelTarefa;
+  funcao_id?: string | null;
+  dias_previstos?: number | null;
+  horas_previstas?: number | null;
+  observacao?: string | null;
 }
 
 export async function atualizarDesignacao(
   id: string,
-  patch: Partial<
-    Pick<
-      EquipeDesignadaRow,
-      | "papel_na_tarefa"
-      | "dias_previstos"
-      | "horas_previstas"
-      | "observacao"
-      | "status"
-      | "funcao_id"
-    >
-  >
-): Promise<void> {
-  const { error } = await supabase
-    .from("bd_planejamento_atividade_equipe")
-    .update(patch)
-    .eq("id", id);
+  patch: AtualizarDesignacaoPatch
+): Promise<EquipeDesignadaRow> {
+  const { data, error } = await supabase.rpc("fn_atualizar_designacao_equipe", {
+    p_id: id,
+    p_papel: patch.papel_na_tarefa ?? null,
+    p_funcao_id: patch.funcao_id ?? null,
+    p_dias: patch.dias_previstos ?? null,
+    p_horas: patch.horas_previstas ?? null,
+    p_observacao: patch.observacao ?? null,
+    p_set_funcao: Object.prototype.hasOwnProperty.call(patch, "funcao_id"),
+    p_set_dias: Object.prototype.hasOwnProperty.call(patch, "dias_previstos"),
+    p_set_horas: Object.prototype.hasOwnProperty.call(patch, "horas_previstas"),
+    p_set_observacao: Object.prototype.hasOwnProperty.call(patch, "observacao"),
+  } as any);
   if (error) throw error;
+  return data as EquipeDesignadaRow;
 }

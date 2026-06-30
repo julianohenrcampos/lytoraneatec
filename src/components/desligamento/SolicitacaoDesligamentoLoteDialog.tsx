@@ -28,6 +28,7 @@ import {
 } from '@/utils/pdf/gerarPdfLoteSolicitacaoDesligamento';
 import * as svc from '@/services/rh/solicitacaoDesligamentoService';
 import { useSolicitacaoDesligamento } from '@/hooks/rh/useSolicitacoesDesligamento';
+import { usePermission } from '@/hooks/usePermission';
 import type { DesligamentoItemInput } from '@/types/solicitacaoRh';
 
 interface Props {
@@ -52,6 +53,8 @@ export const SolicitacaoDesligamentoLoteDialog: React.FC<Props> = ({
   open, onOpenChange, solicitacaoId,
 }) => {
   const { perfil } = useProfile();
+  const { userId, isSuperAdmin } = usePermission();
+  const scopeUserId: string | null = isSuperAdmin ? null : (userId ?? null);
   const qc = useQueryClient();
   const { data: existente, isLoading: loadingExistente } = useSolicitacaoDesligamento(open ? solicitacaoId ?? null : null);
 
@@ -180,7 +183,7 @@ export const SolicitacaoDesligamentoLoteDialog: React.FC<Props> = ({
     if (it._persistedId && solId) {
       setRemoving(true);
       try {
-        await svc.removerItem(it._persistedId);
+        await svc.removerItem(it._persistedId, scopeUserId);
         const restantes = itens.filter((x) => x._persistedId !== it._persistedId);
         setItens(restantes);
         setSalarioStr((prev) => { const c = { ...prev }; delete c[funcId]; return c; });
@@ -201,7 +204,7 @@ export const SolicitacaoDesligamentoLoteDialog: React.FC<Props> = ({
             data_desligamento: r.data_desligamento,
           })),
         );
-        await svc.atualizarRascunhoHeader(solId, totais);
+        await svc.atualizarRascunhoHeader(solId, totais, scopeUserId);
         qc.invalidateQueries({ queryKey: ['solicitacoes-desligamento'] });
         toast.success('Funcionário removido da solicitação.');
       } catch (e: any) {
@@ -272,9 +275,9 @@ export const SolicitacaoDesligamentoLoteDialog: React.FC<Props> = ({
     try {
       const id = await garantirRascunho();
       const persist = itensParaPersistir();
-      await svc.substituirItens(id, persist);
+      await svc.substituirItens(id, persist, scopeUserId);
       const totais = svc.calcularTotais(persist);
-      await svc.atualizarRascunhoHeader(id, { observacoes, ...totais });
+      await svc.atualizarRascunhoHeader(id, { observacoes, ...totais }, scopeUserId);
       toast.success('Rascunho salvo.');
       qc.invalidateQueries({ queryKey: ['solicitacoes-desligamento'] });
     } catch (e: any) {
@@ -293,10 +296,10 @@ export const SolicitacaoDesligamentoLoteDialog: React.FC<Props> = ({
     try {
       const id = await garantirRascunho();
       const persist = itensParaPersistir();
-      await svc.substituirItens(id, persist);
+      await svc.substituirItens(id, persist, scopeUserId);
       const totais = svc.calcularTotais(persist);
-      await svc.atualizarRascunhoHeader(id, { observacoes, ...totais });
-      await svc.emitirSolicitacao(id, perfil ?? null, persist.map((p) => p.centro_custo_id));
+      await svc.atualizarRascunhoHeader(id, { observacoes, ...totais }, scopeUserId);
+      await svc.emitirSolicitacao(id, perfil ?? null, persist.map((p) => p.centro_custo_id), scopeUserId);
       toast.success(`Solicitação ${protocolo} emitida.`);
       qc.invalidateQueries({ queryKey: ['solicitacoes-desligamento'] });
       onOpenChange(false);
@@ -313,7 +316,7 @@ export const SolicitacaoDesligamentoLoteDialog: React.FC<Props> = ({
     try {
       let header = existente?.header;
       if (!header && solId) {
-        const got = await svc.obterSolicitacao(solId);
+        const got = await svc.obterSolicitacao(solId, scopeUserId);
         header = got.header;
       }
       gerarPdfLoteSolicitacaoDesligamento({
@@ -337,7 +340,7 @@ export const SolicitacaoDesligamentoLoteDialog: React.FC<Props> = ({
     if (!solId) return;
     setCanceling(true);
     try {
-      await svc.cancelarSolicitacao(solId);
+      await svc.cancelarSolicitacao(solId, scopeUserId);
       toast.success('Solicitação cancelada.');
       qc.invalidateQueries({ queryKey: ['solicitacoes-desligamento'] });
       setConfirmCancelOpen(false);

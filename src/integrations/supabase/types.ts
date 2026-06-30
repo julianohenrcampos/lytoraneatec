@@ -19595,6 +19595,47 @@ export type Database = {
           centro_custo_id: string
         }[]
       }
+      fn_atualizar_designacao_equipe: {
+        Args: {
+          p_dias?: number
+          p_funcao_id?: string
+          p_horas?: number
+          p_id: string
+          p_observacao?: string
+          p_papel?: Database["public"]["Enums"]["papel_equipe_tarefa"]
+          p_set_dias?: boolean
+          p_set_funcao?: boolean
+          p_set_horas?: boolean
+          p_set_observacao?: boolean
+        }
+        Returns: {
+          atividade_id: string
+          centro_custo_id: string
+          centro_custo_origem_id: string
+          created_at: string
+          criado_por: string | null
+          dias_previstos: number | null
+          funcao_id: string | null
+          funcionario_id: string
+          horas_previstas: number | null
+          id: string
+          modificado_por: string | null
+          observacao: string | null
+          papel_na_tarefa: Database["public"]["Enums"]["papel_equipe_tarefa"]
+          planejamento_id: string
+          semana_fim: string
+          semana_inicio: string
+          status: Database["public"]["Enums"]["status_equipe_designada"]
+          tipo_alocacao: Database["public"]["Enums"]["tipo_alocacao_equipe"]
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bd_planejamento_atividade_equipe"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       fn_atualizar_ordem_diaria_rascunho: {
         Args: {
           p_atividade_ids: string[]
@@ -20304,6 +20345,10 @@ export type Database = {
         Args: { p_user_id?: string }
         Returns: boolean
       }
+      fn_pode_ver_agendamento_exame_por_cc: {
+        Args: { p_contrato: string }
+        Returns: boolean
+      }
       fn_ponto_can_access_batida: {
         Args: { _batida_id: string }
         Returns: boolean
@@ -20371,6 +20416,7 @@ export type Database = {
         Args: { p_role_id: string; p_target_user_id: string }
         Returns: undefined
       }
+      fn_remover_designacao_equipe: { Args: { p_id: string }; Returns: string }
       fn_reprovar_classificacao_solicitacao: {
         Args: { p_id: string; p_motivo: string }
         Returns: undefined

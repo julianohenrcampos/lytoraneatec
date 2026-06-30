@@ -36,6 +36,8 @@ interface Props {
   planVigenteFim: string | null;
   onPlanejarRecursos?: (atividadeId: string) => void;
   canPlanejarRecursos?: boolean;
+  onDesignarEquipe?: (atividadeId: string) => void;
+  canDesignarEquipe?: boolean;
   onEditarAtividade?: (atividadeId: string) => void;
   canEditarAtividade?: boolean;
   /** Quando alterado, posiciona o seletor de semana na data informada. */
@@ -54,6 +56,8 @@ const PlanoSemanalTab: React.FC<Props> = ({
   planVigenteFim,
   onPlanejarRecursos,
   canPlanejarRecursos = false,
+  onDesignarEquipe,
+  canDesignarEquipe = false,
   onEditarAtividade,
   canEditarAtividade = false,
   semanaAlvoIso = null,
@@ -305,6 +309,16 @@ const PlanoSemanalTab: React.FC<Props> = ({
         semanaFim={semana.fim}
         atividadesSemana={atividadesSemana}
         pendencias={pendencias}
+        onAbrirRecursos={
+          canPlanejarRecursos && onPlanejarRecursos
+            ? (id) => onPlanejarRecursos(id)
+            : undefined
+        }
+        onAbrirEquipeDesignada={
+          canDesignarEquipe && onDesignarEquipe
+            ? (id) => onDesignarEquipe(id)
+            : undefined
+        }
       />
     </div>
   );

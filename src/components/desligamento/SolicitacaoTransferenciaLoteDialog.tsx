@@ -32,6 +32,7 @@ import {
 } from '@/utils/pdf/gerarPdfLoteSolicitacaoTransferencia';
 import * as svc from '@/services/rh/solicitacaoTransferenciaService';
 import { useSolicitacaoTransferencia } from '@/hooks/rh/useSolicitacoesTransferencia';
+import { usePermission } from '@/hooks/usePermission';
 import type { TransferenciaItemInput } from '@/types/solicitacaoRh';
 import {
   resolverGerenteDaArea,
@@ -61,6 +62,8 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
   open, onOpenChange, solicitacaoId,
 }) => {
   const { perfil } = useProfile();
+  const { userId, isSuperAdmin } = usePermission();
+  const scopeUserId: string | null = isSuperAdmin ? null : (userId ?? null);
   const qc = useQueryClient();
   const { data: existente, isLoading: loadingExistente } = useSolicitacaoTransferencia(open ? solicitacaoId ?? null : null);
 
@@ -202,7 +205,7 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
     if (it._persistedId && solId) {
       setRemoving(true);
       try {
-        await svc.removerItem(it._persistedId);
+        await svc.removerItem(it._persistedId, scopeUserId);
         const restantes = itens.filter((x) => x._persistedId !== it._persistedId);
         setItens(restantes);
         setSalarioStr((prev) => { const c = { ...prev }; delete c[funcId]; return c; });
@@ -225,7 +228,7 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
             valor_passagem_novo: r.alteracao_passagem ? (r.valor_passagem_novo ?? null) : null,
           })),
         );
-        await svc.atualizarRascunhoHeader(solId, totais);
+        await svc.atualizarRascunhoHeader(solId, totais, scopeUserId);
         qc.invalidateQueries({ queryKey: ['solicitacoes-transferencia'] });
         toast.success('Funcionário removido da solicitação.');
       } catch (e: any) {
@@ -303,9 +306,9 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
     try {
       const id = await garantirRascunho();
       const persist = itensParaPersistir();
-      await svc.substituirItens(id, persist);
+      await svc.substituirItens(id, persist, scopeUserId);
       const totais = svc.calcularTotais(persist);
-      await svc.atualizarRascunhoHeader(id, { observacoes, ...totais });
+      await svc.atualizarRascunhoHeader(id, { observacoes, ...totais }, scopeUserId);
       toast.success('Rascunho salvo.');
       qc.invalidateQueries({ queryKey: ['solicitacoes-transferencia'] });
     } catch (e: any) {
@@ -338,10 +341,10 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
     try {
       const id = await garantirRascunho();
       const persist = itensParaPersistir();
-      await svc.substituirItens(id, persist);
+      await svc.substituirItens(id, persist, scopeUserId);
       const totais = svc.calcularTotais(persist);
-      await svc.atualizarRascunhoHeader(id, { observacoes, ...totais });
-      await svc.emitirSolicitacao(id, perfil ?? null, persist.map((p) => p.centro_custo_origem_id));
+      await svc.atualizarRascunhoHeader(id, { observacoes, ...totais }, scopeUserId);
+      await svc.emitirSolicitacao(id, perfil ?? null, persist.map((p) => p.centro_custo_origem_id), scopeUserId);
       toast.success(`Solicitação ${protocolo} emitida.`);
       qc.invalidateQueries({ queryKey: ['solicitacoes-transferencia'] });
       onOpenChange(false);
@@ -372,7 +375,7 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
     try {
       let header = existente?.header;
       if (!header && solId) {
-        const got = await svc.obterSolicitacao(solId);
+        const got = await svc.obterSolicitacao(solId, scopeUserId);
         header = got.header;
       }
 
@@ -425,7 +428,7 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
     if (!solId) return;
     setCanceling(true);
     try {
-      await svc.cancelarSolicitacao(solId);
+      await svc.cancelarSolicitacao(solId, scopeUserId);
       toast.success('Solicitação cancelada.');
       qc.invalidateQueries({ queryKey: ['solicitacoes-transferencia'] });
       setConfirmCancelOpen(false);

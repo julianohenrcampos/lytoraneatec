@@ -136,6 +136,8 @@ const PlanejamentoMacroTabs: React.FC<Props> = ({
             planejamentoStatus !== "arquivado" &&
             !!onPlanejarRecursos
           }
+          onDesignarEquipe={onDesignarEquipe}
+          canDesignarEquipe={canDesignarEquipe}
           onEditarAtividade={onEditarAtividade}
           canEditarAtividade={canEditarAtividade}
           semanaAlvoIso={semanaAlvoIso}

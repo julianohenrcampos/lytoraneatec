@@ -7,8 +7,8 @@ import {
   listarEquipeDesignadaPorAtividade,
   listarFuncionariosDisponiveis,
   removerDesignacao,
+  type AtualizarDesignacaoPatch,
   type DesignarInput,
-  type StatusEquipe,
 } from "@/services/planejamentoMacro/equipeDesignadaService";
 
 const keyEquipe = (atividadeId: string) =>
@@ -69,8 +69,7 @@ export function useDesignarFuncionario(atividadeId: string) {
 export function useRemoverDesignacao(atividadeId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: StatusEquipe }) =>
-      removerDesignacao(id, status),
+    mutationFn: ({ id }: { id: string }) => removerDesignacao(id),
     onSuccess: () => {
       toast.success("Designação removida.");
       qc.invalidateQueries({ queryKey: keyEquipe(atividadeId) });
@@ -83,13 +82,8 @@ export function useRemoverDesignacao(atividadeId: string) {
 export function useAtualizarDesignacao(atividadeId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      id,
-      patch,
-    }: {
-      id: string;
-      patch: Parameters<typeof atualizarDesignacao>[1];
-    }) => atualizarDesignacao(id, patch),
+    mutationFn: ({ id, patch }: { id: string; patch: AtualizarDesignacaoPatch }) =>
+      atualizarDesignacao(id, patch),
     onSuccess: () => {
       toast.success("Designação atualizada.");
       qc.invalidateQueries({ queryKey: keyEquipe(atividadeId) });
