@@ -20,7 +20,7 @@ import { debugLog } from "@/lib/debug";
 export const fetchCentrosCustoFiltered = async (
   userId: string | null = null,
   isSuperAdmin: boolean = false
-): Promise<{ id: string; nome_centro_custo: string }[]> => {
+): Promise<{ id: string; nome_centro_custo: string; codigo_centro_custo: string | null }[]> => {
   try {
     if (import.meta.env.DEV) {
       console.log("[centrosCustoFiltered] userId:", userId, "isSuperAdmin:", isSuperAdmin);
@@ -30,8 +30,9 @@ export const fetchCentrosCustoFiltered = async (
     if (isSuperAdmin) {
       const { data, error } = await supabase
         .from('bd_centros_custo')
-        .select('id, nome_centro_custo')
+        .select('id, nome_centro_custo, codigo_centro_custo')
         .eq('situacao', 'Ativo')
+        .order('codigo_centro_custo', { ascending: true, nullsFirst: false })
         .order('nome_centro_custo');
 
       if (error) {
@@ -40,6 +41,7 @@ export const fetchCentrosCustoFiltered = async (
       }
       return data || [];
     }
+
 
     // ---------- Sem usuário → fail-closed ----------
     if (!userId) {
@@ -61,21 +63,24 @@ export const fetchCentrosCustoFiltered = async (
     if (profile?.acesso_global === true) {
       const { data, error } = await supabase
         .from('bd_centros_custo')
-        .select('id, nome_centro_custo')
+        .select('id, nome_centro_custo, codigo_centro_custo')
         .eq('situacao', 'Ativo')
+        .order('codigo_centro_custo', { ascending: true, nullsFirst: false })
         .order('nome_centro_custo');
       if (error) throw error;
       return data || [];
     }
 
     const funcionarioId = profile?.funcionario_id || null;
-    const merged = new Map<string, { id: string; nome_centro_custo: string }>();
+    const merged = new Map<string, { id: string; nome_centro_custo: string; codigo_centro_custo: string | null }>();
+
 
     // ---------- (a) Vínculos diretos em bd_centros_custo ----------
     if (funcionarioId) {
       const { data: ccVinc, error: vincErr } = await supabase
         .from('bd_centros_custo')
-        .select('id, nome_centro_custo')
+        .select('id, nome_centro_custo, codigo_centro_custo')
+
         .eq('situacao', 'Ativo')
         .or(
           `adm_obra_funcionario_id.eq.${funcionarioId},` +
@@ -110,7 +115,7 @@ export const fetchCentrosCustoFiltered = async (
       if (ids.length > 0) {
         const { data: ccScope, error: ccScopeErr } = await supabase
           .from('bd_centros_custo')
-          .select('id, nome_centro_custo')
+          .select('id, nome_centro_custo, codigo_centro_custo')
           .eq('situacao', 'Ativo')
           .in('id', ids);
 
@@ -123,9 +128,14 @@ export const fetchCentrosCustoFiltered = async (
       console.warn("[centrosCustoFiltered] RPC scope indisponível:", e?.message);
     }
 
-    const result = Array.from(merged.values()).sort((a, b) =>
-      a.nome_centro_custo.localeCompare(b.nome_centro_custo, 'pt-BR'),
-    );
+    const result = Array.from(merged.values()).sort((a, b) => {
+      const ac = a.codigo_centro_custo || '\uffff';
+      const bc = b.codigo_centro_custo || '\uffff';
+      const byCod = ac.localeCompare(bc, 'pt-BR');
+      if (byCod !== 0) return byCod;
+      return a.nome_centro_custo.localeCompare(b.nome_centro_custo, 'pt-BR');
+    });
+
 
     if (import.meta.env.DEV) {
       console.log("[centrosCustoFiltered] resultado:", {

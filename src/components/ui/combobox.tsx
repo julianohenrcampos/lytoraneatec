@@ -22,7 +22,10 @@ import {
 export interface ComboboxOption {
   value: string
   label: string
+  /** Texto opcional usado para filtro (concatena termos alternativos, ex.: código + nome). Se ausente, usa label. */
+  searchText?: string
 }
+
 
 interface ComboboxProps {
   options: ComboboxOption[]
@@ -62,10 +65,12 @@ export function Combobox({
   const filteredOptions = React.useMemo(() => {
     if (onSearchChange) return options;
     if (!inputValue) return options;
-    return options.filter((option) => 
-      option.label.toLowerCase().includes(inputValue.toLowerCase())
+    const q = inputValue.toLowerCase();
+    return options.filter((option) =>
+      (option.searchText ?? option.label).toLowerCase().includes(q)
     );
   }, [options, inputValue, onSearchChange]);
+
 
   const handleInputValueChange = React.useCallback((v: string) => {
     setInputValue(v);
@@ -101,13 +106,12 @@ export function Combobox({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent 
-        className="w-[var(--radix-popover-trigger-width)] p-0 z-[10000] bg-popover text-popover-foreground shadow-xl border pointer-events-auto" 
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-24px)] p-0 z-[10000] bg-popover text-popover-foreground shadow-xl border pointer-events-auto"
         align="start"
         side="bottom"
         avoidCollisions={false}
         sideOffset={4}
-        style={{ minWidth: '300px' }}
       >
         <Command shouldFilter={false} className="pointer-events-auto">
           <div className="flex items-center border-b px-3 pointer-events-auto">

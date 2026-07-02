@@ -98,10 +98,41 @@ async function logFalha(
 // ----------------------------------------------------------------
 // Mapbox calls
 // ----------------------------------------------------------------
-async function mapboxForward(query: string, token: string, limit = 5) {
-  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+interface ForwardOpts {
+  limit?: number;
+  proximity?: [number, number];
+  bbox?: [number, number, number, number];
+  types?: string;
+  autocompleteFlag?: boolean;
+}
+
+function buildForwardUrl(query: string, token: string, opts: ForwardOpts = {}): string {
+  const limit = opts.limit ?? 5;
+  let url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
     query
   )}.json?access_token=${token}&country=br&language=pt&limit=${limit}`;
+  if (opts.proximity && Array.isArray(opts.proximity) && opts.proximity.length === 2) {
+    const [lng, lat] = opts.proximity;
+    if (Number.isFinite(lng) && Number.isFinite(lat)) {
+      url += `&proximity=${lng},${lat}`;
+    }
+  }
+  if (opts.bbox && Array.isArray(opts.bbox) && opts.bbox.length === 4 && opts.bbox.every((n) => Number.isFinite(n))) {
+    url += `&bbox=${opts.bbox.join(",")}`;
+  }
+  if (opts.types) {
+    url += `&types=${encodeURIComponent(opts.types)}`;
+  }
+  if (typeof opts.autocompleteFlag === "boolean") {
+    url += `&autocomplete=${opts.autocompleteFlag ? "true" : "false"}`;
+  }
+  return url;
+}
+
+async function mapboxForward(query: string, token: string, limitOrOpts: number | ForwardOpts = 5) {
+  const opts: ForwardOpts =
+    typeof limitOrOpts === "number" ? { limit: limitOrOpts } : limitOrOpts;
+  const url = buildForwardUrl(query, token, opts);
   const r = await fetch(url);
   if (!r.ok) throw new Error(`mapbox forward ${r.status}`);
   return r.json();
@@ -187,32 +218,42 @@ Deno.serve(async (req) => {
       const original = q;
       const normalizado = normalizeAddress(original);
 
-      // cache
-      const { data: cachedRows } = await supabase
-        .from("bd_cache_enderecos")
-        .select("*")
-        .or(`endereco_normalizado.eq.${normalizado},endereco.eq.${normalizado}`)
-        .limit(1);
+      const extraOpts: ForwardOpts = {
+        limit: 1,
+        proximity: body.proximity,
+        bbox: body.bbox,
+        types: body.types,
+      };
+      const hasSpatialCtx = !!(extraOpts.proximity || extraOpts.bbox);
 
-      if (cachedRows && cachedRows.length > 0) {
-        const c = cachedRows[0];
-        return new Response(
-          JSON.stringify({
-            result: {
-              place_name: c.place_name || c.endereco,
-              latitude: Number(c.latitude),
-              longitude: Number(c.longitude),
-              relevance: Number(c.relevance ?? 0.9),
-              place_type: c.place_type || "address",
-              geocoding_status: c.geocoding_status || "auto",
-              geocoding_source: "cache",
-              geocoding_relevance: Number(c.relevance ?? 0.9),
-              endereco_normalizado: c.endereco_normalizado || normalizado,
-              context: {},
-            },
-          }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      // cache — pular quando houver contexto espacial (proximity/bbox)
+      if (!hasSpatialCtx) {
+        const { data: cachedRows } = await supabase
+          .from("bd_cache_enderecos")
+          .select("*")
+          .or(`endereco_normalizado.eq.${normalizado},endereco.eq.${normalizado}`)
+          .limit(1);
+
+        if (cachedRows && cachedRows.length > 0) {
+          const c = cachedRows[0];
+          return new Response(
+            JSON.stringify({
+              result: {
+                place_name: c.place_name || c.endereco,
+                latitude: Number(c.latitude),
+                longitude: Number(c.longitude),
+                relevance: Number(c.relevance ?? 0.9),
+                place_type: c.place_type || "address",
+                geocoding_status: c.geocoding_status || "auto",
+                geocoding_source: "cache",
+                geocoding_relevance: Number(c.relevance ?? 0.9),
+                endereco_normalizado: c.endereco_normalizado || normalizado,
+                context: {},
+              },
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
       }
 
       // fallback progressivo
@@ -220,12 +261,13 @@ Deno.serve(async (req) => {
       let best: any = null;
       for (const t of tries) {
         try {
-          const data = await mapboxForward(t, mapboxToken, 1);
+          const data = await mapboxForward(t, mapboxToken, extraOpts);
           if (data.features?.length) { best = data.features[0]; break; }
         } catch (e) {
           console.error("geocode fallback erro em", t, e);
         }
       }
+
 
       if (!best) {
         await logFalha(supabase, "sem_resultado", original, normalizado);
@@ -267,7 +309,8 @@ Deno.serve(async (req) => {
         context: ctx,
       };
 
-      if (cls.status === "auto") {
+      // Cache write — apenas quando não houve contexto espacial e status=auto
+      if (!hasSpatialCtx && cls.status === "auto") {
         await supabase
           .from("bd_cache_enderecos")
           .upsert(
@@ -305,27 +348,39 @@ Deno.serve(async (req) => {
     const original = query.trim();
     const normalizado = normalizeAddress(original);
 
-    // 1. Cache lookup (por endereco_normalizado quando disponível, fallback por endereco)
-    const { data: cachedRows } = await supabase
-      .from("bd_cache_enderecos")
-      .select("*")
-      .or(`endereco_normalizado.eq.${normalizado},endereco.eq.${normalizado}`)
-      .limit(5);
+    const autoExtraOpts: ForwardOpts = {
+      limit: typeof body.limit === "number" ? body.limit : 5,
+      proximity: body.proximity,
+      bbox: body.bbox,
+      types: body.types,
+      autocompleteFlag:
+        typeof body.autocompleteFlag === "boolean" ? body.autocompleteFlag : true,
+    };
+    const autoHasSpatialCtx = !!(autoExtraOpts.proximity || autoExtraOpts.bbox);
 
-    if (cachedRows && cachedRows.length > 0) {
-      const features = cachedRows.map((c: any) => ({
-        place_name: c.place_name || c.endereco,
-        center: [Number(c.longitude), Number(c.latitude)],
-        relevance: Number(c.relevance ?? 0.9),
-        place_type: c.place_type || "address",
-        from_cache: true,
-        source: "cache",
-        geocoding_status: c.geocoding_status || "auto",
-        endereco_normalizado: c.endereco_normalizado || normalizado,
-      }));
-      return new Response(JSON.stringify({ features, source: "cache" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // 1. Cache lookup — pular quando houver contexto espacial
+    if (!autoHasSpatialCtx) {
+      const { data: cachedRows } = await supabase
+        .from("bd_cache_enderecos")
+        .select("*")
+        .or(`endereco_normalizado.eq.${normalizado},endereco.eq.${normalizado}`)
+        .limit(5);
+
+      if (cachedRows && cachedRows.length > 0) {
+        const features = cachedRows.map((c: any) => ({
+          place_name: c.place_name || c.endereco,
+          center: [Number(c.longitude), Number(c.latitude)],
+          relevance: Number(c.relevance ?? 0.9),
+          place_type: c.place_type || "address",
+          from_cache: true,
+          source: "cache",
+          geocoding_status: c.geocoding_status || "auto",
+          endereco_normalizado: c.endereco_normalizado || normalizado,
+        }));
+        return new Response(JSON.stringify({ features, source: "cache" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // 2. Fallback progressivo
@@ -335,7 +390,7 @@ Deno.serve(async (req) => {
 
     for (const q of tries) {
       try {
-        const data = await mapboxForward(q, mapboxToken, 5);
+        const data = await mapboxForward(q, mapboxToken, autoExtraOpts);
         if (data.features && data.features.length > 0) {
           mapboxData = data;
           usedQuery = q;
@@ -370,26 +425,28 @@ Deno.serve(async (req) => {
       };
     });
 
-    // 3. Cache em background — somente resultados de qualidade boa
-    for (const f of features) {
-      if (f.geocoding_status === "auto" && f.place_name && f.center) {
-        await supabase
-          .from("bd_cache_enderecos")
-          .upsert(
-            {
-              endereco: f.place_name.toLowerCase(),
-              endereco_original: original,
-              endereco_normalizado: normalizado,
-              place_name: f.place_name,
-              latitude: f.center[1],
-              longitude: f.center[0],
-              relevance: f.relevance,
-              place_type: f.place_type,
-              geocoding_status: f.geocoding_status,
-            },
-            { onConflict: "endereco" }
-          )
-          .then(() => {});
+    // 3. Cache em background — pular quando houve contexto espacial
+    if (!autoHasSpatialCtx) {
+      for (const f of features) {
+        if (f.geocoding_status === "auto" && f.place_name && f.center) {
+          await supabase
+            .from("bd_cache_enderecos")
+            .upsert(
+              {
+                endereco: f.place_name.toLowerCase(),
+                endereco_original: original,
+                endereco_normalizado: normalizado,
+                place_name: f.place_name,
+                latitude: f.center[1],
+                longitude: f.center[0],
+                relevance: f.relevance,
+                place_type: f.place_type,
+                geocoding_status: f.geocoding_status,
+              },
+              { onConflict: "endereco" }
+            )
+            .then(() => {});
+        }
       }
     }
 

@@ -10589,16 +10589,17 @@ export type Database = {
           hora_inicio_aplicacao: string | null
           id: string
           largura_media: number | null
-          lista_entrega_id: string
+          lista_entrega_id: string | null
           logradouro_id: string | null
           logradouro_nome: string
           modificado_por: string | null
           numero_passadas: number | null
           observacoes_aplicacao: string | null
           registro_aplicacao_id: string
-          registro_carga_id: string
+          registro_carga_id: string | null
           sequencia_aplicacao: number
           temperatura_aplicacao: number | null
+          tipo_item: string | null
           tonelada_aplicada: number
           updated_at: string | null
         }
@@ -10621,16 +10622,17 @@ export type Database = {
           hora_inicio_aplicacao?: string | null
           id?: string
           largura_media?: number | null
-          lista_entrega_id: string
+          lista_entrega_id?: string | null
           logradouro_id?: string | null
           logradouro_nome: string
           modificado_por?: string | null
           numero_passadas?: number | null
           observacoes_aplicacao?: string | null
           registro_aplicacao_id: string
-          registro_carga_id: string
+          registro_carga_id?: string | null
           sequencia_aplicacao?: number
           temperatura_aplicacao?: number | null
+          tipo_item?: string | null
           tonelada_aplicada: number
           updated_at?: string | null
         }
@@ -10653,16 +10655,17 @@ export type Database = {
           hora_inicio_aplicacao?: string | null
           id?: string
           largura_media?: number | null
-          lista_entrega_id?: string
+          lista_entrega_id?: string | null
           logradouro_id?: string | null
           logradouro_nome?: string
           modificado_por?: string | null
           numero_passadas?: number | null
           observacoes_aplicacao?: string | null
           registro_aplicacao_id?: string
-          registro_carga_id?: string
+          registro_carga_id?: string | null
           sequencia_aplicacao?: number
           temperatura_aplicacao?: number | null
+          tipo_item?: string | null
           tonelada_aplicada?: number
           updated_at?: string | null
         }
@@ -10717,10 +10720,12 @@ export type Database = {
           aplicacao_numero: number | null
           aplicacao_sequencia: number | null
           area: number | null
+          atividade: string | null
           bordo: string | null
           carga_finalizada: boolean | null
           carga_origem_id: string | null
           carga_total_aplicada: number | null
+          centro_custo_id: string | null
           comprimento: number | null
           created_at: string | null
           created_by: string | null
@@ -10739,6 +10744,7 @@ export type Database = {
           logradouro_id: string | null
           modificado_por: string | null
           observacoes_gerais: string | null
+          origem_registro: string
           percentual_aplicado: number | null
           registro_carga_id: string | null
           status_aplicacao: string | null
@@ -10752,10 +10758,12 @@ export type Database = {
           aplicacao_numero?: number | null
           aplicacao_sequencia?: number | null
           area?: number | null
+          atividade?: string | null
           bordo?: string | null
           carga_finalizada?: boolean | null
           carga_origem_id?: string | null
           carga_total_aplicada?: number | null
+          centro_custo_id?: string | null
           comprimento?: number | null
           created_at?: string | null
           created_by?: string | null
@@ -10774,6 +10782,7 @@ export type Database = {
           logradouro_id?: string | null
           modificado_por?: string | null
           observacoes_gerais?: string | null
+          origem_registro?: string
           percentual_aplicado?: number | null
           registro_carga_id?: string | null
           status_aplicacao?: string | null
@@ -10787,10 +10796,12 @@ export type Database = {
           aplicacao_numero?: number | null
           aplicacao_sequencia?: number | null
           area?: number | null
+          atividade?: string | null
           bordo?: string | null
           carga_finalizada?: boolean | null
           carga_origem_id?: string | null
           carga_total_aplicada?: number | null
+          centro_custo_id?: string | null
           comprimento?: number | null
           created_at?: string | null
           created_by?: string | null
@@ -10809,6 +10820,7 @@ export type Database = {
           logradouro_id?: string | null
           modificado_por?: string | null
           observacoes_gerais?: string | null
+          origem_registro?: string
           percentual_aplicado?: number | null
           registro_carga_id?: string | null
           status_aplicacao?: string | null
@@ -10859,6 +10871,62 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_registro_cargas_seguro"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_raa_centro_custo"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_raa_centro_custo"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "fk_raa_centro_custo"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "fk_raa_centro_custo"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "fk_raa_centro_custo"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "fk_raa_centro_custo"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "fk_raa_centro_custo"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "fk_raa_centro_custo"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
           },
         ]
       }
@@ -19981,6 +20049,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      fn_criar_registro_aplicacao_manual: {
+        Args: { p_cabecalho: Json; p_detalhes: Json }
+        Returns: string
       }
       fn_designar_equipe_atividade: {
         Args: {

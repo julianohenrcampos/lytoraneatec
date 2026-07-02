@@ -11,8 +11,9 @@ import {
   XCircle,
   Info,
 } from "lucide-react";
-import { useGeocoding, type GeocodeFeature } from "@/hooks/useGeocoding";
+import { useGeocoding, type GeocodeFeature, type GeocodingOpts } from "@/hooks/useGeocoding";
 import MapAdjustModal from "./MapAdjustModal";
+import { rankAddressResults, type RankContext } from "@/utils/geocoding/rankAddressResults";
 
 export interface AddressResult {
   endereco_completo: string;
@@ -39,6 +40,11 @@ interface AddressAutocompleteProps {
   onAddressSelected: (result: AddressResult) => void;
   disabled?: boolean;
   placeholder?: string;
+  /**
+   * Contexto operacional opcional para melhorar a busca (proximity/UF/cidade/bairro).
+   * Sem context, comportamento atual é preservado (nenhuma tela existente regride).
+   */
+  context?: RankContext;
 }
 
 const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
@@ -49,10 +55,12 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   onAddressSelected,
   disabled = false,
   placeholder = "Digite o endereço...",
+  context,
 }) => {
   const [query, setQuery] = useState(value);
   const [suggestions, setSuggestions] = useState<GeocodeFeature[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [emptyByCityFilter, setEmptyByCityFilter] = useState(false);
   const [status, setStatus] = useState<AddressResult["geocoding_status"] | null>(
     initialStatus ?? null
   );
@@ -68,6 +76,34 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   const lastResolvedQueryRef = useRef<string>(value || "");
   const selectedFromListRef = useRef<boolean>(!!initialStatus);
   const { autocomplete, geocode, loading } = useGeocoding();
+
+  // Monta query enriquecida quando há context e usuário não usou vírgula
+  const buildEnrichedQuery = useCallback(
+    (raw: string): string => {
+      if (!context) return raw;
+      if (raw.includes(",")) return raw;
+      const parts = [
+        raw.trim(),
+        context.bairro?.trim(),
+        context.cidade?.trim(),
+        context.uf?.trim(),
+        "Brasil",
+      ].filter((p): p is string => !!p && p.length > 0);
+      return parts.join(", ");
+    },
+    [context]
+  );
+
+  const buildOpts = useCallback((): GeocodingOpts | undefined => {
+    if (!context) return undefined;
+    const opts: GeocodingOpts = {};
+    if (context.proximity) opts.proximity = context.proximity;
+    if (context.bbox) opts.bbox = context.bbox;
+    opts.types = "address,street,place,locality,neighborhood";
+    opts.limit = 8;
+    return opts;
+  }, [context]);
+
 
   useEffect(() => {
     setQuery(value);
@@ -93,13 +129,24 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     async (q: string) => {
       if (q.trim().length < 3) {
         setSuggestions([]);
+        setEmptyByCityFilter(false);
         return;
       }
-      const features = await autocomplete(q);
-      setSuggestions(features);
-      setShowDropdown(features.length > 0);
+      const enriched = buildEnrichedQuery(q);
+      const opts = buildOpts();
+      const features = await autocomplete(enriched, opts);
+      const ranked = context
+        ? rankAddressResults(features, context)
+        : { features, filteredOutOfCity: false, filteredOutOfUf: false };
+      setSuggestions(ranked.features);
+      setEmptyByCityFilter(
+        (ranked.filteredOutOfCity || ranked.filteredOutOfUf) && features.length > 0
+      );
+      setShowDropdown(
+        ranked.features.length > 0 || ranked.filteredOutOfCity || ranked.filteredOutOfUf
+      );
     },
-    [autocomplete]
+    [autocomplete, buildEnrichedQuery, buildOpts, context]
   );
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -110,6 +157,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => fetchSuggestions(v), 350);
   };
+
 
   const emitFromFeature = (f: GeocodeFeature, q: string) => {
     const ctx = f.context || {};
@@ -156,7 +204,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       setShowDropdown(false);
       setResolving(true);
       try {
-        const f = await geocode(query);
+        const f = await geocode(buildEnrichedQuery(query), buildOpts());
         if (!f || !f.center || f.geocoding_status === "erro") {
           setStatus("erro");
           lastResolvedQueryRef.current = query;
@@ -288,6 +336,14 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
           ))}
         </div>
       )}
+
+      {showDropdown && suggestions.length === 0 && emptyByCityFilter && (
+        <div className="absolute z-50 w-full bg-popover border rounded-md shadow-lg p-3 text-xs text-muted-foreground">
+          Não encontramos esse logradouro dentro da cidade selecionada. Complete o
+          bairro/CEP ou ajuste manualmente no mapa.
+        </div>
+      )}
+
 
       <div className="flex items-center justify-between gap-2 flex-wrap">
         {renderBadge()}
