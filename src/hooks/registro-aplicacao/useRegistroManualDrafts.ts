@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
  * Nenhuma escrita no banco. Sem dependências extras (idb-keyval ausente).
  */
 
-const NS = "lytotec:registro-manual-drafts:v1";
+const NS = "lytotec:registro-manual-drafts:v2";
 const EVT = "lytotec:registro-manual-drafts:changed";
 
 export interface RegistroManualDraft {
@@ -19,9 +19,12 @@ export interface RegistroManualDraft {
   updatedAt: string; // ISO
   lastTab: string;
   // Payload livre — o modal define o schema real.
+  // A partir da v2 o modelo é hierárquico (ruas[].buracos[]).
   ini: any;
   carga: any;
-  itens: any[];
+  ruas?: any[];              // novo (v2) — hierárquico
+  ruaAtualId?: string | null; // novo (v2)
+  itens?: any[];             // legado (v1) — mantido opcional para retrocompat
   obsFinal: string;
   imagensCount: number;
   // Campos derivados úteis para a listagem principal
@@ -105,6 +108,8 @@ export function useRegistroManualDrafts() {
         lastTab: input.lastTab,
         ini: input.ini,
         carga: input.carga,
+        ruas: input.ruas,
+        ruaAtualId: input.ruaAtualId ?? null,
         itens: input.itens,
         obsFinal: input.obsFinal,
         imagensCount: input.imagensCount,

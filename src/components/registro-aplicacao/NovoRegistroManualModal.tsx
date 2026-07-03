@@ -12,6 +12,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,7 +32,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Trash2, Pencil, AlertTriangle, Info, Lock, ImagePlus, X, Save } from "lucide-react";
+import {
+  Trash2,
+  Pencil,
+  AlertTriangle,
+  Info,
+  Lock,
+  ImagePlus,
+  X,
+  Save,
+  MapPin,
+  Play,
+  Camera,
+  Plus,
+  ChevronDown,
+} from "lucide-react";
+
 import { toast } from "sonner";
 import { useCriarRegistroManual } from "@/hooks/registro-aplicacao/useCriarRegistroManual";
 import {
@@ -40,20 +57,58 @@ import {
 } from "@/hooks/registro-aplicacao/useCadastrosManual";
 import {
   useRegistroManualDrafts,
-  type RegistroManualDraft,
 } from "@/hooks/registro-aplicacao/useRegistroManualDrafts";
 import { getCurrentBrazilianDate } from "@/utils/timezoneUtils";
 import AddressAutocomplete, {
   type AddressResult,
 } from "@/components/shared/AddressAutocomplete";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { normalizeRuaKey, describeRua } from "@/utils/registroManual/ruaKey";
+import { captureGeo, type GeoCapture } from "@/utils/registroManual/captureGeo";
+import {
+  computeToneladasBuracosComResiduo,
+  classificarEspessuraMedia,
+  type BuracoRateioRef,
+  type EspessuraClassificacao,
+} from "@/utils/registroAplicacao/rateioTonelada";
+
+// ============================================================================
+// Helpers de exibição da espessura média (frontend-only)
+// ============================================================================
+function formatBR(n: number, digits = 2): string {
+  if (!Number.isFinite(n)) return "-";
+  return n.toFixed(digits).replace(".", ",");
+}
+
+const EspessuraBadge: React.FC<{ classificacao: EspessuraClassificacao }> = ({
+  classificacao,
+}) => {
+  const cls =
+    classificacao.tone === "success"
+      ? "bg-emerald-600 text-white hover:bg-emerald-600"
+      : classificacao.tone === "warning"
+      ? "bg-amber-500 text-white hover:bg-amber-500"
+      : classificacao.tone === "destructive"
+      ? "bg-destructive text-destructive-foreground hover:bg-destructive"
+      : "bg-muted text-muted-foreground";
+  return (
+    <Badge
+      variant="outline"
+      className={`text-xs shrink-0 border-transparent ${cls}`}
+      title={classificacao.mensagem}
+    >
+      {classificacao.label}
+    </Badge>
+  );
+};
+
 
 const STEPS: { value: string; label: string }[] = [
   { value: "iniciais", label: "Dados Iniciais" },
-  { value: "carga", label: "Dados da Carga" },
+  { value: "carga", label: "Carga" },
   { value: "apontamento", label: "Apontamento" },
-  { value: "lista", label: "Lista" },
-  { value: "imagens", label: "Imagens" },
+  { value: "listaRuas", label: "Lista Ruas" },
+  { value: "listaApontamentos", label: "Lista Apontamentos" },
   { value: "final", label: "Finalização" },
 ];
 
@@ -66,9 +121,10 @@ const BORDOS: Bordo[] = ["Direito", "Esquerdo", "Centro", "Único", "Embocadura"
 const TIPOS_TRACO = ["5A", "4C"] as const;
 const TIPOS_PINTURA = ["Imprimação", "RR-1C"] as const;
 
-const MAX_IMAGENS = 6;
+const MAX_FOTOS_BURACO = 6;
 const MAX_IMG_BYTES = 5 * 1024 * 1024;
 const DENSIDADE_DEFAULT = 2.4;
+const ESPESSURA_PADRAO_CM = 5;
 
 const TIPOS_POR_ATIVIDADE: Record<Atividade, string[]> = {
   tapa_buraco: ["buraco"],
@@ -76,7 +132,7 @@ const TIPOS_POR_ATIVIDADE: Record<Atividade, string[]> = {
   fresagem: ["faixa", "trecho"],
 };
 
-const rotuloSeq = (tipo_item: string, seq: number): string => {
+const rotuloItem = (tipo_item: string, seq: number): string => {
   const nn = String(seq).padStart(2, "0");
   const t = (tipo_item || "").toLowerCase();
   switch (t) {
@@ -95,6 +151,9 @@ const rotuloSeq = (tipo_item: string, seq: number): string => {
   }
 };
 
+const genLocalId = () =>
+  `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
 interface CentroCustoOpt {
   id: string;
   codigo_centro_custo?: string;
@@ -105,7 +164,6 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   centrosCusto: CentroCustoOpt[];
-  /** Se fornecido, o modal carrega o rascunho local com este id ao abrir. */
   draftId?: string | null;
 }
 
@@ -115,15 +173,7 @@ interface DadosIniciaisState {
   data: string;
   horaChegada: string;
   equipeId: string;
-  logradouro: string;
-  bairro: string;
-  cidade: string;
-  uf: string;
-  cep: string;
   condominio: "sim" | "nao" | "";
-  latitude: number | null;
-  longitude: number | null;
-  origemLocalizacao: OrigemLoc;
 }
 
 interface DadosCargaState {
@@ -137,22 +187,61 @@ interface DadosCargaState {
   tipoPintura: (typeof TIPOS_PINTURA)[number] | "";
 }
 
-interface ApontamentoLocal {
+interface BuracoLocal {
+  idLocal: string;
+  sequenciaAplicacao: number;
+  sequenciaRua: number;
+  bordo: Bordo | "";
+  comprimento: string;
+  larguraMedia: string;
+  toneladaAplicada: string; // preenchido no rateio pós-finalização; livre pré
+  espessura: string;
+  temperaturaAplicacao: string;
+  tipo_item: string;
+  observacao: string;
+  areaCalculada: number;
+  gps: GeoCapture | null;
+  fotos: File[]; // in-memory
+  fotosCount: number; // persistido no draft
+}
+
+interface RuaLocal {
+  idLocal: string;
+  chaveNorm: string;
+  logradouro: string;
+  bairro: string;
+  cidade: string;
+  uf: string;
+  cep?: string;
+  latitude: number | null;
+  longitude: number | null;
+  origemLocalizacao: OrigemLoc;
+  iniciadaEm: string;
+  buracos: BuracoLocal[];
+}
+
+interface RuaFormState {
+  logradouro: string;
+  bairro: string;
+  cidade: string;
+  uf: string;
+  cep: string;
+  latitude: number | null;
+  longitude: number | null;
+  origemLocalizacao: OrigemLoc;
+}
+
+interface BuracoFormState {
   bordo: Bordo | "";
   comprimento: string;
   larguraMedia: string;
   toneladaAplicada: string;
   espessura: string;
-  densidade: string;
   lastEdited: "tonelada" | "espessura" | "";
   temperaturaAplicacao: string;
   tipo_item: string;
   observacao: string;
-}
-
-interface ItemSalvo extends ApontamentoLocal {
-  seq: number;
-  areaCalculada: number;
+  fotos: File[];
 }
 
 const emptyIniciais = (): DadosIniciaisState => ({
@@ -161,15 +250,7 @@ const emptyIniciais = (): DadosIniciaisState => ({
   data: "",
   horaChegada: "",
   equipeId: "",
-  logradouro: "",
-  bairro: "",
-  cidade: "",
-  uf: "",
-  cep: "",
   condominio: "",
-  latitude: null,
-  longitude: null,
-  origemLocalizacao: "",
 });
 
 const emptyCarga = (): DadosCargaState => ({
@@ -183,19 +264,28 @@ const emptyCarga = (): DadosCargaState => ({
   tipoPintura: "",
 });
 
-const ESPESSURA_PADRAO_CM = 5;
+const emptyRuaForm = (): RuaFormState => ({
+  logradouro: "",
+  bairro: "",
+  cidade: "",
+  uf: "",
+  cep: "",
+  latitude: null,
+  longitude: null,
+  origemLocalizacao: "",
+});
 
-const emptyApont = (tipo: string): ApontamentoLocal => ({
+const emptyBuracoForm = (tipo: string): BuracoFormState => ({
   bordo: "",
   comprimento: "",
   larguraMedia: "",
   toneladaAplicada: "",
   espessura: String(ESPESSURA_PADRAO_CM),
-  densidade: String(DENSIDADE_DEFAULT),
   lastEdited: "",
   temperaturaAplicacao: "",
   tipo_item: tipo,
   observacao: "",
+  fotos: [],
 });
 
 const NovoRegistroManualModal: React.FC<Props> = ({
@@ -209,20 +299,25 @@ const NovoRegistroManualModal: React.FC<Props> = ({
   const [iniciaisOk, setIniciaisOk] = useState(false);
   const [ini, setIni] = useState<DadosIniciaisState>(emptyIniciais());
   const [carga, setCarga] = useState<DadosCargaState>(emptyCarga());
-  const [apont, setApont] = useState<ApontamentoLocal>(emptyApont("buraco"));
-  const [itens, setItens] = useState<ItemSalvo[]>([]);
-  const [editIdx, setEditIdx] = useState<number | null>(null);
+
+  const [ruas, setRuas] = useState<RuaLocal[]>([]);
+  const [ruaAtualId, setRuaAtualId] = useState<string | null>(null);
+  const [ruaForm, setRuaForm] = useState<RuaFormState>(emptyRuaForm());
+  const [buracoForm, setBuracoForm] = useState<BuracoFormState>(emptyBuracoForm("buraco"));
+  const [editBuracoRef, setEditBuracoRef] = useState<{ ruaId: string; buracoId: string } | null>(null);
+
   const [obsFinal, setObsFinal] = useState<string>("");
-  const [imagens, setImagens] = useState<File[]>([]);
-  const [imagensUrls, setImagensUrls] = useState<string[]>([]);
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
+  const [capturandoGeo, setCapturandoGeo] = useState(false);
+  const [ruaFormOpen, setRuaFormOpen] = useState(false);
+  const [editingRuaId, setEditingRuaId] = useState<string | null>(null);
+  const [buracoFormOpen, setBuracoFormOpen] = useState(false);
+  const [calculoAberto, setCalculoAberto] = useState(false);
 
   const isMobile = useIsMobile();
-  const stepIndex = Math.max(
-    0,
-    STEPS.findIndex((s) => s.value === tab)
-  );
+
+  const stepIndex = Math.max(0, STEPS.findIndex((s) => s.value === tab));
   const currentStepLabel = STEPS[stepIndex]?.label ?? "";
 
   const caminhoesQ = useCaminhoesParaAplicacao(open);
@@ -231,7 +326,6 @@ const NovoRegistroManualModal: React.FC<Props> = ({
 
   const { saveDraft, loadDraft, removeDraft } = useRegistroManualDrafts();
 
-  // Contexto geo do Centro de Custo selecionado (SOMENTE LEITURA).
   const ccGeoQ = useQuery({
     queryKey: ["novo-registro-manual", "cc-geo", ini.centroCustoId],
     enabled: open && !!ini.centroCustoId,
@@ -258,18 +352,17 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     const hasLng = cc && typeof cc.longitude === "number" && Number.isFinite(cc.longitude);
     const proximity: [number, number] | undefined =
       hasLat && hasLng ? [cc!.longitude as number, cc!.latitude as number] : undefined;
-    const cidade = (ini.cidade || cc?.endereco_cidade || "").trim() || undefined;
-    const uf = (ini.uf || cc?.endereco_estado || "").trim() || undefined;
-    const bairro = (ini.bairro || cc?.endereco_bairro || "").trim() || undefined;
+    const cidade = (ruaForm.cidade || cc?.endereco_cidade || "").trim() || undefined;
+    const uf = (ruaForm.uf || cc?.endereco_estado || "").trim() || undefined;
+    const bairro = (ruaForm.bairro || cc?.endereco_bairro || "").trim() || undefined;
     if (!proximity && !cidade && !uf && !bairro) return undefined;
     return { proximity, cidade, uf, bairro };
-  }, [ccGeoQ.data, ini.cidade, ini.uf, ini.bairro]);
+  }, [ccGeoQ.data, ruaForm.cidade, ruaForm.uf, ruaForm.bairro]);
 
   const tiposPermitidos = useMemo(() => TIPOS_POR_ATIVIDADE[ini.atividade], [ini.atividade]);
 
   const mutation = useCriarRegistroManual({
     onSuccess: () => {
-      // Ao concluir com sucesso, descarta rascunho persistido (se houver).
       if (currentDraftId) removeDraft(currentDraftId);
       hardReset();
       onOpenChange(false);
@@ -291,7 +384,6 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     [centrosCusto]
   );
 
-
   const equipesOpts = useMemo(
     () => (equipesQ.data || []).map((e) => ({ value: e.id, label: e.nome_equipe })),
     [equipesQ.data]
@@ -301,8 +393,7 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     () =>
       (caminhoesQ.data || []).map((c) => ({
         value: c.id,
-        label:
-          (c.frota || c.numero_frota || "s/frota") + (c.placa ? ` — ${c.placa}` : ""),
+        label: (c.frota || c.numero_frota || "s/frota") + (c.placa ? ` — ${c.placa}` : ""),
       })),
     [caminhoesQ.data]
   );
@@ -317,28 +408,26 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     [motoristasQ.data]
   );
 
-  // ============== Images previews ==============
-  useEffect(() => {
-    const urls = imagens.map((f) => URL.createObjectURL(f));
-    setImagensUrls(urls);
-    return () => {
-      urls.forEach((u) => URL.revokeObjectURL(u));
-    };
-  }, [imagens]);
-
+  // ============== hardReset ==============
   const hardReset = () => {
     setTab("iniciais");
     setEstado("rascunho");
     setIniciaisOk(false);
     setIni(emptyIniciais());
     setCarga(emptyCarga());
-    setApont(emptyApont("buraco"));
-    setItens([]);
-    setEditIdx(null);
+    setRuas([]);
+    setRuaAtualId(null);
+    setRuaForm(emptyRuaForm());
+    setBuracoForm(emptyBuracoForm("buraco"));
+    setEditBuracoRef(null);
     setObsFinal("");
-    setImagens([]);
     setCurrentDraftId(null);
+    setRuaFormOpen(false);
+    setEditingRuaId(null);
+    setBuracoFormOpen(false);
+    setCalculoAberto(false);
   };
+
 
   // ============== Open effect / draft hydration ==============
   useEffect(() => {
@@ -351,18 +440,73 @@ const NovoRegistroManualModal: React.FC<Props> = ({
         setTab(d.lastTab || "iniciais");
         setIni({ ...emptyIniciais(), ...(d.ini || {}) });
         setCarga({ ...emptyCarga(), ...(d.carga || {}) });
-        setItens(Array.isArray(d.itens) ? d.itens : []);
+
+        // Preferência: shape v2 (ruas[]). Fallback: migrar legado (itens[]) para uma única rua sintética.
+        let ruasHidr: RuaLocal[] = [];
+        if (Array.isArray(d.ruas) && d.ruas.length) {
+          ruasHidr = d.ruas.map((r: any) => ({
+            ...r,
+            buracos: (r.buracos || []).map((b: any) => ({
+              ...b,
+              fotos: [], // Files não são persistidos
+            })),
+          }));
+        } else if (Array.isArray(d.itens) && d.itens.length) {
+          const iniAny: any = d.ini || {};
+          const chave = normalizeRuaKey({
+            logradouro: iniAny.logradouro,
+            bairro: iniAny.bairro,
+            cidade: iniAny.cidade,
+            uf: iniAny.uf,
+          });
+          const ruaId = genLocalId();
+          ruasHidr = [
+            {
+              idLocal: ruaId,
+              chaveNorm: chave,
+              logradouro: iniAny.logradouro || "",
+              bairro: iniAny.bairro || "",
+              cidade: iniAny.cidade || "",
+              uf: iniAny.uf || "",
+              cep: iniAny.cep || "",
+              latitude: iniAny.latitude ?? null,
+              longitude: iniAny.longitude ?? null,
+              origemLocalizacao: iniAny.origemLocalizacao || "",
+              iniciadaEm: new Date().toISOString(),
+              buracos: (d.itens || []).map((it: any, i: number) => ({
+                idLocal: genLocalId(),
+                sequenciaAplicacao: it.seq ?? i + 1,
+                sequenciaRua: i + 1,
+                bordo: it.bordo || "",
+                comprimento: String(it.comprimento ?? ""),
+                larguraMedia: String(it.larguraMedia ?? ""),
+                toneladaAplicada: String(it.toneladaAplicada ?? ""),
+                espessura: String(it.espessura ?? ""),
+                temperaturaAplicacao: String(it.temperaturaAplicacao ?? ""),
+                tipo_item: it.tipo_item || "buraco",
+                observacao: it.observacao || "",
+                areaCalculada: Number(it.areaCalculada || 0),
+                gps: null,
+                fotos: [],
+                fotosCount: 0,
+              })),
+            },
+          ];
+        }
+        setRuas(ruasHidr);
+        setRuaAtualId(d.ruaAtualId ?? ruasHidr[ruasHidr.length - 1]?.idLocal ?? null);
+        setRuaForm(emptyRuaForm());
+        setBuracoForm(
+          emptyBuracoForm(d.ini?.atividade === "tapa_buraco" ? "buraco" : "faixa")
+        );
+        setEditBuracoRef(null);
         setObsFinal(d.obsFinal || "");
         setIniciaisOk(true);
         setEstado("rascunho");
-        setImagens([]);
-        setApont(emptyApont(d.ini?.atividade === "tapa_buraco" ? "buraco" : "faixa"));
-        setEditIdx(null);
         return;
       }
     }
 
-    // Fresh open
     const iso = getCurrentBrazilianDate();
     const now = new Date();
     const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
@@ -372,44 +516,55 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     setIniciaisOk(false);
     setIni({ ...emptyIniciais(), data: iso, horaChegada: hhmm });
     setCarga(emptyCarga());
-    setApont(emptyApont("buraco"));
-    setItens([]);
-    setEditIdx(null);
+    setRuas([]);
+    setRuaAtualId(null);
+    setRuaForm(emptyRuaForm());
+    setBuracoForm(emptyBuracoForm("buraco"));
+    setEditBuracoRef(null);
     setObsFinal("");
-    setImagens([]);
   }, [open, draftId, loadDraft]);
 
   useEffect(() => {
     const tipoPadrao = ini.atividade === "tapa_buraco" ? "buraco" : tiposPermitidos[0];
-    setApont((prev) => ({
+    setBuracoForm((prev) => ({
       ...prev,
       tipo_item: tiposPermitidos.includes(prev.tipo_item) ? prev.tipo_item : tipoPadrao,
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ini.atividade]);
 
-  // ============== Draft persistence helpers ==============
+  // ============== Draft persistence ==============
   const buildDraftInput = () => {
     const ccSel = centrosCusto.find((c) => c.id === ini.centroCustoId);
+    // Não serializar File[]
+    const ruasSerial = ruas.map((r) => ({
+      ...r,
+      buracos: r.buracos.map((b) => ({ ...b, fotos: [] })),
+    }));
+    const firstRua = ruas[0];
     return {
       id: currentDraftId || undefined,
       lastTab: tab,
       ini,
       carga,
-      itens,
+      ruas: ruasSerial,
+      ruaAtualId,
+      itens: [], // legado — vazio na v2
       obsFinal,
-      imagensCount: imagens.length,
+      imagensCount: ruas.reduce((s, r) => s + r.buracos.reduce((s2, b) => s2 + b.fotosCount, 0), 0),
+      logradouro: firstRua?.logradouro || null,
       centroCustoId: ini.centroCustoId || null,
       centroCustoCodigo: (ccSel?.codigo_centro_custo || "").trim() || null,
       centroCustoNome: (ccSel?.nome_centro_custo || "").trim() || null,
+      data: ini.data || null,
+      atividade: ini.atividade || null,
     };
   };
 
-  // ============== Auto-save (debounced) ==============
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!open) return;
-    if (!iniciaisOk) return; // só começa a auto-salvar quando iniciais foram validados
+    if (!iniciaisOk) return;
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(() => {
       const id = saveDraft(buildDraftInput());
@@ -419,7 +574,7 @@ const NovoRegistroManualModal: React.FC<Props> = ({
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, iniciaisOk, tab, ini, carga, itens, obsFinal, imagens.length, currentDraftId, saveDraft]);
+  }, [open, iniciaisOk, tab, ini, carga, ruas, obsFinal, currentDraftId, saveDraft]);
 
   const salvarRascunhoManual = () => {
     const id = saveDraft(buildDraftInput());
@@ -428,7 +583,7 @@ const NovoRegistroManualModal: React.FC<Props> = ({
   };
 
   const temTrabalhoPendente = () =>
-    itens.length > 0 || estado === "em_andamento" || iniciaisOk;
+    ruas.some((r) => r.buracos.length > 0) || estado === "em_andamento" || iniciaisOk;
 
   const handleOpenChange = (v: boolean) => {
     if (v) return onOpenChange(true);
@@ -441,7 +596,6 @@ const NovoRegistroManualModal: React.FC<Props> = ({
   };
 
   const handleManterRascunho = () => {
-    // Garante persistência antes de fechar (auto-save pode estar pendente).
     const id = saveDraft(buildDraftInput());
     if (!currentDraftId) setCurrentDraftId(id);
     setConfirmCloseOpen(false);
@@ -456,50 +610,24 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     onOpenChange(false);
   };
 
-
-
-  // ---------- ABA 1 ----------
+  // ============== ABA 1 — Dados Iniciais ==============
   const validarIniciais = (): string | null => {
     if (!ini.centroCustoId) return "Centro de custo é obrigatório.";
     if (!ini.atividade) return "Atividade é obrigatória.";
     if (!ini.data) return "Data é obrigatória.";
     if (!ini.equipeId) return "Equipe é obrigatória.";
-    if (!ini.logradouro.trim()) return "Logradouro é obrigatório.";
-    if (!ini.bairro.trim()) return "Bairro é obrigatório.";
     return null;
   };
 
   const salvarIniciais = () => {
     const err = validarIniciais();
-    if (err) {
-      toast.error(err);
-      return;
-    }
+    if (err) return toast.error(err);
     setIniciaisOk(true);
-    toast.success("Dados iniciais validados. Eles serão gravados ao finalizar o apontamento.");
+    toast.success("Dados iniciais validados.");
     setTab("carga");
   };
 
-  const onAddressSelected = (r: AddressResult) => {
-    setIni((prev) => ({
-      ...prev,
-      logradouro: r.endereco_rua || r.endereco_completo || prev.logradouro,
-      bairro: r.endereco_bairro || prev.bairro,
-      cidade: r.endereco_cidade || prev.cidade,
-      uf: r.endereco_estado || prev.uf,
-      cep: r.endereco_cep || prev.cep,
-      latitude: typeof r.latitude === "number" ? r.latitude : prev.latitude,
-      longitude: typeof r.longitude === "number" ? r.longitude : prev.longitude,
-      origemLocalizacao:
-        r.geocoding_source === "manual"
-          ? "mapa"
-          : r.geocoding_status === "manual"
-          ? "mapa"
-          : "geocode",
-    }));
-  };
-
-  // ---------- ABA 2 ----------
+  // ============== ABA 2 — Carga ==============
   const onCaminhaoChange = (id: string) => {
     const c = caminhoesQ.data?.find((x) => x.id === id);
     setCarga((prev) => ({
@@ -521,117 +649,176 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     return null;
   };
 
-  // ---------- ABA 3: cálculo bidirecional ----------
+  const iniciarAplicacao = () => {
+    const errCarga = validarCarga();
+    if (errCarga) return toast.error(errCarga);
+    setEstado("em_andamento");
+    toast.info("Aplicação iniciada. Comece pela primeira rua.");
+    setTab("apontamento");
+  };
+
+  // ============== ABA 3 — Apontamento (Rua + Buraco) ==============
+  const onRuaAddressSelected = (r: AddressResult) => {
+    setRuaForm((prev) => ({
+      ...prev,
+      logradouro: r.endereco_rua || r.endereco_completo || prev.logradouro,
+      bairro: r.endereco_bairro || prev.bairro,
+      cidade: r.endereco_cidade || prev.cidade,
+      uf: r.endereco_estado || prev.uf,
+      cep: r.endereco_cep || prev.cep,
+      latitude: typeof r.latitude === "number" ? r.latitude : prev.latitude,
+      longitude: typeof r.longitude === "number" ? r.longitude : prev.longitude,
+      origemLocalizacao:
+        r.geocoding_source === "manual"
+          ? "mapa"
+          : r.geocoding_status === "manual"
+          ? "mapa"
+          : "geocode",
+    }));
+  };
+
+  const ruaAtual = useMemo(
+    () => ruas.find((r) => r.idLocal === ruaAtualId) || null,
+    [ruas, ruaAtualId]
+  );
+
+  const iniciarRuaAtual = () => {
+    if (estado !== "em_andamento") return toast.error('Clique em "Iniciar Aplicação" na aba Carga.');
+    const logr = ruaForm.logradouro.trim();
+    const bair = ruaForm.bairro.trim();
+    if (!logr) return toast.error("Logradouro é obrigatório para iniciar a rua.");
+    if (!bair) return toast.error("Bairro é obrigatório para iniciar a rua.");
+    const chave = normalizeRuaKey({ logradouro: logr, bairro: bair, cidade: ruaForm.cidade, uf: ruaForm.uf });
+
+    // Edição: atualiza rua existente em-place
+    if (editingRuaId) {
+      // impede duplicação: se outra rua já usa esta chave, migra buracos para lá
+      const outra = ruas.find((r) => r.idLocal !== editingRuaId && r.chaveNorm === chave);
+      if (outra) {
+        setRuas((prev) => {
+          const alvo = prev.find((r) => r.idLocal === editingRuaId);
+          if (!alvo) return prev;
+          const seqOffset = outra.buracos.reduce((m, b) => Math.max(m, b.sequenciaRua), 0);
+          const migrados = alvo.buracos.map((b, i) => ({ ...b, sequenciaRua: seqOffset + i + 1 }));
+          return prev
+            .filter((r) => r.idLocal !== editingRuaId)
+            .map((r) => (r.idLocal === outra.idLocal ? { ...r, buracos: [...r.buracos, ...migrados] } : r));
+        });
+        setRuaAtualId(outra.idLocal);
+        toast.info(`Rua unificada com "${describeRua(outra)}".`);
+      } else {
+        setRuas((prev) =>
+          prev.map((r) =>
+            r.idLocal !== editingRuaId
+              ? r
+              : {
+                  ...r,
+                  chaveNorm: chave,
+                  logradouro: logr,
+                  bairro: bair,
+                  cidade: ruaForm.cidade.trim(),
+                  uf: ruaForm.uf.trim(),
+                  cep: ruaForm.cep.trim(),
+                  latitude: ruaForm.latitude,
+                  longitude: ruaForm.longitude,
+                  origemLocalizacao: ruaForm.origemLocalizacao,
+                }
+          )
+        );
+        toast.success("Rua atualizada.");
+      }
+      setEditingRuaId(null);
+      setRuaForm(emptyRuaForm());
+      setRuaFormOpen(false);
+      return;
+    }
+
+    const existente = ruas.find((r) => r.chaveNorm === chave);
+    if (existente) {
+      setRuaAtualId(existente.idLocal);
+      setRuaForm(emptyRuaForm());
+      setRuaFormOpen(false);
+      toast.info(`Rua reutilizada: ${describeRua(existente)}.`);
+      return;
+    }
+    const nova: RuaLocal = {
+      idLocal: genLocalId(),
+      chaveNorm: chave,
+      logradouro: logr,
+      bairro: bair,
+      cidade: ruaForm.cidade.trim(),
+      uf: ruaForm.uf.trim(),
+      cep: ruaForm.cep.trim(),
+      latitude: ruaForm.latitude,
+      longitude: ruaForm.longitude,
+      origemLocalizacao: ruaForm.origemLocalizacao,
+      iniciadaEm: new Date().toISOString(),
+      buracos: [],
+    };
+    setRuas((prev) => [...prev, nova]);
+    setRuaAtualId(nova.idLocal);
+    setRuaForm(emptyRuaForm());
+    setRuaFormOpen(false);
+    toast.success(`Rua iniciada: ${describeRua(nova)}.`);
+  };
+
+
+  const trocarParaRua = (ruaId: string) => {
+    const r = ruas.find((x) => x.idLocal === ruaId);
+    if (!r) return;
+    setRuaAtualId(ruaId);
+    setRuaForm(emptyRuaForm());
+    setRuaFormOpen(false);
+    setBuracoFormOpen(false);
+    setTab("apontamento");
+    toast.info(`Rua atual: ${describeRua(r)}.`);
+  };
+
+
+  // Cálculo bidirecional area/tonelada/espessura no formulário do buraco
   const areaCalc = useMemo(() => {
-    const c = Number(apont.comprimento) || 0;
-    const l = Number(apont.larguraMedia) || 0;
+    const c = Number(buracoForm.comprimento) || 0;
+    const l = Number(buracoForm.larguraMedia) || 0;
     if (c > 0 && l > 0) return Number((c * l).toFixed(4));
     return 0;
-  }, [apont.comprimento, apont.larguraMedia]);
+  }, [buracoForm.comprimento, buracoForm.larguraMedia]);
 
-  // Recalcula tonelada ⇄ espessura conforme a última entrada do usuário.
-  // Quando nenhum dos dois foi tocado (lastEdited === ""), assume espessura padrão (5 cm)
-  // e sugere tonelada = area × (5/100) × densidade_padrao.
   useEffect(() => {
     const dens = DENSIDADE_DEFAULT;
     if (!areaCalc || dens <= 0) return;
-
-    const source = apont.lastEdited || "espessura";
-
+    const source = buracoForm.lastEdited || "espessura";
     if (source === "espessura") {
-      const espCmStr = apont.espessura || String(ESPESSURA_PADRAO_CM);
-      const espM = (Number(espCmStr) || 0) / 100; // cm -> m
+      const espCmStr = buracoForm.espessura || String(ESPESSURA_PADRAO_CM);
+      const espM = (Number(espCmStr) || 0) / 100;
       if (espM > 0) {
         const ton = Number((areaCalc * espM * dens).toFixed(3));
-        setApont((prev) => {
-          const next: Partial<ApontamentoLocal> = {};
+        setBuracoForm((prev) => {
+          const next: Partial<BuracoFormState> = {};
           if (prev.toneladaAplicada !== String(ton)) next.toneladaAplicada = String(ton);
           if (!prev.espessura) next.espessura = String(ESPESSURA_PADRAO_CM);
           return Object.keys(next).length ? { ...prev, ...next } : prev;
         });
       }
     } else if (source === "tonelada") {
-      const ton = Number(apont.toneladaAplicada) || 0;
+      const ton = Number(buracoForm.toneladaAplicada) || 0;
       if (ton > 0) {
         const espM = ton / (areaCalc * dens);
         const espCm = Number((espM * 100).toFixed(2));
-        setApont((prev) =>
+        setBuracoForm((prev) =>
           prev.espessura === String(espCm) ? prev : { ...prev, espessura: String(espCm) }
         );
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [areaCalc, apont.espessura, apont.toneladaAplicada, apont.lastEdited]);
+  }, [areaCalc, buracoForm.espessura, buracoForm.toneladaAplicada, buracoForm.lastEdited]);
 
-  const iniciarAplicacao = () => {
-    if (!iniciaisOk) return toast.error("Preencha os Dados Iniciais primeiro.");
-    const errCarga = validarCarga();
-    if (errCarga) return toast.error(errCarga);
-    setEstado("em_andamento");
-    toast.info("Aplicação iniciada. O modal está bloqueado contra fechamento acidental.");
-  };
-
-  const validarApontamento = (): string | null => {
-    if (areaCalc <= 0) return "Informe Comprimento e Largura (> 0). A área é calculada automaticamente.";
-    if (!apont.tipo_item) return "Tipo do item é obrigatório.";
-    if (!tiposPermitidos.includes(apont.tipo_item))
-      return `Tipo inválido para atividade ${ini.atividade}.`;
-    return null;
-  };
-
-  const salvarApontamento = () => {
-    if (estado !== "em_andamento") return toast.error('Clique em "Iniciar Aplicação" antes.');
-    const err = validarApontamento();
-    if (err) return toast.error(err);
-    if (editIdx != null) {
-      setItens((prev) =>
-        prev.map((it, i) =>
-          i === editIdx ? { ...it, ...apont, areaCalculada: areaCalc } : it
-        )
-      );
-      toast.success(`${rotuloSeq(apont.tipo_item, editIdx + 1)} atualizado.`);
-      setEditIdx(null);
-    } else {
-      const seq = itens.length + 1;
-      setItens((prev) => [...prev, { ...apont, seq, areaCalculada: areaCalc }]);
-      toast.success(`${rotuloSeq(apont.tipo_item, seq)} salvo na lista.`);
-    }
-    const tipoPadrao = ini.atividade === "tapa_buraco" ? "buraco" : tiposPermitidos[0];
-    setApont(emptyApont(tipoPadrao));
-    setTab("lista");
-  };
-
-  const editarItem = (idx: number) => {
-    const it = itens[idx];
-    setApont({
-      bordo: it.bordo,
-      comprimento: it.comprimento,
-      larguraMedia: it.larguraMedia,
-      toneladaAplicada: it.toneladaAplicada,
-      espessura: it.espessura,
-      densidade: it.densidade || String(DENSIDADE_DEFAULT),
-      lastEdited: it.lastEdited || "",
-      temperaturaAplicacao: it.temperaturaAplicacao,
-      tipo_item: it.tipo_item,
-      observacao: it.observacao || "",
-    });
-    setEditIdx(idx);
-    setTab("apontamento");
-  };
-
-  const removerItem = (idx: number) => {
-    if (!window.confirm("Remover este apontamento da lista?")) return;
-    setItens((prev) => prev.filter((_, i) => i !== idx).map((it, i) => ({ ...it, seq: i + 1 })));
-  };
-
-  // ---------- ABA IMAGENS ----------
-  const onImagensChange = (files: FileList | null) => {
+  const onFotosChange = (files: FileList | null) => {
     if (!files) return;
     const arr = Array.from(files);
     const validas: File[] = [];
     for (const f of arr) {
       if (!f.type.startsWith("image/")) {
-        toast.error(`"${f.name}" não é uma imagem válida.`);
+        toast.error(`"${f.name}" não é imagem válida.`);
         continue;
       }
       if (f.size > MAX_IMG_BYTES) {
@@ -640,89 +827,421 @@ const NovoRegistroManualModal: React.FC<Props> = ({
       }
       validas.push(f);
     }
-    setImagens((prev) => {
-      const next = [...prev, ...validas];
-      if (next.length > MAX_IMAGENS) {
-        toast.error(`Máximo de ${MAX_IMAGENS} imagens. Ignorando extras.`);
-        return next.slice(0, MAX_IMAGENS);
+    setBuracoForm((prev) => {
+      const next = [...prev.fotos, ...validas];
+      if (next.length > MAX_FOTOS_BURACO) {
+        toast.error(`Máximo de ${MAX_FOTOS_BURACO} fotos por apontamento.`);
+        return { ...prev, fotos: next.slice(0, MAX_FOTOS_BURACO) };
       }
+      return { ...prev, fotos: next };
+    });
+  };
+
+  const removerFotoAtual = (idx: number) => {
+    setBuracoForm((prev) => ({ ...prev, fotos: prev.fotos.filter((_, i) => i !== idx) }));
+  };
+
+  const validarBuraco = (): string | null => {
+    if (!ruaAtualId || !ruaAtual)
+      return 'Inicie ou selecione uma rua antes de salvar o apontamento.';
+    if (areaCalc <= 0)
+      return "Informe Comprimento e Largura (> 0).";
+    if (!buracoForm.tipo_item) return "Tipo do item é obrigatório.";
+    if (!tiposPermitidos.includes(buracoForm.tipo_item))
+      return `Tipo inválido para atividade ${ini.atividade}.`;
+    return null;
+  };
+
+  const salvarApontamento = async () => {
+    if (estado !== "em_andamento") return toast.error('Clique em "Iniciar Aplicação" antes.');
+    const err = validarBuraco();
+    if (err) return toast.error(err);
+
+    // Captura GPS best-effort (Fase A: informativo; Fase B/C: enforcement na RPC)
+    setCapturandoGeo(true);
+    const geoResult = await captureGeo(8000);
+    setCapturandoGeo(false);
+    const gps = geoResult.data;
+    if (!geoResult.ok) {
+      toast.warning(`GPS não capturado (${geoResult.error}). Apontamento salvo mesmo assim.`);
+    } else if (gps && gps.accuracy > 150) {
+      toast.warning(`GPS impreciso: ±${Math.round(gps.accuracy)}m. Considere reposicionar.`);
+    }
+
+    if (editBuracoRef) {
+      // Editar buraco existente — mantém sequências
+      setRuas((prev) =>
+        prev.map((r) =>
+          r.idLocal !== editBuracoRef.ruaId
+            ? r
+            : {
+                ...r,
+                buracos: r.buracos.map((b) =>
+                  b.idLocal !== editBuracoRef.buracoId
+                    ? b
+                    : {
+                        ...b,
+                        bordo: buracoForm.bordo,
+                        comprimento: buracoForm.comprimento,
+                        larguraMedia: buracoForm.larguraMedia,
+                        toneladaAplicada: buracoForm.toneladaAplicada,
+                        espessura: buracoForm.espessura,
+                        temperaturaAplicacao: buracoForm.temperaturaAplicacao,
+                        tipo_item: buracoForm.tipo_item,
+                        observacao: buracoForm.observacao,
+                        areaCalculada: areaCalc,
+                        fotos: buracoForm.fotos,
+                        fotosCount: buracoForm.fotos.length,
+                        gps: b.gps || gps, // preserva GPS anterior se existir
+                      }
+                ),
+              }
+        )
+      );
+      toast.success("Apontamento atualizado.");
+      setEditBuracoRef(null);
+    } else {
+      const rua = ruaAtual!;
+      const seqRua = (rua.buracos.reduce((m, b) => Math.max(m, b.sequenciaRua), 0) || 0) + 1;
+      const seqGlobal =
+        ruas.reduce(
+          (m, r) => Math.max(m, r.buracos.reduce((mm, b) => Math.max(mm, b.sequenciaAplicacao), 0)),
+          0
+        ) + 1;
+      const novo: BuracoLocal = {
+        idLocal: genLocalId(),
+        sequenciaAplicacao: seqGlobal,
+        sequenciaRua: seqRua,
+        bordo: buracoForm.bordo,
+        comprimento: buracoForm.comprimento,
+        larguraMedia: buracoForm.larguraMedia,
+        toneladaAplicada: buracoForm.toneladaAplicada,
+        espessura: buracoForm.espessura,
+        temperaturaAplicacao: buracoForm.temperaturaAplicacao,
+        tipo_item: buracoForm.tipo_item,
+        observacao: buracoForm.observacao,
+        areaCalculada: areaCalc,
+        gps,
+        fotos: buracoForm.fotos,
+        fotosCount: buracoForm.fotos.length,
+      };
+      setRuas((prev) =>
+        prev.map((r) => (r.idLocal === rua.idLocal ? { ...r, buracos: [...r.buracos, novo] } : r))
+      );
+      toast.success(
+        `${rotuloItem(novo.tipo_item, novo.sequenciaRua)} salvo em ${describeRua(rua)}.`
+      );
+    }
+    const tipoPadrao = ini.atividade === "tapa_buraco" ? "buraco" : tiposPermitidos[0];
+    setBuracoForm(emptyBuracoForm(tipoPadrao));
+    setBuracoFormOpen(false);
+    setCalculoAberto(false);
+  };
+
+  const editarBuraco = (ruaId: string, buracoId: string) => {
+    const r = ruas.find((x) => x.idLocal === ruaId);
+    const b = r?.buracos.find((x) => x.idLocal === buracoId);
+    if (!r || !b) return;
+    setRuaAtualId(ruaId);
+    setBuracoForm({
+      bordo: b.bordo,
+      comprimento: b.comprimento,
+      larguraMedia: b.larguraMedia,
+      toneladaAplicada: b.toneladaAplicada,
+      espessura: b.espessura,
+      lastEdited: "",
+      temperaturaAplicacao: b.temperaturaAplicacao,
+      tipo_item: b.tipo_item,
+      observacao: b.observacao,
+      fotos: b.fotos,
+    });
+    setEditBuracoRef({ ruaId, buracoId });
+    setBuracoFormOpen(true);
+    setTab("apontamento");
+  };
+
+
+  const removerBuraco = (ruaId: string, buracoId: string) => {
+    if (!window.confirm("Remover este apontamento?")) return;
+    setRuas((prev) =>
+      prev.map((r) => {
+        if (r.idLocal !== ruaId) return r;
+        // Recalcula sequencia_rua compactando (Fase A local — não persistido)
+        const restantes = r.buracos.filter((b) => b.idLocal !== buracoId);
+        return {
+          ...r,
+          buracos: restantes.map((b, i) => ({ ...b, sequenciaRua: i + 1 })),
+        };
+      })
+    );
+    // Recalcula sequencia_aplicacao global cronológica após remoção
+    setRuas((prev) => {
+      const flat: { r: number; b: number }[] = [];
+      prev.forEach((r, ri) =>
+        r.buracos.forEach((b, bi) => flat.push({ r: ri, b: bi }))
+      );
+      // ordena pela sequenciaAplicacao original
+      const withOrig = flat
+        .map((p) => ({ ...p, seq: prev[p.r].buracos[p.b].sequenciaAplicacao }))
+        .sort((a, b) => a.seq - b.seq);
+      const next = prev.map((r) => ({ ...r, buracos: r.buracos.map((b) => ({ ...b })) }));
+      withOrig.forEach((p, i) => {
+        next[p.r].buracos[p.b].sequenciaAplicacao = i + 1;
+      });
       return next;
     });
   };
 
-  const removerImagem = (idx: number) => {
-    setImagens((prev) => prev.filter((_, i) => i !== idx));
+  const editarRua = (ruaId: string) => {
+    const r = ruas.find((x) => x.idLocal === ruaId);
+    if (!r) return;
+    setRuaAtualId(ruaId);
+    setEditingRuaId(ruaId);
+    setRuaForm({
+      logradouro: r.logradouro,
+      bairro: r.bairro,
+      cidade: r.cidade,
+      uf: r.uf,
+      cep: r.cep || "",
+      latitude: r.latitude,
+      longitude: r.longitude,
+      origemLocalizacao: r.origemLocalizacao,
+    });
+    setRuaFormOpen(true);
+    setTab("apontamento");
   };
 
-  // ---------- ABA 5 ----------
+  const removerRua = (ruaId: string) => {
+    const r = ruas.find((x) => x.idLocal === ruaId);
+    if (!r) return;
+    const qtd = r.buracos.length;
+    if (
+      !window.confirm(
+        qtd > 0
+          ? `Remover a rua "${describeRua(r)}" com ${qtd} apontamento${qtd === 1 ? "" : "s"}? Esta ação não pode ser desfeita.`
+          : `Remover a rua "${describeRua(r)}"?`
+      )
+    )
+      return;
+    setRuas((prev) => {
+      const filtradas = prev.filter((x) => x.idLocal !== ruaId);
+      // Recompacta sequencia_aplicacao global
+      const flatSeq: { r: number; b: number; seq: number }[] = [];
+      filtradas.forEach((rr, ri) =>
+        rr.buracos.forEach((bb, bi) => flatSeq.push({ r: ri, b: bi, seq: bb.sequenciaAplicacao }))
+      );
+      flatSeq.sort((a, b) => a.seq - b.seq);
+      const next = filtradas.map((rr) => ({ ...rr, buracos: rr.buracos.map((bb) => ({ ...bb })) }));
+      flatSeq.forEach((p, i) => {
+        next[p.r].buracos[p.b].sequenciaAplicacao = i + 1;
+      });
+      return next;
+    });
+    if (ruaAtualId === ruaId) setRuaAtualId(null);
+  };
+
+  // ============== Totais / cálculos ==============
   const totais = useMemo(() => {
-    const ton = itens.reduce((s, i) => s + (Number(i.toneladaAplicada) || 0), 0);
-    const area = itens.reduce((s, i) => s + (i.areaCalculada || 0), 0);
-    return { ton, area, qtd: itens.length };
-  }, [itens]);
+    const totalCargaT = Number(carga.totalCargaT) || 0;
+    const areaTotal = ruas.reduce(
+      (s, r) => s + r.buracos.reduce((s2, b) => s2 + (b.areaCalculada || 0), 0),
+      0
+    );
+    const qtdBuracos = ruas.reduce((s, r) => s + r.buracos.length, 0);
+    const espessuraMediaCm =
+      areaTotal > 0 && totalCargaT > 0
+        ? (totalCargaT * 100) / (areaTotal * DENSIDADE_DEFAULT)
+        : 0;
+    // Rateio estrito por buraco com resíduo — usado tanto no preview quanto no payload.
+    const refs: BuracoRateioRef[] = [];
+    ruas.forEach((r) =>
+      r.buracos.forEach((b) =>
+        refs.push({
+          idLocal: b.idLocal,
+          ruaIdLocal: r.idLocal,
+          sequenciaAplicacao: b.sequenciaAplicacao,
+          areaCalculada: b.areaCalculada || 0,
+        })
+      )
+    );
+    const mapaTonBuracos = totalCargaT > 0 ? computeToneladasBuracosComResiduo(refs, totalCargaT, 3) : {};
+    const ruasComTotais = ruas.map((r) => {
+      const areaRua = r.buracos.reduce((s, b) => s + (b.areaCalculada || 0), 0);
+      const toneladaRua = r.buracos.reduce((s, b) => s + (mapaTonBuracos[b.idLocal] ?? 0), 0);
+      return { rua: r, areaRua, toneladaRua };
+    });
+    return {
+      totalCargaT,
+      areaTotal,
+      qtdBuracos,
+      qtdRuas: ruas.length,
+      espessuraMediaCm,
+      ruasComTotais,
+    };
+  }, [ruas, carga.totalCargaT]);
 
   const ultimaTempAplicacao = useMemo<number | null>(() => {
-    for (let i = itens.length - 1; i >= 0; i--) {
-      const t = Number(itens[i].temperaturaAplicacao);
-      if (!Number.isNaN(t) && t > 0) return t;
+    for (let i = ruas.length - 1; i >= 0; i--) {
+      const bs = ruas[i].buracos;
+      for (let j = bs.length - 1; j >= 0; j--) {
+        const t = Number(bs[j].temperaturaAplicacao);
+        if (!Number.isNaN(t) && t > 0) return t;
+      }
     }
     return null;
-  }, [itens]);
+  }, [ruas]);
 
+  // ============== Finalização ==============
   const buildBlocoContexto = (): string => {
     const eq = equipesQ.data?.find((e) => e.id === ini.equipeId);
     const mot = motoristasQ.data?.find((m) => m.id === carga.motoristaId);
-    const linhas = [
+    const cabecalho = [
       "[CONTEXTO_OPERACIONAL]",
       `Equipe: ${eq?.nome_equipe || ini.equipeId || "-"}`,
       `Caminhão/Frota: ${carga.frota || carga.caminhaoId || "-"}`,
       `Placa: ${carga.placa || "-"}`,
       `Motorista: ${mot?.nome_completo || carga.motoristaId || "-"}`,
       `Total carga: ${carga.totalCargaT || "-"} t`,
-      
+      `Temp. massa: ${carga.temperaturaMassa || "-"} °C`,
       `Tipo de traço: ${carga.tipoTraco || "-"}`,
       `Tipo de pintura: ${carga.tipoPintura || "-"}`,
-      `Logradouro: ${ini.logradouro || "-"}`,
-      `Bairro: ${ini.bairro || "-"}`,
-      `Cidade: ${ini.cidade || "-"}`,
-      `UF: ${ini.uf || "-"}`,
-      `CEP: ${ini.cep || "-"}`,
       `Condomínio: ${ini.condominio === "sim" ? "Sim" : ini.condominio === "nao" ? "Não" : "-"}`,
-      `Latitude: ${ini.latitude ?? "-"}`,
-      `Longitude: ${ini.longitude ?? "-"}`,
-      `Origem localização: ${ini.origemLocalizacao || "-"}`,
-      `Imagens anexadas: ${imagens.length}`,
+      `Total ruas: ${totais.qtdRuas}`,
+      `Total buracos: ${totais.qtdBuracos}`,
+      `Área total: ${totais.areaTotal.toFixed(2)} m²`,
+      `Espessura média do caminhão: ${totais.espessuraMediaCm.toFixed(2)} cm`,
       "[/CONTEXTO_OPERACIONAL]",
-    ];
-    const espessuras = itens
-      .map((it) =>
-        it.espessura
-          ? `- ${rotuloSeq(it.tipo_item, it.seq)}: ${it.espessura} cm`
-          : ""
-      )
-      .filter(Boolean)
-      .join("\n");
-    const obsItens = itens
-      .map((it) => (it.observacao?.trim() ? `- ${rotuloSeq(it.tipo_item, it.seq)}: ${it.observacao.trim()}` : ""))
-      .filter(Boolean)
-      .join("\n");
+    ].join("\n");
+
+    // Bloco JSON [RUAS_APLICACAO] — reconstrói agrupamento por rua no Visualizar
+    // Fase A.1: temporário até a Fase B criar bd_registro_aplicacao_ruas.
+    // Sem imagens, sem base64, sem File — apenas metadados.
+    const cargaT = totais.totalCargaT;
+    const areaTot = totais.areaTotal;
+    // Rateio estrito com resíduo — mesmo cálculo do payload.
+    const refsBloco: BuracoRateioRef[] = [];
+    ruas.forEach((r) => {
+      r.buracos.forEach((b) => {
+        refsBloco.push({
+          idLocal: b.idLocal,
+          ruaIdLocal: r.idLocal,
+          sequenciaAplicacao: b.sequenciaAplicacao,
+          areaCalculada: b.areaCalculada || 0,
+        });
+      });
+    });
+    const mapaTonBloco = cargaT > 0 ? computeToneladasBuracosComResiduo(refsBloco, cargaT, 3) : {};
+
+    const ruasJson = ruas.map((r, ri) => {
+      const areaRua = r.buracos.reduce((s, b) => s + (b.areaCalculada || 0), 0);
+      const toneladaRua = r.buracos.reduce((s, b) => s + (mapaTonBloco[b.idLocal] ?? 0), 0);
+      return {
+        idLocal: r.idLocal,
+        chaveNorm: r.chaveNorm,
+        logradouro: r.logradouro,
+        bairro: r.bairro || null,
+        cidade: r.cidade || null,
+        uf: r.uf || null,
+        sequenciaRua: ri + 1,
+        areaRua: Number(areaRua.toFixed(4)),
+        toneladaRua: Number(toneladaRua.toFixed(3)),
+        buracos: r.buracos.map((b) => {
+          const rateioB = mapaTonBloco[b.idLocal] ?? 0;
+          return {
+            sequenciaRua: b.sequenciaRua,
+            sequenciaAplicacao: b.sequenciaAplicacao,
+            tipo_item: b.tipo_item,
+            bordo: b.bordo || null,
+            comprimento: Number(b.comprimento) || null,
+            larguraMedia: Number(b.larguraMedia) || null,
+            area: Number((b.areaCalculada || 0).toFixed(4)),
+            toneladaRateada: Number(rateioB.toFixed(3)),
+            espessura: Number(b.espessura) || null,
+            gps: b.gps
+              ? {
+                  latitude: b.gps.latitude,
+                  longitude: b.gps.longitude,
+                  accuracy: b.gps.accuracy,
+                }
+              : null,
+            fotosCount: b.fotosCount || 0,
+            observacao: b.observacao || null,
+          };
+        }),
+      };
+    });
+    const ruasBloco = `[RUAS_APLICACAO]\n${JSON.stringify(ruasJson)}\n[/RUAS_APLICACAO]`;
+
     const obsBloco = [
       "[OBSERVACOES_APONTADOR]",
       obsFinal.trim() || "(sem observações finais)",
-      espessuras ? `\nEspessura por apontamento:\n${espessuras}` : "",
-      obsItens ? `\nPor apontamento:\n${obsItens}` : "",
       "[/OBSERVACOES_APONTADOR]",
     ].join("\n");
-    return `${linhas.join("\n")}\n\n${obsBloco}`;
+
+    return `${cabecalho}\n\n${ruasBloco}\n\n${obsBloco}`;
+  };
+
+
+  const validarFinalizacao = (): string | null => {
+    if (!iniciaisOk) return "Preencha os Dados Iniciais.";
+    const errCarga = validarCarga();
+    if (errCarga) return errCarga;
+    if (ruas.length === 0) return "Adicione pelo menos 1 rua.";
+    for (const r of ruas) {
+      if (r.buracos.length === 0)
+        return `A rua "${describeRua(r)}" não tem apontamentos.`;
+    }
+    if (totais.totalCargaT <= 0) return "Total da carga precisa ser > 0.";
+    if (totais.areaTotal <= 0) return "Área total precisa ser > 0.";
+    return null;
   };
 
   const finalizar = () => {
-    if (!iniciaisOk) return toast.error("Preencha os Dados Iniciais.");
-    const errCarga = validarCarga();
-    if (errCarga) return toast.error(errCarga);
-    if (itens.length === 0) return toast.error("Adicione ao menos 1 apontamento antes de finalizar.");
+    const err = validarFinalizacao();
+    if (err) return toast.error(err);
     setEstado("finalizando");
     const tempMassa = Number(carga.temperaturaMassa);
+    const primeiroLogradouro = ruas[0]?.logradouro || "";
+    // Rateio ESTRITO com resíduo aplicado ao buraco de maior área.
+    // Garantia: Σ tonelada_buraco === totalCargaT (bit-a-bit).
+    const cargaT = totais.totalCargaT;
+    const refs: BuracoRateioRef[] = [];
+    ruas.forEach((r) => {
+      r.buracos.forEach((b) => {
+        refs.push({
+          idLocal: b.idLocal,
+          ruaIdLocal: r.idLocal,
+          sequenciaAplicacao: b.sequenciaAplicacao,
+          areaCalculada: b.areaCalculada || 0,
+        });
+      });
+    });
+    const mapaTon = cargaT > 0 ? computeToneladasBuracosComResiduo(refs, cargaT, 3) : {};
+
+    const detalhes: any[] = [];
+    ruas.forEach((r) => {
+      r.buracos.forEach((b) => {
+        const areaB = b.areaCalculada || 0;
+        let ton: number;
+        if (cargaT > 0) {
+          ton = mapaTon[b.idLocal] ?? 0;
+        } else {
+          const tonManual = Number(b.toneladaAplicada);
+          ton = Number.isFinite(tonManual) && tonManual > 0 ? tonManual : 0;
+        }
+        detalhes.push({
+          tipo_item: b.tipo_item,
+          logradouro_nome: r.logradouro,
+          area_aplicada: areaB > 0 ? areaB : null,
+          comprimento: Number(b.comprimento) || null,
+          largura_media: Number(b.larguraMedia) || null,
+          tonelada_aplicada: ton || 0,
+          bordo: b.bordo || null,
+        });
+      });
+    });
+
+
     mutation.mutate(
       {
         cabecalho: {
@@ -730,26 +1249,18 @@ const NovoRegistroManualModal: React.FC<Props> = ({
           atividade: ini.atividade,
           data_aplicacao: ini.data,
           hora_chegada_local: ini.horaChegada || null,
-          logradouro_aplicado: ini.logradouro.trim(),
+          logradouro_aplicado: primeiroLogradouro,
           temperatura_chegada: !Number.isNaN(tempMassa) && tempMassa > 0 ? tempMassa : null,
           temperatura_aplicacao: ultimaTempAplicacao,
           observacoes_gerais: buildBlocoContexto(),
         },
-        detalhes: itens.map((it) => ({
-          tipo_item: it.tipo_item,
-          logradouro_nome: ini.logradouro.trim(),
-          area_aplicada: it.areaCalculada > 0 ? it.areaCalculada : null,
-          comprimento: Number(it.comprimento) || null,
-          largura_media: Number(it.larguraMedia) || null,
-          tonelada_aplicada: Number(it.toneladaAplicada) || 0,
-          bordo: it.bordo || null,
-        })),
+        detalhes,
       },
       { onError: () => setEstado("em_andamento") }
     );
   };
 
-  // ---------- RENDER ----------
+  // ============== RENDER helpers ==============
   const disabledFechar = estado === "finalizando" || mutation.isPending;
   const blocked = !iniciaisOk;
 
@@ -759,10 +1270,6 @@ const NovoRegistroManualModal: React.FC<Props> = ({
       <AlertDescription>Valide os dados iniciais antes de continuar.</AlertDescription>
     </Alert>
   );
-
-  const proximoRotulo = editIdx != null
-    ? rotuloSeq(itens[editIdx]?.tipo_item || apont.tipo_item, editIdx + 1)
-    : rotuloSeq(apont.tipo_item, itens.length + 1);
 
   const btnSalvarRascunho = (
     <Button
@@ -777,11 +1284,19 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     </Button>
   );
 
-  // Footer contextual — returns { secondary: nodes[], primary: node }
-  const renderFooterParts = (): {
-    secondary: React.ReactNode[];
-    primary: React.ReactNode;
-  } => {
+  const proximoRotuloBuraco = useMemo(() => {
+    if (editBuracoRef) {
+      const r = ruas.find((x) => x.idLocal === editBuracoRef.ruaId);
+      const b = r?.buracos.find((x) => x.idLocal === editBuracoRef.buracoId);
+      if (b) return `Editando ${rotuloItem(b.tipo_item, b.sequenciaRua)}`;
+    }
+    const rua = ruaAtual;
+    if (!rua) return "Próximo: (defina a rua primeiro)";
+    const seq = (rua.buracos.reduce((m, b) => Math.max(m, b.sequenciaRua), 0) || 0) + 1;
+    return `Próximo: ${rotuloItem(buracoForm.tipo_item, seq)} em ${describeRua(rua)}`;
+  }, [editBuracoRef, ruas, ruaAtual, buracoForm.tipo_item]);
+
+  const renderFooterParts = (): { secondary: React.ReactNode[]; primary: React.ReactNode } => {
     const closeBtn = (
       <Button
         key="close"
@@ -819,19 +1334,17 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     if (tab === "carga") {
       return {
         secondary: [closeBtn, voltarBtn("iniciais"), rasc],
-        primary: (
-          <Button
-            onClick={() => {
-              const err = validarCarga();
-              if (err) return toast.error(err);
-              setTab("apontamento");
-            }}
-            disabled={blocked}
-            className="w-full sm:w-auto"
-          >
-            Continuar
-          </Button>
-        ),
+        primary:
+          estado === "em_andamento" ? (
+            <Button onClick={() => setTab("apontamento")} disabled={blocked} className="w-full sm:w-auto">
+              Ir para apontamento
+            </Button>
+          ) : (
+            <Button onClick={iniciarAplicacao} disabled={blocked} className="w-full sm:w-auto gap-2">
+              <Play className="h-4 w-4" />
+              Iniciar aplicação
+            </Button>
+          ),
       };
     }
     if (tab === "apontamento") {
@@ -839,16 +1352,16 @@ const NovoRegistroManualModal: React.FC<Props> = ({
         secondary: [closeBtn, voltarBtn("carga"), rasc],
         primary: (
           <Button
-            onClick={salvarApontamento}
-            disabled={blocked || estado !== "em_andamento"}
+            onClick={() => setTab("listaRuas")}
+            disabled={blocked}
             className="w-full sm:w-auto"
           >
-            {editIdx != null ? "Atualizar apontamento" : "Salvar apontamento"}
+            Ver lista de ruas
           </Button>
         ),
       };
     }
-    if (tab === "lista") {
+    if (tab === "listaRuas") {
       return {
         secondary: [
           closeBtn,
@@ -865,22 +1378,22 @@ const NovoRegistroManualModal: React.FC<Props> = ({
         ],
         primary: (
           <Button
-            onClick={() => setTab("imagens")}
-            disabled={blocked || itens.length === 0}
+            onClick={() => setTab("listaApontamentos")}
+            disabled={blocked || totais.qtdBuracos === 0}
             className="w-full sm:w-auto"
           >
-            Continuar
+            Ver apontamentos
           </Button>
         ),
       };
     }
-    if (tab === "imagens") {
+    if (tab === "listaApontamentos") {
       return {
-        secondary: [closeBtn, voltarBtn("lista"), rasc],
+        secondary: [closeBtn, voltarBtn("listaRuas"), rasc],
         primary: (
           <Button
             onClick={() => setTab("final")}
-            disabled={blocked || itens.length === 0}
+            disabled={blocked || totais.qtdBuracos === 0}
             className="w-full sm:w-auto"
           >
             Ir para finalização
@@ -890,11 +1403,11 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     }
     // final
     return {
-      secondary: [closeBtn, voltarBtn("imagens"), rasc],
+      secondary: [closeBtn, voltarBtn("listaApontamentos"), rasc],
       primary: (
         <Button
           onClick={finalizar}
-          disabled={blocked || mutation.isPending || itens.length === 0}
+          disabled={blocked || mutation.isPending || totais.qtdBuracos === 0}
           className="w-full sm:w-auto"
         >
           {mutation.isPending ? "Enviando..." : "Finalizar Apontamento"}
@@ -907,705 +1420,955 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     const { secondary, primary } = renderFooterParts();
     return (
       <div className="flex flex-col-reverse gap-2 w-full sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-          {secondary}
-        </div>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">{secondary}</div>
         <div className="w-full sm:w-auto">{primary}</div>
       </div>
     );
   };
 
+  // Previews de fotos do buraco em edição
+  const [fotosUrls, setFotosUrls] = useState<string[]>([]);
+  useEffect(() => {
+    const urls = buracoForm.fotos.map((f) => URL.createObjectURL(f));
+    setFotosUrls(urls);
+    return () => urls.forEach((u) => URL.revokeObjectURL(u));
+  }, [buracoForm.fotos]);
+
+  // Lista linear de todos os buracos (para aba Lista Apontamentos)
+  const buracosLinear = useMemo(() => {
+    const all: { rua: RuaLocal; buraco: BuracoLocal }[] = [];
+    ruas.forEach((r) => r.buracos.forEach((b) => all.push({ rua: r, buraco: b })));
+    return all.sort((a, b) => a.buraco.sequenciaAplicacao - b.buraco.sequenciaAplicacao);
+  }, [ruas]);
 
   return (
     <>
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        className="w-[calc(100vw-16px)] sm:w-auto sm:max-w-5xl max-h-[calc(100dvh-16px)] sm:max-h-[92vh] overflow-hidden flex flex-col p-0 gap-0"
-      >
-        <DialogHeader className="shrink-0 px-4 sm:px-6 pt-4 pb-3 border-b">
-          <DialogTitle className="flex flex-col sm:flex-row sm:items-center gap-2 pr-8 text-base sm:text-lg leading-tight">
-            <span className="break-words">Novo Registro Manual de Aplicação</span>
-            <Badge
-              className="text-[10px] sm:text-xs px-1.5 py-0.5 self-start"
-              variant={
-                estado === "em_andamento"
-                  ? "destructive"
-                  : estado === "finalizando"
-                  ? "default"
-                  : "secondary"
-              }
-            >
-              {estado === "rascunho"
-                ? currentDraftId
-                  ? "Rascunho salvo"
-                  : "Rascunho local"
-                : estado === "em_andamento"
-                ? "Em andamento"
-                : "Finalizando..."}
-            </Badge>
-          </DialogTitle>
-        </DialogHeader>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="w-[calc(100vw-16px)] sm:w-auto sm:max-w-5xl max-h-[calc(100dvh-16px)] sm:max-h-[92vh] overflow-hidden flex flex-col p-0 gap-0">
+          <DialogHeader className="shrink-0 px-4 sm:px-6 pt-4 pb-3 border-b">
+            <DialogTitle className="flex flex-col sm:flex-row sm:items-center gap-2 pr-8 text-base sm:text-lg leading-tight">
+              <span className="break-words">Novo Registro Manual de Aplicação</span>
+              <Badge className="text-[10px] sm:text-xs px-1.5 py-0.5 self-start" variant="outline">
+                Nº será atribuído
+              </Badge>
+              <Badge
+                className="text-[10px] sm:text-xs px-1.5 py-0.5 self-start"
+                variant={
+                  estado === "em_andamento"
+                    ? "destructive"
+                    : estado === "finalizando"
+                    ? "default"
+                    : "secondary"
+                }
+              >
+                {estado === "rascunho"
+                  ? currentDraftId
+                    ? "Rascunho salvo"
+                    : "Rascunho local"
+                  : estado === "em_andamento"
+                  ? "Em andamento"
+                  : "Finalizando..."}
+              </Badge>
+            </DialogTitle>
+          </DialogHeader>
 
-        {isMobile && (
-          <div className="shrink-0 px-4 pt-3 pb-2 border-b space-y-2">
-            <div className="min-w-0">
-              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                Etapa {stepIndex + 1} de {STEPS.length}
+          {isMobile && (
+            <div className="shrink-0 px-4 pt-3 pb-2 border-b space-y-2">
+              <div className="min-w-0">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                  Etapa {stepIndex + 1} de {STEPS.length}
+                </div>
+                <div className="text-base font-semibold truncate">{currentStepLabel}</div>
               </div>
-              <div className="text-base font-semibold truncate">
-                {currentStepLabel}
+              <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all"
+                  style={{ width: `${((stepIndex + 1) / STEPS.length) * 100}%` }}
+                />
               </div>
             </div>
-            <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
-              <div
-                className="h-full bg-primary transition-all"
-                style={{ width: `${((stepIndex + 1) / STEPS.length) * 100}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 sm:px-6 py-4 min-w-0">
-        <Tabs value={tab} onValueChange={setTab} className="w-full min-w-0">
-          {!isMobile && (
-            <TabsList className="grid grid-cols-6 w-full">
-              <TabsTrigger value="iniciais">1. Dados Iniciais</TabsTrigger>
-              <TabsTrigger value="carga">2. Carga</TabsTrigger>
-              <TabsTrigger value="apontamento">3. Apontamento</TabsTrigger>
-              <TabsTrigger value="lista">4. Lista ({itens.length})</TabsTrigger>
-              <TabsTrigger value="imagens">5. Imagens ({imagens.length})</TabsTrigger>
-              <TabsTrigger value="final">6. Finalização</TabsTrigger>
-            </TabsList>
           )}
 
+          <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 sm:px-6 py-4 min-w-0">
+            <Tabs value={tab} onValueChange={setTab} className="w-full min-w-0">
+              {!isMobile && (
+                <TabsList className="grid grid-cols-6 w-full">
+                  <TabsTrigger value="iniciais">1. Dados Iniciais</TabsTrigger>
+                  <TabsTrigger value="carga">2. Carga</TabsTrigger>
+                  <TabsTrigger value="apontamento">3. Apontamento</TabsTrigger>
+                  <TabsTrigger value="listaRuas">4. Ruas ({ruas.length})</TabsTrigger>
+                  <TabsTrigger value="listaApontamentos">
+                    5. Apontamentos ({totais.qtdBuracos})
+                  </TabsTrigger>
+                  <TabsTrigger value="final">6. Finalização</TabsTrigger>
+                </TabsList>
+              )}
 
-          {/* ============ ABA 1 ============ */}
-          <TabsContent value="iniciais" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Centro de Custo *</Label>
-                <Combobox
-                  options={centrosCustoOpts}
-                  value={ini.centroCustoId}
-                  onChange={(v) => setIni({ ...ini, centroCustoId: v })}
-                  placeholder="Selecione ou digite código/nome"
-                  searchPlaceholder="Buscar por código ou nome..."
-                  emptyText="Nenhum centro de custo encontrado"
-                />
-              </div>
+              {/* ============ ABA 1: Dados Iniciais ============ */}
+              <TabsContent value="iniciais" className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Centro de Custo *</Label>
+                    <Combobox
+                      options={centrosCustoOpts}
+                      value={ini.centroCustoId}
+                      onChange={(v) => setIni({ ...ini, centroCustoId: v })}
+                      placeholder="Selecione ou digite código/nome"
+                      searchPlaceholder="Buscar por código ou nome..."
+                      emptyText="Nenhum centro de custo encontrado"
+                    />
+                  </div>
 
-              <div className="space-y-2">
-                <Label>Atividade *</Label>
-                <Select
-                  value={ini.atividade}
-                  onValueChange={(v) => setIni({ ...ini, atividade: v as Atividade })}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="tapa_buraco">Tapa-buraco</SelectItem>
-                    <SelectItem value="pavimentacao_mecanizada">Pavimentação mecanizada</SelectItem>
-                    <SelectItem value="fresagem">Fresagem</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Data *</Label>
-                <Input type="date" value={ini.data} onChange={(e) => setIni({ ...ini, data: e.target.value })} />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Hora de chegada</Label>
-                <Input type="time" value={ini.horaChegada} onChange={(e) => setIni({ ...ini, horaChegada: e.target.value })} />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Equipe *</Label>
-                <Combobox
-                  options={equipesOpts}
-                  value={ini.equipeId}
-                  onChange={(v) => setIni({ ...ini, equipeId: v })}
-                  placeholder={equipesQ.isLoading ? "Carregando..." : "Selecione a equipe"}
-                  searchPlaceholder="Buscar equipe..."
-                  emptyText="Nenhuma equipe encontrada"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Condomínio</Label>
-                <Select value={ini.condominio} onValueChange={(v) => setIni({ ...ini, condominio: v as any })}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="nao">Não</SelectItem>
-                    <SelectItem value="sim">Sim</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label>Logradouro *</Label>
-                <AddressAutocomplete
-                  value={ini.logradouro}
-                  initialLatitude={ini.latitude ?? undefined}
-                  initialLongitude={ini.longitude ?? undefined}
-                  onAddressSelected={onAddressSelected}
-                  placeholder="Digite o endereço da obra..."
-                  context={enderecoContext}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>
-                  Bairro <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  value={ini.bairro}
-                  required
-                  aria-required="true"
-                  onChange={(e) =>
-                    setIni({
-                      ...ini,
-                      bairro: e.target.value,
-                      origemLocalizacao: ini.origemLocalizacao || "manual",
-                    })
-                  }
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Cidade</Label>
-                <Input
-                  value={ini.cidade}
-                  onChange={(e) =>
-                    setIni({
-                      ...ini,
-                      cidade: e.target.value,
-                      origemLocalizacao: ini.origemLocalizacao || "manual",
-                    })
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="flex items-start gap-2 text-xs text-muted-foreground">
-              <Info className="h-3 w-3 mt-0.5" />
-              <span>
-                Bairro, cidade e coordenadas são mantidos localmente e anexados às observações no
-                salvamento final. Os dados iniciais serão gravados somente ao finalizar o apontamento.
-              </span>
-            </div>
-          </TabsContent>
-
-          {/* ============ ABA 2 ============ */}
-          <TabsContent value="carga" className="space-y-4">
-            {blocked && AlertBloqueio}
-            <div className={blocked ? "opacity-60 pointer-events-none" : ""}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Caminhão / Frota *</Label>
-                  <Combobox
-                    options={caminhoesOpts}
-                    value={carga.caminhaoId}
-                    onChange={onCaminhaoChange}
-                    placeholder={caminhoesQ.isLoading ? "Carregando..." : "Selecione o caminhão"}
-                    searchPlaceholder="Buscar por frota ou placa..."
-                    emptyText="Nenhum caminhão encontrado"
-                    disabled={blocked}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Placa</Label>
-                  <Input value={carga.placa} readOnly className="bg-muted" disabled={blocked} />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Motorista *</Label>
-                  <Combobox
-                    options={motoristasOpts}
-                    value={carga.motoristaId}
-                    onChange={(v) => setCarga({ ...carga, motoristaId: v })}
-                    placeholder={motoristasQ.isLoading ? "Carregando..." : "Selecione o motorista"}
-                    searchPlaceholder="Buscar por nome..."
-                    emptyText="Nenhum motorista encontrado"
-                    disabled={blocked}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Total da carga (t) *</Label>
-                  <Input
-                    type="number" step="0.001" min={0}
-                    value={carga.totalCargaT}
-                    onChange={(e) => setCarga({ ...carga, totalCargaT: e.target.value })}
-                    disabled={blocked}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Temperatura da massa (°C) *</Label>
-                  <Input
-                    type="number" step="0.1"
-                    value={carga.temperaturaMassa}
-                    onChange={(e) => setCarga({ ...carga, temperaturaMassa: e.target.value })}
-                    disabled={blocked}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Tipo de traço *</Label>
-                  <Select
-                    value={carga.tipoTraco}
-                    onValueChange={(v) => setCarga({ ...carga, tipoTraco: v as any })}
-                    disabled={blocked}
-                  >
-                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                    <SelectContent>
-                      {TIPOS_TRACO.map((t) => (<SelectItem key={t} value={t}>{t}</SelectItem>))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Tipo de pintura *</Label>
-                  <Select
-                    value={carga.tipoPintura}
-                    onValueChange={(v) => setCarga({ ...carga, tipoPintura: v as any })}
-                    disabled={blocked}
-                  >
-                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                    <SelectContent>
-                      {TIPOS_PINTURA.map((t) => (<SelectItem key={t} value={t}>{t}</SelectItem>))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* ============ ABA 3 ============ */}
-          <TabsContent value="apontamento" className="space-y-4">
-            {blocked && AlertBloqueio}
-            <div className={blocked ? "opacity-60 pointer-events-none" : ""}>
-              <div className="flex items-center justify-between">
-                <div className="text-sm">
-                  {editIdx != null ? `Editando ${proximoRotulo}` : `Próximo: ${proximoRotulo}`}
-                </div>
-                {estado !== "em_andamento" ? (
-                  <Button onClick={iniciarAplicacao} disabled={blocked}>Iniciar Aplicação</Button>
-                ) : (
-                  <Badge variant="destructive">Em andamento</Badge>
-                )}
-              </div>
-
-              <Card className="mt-3">
-                <CardContent className="pt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 min-w-0">
-                  {ini.atividade !== "tapa_buraco" && (
-                    <div className="space-y-1">
-                      <Label className="text-xs">Tipo *</Label>
-                      <Select
-                        value={apont.tipo_item}
-                        onValueChange={(v) => setApont({ ...apont, tipo_item: v })}
-                        disabled={blocked || estado !== "em_andamento"}
-                      >
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {tiposPermitidos.map((t) => (<SelectItem key={t} value={t}>{t}</SelectItem>))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  <div className="space-y-1">
-                    <Label className="text-xs">Bordo</Label>
+                  <div className="space-y-2">
+                    <Label>Atividade *</Label>
                     <Select
-                      value={apont.bordo}
-                      onValueChange={(v) => setApont({ ...apont, bordo: v as Bordo })}
-                      disabled={blocked || estado !== "em_andamento"}
+                      value={ini.atividade}
+                      onValueChange={(v) => setIni({ ...ini, atividade: v as Atividade })}
                     >
-                      <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {BORDOS.map((b) => (<SelectItem key={b} value={b}>{b}</SelectItem>))}
+                        <SelectItem value="tapa_buraco">Tapa-buraco</SelectItem>
+                        <SelectItem value="pavimentacao_mecanizada">Pavimentação mecanizada</SelectItem>
+                        <SelectItem value="fresagem">Fresagem</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
-                  <div className="space-y-1">
-                    <Label className="text-xs">Comprimento (m) *</Label>
-                    <Input type="number" step="0.01" min={0}
-                      value={apont.comprimento}
-                      onChange={(e) => setApont({ ...apont, comprimento: e.target.value })}
-                      disabled={blocked || estado !== "em_andamento"}
+                  <div className="space-y-2">
+                    <Label>Data *</Label>
+                    <Input type="date" value={ini.data} onChange={(e) => setIni({ ...ini, data: e.target.value })} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Hora de chegada</Label>
+                    <Input type="time" value={ini.horaChegada} onChange={(e) => setIni({ ...ini, horaChegada: e.target.value })} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Equipe *</Label>
+                    <Combobox
+                      options={equipesOpts}
+                      value={ini.equipeId}
+                      onChange={(v) => setIni({ ...ini, equipeId: v })}
+                      placeholder={equipesQ.isLoading ? "Carregando..." : "Selecione a equipe"}
+                      searchPlaceholder="Buscar equipe..."
+                      emptyText="Nenhuma equipe encontrada"
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <Label className="text-xs">Largura média (m) *</Label>
-                    <Input type="number" step="0.01" min={0}
-                      value={apont.larguraMedia}
-                      onChange={(e) => setApont({ ...apont, larguraMedia: e.target.value })}
-                      disabled={blocked || estado !== "em_andamento"}
-                    />
+                  <div className="space-y-2">
+                    <Label>Condomínio</Label>
+                    <Select value={ini.condominio} onValueChange={(v) => setIni({ ...ini, condominio: v as any })}>
+                      <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="nao">Não</SelectItem>
+                        <SelectItem value="sim">Sim</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
+                </div>
 
-                  <div className="space-y-1">
-                    <Label className="text-xs">Área (m²) — calculada</Label>
-                    <Input value={areaCalc || ""} readOnly className="bg-muted" disabled={blocked} />
+                <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <Info className="h-3 w-3 mt-0.5" />
+                  <span>
+                    Logradouros, bairros, coordenadas e apontamentos são declarados nas próximas etapas
+                    (Apontamento → Rua atual). Cada rua recebe sua própria numeração de buracos.
+                  </span>
+                </div>
+              </TabsContent>
+
+              {/* ============ ABA 2: Carga ============ */}
+              <TabsContent value="carga" className="space-y-4">
+                {blocked && AlertBloqueio}
+                <div className={blocked ? "opacity-60 pointer-events-none" : ""}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Caminhão / Frota *</Label>
+                      <Combobox
+                        options={caminhoesOpts}
+                        value={carga.caminhaoId}
+                        onChange={onCaminhaoChange}
+                        placeholder={caminhoesQ.isLoading ? "Carregando..." : "Selecione o caminhão"}
+                        searchPlaceholder="Buscar por frota ou placa..."
+                        emptyText="Nenhum caminhão encontrado"
+                        disabled={blocked}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Placa</Label>
+                      <Input value={carga.placa} readOnly className="bg-muted" disabled={blocked} />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Motorista *</Label>
+                      <Combobox
+                        options={motoristasOpts}
+                        value={carga.motoristaId}
+                        onChange={(v) => setCarga({ ...carga, motoristaId: v })}
+                        placeholder={motoristasQ.isLoading ? "Carregando..." : "Selecione o motorista"}
+                        searchPlaceholder="Buscar por nome..."
+                        emptyText="Nenhum motorista encontrado"
+                        disabled={blocked}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Total da carga (t) *</Label>
+                      <Input
+                        type="number" step="0.001" min={0}
+                        value={carga.totalCargaT}
+                        onChange={(e) => setCarga({ ...carga, totalCargaT: e.target.value })}
+                        disabled={blocked}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Temperatura da massa (°C) *</Label>
+                      <Input
+                        type="number" step="0.1"
+                        value={carga.temperaturaMassa}
+                        onChange={(e) => setCarga({ ...carga, temperaturaMassa: e.target.value })}
+                        disabled={blocked}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Tipo de traço *</Label>
+                      <Select
+                        value={carga.tipoTraco}
+                        onValueChange={(v) => setCarga({ ...carga, tipoTraco: v as any })}
+                        disabled={blocked}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                        <SelectContent>
+                          {TIPOS_TRACO.map((t) => (<SelectItem key={t} value={t}>{t}</SelectItem>))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Tipo de pintura *</Label>
+                      <Select
+                        value={carga.tipoPintura}
+                        onValueChange={(v) => setCarga({ ...carga, tipoPintura: v as any })}
+                        disabled={blocked}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                        <SelectContent>
+                          {TIPOS_PINTURA.map((t) => (<SelectItem key={t} value={t}>{t}</SelectItem>))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
+                </div>
+              </TabsContent>
 
-                  <div className="space-y-1">
-                    <Label className="text-xs">Tonelada aplicada (t)</Label>
-                    <Input type="number" step="0.001" min={0}
-                      value={apont.toneladaAplicada}
-                      onChange={(e) => setApont({ ...apont, toneladaAplicada: e.target.value, lastEdited: "tonelada" })}
-                      disabled={blocked || estado !== "em_andamento"}
-                    />
-                  </div>
+              {/* ============ ABA 3: Apontamento (Rua + Buraco) ============ */}
+              <TabsContent value="apontamento" className="space-y-4">
+                {blocked && AlertBloqueio}
+                {estado !== "em_andamento" && !blocked && (
+                  <Alert>
+                    <Play className="h-4 w-4" />
+                    <AlertDescription>
+                      Volte à aba <b>Carga</b> e clique em <b>Iniciar aplicação</b>.
+                    </AlertDescription>
+                  </Alert>
+                )}
 
-                  <div className="space-y-1">
-                    <Label className="text-xs">Espessura (cm)</Label>
-                    <Input type="number" step="0.1" min={0}
-                      value={apont.espessura}
-                      onChange={(e) => setApont({ ...apont, espessura: e.target.value, lastEdited: "espessura" })}
-                      disabled={blocked || estado !== "em_andamento"}
-                    />
-                  </div>
+                <div className={blocked || estado !== "em_andamento" ? "opacity-60 pointer-events-none" : ""}>
+                  {/* -- A) RUA ATUAL (colapsável) -- */}
+                  <Card>
+                    <CardContent className="pt-4 space-y-3">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <h4 className="font-semibold text-sm flex items-center gap-2">
+                          <MapPin className="h-4 w-4" /> Rua atual
+                        </h4>
+                        {ruaAtual && (
+                          <Badge variant="secondary" className="text-xs">
+                            {describeRua(ruaAtual)} · {ruaAtual.buracos.length} buracos
+                          </Badge>
+                        )}
+                      </div>
 
-                  <div className="space-y-1">
-                    <Label className="text-xs">Temp. aplicação (°C)</Label>
-                    <Input type="number" step="0.1"
-                      value={apont.temperaturaAplicacao}
-                      onChange={(e) => setApont({ ...apont, temperaturaAplicacao: e.target.value })}
-                      disabled={blocked || estado !== "em_andamento"}
-                    />
-                  </div>
+                      {ruas.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          <span className="text-xs text-muted-foreground mr-1">Trocar para:</span>
+                          {ruas.map((r) => (
+                            <Button
+                              key={r.idLocal}
+                              type="button"
+                              size="sm"
+                              variant={r.idLocal === ruaAtualId ? "default" : "outline"}
+                              className="h-6 text-xs"
+                              onClick={() => trocarParaRua(r.idLocal)}
+                            >
+                              {describeRua(r)} ({r.buracos.length})
+                            </Button>
+                          ))}
+                        </div>
+                      )}
 
-                  <div className="md:col-span-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-xs text-muted-foreground">
-                      A tonelada e a espessura são sugeridas automaticamente com base na área e no
-                      padrão de aplicação. Você pode ajustar manualmente se necessário.
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        setApont((prev) => ({
-                          ...prev,
-                          espessura: String(ESPESSURA_PADRAO_CM),
-                          toneladaAplicada: "",
-                          lastEdited: "",
-                        }))
-                      }
-                      disabled={blocked || estado !== "em_andamento"}
-                    >
-                      Recalcular
-                    </Button>
-                  </div>
-
-
-                  <div className="space-y-1 md:col-span-3">
-                    <Label className="text-xs">Observação do apontamento atual</Label>
-                    <Textarea rows={2}
-                      value={apont.observacao}
-                      onChange={(e) => setApont({ ...apont, observacao: e.target.value })}
-                      disabled={blocked || estado !== "em_andamento"}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* ============ ABA 4 ============ */}
-          <TabsContent value="lista" className="space-y-4">
-            {blocked && AlertBloqueio}
-            <div className={blocked ? "opacity-60 pointer-events-none" : ""}>
-              {itens.length === 0 ? (
-                <div className="text-sm text-muted-foreground">Nenhum apontamento salvo ainda.</div>
-              ) : (
-                <>
-                  {/* Mobile: cards */}
-                  <div className="md:hidden space-y-2">
-                    {itens.map((it, idx) => (
-                      <Card key={idx}>
-                        <CardContent className="p-3 space-y-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <div className="font-semibold text-sm truncate">
-                                {rotuloSeq(it.tipo_item, it.seq)}
-                              </div>
-                              <div className="text-xs text-muted-foreground truncate">
-                                {it.tipo_item}
-                                {it.bordo ? ` · ${it.bordo}` : ""}
-                              </div>
+                      <Collapsible open={ruaFormOpen} onOpenChange={setRuaFormOpen}>
+                        {!ruaFormOpen && (
+                          <CollapsibleTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="w-full gap-2"
+                              disabled={estado !== "em_andamento"}
+                            >
+                              <Plus className="h-4 w-4" />
+                              {ruas.length === 0 ? "Adicionar rua" : "Nova rua"}
+                            </Button>
+                          </CollapsibleTrigger>
+                        )}
+                        <CollapsibleContent className="space-y-3 pt-2">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="space-y-1 md:col-span-2">
+                              <Label className="text-xs">Logradouro *</Label>
+                              <AddressAutocomplete
+                                value={ruaForm.logradouro}
+                                initialLatitude={ruaForm.latitude ?? undefined}
+                                initialLongitude={ruaForm.longitude ?? undefined}
+                                onAddressSelected={onRuaAddressSelected}
+                                placeholder="Digite o endereço da rua..."
+                                context={enderecoContext}
+                              />
                             </div>
-                            <div className="flex gap-1 shrink-0">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => editarItem(idx)}
-                                disabled={blocked}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => removerItem(idx)}
-                                disabled={blocked}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Bairro *</Label>
+                              <Input
+                                value={ruaForm.bairro}
+                                onChange={(e) =>
+                                  setRuaForm({
+                                    ...ruaForm,
+                                    bairro: e.target.value,
+                                    origemLocalizacao: ruaForm.origemLocalizacao || "manual",
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Cidade</Label>
+                              <Input
+                                value={ruaForm.cidade}
+                                onChange={(e) =>
+                                  setRuaForm({
+                                    ...ruaForm,
+                                    cidade: e.target.value,
+                                    origemLocalizacao: ruaForm.origemLocalizacao || "manual",
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">UF</Label>
+                              <Input
+                                value={ruaForm.uf}
+                                maxLength={2}
+                                onChange={(e) =>
+                                  setRuaForm({
+                                    ...ruaForm,
+                                    uf: e.target.value.toUpperCase(),
+                                    origemLocalizacao: ruaForm.origemLocalizacao || "manual",
+                                  })
+                                }
+                              />
                             </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                            <div>
-                              <span className="text-muted-foreground">Comp:</span>{" "}
-                              {it.comprimento || "-"} m
+
+                          <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => {
+                                setRuaForm(emptyRuaForm());
+                                setRuaFormOpen(false);
+                                setEditingRuaId(null);
+                              }}
+                              className="w-full sm:w-auto"
+                            >
+                              Cancelar
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={iniciarRuaAtual}
+                              className="gap-2 w-full sm:w-auto"
+                              disabled={estado !== "em_andamento"}
+                            >
+                              <MapPin className="h-4 w-4" />
+                              Salvar rua
+                            </Button>
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    </CardContent>
+                  </Card>
+
+
+                  {/* -- B) BURACO / APONTAMENTO (colapsável) -- */}
+                  <Card className="mt-3">
+                    <CardContent className="pt-4 space-y-3">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <h4 className="font-semibold text-sm">Buraco / apontamento</h4>
+                        <div className="text-xs text-muted-foreground">{proximoRotuloBuraco}</div>
+                      </div>
+
+                      {!ruaAtualId && (
+                        <Alert>
+                          <Info className="h-4 w-4" />
+                          <AlertDescription className="text-xs">
+                            Adicione ou selecione uma <b>rua</b> antes de iniciar apontamentos.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+
+                      <Collapsible open={buracoFormOpen} onOpenChange={setBuracoFormOpen}>
+                        {!buracoFormOpen && (
+                          <CollapsibleTrigger asChild>
+                            <Button
+                              type="button"
+                              className="w-full gap-2"
+                              disabled={estado !== "em_andamento" || !ruaAtualId}
+                            >
+                              <Play className="h-4 w-4" />
+                              Iniciar aplicação
+                            </Button>
+                          </CollapsibleTrigger>
+                        )}
+                        <CollapsibleContent className="space-y-3 pt-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                            {ini.atividade !== "tapa_buraco" && (
+                              <div className="space-y-1">
+                                <Label className="text-xs">Tipo *</Label>
+                                <Select
+                                  value={buracoForm.tipo_item}
+                                  onValueChange={(v) => setBuracoForm({ ...buracoForm, tipo_item: v })}
+                                >
+                                  <SelectTrigger><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    {tiposPermitidos.map((t) => (<SelectItem key={t} value={t}>{t}</SelectItem>))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+
+                            <div className="space-y-1">
+                              <Label className="text-xs">Bordo</Label>
+                              <Select
+                                value={buracoForm.bordo}
+                                onValueChange={(v) => setBuracoForm({ ...buracoForm, bordo: v as Bordo })}
+                              >
+                                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                                <SelectContent>
+                                  {BORDOS.map((b) => (<SelectItem key={b} value={b}>{b}</SelectItem>))}
+                                </SelectContent>
+                              </Select>
                             </div>
-                            <div>
-                              <span className="text-muted-foreground">Larg:</span>{" "}
-                              {it.larguraMedia || "-"} m
+
+                            <div className="space-y-1">
+                              <Label className="text-xs">Comprimento (m) *</Label>
+                              <Input type="number" step="0.01" min={0}
+                                value={buracoForm.comprimento}
+                                onChange={(e) => setBuracoForm({ ...buracoForm, comprimento: e.target.value })}
+                              />
                             </div>
-                            <div>
-                              <span className="text-muted-foreground">Área:</span>{" "}
-                              {it.areaCalculada || "-"} m²
+
+                            <div className="space-y-1">
+                              <Label className="text-xs">Largura média (m) *</Label>
+                              <Input type="number" step="0.01" min={0}
+                                value={buracoForm.larguraMedia}
+                                onChange={(e) => setBuracoForm({ ...buracoForm, larguraMedia: e.target.value })}
+                              />
                             </div>
-                            <div>
-                              <span className="text-muted-foreground">Ton:</span>{" "}
-                              {it.toneladaAplicada || "-"} t
+
+                            <div className="space-y-1">
+                              <Label className="text-xs">Área (m²) — calculada</Label>
+                              <Input value={areaCalc || ""} readOnly className="bg-muted" />
                             </div>
-                            <div>
-                              <span className="text-muted-foreground">Esp:</span>{" "}
-                              {it.espessura || "-"} cm
+
+                            <div className="space-y-1">
+                              <Label className="text-xs">Temp. aplicação (°C)</Label>
+                              <Input type="number" step="0.1" min={0}
+                                value={buracoForm.temperaturaAplicacao}
+                                onChange={(e) => setBuracoForm({ ...buracoForm, temperaturaAplicacao: e.target.value })}
+                              />
+                            </div>
+
+                            <div className="space-y-1 md:col-span-3">
+                              <Label className="text-xs">Observação do apontamento</Label>
+                              <Textarea rows={2}
+                                value={buracoForm.observacao}
+                                onChange={(e) => setBuracoForm({ ...buracoForm, observacao: e.target.value })}
+                              />
                             </div>
                           </div>
+
+                          {/* Cálculo estimado (read-only, colapsado por padrão) */}
+                          <Collapsible open={calculoAberto} onOpenChange={setCalculoAberto}>
+                            <CollapsibleTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="w-full justify-between text-xs"
+                              >
+                                Cálculo estimado (área · tonelada · espessura)
+                                <ChevronDown className={`h-3 w-3 transition-transform ${calculoAberto ? "rotate-180" : ""}`} />
+                              </Button>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="grid grid-cols-3 gap-3 pt-2 text-xs">
+                              {(() => {
+                                const cargaT = Number(carga.totalCargaT) || 0;
+                                const areaTotalAtual = ruas.reduce(
+                                  (s, r) => s + r.buracos.reduce((s2, b) => s2 + (b.areaCalculada || 0), 0),
+                                  0
+                                ) + (areaCalc || 0);
+                                const tonEstimada =
+                                  cargaT > 0 && areaTotalAtual > 0 && areaCalc > 0
+                                    ? cargaT * (areaCalc / areaTotalAtual)
+                                    : areaCalc * (ESPESSURA_PADRAO_CM / 100) * DENSIDADE_DEFAULT;
+                                const espEstimada =
+                                  cargaT > 0 && areaTotalAtual > 0
+                                    ? (cargaT * 100) / (areaTotalAtual * DENSIDADE_DEFAULT)
+                                    : ESPESSURA_PADRAO_CM;
+                                return (
+                                  <>
+                                    <div className="rounded-md border p-2 bg-muted/40">
+                                      <div className="text-muted-foreground">Área</div>
+                                      <div className="font-semibold">{areaCalc.toFixed(2)} m²</div>
+                                    </div>
+                                    <div className="rounded-md border p-2 bg-muted/40">
+                                      <div className="text-muted-foreground">Tonelada estimada</div>
+                                      <div className="font-semibold">{tonEstimada.toFixed(3)} t</div>
+                                    </div>
+                                    <div className="rounded-md border p-2 bg-muted/40">
+                                      <div className="text-muted-foreground">Espessura média</div>
+                                      <div className="font-semibold">{espEstimada.toFixed(2)} cm</div>
+                                    </div>
+                                    <div className="col-span-3 text-[10px] text-muted-foreground">
+                                      Rateio proporcional por área. A tonelada final é ajustada no envio para
+                                      somar exatamente <b>{cargaT.toFixed(3)} t</b> (carga do caminhão).
+                                    </div>
+                                  </>
+                                );
+                              })()}
+                            </CollapsibleContent>
+                          </Collapsible>
+
+
+
+                          {/* Fotos do buraco */}
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-xs">Fotos do apontamento</Label>
+                              <span className="text-[10px] text-muted-foreground">
+                                {buracoForm.fotos.length} / {MAX_FOTOS_BURACO}
+                              </span>
+                            </div>
+                            <div className="flex flex-col sm:flex-row gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="gap-2"
+                                onClick={() => document.getElementById("foto-buraco-input")?.click()}
+                                disabled={buracoForm.fotos.length >= MAX_FOTOS_BURACO}
+                              >
+                                <Camera className="h-4 w-4" />
+                                Registrar imagem
+                              </Button>
+                              <input
+                                id="foto-buraco-input"
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                capture="environment"
+                                className="hidden"
+                                onChange={(e) => {
+                                  onFotosChange(e.target.files);
+                                  e.target.value = "";
+                                }}
+                              />
+                              <span className="text-[11px] text-muted-foreground self-center">
+                                Fotos ficam vinculadas a este apontamento (local — não enviadas ao servidor na Fase A).
+                              </span>
+                            </div>
+                            {buracoForm.fotos.length > 0 && (
+                              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                                {buracoForm.fotos.map((f, idx) => (
+                                  <div key={idx} className="relative border rounded-md overflow-hidden bg-muted/30">
+                                    <img
+                                      src={fotosUrls[idx]}
+                                      alt={f.name}
+                                      className="w-full h-20 object-cover"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => removerFotoAtual(idx)}
+                                      className="absolute top-0.5 right-0.5 bg-background/90 border rounded-full p-0.5 shadow"
+                                      aria-label="Remover foto"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => {
+                                const tipoPadrao = ini.atividade === "tapa_buraco" ? "buraco" : tiposPermitidos[0];
+                                setBuracoForm(emptyBuracoForm(tipoPadrao));
+                                setEditBuracoRef(null);
+                                setBuracoFormOpen(false);
+                                setCalculoAberto(false);
+                              }}
+                              className="w-full sm:w-auto"
+                            >
+                              Cancelar
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={salvarApontamento}
+                              disabled={estado !== "em_andamento" || !ruaAtualId || capturandoGeo}
+                              className="gap-2 w-full sm:w-auto"
+                            >
+                              <ImagePlus className="h-4 w-4" />
+                              {capturandoGeo ? "Capturando GPS..." : editBuracoRef ? "Atualizar apontamento" : "Salvar apontamento"}
+                            </Button>
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    </CardContent>
+                  </Card>
+
+                </div>
+              </TabsContent>
+
+              {/* ============ ABA 4: Lista Ruas ============ */}
+              <TabsContent value="listaRuas" className="space-y-3">
+                {blocked && AlertBloqueio}
+                {ruas.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">Nenhuma rua iniciada ainda.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {totais.ruasComTotais.map(({ rua, areaRua, toneladaRua }) => (
+                      <Card key={rua.idLocal}>
+                        <CardContent className="pt-4 space-y-2">
+                          <div className="flex items-start justify-between gap-2 flex-wrap">
+                            <div className="min-w-0 flex-1">
+                              <div className="font-semibold text-sm break-words">{rua.logradouro}</div>
+                              <div className="text-xs text-muted-foreground break-words">
+                                {rua.bairro || "-"}{rua.cidade ? ` · ${rua.cidade}` : ""}{rua.uf ? ` / ${rua.uf}` : ""}
+                              </div>
+                            </div>
+                            <Badge variant="outline" className="text-xs shrink-0">
+                              {rua.buracos.length} buracos
+                            </Badge>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1 text-xs">
+                            <div>
+                              <span className="text-muted-foreground">Área total:</span>{" "}
+                              {areaRua.toFixed(2)} m²
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Tonelada estimada:</span>{" "}
+                              {toneladaRua.toFixed(3)} t
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-muted-foreground">Espessura média:</span>{" "}
+                              <span>{totais.espessuraMediaCm > 0 ? formatBR(totais.espessuraMediaCm) : "-"} cm</span>
+                              <EspessuraBadge classificacao={classificarEspessuraMedia(totais.espessuraMediaCm)} />
+                            </div>
+
+                            <div>
+                              <span className="text-muted-foreground">Fotos:</span>{" "}
+                              {rua.buracos.reduce((s, b) => s + b.fotosCount, 0)}
+                            </div>
+                          </div>
+                          <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => trocarParaRua(rua.idLocal)}
+                              disabled={estado !== "em_andamento"}
+                              className="w-full sm:w-auto"
+                            >
+                              Continuar aplicando nesta rua
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => editarRua(rua.idLocal)}
+                              disabled={estado !== "em_andamento"}
+                              className="w-full sm:w-auto gap-1"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              Editar rua
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => removerRua(rua.idLocal)}
+                              disabled={estado !== "em_andamento"}
+                              className="w-full sm:w-auto gap-1 text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Remover rua
+                            </Button>
+                          </div>
+
                         </CardContent>
                       </Card>
                     ))}
                   </div>
+                )}
+                <div className="text-xs text-muted-foreground flex items-center gap-2">
+                  <Info className="h-3 w-3" />
+                  Tonelada por rua é <b>estimada por rateio de área</b> (não há balança por rua).
+                </div>
+              </TabsContent>
 
-                  {/* Desktop: tabela */}
-                  <div className="hidden md:block border rounded-md overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Seq</TableHead>
-                          <TableHead>Tipo</TableHead>
-                          <TableHead>Bordo</TableHead>
-                          <TableHead className="text-right">Comp (m)</TableHead>
-                          <TableHead className="text-right">Larg (m)</TableHead>
-                          <TableHead className="text-right">Área (m²)</TableHead>
-                          <TableHead className="text-right">Ton (t)</TableHead>
-                          <TableHead className="text-right">Esp (cm)</TableHead>
-                          <TableHead>Ações</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {itens.map((it, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell>{rotuloSeq(it.tipo_item, it.seq)}</TableCell>
-                            <TableCell>{it.tipo_item}</TableCell>
-                            <TableCell>{it.bordo || "-"}</TableCell>
-                            <TableCell className="text-right">{it.comprimento || "-"}</TableCell>
-                            <TableCell className="text-right">{it.larguraMedia || "-"}</TableCell>
-                            <TableCell className="text-right">{it.areaCalculada || "-"}</TableCell>
-                            <TableCell className="text-right">{it.toneladaAplicada || "-"}</TableCell>
-                            <TableCell className="text-right">{it.espessura || "-"}</TableCell>
-                            <TableCell>
-                              <div className="flex gap-1">
-                                <Button size="icon" variant="ghost" onClick={() => editarItem(idx)} disabled={blocked}>
+              {/* ============ ABA 5: Lista Apontamentos ============ */}
+              <TabsContent value="listaApontamentos" className="space-y-3">
+                {blocked && AlertBloqueio}
+                {buracosLinear.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">Nenhum apontamento salvo ainda.</div>
+                ) : (
+                  <>
+                    {/* Mobile: cards */}
+                    <div className="md:hidden space-y-2">
+                      {buracosLinear.map(({ rua, buraco }) => (
+                        <Card key={buraco.idLocal}>
+                          <CardContent className="p-3 space-y-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="font-semibold text-sm truncate">
+                                  {describeRua(rua)} · {rotuloItem(buraco.tipo_item, buraco.sequenciaRua)}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  Seq geral {buraco.sequenciaAplicacao}
+                                  {buraco.bordo ? ` · ${buraco.bordo}` : ""}
+                                </div>
+                              </div>
+                              <div className="flex gap-1 shrink-0">
+                                <Button size="icon" variant="ghost" onClick={() => editarBuraco(rua.idLocal, buraco.idLocal)}>
                                   <Pencil className="h-4 w-4" />
                                 </Button>
-                                <Button size="icon" variant="ghost" onClick={() => removerItem(idx)} disabled={blocked}>
+                                <Button size="icon" variant="ghost" onClick={() => removerBuraco(rua.idLocal, buraco.idLocal)}>
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </>
-              )}
-
-
-              <div className="text-xs text-muted-foreground flex items-center gap-2 mt-2">
-                <AlertTriangle className="h-3 w-3 text-amber-600" />
-                Itens ficam em memória local. Só serão persistidos no banco ao clicar em "Finalizar Apontamento".
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* ============ ABA IMAGENS ============ */}
-          <TabsContent value="imagens" className="space-y-4">
-            {blocked && AlertBloqueio}
-            <div className={blocked ? "opacity-60 pointer-events-none" : ""}>
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  <strong>Atenção:</strong> as imagens ficam apenas neste dispositivo
-                  (rascunho local). Ainda não há upload para o servidor — elas
-                  <strong> não serão salvas</strong> junto com o registro ao finalizar.
-                  Máximo {MAX_IMAGENS} imagens, 5 MB cada.
-                </AlertDescription>
-              </Alert>
-
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3 mt-3">
-                <Label htmlFor="imgs-input" className="inline-flex w-full sm:w-auto">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="gap-2 w-full sm:w-auto"
-                    onClick={() => document.getElementById("imgs-input")?.click()}
-                    disabled={imagens.length >= MAX_IMAGENS}
-                  >
-                    <ImagePlus className="h-4 w-4" />
-                    Adicionar imagens
-                  </Button>
-                </Label>
-                <input
-                  id="imgs-input"
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  capture="environment"
-                  className="hidden"
-                  onChange={(e) => {
-                    onImagensChange(e.target.files);
-                    e.target.value = "";
-                  }}
-                />
-                <span className="text-sm text-muted-foreground">
-                  {imagens.length} / {MAX_IMAGENS}
-                </span>
-              </div>
-
-              {imagens.length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {imagens.map((f, idx) => (
-                    <div key={idx} className="relative border rounded-md overflow-hidden bg-muted/30">
-                      <img
-                        src={imagensUrls[idx]}
-                        alt={f.name}
-                        className="w-full h-32 object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removerImagem(idx)}
-                        className="absolute top-1 right-1 bg-background/90 border rounded-full p-1 shadow"
-                        aria-label="Remover imagem"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                      <div className="p-1 text-[10px] truncate">{f.name}</div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                              <div><span className="text-muted-foreground">Comp:</span> {buraco.comprimento || "-"} m</div>
+                              <div><span className="text-muted-foreground">Larg:</span> {buraco.larguraMedia || "-"} m</div>
+                              <div><span className="text-muted-foreground">Área:</span> {buraco.areaCalculada || "-"} m²</div>
+                              <div><span className="text-muted-foreground">Esp:</span> {buraco.espessura || "-"} cm</div>
+                              <div className="col-span-2">
+                                <span className="text-muted-foreground">GPS:</span>{" "}
+                                {buraco.gps
+                                  ? `${buraco.gps.latitude.toFixed(5)}, ${buraco.gps.longitude.toFixed(5)} (±${Math.round(buraco.gps.accuracy)}m)`
+                                  : "não capturado"}
+                              </div>
+                              <div><span className="text-muted-foreground">Fotos:</span> {buraco.fotosCount}</div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
                     </div>
-                  ))}
+
+                    {/* Desktop: tabela */}
+                    <div className="hidden md:block border rounded-md overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Seq geral</TableHead>
+                            <TableHead>Rua</TableHead>
+                            <TableHead>Item</TableHead>
+                            <TableHead>Bordo</TableHead>
+                            <TableHead className="text-right">Comp (m)</TableHead>
+                            <TableHead className="text-right">Larg (m)</TableHead>
+                            <TableHead className="text-right">Área (m²)</TableHead>
+                            <TableHead className="text-right">Esp (cm)</TableHead>
+                            <TableHead>GPS</TableHead>
+                            <TableHead>Fotos</TableHead>
+                            <TableHead>Ações</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {buracosLinear.map(({ rua, buraco }) => (
+                            <TableRow key={buraco.idLocal}>
+                              <TableCell>{buraco.sequenciaAplicacao}</TableCell>
+                              <TableCell className="max-w-[200px] truncate">{describeRua(rua)}</TableCell>
+                              <TableCell>{rotuloItem(buraco.tipo_item, buraco.sequenciaRua)}</TableCell>
+                              <TableCell>{buraco.bordo || "-"}</TableCell>
+                              <TableCell className="text-right">{buraco.comprimento || "-"}</TableCell>
+                              <TableCell className="text-right">{buraco.larguraMedia || "-"}</TableCell>
+                              <TableCell className="text-right">{buraco.areaCalculada || "-"}</TableCell>
+                              <TableCell className="text-right">{buraco.espessura || "-"}</TableCell>
+                              <TableCell className="text-xs">
+                                {buraco.gps
+                                  ? `±${Math.round(buraco.gps.accuracy)}m`
+                                  : "-"}
+                              </TableCell>
+                              <TableCell>{buraco.fotosCount}</TableCell>
+                              <TableCell>
+                                <div className="flex gap-1">
+                                  <Button size="icon" variant="ghost" onClick={() => editarBuraco(rua.idLocal, buraco.idLocal)}>
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button size="icon" variant="ghost" onClick={() => removerBuraco(rua.idLocal, buraco.idLocal)}>
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </>
+                )}
+                <div className="text-xs text-muted-foreground flex items-center gap-2">
+                  <AlertTriangle className="h-3 w-3 text-amber-600" />
+                  Numeração <b>Buraco NN</b> é por rua. <b>Seq geral</b> é cronológica no registro. GPS
+                  e fotos ficam em memória local — persistência ocorrerá nas Fases B/C/E.
                 </div>
-              )}
-            </div>
-          </TabsContent>
+              </TabsContent>
 
-          {/* ============ ABA 6 ============ */}
-          <TabsContent value="final" className="space-y-4">
-            {blocked && AlertBloqueio}
-            <div className={blocked ? "opacity-60 pointer-events-none" : ""}>
-              <Card>
-                <CardContent className="pt-4 space-y-1 text-sm">
-                  <h4 className="font-semibold text-sm mb-2">Dados iniciais</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
-                    <div className="break-words"><b>Centro de custo:</b> {(() => {
-                      const cc = centrosCusto.find((c) => c.id === ini.centroCustoId);
-                      if (!cc) return "-";
-                      const cod = (cc.codigo_centro_custo || "").trim();
-                      const nome = (cc.nome_centro_custo || "").trim();
-                      return cod && nome ? `[${cod}] ${nome}` : (cod || nome || "-");
-                    })()}</div>
-                    <div><b>Atividade:</b> {ini.atividade}</div>
-                    <div><b>Data:</b> {ini.data}</div>
-                    <div><b>Hora chegada:</b> {ini.horaChegada || "-"}</div>
-                    <div><b>Equipe:</b> {equipesQ.data?.find((e) => e.id === ini.equipeId)?.nome_equipe || "-"}</div>
-                    <div className="break-words"><b>Logradouro:</b> {ini.logradouro}</div>
-                    <div><b>Bairro:</b> {ini.bairro || "-"}</div>
-                    <div><b>Cidade:</b> {ini.cidade || "-"}</div>
-                    <div><b>Condomínio:</b> {ini.condominio === "sim" ? "Sim" : ini.condominio === "nao" ? "Não" : "-"}</div>
+              {/* ============ ABA 6: Finalização ============ */}
+              <TabsContent value="final" className="space-y-3">
+                {blocked && AlertBloqueio}
+                <div className={blocked ? "opacity-60 pointer-events-none" : ""}>
+                  <Card>
+                    <CardContent className="pt-4 space-y-1 text-sm">
+                      <h4 className="font-semibold text-sm mb-2">Registro</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                        <div><b>Nº aplicação manual:</b> <span className="text-muted-foreground">a atribuir na finalização (Fase B)</span></div>
+                        <div><b>Data:</b> {ini.data}</div>
+                        <div><b>Hora chegada:</b> {ini.horaChegada || "-"}</div>
+                        <div><b>Atividade:</b> {ini.atividade}</div>
+                        <div><b>Centro de custo:</b> {(() => {
+                          const cc = centrosCusto.find((c) => c.id === ini.centroCustoId);
+                          if (!cc) return "-";
+                          const cod = (cc.codigo_centro_custo || "").trim();
+                          const nome = (cc.nome_centro_custo || "").trim();
+                          return cod && nome ? `[${cod}] ${nome}` : (cod || nome || "-");
+                        })()}</div>
+                        <div><b>Equipe:</b> {equipesQ.data?.find((e) => e.id === ini.equipeId)?.nome_equipe || "-"}</div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="pt-4 space-y-1 text-sm">
+                      <h4 className="font-semibold text-sm mb-2">Caminhão</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                        <div><b>Caminhão/Frota:</b> {carga.frota || "-"}</div>
+                        <div><b>Placa:</b> {carga.placa || "-"}</div>
+                        <div className="break-words"><b>Motorista:</b> {motoristasQ.data?.find((m) => m.id === carga.motoristaId)?.nome_completo || "-"}</div>
+                        <div><b>Total carga:</b> {carga.totalCargaT} t</div>
+                        <div><b>Temp. massa:</b> {carga.temperaturaMassa} °C</div>
+                        <div><b>Última temp. aplicação:</b> {ultimaTempAplicacao ?? "-"} °C</div>
+                        <div><b>Traço:</b> {carga.tipoTraco || "-"}</div>
+                        <div><b>Pintura:</b> {carga.tipoPintura || "-"}</div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="pt-4 space-y-3 text-sm">
+                      <h4 className="font-semibold text-sm">Resumo técnico da aplicação</h4>
+                      {(() => {
+                        const classif = classificarEspessuraMedia(totais.espessuraMediaCm);
+                        return (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                            <div><b>Área total aplicada:</b> {formatBR(totais.areaTotal)} m²</div>
+                            <div><b>Carga total:</b> {totais.totalCargaT > 0 ? `${formatBR(totais.totalCargaT)} t` : "—"}</div>
+                            <div><b>Densidade:</b> 2,4 t/m³</div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <b>Espessura média:</b>
+                              <span>{totais.espessuraMediaCm > 0 ? `${formatBR(totais.espessuraMediaCm)} cm` : "—"}</span>
+                              <EspessuraBadge classificacao={classif} />
+                            </div>
+                            <div className="sm:col-span-2 text-xs text-muted-foreground">
+                              {classif.mensagem}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      <div className="pt-2 border-t grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <div>Total de ruas: <span className="text-foreground font-medium">{totais.qtdRuas}</span></div>
+                        <div>Total de buracos: <span className="text-foreground font-medium">{totais.qtdBuracos}</span></div>
+                      </div>
+                      {totais.ruasComTotais.length > 0 && (
+                        <div className="mt-1 border-t pt-2">
+                          <div className="text-xs font-semibold text-muted-foreground mb-1">
+                            Tonelada estimada por rua
+                          </div>
+                          <ul className="text-xs space-y-0.5">
+                            {totais.ruasComTotais.map(({ rua, areaRua, toneladaRua }) => (
+                              <li key={rua.idLocal}>
+                                <b>{describeRua(rua)}</b>: {formatBR(areaRua)} m² · {formatBR(toneladaRua, 3)} t
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+
+                  <div className="space-y-2">
+                    <Label>Observações finais do apontador</Label>
+                    <Textarea rows={3} value={obsFinal} onChange={(e) => setObsFinal(e.target.value)} disabled={blocked} />
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
 
-              <Card>
-                <CardContent className="pt-4 space-y-1 text-sm">
-                  <h4 className="font-semibold text-sm mb-2">Carga</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
-                    <div><b>Caminhão/Frota:</b> {carga.frota || "-"}</div>
-                    <div><b>Placa:</b> {carga.placa || "-"}</div>
-                    <div className="break-words"><b>Motorista:</b> {motoristasQ.data?.find((m) => m.id === carga.motoristaId)?.nome_completo || "-"}</div>
-                    <div><b>Total da carga:</b> {carga.totalCargaT} t</div>
-                    <div><b>Temp. massa:</b> {carga.temperaturaMassa} °C</div>
-                    <div><b>Última temp. aplicação:</b> {ultimaTempAplicacao ?? "-"} °C</div>
-                    <div><b>Traço:</b> {carga.tipoTraco || "-"}</div>
-                    <div><b>Pintura:</b> {carga.tipoPintura || "-"}</div>
-                  </div>
-                </CardContent>
-              </Card>
+          <div className="shrink-0 border-t bg-background px-4 sm:px-6 py-3">{renderFooter()}</div>
+        </DialogContent>
+      </Dialog>
 
-              <Card>
-                <CardContent className="pt-4 space-y-1 text-sm">
-                  <h4 className="font-semibold text-sm mb-2">Totais</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
-                    <div><b>Qtd apontamentos:</b> {totais.qtd}</div>
-                    <div><b>Área total (m²):</b> {totais.area.toFixed(2)}</div>
-                    <div><b>Tonelada aplicada (t):</b> {totais.ton.toFixed(3)}</div>
-                    <div><b>Imagens anexadas:</b> {imagens.length}</div>
-                  </div>
-                </CardContent>
-              </Card>
-
-
-              <div className="space-y-2">
-                <Label>Observações finais do apontador</Label>
-                <Textarea rows={3} value={obsFinal} onChange={(e) => setObsFinal(e.target.value)} disabled={blocked} />
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
-        </div>
-
-        <div className="shrink-0 border-t bg-background px-4 sm:px-6 py-3">
-          {renderFooter()}
-        </div>
-
-      </DialogContent>
-    </Dialog>
-
-    <AlertDialog open={confirmCloseOpen} onOpenChange={setConfirmCloseOpen}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Existe um apontamento em andamento</AlertDialogTitle>
-          <AlertDialogDescription>
-            Este registro possui um rascunho local salvo neste dispositivo. Você pode continuar
-            editando ou fechar e manter o rascunho para continuar depois.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
-          <AlertDialogCancel>Continuar editando</AlertDialogCancel>
-          {currentDraftId && (
+      <AlertDialog open={confirmCloseOpen} onOpenChange={setConfirmCloseOpen}>
+        <AlertDialogContent className="w-[calc(100vw-24px)] max-w-md sm:max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Existe um apontamento em andamento</AlertDialogTitle>
+            <AlertDialogDescription>
+              Este registro possui um rascunho local salvo neste dispositivo. Você pode continuar
+              editando ou fechar e manter o rascunho para continuar depois.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end sm:space-x-2">
+            <AlertDialogCancel className="w-full sm:w-auto mt-0">Continuar editando</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDescartarRascunho}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleManterRascunho}
+              className="w-full sm:w-auto"
             >
-              Descartar rascunho
+              Fechar e manter rascunho
             </AlertDialogAction>
-          )}
-          <AlertDialogAction onClick={handleManterRascunho}>
-            Fechar e manter rascunho
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  </>
+            {currentDraftId && (
+              <AlertDialogAction
+                onClick={handleDescartarRascunho}
+                className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Descartar rascunho
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+    </>
   );
 };
 

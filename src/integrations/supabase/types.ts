@@ -10585,19 +10585,26 @@ export type Database = {
           estaca_final: number | null
           estaca_inicial: number | null
           fotos_aplicacao: string[] | null
+          geo_accuracy: number | null
+          geo_captured_at: string | null
           hora_fim_aplicacao: string | null
           hora_inicio_aplicacao: string | null
           id: string
           largura_media: number | null
+          latitude: number | null
           lista_entrega_id: string | null
           logradouro_id: string | null
           logradouro_nome: string
+          longitude: number | null
           modificado_por: string | null
           numero_passadas: number | null
+          observacao_apontamento: string | null
           observacoes_aplicacao: string | null
           registro_aplicacao_id: string
           registro_carga_id: string | null
+          rua_aplicacao_id: string | null
           sequencia_aplicacao: number
+          sequencia_rua: number | null
           temperatura_aplicacao: number | null
           tipo_item: string | null
           tonelada_aplicada: number
@@ -10618,19 +10625,26 @@ export type Database = {
           estaca_final?: number | null
           estaca_inicial?: number | null
           fotos_aplicacao?: string[] | null
+          geo_accuracy?: number | null
+          geo_captured_at?: string | null
           hora_fim_aplicacao?: string | null
           hora_inicio_aplicacao?: string | null
           id?: string
           largura_media?: number | null
+          latitude?: number | null
           lista_entrega_id?: string | null
           logradouro_id?: string | null
           logradouro_nome: string
+          longitude?: number | null
           modificado_por?: string | null
           numero_passadas?: number | null
+          observacao_apontamento?: string | null
           observacoes_aplicacao?: string | null
           registro_aplicacao_id: string
           registro_carga_id?: string | null
+          rua_aplicacao_id?: string | null
           sequencia_aplicacao?: number
+          sequencia_rua?: number | null
           temperatura_aplicacao?: number | null
           tipo_item?: string | null
           tonelada_aplicada: number
@@ -10651,19 +10665,26 @@ export type Database = {
           estaca_final?: number | null
           estaca_inicial?: number | null
           fotos_aplicacao?: string[] | null
+          geo_accuracy?: number | null
+          geo_captured_at?: string | null
           hora_fim_aplicacao?: string | null
           hora_inicio_aplicacao?: string | null
           id?: string
           largura_media?: number | null
+          latitude?: number | null
           lista_entrega_id?: string | null
           logradouro_id?: string | null
           logradouro_nome?: string
+          longitude?: number | null
           modificado_por?: string | null
           numero_passadas?: number | null
+          observacao_apontamento?: string | null
           observacoes_aplicacao?: string | null
           registro_aplicacao_id?: string
           registro_carga_id?: string | null
+          rua_aplicacao_id?: string | null
           sequencia_aplicacao?: number
+          sequencia_rua?: number | null
           temperatura_aplicacao?: number | null
           tipo_item?: string | null
           tonelada_aplicada?: number
@@ -10710,6 +10731,82 @@ export type Database = {
             columns: ["registro_carga_id"]
             isOneToOne: false
             referencedRelation: "vw_registro_cargas_seguro"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "det_rua_aplicacao_fk"
+            columns: ["rua_aplicacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_registro_aplicacao_ruas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_registro_aplicacao_ruas: {
+        Row: {
+          bairro: string | null
+          chave_normalizada: string
+          cidade: string | null
+          created_at: string
+          created_by: string | null
+          geo_accuracy: number | null
+          id: string
+          latitude: number | null
+          logradouro_nome: string
+          longitude: number | null
+          ordem_rua: number
+          origem_localizacao: string | null
+          registro_aplicacao_id: string
+          uf: string | null
+          updated_at: string
+        }
+        Insert: {
+          bairro?: string | null
+          chave_normalizada: string
+          cidade?: string | null
+          created_at?: string
+          created_by?: string | null
+          geo_accuracy?: number | null
+          id?: string
+          latitude?: number | null
+          logradouro_nome: string
+          longitude?: number | null
+          ordem_rua: number
+          origem_localizacao?: string | null
+          registro_aplicacao_id: string
+          uf?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bairro?: string | null
+          chave_normalizada?: string
+          cidade?: string | null
+          created_at?: string
+          created_by?: string | null
+          geo_accuracy?: number | null
+          id?: string
+          latitude?: number | null
+          logradouro_nome?: string
+          longitude?: number | null
+          ordem_rua?: number
+          origem_localizacao?: string | null
+          registro_aplicacao_id?: string
+          uf?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ruas_registro_aplicacao_fk"
+            columns: ["registro_aplicacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_registro_apontamento_aplicacao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ruas_registro_aplicacao_fk"
+            columns: ["registro_aplicacao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_registro_aplicacao_seguro"
             referencedColumns: ["id"]
           },
         ]
@@ -20357,6 +20454,15 @@ export type Database = {
       fn_logistica_can_view_sensitive_exports: { Args: never; Returns: boolean }
       fn_logistica_current_funcionario_id: { Args: never; Returns: string }
       fn_logistica_is_privileged_user: { Args: never; Returns: boolean }
+      fn_normalizar_chave_rua: {
+        Args: {
+          p_bairro: string
+          p_cidade: string
+          p_logradouro: string
+          p_uf: string
+        }
+        Returns: string
+      }
       fn_normalize_role_name: { Args: { p_nome: string }; Returns: string }
       fn_ordem_diaria_build_item_snapshot: {
         Args: { p_atividade_id: string }

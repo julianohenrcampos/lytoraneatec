@@ -98,3 +98,105 @@ export function parseContextoOperacional(
 
   return out;
 }
+
+// ============================================================================
+// parseRuasAplicacao — bloco [RUAS_APLICACAO]{JSON}[/RUAS_APLICACAO]
+// Persistência temporária em observacoes_gerais até a Fase B ter tabela real.
+// ============================================================================
+
+export interface BuracoRuaParsed {
+  sequenciaRua: number;
+  sequenciaAplicacao: number;
+  bordo?: string | null;
+  comprimento?: number | null;
+  larguraMedia?: number | null;
+  area: number;
+  toneladaRateada?: number | null;
+  espessura?: number | null;
+  gps?: { latitude: number; longitude: number; accuracy?: number } | null;
+  fotosCount?: number | null;
+  observacao?: string | null;
+  tipo_item?: string | null;
+}
+
+export interface RuaAplicacaoParsed {
+  idLocal: string;
+  chaveNorm: string;
+  logradouro: string;
+  bairro?: string | null;
+  cidade?: string | null;
+  uf?: string | null;
+  sequenciaRua: number;
+  areaRua: number;
+  toneladaRua?: number | null;
+  buracos: BuracoRuaParsed[];
+}
+
+const isNum = (v: unknown): v is number =>
+  typeof v === "number" && Number.isFinite(v);
+
+export function parseRuasAplicacao(
+  observacoesGerais?: string | null
+): RuaAplicacaoParsed[] | null {
+  if (!observacoesGerais || typeof observacoesGerais !== "string") return null;
+  const raw = extractBlock(observacoesGerais, "RUAS_APLICACAO");
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(parsed)) return null;
+
+  const ruas: RuaAplicacaoParsed[] = [];
+  for (const r of parsed as any[]) {
+    if (!r || typeof r !== "object") continue;
+    if (typeof r.logradouro !== "string" || !r.logradouro.trim()) continue;
+    const buracosSrc = Array.isArray(r.buracos) ? r.buracos : [];
+    const buracos: BuracoRuaParsed[] = [];
+    for (const b of buracosSrc) {
+      if (!b || typeof b !== "object") continue;
+      buracos.push({
+        sequenciaRua: Number(b.sequenciaRua) || 0,
+        sequenciaAplicacao: Number(b.sequenciaAplicacao) || 0,
+        bordo: typeof b.bordo === "string" ? b.bordo : null,
+        comprimento: isNum(Number(b.comprimento)) ? Number(b.comprimento) : null,
+        larguraMedia: isNum(Number(b.larguraMedia)) ? Number(b.larguraMedia) : null,
+        area: Number(b.area) || 0,
+        toneladaRateada: isNum(Number(b.toneladaRateada))
+          ? Number(b.toneladaRateada)
+          : null,
+        espessura: isNum(Number(b.espessura)) ? Number(b.espessura) : null,
+        gps:
+          b.gps && typeof b.gps === "object" && isNum(Number(b.gps.latitude)) && isNum(Number(b.gps.longitude))
+            ? {
+                latitude: Number(b.gps.latitude),
+                longitude: Number(b.gps.longitude),
+                accuracy: isNum(Number(b.gps.accuracy)) ? Number(b.gps.accuracy) : undefined,
+              }
+            : null,
+        fotosCount: isNum(Number(b.fotosCount)) ? Number(b.fotosCount) : 0,
+        observacao: typeof b.observacao === "string" ? b.observacao : null,
+        tipo_item: typeof b.tipo_item === "string" ? b.tipo_item : null,
+      });
+    }
+    ruas.push({
+      idLocal: String(r.idLocal || ""),
+      chaveNorm: String(r.chaveNorm || ""),
+      logradouro: String(r.logradouro).trim(),
+      bairro: typeof r.bairro === "string" ? r.bairro : null,
+      cidade: typeof r.cidade === "string" ? r.cidade : null,
+      uf: typeof r.uf === "string" ? r.uf : null,
+      sequenciaRua: Number(r.sequenciaRua) || 0,
+      areaRua: Number(r.areaRua) || buracos.reduce((s, x) => s + (x.area || 0), 0),
+      toneladaRua: isNum(Number(r.toneladaRua)) ? Number(r.toneladaRua) : null,
+      buracos,
+    });
+  }
+  if (!ruas.length) return null;
+  return ruas;
+}
+

@@ -274,11 +274,41 @@ export const agendamentoExamesService = {
   },
 
   async updateBeneficio(id: string, field: string, value: string | null): Promise<void> {
-    const { error } = await (supabase
+    console.log('[SSO_BENEFICIO_UPDATE]', {
+      agendamentoId: id,
+      campo: field,
+      tabela: 'bd_agendamentos_exames',
+    });
+
+    const { data, error } = await (supabase
       .from('bd_agendamentos_exames' as any) as any)
       .update({ [field]: value })
-      .eq('id', id);
+      .eq('id', id)
+      .select('id');
 
-    if (error) throw error;
+    if (error) {
+      console.error('[SSO_BENEFICIO_UPDATE_ERROR]', {
+        agendamentoId: id,
+        campo: field,
+        code: (error as any).code,
+        message: error.message,
+        details: (error as any).details,
+        hint: (error as any).hint,
+      });
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      const rlsError = new Error(
+        'Sem permissão para atualizar este benefício (RLS bloqueou a alteração).'
+      );
+      console.error('[SSO_BENEFICIO_UPDATE_ERROR]', {
+        agendamentoId: id,
+        campo: field,
+        code: 'RLS_ZERO_ROWS',
+        message: rlsError.message,
+      });
+      throw rlsError;
+    }
   }
 };

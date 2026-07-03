@@ -681,7 +681,23 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
           data_nascimento: etapa1Data.data_nascimento,
           telefone: etapa1Data.telefone_celular,
         };
-        await valeTransporteService.salvar(savedAgendamentoId, vtData, candidato);
+        try {
+          await valeTransporteService.salvar(savedAgendamentoId, vtData, candidato);
+        } catch (vtError: any) {
+          console.error('[SSO_AGENDAMENTO_DIAG][VT_ERROR]', {
+            stage: diagStage,
+            agendamentoId: savedAgendamentoId,
+            userId,
+            code: vtError?.code,
+            message: vtError?.message,
+            details: vtError?.details,
+          });
+          // Mantém o dialog aberto para o usuário corrigir/reenviar apenas o VT
+          toast.error(
+            `O agendamento foi salvo, mas o Vale Transporte NÃO foi salvo: ${vtError?.message || 'erro desconhecido'}. Revise a etapa de VT e finalize novamente.`,
+          );
+          return;
+        }
       }
 
       // Upload de arquivos pendentes
