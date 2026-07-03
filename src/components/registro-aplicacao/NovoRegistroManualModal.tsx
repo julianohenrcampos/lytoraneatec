@@ -65,6 +65,8 @@ import AddressAutocomplete, {
 import { useIsMobile } from "@/hooks/use-mobile";
 import { normalizeRuaKey, describeRua } from "@/utils/registroManual/ruaKey";
 import { captureGeo, type GeoCapture } from "@/utils/registroManual/captureGeo";
+import { useGeocoding } from "@/hooks/useGeocoding";
+import { extrairLogradouro } from "@/utils/registroManual/parseLogradouro";
 import {
   computeToneladasBuracosComResiduo,
   classificarEspessuraMedia,
@@ -215,6 +217,8 @@ interface RuaLocal {
   cep?: string;
   latitude: number | null;
   longitude: number | null;
+  accuracy?: number | null;
+  capturedAt?: string | null;
   origemLocalizacao: OrigemLoc;
   iniciadaEm: string;
   buracos: BuracoLocal[];
@@ -228,6 +232,8 @@ interface RuaFormState {
   cep: string;
   latitude: number | null;
   longitude: number | null;
+  accuracy: number | null;
+  capturedAt: string | null;
   origemLocalizacao: OrigemLoc;
 }
 
@@ -272,6 +278,8 @@ const emptyRuaForm = (): RuaFormState => ({
   cep: "",
   latitude: null,
   longitude: null,
+  accuracy: null,
+  capturedAt: null,
   origemLocalizacao: "",
 });
 
@@ -314,6 +322,16 @@ const NovoRegistroManualModal: React.FC<Props> = ({
   const [editingRuaId, setEditingRuaId] = useState<string | null>(null);
   const [buracoFormOpen, setBuracoFormOpen] = useState(false);
   const [calculoAberto, setCalculoAberto] = useState(false);
+
+  // B.3.5-D — auto-preenchimento por geolocalização
+  type AutoLocStatus = "idle" | "loading" | "ok" | "aproximado" | "erro";
+  const [autoLoc, setAutoLoc] = useState<{ status: AutoLocStatus; message?: string }>({ status: "idle" });
+  const { reverse: reverseGeocode } = useGeocoding();
+
+  // Limpa banner de auto-preenchimento quando o form de rua fecha
+  useEffect(() => {
+    if (!ruaFormOpen) setAutoLoc({ status: "idle" });
+  }, [ruaFormOpen]);
 
   const isMobile = useIsMobile();
 
@@ -677,6 +695,76 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     }));
   };
 
+  // B.3.5-D — tenta auto-preencher a rua atual via GPS + reverse geocode
+  const tentarAutoPreencherRua = async (opts?: { force?: boolean }) => {
+    const force = !!opts?.force;
+    if (editingRuaId) return; // nunca sobrescreve edição
+    if (!force) {
+      // não sobrescrever form já preenchido (manual ou auto anterior)
+      if (ruaForm.logradouro.trim() || ruaForm.bairro.trim() || ruaForm.latitude != null) return;
+    }
+    setAutoLoc({ status: "loading", message: "Identificando rua atual..." });
+    const geo = await captureGeo(8000);
+    if (!geo.ok || !geo.data) {
+      setAutoLoc({
+        status: "erro",
+        message: geo.error || "Não foi possível identificar a localização. Preencha a rua manualmente.",
+      });
+      return;
+    }
+    const { latitude, longitude, accuracy, capturedAt } = geo.data;
+    try {
+      const rev = await reverseGeocode(latitude, longitude);
+      const logr = extrairLogradouro(rev);
+      // Coordenadas só entram se AMBAS forem finitas
+      const hasCoords = Number.isFinite(latitude) && Number.isFinite(longitude);
+      setRuaForm((prev) => ({
+        ...prev,
+        logradouro: logr || prev.logradouro,
+        bairro: rev?.endereco_bairro || prev.bairro,
+        cidade: rev?.endereco_cidade || prev.cidade,
+        uf: rev?.endereco_estado || prev.uf,
+        cep: rev?.endereco_cep || prev.cep,
+        latitude: hasCoords ? latitude : prev.latitude,
+        longitude: hasCoords ? longitude : prev.longitude,
+        accuracy: hasCoords && Number.isFinite(accuracy) ? accuracy : prev.accuracy,
+        capturedAt: hasCoords ? capturedAt : prev.capturedAt,
+        origemLocalizacao: "geocode",
+      }));
+      if (!logr && !rev) {
+        setAutoLoc({
+          status: "erro",
+          message: "Não foi possível identificar a rua. Preencha manualmente.",
+        });
+        return;
+      }
+      if (Number.isFinite(accuracy) && accuracy > 100) {
+        setAutoLoc({
+          status: "aproximado",
+          message: `Localização aproximada (±${Math.round(accuracy)}m). Confira o nome da rua antes de salvar.`,
+        });
+      } else {
+        setAutoLoc({
+          status: "ok",
+          message: "Rua sugerida pela localização atual. Confira antes de salvar.",
+        });
+      }
+    } catch (e) {
+      console.error("[REGISTRO_MANUAL][AUTO_RUA] reverse error", e);
+      setAutoLoc({
+        status: "erro",
+        message: "Não foi possível identificar a localização. Preencha a rua manualmente.",
+      });
+    }
+  };
+
+  const handleAdicionarRuaClick = () => {
+    setRuaFormOpen(true);
+    // dispara sem await; UX é o banner que aparece no form
+    void tentarAutoPreencherRua({ force: false });
+  };
+
+
   const ruaAtual = useMemo(
     () => ruas.find((r) => r.idLocal === ruaAtualId) || null,
     [ruas, ruaAtualId]
@@ -721,6 +809,8 @@ const NovoRegistroManualModal: React.FC<Props> = ({
                   cep: ruaForm.cep.trim(),
                   latitude: ruaForm.latitude,
                   longitude: ruaForm.longitude,
+                  accuracy: ruaForm.accuracy ?? null,
+                  capturedAt: ruaForm.capturedAt ?? null,
                   origemLocalizacao: ruaForm.origemLocalizacao,
                 }
           )
@@ -751,6 +841,8 @@ const NovoRegistroManualModal: React.FC<Props> = ({
       cep: ruaForm.cep.trim(),
       latitude: ruaForm.latitude,
       longitude: ruaForm.longitude,
+      accuracy: ruaForm.accuracy ?? null,
+      capturedAt: ruaForm.capturedAt ?? null,
       origemLocalizacao: ruaForm.origemLocalizacao,
       iniciadaEm: new Date().toISOString(),
       buracos: [],
@@ -1005,6 +1097,8 @@ const NovoRegistroManualModal: React.FC<Props> = ({
       cep: r.cep || "",
       latitude: r.latitude,
       longitude: r.longitude,
+      accuracy: r.accuracy ?? null,
+      capturedAt: r.capturedAt ?? null,
       origemLocalizacao: r.origemLocalizacao,
     });
     setRuaFormOpen(true);
@@ -1136,7 +1230,13 @@ const NovoRegistroManualModal: React.FC<Props> = ({
       const lng = r.longitude;
       if (typeof lat === "number" && typeof lng === "number"
           && Number.isFinite(lat) && Number.isFinite(lng)) {
-        return { latitude: lat, longitude: lng };
+        const out: { latitude: number; longitude: number; accuracy?: number; capturedAt?: string } = {
+          latitude: lat,
+          longitude: lng,
+        };
+        if (typeof r.accuracy === "number" && Number.isFinite(r.accuracy)) out.accuracy = r.accuracy;
+        if (r.capturedAt) out.capturedAt = r.capturedAt;
+        return out;
       }
       return undefined;
     };
@@ -1705,16 +1805,6 @@ const NovoRegistroManualModal: React.FC<Props> = ({
                   {/* -- A) RUA ATUAL (colapsável) -- */}
                   <Card>
                     <CardContent className="pt-4 space-y-3">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <h4 className="font-semibold text-sm flex items-center gap-2">
-                          <MapPin className="h-4 w-4" /> Rua atual
-                        </h4>
-                        {ruaAtual && (
-                          <Badge variant="secondary" className="text-xs">
-                            {describeRua(ruaAtual)} · {ruaAtual.buracos.length} buracos
-                          </Badge>
-                        )}
-                      </div>
 
                       {ruas.length > 0 && (
                         <div className="flex flex-wrap gap-1.5">
@@ -1736,19 +1826,19 @@ const NovoRegistroManualModal: React.FC<Props> = ({
 
                       <Collapsible open={ruaFormOpen} onOpenChange={setRuaFormOpen}>
                         {!ruaFormOpen && (
-                          <CollapsibleTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className="w-full gap-2"
-                              disabled={estado !== "em_andamento"}
-                            >
-                              <Plus className="h-4 w-4" />
-                              {ruas.length === 0 ? "Adicionar rua" : "Nova rua"}
-                            </Button>
-                          </CollapsibleTrigger>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full gap-2"
+                            disabled={estado !== "em_andamento"}
+                            onClick={handleAdicionarRuaClick}
+                          >
+                            <Plus className="h-4 w-4" />
+                            {ruas.length === 0 ? "Adicionar rua" : "Nova rua"}
+                          </Button>
                         )}
                         <CollapsibleContent className="space-y-3 pt-2">
+
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div className="space-y-1 md:col-span-2">
                               <Label className="text-xs">Logradouro *</Label>
@@ -1811,6 +1901,7 @@ const NovoRegistroManualModal: React.FC<Props> = ({
                                 setRuaForm(emptyRuaForm());
                                 setRuaFormOpen(false);
                                 setEditingRuaId(null);
+                                setAutoLoc({ status: "idle" });
                               }}
                               className="w-full sm:w-auto"
                             >
@@ -1828,6 +1919,7 @@ const NovoRegistroManualModal: React.FC<Props> = ({
                           </div>
                         </CollapsibleContent>
                       </Collapsible>
+
                     </CardContent>
                   </Card>
 
@@ -2365,7 +2457,7 @@ const NovoRegistroManualModal: React.FC<Props> = ({
       </Dialog>
 
       <AlertDialog open={confirmCloseOpen} onOpenChange={setConfirmCloseOpen}>
-        <AlertDialogContent className="w-[calc(100vw-24px)] max-w-md sm:max-w-lg">
+        <AlertDialogContent className="w-[calc(100vw-2rem)] max-w-xl">
           <AlertDialogHeader>
             <AlertDialogTitle>Existe um apontamento em andamento</AlertDialogTitle>
             <AlertDialogDescription>
@@ -2373,18 +2465,15 @@ const NovoRegistroManualModal: React.FC<Props> = ({
               editando ou fechar e manter o rascunho para continuar depois.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end sm:space-x-2">
-            <AlertDialogCancel className="w-full sm:w-auto mt-0">Continuar editando</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleManterRascunho}
-              className="w-full sm:w-auto"
-            >
+          <AlertDialogFooter className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <AlertDialogCancel className="mt-0">Continuar editando</AlertDialogCancel>
+            <AlertDialogAction onClick={handleManterRascunho}>
               Fechar e manter rascunho
             </AlertDialogAction>
             {currentDraftId && (
               <AlertDialogAction
                 onClick={handleDescartarRascunho}
-                className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 Descartar rascunho
               </AlertDialogAction>
