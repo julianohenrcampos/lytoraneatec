@@ -19316,6 +19316,7 @@ export type Database = {
         Args: { p_tipo: string }
         Returns: string
       }
+      _validar_gps: { Args: { g: Json }; Returns: Json }
       adicionar_item_lote: {
         Args: {
           p_data: string
@@ -20150,6 +20151,10 @@ export type Database = {
       fn_criar_registro_aplicacao_manual: {
         Args: { p_cabecalho: Json; p_detalhes: Json }
         Returns: string
+      }
+      fn_criar_registro_aplicacao_manual_v2: {
+        Args: { p_payload: Json }
+        Returns: Json
       }
       fn_designar_equipe_atividade: {
         Args: {

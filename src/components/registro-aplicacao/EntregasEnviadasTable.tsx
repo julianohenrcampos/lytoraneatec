@@ -300,8 +300,9 @@ const EntregasEnviadasTable: React.FC<Props> = ({
                   </span>
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">
-                  Edição indisponível — RPC segura de atualização ainda não
-                  implementada. Visível apenas para SuperAdm.
+                  Edição de registro manual ainda não disponível. Para corrigir,
+                  exclua e recrie o registro. Edição segura será liberada em
+                  fase posterior.
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

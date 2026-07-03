@@ -1091,97 +1091,7 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     return null;
   }, [ruas]);
 
-  // ============== Finalização ==============
-  const buildBlocoContexto = (): string => {
-    const eq = equipesQ.data?.find((e) => e.id === ini.equipeId);
-    const mot = motoristasQ.data?.find((m) => m.id === carga.motoristaId);
-    const cabecalho = [
-      "[CONTEXTO_OPERACIONAL]",
-      `Equipe: ${eq?.nome_equipe || ini.equipeId || "-"}`,
-      `Caminhão/Frota: ${carga.frota || carga.caminhaoId || "-"}`,
-      `Placa: ${carga.placa || "-"}`,
-      `Motorista: ${mot?.nome_completo || carga.motoristaId || "-"}`,
-      `Total carga: ${carga.totalCargaT || "-"} t`,
-      `Temp. massa: ${carga.temperaturaMassa || "-"} °C`,
-      `Tipo de traço: ${carga.tipoTraco || "-"}`,
-      `Tipo de pintura: ${carga.tipoPintura || "-"}`,
-      `Condomínio: ${ini.condominio === "sim" ? "Sim" : ini.condominio === "nao" ? "Não" : "-"}`,
-      `Total ruas: ${totais.qtdRuas}`,
-      `Total buracos: ${totais.qtdBuracos}`,
-      `Área total: ${totais.areaTotal.toFixed(2)} m²`,
-      `Espessura média do caminhão: ${totais.espessuraMediaCm.toFixed(2)} cm`,
-      "[/CONTEXTO_OPERACIONAL]",
-    ].join("\n");
-
-    // Bloco JSON [RUAS_APLICACAO] — reconstrói agrupamento por rua no Visualizar
-    // Fase A.1: temporário até a Fase B criar bd_registro_aplicacao_ruas.
-    // Sem imagens, sem base64, sem File — apenas metadados.
-    const cargaT = totais.totalCargaT;
-    const areaTot = totais.areaTotal;
-    // Rateio estrito com resíduo — mesmo cálculo do payload.
-    const refsBloco: BuracoRateioRef[] = [];
-    ruas.forEach((r) => {
-      r.buracos.forEach((b) => {
-        refsBloco.push({
-          idLocal: b.idLocal,
-          ruaIdLocal: r.idLocal,
-          sequenciaAplicacao: b.sequenciaAplicacao,
-          areaCalculada: b.areaCalculada || 0,
-        });
-      });
-    });
-    const mapaTonBloco = cargaT > 0 ? computeToneladasBuracosComResiduo(refsBloco, cargaT, 3) : {};
-
-    const ruasJson = ruas.map((r, ri) => {
-      const areaRua = r.buracos.reduce((s, b) => s + (b.areaCalculada || 0), 0);
-      const toneladaRua = r.buracos.reduce((s, b) => s + (mapaTonBloco[b.idLocal] ?? 0), 0);
-      return {
-        idLocal: r.idLocal,
-        chaveNorm: r.chaveNorm,
-        logradouro: r.logradouro,
-        bairro: r.bairro || null,
-        cidade: r.cidade || null,
-        uf: r.uf || null,
-        sequenciaRua: ri + 1,
-        areaRua: Number(areaRua.toFixed(4)),
-        toneladaRua: Number(toneladaRua.toFixed(3)),
-        buracos: r.buracos.map((b) => {
-          const rateioB = mapaTonBloco[b.idLocal] ?? 0;
-          return {
-            sequenciaRua: b.sequenciaRua,
-            sequenciaAplicacao: b.sequenciaAplicacao,
-            tipo_item: b.tipo_item,
-            bordo: b.bordo || null,
-            comprimento: Number(b.comprimento) || null,
-            larguraMedia: Number(b.larguraMedia) || null,
-            area: Number((b.areaCalculada || 0).toFixed(4)),
-            toneladaRateada: Number(rateioB.toFixed(3)),
-            espessura: Number(b.espessura) || null,
-            gps: b.gps
-              ? {
-                  latitude: b.gps.latitude,
-                  longitude: b.gps.longitude,
-                  accuracy: b.gps.accuracy,
-                }
-              : null,
-            fotosCount: b.fotosCount || 0,
-            observacao: b.observacao || null,
-          };
-        }),
-      };
-    });
-    const ruasBloco = `[RUAS_APLICACAO]\n${JSON.stringify(ruasJson)}\n[/RUAS_APLICACAO]`;
-
-    const obsBloco = [
-      "[OBSERVACOES_APONTADOR]",
-      obsFinal.trim() || "(sem observações finais)",
-      "[/OBSERVACOES_APONTADOR]",
-    ].join("\n");
-
-    return `${cabecalho}\n\n${ruasBloco}\n\n${obsBloco}`;
-  };
-
-
+  // ============== Finalização (RPC v2 — payload hierárquico) ==============
   const validarFinalizacao = (): string | null => {
     if (!iniciaisOk) return "Preencha os Dados Iniciais.";
     const errCarga = validarCarga();
@@ -1190,6 +1100,8 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     for (const r of ruas) {
       if (r.buracos.length === 0)
         return `A rua "${describeRua(r)}" não tem apontamentos.`;
+      if (!r.bairro || !r.bairro.trim())
+        return `A rua "${describeRua(r)}" está sem bairro.`;
     }
     if (totais.totalCargaT <= 0) return "Total da carga precisa ser > 0.";
     if (totais.areaTotal <= 0) return "Área total precisa ser > 0.";
@@ -1200,11 +1112,11 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     const err = validarFinalizacao();
     if (err) return toast.error(err);
     setEstado("finalizando");
+
     const tempMassa = Number(carga.temperaturaMassa);
-    const primeiroLogradouro = ruas[0]?.logradouro || "";
-    // Rateio ESTRITO com resíduo aplicado ao buraco de maior área.
-    // Garantia: Σ tonelada_buraco === totalCargaT (bit-a-bit).
     const cargaT = totais.totalCargaT;
+
+    // Rateio estrito com resíduo — garante Σ tonelada_buraco === totalCargaT (3 casas).
     const refs: BuracoRateioRef[] = [];
     ruas.forEach((r) => {
       r.buracos.forEach((b) => {
@@ -1218,9 +1130,40 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     });
     const mapaTon = cargaT > 0 ? computeToneladasBuracosComResiduo(refs, cargaT, 3) : {};
 
-    const detalhes: any[] = [];
-    ruas.forEach((r) => {
-      r.buracos.forEach((b) => {
+    // Helper: só inclui gps se latitude E longitude forem numéricos finitos.
+    const gpsRua = (r: RuaLocal) => {
+      const lat = r.latitude;
+      const lng = r.longitude;
+      if (typeof lat === "number" && typeof lng === "number"
+          && Number.isFinite(lat) && Number.isFinite(lng)) {
+        return { latitude: lat, longitude: lng };
+      }
+      return undefined;
+    };
+    const gpsBuraco = (b: BuracoLocal) => {
+      const g = b.gps;
+      if (!g) return undefined;
+      const lat = g.latitude;
+      const lng = g.longitude;
+      if (typeof lat === "number" && typeof lng === "number"
+          && Number.isFinite(lat) && Number.isFinite(lng)) {
+        const out: { latitude: number; longitude: number; accuracy?: number; capturedAt?: string } = {
+          latitude: lat,
+          longitude: lng,
+        };
+        if (typeof g.accuracy === "number" && Number.isFinite(g.accuracy)) out.accuracy = g.accuracy;
+        if (g.capturedAt) out.capturedAt = g.capturedAt;
+        return out;
+      }
+      return undefined;
+    };
+
+    // Re-numera sequencia_aplicacao 1..N contígua na ordem visual (rua a rua).
+    // sequencia_rua é re-numerada 1..N por rua.
+    let seqAplGlobal = 0;
+    const ruasPayload = ruas.map((r, idx) => {
+      const buracosPayload = r.buracos.map((b, bi) => {
+        seqAplGlobal += 1;
         const areaB = b.areaCalculada || 0;
         let ton: number;
         if (cargaT > 0) {
@@ -1229,32 +1172,114 @@ const NovoRegistroManualModal: React.FC<Props> = ({
           const tonManual = Number(b.toneladaAplicada);
           ton = Number.isFinite(tonManual) && tonManual > 0 ? tonManual : 0;
         }
-        detalhes.push({
-          tipo_item: b.tipo_item,
-          logradouro_nome: r.logradouro,
+        const tempAp = Number(b.temperaturaAplicacao);
+        const out: any = {
+          idLocal: b.idLocal,
+          tipo_item: b.tipo_item || "buraco",
+          sequencia_aplicacao: seqAplGlobal,
+          sequencia_rua: bi + 1,
+          comprimento: Number(b.comprimento) || 0,
+          largura_media: Number(b.larguraMedia) || 0,
           area_aplicada: areaB > 0 ? areaB : null,
-          comprimento: Number(b.comprimento) || null,
-          largura_media: Number(b.larguraMedia) || null,
           tonelada_aplicada: ton || 0,
           bordo: b.bordo || null,
-        });
+          observacao: b.observacao || null,
+        };
+        if (Number.isFinite(tempAp) && tempAp > 0) out.temperatura_aplicacao = tempAp;
+        const g = gpsBuraco(b);
+        if (g) out.gps = g;
+        return out;
+      });
+
+      const ruaOut: any = {
+        idLocal: r.idLocal,
+        ordem_rua: idx + 1,
+        logradouro: r.logradouro,
+        bairro: r.bairro,
+        cidade: r.cidade || null,
+        uf: r.uf || null,
+        buracos: buracosPayload,
+      };
+      const g = gpsRua(r);
+      if (g) ruaOut.gps = g;
+      return ruaOut;
+    });
+
+    // Contexto operacional como OBJETO — a RPC v2 anexa como [CONTEXTO_OPERACIONAL]
+    // ao final de observacoes_gerais. NÃO concatenar aqui.
+    const eq = equipesQ.data?.find((e) => e.id === ini.equipeId);
+    const mot = motoristasQ.data?.find((m) => m.id === carga.motoristaId);
+    const contextoOperacional: Record<string, unknown> = {
+      equipe_id: ini.equipeId || null,
+      equipe_nome: eq?.nome_equipe || null,
+      caminhao_id: carga.caminhaoId || null,
+      frota: carga.frota || null,
+      placa: carga.placa || null,
+      motorista_id: carga.motoristaId || null,
+      motorista_nome: mot?.nome_completo || null,
+      total_carga_t: cargaT,
+      temperatura_massa: Number.isFinite(tempMassa) && tempMassa > 0 ? tempMassa : null,
+      tipo_traco: carga.tipoTraco || null,
+      tipo_pintura: carga.tipoPintura || null,
+      condominio:
+        ini.condominio === "sim" ? "sim" :
+        ini.condominio === "nao" ? "nao" : null,
+      totais: {
+        qtd_ruas: totais.qtdRuas,
+        qtd_buracos: totais.qtdBuracos,
+        area_total_m2: Number(totais.areaTotal.toFixed(4)),
+        espessura_media_cm: Number(totais.espessuraMediaCm.toFixed(2)),
+      },
+    };
+
+    const obsTexto = (obsFinal || "").trim();
+
+    // B.3.5-B — Fotos NUNCA entram no p_payload. Coletadas em mapa separado por idLocal.
+    const fotosPorBuracoIdLocal: Record<string, File[]> = {};
+    let buracosCount = 0;
+    let buracosComFotos = 0;
+    let totalFiles = 0;
+    ruas.forEach((r) => {
+      r.buracos.forEach((b) => {
+        buracosCount += 1;
+        if (b.fotos && b.fotos.length > 0) {
+          fotosPorBuracoIdLocal[b.idLocal] = b.fotos;
+          buracosComFotos += 1;
+          totalFiles += b.fotos.length;
+        }
       });
     });
 
+    console.log("[REGISTRO_MANUAL][FOTOS_FORM_STATE]", {
+      ruasCount: ruas.length,
+      buracosCount,
+      buracosComFotos,
+      fotosPorBuracoIdLocalKeys: Object.keys(fotosPorBuracoIdLocal),
+      totalFiles,
+    });
+    console.log("[REGISTRO_MANUAL][FOTOS_PAYLOAD_MAP]", {
+      keys: Object.keys(fotosPorBuracoIdLocal),
+      totalFiles,
+    });
 
     mutation.mutate(
       {
-        cabecalho: {
-          centro_custo_id: ini.centroCustoId,
-          atividade: ini.atividade,
-          data_aplicacao: ini.data,
-          hora_chegada_local: ini.horaChegada || null,
-          logradouro_aplicado: primeiroLogradouro,
-          temperatura_chegada: !Number.isNaN(tempMassa) && tempMassa > 0 ? tempMassa : null,
-          temperatura_aplicacao: ultimaTempAplicacao,
-          observacoes_gerais: buildBlocoContexto(),
+        payload: {
+          cabecalho: {
+            centro_custo_id: ini.centroCustoId,
+            atividade: ini.atividade,
+            data_aplicacao: ini.data,
+            hora_chegada_local: ini.horaChegada || null,
+            temperatura_chegada:
+              Number.isFinite(tempMassa) && tempMassa > 0 ? tempMassa : null,
+            temperatura_aplicacao: ultimaTempAplicacao,
+            total_carga_t: cargaT,
+            observacoes_gerais: obsTexto || null,
+            contexto_operacional: contextoOperacional,
+          },
+          ruas: ruasPayload,
         },
-        detalhes,
+        fotosPorBuracoIdLocal,
       },
       { onError: () => setEstado("em_andamento") }
     );
@@ -1410,7 +1435,7 @@ const NovoRegistroManualModal: React.FC<Props> = ({
           disabled={blocked || mutation.isPending || totais.qtdBuracos === 0}
           className="w-full sm:w-auto"
         >
-          {mutation.isPending ? "Enviando..." : "Finalizar Apontamento"}
+          {mutation.isPending ? "Salvando..." : "Salvar Registro"}
         </Button>
       ),
     };
@@ -2238,8 +2263,8 @@ const NovoRegistroManualModal: React.FC<Props> = ({
                 )}
                 <div className="text-xs text-muted-foreground flex items-center gap-2">
                   <AlertTriangle className="h-3 w-3 text-amber-600" />
-                  Numeração <b>Buraco NN</b> é por rua. <b>Seq geral</b> é cronológica no registro. GPS
-                  e fotos ficam em memória local — persistência ocorrerá nas Fases B/C/E.
+                  Numeração <b>Buraco NN</b> é por rua. <b>Seq geral</b> é cronológica no registro.
+                  Fotos serão enviadas ao salvar o registro.
                 </div>
               </TabsContent>
 

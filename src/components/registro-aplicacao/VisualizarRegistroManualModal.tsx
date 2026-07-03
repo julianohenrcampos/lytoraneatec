@@ -11,7 +11,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, ImageOff } from "lucide-react";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 import {
   parseContextoOperacional,
@@ -22,12 +22,98 @@ import {
   classificarEspessuraMedia,
   computeEspessuraMediaCmFromTotais,
 } from "@/utils/registroAplicacao/rateioTonelada";
+import { criarSignedUrlFotoManual } from "@/services/registro-aplicacao/uploadFotosManual";
 import type { CentroCustoLookup } from "./EntregasEnviadasTable";
 
 function formatBR(n: number, digits = 2): string {
   if (!Number.isFinite(n)) return "-";
   return n.toFixed(digits).replace(".", ",");
 }
+
+// ============================================================================
+// B.3.5-B — Galeria de fotos por detalhe via signed URLs (bucket privado).
+// Nunca usa getPublicUrl. Signed URL válida por 1h.
+// ============================================================================
+const FotosDetalhe: React.FC<{ detalheId: string; paths: string[] }> = ({
+  detalheId,
+  paths,
+}) => {
+  const [urls, setUrls] = React.useState<Array<{ path: string; url: string | null }>>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const resolved = await Promise.all(
+        paths.map(async (p) => {
+          const r = await criarSignedUrlFotoManual(p, 3600);
+          if (r.ok && r.url) {
+            console.log("[REGISTRO_MANUAL][FOTOS_SIGNED_URL_SUCCESS]", {
+              detalheId,
+              path: p,
+            });
+            return { path: p, url: r.url };
+          }
+          console.warn("[REGISTRO_MANUAL][FOTOS_SIGNED_URL_FAIL]", {
+            detalheId,
+            path: p,
+            erro: r.error,
+          });
+          return { path: p, url: null };
+        })
+      );
+      if (!cancelled) {
+        setUrls(resolved);
+        setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [detalheId, paths.join("|")]);
+
+  if (!paths || paths.length === 0) return null;
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-muted-foreground pt-1">
+        <Loader2 className="h-3 w-3 animate-spin" /> Carregando fotos...
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-wrap gap-2 pt-2">
+      {urls.map((u, idx) =>
+        u.url ? (
+          <a
+            key={idx}
+            href={u.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block h-16 w-16 rounded overflow-hidden border bg-muted"
+          >
+            <img
+              src={u.url}
+              alt={`Foto ${idx + 1}`}
+              className="h-full w-full object-cover"
+              loading="lazy"
+            />
+          </a>
+        ) : (
+          <div
+            key={idx}
+            className="h-16 w-16 rounded border bg-muted/50 flex flex-col items-center justify-center text-[10px] text-muted-foreground p-1 text-center"
+            title="Foto indisponível ou sem permissão."
+          >
+            <ImageOff className="h-4 w-4 mb-0.5" />
+            <span>indisponível</span>
+          </div>
+        )
+      )}
+    </div>
+  );
+};
+
 
 
 
@@ -61,6 +147,7 @@ interface DetalheRow {
   area_aplicada: number | null;
   tonelada_aplicada: number | null;
   logradouro_nome: string | null;
+  fotos_aplicacao: string[] | null;
 }
 
 const Field: React.FC<{ label: string; value?: React.ReactNode }> = ({ label, value }) => (
@@ -103,7 +190,7 @@ const VisualizarRegistroManualModal: React.FC<Props> = ({
       const { data, error } = await supabase
         .from("bd_registro_aplicacao_detalhes")
         .select(
-          "id, sequencia_aplicacao, tipo_item, bordo, comprimento, largura_media, area_aplicada, tonelada_aplicada, logradouro_nome"
+          "id, sequencia_aplicacao, tipo_item, bordo, comprimento, largura_media, area_aplicada, tonelada_aplicada, logradouro_nome, fotos_aplicacao"
         )
         .eq("registro_aplicacao_id", registroId!)
         .order("sequencia_aplicacao", { ascending: true });
@@ -411,6 +498,32 @@ const VisualizarRegistroManualModal: React.FC<Props> = ({
                 </div>
               )}
             </section>
+
+            {/* Fotos dos apontamentos (B.3.5-B) */}
+            {(() => {
+              const comFotos = detalhes.filter(
+                (d) => Array.isArray(d.fotos_aplicacao) && d.fotos_aplicacao.length > 0
+              );
+              if (comFotos.length === 0) return null;
+              return (
+                <section className="space-y-3">
+                  <h3 className="text-sm font-semibold border-b pb-1">
+                    Fotos dos apontamentos ({comFotos.reduce((s, d) => s + (d.fotos_aplicacao?.length || 0), 0)})
+                  </h3>
+                  <div className="space-y-3">
+                    {comFotos.map((d) => (
+                      <div key={d.id} className="border rounded-md p-3">
+                        <div className="text-xs text-muted-foreground mb-1">
+                          Seq {d.sequencia_aplicacao ?? "-"} · {d.tipo_item ?? "-"}
+                          {d.logradouro_nome ? ` · ${d.logradouro_nome}` : ""}
+                        </div>
+                        <FotosDetalhe detalheId={d.id} paths={d.fotos_aplicacao || []} />
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              );
+            })()}
 
             {/* Observações do apontador */}
             {contexto.observacoesApontador && (
