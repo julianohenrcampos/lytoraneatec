@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import MainLayout from "@/components/layout/MainLayout";
 import { usePermissionGuard } from "@/hooks/usePermissionGuard";
@@ -16,6 +17,7 @@ import RelatorioAplicacaoTabela from "@/components/relatorio-aplicacao/Relatorio
 import RelatorioAplicacaoObservacoes from "@/components/relatorio-aplicacao/RelatorioAplicacaoObservacoes";
 import RelatorioAplicacaoAnexos from "@/components/relatorio-aplicacao/RelatorioAplicacaoAnexos";
 import RelatorioAplicacaoAssinaturas from "@/components/relatorio-aplicacao/RelatorioAplicacaoAssinaturas";
+import RelatorioApsAba from "@/components/relatorio-aps/RelatorioApsAba";
 import { usePageTitle } from "@/contexts/PageTitleContext";
 
 interface FiltrosFormData {
@@ -176,8 +178,17 @@ const RelatorioAplicacaoDiaria: React.FC = () => {
   return (
     <MainLayout>
       <div className="space-y-6">
-        {/* Header */}
-        <RelatorioAplicacaoHeader />
+        <Tabs defaultValue="aps" className="w-full">
+          <TabsList>
+            <TabsTrigger value="aps">Relatório AP's</TabsTrigger>
+            <TabsTrigger value="legado">Relatório Legado</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="aps" className="space-y-6 mt-4">
+            <RelatorioApsAba centrosCusto={centrosCusto} />
+          </TabsContent>
+
+          <TabsContent value="legado" className="space-y-6 mt-4">
 
         {/* Seção 0 - Filtros Superiores */}
         <Card className="w-full">
@@ -322,6 +333,9 @@ const RelatorioAplicacaoDiaria: React.FC = () => {
             <RelatorioAplicacaoAssinaturas />
           </div>
         )}
+          </TabsContent>
+        </Tabs>
+
       </div>
     </MainLayout>
   );

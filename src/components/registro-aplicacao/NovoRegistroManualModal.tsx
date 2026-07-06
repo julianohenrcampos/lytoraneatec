@@ -67,6 +67,8 @@ import { normalizeRuaKey, describeRua } from "@/utils/registroManual/ruaKey";
 import { captureGeo, type GeoCapture } from "@/utils/registroManual/captureGeo";
 import { useGeocoding } from "@/hooks/useGeocoding";
 import { extrairLogradouro } from "@/utils/registroManual/parseLogradouro";
+import { useCarregarRegistroManual } from "@/hooks/registro-aplicacao/useCarregarRegistroManual";
+import { useExcluirRegistroManual } from "@/hooks/registro-aplicacao/useExcluirRegistroManual";
 import {
   computeToneladasBuracosComResiduo,
   classificarEspessuraMedia,
@@ -167,6 +169,7 @@ interface Props {
   onOpenChange: (v: boolean) => void;
   centrosCusto: CentroCustoOpt[];
   draftId?: string | null;
+  editRegistroId?: string | null;
 }
 
 interface DadosIniciaisState {
@@ -205,6 +208,7 @@ interface BuracoLocal {
   gps: GeoCapture | null;
   fotos: File[]; // in-memory
   fotosCount: number; // persistido no draft
+  fotosPaths?: string[]; // paths existentes no bucket (modo edição)
 }
 
 interface RuaLocal {
@@ -301,6 +305,7 @@ const NovoRegistroManualModal: React.FC<Props> = ({
   onOpenChange,
   centrosCusto,
   draftId = null,
+  editRegistroId = null,
 }) => {
   const [tab, setTab] = useState<string>("iniciais");
   const [estado, setEstado] = useState<EstadoInterno>("rascunho");
@@ -344,6 +349,11 @@ const NovoRegistroManualModal: React.FC<Props> = ({
 
   const { saveDraft, loadDraft, removeDraft } = useRegistroManualDrafts();
 
+  const isEditMode = !!editRegistroId;
+  const editableQ = useCarregarRegistroManual(open ? editRegistroId : null);
+  const excluirManualMutation = useExcluirRegistroManual();
+  const [hydratedEditId, setHydratedEditId] = useState<string | null>(null);
+
   const ccGeoQ = useQuery({
     queryKey: ["novo-registro-manual", "cc-geo", ini.centroCustoId],
     enabled: open && !!ini.centroCustoId,
@@ -382,6 +392,19 @@ const NovoRegistroManualModal: React.FC<Props> = ({
   const mutation = useCriarRegistroManual({
     onSuccess: () => {
       if (currentDraftId) removeDraft(currentDraftId);
+      // Edit mode: delete old record after successful create
+      if (editRegistroId) {
+        excluirManualMutation.mutate(editRegistroId, {
+          onSuccess: () => {
+            toast.success("Registro atualizado.");
+          },
+          onError: () => {
+            toast.warning(
+              "Novo registro criado, mas o antigo não pôde ser excluído. Remova-o manualmente."
+            );
+          },
+        });
+      }
       hardReset();
       onOpenChange(false);
     },
@@ -450,6 +473,8 @@ const NovoRegistroManualModal: React.FC<Props> = ({
   // ============== Open effect / draft hydration ==============
   useEffect(() => {
     if (!open) return;
+    // Edit mode tem seu próprio effect abaixo. Não sobrescreve com defaults.
+    if (editRegistroId) return;
 
     if (draftId) {
       const d = loadDraft(draftId);
@@ -541,6 +566,106 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     setEditBuracoRef(null);
     setObsFinal("");
   }, [open, draftId, loadDraft]);
+
+  // ============== Edit mode hydration ==============
+  useEffect(() => {
+    if (!open) {
+      setHydratedEditId(null);
+      return;
+    }
+    if (!editRegistroId) return;
+    const ed = editableQ.data;
+    if (!ed) return;
+    if (hydratedEditId === editRegistroId) return; // já hidratado
+
+    setCurrentDraftId(null);
+    setTab("iniciais");
+    setIni({
+      centroCustoId: ed.ini.centroCustoId,
+      atividade: ed.ini.atividade,
+      data: ed.ini.data,
+      horaChegada: ed.ini.horaChegada,
+      equipeId: ed.ini.equipeId,
+      condominio: ed.ini.condominio,
+    });
+    setCarga({
+      caminhaoId: ed.carga.caminhaoId,
+      frota: ed.carga.frota,
+      placa: ed.carga.placa,
+      motoristaId: ed.carga.motoristaId,
+      totalCargaT: ed.carga.totalCargaT,
+      temperaturaMassa: ed.carga.temperaturaMassa,
+      tipoTraco: (ed.carga.tipoTraco as any) || "",
+      tipoPintura: (ed.carga.tipoPintura as any) || "",
+    });
+
+    const ruasHidr: RuaLocal[] = ed.ruas.map((r) => {
+      const chave = normalizeRuaKey({
+        logradouro: r.logradouro,
+        bairro: r.bairro,
+        cidade: r.cidade,
+        uf: r.uf,
+      });
+      return {
+        idLocal: r.idLocal,
+        chaveNorm: chave,
+        logradouro: r.logradouro,
+        bairro: r.bairro,
+        cidade: r.cidade,
+        uf: r.uf,
+        cep: "",
+        latitude: r.latitude,
+        longitude: r.longitude,
+        accuracy: r.accuracy ?? null,
+        capturedAt: r.capturedAt ?? null,
+        origemLocalizacao: r.latitude != null ? "geocode" : "",
+        iniciadaEm: new Date().toISOString(),
+        buracos: r.buracos.map((b) => ({
+          idLocal: b.idLocal,
+          sequenciaAplicacao: b.sequenciaAplicacao,
+          sequenciaRua: b.sequenciaRua,
+          bordo: (b.bordo as any) || "",
+          comprimento: b.comprimento,
+          larguraMedia: b.larguraMedia,
+          toneladaAplicada: b.toneladaAplicada,
+          espessura: b.espessura,
+          temperaturaAplicacao: b.temperaturaAplicacao,
+          tipo_item: b.tipo_item,
+          observacao: b.observacao,
+          areaCalculada: b.areaCalculada,
+          gps: b.gps
+            ? {
+                latitude: b.gps.latitude,
+                longitude: b.gps.longitude,
+                accuracy: b.gps.accuracy ?? 0,
+                capturedAt: new Date().toISOString(),
+                source: "device",
+              }
+            : null,
+          fotos: [],
+          fotosCount: b.fotosPaths?.length || 0,
+          fotosPaths: b.fotosPaths || [],
+        })),
+      };
+    });
+
+    setRuas(ruasHidr);
+    setRuaAtualId(ruasHidr[ruasHidr.length - 1]?.idLocal ?? null);
+    setRuaForm(emptyRuaForm());
+    setBuracoForm(
+      emptyBuracoForm(ed.ini.atividade === "tapa_buraco" ? "buraco" : "faixa")
+    );
+    setEditBuracoRef(null);
+    setObsFinal(ed.obsFinal || "");
+    setIniciaisOk(true);
+    setEstado("em_andamento");
+    setHydratedEditId(editRegistroId);
+    console.log("[REGISTRO_MANUAL][EDIT_HYDRATE]", {
+      registroId: editRegistroId,
+      ruas: ruasHidr.length,
+      buracos: ruasHidr.reduce((s, r) => s + r.buracos.length, 0),
+    });
+  }, [open, editRegistroId, editableQ.data, hydratedEditId]);
 
   useEffect(() => {
     const tipoPadrao = ini.atividade === "tapa_buraco" ? "buraco" : tiposPermitidos[0];
@@ -703,20 +828,32 @@ const NovoRegistroManualModal: React.FC<Props> = ({
       // não sobrescrever form já preenchido (manual ou auto anterior)
       if (ruaForm.logradouro.trim() || ruaForm.bairro.trim() || ruaForm.latitude != null) return;
     }
-    setAutoLoc({ status: "loading", message: "Identificando rua atual..." });
-    const geo = await captureGeo(8000);
+    setAutoLoc({ status: "loading", message: "Buscando localização..." });
+    console.log("[REGISTRO_MANUAL][GEO_START] auto-rua");
+    const geo = await captureGeo({ timeoutMs: 20000, maximumAge: 30000 });
     if (!geo.ok || !geo.data) {
-      setAutoLoc({
-        status: "erro",
-        message: geo.error || "Não foi possível identificar a localização. Preencha a rua manualmente.",
-      });
+      const code = geo.errorCode;
+      const msg =
+        code === "permission_denied"
+          ? "Localização bloqueada. Ative a permissão nas configurações do navegador/PWA ou preencha manualmente."
+          : code === "insecure_context"
+          ? "Contexto não seguro — acesse via HTTPS para usar GPS. Preencha manualmente."
+          : geo.error ||
+            "Não foi possível obter a localização automaticamente. Verifique a permissão de localização ou preencha manualmente.";
+      setAutoLoc({ status: "erro", message: msg });
       return;
     }
     const { latitude, longitude, accuracy, capturedAt } = geo.data;
+    console.log("[REGISTRO_MANUAL][REVERSE_GEOCODE_START]", { accuracy });
     try {
       const rev = await reverseGeocode(latitude, longitude);
       const logr = extrairLogradouro(rev);
-      // Coordenadas só entram se AMBAS forem finitas
+      console.log("[REGISTRO_MANUAL][REVERSE_GEOCODE_SUCCESS]", {
+        hasLogradouro: !!logr,
+        bairro: !!rev?.endereco_bairro,
+        cidade: !!rev?.endereco_cidade,
+        uf: !!rev?.endereco_estado,
+      });
       const hasCoords = Number.isFinite(latitude) && Number.isFinite(longitude);
       setRuaForm((prev) => ({
         ...prev,
@@ -750,7 +887,7 @@ const NovoRegistroManualModal: React.FC<Props> = ({
         });
       }
     } catch (e) {
-      console.error("[REGISTRO_MANUAL][AUTO_RUA] reverse error", e);
+      console.error("[REGISTRO_MANUAL][REVERSE_GEOCODE_ERROR]", e);
       setAutoLoc({
         status: "erro",
         message: "Não foi possível identificar a localização. Preencha a rua manualmente.",
@@ -951,9 +1088,26 @@ const NovoRegistroManualModal: React.FC<Props> = ({
 
     // Captura GPS best-effort (Fase A: informativo; Fase B/C: enforcement na RPC)
     setCapturandoGeo(true);
-    const geoResult = await captureGeo(8000);
+    const geoResult = await captureGeo({ timeoutMs: 20000, maximumAge: 30000 });
     setCapturandoGeo(false);
-    const gps = geoResult.data;
+    let gps = geoResult.data;
+    console.log("[REGISTRO_MANUAL][BURACO_GEO_CAPTURE]", {
+      ok: geoResult.ok,
+      accuracy: gps?.accuracy,
+      errorCode: geoResult.errorCode,
+    });
+    // Fallback: se GPS do buraco falhar, usa coordenada da rua (se houver)
+    if (!gps && ruaAtual && typeof ruaAtual.latitude === "number" && typeof ruaAtual.longitude === "number"
+        && Number.isFinite(ruaAtual.latitude) && Number.isFinite(ruaAtual.longitude)) {
+      gps = {
+        latitude: ruaAtual.latitude,
+        longitude: ruaAtual.longitude,
+        accuracy: Number.isFinite(ruaAtual.accuracy as number) ? (ruaAtual.accuracy as number) : 9999,
+        capturedAt: new Date().toISOString(),
+        source: "device",
+      };
+      console.log("[REGISTRO_MANUAL][BURACO_GEO_CAPTURE] fallback→rua", { accuracy: gps.accuracy });
+    }
     if (!geoResult.ok) {
       toast.warning(`GPS não capturado (${geoResult.error}). Apontamento salvo mesmo assim.`);
     } else if (gps && gps.accuracy > 150) {
@@ -1305,6 +1459,21 @@ const NovoRegistroManualModal: React.FC<Props> = ({
       return ruaOut;
     });
 
+    // Diagnóstico GPS: quantas ruas/buracos têm gps no payload final
+    const _totalBuracos = ruasPayload.reduce((s, r) => s + (r.buracos?.length || 0), 0);
+    const _buracosComGps = ruasPayload.reduce(
+      (s, r) => s + (r.buracos?.filter((b: any) => !!b.gps).length || 0),
+      0
+    );
+    const _ruasComGps = ruasPayload.filter((r: any) => !!r.gps).length;
+    console.log("[REGISTRO_MANUAL][PAYLOAD_GEO_CHECK]", {
+      totalRuas: ruasPayload.length,
+      ruasComGps: _ruasComGps,
+      totalBuracos: _totalBuracos,
+      buracosComGps: _buracosComGps,
+    });
+
+
     // Contexto operacional como OBJETO — a RPC v2 anexa como [CONTEXTO_OPERACIONAL]
     // ao final de observacoes_gerais. NÃO concatenar aqui.
     const eq = equipesQ.data?.find((e) => e.id === ini.equipeId);
@@ -1572,7 +1741,7 @@ const NovoRegistroManualModal: React.FC<Props> = ({
         <DialogContent className="w-[calc(100vw-16px)] sm:w-auto sm:max-w-5xl max-h-[calc(100dvh-16px)] sm:max-h-[92vh] overflow-hidden flex flex-col p-0 gap-0">
           <DialogHeader className="shrink-0 px-4 sm:px-6 pt-4 pb-3 border-b">
             <DialogTitle className="flex flex-col sm:flex-row sm:items-center gap-2 pr-8 text-base sm:text-lg leading-tight">
-              <span className="break-words">Novo Registro Manual de Aplicação</span>
+              <span className="break-words">{isEditMode ? "Editar Registro Manual de Aplicação" : "Novo Registro Manual de Aplicação"}</span>
               <Badge className="text-[10px] sm:text-xs px-1.5 py-0.5 self-start" variant="outline">
                 Nº será atribuído
               </Badge>

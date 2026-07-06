@@ -59,6 +59,7 @@ interface Props {
   rascunhos?: RegistroManualDraft[];
   onContinuarRascunho?: (draftId: string) => void;
   onDescartarRascunho?: (draftId: string) => void;
+  onEditarManual?: (registroId: string) => void;
   statusFilter?: string;
   centroCustoById?: Record<string, CentroCustoLookup>;
 }
@@ -99,6 +100,7 @@ const EntregasEnviadasTable: React.FC<Props> = ({
   rascunhos = [],
   onContinuarRascunho,
   onDescartarRascunho,
+  onEditarManual,
   statusFilter,
   centroCustoById = {},
 }) => {
@@ -282,30 +284,21 @@ const EntregasEnviadasTable: React.FC<Props> = ({
             <Eye className="h-4 w-4" />
             Visualizar
           </Button>
-          {!isPermissionLoading && isSuperAdmin && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span tabIndex={0} className="inline-flex">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled
-                      className="flex items-center gap-2 opacity-70"
-                      aria-label="Editar registro manual (indisponível)"
-                    >
-                      <Edit className="h-4 w-4" />
-                      Editar
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-xs">
-                  Edição de registro manual ainda não disponível. Para corrigir,
-                  exclua e recrie o registro. Edição segura será liberada em
-                  fase posterior.
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+          {!isPermissionLoading && (isSuperAdmin || (!!userId && row.raw.created_by === userId)) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEditarManual?.(row.raw.id);
+              }}
+              className="flex items-center gap-2"
+              aria-label="Editar registro manual"
+              disabled={!onEditarManual}
+            >
+              <Edit className="h-4 w-4" />
+              Editar
+            </Button>
           )}
           {(() => {
             const podeExcluir =

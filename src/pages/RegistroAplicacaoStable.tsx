@@ -18,6 +18,7 @@ import NovoRegistroAplicacaoModal from "@/components/registro-aplicacao/NovoRegi
 import NovoRegistroManualModal from "@/components/registro-aplicacao/NovoRegistroManualModal";
 import { useRegistrosManuais } from "@/hooks/registro-aplicacao/useRegistrosManuais";
 import { useRegistroManualDrafts } from "@/hooks/registro-aplicacao/useRegistroManualDrafts";
+import RelatorioApsBuilder from "@/components/relatorio-aps/RelatorioApsBuilder";
 
 const RegistroAplicacaoStable: React.FC = () => {
   usePageTitle("Registro de Aplicação");
@@ -27,6 +28,8 @@ const RegistroAplicacaoStable: React.FC = () => {
   const [selectedEntrega, setSelectedEntrega] = useState<ListaProgramacaoEntrega | null>(null);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [manualDraftId, setManualDraftId] = useState<string | null>(null);
+  const [manualEditId, setManualEditId] = useState<string | null>(null);
+  const [builderRegistroId, setBuilderRegistroId] = useState<string | null>(null);
 
   const authData = usePermission();
   const teamAccess = useUserDataAccessStable(authData.userId, authData.userRole, authData.isSuperAdmin);
@@ -104,12 +107,22 @@ const RegistroAplicacaoStable: React.FC = () => {
 
   const handleContinuarRascunho = useCallback((id: string) => {
     setManualDraftId(id);
+    setManualEditId(null);
+    setIsManualModalOpen(true);
+  }, []);
+
+  const handleEditarManual = useCallback((id: string) => {
+    setManualEditId(id);
+    setManualDraftId(null);
     setIsManualModalOpen(true);
   }, []);
 
   const handleManualModalOpenChange = useCallback((v: boolean) => {
     setIsManualModalOpen(v);
-    if (!v) setManualDraftId(null);
+    if (!v) {
+      setManualDraftId(null);
+      setManualEditId(null);
+    }
   }, []);
 
   const handleFilter = useCallback((newFilters: RegistroAplicacaoFiltersType) => {
@@ -214,11 +227,18 @@ const RegistroAplicacaoStable: React.FC = () => {
               rascunhos={rascunhosFiltrados}
               onContinuarRascunho={handleContinuarRascunho}
               onDescartarRascunho={removeDraft}
+              onEditarManual={handleEditarManual}
               statusFilter={filters.status}
               centroCustoById={centroCustoById}
             />
           </>
         )}
+
+        <RelatorioApsBuilder
+          registroAplicacaoId={builderRegistroId}
+          open={!!builderRegistroId}
+          onOpenChange={(v) => !v && setBuilderRegistroId(null)}
+        />
 
         <NovoRegistroAplicacaoModal
           isOpen={isModalOpen}
@@ -232,6 +252,7 @@ const RegistroAplicacaoStable: React.FC = () => {
           onOpenChange={handleManualModalOpenChange}
           centrosCusto={filterData?.centrosCusto || []}
           draftId={manualDraftId}
+          editRegistroId={manualEditId}
         />
       </div>
     </MainLayout>
