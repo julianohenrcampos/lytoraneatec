@@ -133,7 +133,6 @@ const EquipePage: React.FC = () => {
         equipe={currentEquipe || undefined}
         encarregados={encarregados}
         apontadores={apontadores}
-        allFuncionarios={allFuncionarios}
       />
       
       <EquipeDetailsModal
@@ -154,9 +153,9 @@ const EquipePage: React.FC = () => {
           onClose={handleCloseTransferModal}
           sourceEquipe={selectedEquipeForTransfer}
           allEquipes={equipes}
-          allFuncionarios={allFuncionarios}
         />
       )}
+
       
       <DeleteEquipeDialog
         isOpen={isDeleteModalOpen}

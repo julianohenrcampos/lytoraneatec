@@ -59,3 +59,18 @@ verify_jwt = false
 
 [functions.ponto-diaria-shadow]
 verify_jwt = false
+
+[functions.atestado-validar-matricula]
+verify_jwt = false
+
+[functions.atestado-criar-upload-url]
+verify_jwt = false
+
+[functions.atestado-submeter]
+verify_jwt = false
+
+[functions.atestado-arquivo-signed-url]
+verify_jwt = false
+
+[functions.atestado-notificar-reenvio]
+verify_jwt = false

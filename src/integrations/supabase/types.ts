@@ -903,6 +903,228 @@ export type Database = {
         }
         Relationships: []
       }
+      bd_atestados_medicos: {
+        Row: {
+          analisado_em: string | null
+          analisado_por: string | null
+          arquivo_hash_sha256: string
+          arquivo_mime: string
+          arquivo_path: string
+          arquivo_tamanho_bytes: number
+          centro_custo_id: string | null
+          centro_custo_snapshot: string | null
+          cid: string | null
+          created_at: string
+          data_emissao: string
+          data_inicio_afastamento: string | null
+          declaracao_ciencia_nao_validacao: boolean
+          declaracao_original_48h: boolean
+          declaracao_veracidade: boolean
+          declaracoes_aceitas_em: string | null
+          dentro_prazo_24h: boolean
+          dias_afastamento: number
+          enviado_em: string
+          funcionario_id: string
+          id: string
+          ip_origem: unknown
+          matricula_snapshot: string
+          medico_nome: string | null
+          medico_registro: string | null
+          nome_snapshot: string
+          notificacao_email_enviada_em: string | null
+          notificacao_email_erro: string | null
+          notificacao_email_status: string
+          notificacao_email_tentativas: number
+          observacao: string | null
+          observacao_saude: string | null
+          origem_hmac_nonce: string
+          prazo_calculo_regra: string
+          protocolo: string
+          status: string
+          updated_at: string
+          user_agent: string | null
+        }
+        Insert: {
+          analisado_em?: string | null
+          analisado_por?: string | null
+          arquivo_hash_sha256: string
+          arquivo_mime: string
+          arquivo_path: string
+          arquivo_tamanho_bytes: number
+          centro_custo_id?: string | null
+          centro_custo_snapshot?: string | null
+          cid?: string | null
+          created_at?: string
+          data_emissao: string
+          data_inicio_afastamento?: string | null
+          declaracao_ciencia_nao_validacao?: boolean
+          declaracao_original_48h?: boolean
+          declaracao_veracidade?: boolean
+          declaracoes_aceitas_em?: string | null
+          dentro_prazo_24h: boolean
+          dias_afastamento: number
+          enviado_em?: string
+          funcionario_id: string
+          id?: string
+          ip_origem?: unknown
+          matricula_snapshot: string
+          medico_nome?: string | null
+          medico_registro?: string | null
+          nome_snapshot: string
+          notificacao_email_enviada_em?: string | null
+          notificacao_email_erro?: string | null
+          notificacao_email_status?: string
+          notificacao_email_tentativas?: number
+          observacao?: string | null
+          observacao_saude?: string | null
+          origem_hmac_nonce: string
+          prazo_calculo_regra?: string
+          protocolo: string
+          status?: string
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Update: {
+          analisado_em?: string | null
+          analisado_por?: string | null
+          arquivo_hash_sha256?: string
+          arquivo_mime?: string
+          arquivo_path?: string
+          arquivo_tamanho_bytes?: number
+          centro_custo_id?: string | null
+          centro_custo_snapshot?: string | null
+          cid?: string | null
+          created_at?: string
+          data_emissao?: string
+          data_inicio_afastamento?: string | null
+          declaracao_ciencia_nao_validacao?: boolean
+          declaracao_original_48h?: boolean
+          declaracao_veracidade?: boolean
+          declaracoes_aceitas_em?: string | null
+          dentro_prazo_24h?: boolean
+          dias_afastamento?: number
+          enviado_em?: string
+          funcionario_id?: string
+          id?: string
+          ip_origem?: unknown
+          matricula_snapshot?: string
+          medico_nome?: string | null
+          medico_registro?: string | null
+          nome_snapshot?: string
+          notificacao_email_enviada_em?: string | null
+          notificacao_email_erro?: string | null
+          notificacao_email_status?: string
+          notificacao_email_tentativas?: number
+          observacao?: string | null
+          observacao_saude?: string | null
+          origem_hmac_nonce?: string
+          prazo_calculo_regra?: string
+          protocolo?: string
+          status?: string
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_atestados_medicos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_atestados_medicos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_atestados_medicos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_atestados_medicos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_atestados_medicos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_atestados_medicos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_atestados_medicos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_atestados_medicos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_atestados_medicos_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_atestados_medicos_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_atestados_medicos_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_atestados_nonces_utilizados: {
+        Row: {
+          funcionario_id: string
+          ip_origem: unknown
+          nonce: string
+          usado_em: string
+        }
+        Insert: {
+          funcionario_id: string
+          ip_origem?: unknown
+          nonce: string
+          usado_em?: string
+        }
+        Update: {
+          funcionario_id?: string
+          ip_origem?: unknown
+          nonce?: string
+          usado_em?: string
+        }
+        Relationships: []
+      }
       bd_ativos_auditoria: {
         Row: {
           acao: string
@@ -10523,6 +10745,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      bd_rate_limit_tentativas: {
+        Row: {
+          bloqueado_ate: string | null
+          chave_tipo: string
+          chave_valor: string
+          created_at: string
+          escopo: string
+          id: string
+          janela_inicio: string
+          tentativas: number
+          updated_at: string
+        }
+        Insert: {
+          bloqueado_ate?: string | null
+          chave_tipo: string
+          chave_valor: string
+          created_at?: string
+          escopo: string
+          id?: string
+          janela_inicio?: string
+          tentativas?: number
+          updated_at?: string
+        }
+        Update: {
+          bloqueado_ate?: string | null
+          chave_tipo?: string
+          chave_valor?: string
+          created_at?: string
+          escopo?: string
+          id?: string
+          janela_inicio?: string
+          tentativas?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       bd_rbac_legacy_map: {
         Row: {
@@ -20310,6 +20568,7 @@ export type Database = {
         }
         Returns: string
       }
+      fn_gerar_protocolo_atestado: { Args: never; Returns: string }
       fn_get_classificacao_reimpressao_payload: {
         Args: { p_solicitacao_id: string }
         Returns: {
@@ -20573,6 +20832,21 @@ export type Database = {
         Args: { _funcionario_id: string }
         Returns: boolean
       }
+      fn_rate_limit_check: {
+        Args: {
+          p_bloqueio_segundos: number
+          p_chave_tipo: string
+          p_chave_valor: string
+          p_escopo: string
+          p_janela_segundos: number
+          p_max_tentativas: number
+        }
+        Returns: {
+          bloqueado_ate: string
+          permitido: boolean
+          tentativas: number
+        }[]
+      }
       fn_recalcula_total_os: { Args: { p_os_id: string }; Returns: undefined }
       fn_registrar_leitura_os_sensivel: {
         Args: {
@@ -20582,6 +20856,10 @@ export type Database = {
           _recurso_tipo: string
         }
         Returns: undefined
+      }
+      fn_registrar_nonce_atestado: {
+        Args: { p_funcionario_id: string; p_ip: unknown; p_nonce: string }
+        Returns: boolean
       }
       fn_registrar_permissao: {
         Args: {

@@ -188,53 +188,79 @@ function drawNotasQuadro(
   state: RelatorioApsState,
 ): void {
   const { cabecalho } = state;
-  const notasH = 22;
-  // Notas / observações box
+
+  // Cabeçalho preto "DADOS DO RELATÓRIO"
   doc.setDrawColor(0);
   doc.setLineWidth(0.2);
-  doc.rect(area.x, area.y, area.w, notasH);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7);
-  doc.text("NOTAS / OBSERVAÇÕES", area.x + 1.5, area.y + 3);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
-  const obs = (cabecalho.observacoes || "").trim() || "—";
-  const linhas = doc.splitTextToSize(obs, area.w - 3);
-  doc.text(linhas.slice(0, 4), area.x + 1.5, area.y + 6.5);
-
-  // Quadro de dados
-  const qy = area.y + notasH + 2;
-  const qh = area.h - notasH - 2;
-  doc.rect(area.x, qy, area.w, qh);
+  doc.rect(area.x, area.y, area.w, area.h);
   doc.setFillColor(0, 0, 0);
-  doc.rect(area.x, qy, area.w, 4.5, "F");
+  doc.rect(area.x, area.y, area.w, 4.5, "F");
   doc.setTextColor(255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7);
-  doc.text("DADOS DO RELATÓRIO", area.x + 1.5, qy + 3.2);
+  doc.text("DADOS DO RELATÓRIO", area.x + 1.5, area.y + 3.2);
   doc.setTextColor(0);
 
-  const rows: [string, string][] = [
-    ["Obra", cabecalho.obra || "—"],
-    ["Empresa", cabecalho.empresa || "—"],
-    ["Cliente", cabecalho.cliente || "—"],
-    ["Rua", cabecalho.rua || "—"],
-    ["Bairro", cabecalho.bairro || "—"],
-    ["Revisão", cabecalho.revisao || "—"],
-  ];
-  const rowH = (qh - 5) / rows.length;
-  let ry = qy + 5;
-  doc.setFontSize(6.5);
-  for (const [label, value] of rows) {
+  const innerX = area.x + 1.5;
+  const innerW = area.w - 3;
+  const colW = (innerW - 2) / 2;
+  const labelH = 2.6;
+  const valueH = 4.2;
+  const rowH = labelH + valueH + 0.8;
+  let y = area.y + 6;
+
+  const drawField = (
+    x: number,
+    yTop: number,
+    w: number,
+    label: string,
+    value: string,
+  ) => {
     doc.setFont("helvetica", "bold");
-    doc.text(label.toUpperCase(), area.x + 1.5, ry + rowH / 2 + 1);
+    doc.setFontSize(5.5);
+    doc.setTextColor(110);
+    doc.text(label.toUpperCase(), x, yTop + labelH - 0.2);
     doc.setFont("helvetica", "normal");
-    const val = doc.splitTextToSize(value, area.w - 30);
-    doc.text(val.slice(0, 2), area.x + 22, ry + rowH / 2 + 1);
+    doc.setFontSize(7);
+    doc.setTextColor(0);
+    const lines = doc.splitTextToSize(value || "—", w);
+    doc.text(lines.slice(0, 1), x, yTop + labelH + valueH - 0.6);
+    // underline sutil
     doc.setDrawColor(220);
-    doc.line(area.x, ry + rowH, area.x + area.w, ry + rowH);
-    ry += rowH;
-  }
+    doc.setLineWidth(0.15);
+    doc.line(x, yTop + rowH - 0.5, x + w, yTop + rowH - 0.5);
+  };
+
+  // Linha 1 — Obra (full)
+  drawField(innerX, y, innerW, "Obra", cabecalho.obra || "—");
+  y += rowH;
+  // Linha 2 — Empresa | Cliente
+  drawField(innerX, y, colW, "Empresa", cabecalho.empresa || "—");
+  drawField(innerX + colW + 2, y, colW, "Cliente", cabecalho.cliente || "—");
+  y += rowH;
+  // Linha 3 — Rua (full)
+  drawField(innerX, y, innerW, "Rua", cabecalho.rua || "—");
+  y += rowH;
+  // Linha 4 — Bairro | Revisão
+  drawField(innerX, y, colW, "Bairro", cabecalho.bairro || "—");
+  drawField(innerX + colW + 2, y, colW, "Revisão", cabecalho.revisao || "—");
+  y += rowH;
+
+  // Observações — textarea (usa espaço restante)
+  const obsY = y + 0.5;
+  const obsBottom = area.y + area.h - 1.5;
+  const obsH = Math.max(6, obsBottom - obsY);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(5.5);
+  doc.setTextColor(110);
+  doc.text("OBSERVAÇÕES", innerX, obsY + 2);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.5);
+  doc.setTextColor(0);
+  const obs = (cabecalho.observacoes || "").trim() || "—";
+  const obsLines = doc.splitTextToSize(obs, innerW);
+  const maxLines = Math.max(1, Math.floor((obsH - 3.5) / 2.6));
+  doc.text(obsLines.slice(0, maxLines), innerX, obsY + 4.6);
 }
 
 

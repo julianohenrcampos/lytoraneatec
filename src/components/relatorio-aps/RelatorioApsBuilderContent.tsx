@@ -35,7 +35,7 @@ import {
   StickyNote,
   Trash2,
 } from "lucide-react";
-import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
+// formatBrazilianDateForDisplay removido: coluna Data agora usa <input type="date">.
 import { RELATORIO_APS_MAX_FOTOS, type RelatorioApsLinha } from "@/types/relatorioAps";
 import RelatorioApsMapa, { type RelatorioApsMapaHandle } from "./RelatorioApsMapa";
 import RelatorioApsFotosDialog from "./RelatorioApsFotosDialog";
@@ -68,6 +68,8 @@ const OP_CELL =
 /** Input inline discreto (sem borda em repouso, underline sutil no foco). */
 const INLINE_INPUT =
   "h-auto w-full min-w-0 border-0 border-b border-transparent bg-transparent p-0 text-center text-xs tabular-nums shadow-none rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-primary";
+const INLINE_INPUT_LEFT =
+  "h-auto w-full min-w-0 border-0 border-b border-transparent bg-transparent p-0 text-left text-xs shadow-none rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-primary";
 
 const RelatorioApsBuilderContent: React.FC<Props> = ({ ctrl, mapaRef }) => {
   const {
@@ -191,8 +193,12 @@ const RelatorioApsBuilderContent: React.FC<Props> = ({ ctrl, mapaRef }) => {
                         </TableRow>
                         {grupo.linhas.map((l) => (
                           <TableRow key={l.id} className="even:bg-muted/20">
-                            <TableCell className="text-left truncate" title={l.logradouro}>
-                              {l.logradouro}
+                            <TableCell className="text-left">
+                              <Input
+                                value={l.logradouro}
+                                onChange={(e) => setCampoLinha(l.id, "logradouro", e.target.value)}
+                                className={INLINE_INPUT_LEFT}
+                              />
                             </TableCell>
                             <TableCell className="text-center">
                               <Input
@@ -202,7 +208,12 @@ const RelatorioApsBuilderContent: React.FC<Props> = ({ ctrl, mapaRef }) => {
                               />
                             </TableCell>
                             <TableCell className="text-center">
-                              {l.data ? formatBrazilianDateForDisplay(l.data) : "—"}
+                              <Input
+                                type="date"
+                                value={l.data || ""}
+                                onChange={(e) => setCampoLinha(l.id, "data", e.target.value)}
+                                className={INLINE_INPUT}
+                              />
                             </TableCell>
                             <TableCell className="text-center">
                               <Input
@@ -212,19 +223,56 @@ const RelatorioApsBuilderContent: React.FC<Props> = ({ ctrl, mapaRef }) => {
                               />
                             </TableCell>
                             <TableCell className="text-center tabular-nums">
-                              {fmtNumber(l.comprimento)}
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={l.comprimento ?? ""}
+                                onChange={(e) =>
+                                  setCampoLinha(l.id, "comprimento", e.target.value === "" ? null : Number(e.target.value))
+                                }
+                                className={INLINE_INPUT}
+                              />
                             </TableCell>
                             <TableCell className={OP_CELL}>m x</TableCell>
                             <TableCell className="text-center tabular-nums">
-                              {fmtNumber(l.larguraMedia)}
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={l.larguraMedia ?? ""}
+                                onChange={(e) =>
+                                  setCampoLinha(l.id, "larguraMedia", e.target.value === "" ? null : Number(e.target.value))
+                                }
+                                className={INLINE_INPUT}
+                              />
                             </TableCell>
                             <TableCell className={OP_CELL}>m =</TableCell>
                             <TableCell className="text-center tabular-nums">
-                              {fmtNumber(l.areaAplicada)}
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={l.areaAplicada ?? 0}
+                                onChange={(e) =>
+                                  setCampoLinha(l.id, "areaAplicada", Number(e.target.value) || 0)
+                                }
+                                className={INLINE_INPUT}
+                              />
                             </TableCell>
                             <TableCell className={OP_CELL}>m² x</TableCell>
                             <TableCell className="text-center tabular-nums">
-                              {fmtNumber(espessuraExibicaoM(l), 3)}
+                              <Input
+                                type="number"
+                                step="0.001"
+                                min="0"
+                                value={espessuraExibicaoM(l).toFixed(3)}
+                                onChange={(e) => {
+                                  const m = Number(e.target.value);
+                                  setCampoLinha(l.id, "espessura", Number.isFinite(m) ? m * 100 : null);
+                                }}
+                                className={INLINE_INPUT}
+                              />
                             </TableCell>
                             <TableCell className={OP_CELL}>m x</TableCell>
                             <TableCell className="text-center">
@@ -241,7 +289,17 @@ const RelatorioApsBuilderContent: React.FC<Props> = ({ ctrl, mapaRef }) => {
                             </TableCell>
                             <TableCell className={OP_CELL}>t/m³ =</TableCell>
                             <TableCell className="text-center font-medium tabular-nums">
-                              {formatTonelada(l.totalKg / 1000)}
+                              <Input
+                                type="number"
+                                step="0.001"
+                                min="0"
+                                value={((l.totalKg || 0) / 1000).toFixed(3)}
+                                onChange={(e) => {
+                                  const t = Number(e.target.value);
+                                  setCampoLinha(l.id, "totalKg", Number.isFinite(t) ? t * 1000 : 0);
+                                }}
+                                className={INLINE_INPUT}
+                              />
                             </TableCell>
                             <TableCell className={OP_CELL}>t</TableCell>
                           </TableRow>

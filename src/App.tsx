@@ -92,6 +92,8 @@ const SSODesviosList = lazy(() => import("@/pages/SSODesviosList"));
 const SSOAgendamentoExames = lazy(() => import("@/pages/SSOAgendamentoExames"));
 const SSOClinicas = lazy(() => import("@/pages/SSOClinicas"));
 const SSOVerAgir = lazy(() => import("@/pages/SSOVerAgir"));
+const AtestadosMedicos = lazy(() => import("@/pages/AtestadosMedicos"));
+const AtestadosMedicosPainel = lazy(() => import("@/pages/sso/AtestadosMedicosPainel"));
 
 const MonitoramentoPNCP = lazy(() => import("@/pages/MonitoramentoPNCP"));
 const ConfiguracoesPNCP = lazy(() => import("@/pages/ConfiguracoesPNCP"));
@@ -161,6 +163,9 @@ const App = () => {
                     <Route path="/forgot-password" element={<ForgotPassword />} />
                     <Route path="/reset-password" element={<ResetPassword />} />
                     <Route path="/waiting-approval" element={<WaitingApproval />} />
+
+                    {/* Envio público de atestado médico (sem guards) */}
+                    <Route path="/atestados-medicos" element={<AtestadosMedicos />} />
 
                     {/* Portal */}
                     <Route path="/" element={<Auth><Portal /></Auth>} />
@@ -236,6 +241,7 @@ const App = () => {
                     <Route path="/sso/clinicas" element={<Secure permission="acesso_sso_clinica"><SSOClinicas /></Secure>} />
                     <Route path="/sso/checklists/dashboard" element={<Secure permission="acesso_sso_dashboard"><SSODashboard /></Secure>} />
                     <Route path="/sso/ver-e-agir" element={<Secure permission="acesso_sso_ver_agir"><SSOVerAgir /></Secure>} />
+                    <Route path="/sso/atestados" element={<Secure permission="saude_atestados_view"><AtestadosMedicosPainel /></Secure>} />
 
                     {/* Diárias */}
                     <Route path="/requisicoes/diarias/dashboard" element={<Secure permission="diarias_dashboard_view"><DashboardDiarias /></Secure>} />

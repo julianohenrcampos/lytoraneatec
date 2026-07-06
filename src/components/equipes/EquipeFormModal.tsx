@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -6,25 +6,17 @@ import { Input } from "@/components/ui/input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createEquipe, updateEquipe } from "@/services/equipe";
+import { fetchEquipeMembers, type EquipeMember } from "@/services/equipe/fetchEquipeMembers";
+import { useFuncionariosBuscaAtivos } from "@/hooks/diarias/useFuncionariosBuscaAtivos";
 import { useToast } from "@/hooks/use-toast";
 import { Equipe, EquipeFormData } from "@/types/equipe";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Plus, X, Trash2, UserCheck, UserCog, Users, Tag } from "lucide-react";
+import { Plus, X, UserCheck, UserCog, Users, Tag, Search, Loader2 } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
 import { Separator } from "@/components/ui/separator";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from "@/components/ui/alert-dialog";
 
 interface EquipeFormModalProps {
   isOpen: boolean;
@@ -33,14 +25,13 @@ interface EquipeFormModalProps {
   equipe?: Equipe;
   encarregados: any[];
   apontadores: any[];
-  allFuncionarios: any[];
 }
 
 const formSchema = z.object({
   nome_equipe: z.string().min(1, { message: "Nome da equipe é obrigatório" }),
   encarregado_id: z.string().min(1, { message: "Encarregado é obrigatório" }),
   apontador_id: z.string().min(1, { message: "Apontador é obrigatório" }),
-  equipe: z.array(z.string())
+  equipe: z.array(z.string()),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -52,152 +43,159 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
   equipe,
   encarregados,
   apontadores,
-  allFuncionarios
 }) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedMembros, setSelectedMembros] = useState<string[]>([]);
-  const [selectedFuncionario, setSelectedFuncionario] = useState<string>("");
-  const [showRemoveAllDialog, setShowRemoveAllDialog] = useState(false);
-  const [membrosToRemove, setMembrosToRemove] = useState<string[]>([]);
-  const [showBulkRemoveDialog, setShowBulkRemoveDialog] = useState(false);
+  const [nameMap, setNameMap] = useState<Map<string, { nome_completo: string; equipe_id: string | null; funcao_nome?: string | null }>>(new Map());
+  const [searchTerm, setSearchTerm] = useState("");
 
-  const encarregadoOptions = encarregados.map(e => ({
-    value: e.id,
-    label: e.nome_completo,
-    className: "text-sm"
-  }));
-
-  const apontadorOptions = apontadores.map(a => ({
-    value: a.id,
-    label: a.nome_completo,
-    className: "text-sm"
-  }));
-
-  const regularFuncionarios = allFuncionarios.filter(f => {
-    if (equipe && f.equipe_id === equipe.id) return true;
-    if (f.equipe_id && (!equipe || f.equipe_id !== equipe.id)) return false;
-    return true;
+  // Carregar membros existentes (edição) via fetchEquipeMembers
+  const { data: existingMembers = [], isLoading: isLoadingMembers } = useQuery<EquipeMember[]>({
+    queryKey: ["equipe-members", equipe?.id],
+    queryFn: () => fetchEquipeMembers(equipe!.id),
+    enabled: !!equipe?.id && isOpen,
+    staleTime: 30_000,
   });
 
-  const funcionarioOptions = regularFuncionarios.map(f => ({
-    value: f.id,
-    label: f.nome_completo,
-    className: "text-sm"
-  }));
+  // Busca sob demanda (>= 2 chars)
+  const enabledSearch = searchTerm.trim().length >= 2;
+  const { funcionarios: searchResults, isFetching: isSearching } = useFuncionariosBuscaAtivos({
+    search: searchTerm,
+    limit: 30,
+    enabled: enabledSearch,
+  });
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      nome_equipe: "",
-      encarregado_id: "",
-      apontador_id: "",
-      equipe: []
-    }
+    defaultValues: { nome_equipe: "", encarregado_id: "", apontador_id: "", equipe: [] },
   });
 
+  // Reset ao abrir
   useEffect(() => {
     if (equipe) {
       form.reset({
         nome_equipe: equipe.nome_equipe,
         encarregado_id: equipe.encarregado_id,
         apontador_id: equipe.apontador_id,
-        equipe: equipe.equipe || []
+        equipe: equipe.equipe || [],
       });
       setSelectedMembros(equipe.equipe || []);
     } else {
-      form.reset({
-        nome_equipe: "",
-        encarregado_id: "",
-        apontador_id: "",
-        equipe: []
-      });
+      form.reset({ nome_equipe: "", encarregado_id: "", apontador_id: "", equipe: [] });
       setSelectedMembros([]);
     }
-    setSelectedFuncionario("");
-    setMembrosToRemove([]);
+    setSearchTerm("");
+    setNameMap(new Map());
   }, [equipe, form, isOpen]);
 
+  // Popular nameMap: encarregados + apontadores + membros existentes + resultados de busca
+  useEffect(() => {
+    setNameMap((prev) => {
+      const next = new Map(prev);
+      encarregados.forEach((e) =>
+        next.set(e.id, { nome_completo: e.nome_completo, equipe_id: e.equipe_id ?? null })
+      );
+      apontadores.forEach((a) =>
+        next.set(a.id, { nome_completo: a.nome_completo, equipe_id: a.equipe_id ?? null })
+      );
+      existingMembers.forEach((m) =>
+        next.set(m.id, {
+          nome_completo: m.nome_completo,
+          equipe_id: m.equipe_id ?? null,
+          funcao_nome: m.funcao_nome ?? null,
+        })
+      );
+      searchResults.forEach((f: any) =>
+        next.set(f.id, {
+          nome_completo: f.nome_completo,
+          equipe_id: f.equipe_id ?? null,
+          funcao_nome: f.funcao_nome ?? null,
+        })
+      );
+      return next;
+    });
+  }, [encarregados, apontadores, existingMembers, searchResults]);
+
+  const encarregadoOptions = encarregados.map((e) => ({
+    value: e.id,
+    label: e.nome_completo,
+    className: "text-sm",
+  }));
+  const apontadorOptions = apontadores.map((a) => ({
+    value: a.id,
+    label: a.nome_completo,
+    className: "text-sm",
+  }));
+
   const handleEncarregadoChange = (value: string) => {
-    const previousEncarregado = form.getValues("encarregado_id");
+    const previous = form.getValues("encarregado_id");
     form.setValue("encarregado_id", value);
-
-    let newMembros = selectedMembros.filter(id => id !== previousEncarregado);
-    if (value && !newMembros.includes(value)) {
-      newMembros = [...newMembros, value];
-    }
-
-    setSelectedMembros(newMembros);
-    form.setValue("equipe", newMembros);
-
+    let novos = selectedMembros.filter((id) => id !== previous);
+    if (value && !novos.includes(value)) novos = [...novos, value];
+    setSelectedMembros(novos);
+    form.setValue("equipe", novos);
     if (!equipe && value) {
-      const selectedEncarregado = encarregados.find(e => e.id === value);
-      if (selectedEncarregado) {
-        form.setValue("nome_equipe", `Equipe ${selectedEncarregado.nome_completo}`);
-      }
+      const selected = encarregados.find((e) => e.id === value);
+      if (selected) form.setValue("nome_equipe", `Equipe ${selected.nome_completo}`);
     }
   };
 
   const handleApontadorChange = (value: string) => {
-    const previousApontador = form.getValues("apontador_id");
+    const previous = form.getValues("apontador_id");
     form.setValue("apontador_id", value);
-
-    let newMembros = selectedMembros.filter(id => id !== previousApontador);
-    if (value && !newMembros.includes(value)) {
-      newMembros = [...newMembros, value];
-    }
-
-    setSelectedMembros(newMembros);
-    form.setValue("equipe", newMembros);
+    let novos = selectedMembros.filter((id) => id !== previous);
+    if (value && !novos.includes(value)) novos = [...novos, value];
+    setSelectedMembros(novos);
+    form.setValue("equipe", novos);
   };
 
-  const handleAddMembro = () => {
-    if (!selectedFuncionario) return;
-
-    if (selectedMembros.includes(selectedFuncionario)) {
+  const addMembro = (funcId: string, funcEquipeId: string | null | undefined) => {
+    if (selectedMembros.includes(funcId)) {
       toast({
         title: "Funcionário já adicionado",
         description: "Este funcionário já faz parte da equipe.",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
-
-    const newMembros = [...selectedMembros, selectedFuncionario];
-    setSelectedMembros(newMembros);
-    form.setValue("equipe", newMembros);
-    setSelectedFuncionario("");
+    // Bloquear transferência entre equipes nesta tela
+    if (funcEquipeId && (!equipe || funcEquipeId !== equipe.id)) {
+      toast({
+        title: "Funcionário já pertence a outra equipe",
+        description:
+          "Para transferi-lo, use a ação Transferir Membros na tabela de equipes.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const novos = [...selectedMembros, funcId];
+    setSelectedMembros(novos);
+    form.setValue("equipe", novos);
   };
 
   const handleRemoveMembro = (id: string) => {
-    const currentEncarregadoId = form.getValues("encarregado_id");
-    const currentApontadorId = form.getValues("apontador_id");
-
-    if (id === currentEncarregadoId || id === currentApontadorId) {
+    const encId = form.getValues("encarregado_id");
+    const apId = form.getValues("apontador_id");
+    if (id === encId || id === apId) {
       toast({
         title: "Não é possível remover",
         description: "Para remover este funcionário, selecione outro responsável antes.",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
-
-    const newMembros = selectedMembros.filter(m => m !== id);
-    setSelectedMembros(newMembros);
-    form.setValue("equipe", newMembros);
-  };
-
-  const getFuncionarioNameById = (id: string) => {
-    const funcionario = allFuncionarios.find(f => f.id === id);
-    return funcionario ? funcionario.nome_completo : "Funcionário não encontrado";
+    const novos = selectedMembros.filter((m) => m !== id);
+    setSelectedMembros(novos);
+    form.setValue("equipe", novos);
   };
 
   const getMemberRole = (id: string) => {
-    const currentEncarregadoId = form.getValues("encarregado_id");
-    const currentApontadorId = form.getValues("apontador_id");
-    if (id === currentEncarregadoId) return "encarregado";
-    if (id === currentApontadorId) return "apontador";
+    const enc = form.getValues("encarregado_id");
+    const ap = form.getValues("apontador_id");
+    if (id === enc) return "encarregado";
+    if (id === ap) return "apontador";
     return "membro";
   };
 
@@ -209,7 +207,7 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
     }
   };
 
-  const getMemberBadgeVariant = (role: string) => {
+  const getMemberBadgeVariant = (role: string): "default" | "secondary" | "outline" => {
     switch (role) {
       case "encarregado": return "default";
       case "apontador": return "secondary";
@@ -217,23 +215,26 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
     }
   };
 
+  const visibleSearchResults = useMemo(() => {
+    if (!enabledSearch) return [];
+    const enc = form.getValues("encarregado_id");
+    const ap = form.getValues("apontador_id");
+    return searchResults.filter(
+      (f: any) => !selectedMembros.includes(f.id) && f.id !== enc && f.id !== ap
+    );
+  }, [enabledSearch, searchResults, selectedMembros, form]);
+
   const onSubmit = async (values: FormValues) => {
     try {
       setIsSubmitting(true);
-
-      const teamMembers = [...values.equipe];
-      if (!teamMembers.includes(values.encarregado_id)) {
-        teamMembers.push(values.encarregado_id);
-      }
-      if (!teamMembers.includes(values.apontador_id)) {
-        teamMembers.push(values.apontador_id);
-      }
-
+      const teamMembers = Array.from(
+        new Set([...values.equipe, values.encarregado_id, values.apontador_id].filter(Boolean))
+      );
       const formData: EquipeFormData = {
         nome_equipe: values.nome_equipe,
         encarregado_id: values.encarregado_id,
         apontador_id: values.apontador_id,
-        equipe: teamMembers
+        equipe: teamMembers,
       };
 
       if (equipe) {
@@ -246,6 +247,7 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
 
       queryClient.invalidateQueries({ queryKey: ["equipes"] });
       queryClient.invalidateQueries({ queryKey: ["funcionarios"] });
+      queryClient.invalidateQueries({ queryKey: ["equipe-members"] });
 
       onSuccess();
       onClose();
@@ -254,7 +256,7 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
       toast({
         title: "Erro",
         description: error instanceof Error ? error.message : "Ocorreu um erro ao salvar os dados.",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);
@@ -263,7 +265,7 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[700px] max-h-screen overflow-y-auto">
+      <DialogContent className="sm:max-w-[760px] max-h-screen overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{equipe ? "Editar Equipe" : "Cadastrar Nova Equipe"}</DialogTitle>
         </DialogHeader>
@@ -336,32 +338,128 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
 
             <Separator />
 
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <Combobox
-                  options={funcionarioOptions}
-                  value={selectedFuncionario}
-                  onChange={setSelectedFuncionario}
-                  placeholder="Selecione um funcionário"
-                  searchPlaceholder="Buscar funcionário..."
-                  emptyText="Nenhum funcionário disponível"
-                />
+            {/* Busca sob demanda */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <Search className="h-4 w-4" /> Adicionar membro
+              </label>
+              <Input
+                placeholder="Digite ao menos 2 caracteres (nome, CPF ou matrícula)..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              {enabledSearch && (
+                <div className="border rounded-md">
+                  {isSearching ? (
+                    <div className="flex items-center gap-2 p-3 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Buscando...
+                    </div>
+                  ) : visibleSearchResults.length === 0 ? (
+                    <div className="p-3 text-sm text-muted-foreground">
+                      Nenhum funcionário encontrado.
+                    </div>
+                  ) : (
+                    <ScrollArea className="max-h-48">
+                      <div className="divide-y">
+                        {visibleSearchResults.map((f: any) => {
+                          const outraEquipe = !!f.equipe_id && (!equipe || f.equipe_id !== equipe.id);
+                          return (
+                            <div
+                              key={f.id}
+                              className="flex items-center justify-between p-2 gap-2"
+                            >
+                              <div className="flex flex-col text-sm">
+                                <span className="font-medium">{f.nome_completo}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {f.funcao_nome || "Sem função"}
+                                  {outraEquipe && (
+                                    <span className="ml-2 text-amber-600 font-medium">
+                                      · em outra equipe
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={outraEquipe ? "outline" : "default"}
+                                onClick={() => addMembro(f.id, f.equipe_id)}
+                              >
+                                <Plus className="h-4 w-4 mr-1" /> Adicionar
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Membros selecionados */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium flex items-center gap-2">
+                  <Users className="h-4 w-4" /> Membros da equipe ({selectedMembros.length})
+                </label>
               </div>
-              <Button
-                type="button"
-                onClick={handleAddMembro}
-                disabled={!selectedFuncionario}
-                className="bg-blue-500 hover:bg-blue-600"
-              >
-                <Plus className="h-4 w-4 mr-2" /> Adicionar
-              </Button>
+              <div className="border rounded-md min-h-[80px] p-3">
+                {isLoadingMembers ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Carregando membros...
+                  </div>
+                ) : selectedMembros.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">
+                    Nenhum membro. Adicione o encarregado, apontador ou use a busca acima.
+                  </div>
+                ) : (
+                  <ScrollArea className="max-h-64">
+                    <div className="flex flex-wrap gap-2">
+                      {selectedMembros.map((id) => {
+                        const role = getMemberRole(id);
+                        const info = nameMap.get(id);
+                        const isLider = role === "encarregado" || role === "apontador";
+                        return (
+                          <Badge
+                            key={id}
+                            variant={getMemberBadgeVariant(role)}
+                            className="py-1.5 px-3 text-sm flex items-center gap-2"
+                            title={info?.funcao_nome || undefined}
+                          >
+                            {getMemberIcon(role)}
+                            <span>
+                              {info?.nome_completo || "Funcionário"}
+                              {isLider && (
+                                <span className="ml-1 text-xs opacity-75">({role})</span>
+                              )}
+                            </span>
+                            {!isLider && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveMembro(id)}
+                                className="ml-1 rounded-full hover:bg-destructive/20 p-0.5"
+                                aria-label="Remover"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            )}
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  </ScrollArea>
+                )}
+              </div>
             </div>
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={isSubmitting} className="bg-blue-500 hover:bg-blue-600">
+              <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? "Salvando..." : equipe ? "Atualizar" : "Salvar"}
               </Button>
             </DialogFooter>

@@ -13,6 +13,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Switch } from "@/components/ui/switch";
 
 import {
   AlertDialog,
@@ -327,6 +328,8 @@ const NovoRegistroManualModal: React.FC<Props> = ({
   const [editingRuaId, setEditingRuaId] = useState<string | null>(null);
   const [buracoFormOpen, setBuracoFormOpen] = useState(false);
   const [calculoAberto, setCalculoAberto] = useState(false);
+  // B.3.5-D.M2 — toggle para capturar (ou não) coordenadas do apontamento
+  const [capturarGpsBuraco, setCapturarGpsBuraco] = useState<boolean>(true);
 
   // B.3.5-D — auto-preenchimento por geolocalização
   type AutoLocStatus = "idle" | "loading" | "ok" | "aproximado" | "erro";
@@ -1086,32 +1089,37 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     const err = validarBuraco();
     if (err) return toast.error(err);
 
-    // Captura GPS best-effort (Fase A: informativo; Fase B/C: enforcement na RPC)
-    setCapturandoGeo(true);
-    const geoResult = await captureGeo({ timeoutMs: 20000, maximumAge: 30000 });
-    setCapturandoGeo(false);
-    let gps = geoResult.data;
-    console.log("[REGISTRO_MANUAL][BURACO_GEO_CAPTURE]", {
-      ok: geoResult.ok,
-      accuracy: gps?.accuracy,
-      errorCode: geoResult.errorCode,
-    });
-    // Fallback: se GPS do buraco falhar, usa coordenada da rua (se houver)
-    if (!gps && ruaAtual && typeof ruaAtual.latitude === "number" && typeof ruaAtual.longitude === "number"
-        && Number.isFinite(ruaAtual.latitude) && Number.isFinite(ruaAtual.longitude)) {
-      gps = {
-        latitude: ruaAtual.latitude,
-        longitude: ruaAtual.longitude,
-        accuracy: Number.isFinite(ruaAtual.accuracy as number) ? (ruaAtual.accuracy as number) : 9999,
-        capturedAt: new Date().toISOString(),
-        source: "device",
-      };
-      console.log("[REGISTRO_MANUAL][BURACO_GEO_CAPTURE] fallback→rua", { accuracy: gps.accuracy });
-    }
-    if (!geoResult.ok) {
-      toast.warning(`GPS não capturado (${geoResult.error}). Apontamento salvo mesmo assim.`);
-    } else if (gps && gps.accuracy > 150) {
-      toast.warning(`GPS impreciso: ±${Math.round(gps.accuracy)}m. Considere reposicionar.`);
+    // B.3.5-D.M2 — captura de GPS controlada por toggle
+    let gps: GeoCapture | null = null;
+    if (capturarGpsBuraco) {
+      setCapturandoGeo(true);
+      const geoResult = await captureGeo({ timeoutMs: 20000, maximumAge: 30000 });
+      setCapturandoGeo(false);
+      gps = geoResult.data;
+      console.log("[REGISTRO_MANUAL][BURACO_GEO_CAPTURE]", {
+        ok: geoResult.ok,
+        accuracy: gps?.accuracy,
+        errorCode: geoResult.errorCode,
+      });
+      // Fallback: se GPS do buraco falhar, usa coordenada da rua (se houver)
+      if (!gps && ruaAtual && typeof ruaAtual.latitude === "number" && typeof ruaAtual.longitude === "number"
+          && Number.isFinite(ruaAtual.latitude) && Number.isFinite(ruaAtual.longitude)) {
+        gps = {
+          latitude: ruaAtual.latitude,
+          longitude: ruaAtual.longitude,
+          accuracy: Number.isFinite(ruaAtual.accuracy as number) ? (ruaAtual.accuracy as number) : 9999,
+          capturedAt: new Date().toISOString(),
+          source: "device",
+        };
+        console.log("[REGISTRO_MANUAL][BURACO_GEO_CAPTURE] fallback→rua", { accuracy: gps.accuracy });
+      }
+      if (!geoResult.ok && !gps) {
+        toast.warning(`GPS não capturado (${geoResult.error}). Apontamento salvo mesmo assim.`);
+      } else if (gps && gps.accuracy > 150) {
+        toast.warning(`GPS impreciso: ±${Math.round(gps.accuracy)}m. Considere reposicionar.`);
+      }
+    } else {
+      console.log("[REGISTRO_MANUAL][BURACO_GEO_CAPTURE] desativado pelo usuário");
     }
 
     if (editBuracoRef) {
@@ -2244,6 +2252,24 @@ const NovoRegistroManualModal: React.FC<Props> = ({
                           </Collapsible>
 
 
+
+                          {/* B.3.5-D.M2 — Toggle captura de GPS do apontamento */}
+                          <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <MapPin className="h-4 w-4 text-primary" />
+                              <div>
+                                <Label className="text-xs font-medium">Capturar coordenadas (GPS)</Label>
+                                <p className="text-[10px] text-muted-foreground">
+                                  Desative se estiver fora do local ou não quiser registrar a posição.
+                                </p>
+                              </div>
+                            </div>
+                            <Switch
+                              checked={capturarGpsBuraco}
+                              onCheckedChange={setCapturarGpsBuraco}
+                              aria-label="Capturar coordenadas do apontamento"
+                            />
+                          </div>
 
                           {/* Fotos do buraco */}
                           <div className="space-y-2">

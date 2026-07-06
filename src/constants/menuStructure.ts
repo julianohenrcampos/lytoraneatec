@@ -16,6 +16,7 @@ import {
   Gavel,
   Calendar,
   ClipboardCheck,
+  FileCheck,
   
   Activity,
   Briefcase,
@@ -339,6 +340,12 @@ export const menuStructure = [
         href: "/sso/ver-e-agir",
         icon: ClipboardCheck,
         requiredPermission: "acesso_sso_ver_agir"
+      },
+      {
+        name: "Atestados Médicos",
+        href: "/sso/atestados",
+        icon: FileCheck,
+        requiredPermission: "saude_atestados_view"
       }
     ]
   },

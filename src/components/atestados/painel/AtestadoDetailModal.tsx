@@ -1,0 +1,165 @@
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { FileText, Loader2 } from "lucide-react";
+import type { AtestadoRow } from "@/types/atestadoMedico";
+
+interface Props {
+  row: AtestadoRow | null;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  canDownload: boolean;
+  onAbrirArquivo: (row: AtestadoRow) => void;
+  arquivoLoading: boolean;
+}
+
+function fmtBRT(iso: string | null) {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  } catch {
+    return iso;
+  }
+}
+function fmtDate(iso: string | null) {
+  if (!iso) return "—";
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return `${d}/${m}/${y}`;
+}
+function mask(m: string) {
+  if (!m) return "";
+  if (m.length <= 3) return m;
+  return `${m.slice(0, 2)}${"*".repeat(Math.max(0, m.length - 3))}${m.slice(-1)}`;
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      <div className="text-sm text-foreground mt-0.5">{children}</div>
+    </div>
+  );
+}
+
+export default function AtestadoDetailModal({
+  row,
+  open,
+  onOpenChange,
+  canDownload,
+  onAbrirArquivo,
+  arquivoLoading,
+}: Props) {
+  if (!row) return null;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Atestado {row.protocolo}</DialogTitle>
+          <DialogDescription>
+            Detalhes do atestado registrado via canal público.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Colaborador">{row.nome_snapshot}</Field>
+          <Field label="Matrícula">{mask(row.matricula_snapshot)}</Field>
+          <Field label="Centro de custo">{row.centro_custo_snapshot ?? "—"}</Field>
+          <Field label="Enviado em">{fmtBRT(row.enviado_em)}</Field>
+          <Field label="Data de emissão">{fmtDate(row.data_emissao)}</Field>
+          <Field label="Início do afastamento">
+            {fmtDate(row.data_inicio_afastamento)}
+          </Field>
+          <Field label="Dias de afastamento">{row.dias_afastamento}</Field>
+          <Field label="Dentro de 24h">
+            {row.dentro_prazo_24h ? (
+              <Badge variant="secondary">Sim</Badge>
+            ) : (
+              <Badge variant="destructive">Não</Badge>
+            )}
+          </Field>
+          <Field label="Status">
+            <Badge variant="outline">{row.status}</Badge>
+          </Field>
+          <Field label="Notificação e-mail">
+            <Badge variant="outline">{row.notificacao_email_status}</Badge>
+            <span className="text-xs text-muted-foreground ml-2">
+              tentativas: {row.notificacao_email_tentativas}
+            </span>
+          </Field>
+        </div>
+
+        <div className="border-t border-border pt-4">
+          <div className="text-sm font-medium text-foreground mb-2">Declarações</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Veracidade">
+              {row.declaracao_veracidade ? (
+                <Badge variant="secondary">Sim</Badge>
+              ) : (
+                <Badge variant="destructive">Não</Badge>
+              )}
+            </Field>
+            <Field label="Original em 48h">
+              {row.declaracao_original_48h ? (
+                <Badge variant="secondary">Sim</Badge>
+              ) : (
+                <Badge variant="destructive">Não</Badge>
+              )}
+            </Field>
+            <Field label="Ciência da não-validação">
+              {row.declaracao_ciencia_nao_validacao ? (
+                <Badge variant="secondary">Sim</Badge>
+              ) : (
+                <Badge variant="destructive">Não</Badge>
+              )}
+            </Field>
+            <Field label="Aceitas em">{fmtBRT(row.declaracoes_aceitas_em)}</Field>
+          </div>
+        </div>
+
+        {row.observacao_saude && (
+          <div className="border-t border-border pt-4">
+            <div className="text-sm font-medium text-foreground mb-1">
+              Observação SSO
+            </div>
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+              {row.observacao_saude}
+            </p>
+          </div>
+        )}
+
+        <DialogFooter className="gap-2 sm:gap-2">
+          {canDownload ? (
+            <Button
+              onClick={() => onAbrirArquivo(row)}
+              disabled={arquivoLoading}
+            >
+              {arquivoLoading ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <FileText className="w-4 h-4 mr-2" />
+              )}
+              Abrir arquivo
+            </Button>
+          ) : (
+            <Button disabled title="Sem permissão para baixar arquivos">
+              <FileText className="w-4 h-4 mr-2" />
+              Abrir arquivo
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Fechar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

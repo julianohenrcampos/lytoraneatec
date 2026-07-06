@@ -72,6 +72,7 @@ export const ROUTE_PERMISSIONS = {
   '/sso/agendamento-exames': ['acesso_sso_agendamento_exames'],
   '/sso/clinicas': ['acesso_sso_clinica'],
   '/sso/ver-e-agir': ['acesso_sso_ver_agir'],
+  '/sso/atestados': ['saude_atestados_view'],
 
   // Licitações
   '/licitacoes/dashboard': ['dashboard_licitacoes_view'],
