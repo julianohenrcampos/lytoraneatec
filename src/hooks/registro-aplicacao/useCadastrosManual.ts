@@ -42,26 +42,19 @@ export function useMotoristasParaAplicacao(enabled = true) {
     enabled,
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<MotoristaOpt[]> => {
-      const { data: funcoes, error: e1 } = await supabase
-        .from("bd_funcoes")
-        .select("id, nome_funcao")
-        .ilike("nome_funcao", "%motorista%");
-      if (e1) throw e1;
-      const ids = (funcoes || []).map((f: any) => f.id);
-      if (!ids.length) return [];
-      const nameMap = new Map<string, string>((funcoes || []).map((f: any) => [f.id, f.nome_funcao]));
-      const { data, error } = await supabase
-        .from("bd_funcionarios")
-        .select("id, nome_completo, funcao_id, status")
-        .in("funcao_id", ids)
-        .in("status", ["Ativo", "Ativo sem Registro", "Férias"])
-        .order("nome_completo", { ascending: true })
-        .limit(1000);
+      // Lookup operacional seguro: a RPC valida a permissão
+      // `motoristas_operacional_todos` (ou SuperAdm/acesso_global),
+      // respeita DENY em bd_user_permission_overrides e devolve
+      // apenas id, nome_completo, matricula e funcao_nome.
+      // Não expõe CPF, salário, banco, documentos ou endereço.
+      const { data, error } = await (supabase as any).rpc(
+        "fn_motoristas_operacional_lookup"
+      );
       if (error) throw error;
-      return (data || []).map((r: any) => ({
+      return ((data || []) as any[]).map((r) => ({
         id: r.id,
         nome_completo: r.nome_completo,
-        funcao_nome: nameMap.get(r.funcao_id) || null,
+        funcao_nome: r.funcao_nome ?? null,
       }));
     },
   });

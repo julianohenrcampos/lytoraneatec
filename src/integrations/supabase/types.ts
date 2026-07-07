@@ -20718,6 +20718,15 @@ export type Database = {
       fn_logistica_can_view_sensitive_exports: { Args: never; Returns: boolean }
       fn_logistica_current_funcionario_id: { Args: never; Returns: string }
       fn_logistica_is_privileged_user: { Args: never; Returns: boolean }
+      fn_motoristas_operacional_lookup: {
+        Args: never
+        Returns: {
+          funcao_nome: string
+          id: string
+          matricula: string
+          nome_completo: string
+        }[]
+      }
       fn_normalizar_chave_rua: {
         Args: {
           p_bairro: string
