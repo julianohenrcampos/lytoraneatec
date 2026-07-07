@@ -9,6 +9,7 @@ export const MODULOS = [
   { value: 'administracao',                label: 'Administração' },
   { value: 'ponto_eletronico',             label: 'Ponto Eletrônico' },
   { value: 'engenharia',                   label: 'Engenharia' },
+  { value: 'operacional',                  label: 'Operacional' },
   { value: 'outros',                       label: 'Outros' },
 ] as const;
 

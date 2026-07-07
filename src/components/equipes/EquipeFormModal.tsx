@@ -406,7 +406,7 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
                   <Users className="h-4 w-4" /> Membros da equipe ({selectedMembros.length})
                 </label>
               </div>
-              <div className="border rounded-md min-h-[80px] p-3">
+              <div className="border rounded-md min-h-[80px] max-h-[320px] p-3 overflow-hidden">
                 {isLoadingMembers ? (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" /> Carregando membros...
@@ -416,7 +416,7 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
                     Nenhum membro. Adicione o encarregado, apontador ou use a busca acima.
                   </div>
                 ) : (
-                  <ScrollArea className="max-h-64">
+                  <div className="max-h-[260px] overflow-y-auto">
                     <div className="flex flex-wrap gap-2">
                       {selectedMembros.map((id) => {
                         const role = getMemberRole(id);
@@ -450,7 +450,7 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
                         );
                       })}
                     </div>
-                  </ScrollArea>
+                  </div>
                 )}
               </div>
             </div>

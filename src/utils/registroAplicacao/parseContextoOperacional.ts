@@ -71,20 +71,52 @@ export function parseContextoOperacional(
 
   const ctx = extractBlock(observacoesGerais, "CONTEXTO_OPERACIONAL");
   if (ctx) {
-    const lines = ctx.split(/\r?\n/);
-    for (const line of lines) {
-      const idx = line.indexOf(":");
-      if (idx < 0) continue;
-      const label = line.slice(0, idx).trim().toLowerCase();
-      const value = line.slice(idx + 1);
-      if (!label) continue;
+    // Formato novo: JSON single-line dentro do bloco
+    let parsedJson: any = null;
+    try {
+      parsedJson = JSON.parse(ctx.trim());
+    } catch {
+      parsedJson = null;
+    }
+    if (parsedJson && typeof parsedJson === "object" && !Array.isArray(parsedJson)) {
+      const assign = (key: keyof ContextoOperacionalParsed, raw: unknown) => {
+        if (raw === null || raw === undefined) return;
+        const v = stripEmpty(String(raw));
+        if (v) (out as any)[key] = v;
+      };
+      assign("placa", parsedJson.placa);
+      assign("equipe", parsedJson.equipe_nome ?? parsedJson.equipe);
+      assign("caminhaoFrota", parsedJson.frota ?? parsedJson.caminhaoFrota);
+      assign("motorista", parsedJson.motorista_nome ?? parsedJson.motorista);
+      assign("totalCarga", parsedJson.total_carga_t ?? parsedJson.totalCarga);
+      assign("temperaturaMassa", parsedJson.temperatura_massa ?? parsedJson.temperaturaMassa);
+      assign("tipoTraco", parsedJson.tipo_traco ?? parsedJson.tipoTraco);
+      assign("tipoPintura", parsedJson.tipo_pintura ?? parsedJson.tipoPintura);
+      assign("condominio", parsedJson.condominio);
+      assign("logradouro", parsedJson.logradouro);
+      assign("bairro", parsedJson.bairro);
+      assign("cidade", parsedJson.cidade);
+      assign("uf", parsedJson.uf);
+      assign("cep", parsedJson.cep);
+      assign("latitude", parsedJson.latitude);
+      assign("longitude", parsedJson.longitude);
+      assign("origemLocalizacao", parsedJson.origem_localizacao ?? parsedJson.origemLocalizacao);
+    } else {
+      // Formato legado: "label: valor" linha-a-linha
+      const lines = ctx.split(/\r?\n/);
+      for (const line of lines) {
+        const idx = line.indexOf(":");
+        if (idx < 0) continue;
+        const label = line.slice(0, idx).trim().toLowerCase();
+        const value = line.slice(idx + 1);
+        if (!label) continue;
 
-      for (const [key, aliases] of LABEL_MAP) {
-        if (aliases.includes(label)) {
-          // remove unidade solta no fim (t, °C) apenas quando redundante
-          const cleaned = stripEmpty(value.replace(/\s+t$/i, "").replace(/\s+°?C$/i, ""));
-          if (cleaned) (out as any)[key] = cleaned;
-          break;
+        for (const [key, aliases] of LABEL_MAP) {
+          if (aliases.includes(label)) {
+            const cleaned = stripEmpty(value.replace(/\s+t$/i, "").replace(/\s+°?C$/i, ""));
+            if (cleaned) (out as any)[key] = cleaned;
+            break;
+          }
         }
       }
     }

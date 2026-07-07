@@ -148,8 +148,8 @@ const EntregasEnviadasTable: React.FC<Props> = ({
     });
     const manRows: UnifiedRow[] = (registrosManuais || []).map((m) => {
       const ctx = parseContextoOperacional(m.observacoes_gerais);
-      const caminhaoLabel = ctx.placa || ctx.caminhaoFrota || "Manual";
-      const equipeLabel = ctx.equipe || "Manual";
+      const caminhaoLabel = ctx.placa || ctx.caminhaoFrota || "—";
+      const equipeLabel = ctx.equipe || "—";
       return {
         origem: "manual",
         id: `man-${m.id}`,

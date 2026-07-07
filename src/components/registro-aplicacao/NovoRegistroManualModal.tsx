@@ -1084,14 +1084,30 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     return null;
   };
 
+  const apontamentoTemGps = (b?: BuracoLocal | null) =>
+    !!b &&
+    !!b.gps &&
+    Number.isFinite(b.gps.latitude as number) &&
+    Number.isFinite(b.gps.longitude as number);
+
   const salvarApontamento = async () => {
     if (estado !== "em_andamento") return toast.error('Clique em "Iniciar Aplicação" antes.');
     const err = validarBuraco();
     if (err) return toast.error(err);
 
+    // B.3.5-D.M3 — edição de apontamento com GPS já salvo preserva coordenadas
+    const buracoEmEdicao = editBuracoRef
+      ? ruas
+          .find((r) => r.idLocal === editBuracoRef.ruaId)
+          ?.buracos.find((b) => b.idLocal === editBuracoRef.buracoId) || null
+      : null;
+    const preservarGpsExistente = !!editBuracoRef && apontamentoTemGps(buracoEmEdicao);
+
     // B.3.5-D.M2 — captura de GPS controlada por toggle
     let gps: GeoCapture | null = null;
-    if (capturarGpsBuraco) {
+    if (preservarGpsExistente) {
+      console.log("[REGISTRO_MANUAL][BURACO_GEO_CAPTURE] edicao_com_gps_preservado");
+    } else if (capturarGpsBuraco) {
       setCapturandoGeo(true);
       const geoResult = await captureGeo({ timeoutMs: 20000, maximumAge: 30000 });
       setCapturandoGeo(false);
