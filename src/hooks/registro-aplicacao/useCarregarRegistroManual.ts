@@ -35,6 +35,11 @@ export interface RegistroManualEditable {
     tipoTraco: string;
     tipoPintura: string;
   };
+  historico: {
+    equipeNome: string;
+    caminhaoLabel: string;
+    motoristaNome: string;
+  };
   obsFinal: string;
   ruas: Array<{
     idLocal: string;
@@ -217,6 +222,10 @@ async function fetchRegistroEditable(
       ? "nao"
       : "";
 
+  const frotaHist = (ctx.caminhaoFrota || "").trim();
+  const placaHist = (ctx.placa || "").trim();
+  const caminhaoLabel = [frotaHist, placaHist].filter(Boolean).join(" — ");
+
   return {
     registroId: h.id,
     ini: {
@@ -224,18 +233,23 @@ async function fetchRegistroEditable(
       atividade: atividadeVal,
       data: h.data_aplicacao || "",
       horaChegada: h.hora_chegada_local || "",
-      equipeId: "",
+      equipeId: ctx.equipeId || "",
       condominio: condominioVal,
     },
     carga: {
-      caminhaoId: "",
+      caminhaoId: ctx.caminhaoId || "",
       frota: ctx.caminhaoFrota || "",
       placa: ctx.placa || "",
-      motoristaId: "",
+      motoristaId: ctx.motoristaId || "",
       totalCargaT: ctx.totalCarga || "",
       temperaturaMassa: ctx.temperaturaMassa || "",
       tipoTraco: ctx.tipoTraco || "",
       tipoPintura: ctx.tipoPintura || "",
+    },
+    historico: {
+      equipeNome: (ctx.equipe || "").trim(),
+      caminhaoLabel,
+      motoristaNome: (ctx.motorista || "").trim(),
     },
     obsFinal: ctx.observacoesApontador || "",
     ruas,

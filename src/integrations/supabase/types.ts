@@ -2231,6 +2231,7 @@ export type Database = {
           modificado_por: string | null
           nome_alterdata: string | null
           nome_centro_custo: string
+          planejador_responsavel_id: string | null
           raio_ponto_metros: number | null
           situacao: string | null
           telefone: string | null
@@ -2265,6 +2266,7 @@ export type Database = {
           modificado_por?: string | null
           nome_alterdata?: string | null
           nome_centro_custo: string
+          planejador_responsavel_id?: string | null
           raio_ponto_metros?: number | null
           situacao?: string | null
           telefone?: string | null
@@ -2299,6 +2301,7 @@ export type Database = {
           modificado_por?: string | null
           nome_alterdata?: string | null
           nome_centro_custo?: string
+          planejador_responsavel_id?: string | null
           raio_ponto_metros?: number | null
           situacao?: string | null
           telefone?: string | null
@@ -2380,6 +2383,27 @@ export type Database = {
             columns: ["diretoria_id"]
             isOneToOne: false
             referencedRelation: "bd_diretorias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_planejador_responsavel_id_fkey"
+            columns: ["planejador_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_planejador_responsavel_id_fkey"
+            columns: ["planejador_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_planejador_responsavel_id_fkey"
+            columns: ["planejador_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
             referencedColumns: ["id"]
           },
         ]

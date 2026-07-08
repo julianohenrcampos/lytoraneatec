@@ -38,14 +38,17 @@ export async function checarAcessoCampo(userId: string | null): Promise<boolean>
 
 /** Lista cabeçalhos de ordens emitidas para uma data específica (BRT). */
 export async function listarOrdensEmitidasPorData(
-  dataBrt: string
+  dataBrt: string,
+  centroCustoId?: string | null,
 ): Promise<OrdemDiariaObra[]> {
-  const { data, error } = await (supabase as any)
+  let q = (supabase as any)
     .from("bd_ordens_diarias_obra")
     .select(ORDEM_COLS)
     .eq("status", "emitida")
     .eq("data_ordem", dataBrt)
     .order("created_at", { ascending: false });
+  if (centroCustoId) q = q.eq("centro_custo_id", centroCustoId);
+  const { data, error } = await q;
   if (error) throw error;
   return (data ?? []) as OrdemDiariaObra[];
 }
@@ -53,14 +56,15 @@ export async function listarOrdensEmitidasPorData(
 /** Lista cabeçalhos de ordens emitidas a partir de uma data (próximos N dias). */
 export async function listarProximasOrdensEmitidas(
   dataBrt: string,
-  limiteDias = 14
+  limiteDias = 14,
+  centroCustoId?: string | null,
 ): Promise<OrdemDiariaObra[]> {
   const inicio = new Date(`${dataBrt}T00:00:00`);
   const fim = new Date(inicio);
   fim.setDate(fim.getDate() + limiteDias);
   const fimStr = fim.toISOString().slice(0, 10);
 
-  const { data, error } = await (supabase as any)
+  let q = (supabase as any)
     .from("bd_ordens_diarias_obra")
     .select(ORDEM_COLS)
     .eq("status", "emitida")
@@ -68,6 +72,8 @@ export async function listarProximasOrdensEmitidas(
     .lte("data_ordem", fimStr)
     .order("data_ordem", { ascending: true })
     .order("created_at", { ascending: false });
+  if (centroCustoId) q = q.eq("centro_custo_id", centroCustoId);
+  const { data, error } = await q;
   if (error) throw error;
   return (data ?? []) as OrdemDiariaObra[];
 }

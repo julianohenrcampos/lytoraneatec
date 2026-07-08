@@ -6,11 +6,13 @@ import {
   cancelarOrdemDiaria,
   emitirOrdemDiaria,
   gerarOrdemDiariaRascunho,
+  isDuplicidadeOrdemDiaria,
   listarOrdensDiarias,
   type AtualizarRascunhoInput,
   type GerarRascunhoInput,
   type ListarOrdensFiltros,
 } from "@/services/planejamentoMacro/ordemDiariaService";
+
 
 const KEYS = {
   lista: (f: ListarOrdensFiltros) => ["ordens-diarias", f] as const,
@@ -52,7 +54,10 @@ export function useGerarOrdemDiariaRascunho() {
       toast.success("Rascunho de Ordem Diária criado.");
     },
     onError: (err: unknown) => {
+      // Duplicidade é resolvida no chamador (modal abre a ordem existente).
+      if (isDuplicidadeOrdemDiaria(err)) return;
       const msg = err instanceof Error ? err.message : "Erro ao gerar Ordem Diária";
+      // FASE A: mensagem retroativa vem pronta do backend — repassar tal qual.
       toast.error(msg);
     },
   });

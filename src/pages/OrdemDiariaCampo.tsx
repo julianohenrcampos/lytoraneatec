@@ -1,13 +1,19 @@
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ClipboardList, Loader2 } from "lucide-react";
+import { CalendarIcon, ClipboardList, Loader2 } from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import MainLayout from "@/components/layout/MainLayout";
 import { usePageTitle } from "@/contexts/PageTitleContext";
 import {
   getCurrentBrazilianDate,
   formatBrazilianDateForDisplay,
+  parseBrazilianDate,
+  formatBrazilianDateToString,
 } from "@/utils/timezoneUtils";
 import { useAuth } from "@/hooks/useAuth";
+import { usePermission } from "@/hooks/usePermission";
+import { useCentrosCusto } from "@/hooks/useCentrosCusto";
 import {
   useOrdensCampoDoDia,
   useProximasOrdensCampo,
@@ -20,6 +26,11 @@ import { CampoApontamentoPlaceholder } from "@/components/ordem-diaria-campo/Cam
 import EmptyState from "@/components/planejamento-macro/shared/EmptyState";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Combobox } from "@/components/ui/combobox";
+import { cn } from "@/lib/utils";
 import type {
   CampoTabId,
   OrdemDiariaItem,
@@ -30,16 +41,36 @@ export default function OrdemDiariaCampo() {
   usePageTitle("Ordem do Dia");
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { isSuperAdmin, hasPermission } = usePermission();
   const hojeBrt = getCurrentBrazilianDate();
+
   const [tab, setTab] = useState<CampoTabId>("hoje");
+  const [dataFiltro, setDataFiltro] = useState<string>(hojeBrt);
+  const [centroCustoId, setCentroCustoId] = useState<string>("");
+
+  const canPickCC = isSuperAdmin || hasPermission("engenharia_ordem_diaria_view");
+  const { centrosCusto } = useCentrosCusto();
+  const ccOptions = useMemo(
+    () =>
+      (centrosCusto ?? []).map((c: any) => ({
+        value: c.id as string,
+        label: `${c.codigo_centro_custo} — ${c.nome_centro_custo}`,
+      })),
+    [centrosCusto],
+  );
+
+  const ccFiltro = canPickCC && centroCustoId ? centroCustoId : null;
+  const isHoje = dataFiltro === hojeBrt;
+  const dataLabel = isHoje ? "Hoje" : formatBrazilianDateForDisplay(dataFiltro);
 
   const { data: ordensHoje = [], isLoading: loadingHoje } =
-    useOrdensCampoDoDia(hojeBrt);
+    useOrdensCampoDoDia(dataFiltro, ccFiltro);
   const { data: ordensProx = [], isLoading: loadingProx } =
-    useProximasOrdensCampo(hojeBrt);
+    useProximasOrdensCampo(dataFiltro, ccFiltro);
 
   const greetingName = (user?.user_metadata as any)?.full_name?.split(" ")?.[0]
     ?? (user?.email?.split("@")?.[0] ?? "");
+
 
   const todosItensHoje: OrdemDiariaItem[] = useMemo(
     () => ordensHoje.flatMap((o) => o.itens),
@@ -132,9 +163,66 @@ export default function OrdemDiariaCampo() {
           </p>
           <p className="text-xs text-muted-foreground">
             {greetingName ? `Olá, ${greetingName} · ` : ""}
-            {formatBrazilianDateForDisplay(hojeBrt)}
+            {isHoje ? formatBrazilianDateForDisplay(hojeBrt) : `Data selecionada: ${dataLabel}`}
           </p>
         </div>
+
+        {/* Filtros — data (sempre) + centro de custo (SuperAdm/administrativo) */}
+        <Card className="p-3 flex flex-wrap items-end gap-3">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Data</label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn("w-[200px] justify-start text-left font-normal")}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {isHoje ? "Hoje" : format(parseBrazilianDate(dataFiltro), "dd/MM/yyyy", { locale: ptBR })}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={parseBrazilianDate(dataFiltro)}
+                  onSelect={(d) => d && setDataFiltro(formatBrazilianDateToString(d))}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          {!isHoje && (
+            <Button variant="ghost" size="sm" onClick={() => setDataFiltro(hojeBrt)}>
+              Voltar para hoje
+            </Button>
+          )}
+
+          {canPickCC && (
+            <div className="space-y-1 min-w-[260px] flex-1">
+              <label className="text-xs text-muted-foreground">Centro de custo</label>
+              <Combobox
+                options={ccOptions}
+                value={centroCustoId}
+                onChange={setCentroCustoId}
+                placeholder="Todos os centros de custo"
+                emptyText="Nenhum centro de custo"
+                searchPlaceholder="Buscar CC..."
+              />
+              {centroCustoId && (
+                <button
+                  type="button"
+                  onClick={() => setCentroCustoId("")}
+                  className="text-xs text-muted-foreground underline"
+                >
+                  Limpar filtro
+                </button>
+              )}
+            </div>
+          )}
+        </Card>
+
 
         {/* Abas — visíveis em md+, mobile usa CampoBottomNav */}
         <div className="hidden md:block">
@@ -158,8 +246,10 @@ export default function OrdemDiariaCampo() {
               <Card className="p-6">
                 <EmptyState
                   icon={<ClipboardList className="h-5 w-5" />}
-                  title="Nenhuma Ordem do Dia emitida para você hoje."
-                  description="Quando uma Ordem Diária for emitida pela Engenharia, as tarefas aparecerão aqui."
+                  title={isHoje
+                    ? "Nenhuma Ordem do Dia emitida para você hoje."
+                    : `Nenhuma Ordem do Dia emitida para ${dataLabel}.`}
+                  description="Ajuste a data (ou o centro de custo, se disponível) ou aguarde a Engenharia emitir uma nova ordem."
                 />
               </Card>
             ) : (

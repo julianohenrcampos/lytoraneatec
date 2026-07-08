@@ -428,29 +428,49 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     [centrosCusto]
   );
 
-  const equipesOpts = useMemo(
-    () => (equipesQ.data || []).map((e) => ({ value: e.id, label: e.nome_equipe })),
-    [equipesQ.data]
-  );
+  const equipesOpts = useMemo(() => {
+    const base = (equipesQ.data || []).map((e) => ({ value: e.id, label: e.nome_equipe }));
+    if (isEditMode && ini.equipeId && !base.some((o) => o.value === ini.equipeId)) {
+      const nomeHist = editableQ.data?.historico.equipeNome || "";
+      base.unshift({
+        value: ini.equipeId,
+        label: `${nomeHist || "Equipe"} (histórico)`,
+      });
+    }
+    return base;
+  }, [equipesQ.data, isEditMode, ini.equipeId, editableQ.data]);
 
-  const caminhoesOpts = useMemo(
-    () =>
-      (caminhoesQ.data || []).map((c) => ({
-        value: c.id,
-        label: (c.frota || c.numero_frota || "s/frota") + (c.placa ? ` — ${c.placa}` : ""),
-      })),
-    [caminhoesQ.data]
-  );
+  const caminhoesOpts = useMemo(() => {
+    const base = (caminhoesQ.data || []).map((c) => ({
+      value: c.id,
+      label: (c.frota || c.numero_frota || "s/frota") + (c.placa ? ` — ${c.placa}` : ""),
+    }));
+    if (isEditMode && carga.caminhaoId && !base.some((o) => o.value === carga.caminhaoId)) {
+      const labelHist = editableQ.data?.historico.caminhaoLabel || "";
+      base.unshift({
+        value: carga.caminhaoId,
+        label: `${labelHist || "Caminhão"} (histórico)`,
+      });
+    }
+    return base;
+  }, [caminhoesQ.data, isEditMode, carga.caminhaoId, editableQ.data]);
 
-  const motoristasOpts = useMemo(
-    () =>
-      (motoristasQ.data || []).map((m) => ({
-        value: m.id,
-        label: m.nome_completo,
-        searchText: `${m.nome_completo} ${m.funcao_nome ?? ""}`.trim(),
-      })),
-    [motoristasQ.data]
-  );
+  const motoristasOpts = useMemo(() => {
+    const base = (motoristasQ.data || []).map((m) => ({
+      value: m.id,
+      label: m.nome_completo,
+      searchText: `${m.nome_completo} ${m.funcao_nome ?? ""}`.trim(),
+    }));
+    if (isEditMode && carga.motoristaId && !base.some((o) => o.value === carga.motoristaId)) {
+      const nomeHist = editableQ.data?.historico.motoristaNome || "";
+      base.unshift({
+        value: carga.motoristaId,
+        label: `${nomeHist || "Motorista"} (histórico)`,
+        searchText: nomeHist,
+      });
+    }
+    return base;
+  }, [motoristasQ.data, isEditMode, carga.motoristaId, editableQ.data]);
 
   // ============== hardReset ==============
   const hardReset = () => {

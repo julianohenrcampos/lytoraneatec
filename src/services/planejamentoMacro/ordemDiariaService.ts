@@ -85,6 +85,23 @@ export interface GerarRascunhoInput {
   responsaveisPorItem?: ResponsaveisPorItem;
 }
 
+/**
+ * Erro tipado que preserva `code`/`details`/`hint` do PostgREST,
+ * necessário para detectar duplicidade (23505 / ux_ordens_diarias_unica_ativa).
+ */
+export class OrdemDiariaRpcError extends Error {
+  code: string | null;
+  details: string | null;
+  hint: string | null;
+  constructor(msg: string, code: string | null, details: string | null, hint: string | null) {
+    super(msg);
+    this.name = "OrdemDiariaRpcError";
+    this.code = code;
+    this.details = details;
+    this.hint = hint;
+  }
+}
+
 export async function gerarOrdemDiariaRascunho(
   input: GerarRascunhoInput
 ): Promise<string> {
@@ -100,9 +117,66 @@ export async function gerarOrdemDiariaRascunho(
       p_responsaveis_por_item: input.responsaveisPorItem ?? {},
     }
   );
-  if (error) throw new Error(error.message ?? "Erro ao gerar Ordem Diária");
+  if (error) {
+    throw new OrdemDiariaRpcError(
+      error.message ?? "Erro ao gerar Ordem Diária",
+      error.code ?? null,
+      error.details ?? null,
+      error.hint ?? null,
+    );
+  }
   return data as string;
 }
+
+/**
+ * Espelha exatamente o índice parcial `ux_ordens_diarias_unica_ativa`:
+ * UNIQUE (centro_custo_id, planejamento_id, data_ordem) WHERE status <> 'cancelada'.
+ * Retorna a ordem ativa (rascunho/emitida/outro status <> cancelada) para a chave.
+ */
+export interface OrdemAtivaMin {
+  id: string;
+  status: string;
+  centro_custo_id: string;
+  planejamento_id: string;
+  data_ordem: string;
+  responsavel_funcionario_id: string | null;
+  responsavel_nome_snapshot: string | null;
+  observacao_geral: string | null;
+  emitido_em: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function buscarOrdemAtivaPorChave(
+  centroCustoId: string,
+  planejamentoId: string,
+  dataOrdem: string,
+): Promise<OrdemAtivaMin | null> {
+  const { data, error } = await (supabase as any)
+    .from("bd_ordens_diarias_obra")
+    .select(
+      "id,status,centro_custo_id,planejamento_id,data_ordem,responsavel_funcionario_id,responsavel_nome_snapshot,observacao_geral,emitido_em,created_at,updated_at"
+    )
+    .eq("centro_custo_id", centroCustoId)
+    .eq("planejamento_id", planejamentoId)
+    .eq("data_ordem", dataOrdem)
+    .neq("status", "cancelada")
+    .maybeSingle();
+  if (error) throw error;
+  return (data as OrdemAtivaMin | null) ?? null;
+}
+
+/** Detecta erro de duplicidade da constraint ux_ordens_diarias_unica_ativa. */
+export function isDuplicidadeOrdemDiaria(err: unknown): boolean {
+  const anyErr = err as any;
+  if (!anyErr) return false;
+  if (anyErr.code === "23505") return true;
+  const parts = [anyErr.message, anyErr.details, anyErr.hint]
+    .filter((v) => typeof v === "string")
+    .join(" ");
+  return parts.includes("ux_ordens_diarias_unica_ativa");
+}
+
 
 export interface AtualizarRascunhoInput {
   ordemId: string;

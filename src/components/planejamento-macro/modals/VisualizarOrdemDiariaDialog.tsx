@@ -19,7 +19,9 @@ import {
 } from "@/hooks/planejamentoMacro/useOrdensDiarias";
 import { generateOrdemDiariaPdf } from "@/services/pdf/ordemDiariaObraPdf";
 import { usePermission } from "@/hooks/usePermission";
-import { FileText, XCircle, Send } from "lucide-react";
+import { FileText, XCircle, Send, AlertTriangle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { getCurrentBrazilianDate } from "@/utils/timezoneUtils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -63,6 +65,12 @@ const VisualizarOrdemDiariaDialog: React.FC<Props> = ({
   const [confirmandoCancelar, setConfirmandoCancelar] = useState(false);
   const [motivo, setMotivo] = useState("");
 
+  // FASE A: rascunho vencido não edita nem emite. Cancelamento permanece permitido.
+  const hojeBR = getCurrentBrazilianDate();
+  const rascunhoVencido = Boolean(
+    ordem && ordem.status === "rascunho" && ordem.data_ordem < hojeBR,
+  );
+
   const handleEmitir = async () => {
     if (!ordem) return;
     await emitir.mutateAsync(ordem.id);
@@ -99,6 +107,15 @@ const VisualizarOrdemDiariaDialog: React.FC<Props> = ({
         ) : (
           <ScrollArea className="max-h-[60vh] pr-2">
             <div className="space-y-4 text-sm">
+              {rascunhoVencido && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Ordem Diária vencida</AlertTitle>
+                  <AlertDescription>
+                    Não é possível editar nem emitir. Replaneje a atividade para uma data atual ou futura.
+                  </AlertDescription>
+                </Alert>
+              )}
               <div className="grid md:grid-cols-2 gap-3">
                 <div>
                   <span className="text-muted-foreground">Centro de Custo:</span>{" "}
@@ -248,7 +265,7 @@ const VisualizarOrdemDiariaDialog: React.FC<Props> = ({
               Exportar PDF
             </Button>
           )}
-          {ordem && ordem.status === "rascunho" && canEmitir && (
+          {ordem && ordem.status === "rascunho" && canEmitir && !rascunhoVencido && (
             <Button onClick={handleEmitir} disabled={emitir.isPending}>
               <Send className="h-4 w-4 mr-2" />
               {emitir.isPending ? "Emitindo..." : "Emitir"}

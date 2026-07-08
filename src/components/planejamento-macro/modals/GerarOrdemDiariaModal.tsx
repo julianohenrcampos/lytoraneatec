@@ -37,8 +37,16 @@ import {
   useAtualizarOrdemDiariaRascunho,
 } from "@/hooks/planejamentoMacro/useOrdensDiarias";
 import { usePermission } from "@/hooks/usePermission";
+import {
+  buscarOrdemAtivaPorChave,
+  isDuplicidadeOrdemDiaria,
+  type OrdemAtivaMin,
+} from "@/services/planejamentoMacro/ordemDiariaService";
+import VisualizarOrdemDiariaDialog from "@/components/planejamento-macro/modals/VisualizarOrdemDiariaDialog";
+import { toast } from "sonner";
 import type { AtividadeNaSemana, Pendencia } from "@/lib/planejamentoMacro/planoSemanal/tipos";
 import type { ResponsaveisPorItem } from "@/types/ordemDiariaObra";
+import { getCurrentBrazilianDate } from "@/utils/timezoneUtils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -115,8 +123,15 @@ const GerarOrdemDiariaModal: React.FC<Props> = ({
   onAbrirRecursos,
   onAbrirEquipeDesignada,
 }) => {
-  const today = new Date().toISOString().slice(0, 10);
-  const dentroSemana = today >= semanaInicio && today <= semanaFim ? today : semanaInicio;
+  // FASE A: usar data Brasil/São Paulo — nunca UTC.
+  const today = getCurrentBrazilianDate();
+  const semanaEncerrada = today > semanaFim;
+  const minDataOrdem = today > semanaInicio ? today : semanaInicio;
+  const dentroSemana = semanaEncerrada
+    ? semanaFim
+    : today >= semanaInicio && today <= semanaFim
+    ? today
+    : semanaInicio;
 
   const [dataOrdem, setDataOrdem] = useState<string>(dentroSemana);
   const [responsavelId, setResponsavelId] = useState<string>("");
@@ -126,6 +141,11 @@ const GerarOrdemDiariaModal: React.FC<Props> = ({
   // Override manual do responsável da tarefa (substitui o herdado).
   const [respItem, setRespItem] = useState<Record<string, string>>({});
   const [confirmSemRespOpen, setConfirmSemRespOpen] = useState(false);
+
+  // Pré-checagem de duplicidade / abertura da ordem existente.
+  const [ordemExistente, setOrdemExistente] = useState<OrdemAtivaMin | null>(null);
+  const [visualizarOrdemId, setVisualizarOrdemId] = useState<string | null>(null);
+  const [checando, setChecando] = useState(false);
 
   const funcQ = useFuncionariosDoCC(centroCustoId);
   const { hasActionPermission } = usePermission();
@@ -163,6 +183,9 @@ const GerarOrdemDiariaModal: React.FC<Props> = ({
       setObsItem({});
       setRespItem({});
       setConfirmSemRespOpen(false);
+      setOrdemExistente(null);
+      setVisualizarOrdemId(null);
+      setChecando(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -269,14 +292,63 @@ const GerarOrdemDiariaModal: React.FC<Props> = ({
     return out;
   };
 
+  // FASE A: se a ordem existente é rascunho vencido, vai direto p/ visualização
+  // (bloqueia edição/emissão retroativa). Caso contrário mantém fluxo anterior.
+  const abrirOrdemExistente = (ord: OrdemAtivaMin) => {
+    const vencida = ord.data_ordem < today;
+    if (ord.status === "rascunho" && vencida) {
+      toast.info("Rascunho vencido. Abrindo em modo consulta.");
+      setVisualizarOrdemId(ord.id);
+      return;
+    }
+    if (ord.status === "rascunho") {
+      setOrdemExistente(ord); // AlertDialog abaixo decide abrir/cancelar
+    } else if (ord.status === "emitida") {
+      toast.info("Já existe Ordem Diária emitida para esta data. Abrindo visualização.");
+      setVisualizarOrdemId(ord.id);
+    } else {
+      toast.info(`Já existe Ordem Diária ativa (status: ${ord.status}) para esta data.`);
+      setVisualizarOrdemId(ord.id);
+    }
+  };
+
+  const dataRetroativa = dataOrdem < today;
+
   const persistir = async (emitirApos: boolean) => {
-    if (!planejamentoId) return;
+    if (!planejamentoId || !centroCustoId) return;
     if (selecionadas.size === 0) return;
+
+    // FASE A: guarda inicial — defesa em profundidade antes de qualquer RPC.
+    if (semanaEncerrada) {
+      toast.error("Semana já encerrada. Replaneje a atividade para uma data atual ou futura.");
+      return;
+    }
+    if (dataRetroativa) {
+      toast.error("Não é possível emitir Ordem Diária retroativa. Replaneje a atividade para uma data atual ou futura.");
+      return;
+    }
+
     const ids = Array.from(selecionadas);
     const respPorItem = buildResponsaveisPorItem();
     const obsPorItem: Record<string, string> = {};
     for (const id of ids) if (obsItem[id]?.trim()) obsPorItem[id] = obsItem[id].trim();
 
+    // 1) Pré-checagem espelhando ux_ordens_diarias_unica_ativa (status <> 'cancelada').
+    try {
+      setChecando(true);
+      const existente = await buscarOrdemAtivaPorChave(centroCustoId, planejamentoId, dataOrdem);
+      if (existente) {
+        abrirOrdemExistente(existente);
+        return;
+      }
+    } catch (e: any) {
+      toast.error(e?.message ?? "Erro ao verificar ordem existente.");
+      return;
+    } finally {
+      setChecando(false);
+    }
+
+    // 2) Chamada da RPC com fallback amigável para 23505 / constraint (corrida).
     try {
       const ordemId = await gerar.mutateAsync({
         planejamentoId,
@@ -302,8 +374,20 @@ const GerarOrdemDiariaModal: React.FC<Props> = ({
 
       if (emitirApos) await emitir.mutateAsync(ordemId);
       onOpenChange(false);
-    } catch {
-      // toast nos hooks
+    } catch (err) {
+      if (isDuplicidadeOrdemDiaria(err)) {
+        toast.error("Já existe Ordem Diária ativa para este centro de custo e data.");
+        try {
+          const existente = await buscarOrdemAtivaPorChave(
+            centroCustoId, planejamentoId, dataOrdem,
+          );
+          if (existente) abrirOrdemExistente(existente);
+        } catch {
+          /* silencioso — o toast principal já foi mostrado */
+        }
+        return;
+      }
+      // demais erros: toast do hook já apareceu
     }
   };
 
@@ -317,8 +401,14 @@ const GerarOrdemDiariaModal: React.FC<Props> = ({
     void persistir(true);
   };
 
-  const pending = gerar.isPending || atualizar.isPending || emitir.isPending;
-  const podeEmitir = canEmitir && selecionadas.size > 0;
+  const pending = gerar.isPending || atualizar.isPending || emitir.isPending || checando;
+  const bloqueadoRetroativo = semanaEncerrada || dataRetroativa;
+  const podeEmitir = canEmitir && selecionadas.size > 0 && !bloqueadoRetroativo;
+  const tooltipRetroativo = semanaEncerrada
+    ? "Semana já encerrada. Replaneje a atividade para uma data atual ou futura."
+    : dataRetroativa
+    ? "Não é possível emitir Ordem Diária retroativa. Replaneje a atividade para uma data atual ou futura."
+    : "";
 
   return (
     <>
@@ -336,6 +426,25 @@ const GerarOrdemDiariaModal: React.FC<Props> = ({
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+            {semanaEncerrada && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Semana já encerrada</AlertTitle>
+                <AlertDescription>
+                  Semana já encerrada. Replaneje a atividade para uma data atual ou futura.
+                </AlertDescription>
+              </Alert>
+            )}
+            {!semanaEncerrada && dataRetroativa && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Data retroativa</AlertTitle>
+                <AlertDescription>
+                  Não é possível emitir Ordem Diária retroativa. Escolha uma data igual ou posterior a hoje.
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Bloco 1 — Data + responsável principal */}
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1">
@@ -343,10 +452,11 @@ const GerarOrdemDiariaModal: React.FC<Props> = ({
                 <Input
                   id="data-ordem"
                   type="date"
-                  min={semanaInicio}
+                  min={minDataOrdem}
                   max={semanaFim}
                   value={dataOrdem}
                   onChange={(e) => setDataOrdem(e.target.value)}
+                  disabled={semanaEncerrada}
                 />
               </div>
               <div className="space-y-1">
@@ -711,7 +821,8 @@ const GerarOrdemDiariaModal: React.FC<Props> = ({
             <Button
               variant="secondary"
               onClick={handleSalvarRascunho}
-              disabled={pending || selecionadas.size === 0}
+              disabled={pending || selecionadas.size === 0 || bloqueadoRetroativo}
+              title={bloqueadoRetroativo ? tooltipRetroativo : ""}
             >
               {pending ? "Salvando..." : "Salvar rascunho"}
             </Button>
@@ -719,7 +830,9 @@ const GerarOrdemDiariaModal: React.FC<Props> = ({
               onClick={handleEmitir}
               disabled={pending || !podeEmitir}
               title={
-                !canEmitir
+                bloqueadoRetroativo
+                  ? tooltipRetroativo
+                  : !canEmitir
                   ? "Sem permissão para emitir"
                   : selecionadas.size === 0
                   ? "Selecione ao menos uma tarefa"
@@ -756,6 +869,47 @@ const GerarOrdemDiariaModal: React.FC<Props> = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Rascunho já existente para (CC, plano, data): oferece abrir para edição/visualização. */}
+      <AlertDialog
+        open={ordemExistente?.status === "rascunho"}
+        onOpenChange={(o) => { if (!o) setOrdemExistente(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Já existe rascunho para esta data</AlertDialogTitle>
+            <AlertDialogDescription>
+              Existe um rascunho de Ordem Diária para {fmtDate(dataOrdem)} neste centro de custo.
+              Deseja abrir o rascunho existente para revisar e emitir?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Fechar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const id = ordemExistente?.id ?? null;
+                setOrdemExistente(null);
+                if (id) setVisualizarOrdemId(id);
+              }}
+            >
+              Abrir rascunho
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Visualização/edição da ordem existente (rascunho/emitida/outro status ativo). */}
+      <VisualizarOrdemDiariaDialog
+        open={!!visualizarOrdemId}
+        onOpenChange={(o) => {
+          if (!o) {
+            setVisualizarOrdemId(null);
+            onOpenChange(false); // fecha o modal de geração também
+          }
+        }}
+        ordemId={visualizarOrdemId}
+        ccLabel={null}
+      />
     </>
   );
 };

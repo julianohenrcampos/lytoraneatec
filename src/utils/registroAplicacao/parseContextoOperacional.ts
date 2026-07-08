@@ -7,9 +7,12 @@
  */
 
 export interface ContextoOperacionalParsed {
+  equipeId?: string;
   equipe?: string;
+  caminhaoId?: string;
   caminhaoFrota?: string;
   placa?: string;
+  motoristaId?: string;
   motorista?: string;
   totalCarga?: string;
   temperaturaMassa?: string;
@@ -54,6 +57,7 @@ const stripEmpty = (raw: string): string | undefined => {
   const v = raw.trim();
   if (!v) return undefined;
   if (v === "-" || v === "—" || v.toLowerCase() === "n/a") return undefined;
+  if (v.toLowerCase() === "null" || v.toLowerCase() === "undefined") return undefined;
   return v;
 };
 
@@ -85,8 +89,11 @@ export function parseContextoOperacional(
         if (v) (out as any)[key] = v;
       };
       assign("placa", parsedJson.placa);
+      assign("equipeId", parsedJson.equipe_id);
       assign("equipe", parsedJson.equipe_nome ?? parsedJson.equipe);
+      assign("caminhaoId", parsedJson.caminhao_id);
       assign("caminhaoFrota", parsedJson.frota ?? parsedJson.caminhaoFrota);
+      assign("motoristaId", parsedJson.motorista_id);
       assign("motorista", parsedJson.motorista_nome ?? parsedJson.motorista);
       assign("totalCarga", parsedJson.total_carga_t ?? parsedJson.totalCarga);
       assign("temperaturaMassa", parsedJson.temperatura_massa ?? parsedJson.temperaturaMassa);

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -8,14 +8,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createEquipe, updateEquipe } from "@/services/equipe";
+import { supabase } from "@/integrations/supabase/client";
+
 import { fetchEquipeMembers, type EquipeMember } from "@/services/equipe/fetchEquipeMembers";
 import { useFuncionariosBuscaAtivos } from "@/hooks/diarias/useFuncionariosBuscaAtivos";
 import { useToast } from "@/hooks/use-toast";
 import { Equipe, EquipeFormData } from "@/types/equipe";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Plus, X, UserCheck, UserCog, Users, Tag, Search, Loader2 } from "lucide-react";
-import { Combobox } from "@/components/ui/combobox";
+import { Plus, X, UserCheck, UserCog, Users, Tag, Search, Loader2, Check } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 interface EquipeFormModalProps {
@@ -36,6 +37,24 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+const norm = (s?: string | null) =>
+  (s ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+const getFuncNome = (f: any): string =>
+  f?.funcao_nome ?? f?.bd_funcoes?.nome_funcao ?? "";
+
+
+const TOAST_OUTRA_EQUIPE = {
+  title: "Funcionário já pertence a outra equipe",
+  description:
+    "Este funcionário já pertence a outra equipe. Para transferi-lo, use a ação Transferir Membros na tabela de equipes.",
+  variant: "destructive" as const,
+};
+
 const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
   isOpen,
   onClose,
@@ -50,6 +69,11 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
   const [selectedMembros, setSelectedMembros] = useState<string[]>([]);
   const [nameMap, setNameMap] = useState<Map<string, { nome_completo: string; equipe_id: string | null; funcao_nome?: string | null }>>(new Map());
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchEnc, setSearchEnc] = useState("");
+  const [searchAp, setSearchAp] = useState("");
+  const [encOpen, setEncOpen] = useState(false);
+  const [apOpen, setApOpen] = useState(false);
+  const membrosManuaisRef = useRef<Set<string>>(new Set());
 
   // Carregar membros existentes (edição) via fetchEquipeMembers
   const { data: existingMembers = [], isLoading: isLoadingMembers } = useQuery<EquipeMember[]>({
@@ -59,7 +83,7 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
     staleTime: 30_000,
   });
 
-  // Busca sob demanda (>= 2 chars)
+  // Busca sob demanda (>= 2 chars) — membros
   const enabledSearch = searchTerm.trim().length >= 2;
   const { funcionarios: searchResults, isFetching: isSearching } = useFuncionariosBuscaAtivos({
     search: searchTerm,
@@ -67,9 +91,41 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
     enabled: enabledSearch,
   });
 
+  // Busca sob demanda — encarregado
+  const enabledEnc = searchEnc.trim().length >= 2;
+  const { funcionarios: encResults, isFetching: isSearchingEnc } = useFuncionariosBuscaAtivos({
+    search: searchEnc,
+    limit: 30,
+    enabled: enabledEnc,
+  });
+
+  // Busca sob demanda — apontador
+  const enabledAp = searchAp.trim().length >= 2;
+  const { funcionarios: apResults, isFetching: isSearchingAp } = useFuncionariosBuscaAtivos({
+    search: searchAp,
+    limit: 30,
+    enabled: enabledAp,
+  });
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: { nome_equipe: "", encarregado_id: "", apontador_id: "", equipe: [] },
+  });
+
+  // Rehidratação por id (fallback defensivo se responsável não estiver em existingMembers)
+  const encIdCurrent = form.watch("encarregado_id");
+  const apIdCurrent = form.watch("apontador_id");
+  const idsFaltantes = useMemo(() => {
+    const faltantes: string[] = [];
+    if (encIdCurrent && !nameMap.has(encIdCurrent)) faltantes.push(encIdCurrent);
+    if (apIdCurrent && !nameMap.has(apIdCurrent) && !faltantes.includes(apIdCurrent))
+      faltantes.push(apIdCurrent);
+    return faltantes;
+  }, [encIdCurrent, apIdCurrent, nameMap]);
+  const { funcionarios: idsResgatados } = useFuncionariosBuscaAtivos({
+    ids: idsFaltantes,
+    enabled: idsFaltantes.length > 0,
+    limit: 10,
   });
 
   // Reset ao abrir
@@ -82,23 +138,41 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
         equipe: equipe.equipe || [],
       });
       setSelectedMembros(equipe.equipe || []);
+      // Membros manuais = todos os existentes menos os responsáveis
+      const manuais = new Set<string>((equipe.equipe || []).filter(
+        (id) => id !== equipe.encarregado_id && id !== equipe.apontador_id
+      ));
+      membrosManuaisRef.current = manuais;
     } else {
       form.reset({ nome_equipe: "", encarregado_id: "", apontador_id: "", equipe: [] });
       setSelectedMembros([]);
+      membrosManuaisRef.current = new Set();
     }
     setSearchTerm("");
+    setSearchEnc("");
+    setSearchAp("");
+    setEncOpen(false);
+    setApOpen(false);
     setNameMap(new Map());
   }, [equipe, form, isOpen]);
 
-  // Popular nameMap: encarregados + apontadores + membros existentes + resultados de busca
+  // Popular nameMap: encarregados + apontadores (props legadas) + existentes + resultados de busca
   useEffect(() => {
     setNameMap((prev) => {
       const next = new Map(prev);
       encarregados.forEach((e) =>
-        next.set(e.id, { nome_completo: e.nome_completo, equipe_id: e.equipe_id ?? null })
+        next.set(e.id, {
+          nome_completo: e.nome_completo,
+          equipe_id: e.equipe_id ?? null,
+          funcao_nome: e?.bd_funcoes?.nome_funcao ?? null,
+        })
       );
       apontadores.forEach((a) =>
-        next.set(a.id, { nome_completo: a.nome_completo, equipe_id: a.equipe_id ?? null })
+        next.set(a.id, {
+          nome_completo: a.nome_completo,
+          equipe_id: a.equipe_id ?? null,
+          funcao_nome: a?.bd_funcoes?.nome_funcao ?? null,
+        })
       );
       existingMembers.forEach((m) =>
         next.set(m.id, {
@@ -107,51 +181,120 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
           funcao_nome: m.funcao_nome ?? null,
         })
       );
-      searchResults.forEach((f: any) =>
-        next.set(f.id, {
-          nome_completo: f.nome_completo,
-          equipe_id: f.equipe_id ?? null,
-          funcao_nome: f.funcao_nome ?? null,
-        })
-      );
+      const merge = (list: any[]) =>
+        list.forEach((f: any) =>
+          next.set(f.id, {
+            nome_completo: f.nome_completo,
+            equipe_id: f.equipe_id ?? next.get(f.id)?.equipe_id ?? null,
+            funcao_nome: getFuncNome(f) || next.get(f.id)?.funcao_nome || null,
+          })
+        );
+      merge(searchResults);
+      merge(encResults);
+      merge(apResults);
+      merge(idsResgatados);
+
       return next;
     });
-  }, [encarregados, apontadores, existingMembers, searchResults]);
+  }, [encarregados, apontadores, existingMembers, searchResults, encResults, apResults, idsResgatados]);
 
-  const encarregadoOptions = encarregados.map((e) => ({
-    value: e.id,
-    label: e.nome_completo,
-    className: "text-sm",
-  }));
-  const apontadorOptions = apontadores.map((a) => ({
-    value: a.id,
-    label: a.nome_completo,
-    className: "text-sm",
-  }));
+  const bloquearSeOutraEquipe = (funcEquipeId?: string | null): boolean => {
+    if (funcEquipeId && (!equipe || funcEquipeId !== equipe.id)) {
+      toast(TOAST_OUTRA_EQUIPE);
+      return true;
+    }
+    return false;
+  };
 
-  const handleEncarregadoChange = (value: string) => {
-    const previous = form.getValues("encarregado_id");
-    form.setValue("encarregado_id", value);
-    let novos = selectedMembros.filter((id) => id !== previous);
-    if (value && !novos.includes(value)) novos = [...novos, value];
-    setSelectedMembros(novos);
-    form.setValue("equipe", novos);
-    if (!equipe && value) {
-      const selected = encarregados.find((e) => e.id === value);
-      if (selected) form.setValue("nome_equipe", `Equipe ${selected.nome_completo}`);
+  // A RPC get_funcionarios_ativos_global não retorna equipe_id. Quando não sabemos,
+  // buscamos pontualmente para preservar o bloqueio de transferência entre equipes.
+  const resolverEquipeIdDoFuncionario = async (
+    id: string,
+    knownEquipeId: string | null | undefined
+  ): Promise<string | null> => {
+    if (knownEquipeId !== undefined && knownEquipeId !== null) return knownEquipeId;
+    const cached = nameMap.get(id)?.equipe_id;
+    if (cached !== undefined && cached !== null) return cached;
+    try {
+      const { data, error } = await supabase
+        .from("bd_funcionarios")
+        .select("equipe_id")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) {
+        console.warn("[EquipeFormModal] resolverEquipeIdDoFuncionario:", error.message);
+        return null;
+      }
+      const eqId = (data?.equipe_id as string | null) ?? null;
+      if (eqId) {
+        setNameMap((prev) => {
+          const next = new Map(prev);
+          const cur = next.get(id);
+          next.set(id, {
+            nome_completo: cur?.nome_completo ?? "",
+            equipe_id: eqId,
+            funcao_nome: cur?.funcao_nome ?? null,
+          });
+          return next;
+        });
+      }
+      return eqId;
+    } catch (e) {
+      console.warn("[EquipeFormModal] resolverEquipeIdDoFuncionario falhou:", e);
+      return null;
     }
   };
 
-  const handleApontadorChange = (value: string) => {
-    const previous = form.getValues("apontador_id");
-    form.setValue("apontador_id", value);
-    let novos = selectedMembros.filter((id) => id !== previous);
+
+  const handleEncarregadoChange = async (value: string, funcEquipeId?: string | null) => {
+    if (value) {
+      const eqId = await resolverEquipeIdDoFuncionario(value, funcEquipeId);
+      if (bloquearSeOutraEquipe(eqId)) return;
+    }
+    const previous = form.getValues("encarregado_id");
+    const apAtual = form.getValues("apontador_id");
+    form.setValue("encarregado_id", value);
+
+    let novos = [...selectedMembros];
+    // Remover anterior somente se não for o outro responsável e não for membro manual
+    if (previous && previous !== value) {
+      const manterAnterior = previous === apAtual || membrosManuaisRef.current.has(previous);
+      if (!manterAnterior) novos = novos.filter((id) => id !== previous);
+    }
     if (value && !novos.includes(value)) novos = [...novos, value];
     setSelectedMembros(novos);
     form.setValue("equipe", novos);
+
+    if (!equipe && value) {
+      const info = nameMap.get(value);
+      if (info?.nome_completo) form.setValue("nome_equipe", `Equipe ${info.nome_completo}`);
+    }
+    setEncOpen(false);
+    setSearchEnc("");
   };
 
-  const addMembro = (funcId: string, funcEquipeId: string | null | undefined) => {
+  const handleApontadorChange = async (value: string, funcEquipeId?: string | null) => {
+    if (value) {
+      const eqId = await resolverEquipeIdDoFuncionario(value, funcEquipeId);
+      if (bloquearSeOutraEquipe(eqId)) return;
+    }
+    const previous = form.getValues("apontador_id");
+    const encAtual = form.getValues("encarregado_id");
+    form.setValue("apontador_id", value);
+
+    let novos = [...selectedMembros];
+    if (previous && previous !== value) {
+      const manterAnterior = previous === encAtual || membrosManuaisRef.current.has(previous);
+      if (!manterAnterior) novos = novos.filter((id) => id !== previous);
+    }
+    if (value && !novos.includes(value)) novos = [...novos, value];
+    setSelectedMembros(novos);
+    form.setValue("equipe", novos);
+    setApOpen(false);
+    setSearchAp("");
+  };
+
+  const addMembro = async (funcId: string, funcEquipeId: string | null | undefined) => {
     if (selectedMembros.includes(funcId)) {
       toast({
         title: "Funcionário já adicionado",
@@ -160,16 +303,10 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
       });
       return;
     }
-    // Bloquear transferência entre equipes nesta tela
-    if (funcEquipeId && (!equipe || funcEquipeId !== equipe.id)) {
-      toast({
-        title: "Funcionário já pertence a outra equipe",
-        description:
-          "Para transferi-lo, use a ação Transferir Membros na tabela de equipes.",
-        variant: "destructive",
-      });
-      return;
-    }
+    const eqId = await resolverEquipeIdDoFuncionario(funcId, funcEquipeId);
+    if (bloquearSeOutraEquipe(eqId)) return;
+
+    membrosManuaisRef.current.add(funcId);
     const novos = [...selectedMembros, funcId];
     setSelectedMembros(novos);
     form.setValue("equipe", novos);
@@ -186,6 +323,7 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
       });
       return;
     }
+    membrosManuaisRef.current.delete(id);
     const novos = selectedMembros.filter((m) => m !== id);
     setSelectedMembros(novos);
     form.setValue("equipe", novos);
@@ -223,6 +361,20 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
       (f: any) => !selectedMembros.includes(f.id) && f.id !== enc && f.id !== ap
     );
   }, [enabledSearch, searchResults, selectedMembros, form]);
+
+  const visibleEncResults = useMemo(() => {
+    if (!enabledEnc) return [];
+    return encResults.filter((f: any) => norm(getFuncNome(f)).includes("encarregado"));
+  }, [enabledEnc, encResults]);
+
+  const visibleApResults = useMemo(() => {
+    if (!enabledAp) return [];
+    return apResults.filter((f: any) => norm(getFuncNome(f)).includes("apontador"));
+  }, [enabledAp, apResults]);
+
+
+  const encInfo = encIdCurrent ? nameMap.get(encIdCurrent) : undefined;
+  const apInfo = apIdCurrent ? nameMap.get(apIdCurrent) : undefined;
 
   const onSubmit = async (values: FormValues) => {
     try {
@@ -263,6 +415,115 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
     }
   };
 
+  const renderResponsavelPicker = (params: {
+    id: "encarregado" | "apontador";
+    value: string;
+    info?: { nome_completo: string; funcao_nome?: string | null };
+    open: boolean;
+    setOpen: (v: boolean) => void;
+    search: string;
+    setSearch: (v: string) => void;
+    enabled: boolean;
+    isSearching: boolean;
+    results: any[];
+    onSelect: (id: string, equipeId: string | null | undefined) => void;
+    placeholder: string;
+    emptyLabel: string;
+  }) => {
+    const {
+      value, info, open, setOpen, search, setSearch,
+      enabled, isSearching, results, onSelect, placeholder, emptyLabel,
+    } = params;
+    return (
+      <div className="space-y-2">
+        {value && !open ? (
+          <div className="flex items-center justify-between border rounded-md p-2 gap-2">
+            <div className="flex flex-col text-sm min-w-0">
+              <span className="font-medium truncate">
+                {info?.nome_completo || "Funcionário selecionado"}
+              </span>
+              <span className="text-xs text-muted-foreground truncate">
+                {info?.funcao_nome || "—"}
+              </span>
+            </div>
+            <Button type="button" size="sm" variant="outline" onClick={() => setOpen(true)}>
+              Trocar
+            </Button>
+          </div>
+        ) : (
+          <>
+            <Input
+              placeholder={placeholder}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoFocus={open}
+            />
+            {enabled && (
+              <div className="border rounded-md">
+                {isSearching ? (
+                  <div className="flex items-center gap-2 p-3 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Buscando...
+                  </div>
+                ) : results.length === 0 ? (
+                  <div className="p-3 text-sm text-muted-foreground">{emptyLabel}</div>
+                ) : (
+                  <ScrollArea className="max-h-48">
+                    <div className="divide-y">
+                      {results.map((f: any) => {
+                        const outraEquipe =
+                          !!f.equipe_id && (!equipe || f.equipe_id !== equipe.id);
+                        return (
+                          <div
+                            key={f.id}
+                            className="flex items-center justify-between p-2 gap-2"
+                          >
+                            <div className="flex flex-col text-sm min-w-0">
+                              <span className="font-medium truncate">{f.nome_completo}</span>
+                              <span className="text-xs text-muted-foreground truncate">
+                               {getFuncNome(f) || "Sem função"}
+
+                                {outraEquipe && (
+                                  <span className="ml-2 text-amber-600 font-medium">
+                                    · em outra equipe
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={outraEquipe ? "outline" : "default"}
+                              onClick={() => onSelect(f.id, f.equipe_id)}
+                            >
+                              <Check className="h-4 w-4 mr-1" /> Selecionar
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </ScrollArea>
+                )}
+              </div>
+            )}
+            {value && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setOpen(false);
+                  setSearch("");
+                }}
+              >
+                Cancelar troca
+              </Button>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[760px] max-h-screen overflow-y-auto">
@@ -298,14 +559,21 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
                       <UserCog className="h-4 w-4" /> Encarregado *
                     </FormLabel>
                     <FormControl>
-                      <Combobox
-                        options={encarregadoOptions}
-                        value={field.value}
-                        onChange={handleEncarregadoChange}
-                        placeholder="Selecione um encarregado"
-                        searchPlaceholder="Buscar encarregado..."
-                        emptyText="Nenhum encarregado encontrado"
-                      />
+                      {renderResponsavelPicker({
+                        id: "encarregado",
+                        value: field.value,
+                        info: encInfo,
+                        open: encOpen,
+                        setOpen: setEncOpen,
+                        search: searchEnc,
+                        setSearch: setSearchEnc,
+                        enabled: enabledEnc,
+                        isSearching: isSearchingEnc,
+                        results: visibleEncResults,
+                        onSelect: (id, eqId) => handleEncarregadoChange(id, eqId),
+                        placeholder: "Buscar encarregado (mín. 2 caracteres)...",
+                        emptyLabel: "Nenhum encarregado encontrado.",
+                      })}
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -321,14 +589,21 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
                       <UserCheck className="h-4 w-4" /> Apontador *
                     </FormLabel>
                     <FormControl>
-                      <Combobox
-                        options={apontadorOptions}
-                        value={field.value}
-                        onChange={handleApontadorChange}
-                        placeholder="Selecione um apontador"
-                        searchPlaceholder="Buscar apontador..."
-                        emptyText="Nenhum apontador encontrado"
-                      />
+                      {renderResponsavelPicker({
+                        id: "apontador",
+                        value: field.value,
+                        info: apInfo,
+                        open: apOpen,
+                        setOpen: setApOpen,
+                        search: searchAp,
+                        setSearch: setSearchAp,
+                        enabled: enabledAp,
+                        isSearching: isSearchingAp,
+                        results: visibleApResults,
+                        onSelect: (id, eqId) => handleApontadorChange(id, eqId),
+                        placeholder: "Buscar apontador (mín. 2 caracteres)...",
+                        emptyLabel: "Nenhum apontador encontrado.",
+                      })}
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -371,7 +646,7 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
                               <div className="flex flex-col text-sm">
                                 <span className="font-medium">{f.nome_completo}</span>
                                 <span className="text-xs text-muted-foreground">
-                                  {f.funcao_nome || "Sem função"}
+                                  {getFuncNome(f) || "Sem função"}
                                   {outraEquipe && (
                                     <span className="ml-2 text-amber-600 font-medium">
                                       · em outra equipe
@@ -406,7 +681,7 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
                   <Users className="h-4 w-4" /> Membros da equipe ({selectedMembros.length})
                 </label>
               </div>
-              <div className="border rounded-md min-h-[80px] max-h-[320px] p-3 overflow-hidden">
+              <div className="border rounded-md min-h-[80px] max-h-[320px] p-3">
                 {isLoadingMembers ? (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" /> Carregando membros...
@@ -416,8 +691,8 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
                     Nenhum membro. Adicione o encarregado, apontador ou use a busca acima.
                   </div>
                 ) : (
-                  <div className="max-h-[260px] overflow-y-auto">
-                    <div className="flex flex-wrap gap-2">
+                  <ScrollArea className="max-h-[260px]">
+                    <div className="flex flex-wrap gap-2 pr-2">
                       {selectedMembros.map((id) => {
                         const role = getMemberRole(id);
                         const info = nameMap.get(id);
@@ -450,7 +725,7 @@ const EquipeFormModal: React.FC<EquipeFormModalProps> = ({
                         );
                       })}
                     </div>
-                  </div>
+                  </ScrollArea>
                 )}
               </div>
             </div>

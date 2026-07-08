@@ -87,6 +87,17 @@ const CentroCustoDetailsModal: React.FC<CentroCustoDetailsModalProps> = ({
             </div>
           )}
 
+          {centroCusto.planejador_responsavel && (
+            <div>
+              <Label className="text-sm font-medium">Planejador Responsável</Label>
+              <div className="rounded-md border p-2 mt-1 bg-muted/50">
+                {centroCusto.planejador_responsavel.nome_completo ||
+                  centroCusto.planejador_responsavel.email ||
+                  "—"}
+              </div>
+            </div>
+          )}
+
           {centroCusto.endereco_completo && (
             <div>
               <Label className="text-sm font-medium">Endereço da Obra</Label>
