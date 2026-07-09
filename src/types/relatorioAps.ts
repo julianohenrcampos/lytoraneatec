@@ -72,8 +72,19 @@ export interface RelatorioApsCoordenada {
   longitude: number;
 }
 
+/** Ponto representando a coordenada de uma rua ajustada (bd_registro_aplicacao_ruas). */
+export interface RelatorioApsPontoRua {
+  ruaId: string;
+  ordem: number;
+  latitude: number;
+  longitude: number;
+  logradouro: string;
+}
+
 export interface RelatorioApsMapaState {
   pontosServico: RelatorioApsPontoServico[];
+  /** Pontos das ruas (ajuste manual/geocode gravados em bd_registro_aplicacao_ruas). */
+  pontosRua: RelatorioApsPontoRua[];
   linhaServico: RelatorioApsCoordenada[];
   /** Polígonos finalizados de áreas de aplicação (memória, sem persistência). */
   areasAplicacao: RelatorioApsCoordenada[][];

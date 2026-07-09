@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import {
   Command,
   CommandEmpty,
+  CommandGroup,
   CommandInput,
   CommandItem,
   CommandList,
@@ -24,6 +25,8 @@ export interface ComboboxOption {
   label: string
   /** Texto opcional usado para filtro (concatena termos alternativos, ex.: código + nome). Se ausente, usa label. */
   searchText?: string
+  /** Nome do grupo para renderizar opções agrupadas (opcional). */
+  group?: string
 }
 
 
@@ -128,35 +131,50 @@ export function Combobox({
             style={{ pointerEvents: 'auto' }}
           >
             <CommandEmpty>{emptyText}</CommandEmpty>
-            {filteredOptions.map((option) => (
-              <CommandItem
-                key={option.value}
-                value={option.value}
-                onSelect={(currentValue) => {
-                  console.log("🖱️ CommandItem onSelect:", currentValue, option.label);
-                  handleSelect(option.value);
-                }}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  console.log("🖱️ CommandItem onClick:", option.value, option.label);
-                  handleSelect(option.value);
-                }}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                }}
-                className="cursor-pointer hover:bg-accent hover:text-accent-foreground py-2.5 px-3 select-none"
-                style={{ pointerEvents: 'auto' }}
-              >
-                <Check
-                  className={cn(
-                    "mr-2 h-4 w-4 shrink-0 pointer-events-none",
-                    value === option.value ? "opacity-100" : "opacity-0"
-                  )}
-                />
-                <span className="flex-1 pointer-events-none">{option.label}</span>
-              </CommandItem>
-            ))}
+            {(() => {
+              const hasGroups = filteredOptions.some((o) => !!o.group);
+              const renderItem = (option: ComboboxOption) => (
+                <CommandItem
+                  key={option.value}
+                  value={option.value}
+                  onSelect={() => handleSelect(option.value)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleSelect(option.value);
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                  }}
+                  className="cursor-pointer hover:bg-accent hover:text-accent-foreground py-2.5 px-3 select-none"
+                  style={{ pointerEvents: 'auto' }}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4 shrink-0 pointer-events-none",
+                      value === option.value ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  <span className="flex-1 pointer-events-none">{option.label}</span>
+                </CommandItem>
+              );
+
+              if (!hasGroups) {
+                return filteredOptions.map(renderItem);
+              }
+
+              const groups = new Map<string, ComboboxOption[]>();
+              for (const opt of filteredOptions) {
+                const g = opt.group || "Outros";
+                if (!groups.has(g)) groups.set(g, []);
+                groups.get(g)!.push(opt);
+              }
+              return Array.from(groups.entries()).map(([groupName, items]) => (
+                <CommandGroup key={groupName} heading={groupName}>
+                  {items.map(renderItem)}
+                </CommandGroup>
+              ));
+            })()}
           </CommandList>
         </Command>
       </PopoverContent>

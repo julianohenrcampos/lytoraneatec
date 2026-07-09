@@ -30,6 +30,8 @@ const formSchema = z.object({
   numero_frota: z.string().optional().nullable(),
   departamento_id: z.string().optional().nullable(),
   empresa_id: z.string().optional().nullable(),
+  empresa_locadora_id: z.string().optional().nullable(),
+  proprietario_key: z.string().min(1, { message: "Selecione o proprietário" }),
   placa: z.string().optional().nullable(),
   categoria_ativo_id: z.string().optional().nullable(),
   subcategoria_ativo_id: z.string().optional().nullable(),
@@ -83,6 +85,8 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
       numero_frota: "",
       departamento_id: "_none",
       empresa_id: "",
+      empresa_locadora_id: "",
+      proprietario_key: "",
       placa: "",
       categoria_ativo_id: "_none",
       subcategoria_ativo_id: "_none",
@@ -116,6 +120,12 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
         numero_frota: veiculo.numero_frota || "",
         departamento_id: veiculo.departamento_id || "_none",
         empresa_id: veiculo.empresa_id || "",
+        empresa_locadora_id: (veiculo as any).empresa_locadora_id || "",
+        proprietario_key: (veiculo as any).empresa_locadora_id
+          ? `locadora:${(veiculo as any).empresa_locadora_id}`
+          : veiculo.empresa_id
+          ? `empresa:${veiculo.empresa_id}`
+          : "",
         placa: veiculo.placa || "",
         categoria_ativo_id: veiculo.categoria_ativo_id || "_none",
         subcategoria_ativo_id: veiculo.subcategoria_ativo_id || "_none",
@@ -147,6 +157,8 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
         numero_frota: "",
         departamento_id: "_none",
         empresa_id: "",
+        empresa_locadora_id: "",
+        proprietario_key: "",
         placa: "",
         categoria_ativo_id: "_none",
         subcategoria_ativo_id: "_none",
@@ -204,7 +216,11 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
       const subcategoriaId = values.subcategoria_ativo_id === "_none" ? null : values.subcategoria_ativo_id;
       const fabricanteRelId = values.fabricante_id === "_none" ? null : values.fabricante_id;
       const linhaId = values.linha_operacional_id === "_none" ? null : values.linha_operacional_id;
-      const empresaId = values.empresa_id === "_none" ? null : (values.empresa_id || null);
+      // Derivar empresa_id / empresa_locadora_id a partir da origem escolhida no combo Proprietário
+      const propKey = (values as any).proprietario_key as string | undefined;
+      const [propOrigem, propId] = (propKey || "").split(":");
+      const empresaId = propOrigem === "empresa" && propId ? propId : null;
+      const empresaLocadoraId = propOrigem === "locadora" && propId ? propId : null;
       const frotaIdVal = values.frota_id === "_none" ? null : (values.frota_id || null);
       const frotaSigla = values.frota?.toUpperCase() || null;
       
@@ -253,7 +269,7 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
         status_disponibilidade: 'disponivel',
         proprietario_tipo: proprietarioTipo,
         tipo_ativo: proprietarioTipo,
-        empresa_locadora_id: tipoFrota === "LOCADO" ? empresaId : null,
+        empresa_locadora_id: empresaLocadoraId,
         frota_id: frotaIdVal,
         fabricante_id: fabricanteRelId,
         modelo_id: null,

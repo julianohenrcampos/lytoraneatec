@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import { useFrotasDropdown, getFrotaTipoFromRecord, getFrotaLabelFromTipo } from "@/hooks/vehicles/useFrotasDropdown";
-import { useEmpresasByFrota } from "@/hooks/vehicles/useEmpresasByFrota";
+import { useProprietariosUnificados, buildProprietarioKey } from "@/hooks/vehicles/useProprietariosUnificados";
 import { AlertCircle } from "lucide-react";
 
 interface Props {
@@ -14,52 +14,58 @@ interface Props {
 
 const Step2Identificacao: React.FC<Props> = ({ form }) => {
   const frotaId = form.watch("frota_id");
-  const { data: frotasList = [], isLoading: isLoadingFrotas } = useFrotasDropdown();
+  const proprietarioKey = form.watch("proprietario_key") as string | undefined;
+  const empresaIdWatched = form.watch("empresa_id") as string | undefined;
+  const empresaLocadoraIdWatched = form.watch("empresa_locadora_id") as string | undefined;
 
-  // Find selected frota record
+  const { data: frotasList = [] } = useFrotasDropdown();
+  const { data: proprietarios = [], isLoading: isLoadingProps } = useProprietariosUnificados();
+
   const selectedFrota = useMemo(
     () => frotasList.find((f) => f.id === frotaId) || null,
     [frotasList, frotaId]
   );
 
-  const frotaCodigo = selectedFrota?.codigo || null;
-  const frotaTipo = getFrotaTipoFromRecord(selectedFrota?.tipo_propriedade_padrao);
   const labelProprietario = getFrotaLabelFromTipo(selectedFrota?.tipo_propriedade_padrao);
 
-  // Use the existing hook — pass the codigo for empresa filtering
-  const { data: empresas = [], isLoading: isLoadingEmpresas } = useEmpresasByFrota(frotaCodigo);
-
-  // Auto-set frota text field from selected frota
+  // Auto-set frota text field from selected frota (mantém sigla legada)
   useEffect(() => {
     if (selectedFrota) {
       form.setValue("frota", selectedFrota.codigo);
     }
   }, [selectedFrota, form]);
 
-  // Auto-select empresa when PROPRIO and only one option
+  // Hidratar proprietario_key a partir dos campos existentes (edição)
   useEffect(() => {
-    if (frotaTipo === "PROPRIO" && empresas.length === 1) {
-      form.setValue("empresa_id", empresas[0].id);
+    if (!proprietarioKey && (empresaIdWatched || empresaLocadoraIdWatched)) {
+      const key = buildProprietarioKey({
+        empresa_id: empresaIdWatched || null,
+        empresa_locadora_id: empresaLocadoraIdWatched || null,
+      });
+      if (key) form.setValue("proprietario_key", key);
     }
-  }, [frotaTipo, empresas, form]);
+  }, [proprietarioKey, empresaIdWatched, empresaLocadoraIdWatched, form]);
 
-  // Reset empresa when frota changes
+  // Limpar apenas se o valor selecionado não existir mais na lista unificada
   useEffect(() => {
-    const currentEmpresa = form.getValues("empresa_id");
-    if (currentEmpresa && empresas.length > 0) {
-      const exists = empresas.some((e) => e.id === currentEmpresa);
-      if (!exists) {
-        form.setValue("empresa_id", "");
-      }
+    if (!proprietarioKey || proprietarios.length === 0) return;
+    const exists = proprietarios.some((p) => p.key === proprietarioKey);
+    if (!exists) {
+      form.setValue("proprietario_key", "");
+      form.setValue("empresa_id", "");
+      form.setValue("empresa_locadora_id", "");
     }
-  }, [frotaId, empresas, form]);
+  }, [proprietarioKey, proprietarios, form]);
 
-  const empresaOptions = useMemo(
-    () => [
-      { value: "_none", label: "Selecione" },
-      ...empresas.map((e) => ({ value: e.id, label: e.nome_empresa })),
-    ],
-    [empresas]
+  const proprietarioOptions = useMemo(
+    () =>
+      proprietarios.map((p) => ({
+        value: p.key,
+        label: p.nome,
+        group: p.grupo,
+        searchText: `${p.nome} ${p.grupo}`,
+      })),
+    [proprietarios]
   );
 
   const frotaOptions = useMemo(
@@ -67,7 +73,13 @@ const Step2Identificacao: React.FC<Props> = ({ form }) => {
       { value: "_none", label: "Selecione a frota" },
       ...frotasList.map((f) => ({
         value: f.id,
-        label: `${f.codigo} — ${f.tipo_propriedade_padrao === "PROPRIO" ? "Próprio" : f.tipo_propriedade_padrao === "GRUPO" ? "Grupo" : "Locado"}`,
+        label: `${f.codigo} — ${
+          f.tipo_propriedade_padrao === "PROPRIO"
+            ? "Próprio"
+            : f.tipo_propriedade_padrao === "GRUPO"
+            ? "Grupo"
+            : "Locado"
+        }`,
       })),
     ],
     [frotasList]
@@ -128,50 +140,53 @@ const Step2Identificacao: React.FC<Props> = ({ form }) => {
             )}
           />
 
-          {/* Proprietário (filtrado por frota) */}
-          {frotaId && frotaId !== "_none" && (
-            <FormField
-              control={form.control}
-              name="empresa_id"
-              render={({ field }) => (
-                <FormItem className="sm:col-span-2">
-                  <FormLabel>
-                    Proprietário *{" "}
-                    {labelProprietario && (
-                      <span className="text-xs font-normal text-muted-foreground ml-1">
-                        — {labelProprietario}
-                      </span>
-                    )}
-                  </FormLabel>
-                  <FormControl>
-                    {frotaTipo === "PROPRIO" && empresas.length === 1 ? (
-                      <Input
-                        value={empresas[0].nome_empresa}
-                        readOnly
-                        className="bg-muted/30 text-muted-foreground text-sm"
-                      />
-                    ) : (
-                      <Combobox
-                        options={empresaOptions}
-                        value={field.value || "_none"}
-                        onChange={field.onChange}
-                        placeholder={isLoadingEmpresas ? "Carregando..." : "Buscar empresa..."}
-                        searchPlaceholder="Buscar empresa..."
-                        emptyText="Nenhuma empresa encontrada"
-                      />
-                    )}
-                  </FormControl>
-                  {empresas.length === 0 && !isLoadingEmpresas && (
-                    <p className="text-xs text-destructive flex items-center gap-1 mt-1">
-                      <AlertCircle className="h-3 w-3" />
-                      Nenhum fornecedor disponível para esta frota
-                    </p>
+          {/* Proprietário — lista unificada (empresas + locadoras), independente da frota */}
+          <FormField
+            control={form.control}
+            name="proprietario_key"
+            render={({ field }) => (
+              <FormItem className="sm:col-span-2">
+                <FormLabel>
+                  Proprietário *{" "}
+                  {labelProprietario && (
+                    <span className="text-xs font-normal text-muted-foreground ml-1">
+                      — {labelProprietario}
+                    </span>
                   )}
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          )}
+                </FormLabel>
+                <FormControl>
+                  <Combobox
+                    options={proprietarioOptions}
+                    value={field.value || ""}
+                    onChange={(val) => {
+                      field.onChange(val);
+                      const selected = proprietarios.find((p) => p.key === val);
+                      if (selected?.origem === "empresa") {
+                        form.setValue("empresa_id", selected.id);
+                        form.setValue("empresa_locadora_id", "");
+                      } else if (selected?.origem === "locadora") {
+                        form.setValue("empresa_locadora_id", selected.id);
+                        form.setValue("empresa_id", "");
+                      } else {
+                        form.setValue("empresa_id", "");
+                        form.setValue("empresa_locadora_id", "");
+                      }
+                    }}
+                    placeholder={isLoadingProps ? "Carregando..." : "Selecione o proprietário..."}
+                    searchPlaceholder="Buscar por nome..."
+                    emptyText="Nenhum proprietário encontrado"
+                  />
+                </FormControl>
+                {proprietarios.length === 0 && !isLoadingProps && (
+                  <p className="text-xs text-destructive flex items-center gap-1 mt-1">
+                    <AlertCircle className="h-3 w-3" />
+                    Nenhum proprietário cadastrado
+                  </p>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           {/* Placa */}
           <FormField

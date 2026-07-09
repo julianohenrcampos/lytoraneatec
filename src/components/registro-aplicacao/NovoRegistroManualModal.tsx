@@ -227,6 +227,9 @@ interface RuaLocal {
   origemLocalizacao: OrigemLoc;
   iniciadaEm: string;
   buracos: BuracoLocal[];
+  // B.3.5-D.M5 — flags de origem para validação de bairro legado
+  isPersistida?: boolean;
+  bairroOriginal?: string;
 }
 
 interface RuaFormState {
@@ -441,10 +444,10 @@ const NovoRegistroManualModal: React.FC<Props> = ({
   }, [equipesQ.data, isEditMode, ini.equipeId, editableQ.data]);
 
   const caminhoesOpts = useMemo(() => {
-    const base = (caminhoesQ.data || []).map((c) => ({
-      value: c.id,
-      label: (c.frota || c.numero_frota || "s/frota") + (c.placa ? ` — ${c.placa}` : ""),
-    }));
+    const base = (caminhoesQ.data || []).map((c) => {
+      const frotaLabel = [c.frota, c.numero_frota].filter(Boolean).join(" ").trim() || "s/frota";
+      return { value: c.id, label: frotaLabel };
+    });
     if (isEditMode && carga.caminhaoId && !base.some((o) => o.value === carga.caminhaoId)) {
       const labelHist = editableQ.data?.historico.caminhaoLabel || "";
       base.unshift({
@@ -643,6 +646,8 @@ const NovoRegistroManualModal: React.FC<Props> = ({
         capturedAt: r.capturedAt ?? null,
         origemLocalizacao: r.latitude != null ? "geocode" : "",
         iniciadaEm: new Date().toISOString(),
+        isPersistida: true,
+        bairroOriginal: r.bairro ?? "",
         buracos: r.buracos.map((b) => ({
           idLocal: b.idLocal,
           sequenciaAplicacao: b.sequenciaAplicacao,
@@ -799,7 +804,7 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     setCarga((prev) => ({
       ...prev,
       caminhaoId: id,
-      frota: c?.frota || c?.numero_frota || "",
+      frota: [c?.frota, c?.numero_frota].filter(Boolean).join(" ").trim() || "",
       placa: c?.placa || "",
     }));
   };
@@ -825,22 +830,30 @@ const NovoRegistroManualModal: React.FC<Props> = ({
 
   // ============== ABA 3 — Apontamento (Rua + Buraco) ==============
   const onRuaAddressSelected = (r: AddressResult) => {
-    setRuaForm((prev) => ({
-      ...prev,
-      logradouro: r.endereco_rua || r.endereco_completo || prev.logradouro,
-      bairro: r.endereco_bairro || prev.bairro,
-      cidade: r.endereco_cidade || prev.cidade,
-      uf: r.endereco_estado || prev.uf,
-      cep: r.endereco_cep || prev.cep,
-      latitude: typeof r.latitude === "number" ? r.latitude : prev.latitude,
-      longitude: typeof r.longitude === "number" ? r.longitude : prev.longitude,
-      origemLocalizacao:
-        r.geocoding_source === "manual"
-          ? "mapa"
-          : r.geocoding_status === "manual"
-          ? "mapa"
-          : "geocode",
-    }));
+    const isManual =
+      r.geocoding_source === "manual" || r.geocoding_status === "manual";
+    setRuaForm((prev) => {
+      const latNext = typeof r.latitude === "number" ? r.latitude : prev.latitude;
+      const lngNext = typeof r.longitude === "number" ? r.longitude : prev.longitude;
+      const coordsChanged =
+        latNext !== prev.latitude || lngNext !== prev.longitude;
+      return {
+        ...prev,
+        logradouro: r.endereco_rua || r.endereco_completo || prev.logradouro,
+        bairro: r.endereco_bairro || prev.bairro,
+        cidade: r.endereco_cidade || prev.cidade,
+        uf: r.endereco_estado || prev.uf,
+        cep: r.endereco_cep || prev.cep,
+        latitude: latNext,
+        longitude: lngNext,
+        // Ajuste manual no mapa: coordenada precisa registrar o momento do ajuste
+        // e limpar accuracy (não é medida de dispositivo).
+        accuracy: isManual && coordsChanged ? null : prev.accuracy,
+        capturedAt:
+          isManual && coordsChanged ? new Date().toISOString() : prev.capturedAt,
+        origemLocalizacao: isManual ? "mapa" : "geocode",
+      };
+    });
   };
 
   // B.3.5-D — tenta auto-preencher a rua atual via GPS + reverse geocode
@@ -935,7 +948,12 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     const logr = ruaForm.logradouro.trim();
     const bair = ruaForm.bairro.trim();
     if (!logr) return toast.error("Logradouro é obrigatório para iniciar a rua.");
-    if (!bair) return toast.error("Bairro é obrigatório para iniciar a rua.");
+    const ruaPersistidaEmEdicao = editingRuaId ? ruas.find((r) => r.idLocal === editingRuaId) : null;
+    const legadaSemBairro =
+      isEditMode &&
+      ruaPersistidaEmEdicao?.isPersistida === true &&
+      (ruaPersistidaEmEdicao.bairroOriginal ?? "").trim() === "";
+    if (!bair && !legadaSemBairro) return toast.error("Bairro é obrigatório para iniciar a rua.");
     const chave = normalizeRuaKey({ logradouro: logr, bairro: bair, cidade: ruaForm.cidade, uf: ruaForm.uf });
 
     // Edição: atualiza rua existente em-place
@@ -1392,8 +1410,17 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     for (const r of ruas) {
       if (r.buracos.length === 0)
         return `A rua "${describeRua(r)}" não tem apontamentos.`;
-      if (!r.bairro || !r.bairro.trim())
-        return `A rua "${describeRua(r)}" está sem bairro.`;
+      const bairroAtual = (r.bairro || "").trim();
+      if (!bairroAtual) {
+        // B.3.5-D.M5 — não bloquear ruas legadas que já eram salvas sem bairro
+        const legadaSemBairro =
+          isEditMode &&
+          r.isPersistida === true &&
+          (r.bairroOriginal ?? "").trim() === "";
+        if (!legadaSemBairro) {
+          return `A rua "${describeRua(r)}" está sem bairro.`;
+        }
+      }
     }
     if (totais.totalCargaT <= 0) return "Total da carga precisa ser > 0.";
     if (totais.areaTotal <= 0) return "Área total precisa ser > 0.";
@@ -1459,7 +1486,11 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     // Re-numera sequencia_aplicacao 1..N contígua na ordem visual (rua a rua).
     // sequencia_rua é re-numerada 1..N por rua.
     let seqAplGlobal = 0;
+    const ccGeo = ccGeoQ.data;
     const ruasPayload = ruas.map((r, idx) => {
+      const bairroPayload = (r.bairro || "").trim() || (isEditMode ? (ccGeo?.endereco_bairro || "").trim() : "");
+      const cidadePayload = (r.cidade || "").trim() || (isEditMode ? (ccGeo?.endereco_cidade || "").trim() : "");
+      const ufPayload = (r.uf || "").trim() || (isEditMode ? (ccGeo?.endereco_estado || "").trim() : "");
       const buracosPayload = r.buracos.map((b, bi) => {
         seqAplGlobal += 1;
         const areaB = b.areaCalculada || 0;
@@ -1493,9 +1524,9 @@ const NovoRegistroManualModal: React.FC<Props> = ({
         idLocal: r.idLocal,
         ordem_rua: idx + 1,
         logradouro: r.logradouro,
-        bairro: r.bairro,
-        cidade: r.cidade || null,
-        uf: r.uf || null,
+        bairro: bairroPayload,
+        cidade: cidadePayload || null,
+        uf: ufPayload || null,
         buracos: buracosPayload,
       };
       const g = gpsRua(r);
@@ -1522,6 +1553,7 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     // ao final de observacoes_gerais. NÃO concatenar aqui.
     const eq = equipesQ.data?.find((e) => e.id === ini.equipeId);
     const mot = motoristasQ.data?.find((m) => m.id === carga.motoristaId);
+    const primeiraRua = ruasPayload[0] || null;
     const contextoOperacional: Record<string, unknown> = {
       equipe_id: ini.equipeId || null,
       equipe_nome: eq?.nome_equipe || null,
@@ -1537,6 +1569,10 @@ const NovoRegistroManualModal: React.FC<Props> = ({
       condominio:
         ini.condominio === "sim" ? "sim" :
         ini.condominio === "nao" ? "nao" : null,
+      logradouro: primeiraRua?.logradouro || null,
+      bairro: primeiraRua?.bairro || null,
+      cidade: primeiraRua?.cidade || null,
+      uf: primeiraRua?.uf || null,
       totais: {
         qtd_ruas: totais.qtdRuas,
         qtd_buracos: totais.qtdBuracos,
@@ -1927,7 +1963,7 @@ const NovoRegistroManualModal: React.FC<Props> = ({
                         value={carga.caminhaoId}
                         onChange={onCaminhaoChange}
                         placeholder={caminhoesQ.isLoading ? "Carregando..." : "Selecione o caminhão"}
-                        searchPlaceholder="Buscar por frota ou placa..."
+                        searchPlaceholder="Buscar por frota..."
                         emptyText="Nenhum caminhão encontrado"
                         disabled={blocked}
                       />

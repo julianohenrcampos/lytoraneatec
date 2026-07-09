@@ -99,6 +99,18 @@ interface DetalheRow {
   fotos_aplicacao: string[] | null;
 }
 
+interface RuaPersistidaRow {
+  id: string;
+  ordem_rua: number | null;
+  logradouro_nome: string | null;
+  bairro: string | null;
+  cidade: string | null;
+  uf: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  geo_accuracy: number | null;
+}
+
 function genId() {
   return `local-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
 }
@@ -107,10 +119,24 @@ function normStr(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
+function normLookup(v: unknown): string {
+  return normStr(v).toUpperCase();
+}
+
+function parseFiniteNumber(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 async function fetchRegistroEditable(
   registroId: string
 ): Promise<RegistroManualEditable | null> {
-  const [{ data: header, error: hErr }, { data: detalhes, error: dErr }] =
+  const [
+    { data: header, error: hErr },
+    { data: detalhes, error: dErr },
+    { data: ruasPersistidas, error: rErr },
+  ] =
     await Promise.all([
       supabase
         .from("bd_registro_apontamento_aplicacao")
@@ -126,14 +152,21 @@ async function fetchRegistroEditable(
         )
         .eq("registro_aplicacao_id", registroId)
         .order("sequencia_aplicacao", { ascending: true }),
+      supabase
+        .from("bd_registro_aplicacao_ruas")
+        .select("id, ordem_rua, logradouro_nome, bairro, cidade, uf, latitude, longitude, geo_accuracy")
+        .eq("registro_aplicacao_id", registroId)
+        .order("ordem_rua", { ascending: true }),
     ]);
 
   if (hErr) throw hErr;
   if (dErr) throw dErr;
+  if (rErr) throw rErr;
   if (!header) return null;
 
   const h = header as HeaderRow;
   const rows = (detalhes || []) as DetalheRow[];
+  const ruasPersistidasRows = (ruasPersistidas || []) as RuaPersistidaRow[];
 
   const ctx = parseContextoOperacional(h.observacoes_gerais);
   const ruasParsed = parseRuasAplicacao(h.observacoes_gerais) || [];
@@ -154,26 +187,47 @@ async function fetchRegistroEditable(
 
   const ruas: RegistroManualEditable["ruas"] = [];
   let seqRuaFallback = 0;
+  const ruaPersistidaByLogr = new Map<string, RuaPersistidaRow>();
+  const ruaPersistidaByOrdem = new Map<number, RuaPersistidaRow>();
+  for (const r of ruasPersistidasRows) {
+    const logKey = normLookup(r.logradouro_nome);
+    if (logKey && !ruaPersistidaByLogr.has(logKey)) ruaPersistidaByLogr.set(logKey, r);
+    if (r.ordem_rua != null) ruaPersistidaByOrdem.set(Number(r.ordem_rua), r);
+  }
+  const deveUsarContextoComoFallback = (logradouro: string, keyUpper: string) => {
+    const ctxLogradouro = normLookup(ctx.logradouro);
+    return grupos.size === 1 || (!!ctxLogradouro && (ctxLogradouro === normLookup(logradouro) || ctxLogradouro === keyUpper));
+  };
+  const ctxLatitude = parseFiniteNumber(ctx.latitude);
+  const ctxLongitude = parseFiniteNumber(ctx.longitude);
   for (const [keyUpper, buracosRows] of grupos.entries()) {
     seqRuaFallback += 1;
     const parsed = ruaParsedByLogr.get(keyUpper);
     const logradouro =
       parsed?.logradouro || normStr(buracosRows[0]?.logradouro_nome) || "";
-    const bairro = normStr(parsed?.bairro);
-    const cidade = normStr(parsed?.cidade);
-    const uf = normStr(parsed?.uf);
+    const persistida =
+      ruaPersistidaByLogr.get(keyUpper) ||
+      ruaPersistidaByLogr.get(normLookup(logradouro)) ||
+      (ruasPersistidasRows.length === grupos.size ? ruaPersistidaByOrdem.get(seqRuaFallback) : undefined) ||
+      (ruasPersistidasRows.length === 1 && grupos.size === 1 ? ruasPersistidasRows[0] : undefined);
+    const usarCtxFallback = deveUsarContextoComoFallback(logradouro, keyUpper);
+    const bairro = normStr(persistida?.bairro) || normStr(parsed?.bairro) || (usarCtxFallback ? normStr(ctx.bairro) : "");
+    const cidade = normStr(persistida?.cidade) || normStr(parsed?.cidade) || (usarCtxFallback ? normStr(ctx.cidade) : "");
+    const uf = normStr(persistida?.uf) || normStr(parsed?.uf) || (usarCtxFallback ? normStr(ctx.uf) : "");
     // Primeiro buraco parseado com gps define GPS da rua (aproximação)
     const gpsRua = parsed?.buracos?.find((b) => b.gps)?.gps || null;
+    const latitude = persistida?.latitude ?? gpsRua?.latitude ?? (usarCtxFallback ? ctxLatitude : null);
+    const longitude = persistida?.longitude ?? gpsRua?.longitude ?? (usarCtxFallback ? ctxLongitude : null);
 
     ruas.push({
       idLocal: genId(),
-      logradouro,
+      logradouro: normStr(persistida?.logradouro_nome) || logradouro,
       bairro,
       cidade,
       uf,
-      latitude: gpsRua?.latitude ?? null,
-      longitude: gpsRua?.longitude ?? null,
-      accuracy: gpsRua?.accuracy ?? null,
+      latitude,
+      longitude,
+      accuracy: persistida?.geo_accuracy ?? gpsRua?.accuracy ?? null,
       capturedAt: null,
       buracos: buracosRows.map((b, i) => {
         const seqRua = i + 1;

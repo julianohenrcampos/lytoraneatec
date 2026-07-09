@@ -13,6 +13,7 @@ import { Info, MapPin, Undo2, Trash2, Pencil, Shapes, Check, X } from "lucide-re
 import { useGeocoding } from "@/hooks/useGeocoding";
 import type {
   RelatorioApsCoordenada,
+  RelatorioApsPontoRua,
   RelatorioApsPontoServico,
 } from "@/types/relatorioAps";
 
@@ -23,6 +24,7 @@ const MAP_DRAW_FILL_OPACITY = 0.25;
 
 interface Props {
   pontosServico: RelatorioApsPontoServico[];
+  pontosRua: RelatorioApsPontoRua[];
   linhaServico: RelatorioApsCoordenada[];
   areasAplicacao: RelatorioApsCoordenada[][];
   areaEmEdicao?: RelatorioApsCoordenada[];
@@ -47,6 +49,8 @@ const LINHA_LAYER_ID = "relatorio-aps-linha-layer";
 const PONTOS_SOURCE_ID = "relatorio-aps-pontos";
 const PONTOS_CIRCLE_LAYER_ID = "relatorio-aps-pontos-circle";
 const PONTOS_LABEL_LAYER_ID = "relatorio-aps-pontos-label";
+const RUAS_SOURCE_ID = "relatorio-aps-ruas";
+const RUAS_CIRCLE_LAYER_ID = "relatorio-aps-ruas-circle";
 const AREAS_SOURCE_ID = "relatorio-aps-areas";
 const AREAS_FILL_LAYER_ID = "relatorio-aps-areas-fill";
 const AREAS_LINE_LAYER_ID = "relatorio-aps-areas-line";
@@ -65,6 +69,7 @@ const emptyFC = (): GeoJSON.FeatureCollection => ({
 const RelatorioApsMapa = forwardRef<RelatorioApsMapaHandle, Props>(function RelatorioApsMapa(
   {
     pontosServico,
+    pontosRua,
     linhaServico,
     areasAplicacao,
     areaEmEdicao,
@@ -184,6 +189,20 @@ const RelatorioApsMapa = forwardRef<RelatorioApsMapaHandle, Props>(function Rela
           },
         });
 
+        // Marcador simples da(s) rua(s) — círculo branco com borda vermelha
+        map.addSource(RUAS_SOURCE_ID, { type: "geojson", data: emptyFC() });
+        map.addLayer({
+          id: RUAS_CIRCLE_LAYER_ID,
+          type: "circle",
+          source: RUAS_SOURCE_ID,
+          paint: {
+            "circle-radius": 8,
+            "circle-color": MAP_DRAW_TEXT_COLOR,
+            "circle-stroke-width": 3,
+            "circle-stroke-color": MAP_DRAW_COLOR,
+          },
+        });
+
         // Pontos numerados (dentro do canvas para captura no PDF)
         map.addSource(PONTOS_SOURCE_ID, { type: "geojson", data: emptyFC() });
         map.addLayer({
@@ -226,36 +245,44 @@ const RelatorioApsMapa = forwardRef<RelatorioApsMapaHandle, Props>(function Rela
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Pontos numerados + centralização
+  // Pontos numerados (buracos) + marcadores simples de rua + centralização
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    const src = map.getSource(PONTOS_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
-    if (!src) return;
-    src.setData({
+    const srcPontos = map.getSource(PONTOS_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+    const srcRuas = map.getSource(RUAS_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+    if (!srcPontos || !srcRuas) return;
+
+    srcPontos.setData({
       type: "FeatureCollection",
       features: pontosServico.map((p) => ({
         type: "Feature",
         geometry: { type: "Point", coordinates: [p.longitude, p.latitude] },
-        properties: {
-          sequencia: p.sequencia,
-          logradouro: p.logradouro,
-        },
+        properties: { sequencia: p.sequencia, logradouro: p.logradouro },
       })),
     });
 
-    if (pontosServico.length >= 2) {
+    srcRuas.setData({
+      type: "FeatureCollection",
+      features: pontosRua.map((p) => ({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [p.longitude, p.latitude] },
+        properties: { ordem: p.ordem, logradouro: p.logradouro },
+      })),
+    });
+
+    const todos: Array<[number, number]> = [
+      ...pontosServico.map((p) => [p.longitude, p.latitude] as [number, number]),
+      ...pontosRua.map((p) => [p.longitude, p.latitude] as [number, number]),
+    ];
+    if (todos.length >= 2) {
       const bounds = new mapboxgl.LngLatBounds();
-      pontosServico.forEach((p) => bounds.extend([p.longitude, p.latitude]));
+      todos.forEach((c) => bounds.extend(c));
       map.fitBounds(bounds, { padding: 60, duration: 600, maxZoom: 17 });
-    } else if (pontosServico.length === 1) {
-      map.easeTo({
-        center: [pontosServico[0].longitude, pontosServico[0].latitude],
-        zoom: 16,
-        duration: 600,
-      });
+    } else if (todos.length === 1) {
+      map.easeTo({ center: todos[0], zoom: 16, duration: 600 });
     }
-  }, [pontosServico, mapReady]);
+  }, [pontosServico, pontosRua, mapReady]);
 
   // Polyline (traçado)
   useEffect(() => {
@@ -357,7 +384,7 @@ const RelatorioApsMapa = forwardRef<RelatorioApsMapaHandle, Props>(function Rela
     };
   }, [modo, mapReady, onAdicionarPontoLinha, onAdicionarPontoArea]);
 
-  const semGps = pontosServico.length === 0;
+  const semGps = pontosServico.length === 0 && pontosRua.length === 0;
   const editandoArea = areaEmEdicao !== undefined;
   const podeFechar = (areaEmEdicao?.length ?? 0) >= 3;
 

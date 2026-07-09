@@ -9,6 +9,7 @@ import {
   RELATORIO_APS_PESO_DEFAULT,
   type RelatorioApsFotoDisponivel,
   type RelatorioApsLinha,
+  type RelatorioApsPontoRua,
   type RelatorioApsPontoServico,
 } from "@/types/relatorioAps";
 
@@ -69,6 +70,34 @@ export function montarPontosServicoFromDetalhes(
     }
   }
   pontos.sort((a, b) => a.sequencia - b.sequencia);
+  return pontos;
+}
+
+type RuaRaw = Record<string, any>;
+
+/** Extrai pontos de ruas (bd_registro_aplicacao_ruas) com lat/lng válidos. */
+export function montarPontosRuaFromRuas(ruas: RuaRaw[]): RelatorioApsPontoRua[] {
+  const pontos: RelatorioApsPontoRua[] = [];
+  for (const r of ruas || []) {
+    const lat = Number(r?.latitude);
+    const lng = Number(r?.longitude);
+    if (
+      Number.isFinite(lat) &&
+      Number.isFinite(lng) &&
+      Math.abs(lat) <= 90 &&
+      Math.abs(lng) <= 180 &&
+      !(lat === 0 && lng === 0)
+    ) {
+      pontos.push({
+        ruaId: String(r.id),
+        ordem: Number(r?.ordem_rua ?? 0),
+        latitude: lat,
+        longitude: lng,
+        logradouro: r?.logradouro_nome || "",
+      });
+    }
+  }
+  pontos.sort((a, b) => a.ordem - b.ordem);
   return pontos;
 }
 

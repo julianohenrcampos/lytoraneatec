@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { fetchRegistroAplicacaoById } from "@/services/registro-aplicacao/fetchRegistroAplicacao";
 import { buscarAplicacoesPorRegistro } from "@/services/registro-aplicacao/aplicacaoPorRuaService";
 import {
   montarFotosDisponiveisFromDetalhes,
   montarLinhasFromDetalhes,
+  montarPontosRuaFromRuas,
   montarPontosServicoFromDetalhes,
 } from "@/lib/relatorio-aps/montarDadosAps";
 import {
@@ -16,15 +18,37 @@ import {
   type RelatorioApsFotoSelecionada,
   type RelatorioApsLinha,
   type RelatorioApsMapaState,
+  type RelatorioApsPontoRua,
   type RelatorioApsState,
 } from "@/types/relatorioAps";
 
 const mapaVazio = (): RelatorioApsMapaState => ({
   pontosServico: [],
+  pontosRua: [],
   linhaServico: [],
   areasAplicacao: [],
   areaEmEdicao: undefined,
 });
+
+async function carregarPontosRua(registroIds: string[]): Promise<RelatorioApsPontoRua[]> {
+  const ids = Array.from(new Set(registroIds.filter(Boolean)));
+  if (ids.length === 0) return [];
+  try {
+    const { data, error } = await supabase
+      .from("bd_registro_aplicacao_ruas")
+      .select("id, ordem_rua, logradouro_nome, latitude, longitude")
+      .in("registro_aplicacao_id", ids)
+      .order("ordem_rua", { ascending: true });
+    if (error) {
+      console.warn("[RELATORIO_APS][RUAS_LOAD_FAIL]", error.message);
+      return [];
+    }
+    return montarPontosRuaFromRuas((data as any[]) || []);
+  } catch (e) {
+    console.warn("[RELATORIO_APS][RUAS_LOAD_ERROR]", e);
+    return [];
+  }
+}
 
 export interface CarregarDeSelecaoOpts {
   /** Linhas de bd_registro_aplicacao_detalhes já buscadas pelo hook de filtros. */
@@ -82,7 +106,11 @@ export function useRelatorioApsState(registroAplicacaoId: string | null) {
 
       const linhas = montarLinhasFromDetalhes(detalhes || [], situacaoDefault);
       const pontosServico = montarPontosServicoFromDetalhes(detalhes || []);
-      console.log("[RELATORIO_APS][MAPA_PONTOS_LOAD]", { count: pontosServico.length });
+      const pontosRua = await carregarPontosRua([id]);
+      console.log("[RELATORIO_APS][MAPA_PONTOS_LOAD]", {
+        pontosServico: pontosServico.length,
+        pontosRua: pontosRua.length,
+      });
 
       console.log("[RELATORIO_APS][FOTOS_LOAD_START]", {
         detalhes: (detalhes || []).length,
@@ -100,7 +128,13 @@ export function useRelatorioApsState(registroAplicacaoId: string | null) {
         linhas,
         fotosDisponiveis,
         fotosSelecionadas: [],
-        mapa: { pontosServico, linhaServico: [], areasAplicacao: [], areaEmEdicao: undefined },
+        mapa: {
+          pontosServico,
+          pontosRua,
+          linhaServico: [],
+          areasAplicacao: [],
+          areaEmEdicao: undefined,
+        },
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Erro ao carregar registro";
@@ -126,11 +160,16 @@ export function useRelatorioApsState(registroAplicacaoId: string | null) {
     try {
       const linhas = montarLinhasFromDetalhes(detalhes, situacaoDefault);
       const pontosServico = montarPontosServicoFromDetalhes(detalhes);
+      const registroIds = (detalhes || [])
+        .map((d) => String(d?.registro_aplicacao_id ?? ""))
+        .filter(Boolean);
+      const pontosRua = await carregarPontosRua(registroIds);
       const fotosDisponiveis = await montarFotosDisponiveisFromDetalhes(detalhes);
       console.log("[RELATORIO_APS][MULTI_LOAD]", {
         detalhes: detalhes.length,
         linhas: linhas.length,
         pontos: pontosServico.length,
+        pontosRua: pontosRua.length,
         fotos: fotosDisponiveis.length,
       });
       setState((prev) => ({
@@ -144,7 +183,13 @@ export function useRelatorioApsState(registroAplicacaoId: string | null) {
         linhas,
         fotosDisponiveis,
         fotosSelecionadas: [],
-        mapa: { pontosServico, linhaServico: [], areasAplicacao: [], areaEmEdicao: undefined },
+        mapa: {
+          pontosServico,
+          pontosRua,
+          linhaServico: [],
+          areasAplicacao: [],
+          areaEmEdicao: undefined,
+        },
       }));
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Erro ao montar relatório";

@@ -438,6 +438,7 @@ const RelatorioApsBuilderContent: React.FC<Props> = ({ ctrl, mapaRef }) => {
             <RelatorioApsMapa
               ref={mapaRef}
               pontosServico={mapa.pontosServico}
+              pontosRua={mapa.pontosRua}
               linhaServico={mapa.linhaServico}
               areasAplicacao={mapa.areasAplicacao}
               areaEmEdicao={mapa.areaEmEdicao}
