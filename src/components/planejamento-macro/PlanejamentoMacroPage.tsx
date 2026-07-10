@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { useCentrosCustoQuery } from "@/hooks/useCentrosCustoQuery";
-import { useEscopoCentrosCusto } from "@/hooks/useEscopoCentrosCusto";
+import { usePlanejamentoScopeCentrosCusto } from "@/hooks/planejamentoMacro/usePlanejamentoScopeCentrosCusto";
 import { useAuthPermissionsStable } from "@/hooks/useAuthPermissionsStable";
 import { usePageTitle } from "@/contexts/PageTitleContext";
 import PlanejamentoMacroHeader from "./PlanejamentoMacroHeader";
@@ -46,7 +46,7 @@ import { toast } from "sonner";
 
 const PlanejamentoMacroPage: React.FC = () => {
   const ccQuery = useCentrosCustoQuery({ queryKey: "planejamento-macro-cc" });
-  const escopo = useEscopoCentrosCusto();
+  const escopoPlan = usePlanejamentoScopeCentrosCusto();
   const { isSuperAdmin } = useAuthPermissionsStable();
 
   const today = new Date().toISOString().slice(0, 10);
@@ -80,10 +80,10 @@ const PlanejamentoMacroPage: React.FC = () => {
 
   const centrosCustoFiltrados = useMemo(() => {
     const all = ccQuery.data ?? [];
-    if (escopo.isGlobal) return all;
-    const allow = new Set(escopo.allowedCentroIds);
+    if (escopoPlan.isGlobal) return all;
+    const allow = new Set(escopoPlan.allowedCentroIds);
     return all.filter((cc) => allow.has(cc.id));
-  }, [ccQuery.data, escopo.isGlobal, escopo.allowedCentroIds]);
+  }, [ccQuery.data, escopoPlan.isGlobal, escopoPlan.allowedCentroIds]);
 
   const real = usePlanejamentoMacroReal(centroCustoId);
 
@@ -323,7 +323,7 @@ const PlanejamentoMacroPage: React.FC = () => {
         centrosCusto={centrosCustoFiltrados}
         centroCustoId={centroCustoId}
         onCentroCustoChange={setCentroCustoId}
-        loading={ccQuery.isLoading || escopo.isLoading}
+        loading={ccQuery.isLoading || escopoPlan.isLoading}
         headerAction={headerAction}
         tituloPrincipal={ccLabel ?? undefined}
         subtitulo={ccLabel ? "Planejamento Macro da Obra" : undefined}
