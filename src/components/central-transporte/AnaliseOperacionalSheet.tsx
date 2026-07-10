@@ -9,6 +9,7 @@ import { Loader2, CheckCircle2, Clock, ShoppingCart, XCircle } from "lucide-reac
 import { SolicitacaoTransporte, fetchAnaliseOperacional, AnaliseOperacional, DecisaoTransporte, DECISAO_LABELS } from "@/services/centralTransporteService";
 import DecisaoTransporteDialog from "./DecisaoTransporteDialog";
 import CriarMovimentacaoModal from "./CriarMovimentacaoModal";
+import { formatDateBR } from "@/utils/formatDateBR";
 
 interface Props {
   solicitacao: SolicitacaoTransporte | null;
@@ -86,7 +87,7 @@ const AnaliseOperacionalSheet: React.FC<Props> = ({ solicitacao, open, onClose, 
                     headers={["Frota", "Nº Frota", "CC", "Status", "Previsão", "Confiab."]}
                     rows={analise.equipamentosComPrevisao.map((d) => [
                       d.frota, d.numero_frota, d.centro_custo, d.status,
-                      d.previsao_liberacao ? new Date(d.previsao_liberacao).toLocaleDateString("pt-BR") : "—",
+                      formatDateBR(d.previsao_liberacao),
                       d.confiabilidade || "—",
                     ])}
                     emptyMsg="Nenhum equipamento com previsão de liberação."

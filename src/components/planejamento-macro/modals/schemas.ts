@@ -85,6 +85,17 @@ export const atividadeEditSchema = z
         message: "A data final deve ser maior ou igual à data inicial.",
       });
     }
+    const hasQtd =
+      data.quantidade_prevista != null || data.producao_prevista != null;
+    const unidadeVazia = !data.unidade || data.unidade.trim() === "";
+    if (hasQtd && unidadeVazia) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["unidade"],
+        message:
+          "Unidade de medida é obrigatória quando há quantidade ou produção prevista.",
+      });
+    }
   });
 
 export type AtividadeEditValues = z.infer<typeof atividadeEditSchema>;

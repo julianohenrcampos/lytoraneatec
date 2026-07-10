@@ -16,6 +16,7 @@ interface VeiculoFormStepperProps {
   onClose: () => void;
   currentImage?: string | null;
   onImageChange: (file: File) => void;
+  onImageRemove?: () => void;
   departamentos: { id: string; nome_departamento: string }[];
   empresas: { id: string; nome_empresa: string }[];
   categorias: { id: string; nome_categoria: string }[];
@@ -29,7 +30,7 @@ const steps = [
 ];
 
 const VeiculoFormStepper: React.FC<VeiculoFormStepperProps> = ({
-  form, onSubmit, isSubmitting, onClose, currentImage, onImageChange, departamentos, empresas, categorias,
+  form, onSubmit, isSubmitting, onClose, currentImage, onImageChange, onImageRemove, departamentos, empresas, categorias,
 }) => {
   const [step, setStep] = useState(0);
 
@@ -80,7 +81,7 @@ const VeiculoFormStepper: React.FC<VeiculoFormStepperProps> = ({
 
         {/* Step content */}
         <div className="min-h-[300px]">
-          {step === 0 && <Step1Classificacao form={form} categorias={categorias} currentImage={currentImage} onImageChange={onImageChange} />}
+          {step === 0 && <Step1Classificacao form={form} categorias={categorias} currentImage={currentImage} onImageChange={onImageChange} onImageRemove={onImageRemove} />}
           {step === 1 && <Step2Identificacao form={form} />}
           {step === 2 && <Step3DadosTecnicos form={form} />}
           {step === 3 && <Step4Operacao form={form} departamentos={departamentos} empresas={empresas} />}

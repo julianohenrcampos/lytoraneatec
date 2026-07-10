@@ -287,10 +287,19 @@ export function useCriarRegistroManual(opts?: {
       opts?.onSuccess?.(resp);
     },
     onError: (error: any) => {
-      const msg =
-        error?.message ||
-        error?.details ||
-        "Falha ao salvar registro manual.";
+      const raw = String(error?.message || error?.details || "");
+      let msg = raw || "Falha ao salvar registro manual.";
+
+      // Traduz erro técnico de escopo (fn_logistica_can_access_centro_custo)
+      // para mensagem amigável, sem expor UUID ao usuário final.
+      if (/fora do escopo do usuario/i.test(raw)) {
+        console.error("[REGISTRO_MANUAL][ESCOPO_CC_ERROR]", { raw, error });
+        msg =
+          "Você não possui permissão para salvar registros neste centro de custo. " +
+          "Verifique se seu usuário está vinculado à obra correta (via equipe, " +
+          "programação de entrega ou requisição).";
+      }
+
       toast.error(msg);
     },
   });

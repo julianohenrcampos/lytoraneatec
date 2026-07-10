@@ -12,21 +12,24 @@ interface Props {
   categorias: { id: string; nome_categoria: string }[];
   currentImage?: string | null;
   onImageChange: (file: File) => void;
+  onImageRemove?: () => void;
 }
 
-const Step1Classificacao: React.FC<Props> = ({ form, categorias, currentImage, onImageChange }) => {
+const Step1Classificacao: React.FC<Props> = ({ form, categorias, currentImage, onImageChange, onImageRemove }) => {
   const categoriaId = form.watch("categoria_ativo_id");
   const { subcategoriasDropdown, isLoadingSubcategorias } = useSubcategoriasQuery(categoriaId);
   const { data: linhas = [], isLoading: isLoadingLinhas } = useLinhasOperacionaisDropdown();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
+  // Preview local só para arquivo recém-selecionado; imagem persistida vem do form.
+  const [localPreview, setLocalPreview] = React.useState<string | null>(null);
+  const imagemUrlForm = form.watch("imagem_url") as string | null | undefined;
 
-  // Set initial preview from currentImage
+  // Ao trocar de veículo (currentImage muda), descartar qualquer preview local
+  // para evitar "vazamento" da imagem do registro anterior.
   useEffect(() => {
-    if (currentImage && !previewUrl) {
-      setPreviewUrl(currentImage);
-    }
+    setLocalPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }, [currentImage]);
 
   const handleImageClick = () => {
@@ -37,15 +40,20 @@ const Step1Classificacao: React.FC<Props> = ({ form, categorias, currentImage, o
     const file = e.target.files?.[0];
     if (file) {
       const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
+      setLocalPreview(url);
       onImageChange(file);
     }
   };
 
   const handleImageRemove = () => {
-    setPreviewUrl(null);
+    setLocalPreview(null);
+    form.setValue("imagem_url", null, { shouldDirty: true });
     if (fileInputRef.current) fileInputRef.current.value = "";
+    onImageRemove?.();
   };
+
+  const previewUrl = localPreview ?? (imagemUrlForm || null);
+
 
 
   const subcategoriaOptions = useMemo(() => [

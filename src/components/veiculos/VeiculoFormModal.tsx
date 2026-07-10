@@ -181,14 +181,22 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
         linha_operacional_id: "_none",
         
       });
-      setSelectedImage(null);
     }
+    // Sempre zerar o arquivo selecionado ao (re)abrir o modal ou trocar de registro,
+    // evitando reaproveitar a imagem escolhida em uma edição anterior.
+    setSelectedImage(null);
   }, [veiculo, form, isOpen]);
 
   const handleSelectedImage = (file: File) => {
     console.log("Selected image file:", file.name);
     setSelectedImage(file);
   };
+
+  const handleImageRemove = () => {
+    setSelectedImage(null);
+    form.setValue("imagem_url", null, { shouldDirty: true });
+  };
+
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
@@ -326,6 +334,7 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
           onClose={onClose}
           currentImage={veiculo?.imagem_url || null}
           onImageChange={handleSelectedImage}
+          onImageRemove={handleImageRemove}
           departamentos={departamentos || []}
           empresas={empresas || []}
           categorias={categorias || []}

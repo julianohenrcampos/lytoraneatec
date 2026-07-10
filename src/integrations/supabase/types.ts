@@ -7263,6 +7263,111 @@ export type Database = {
           },
         ]
       }
+      bd_ordens_diarias_obra_apontamentos: {
+        Row: {
+          centro_custo_id: string
+          created_at: string
+          data_referencia: string
+          equipe_presente_snapshot: Json
+          id: string
+          item_id: string
+          meta_dia_origem: string | null
+          meta_dia_snapshot: number | null
+          motivo_impedimento: string | null
+          observacao: string | null
+          ordem_id: string
+          payload_hash: string
+          percentual_realizado: number | null
+          quantidade_executada: number | null
+          registrado_em: string
+          registrado_por: string
+          registrado_por_funcionario_id: string | null
+          registrado_por_nome_snapshot: string
+          status_execucao: string
+          unidade_snapshot: string | null
+        }
+        Insert: {
+          centro_custo_id: string
+          created_at?: string
+          data_referencia: string
+          equipe_presente_snapshot?: Json
+          id?: string
+          item_id: string
+          meta_dia_origem?: string | null
+          meta_dia_snapshot?: number | null
+          motivo_impedimento?: string | null
+          observacao?: string | null
+          ordem_id: string
+          payload_hash: string
+          percentual_realizado?: number | null
+          quantidade_executada?: number | null
+          registrado_em?: string
+          registrado_por: string
+          registrado_por_funcionario_id?: string | null
+          registrado_por_nome_snapshot: string
+          status_execucao: string
+          unidade_snapshot?: string | null
+        }
+        Update: {
+          centro_custo_id?: string
+          created_at?: string
+          data_referencia?: string
+          equipe_presente_snapshot?: Json
+          id?: string
+          item_id?: string
+          meta_dia_origem?: string | null
+          meta_dia_snapshot?: number | null
+          motivo_impedimento?: string | null
+          observacao?: string | null
+          ordem_id?: string
+          payload_hash?: string
+          percentual_realizado?: number | null
+          quantidade_executada?: number | null
+          registrado_em?: string
+          registrado_por?: string
+          registrado_por_funcionario_id?: string | null
+          registrado_por_nome_snapshot?: string
+          status_execucao?: string
+          unidade_snapshot?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_apontamentos_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ordens_diarias_obra_itens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_apontamentos_ordem_id_fkey"
+            columns: ["ordem_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ordens_diarias_obra"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_apontamentos_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_apontamentos_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_apontamentos_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_ordens_diarias_obra_itens: {
         Row: {
           atividade_id: string | null
@@ -17230,6 +17335,63 @@ export type Database = {
           },
         ]
       }
+      vw_ordem_diaria_item_ultimo_apontamento: {
+        Row: {
+          apontamento_id: string | null
+          centro_custo_id: string | null
+          data_referencia: string | null
+          item_id: string | null
+          meta_dia_origem: string | null
+          meta_dia_snapshot: number | null
+          motivo_impedimento: string | null
+          observacao: string | null
+          ordem_id: string | null
+          percentual_realizado: number | null
+          quantidade_executada: number | null
+          registrado_em: string | null
+          registrado_por: string | null
+          registrado_por_nome_snapshot: string | null
+          status_execucao: string | null
+          unidade_snapshot: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_apontamentos_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ordens_diarias_obra_itens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_apontamentos_ordem_id_fkey"
+            columns: ["ordem_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ordens_diarias_obra"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_apontamentos_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_apontamentos_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_apontamentos_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vw_ordens_servico_admin_seguro: {
         Row: {
           caminhao_equipamento_id: string | null
@@ -20881,6 +21043,18 @@ export type Database = {
         }[]
       }
       fn_recalcula_total_os: { Args: { p_os_id: string }; Returns: undefined }
+      fn_registrar_apontamento_item_ordem_diaria: {
+        Args: {
+          p_equipe_presente?: string[]
+          p_item_id: string
+          p_meta_dia_informada?: number
+          p_motivo_impedimento?: string
+          p_observacao?: string
+          p_quantidade_executada?: number
+          p_status_execucao: string
+        }
+        Returns: string
+      }
       fn_registrar_leitura_os_sensivel: {
         Args: {
           _metadata?: Json
