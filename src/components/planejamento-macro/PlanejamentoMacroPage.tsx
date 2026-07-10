@@ -31,6 +31,7 @@ import {
 } from "@/lib/planejamentoMacro/planoSemanal/classificarRecurso";
 import { useCriarPlanejamentoObra } from "@/hooks/planejamentoMacro/useCriarPlanejamentoObra";
 import { useAtualizarPlanejamentoObra } from "@/hooks/planejamentoMacro/useAtualizarPlanejamentoObra";
+import { useTornarVigentePlanejamentoObra } from "@/hooks/planejamentoMacro/useTornarVigentePlanejamentoObra";
 import { useArquivarPlanejamentoObra } from "@/hooks/planejamentoMacro/useArquivarPlanejamentoObra";
 import { useExcluirPlanejamentoObra } from "@/hooks/planejamentoMacro/useExcluirPlanejamentoObra";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,9 @@ const PlanejamentoMacroPage: React.FC = () => {
   const canImportPlanejamento =
     isSuperAdmin ||
     hasActionPermission("engenharia_planejamento_macro_importar", "criar");
+  const canAtivarPlanejamento =
+    isSuperAdmin ||
+    hasActionPermission("engenharia_planejamento_macro_ativar", "aprovar");
 
 
   const today = new Date().toISOString().slice(0, 10);
@@ -176,6 +180,7 @@ const PlanejamentoMacroPage: React.FC = () => {
 
   const criar = useCriarPlanejamentoObra();
   const atualizar = useAtualizarPlanejamentoObra();
+  const tornarVigente = useTornarVigentePlanejamentoObra();
   const arquivar = useArquivarPlanejamentoObra();
   const excluir = useExcluirPlanejamentoObra();
 
@@ -238,13 +243,14 @@ const PlanejamentoMacroPage: React.FC = () => {
   };
 
   const handleTornarVigente = async (p: PlanejamentoObraRow) => {
-    if (haVigente && real.planejamento?.id !== p.id) {
+    if (!canAtivarPlanejamento) {
       toast.error(
-        "Já existe um planejamento vigente para este Centro de Custo. Arquive o vigente atual antes de ativar outro."
+        "Você não possui permissão para tornar vigente o planejamento desta obra."
       );
       return;
     }
-    await atualizar.mutateAsync({ id: p.id, patch: { status: "vigente" } });
+    // A RPC transacional arquiva a versão vigente anterior automaticamente.
+    await tornarVigente.mutateAsync({ id: p.id });
   };
 
   const handleConfirmArchive = async () => {
@@ -467,6 +473,7 @@ const PlanejamentoMacroPage: React.FC = () => {
         planejamentos={lista.data ?? []}
         isLoading={lista.isLoading}
         isSuperAdmin={isSuperAdmin}
+        canAtivarPlanejamento={canAtivarPlanejamento}
         ccLabel={ccLabel}
         onEdit={(p) => {
           setVersoesOpen(false);

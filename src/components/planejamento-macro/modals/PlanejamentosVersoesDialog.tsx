@@ -35,6 +35,8 @@ interface Props {
   planejamentos: PlanejamentoObraRow[];
   isLoading: boolean;
   isSuperAdmin: boolean;
+  /** Deriva do RBAC: SuperAdm ou engenharia_planejamento_macro_ativar/aprovar */
+  canAtivarPlanejamento?: boolean;
   ccLabel?: string | null;
   onEdit: (p: PlanejamentoObraRow) => void;
   onTornarVigente: (p: PlanejamentoObraRow) => void;
@@ -45,13 +47,17 @@ interface Props {
 const Row: React.FC<{
   p: PlanejamentoObraRow;
   isSuperAdmin: boolean;
+  canAtivar: boolean;
   onEdit: () => void;
   onTornarVigente: () => void;
   onArquivar: () => void;
   onExcluir: () => void;
-}> = ({ p, isSuperAdmin, onEdit, onTornarVigente, onArquivar, onExcluir }) => {
+}> = ({ p, isSuperAdmin, canAtivar, onEdit, onTornarVigente, onArquivar, onExcluir }) => {
   const isVigente = p.status === "vigente";
   const podeExcluir = p.status !== "vigente";
+  const podeTornarVigente = canAtivar && p.status === "rascunho";
+  // Menu aparece se pelo menos uma ação está disponível.
+  const temAlgumaAcao = isSuperAdmin || podeTornarVigente;
   const ultimaAtualizacao =
     (p as any).updated_at ?? (p as any).created_at ?? null;
   const aprovadoEm = (p as any).aprovado_em ?? null;
@@ -74,7 +80,7 @@ const Row: React.FC<{
         </div>
         <div className="text-sm text-muted-foreground capitalize">{p.origem}</div>
         <div className="flex justify-end">
-          {isSuperAdmin ? (
+          {temAlgumaAcao ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" aria-label="Ações">
@@ -82,30 +88,34 @@ const Row: React.FC<{
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={onEdit}>
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Editar informações da versão
-                </DropdownMenuItem>
-                {p.status === "rascunho" && (
+                {isSuperAdmin && (
+                  <DropdownMenuItem onClick={onEdit}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Editar informações da versão
+                  </DropdownMenuItem>
+                )}
+                {podeTornarVigente && (
                   <DropdownMenuItem onClick={onTornarVigente}>
                     <CheckCircle2 className="h-4 w-4 mr-2" />
                     Tornar vigente
                   </DropdownMenuItem>
                 )}
-                {p.status === "vigente" && (
+                {isSuperAdmin && p.status === "vigente" && (
                   <DropdownMenuItem onClick={onArquivar}>
                     <Archive className="h-4 w-4 mr-2" />
                     Arquivar
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem
-                  onClick={onExcluir}
-                  disabled={!podeExcluir}
-                  className={cn(podeExcluir && "text-destructive focus:text-destructive")}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Excluir
-                </DropdownMenuItem>
+                {isSuperAdmin && (
+                  <DropdownMenuItem
+                    onClick={onExcluir}
+                    disabled={!podeExcluir}
+                    className={cn(podeExcluir && "text-destructive focus:text-destructive")}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Excluir
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
@@ -142,6 +152,7 @@ const PlanejamentosVersoesDialog: React.FC<Props> = ({
   planejamentos,
   isLoading,
   isSuperAdmin,
+  canAtivarPlanejamento = false,
   ccLabel,
   onEdit,
   onTornarVigente,
@@ -149,6 +160,7 @@ const PlanejamentosVersoesDialog: React.FC<Props> = ({
   onExcluir,
 }) => {
   const count = planejamentos.length;
+  const podeAgirEmAlgo = isSuperAdmin || canAtivarPlanejamento;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[95vw] max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
@@ -158,7 +170,7 @@ const PlanejamentosVersoesDialog: React.FC<Props> = ({
             {ccLabel
               ? `Versões importadas e manuais do Centro de Custo ${ccLabel}.`
               : "Versões importadas e manuais do Centro de Custo selecionado."}
-            {!isSuperAdmin && " Modo somente leitura."}
+            {!podeAgirEmAlgo && " Modo somente leitura."}
           </DialogDescription>
         </DialogHeader>
 
@@ -188,6 +200,7 @@ const PlanejamentosVersoesDialog: React.FC<Props> = ({
                     key={p.id}
                     p={p}
                     isSuperAdmin={isSuperAdmin}
+                    canAtivar={canAtivarPlanejamento}
                     onEdit={() => onEdit(p)}
                     onTornarVigente={() => onTornarVigente(p)}
                     onArquivar={() => onArquivar(p)}

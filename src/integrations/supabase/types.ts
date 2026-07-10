@@ -20968,6 +20968,30 @@ export type Database = {
         Args: { p_user_id?: string }
         Returns: string[]
       }
+      fn_planejamento_tornar_vigente: {
+        Args: { p_planejamento_id: string }
+        Returns: {
+          aprovado_em: string | null
+          aprovado_por: string | null
+          centro_custo_id: string
+          created_at: string
+          criado_por: string | null
+          id: string
+          observacao: string | null
+          origem: string
+          periodo_fim: string
+          periodo_inicio: string
+          status: string
+          updated_at: string
+          versao: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bd_planejamentos_obra"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       fn_pncp_can_access_sync_log_row: {
         Args: { p_row_user_id: string; p_user_id?: string }
         Returns: boolean
