@@ -42,7 +42,25 @@ export function montarLinhasFromDetalhes(
       totalKg: tonelada * 1000,
     };
   });
-  linhas.sort((a, b) => a.sequencia - b.sequencia);
+  // B.3.5-D.M7-A parte 2: ordenação canônica compartilhada por tela/PDF/Excel.
+  // 1) data ASC (normalizada), 2) logradouro ASC, 3) sequencia ASC, 4) id ASC.
+  const normData = (d: string): string => {
+    if (!d) return "";
+    if (/^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0, 10);
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(d);
+    if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+    const dt = new Date(d);
+    return Number.isFinite(dt.getTime()) ? dt.toISOString().slice(0, 10) : d;
+  };
+  linhas.sort((a, b) => {
+    const da = normData(a.data);
+    const db = normData(b.data);
+    if (da !== db) return da < db ? -1 : 1;
+    const la = (a.logradouro || "").localeCompare(b.logradouro || "", "pt-BR");
+    if (la !== 0) return la;
+    if (a.sequencia !== b.sequencia) return a.sequencia - b.sequencia;
+    return a.id.localeCompare(b.id);
+  });
   return linhas;
 }
 

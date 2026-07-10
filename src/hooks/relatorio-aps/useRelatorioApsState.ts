@@ -28,6 +28,12 @@ const mapaVazio = (): RelatorioApsMapaState => ({
   linhaServico: [],
   areasAplicacao: [],
   areaEmEdicao: undefined,
+  ajustesPontosServico: {},
+  ajustesPontosRua: {},
+  marcadoresManuais: [],
+  selecaoMarcador: undefined,
+  mostrarPontosRua: true,
+  incluirPontosRuaNoPdf: true,
 });
 
 async function carregarPontosRua(registroIds: string[]): Promise<RelatorioApsPontoRua[]> {
@@ -129,11 +135,9 @@ export function useRelatorioApsState(registroAplicacaoId: string | null) {
         fotosDisponiveis,
         fotosSelecionadas: [],
         mapa: {
+          ...mapaVazio(),
           pontosServico,
           pontosRua,
-          linhaServico: [],
-          areasAplicacao: [],
-          areaEmEdicao: undefined,
         },
       });
     } catch (err) {
@@ -184,11 +188,9 @@ export function useRelatorioApsState(registroAplicacaoId: string | null) {
         fotosDisponiveis,
         fotosSelecionadas: [],
         mapa: {
+          ...mapaVazio(),
           pontosServico,
           pontosRua,
-          linhaServico: [],
-          areasAplicacao: [],
-          areaEmEdicao: undefined,
         },
       }));
     } catch (err) {
@@ -407,6 +409,162 @@ export function useRelatorioApsState(registroAplicacaoId: string | null) {
     });
   }, []);
 
+  // ============ B.3.5-D.M7-B — ajustes/manuais (memória) ============
+
+  const mapaSelecionarMarcador = useCallback(
+    (tipo: "servico" | "rua" | "manual", id: string) => {
+      setState((prev) => ({
+        ...prev,
+        mapa: { ...prev.mapa, selecaoMarcador: { tipo, id } },
+      }));
+    },
+    [],
+  );
+
+  const mapaLimparSelecao = useCallback(() => {
+    setState((prev) => {
+      if (!prev.mapa.selecaoMarcador) return prev;
+      return { ...prev, mapa: { ...prev.mapa, selecaoMarcador: undefined } };
+    });
+  }, []);
+
+  const mapaAjustarPontoServico = useCallback(
+    (detalheId: string, coord: RelatorioApsCoordenada) => {
+      setState((prev) => ({
+        ...prev,
+        mapa: {
+          ...prev.mapa,
+          ajustesPontosServico: {
+            ...prev.mapa.ajustesPontosServico,
+            [detalheId]: { latitude: coord.latitude, longitude: coord.longitude },
+          },
+        },
+      }));
+    },
+    [],
+  );
+
+  const mapaAjustarPontoRua = useCallback(
+    (ruaId: string, coord: RelatorioApsCoordenada) => {
+      setState((prev) => ({
+        ...prev,
+        mapa: {
+          ...prev.mapa,
+          ajustesPontosRua: {
+            ...prev.mapa.ajustesPontosRua,
+            [ruaId]: { latitude: coord.latitude, longitude: coord.longitude },
+          },
+        },
+      }));
+    },
+    [],
+  );
+
+  const mapaAdicionarMarcadorManual = useCallback(
+    (coord: RelatorioApsCoordenada) => {
+      setState((prev) => {
+        const maxServ = prev.mapa.pontosServico.reduce(
+          (m, p) => Math.max(m, p.sequencia || 0),
+          0,
+        );
+        const maxMan = prev.mapa.marcadoresManuais.reduce(
+          (m, p) => Math.max(m, p.sequencia || 0),
+          0,
+        );
+        const sequencia = Math.max(maxServ, maxMan) + 1;
+        const id =
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const novo = {
+          id,
+          sequencia,
+          latitude: coord.latitude,
+          longitude: coord.longitude,
+        };
+        console.log("[RELATORIO_APS][MAPA_MANUAL_ADD]", { id, sequencia });
+        return {
+          ...prev,
+          mapa: {
+            ...prev.mapa,
+            marcadoresManuais: [...prev.mapa.marcadoresManuais, novo],
+          },
+        };
+      });
+    },
+    [],
+  );
+
+  const mapaMoverMarcadorManual = useCallback(
+    (id: string, coord: RelatorioApsCoordenada) => {
+      setState((prev) => ({
+        ...prev,
+        mapa: {
+          ...prev.mapa,
+          marcadoresManuais: prev.mapa.marcadoresManuais.map((m) =>
+            m.id === id
+              ? { ...m, latitude: coord.latitude, longitude: coord.longitude }
+              : m,
+          ),
+        },
+      }));
+    },
+    [],
+  );
+
+  const mapaRemoverMarcadorManual = useCallback((id: string) => {
+    setState((prev) => {
+      const restantes = prev.mapa.marcadoresManuais.filter((m) => m.id !== id);
+      if (restantes.length === prev.mapa.marcadoresManuais.length) return prev;
+      const selecao =
+        prev.mapa.selecaoMarcador?.tipo === "manual" &&
+        prev.mapa.selecaoMarcador.id === id
+          ? undefined
+          : prev.mapa.selecaoMarcador;
+      console.log("[RELATORIO_APS][MAPA_MANUAL_REMOVE]", { id });
+      return {
+        ...prev,
+        mapa: { ...prev.mapa, marcadoresManuais: restantes, selecaoMarcador: selecao },
+      };
+    });
+  }, []);
+
+  const mapaResetarAjustes = useCallback(() => {
+    setState((prev) => {
+      const nada =
+        Object.keys(prev.mapa.ajustesPontosServico).length === 0 &&
+        Object.keys(prev.mapa.ajustesPontosRua).length === 0 &&
+        prev.mapa.marcadoresManuais.length === 0 &&
+        !prev.mapa.selecaoMarcador;
+      if (nada) return prev;
+      console.log("[RELATORIO_APS][MAPA_RESET_AJUSTES]");
+      return {
+        ...prev,
+        mapa: {
+          ...prev.mapa,
+          ajustesPontosServico: {},
+          ajustesPontosRua: {},
+          marcadoresManuais: [],
+          selecaoMarcador: undefined,
+        },
+      };
+    });
+  }, []);
+
+  const mapaSetMostrarPontosRua = useCallback((v: boolean) => {
+    setState((prev) => {
+      if (prev.mapa.mostrarPontosRua === v) return prev;
+      return { ...prev, mapa: { ...prev.mapa, mostrarPontosRua: v } };
+    });
+  }, []);
+
+  const mapaSetIncluirPontosRuaNoPdf = useCallback((v: boolean) => {
+    setState((prev) => {
+      if (prev.mapa.incluirPontosRuaNoPdf === v) return prev;
+      return { ...prev, mapa: { ...prev.mapa, incluirPontosRuaNoPdf: v } };
+    });
+  }, []);
+
   const recarregar = useCallback(() => {
     if (state.registroId) return carregar(state.registroId);
     return Promise.resolve();
@@ -429,6 +587,16 @@ export function useRelatorioApsState(registroAplicacaoId: string | null) {
     mapaFecharArea,
     mapaCancelarArea,
     mapaLimparAreas,
+    mapaSelecionarMarcador,
+    mapaLimparSelecao,
+    mapaAjustarPontoServico,
+    mapaAjustarPontoRua,
+    mapaAdicionarMarcadorManual,
+    mapaMoverMarcadorManual,
+    mapaRemoverMarcadorManual,
+    mapaResetarAjustes,
+    mapaSetMostrarPontosRua,
+    mapaSetIncluirPontosRuaNoPdf,
     recarregar,
     carregarDeSelecao,
     resetar,

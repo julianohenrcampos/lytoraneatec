@@ -67,6 +67,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { normalizeRuaKey, describeRua } from "@/utils/registroManual/ruaKey";
 import { captureGeo, type GeoCapture } from "@/utils/registroManual/captureGeo";
 import { useGeocoding } from "@/hooks/useGeocoding";
+import { PROX_RADIUS_KM } from "@/utils/geocoding/rankAddressResults";
 import { extrairLogradouro } from "@/utils/registroManual/parseLogradouro";
 import { useCarregarRegistroManual } from "@/hooks/registro-aplicacao/useCarregarRegistroManual";
 import { useExcluirRegistroManual } from "@/hooks/registro-aplicacao/useExcluirRegistroManual";
@@ -380,18 +381,85 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     },
   });
 
+  // B.3.5-D.M7-A: reverse geocode em memória quando CC tem lat/lng mas falta cidade/UF.
+  // (reverseGeocode já obtido acima)
+  const ccNeedsReverse = useMemo(() => {
+    const cc = ccGeoQ.data as any;
+    if (!cc) return false;
+    const hasLat = typeof cc.latitude === "number" && Number.isFinite(cc.latitude);
+    const hasLng = typeof cc.longitude === "number" && Number.isFinite(cc.longitude);
+    if (!hasLat || !hasLng) return false;
+    const cidade = (cc.endereco_cidade || "").trim();
+    const uf = (cc.endereco_estado || "").trim();
+    return !cidade || !uf;
+  }, [ccGeoQ.data]);
+
+  const ccReverseQ = useQuery({
+    queryKey: [
+      "novo-registro-manual",
+      "cc-geo-reverse",
+      ini.centroCustoId,
+      (ccGeoQ.data as any)?.latitude,
+      (ccGeoQ.data as any)?.longitude,
+    ],
+    enabled: open && !!ini.centroCustoId && ccNeedsReverse,
+    staleTime: 30 * 60 * 1000,
+    retry: 0,
+    queryFn: async () => {
+      try {
+        const cc = ccGeoQ.data as any;
+        const r = await reverseGeocode(Number(cc.latitude), Number(cc.longitude));
+        return r || null;
+      } catch (e) {
+        console.warn("[REGISTRO_APLICACAO_MANUAL][CC_REVERSE_FAIL]", e);
+        return null;
+      }
+    },
+  });
+
   const enderecoContext = useMemo(() => {
-    const cc = ccGeoQ.data;
+    const cc = ccGeoQ.data as any;
+    const rev = ccReverseQ.data as any;
     const hasLat = cc && typeof cc.latitude === "number" && Number.isFinite(cc.latitude);
     const hasLng = cc && typeof cc.longitude === "number" && Number.isFinite(cc.longitude);
     const proximity: [number, number] | undefined =
       hasLat && hasLng ? [cc!.longitude as number, cc!.latitude as number] : undefined;
-    const cidade = (ruaForm.cidade || cc?.endereco_cidade || "").trim() || undefined;
-    const uf = (ruaForm.uf || cc?.endereco_estado || "").trim() || undefined;
-    const bairro = (ruaForm.bairro || cc?.endereco_bairro || "").trim() || undefined;
-    if (!proximity && !cidade && !uf && !bairro) return undefined;
-    return { proximity, cidade, uf, bairro };
-  }, [ccGeoQ.data, ruaForm.cidade, ruaForm.uf, ruaForm.bairro]);
+    const cidade =
+      (ruaForm.cidade || cc?.endereco_cidade || rev?.endereco_cidade || "").trim() || undefined;
+    const ufReal =
+      (ruaForm.uf || cc?.endereco_estado || rev?.endereco_estado || "").trim() || undefined;
+    // Fallback suave: sem UF cadastrada mas com proximity → assume RJ como contexto preferencial.
+    // É apenas boost de ranking (não filtro), coerente com operação Lytorânea no RJ.
+    const uf = ufReal || (proximity ? "RJ" : undefined);
+    const bairro =
+      (ruaForm.bairro || cc?.endereco_bairro || rev?.endereco_bairro || "").trim() || undefined;
+    // bbox de proximidade sempre que houver lat/lng do CC (raio PROX_RADIUS_KM).
+    let bbox: [number, number, number, number] | undefined;
+    if (proximity) {
+      const [lng, lat] = proximity;
+      const dLat = PROX_RADIUS_KM / 111;
+      const cosLat = Math.max(0.1, Math.cos((lat * Math.PI) / 180));
+      const dLng = dLat / cosLat;
+      bbox = [lng - dLng, lat - dLat, lng + dLng, lat + dLat];
+    }
+    if (!proximity && !cidade && !ufReal && !bairro) return undefined;
+    return { proximity, bbox, cidade, uf, bairro, __ufReal: ufReal } as {
+      proximity?: [number, number];
+      bbox?: [number, number, number, number];
+      cidade?: string;
+      uf?: string;
+      bairro?: string;
+      __ufReal?: string;
+    };
+  }, [ccGeoQ.data, ccReverseQ.data, ruaForm.cidade, ruaForm.uf, ruaForm.bairro]);
+
+  // Aviso discreto: CC sem NADA (sem proximity, sem cidade e sem UF real cadastrada).
+  const ccSemGeoAviso = useMemo(() => {
+    if (!ini.centroCustoId) return false;
+    if (!ccGeoQ.data) return false;
+    if (!enderecoContext) return true;
+    return !enderecoContext.proximity && !enderecoContext.cidade && !enderecoContext.__ufReal;
+  }, [ini.centroCustoId, ccGeoQ.data, enderecoContext]);
 
   const tiposPermitidos = useMemo(() => TIPOS_POR_ATIVIDADE[ini.atividade], [ini.atividade]);
 
@@ -2087,6 +2155,17 @@ const NovoRegistroManualModal: React.FC<Props> = ({
                           </Button>
                         )}
                         <CollapsibleContent className="space-y-3 pt-2">
+
+                          {ccSemGeoAviso && (
+                            <Alert>
+                              <Info className="h-4 w-4" />
+                              <AlertDescription className="text-xs">
+                                Este centro de custo não possui endereço/coordenadas cadastradas.
+                                A busca de ruas pode retornar resultados fora da região — ajuste
+                                manualmente no mapa se necessário.
+                              </AlertDescription>
+                            </Alert>
+                          )}
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div className="space-y-1 md:col-span-2">

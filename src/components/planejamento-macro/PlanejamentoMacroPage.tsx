@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useCentrosCustoQuery } from "@/hooks/useCentrosCustoQuery";
 import { usePlanejamentoScopeCentrosCusto } from "@/hooks/planejamentoMacro/usePlanejamentoScopeCentrosCusto";
 import { useAuthPermissionsStable } from "@/hooks/useAuthPermissionsStable";
+import { usePermission } from "@/hooks/usePermission";
 import { usePageTitle } from "@/contexts/PageTitleContext";
 import PlanejamentoMacroHeader from "./PlanejamentoMacroHeader";
 import PlanejamentoMacroResumoCards from "./PlanejamentoMacroResumoCards";
@@ -48,6 +49,11 @@ const PlanejamentoMacroPage: React.FC = () => {
   const ccQuery = useCentrosCustoQuery({ queryKey: "planejamento-macro-cc" });
   const escopoPlan = usePlanejamentoScopeCentrosCusto();
   const { isSuperAdmin } = useAuthPermissionsStable();
+  const { hasActionPermission } = usePermission();
+  const canImportPlanejamento =
+    isSuperAdmin ||
+    hasActionPermission("engenharia_planejamento_macro_importar", "criar");
+
 
   const today = new Date().toISOString().slice(0, 10);
   const in7 = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
@@ -289,7 +295,7 @@ const PlanejamentoMacroPage: React.FC = () => {
 
   const headerAction = centroCustoId ? (
     <>
-      {isSuperAdmin && (
+      {canImportPlanejamento && (
         <Button size="sm" onClick={() => setImportarRealOpen(true)} className="gap-1">
           <Upload className="h-4 w-4" />
           Importar nova versão
@@ -451,8 +457,9 @@ const PlanejamentoMacroPage: React.FC = () => {
         open={importarRealOpen}
         onOpenChange={setImportarRealOpen}
         cc={ccSelecionado}
-        isSuperAdmin={isSuperAdmin}
+        canImport={canImportPlanejamento}
       />
+
 
       <PlanejamentosVersoesDialog
         open={versoesOpen}

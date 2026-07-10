@@ -54,7 +54,10 @@ const RelatorioApsExportDropdown: React.FC<Props> = ({ state, mapaRef }) => {
   const handlePdf = async () => {
     setGerando("pdf");
     try {
-      const mapaDataUrl = mapaRef?.current?.capturarPngDataUrl() ?? null;
+      const mapaDataUrl =
+        (await mapaRef?.current?.capturarPngDataUrl({
+          incluirPontosRua: state.mapa.incluirPontosRuaNoPdf,
+        })) ?? null;
       await gerarRelatorioApsPdf({ state, mapaDataUrl });
       toast({ title: "PDF gerado", description: "Arquivo baixado com sucesso." });
     } catch (e) {

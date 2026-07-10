@@ -1,13 +1,16 @@
-// Ranking/filtro local de resultados do Mapbox para o contexto operacional
+// Ranking suave (score-only) de resultados do Mapbox para o contexto operacional
 // (Centro de Custo). Puro, sem rede, sem alterar banco.
 //
-// Regras (§4 do plano aprovado):
-// - descartar resultados fora da UF esperada quando UF for conhecida
-// - preferir cidade esperada; se NENHUM bater, retorna vazio + flag
-// - priorizar bairro esperado
-// - priorizar menor distância haversine à proximity
+// Regras (B.3.5-D.M7-A revisada):
+// - NÃO descartar resultados por UF/cidade divergente.
+// - Score aditivo: relevance + UF esperada + cidade + bairro + proximity.
+// - proximity é o sinal mais forte quando não há cidade cadastrada.
 
 import type { GeocodeFeature } from "@/hooks/useGeocoding";
+
+// Raio (km) usado para: (a) saturar bônus de distância no score e
+// (b) calcular bbox de proximidade no chamador. Ajuste aqui.
+export const PROX_RADIUS_KM = 50;
 
 export interface RankContext {
   proximity?: [number, number]; // [lng, lat]
@@ -19,6 +22,7 @@ export interface RankContext {
 
 export interface RankResult {
   features: GeocodeFeature[];
+  // Mantidas por compatibilidade — sempre false, o ranker não filtra mais.
   filteredOutOfCity: boolean;
   filteredOutOfUf: boolean;
 }
@@ -83,40 +87,29 @@ export function rankAddressResults(
 
   const cidadeEsperada = ctx.cidade ? norm(ctx.cidade) : "";
   const bairroEsperado = ctx.bairro ? norm(ctx.bairro) : "";
+  const boostProximity = !cidadeEsperada;
 
-  // 1) Filtro rígido por UF quando definida
-  let stage: GeocodeFeature[] = features;
-  if (ctx.uf) {
-    const emUf = stage.filter((f) => ufEquivalente(f.context?.estado, ctx.uf));
-    if (emUf.length === 0) {
-      return { features: [], filteredOutOfCity: false, filteredOutOfUf: true };
-    }
-    stage = emUf;
-  }
+  const scored = features.map((f) => {
+    const relevance = Number(f.relevance ?? 0);
+    let score = relevance;
 
-  // 2) Preferência por cidade — se nenhum bater, sinaliza
-  if (cidadeEsperada) {
-    const emCidade = stage.filter(
-      (f) => norm(f.context?.cidade) === cidadeEsperada
-    );
-    if (emCidade.length === 0) {
-      return { features: [], filteredOutOfCity: true, filteredOutOfUf: false };
-    }
-    stage = emCidade;
-  }
+    if (ctx.uf && ufEquivalente(f.context?.estado, ctx.uf)) score += 0.5;
+    if (cidadeEsperada && norm(f.context?.cidade) === cidadeEsperada) score += 0.3;
+    if (bairroEsperado && norm(f.context?.bairro) === bairroEsperado) score += 0.2;
 
-  // 3) Score final
-  const scored = stage.map((f) => {
-    let score = Number(f.relevance ?? 0);
-    if (bairroEsperado && norm(f.context?.bairro) === bairroEsperado) score += 0.3;
     if (ctx.proximity && Array.isArray(f.center) && f.center.length === 2) {
       const distKm = haversineKm(ctx.proximity, f.center as [number, number]);
-      score += Math.max(0, 0.4 - Math.min(distKm, 20) / 50);
+      const clamped = Math.min(distKm, PROX_RADIUS_KM);
+      // Bônus máximo mais alto quando não há cidade esperada.
+      const maxBonus = boostProximity ? 0.8 : 0.4;
+      score += maxBonus * (1 - clamped / PROX_RADIUS_KM);
     }
-    return { f, score };
+
+    return { f, score, relevance };
   });
 
-  scored.sort((a, b) => b.score - a.score);
+  scored.sort((a, b) => (b.score - a.score) || (b.relevance - a.relevance));
+
   return {
     features: scored.map((s) => s.f),
     filteredOutOfCity: false,

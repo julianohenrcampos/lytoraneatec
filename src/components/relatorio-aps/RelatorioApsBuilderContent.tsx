@@ -89,6 +89,16 @@ const RelatorioApsBuilderContent: React.FC<Props> = ({ ctrl, mapaRef }) => {
     mapaFecharArea,
     mapaCancelarArea,
     mapaLimparAreas,
+    mapaSelecionarMarcador,
+    mapaLimparSelecao,
+    mapaAjustarPontoServico,
+    mapaAjustarPontoRua,
+    mapaAdicionarMarcadorManual,
+    mapaMoverMarcadorManual,
+    mapaRemoverMarcadorManual,
+    mapaResetarAjustes,
+    mapaSetMostrarPontosRua,
+    mapaSetIncluirPontosRuaNoPdf,
   } = ctrl;
   const { carregando, erro, cabecalho, linhas, fotosDisponiveis, fotosSelecionadas, mapa } = state;
 
@@ -451,6 +461,22 @@ const RelatorioApsBuilderContent: React.FC<Props> = ({ ctrl, mapaRef }) => {
               onFecharArea={mapaFecharArea}
               onCancelarArea={mapaCancelarArea}
               onLimparAreas={mapaLimparAreas}
+              ajustesPontosServico={mapa.ajustesPontosServico}
+              ajustesPontosRua={mapa.ajustesPontosRua}
+              marcadoresManuais={mapa.marcadoresManuais}
+              selecaoMarcador={mapa.selecaoMarcador}
+              onSelecionarMarcador={mapaSelecionarMarcador}
+              onLimparSelecao={mapaLimparSelecao}
+              onAjustarPontoServico={mapaAjustarPontoServico}
+              onAjustarPontoRua={mapaAjustarPontoRua}
+              onAdicionarMarcadorManual={mapaAdicionarMarcadorManual}
+              onMoverMarcadorManual={mapaMoverMarcadorManual}
+              onRemoverMarcadorManual={mapaRemoverMarcadorManual}
+              onResetarAjustes={mapaResetarAjustes}
+              mostrarPontosRua={mapa.mostrarPontosRua}
+              incluirPontosRuaNoPdf={mapa.incluirPontosRuaNoPdf}
+              onSetMostrarPontosRua={mapaSetMostrarPontosRua}
+              onSetIncluirPontosRuaNoPdf={mapaSetIncluirPontosRuaNoPdf}
             />
           </CardContent>
         </Card>

@@ -81,6 +81,23 @@ export interface RelatorioApsPontoRua {
   logradouro: string;
 }
 
+export type RelatorioApsAjusteCoord = { latitude: number; longitude: number };
+
+export interface RelatorioApsMarcadorManual {
+  id: string;
+  sequencia: number;
+  latitude: number;
+  longitude: number;
+  label?: string;
+}
+
+export type RelatorioApsTipoMarcador = "servico" | "rua" | "manual";
+
+export interface RelatorioApsSelecaoMarcador {
+  tipo: RelatorioApsTipoMarcador;
+  id: string;
+}
+
 export interface RelatorioApsMapaState {
   pontosServico: RelatorioApsPontoServico[];
   /** Pontos das ruas (ajuste manual/geocode gravados em bd_registro_aplicacao_ruas). */
@@ -90,6 +107,18 @@ export interface RelatorioApsMapaState {
   areasAplicacao: RelatorioApsCoordenada[][];
   /** Polígono sendo desenhado atualmente (undefined = nenhum em edição). */
   areaEmEdicao?: RelatorioApsCoordenada[];
+  /** Ajustes de coordenadas de pontos de serviço em memória (chave = detalheId). */
+  ajustesPontosServico: Record<string, RelatorioApsAjusteCoord>;
+  /** Ajustes de coordenadas de pontos de rua em memória (chave = ruaId). */
+  ajustesPontosRua: Record<string, RelatorioApsAjusteCoord>;
+  /** Marcadores numerados adicionados manualmente (memória). */
+  marcadoresManuais: RelatorioApsMarcadorManual[];
+  /** Marcador atualmente selecionado no modo "ajustar" (volátil). */
+  selecaoMarcador?: RelatorioApsSelecaoMarcador;
+  /** Toggle: exibir pontos de rua no mapa. Default true. */
+  mostrarPontosRua: boolean;
+  /** Toggle: incluir pontos de rua na captura PNG do PDF. Default true. */
+  incluirPontosRuaNoPdf: boolean;
 }
 
 export interface RelatorioApsState {
