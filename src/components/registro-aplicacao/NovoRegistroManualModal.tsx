@@ -62,6 +62,7 @@ import {
 import { getCurrentBrazilianDate } from "@/utils/timezoneUtils";
 import AddressAutocomplete, {
   type AddressResult,
+  type AddressSearchScope,
 } from "@/components/shared/AddressAutocomplete";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { normalizeRuaKey, describeRua } from "@/utils/registroManual/ruaKey";
@@ -340,6 +341,18 @@ const NovoRegistroManualModal: React.FC<Props> = ({
   const [autoLoc, setAutoLoc] = useState<{ status: AutoLocStatus; message?: string }>({ status: "idle" });
   const { reverse: reverseGeocode } = useGeocoding();
 
+  // M7-C: GPS atual do operador (memória; alimenta proximity/bbox do autocomplete)
+  const [gpsAtual, setGpsAtual] = useState<{
+    latitude: number;
+    longitude: number;
+    accuracy?: number | null;
+    capturedAt?: string | null;
+  } | null>(null);
+
+  // M7-D: escopo de busca do autocomplete de logradouro
+  const [addressSearchScope, setAddressSearchScope] =
+    useState<AddressSearchScope>("perto_da_obra");
+
   // Limpa banner de auto-preenchimento quando o form de rua fecha
   useEffect(() => {
     if (!ruaFormOpen) setAutoLoc({ status: "idle" });
@@ -420,22 +433,55 @@ const NovoRegistroManualModal: React.FC<Props> = ({
   const enderecoContext = useMemo(() => {
     const cc = ccGeoQ.data as any;
     const rev = ccReverseQ.data as any;
-    const hasLat = cc && typeof cc.latitude === "number" && Number.isFinite(cc.latitude);
-    const hasLng = cc && typeof cc.longitude === "number" && Number.isFinite(cc.longitude);
-    const proximity: [number, number] | undefined =
-      hasLat && hasLng ? [cc!.longitude as number, cc!.latitude as number] : undefined;
+    const ccLat =
+      cc && typeof cc.latitude === "number" && Number.isFinite(cc.latitude)
+        ? (cc.latitude as number)
+        : null;
+    const ccLng =
+      cc && typeof cc.longitude === "number" && Number.isFinite(cc.longitude)
+        ? (cc.longitude as number)
+        : null;
+
+    const gpsProx: [number, number] | null =
+      gpsAtual && Number.isFinite(gpsAtual.latitude) && Number.isFinite(gpsAtual.longitude)
+        ? [gpsAtual.longitude, gpsAtual.latitude]
+        : null;
+    const ccProx: [number, number] | null =
+      ccLat != null && ccLng != null ? [ccLng, ccLat] : null;
+    const ruaProx: [number, number] | null =
+      ruaForm.latitude != null &&
+      ruaForm.longitude != null &&
+      Number.isFinite(ruaForm.latitude) &&
+      Number.isFinite(ruaForm.longitude) &&
+      !(Math.abs(ruaForm.latitude) < 1e-9 && Math.abs(ruaForm.longitude) < 1e-9)
+        ? [ruaForm.longitude, ruaForm.latitude]
+        : null;
+
+    // M7-D: escolha de proximity conforme escopo, com degradação silenciosa.
+    let proximity: [number, number] | undefined;
+    let scopeEff: AddressSearchScope = addressSearchScope;
+    if (scopeEff === "perto_de_mim") {
+      proximity = gpsProx || ccProx || ruaProx || undefined;
+      if (!gpsProx) scopeEff = ccProx ? "perto_da_obra" : "todo_rj";
+    } else if (scopeEff === "perto_da_obra") {
+      proximity = ccProx || gpsProx || ruaProx || undefined;
+      if (!ccProx) scopeEff = gpsProx ? "perto_de_mim" : "todo_rj";
+    } else {
+      // todo_rj: usa qualquer ponto só como dica de ranking (proximity), sem bbox.
+      proximity = ccProx || gpsProx || ruaProx || undefined;
+    }
+
     const cidade =
       (ruaForm.cidade || cc?.endereco_cidade || rev?.endereco_cidade || "").trim() || undefined;
     const ufReal =
       (ruaForm.uf || cc?.endereco_estado || rev?.endereco_estado || "").trim() || undefined;
-    // Fallback suave: sem UF cadastrada mas com proximity → assume RJ como contexto preferencial.
-    // É apenas boost de ranking (não filtro), coerente com operação Lytorânea no RJ.
     const uf = ufReal || (proximity ? "RJ" : undefined);
     const bairro =
       (ruaForm.bairro || cc?.endereco_bairro || rev?.endereco_bairro || "").trim() || undefined;
-    // bbox de proximidade sempre que houver lat/lng do CC (raio PROX_RADIUS_KM).
+
+    // bbox só para escopos locais.
     let bbox: [number, number, number, number] | undefined;
-    if (proximity) {
+    if (proximity && scopeEff !== "todo_rj") {
       const [lng, lat] = proximity;
       const dLat = PROX_RADIUS_KM / 111;
       const cosLat = Math.max(0.1, Math.cos((lat * Math.PI) / 180));
@@ -451,7 +497,28 @@ const NovoRegistroManualModal: React.FC<Props> = ({
       bairro?: string;
       __ufReal?: string;
     };
-  }, [ccGeoQ.data, ccReverseQ.data, ruaForm.cidade, ruaForm.uf, ruaForm.bairro]);
+  }, [
+    ccGeoQ.data,
+    ccReverseQ.data,
+    ruaForm.cidade,
+    ruaForm.uf,
+    ruaForm.bairro,
+    ruaForm.latitude,
+    ruaForm.longitude,
+    gpsAtual,
+    addressSearchScope,
+  ]);
+
+  const availableAddressScopes = useMemo(() => {
+    const cc = ccGeoQ.data as any;
+    const ccOk =
+      cc &&
+      typeof cc.latitude === "number" &&
+      typeof cc.longitude === "number" &&
+      Number.isFinite(cc.latitude) &&
+      Number.isFinite(cc.longitude);
+    return { pertoDeMim: !!gpsAtual, pertoDaObra: !!ccOk };
+  }, [ccGeoQ.data, gpsAtual]);
 
   // Aviso discreto: CC sem NADA (sem proximity, sem cidade e sem UF real cadastrada).
   const ccSemGeoAviso = useMemo(() => {
@@ -901,10 +968,19 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     const isManual =
       r.geocoding_source === "manual" || r.geocoding_status === "manual";
     setRuaForm((prev) => {
-      const latNext = typeof r.latitude === "number" ? r.latitude : prev.latitude;
-      const lngNext = typeof r.longitude === "number" ? r.longitude : prev.longitude;
+      const rawLat = typeof r.latitude === "number" ? r.latitude : null;
+      const rawLng = typeof r.longitude === "number" ? r.longitude : null;
+      // M7-C: descartar (0,0) como coordenada válida
+      const isValidCoord =
+        rawLat != null &&
+        rawLng != null &&
+        Number.isFinite(rawLat) &&
+        Number.isFinite(rawLng) &&
+        !(Math.abs(rawLat) < 1e-9 && Math.abs(rawLng) < 1e-9);
+      const latNext = isValidCoord ? rawLat : prev.latitude;
+      const lngNext = isValidCoord ? rawLng : prev.longitude;
       const coordsChanged =
-        latNext !== prev.latitude || lngNext !== prev.longitude;
+        isValidCoord && (latNext !== prev.latitude || lngNext !== prev.longitude);
       return {
         ...prev,
         logradouro: r.endereco_rua || r.endereco_completo || prev.logradouro,
@@ -948,6 +1024,15 @@ const NovoRegistroManualModal: React.FC<Props> = ({
       return;
     }
     const { latitude, longitude, accuracy, capturedAt } = geo.data;
+    // M7-C: memorizar GPS atual para alimentar proximity/bbox do autocomplete
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+      setGpsAtual({
+        latitude,
+        longitude,
+        accuracy: Number.isFinite(accuracy) ? accuracy : null,
+        capturedAt: capturedAt || new Date().toISOString(),
+      });
+    }
     console.log("[REGISTRO_MANUAL][REVERSE_GEOCODE_START]", { accuracy });
     try {
       const rev = await reverseGeocode(latitude, longitude);
@@ -999,10 +1084,46 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     }
   };
 
-  const handleAdicionarRuaClick = () => {
+  const handleAdicionarRuaClick = async () => {
     setRuaFormOpen(true);
-    // dispara sem await; UX é o banner que aparece no form
+    // M7-C: só auto-dispara se permissão já estiver 'granted'.
+    // 'prompt'/'unknown' → aguarda ação explícita no botão "Usar minha localização atual".
+    // 'denied' → não insiste.
+    try {
+      const perms = (navigator as any)?.permissions;
+      if (perms?.query) {
+        const st = await perms.query({ name: "geolocation" as PermissionName });
+        if (st?.state === "granted") {
+          void tentarAutoPreencherRua({ force: false });
+        }
+        return;
+      }
+    } catch {
+      // sem Permissions API — cai no fallback abaixo
+    }
+    // Sem Permissions API: uma tentativa silenciosa única (não bloqueia UI).
     void tentarAutoPreencherRua({ force: false });
+  };
+
+  const handleUseCurrentLocation = async () => {
+    if (ruaForm.logradouro.trim() || ruaForm.bairro.trim()) {
+      const ok = window.confirm(
+        "Substituir o endereço atual pela sua localização atual (GPS)?"
+      );
+      if (!ok) return;
+    }
+    await tentarAutoPreencherRua({ force: true });
+    setAddressSearchScope("perto_de_mim");
+  };
+
+  const handleUseTypedText = (text: string) => {
+    const t = (text || "").trim();
+    if (!t) return;
+    setRuaForm((prev) => ({
+      ...prev,
+      logradouro: prev.logradouro.trim() ? prev.logradouro : t,
+      origemLocalizacao: prev.origemLocalizacao || "manual",
+    }));
   };
 
 
@@ -2177,7 +2298,13 @@ const NovoRegistroManualModal: React.FC<Props> = ({
                                 onAddressSelected={onRuaAddressSelected}
                                 placeholder="Digite o endereço da rua..."
                                 context={enderecoContext}
+                                onUseCurrentLocation={handleUseCurrentLocation}
+                                onUseTypedText={handleUseTypedText}
+                                searchScope={addressSearchScope}
+                                onSearchScopeChange={setAddressSearchScope}
+                                availableScopes={availableAddressScopes}
                               />
+
                             </div>
                             <div className="space-y-1">
                               <Label className="text-xs">Bairro *</Label>

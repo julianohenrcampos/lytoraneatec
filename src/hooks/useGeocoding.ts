@@ -34,6 +34,8 @@ export interface GeocodingOpts {
   types?: string;
   limit?: number;
   autocompleteFlag?: boolean;
+  /** ISO country codes separados por vírgula (ex.: "br"). Propagado ao edge; ignorado se não tratar. */
+  country?: string;
 }
 
 let cachedPublicToken: string | null = null;
@@ -59,6 +61,7 @@ export function useGeocoding() {
         if (typeof opts?.limit === "number") body.limit = opts.limit;
         if (typeof opts?.autocompleteFlag === "boolean")
           body.autocompleteFlag = opts.autocompleteFlag;
+        if (opts?.country) body.country = opts.country;
 
         const { data, error } = await supabase.functions.invoke("geocode-proxy", { body });
         if (error) throw error;
@@ -84,6 +87,7 @@ export function useGeocoding() {
         if (opts?.bbox) body.bbox = opts.bbox;
         if (opts?.types) body.types = opts.types;
         if (typeof opts?.limit === "number") body.limit = opts.limit;
+        if (opts?.country) body.country = opts.country;
 
         const { data, error } = await supabase.functions.invoke("geocode-proxy", { body });
         if (error) throw error;

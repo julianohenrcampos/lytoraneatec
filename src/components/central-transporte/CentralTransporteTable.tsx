@@ -3,6 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { SolicitacaoTransporte } from "@/services/centralTransporteService";
 import { SolicitacaoItem, STATUS_ITEM_LABELS, StatusItem, REGIME_LABELS, RegimeTrabalho } from "@/services/solicitacaoItensService";
+import { formatProtocolo } from "@/utils/formatProtocolo";
 import { AlertTriangle, Package } from "lucide-react";
 
 const prioridadeBadge = (p: string) => {
@@ -87,7 +88,7 @@ const CentralTransporteTable: React.FC<Props> = ({ data, onSelect }) => {
             if (!itens) {
               return (
                 <TableRow key={s.id} className="cursor-pointer hover:bg-muted/50" onClick={() => onSelect(s)}>
-                  <TableCell className="font-mono text-xs">{s.id.slice(0, 8)}</TableCell>
+                  <TableCell className="font-mono text-xs">{formatProtocolo(s.id)}</TableCell>
                   <TableCell>{s.nome_centro_custo || "—"}</TableCell>
                   <TableCell>{s.engenheiro_nome || "—"}</TableCell>
                   <TableCell>{s.apontador_nome || "—"}</TableCell>
@@ -108,7 +109,7 @@ const CentralTransporteTable: React.FC<Props> = ({ data, onSelect }) => {
                 className="cursor-pointer hover:bg-muted/50"
                 onClick={() => onSelect(s, item)}
               >
-                <TableCell className="font-mono text-xs">{idx === 0 ? s.id.slice(0, 8) : ""}</TableCell>
+                <TableCell className="font-mono text-xs">{idx === 0 ? formatProtocolo(s.id) : ""}</TableCell>
                 <TableCell>{idx === 0 ? (s.nome_centro_custo || "—") : ""}</TableCell>
                 <TableCell>{idx === 0 ? (s.engenheiro_nome || "—") : ""}</TableCell>
                 <TableCell>{idx === 0 ? (s.apontador_nome || "—") : ""}</TableCell>

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import OrigemPlanejamentoMacroBanner from "./OrigemPlanejamentoMacroBanner";
-import { CheckCircle, XCircle, Plus, Truck, Construction, Wrench, Boxes, CircleDot, Zap } from "lucide-react";
+import { CheckCircle, XCircle, Plus, ChevronDown, Truck, Construction, Wrench, Boxes, CircleDot, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -25,6 +25,12 @@ import SolicitacaoMatchingResultModal from "./SolicitacaoMatchingResultModal";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useTiposEquipamentoDropdown } from "@/hooks/vehicles/useRelacionalDropdowns";
@@ -32,6 +38,11 @@ import { usePermission } from "@/hooks/usePermission";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { formatItemDisplay, isNaoCadastrado } from "@/utils/solicitacaoItemDisplay";
+import NovaCedenciaModal from "./NovaCedenciaModal";
+import NovaDesmobilizacaoModal from "./NovaDesmobilizacaoModal";
+import { emitNotification } from "@/services/notifications/notificationEmitter";
+import { getAprovadorSolicitacaoUserIds, getCentralTransporteUserIds } from "@/services/notifications/recipientsService";
+import { formatProtocolo } from "@/utils/formatProtocolo";
 
 
 type CardDef = { label: string; match: string[]; icon: LucideIcon; isOutros?: boolean };
@@ -59,6 +70,8 @@ const SolicitacaoEquipamentoPage: React.FC = () => {
   const origemPlanejamentoMacro = searchParams.get("origem") === "planejamento_macro";
   const centroCustoIdOrigem = searchParams.get("centro_custo_id");
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [cedenciaOpen, setCedenciaOpen] = useState(false);
+  const [desmobilizacaoOpen, setDesmobilizacaoOpen] = useState(false);
   const [matchingResult, setMatchingResult] = useState<any>(null);
   const [isMatchingOpen, setIsMatchingOpen] = useState(false);
   const [filters, setFilters] = useState<{ status?: string; prioridade?: string; tipo_equipamento_id?: string; status_fluxo?: string }>({});
@@ -123,6 +136,40 @@ const SolicitacaoEquipamentoPage: React.FC = () => {
       setIsFormOpen(false);
       resetCategoriaSelection();
 
+      void (async () => {
+        try {
+          const solicitacaoCriada: any = solicitacao as any;
+          if (solicitacaoCriada?.status_fluxo !== "PENDENTE_APROVACAO") return;
+
+          const destinatarios = getAprovadorSolicitacaoUserIds({
+            aprovador_centro_custo_id: solicitacaoCriada.aprovador_centro_custo_id,
+          });
+
+          if (!destinatarios || destinatarios.length === 0) {
+            console.warn("[SOLIC_EQUIP][NOTIF_SKIP] sem aprovador_centro_custo_id", {
+              solicitacao_id: solicitacaoCriada.id,
+            });
+            return;
+          }
+
+          const protocolo = formatProtocolo(solicitacaoCriada.id);
+
+          await emitNotification({
+            tipo: "equip_solicitacao_pendente",
+            titulo: "Nova solicitação de equipamento",
+            mensagem: `Solicitação ${protocolo} aguardando aprovação.`,
+            link: "/gestao-maquinas/solicitacoes-equipamentos",
+            metadata: {
+              solicitacao_id: solicitacaoCriada.id,
+              protocolo,
+            },
+            destinatariosUserIds: destinatarios,
+          });
+        } catch (e) {
+          console.error("[SOLIC_EQUIP][NOTIF_ERROR]", e);
+        }
+      })();
+
       const itensHidratados = (itens || []).map((i: any) => ({
         ...i,
         catalogo_descricao: i.catalogo_descricao ?? null,
@@ -168,6 +215,27 @@ const SolicitacaoEquipamentoPage: React.FC = () => {
       await aprovarSolicitacaoEquipamento(approvalItem.id, approvalComment);
       toast({ title: "Aprovado", description: "Solicitação aprovada com sucesso." });
       queryClient.invalidateQueries({ queryKey: ["solicitacoes-equipamento"] });
+
+      void (async () => {
+        try {
+          const centralIds = await getCentralTransporteUserIds();
+          if (centralIds.length === 0) return;
+          await emitNotification({
+            tipo: "equip_solicitacao_aprovada",
+            titulo: "Solicitação aprovada",
+            mensagem: `A solicitação ${formatProtocolo(approvalItem.id)} foi aprovada e aguarda programação na Central do Transporte.`,
+            link: "/gestao-maquinas/central-transporte",
+            metadata: {
+              entidade_tipo: "solicitacao_equipamento",
+              entidade_id: approvalItem.id,
+            },
+            destinatariosUserIds: centralIds,
+          });
+        } catch (notifyErr) {
+          console.error("[SOLIC_EQUIP][APROVAR_NOTIFICACAO_ERRO]", notifyErr);
+        }
+      })();
+
       setApprovalItem(null);
       setApprovalComment("");
     } catch (err: any) {
@@ -271,11 +339,6 @@ const SolicitacaoEquipamentoPage: React.FC = () => {
     setIsFormOpen(true);
   };
 
-  const openNovaSolicitacao = () => {
-    resetCategoriaSelection();
-    setIsFormOpen(true);
-  };
-
   return (
     <div className="space-y-6">
       {origemPlanejamentoMacro && (
@@ -336,10 +399,23 @@ const SolicitacaoEquipamentoPage: React.FC = () => {
             <Switch checked={mostrarCanceladas} onCheckedChange={setMostrarCanceladas} />
             Mostrar canceladas
           </label>
-          <Button onClick={openNovaSolicitacao} variant="outline">
-            <Plus className="mr-2 h-4 w-4" />
-            Nova Solicitação
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Plus className="mr-2 h-4 w-4" />
+                Movimentar Veic/Equip
+                <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setCedenciaOpen(true)}>
+                ➡️ Ceder Veic/Equip
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setDesmobilizacaoOpen(true)}>
+                🛑 Desmobilizar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -467,6 +543,9 @@ const SolicitacaoEquipamentoPage: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <NovaCedenciaModal open={cedenciaOpen} onOpenChange={setCedenciaOpen} />
+      <NovaDesmobilizacaoModal open={desmobilizacaoOpen} onOpenChange={setDesmobilizacaoOpen} />
     </div>
   );
 };

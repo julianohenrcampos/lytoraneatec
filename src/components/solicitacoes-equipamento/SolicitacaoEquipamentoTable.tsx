@@ -17,6 +17,7 @@ import { Eye, Pencil, Trash2 } from "lucide-react";
 import { SolicitacaoEquipamento } from "@/services/solicitacaoEquipamentoService";
 import { formatItemDisplay } from "@/utils/solicitacaoItemDisplay";
 import { formatDateBR } from "@/utils/formatDateBR";
+import { formatProtocolo } from "@/utils/formatProtocolo";
 import { usePagination } from "@/hooks/usePagination";
 import TablePagination from "@/components/ui/table-pagination";
 import {
@@ -95,6 +96,7 @@ const SolicitacaoEquipamentoTable: React.FC<Props> = ({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Protocolo</TableHead>
               <TableHead>Tipo Equipamento</TableHead>
               <TableHead>Centro de Custo</TableHead>
               <TableHead className="text-center">Qtd</TableHead>
@@ -120,6 +122,7 @@ const SolicitacaoEquipamentoTable: React.FC<Props> = ({
 
               return (
                 <TableRow key={s.id}>
+                  <TableCell className="font-mono text-xs">{formatProtocolo(s.id)}</TableCell>
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span>

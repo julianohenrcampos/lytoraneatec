@@ -73,6 +73,7 @@ export const getVeiculos = async (filters: VeiculoFilter = {}) => {
       nome_subcategoria: item.subcategoria?.nome_subcategoria,
       nome_empresa_locadora: item.empresa_locadora?.nome_empresa,
       nome_centro_custo: dispAtiva?.centro_custo?.nome_centro_custo || null,
+      centro_custo_id: dispAtiva?.centro_custo_id ?? null,
     };
   }) as Veiculo[];
 };
@@ -111,5 +112,6 @@ export const getVeiculoById = async (id: string) => {
     nome_subcategoria: data.subcategoria?.nome_subcategoria,
     nome_empresa_locadora: data.empresa_locadora?.nome_empresa,
     nome_centro_custo: dispAtiva?.centro_custo?.nome_centro_custo || null,
+    centro_custo_id: dispAtiva?.centro_custo_id ?? null,
   } as Veiculo;
 };

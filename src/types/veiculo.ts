@@ -41,6 +41,7 @@ export interface Veiculo {
   nome_subcategoria?: string;
   nome_empresa_locadora?: string;
   nome_centro_custo?: string;
+  centro_custo_id?: string | null;
 }
 
 export type VeiculoFormData = Omit<Veiculo, 'id' | 'created_at' | 'updated_at' | 'nome_departamento' | 'nome_empresa' | 'nome_categoria' | 'nome_subcategoria'>;

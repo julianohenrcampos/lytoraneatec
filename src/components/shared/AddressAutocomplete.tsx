@@ -1,19 +1,28 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   CheckCircle2,
   AlertCircle,
   Loader2,
   MapPin,
   Crosshair,
-  XCircle,
   Info,
+  Globe,
 } from "lucide-react";
 import { useGeocoding, type GeocodeFeature, type GeocodingOpts } from "@/hooks/useGeocoding";
 import MapAdjustModal from "./MapAdjustModal";
 import { rankAddressResults, type RankContext } from "@/utils/geocoding/rankAddressResults";
+
+export type AddressSearchScope = "perto_de_mim" | "perto_da_obra" | "todo_rj";
 
 export interface AddressResult {
   endereco_completo: string;
@@ -40,11 +49,14 @@ interface AddressAutocompleteProps {
   onAddressSelected: (result: AddressResult) => void;
   disabled?: boolean;
   placeholder?: string;
-  /**
-   * Contexto operacional opcional para melhorar a busca (proximity/UF/cidade/bairro).
-   * Sem context, comportamento atual é preservado (nenhuma tela existente regride).
-   */
   context?: RankContext;
+  onUseCurrentLocation?: () => void;
+  /** Kept for backward compatibility; no longer rendered as a separate CTA. */
+  onUseTypedText?: (text: string) => void;
+  /** M7-D: modo de busca controlado pelo pai. */
+  searchScope?: AddressSearchScope;
+  onSearchScopeChange?: (s: AddressSearchScope) => void;
+  availableScopes?: { pertoDeMim: boolean; pertoDaObra: boolean };
 }
 
 const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
@@ -56,11 +68,17 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   disabled = false,
   placeholder = "Digite o endereço...",
   context,
+  onUseCurrentLocation,
+  onUseTypedText,
+  searchScope,
+  onSearchScopeChange,
+  availableScopes,
 }) => {
   const [query, setQuery] = useState(value);
   const [suggestions, setSuggestions] = useState<GeocodeFeature[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [emptyByCityFilter, setEmptyByCityFilter] = useState(false);
+  const [expandedToRj, setExpandedToRj] = useState(false);
+  const [noSuggestions, setNoSuggestions] = useState(false);
   const [status, setStatus] = useState<AddressResult["geocoding_status"] | null>(
     initialStatus ?? null
   );
@@ -77,32 +95,26 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   const selectedFromListRef = useRef<boolean>(!!initialStatus);
   const { autocomplete, geocode, loading } = useGeocoding();
 
-  // Monta query enriquecida quando há context e usuário não usou vírgula
-  const buildEnrichedQuery = useCallback(
-    (raw: string): string => {
-      if (!context) return raw;
-      if (raw.includes(",")) return raw;
-      const parts = [
-        raw.trim(),
-        context.bairro?.trim(),
-        context.cidade?.trim(),
-        context.uf?.trim(),
-        "Brasil",
-      ].filter((p): p is string => !!p && p.length > 0);
-      return parts.join(", ");
+  const effectiveScope: AddressSearchScope = searchScope ?? "todo_rj";
+
+  const buildEnrichedQuery = useCallback((raw: string): string => {
+    return raw.trim();
+  }, []);
+
+  // M7-D: monta opts a partir do context + escopo. "todo_rj" NUNCA envia bbox.
+  const buildOpts = useCallback(
+    (scope: AddressSearchScope, dropBbox = false): GeocodingOpts => {
+      const opts: GeocodingOpts = {
+        country: "br",
+        types: "address,place,locality,neighborhood",
+        limit: 8,
+      };
+      if (context?.proximity) opts.proximity = context.proximity;
+      if (!dropBbox && scope !== "todo_rj" && context?.bbox) opts.bbox = context.bbox;
+      return opts;
     },
     [context]
   );
-
-  const buildOpts = useCallback((): GeocodingOpts | undefined => {
-    if (!context) return undefined;
-    const opts: GeocodingOpts = {};
-    if (context.proximity) opts.proximity = context.proximity;
-    if (context.bbox) opts.bbox = context.bbox;
-    opts.types = "address,street,place,locality,neighborhood";
-    opts.limit = 8;
-    return opts;
-  }, [context]);
 
 
   useEffect(() => {
@@ -129,24 +141,30 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     async (q: string) => {
       if (q.trim().length < 3) {
         setSuggestions([]);
-        setEmptyByCityFilter(false);
+        setExpandedToRj(false);
+        setNoSuggestions(false);
         return;
       }
       const enriched = buildEnrichedQuery(q);
-      const opts = buildOpts();
-      const features = await autocomplete(enriched, opts);
+      let features = await autocomplete(enriched, buildOpts(effectiveScope));
+      let expanded = false;
+
+      // M7-D: fallback automático — sem resultados no escopo local → refaz sem bbox.
+      if (features.length === 0 && effectiveScope !== "todo_rj") {
+        features = await autocomplete(enriched, buildOpts(effectiveScope, true));
+        if (features.length > 0) expanded = true;
+      }
+
       const ranked = context
         ? rankAddressResults(features, context)
         : { features, filteredOutOfCity: false, filteredOutOfUf: false };
+
       setSuggestions(ranked.features);
-      setEmptyByCityFilter(
-        (ranked.filteredOutOfCity || ranked.filteredOutOfUf) && features.length > 0
-      );
-      setShowDropdown(
-        ranked.features.length > 0 || ranked.filteredOutOfCity || ranked.filteredOutOfUf
-      );
+      setExpandedToRj(expanded);
+      setNoSuggestions(ranked.features.length === 0);
+      setShowDropdown(ranked.features.length > 0);
     },
-    [autocomplete, buildEnrichedQuery, buildOpts, context]
+    [autocomplete, buildEnrichedQuery, buildOpts, context, effectiveScope]
   );
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -158,10 +176,9 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     debounceRef.current = setTimeout(() => fetchSuggestions(v), 350);
   };
 
-
   const emitFromFeature = (f: GeocodeFeature, q: string) => {
     const ctx = f.context || {};
-    const newStatus: AddressResult["geocoding_status"] = (f.geocoding_status || "auto");
+    const newStatus: AddressResult["geocoding_status"] = f.geocoding_status || "auto";
     const result: AddressResult = {
       endereco_completo: f.place_name || q,
       longitude: f.center[0],
@@ -185,16 +202,18 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   };
 
   const handleSelect = (f: GeocodeFeature) => {
-    const newStatus = emitFromFeature(f, f.place_name);
+    emitFromFeature(f, f.place_name);
     setQuery(f.place_name);
     lastResolvedQueryRef.current = f.place_name;
     selectedFromListRef.current = true;
     setShowDropdown(false);
-    if (newStatus === "aproximado") setMapOpen(true);
+    setNoSuggestions(false);
+    setExpandedToRj(false);
   };
 
-  const handleBlur = async () => {
-    // pequeno delay para permitir clique em sugestão
+  const handleBlur = () => {
+    // M7-D: apenas resolve silenciosamente coordenada quando o usuário sai do campo com texto novo.
+    // Nunca marca "erro" agressivo; aviso neutro é responsável por comunicar falta de sugestão.
     setTimeout(async () => {
       if (!query || query.trim().length < 3) return;
       if (selectedFromListRef.current) return;
@@ -204,18 +223,13 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       setShowDropdown(false);
       setResolving(true);
       try {
-        const f = await geocode(buildEnrichedQuery(query), buildOpts());
+        const f = await geocode(buildEnrichedQuery(query), buildOpts(effectiveScope, true));
+        lastResolvedQueryRef.current = query;
         if (!f || !f.center || f.geocoding_status === "erro") {
-          setStatus("erro");
-          lastResolvedQueryRef.current = query;
-          setMapOpen(true);
+          setNoSuggestions(true);
           return;
         }
-        const newStatus = emitFromFeature(f, query);
-        lastResolvedQueryRef.current = query;
-        if (newStatus === "aproximado") {
-          // mantém badge amarelo, mostra botão (já visível) — não abre modal automaticamente
-        }
+        emitFromFeature(f, query);
       } finally {
         setResolving(false);
       }
@@ -246,22 +260,23 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     setStatus("manual");
     selectedFromListRef.current = true;
     setLastResolvedCoords({ lat: r.latitude, lng: r.longitude });
+    setNoSuggestions(false);
     onAddressSelected(result);
   };
 
   const renderBadge = () => {
-    if (!status && !query) return null;
+    if (!status) return null;
     switch (status) {
       case "auto":
         return (
           <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 gap-1">
-            <CheckCircle2 className="h-3 w-3" /> Endereço validado automaticamente
+            <CheckCircle2 className="h-3 w-3" /> Validado automaticamente
           </Badge>
         );
       case "manual":
         return (
           <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 gap-1">
-            <Crosshair className="h-3 w-3" /> Posição confirmada manualmente
+            <Crosshair className="h-3 w-3" /> Confirmado no mapa
           </Badge>
         );
       case "aproximado":
@@ -270,23 +285,23 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
             <AlertCircle className="h-3 w-3" /> Aproximado — confirme no mapa
           </Badge>
         );
-      case "erro":
-        return (
-          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 gap-1">
-            <XCircle className="h-3 w-3" /> Endereço não encontrado — ajuste no mapa
-          </Badge>
-        );
       default:
-        return query.length > 0 ? (
-          <Badge variant="outline" className="bg-muted text-muted-foreground border-border gap-1">
-            <Info className="h-3 w-3" /> Saia do campo ou ajuste no mapa para validar
-          </Badge>
-        ) : null;
+        return null;
     }
   };
 
+  const scopeCtl = useMemo(
+    () => ({
+      pertoDeMim: availableScopes?.pertoDeMim ?? false,
+      pertoDaObra: availableScopes?.pertoDaObra ?? false,
+    }),
+    [availableScopes]
+  );
+
+  const canConfirmMap = query.trim().length > 0 || !!lastResolvedCoords;
+
   return (
-    <div ref={wrapperRef} className="relative space-y-1.5">
+    <div ref={wrapperRef} className="relative space-y-2">
       <div className="relative">
         <MapPin className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
         <Input
@@ -302,8 +317,68 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         )}
       </div>
 
+      {/* M7-D: seletor de escopo */}
+      {onSearchScopeChange && (
+        <TooltipProvider delayDuration={200}>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] text-muted-foreground">Buscar em:</span>
+            <ToggleGroup
+              type="single"
+              size="sm"
+              value={effectiveScope}
+              onValueChange={(v) => v && onSearchScopeChange(v as AddressSearchScope)}
+              className="gap-1"
+            >
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <ToggleGroupItem
+                      value="perto_de_mim"
+                      disabled={!scopeCtl.pertoDeMim || disabled}
+                      className="h-7 px-2 text-xs"
+                    >
+                      <Crosshair className="h-3 w-3 mr-1" />
+                      Perto de mim
+                    </ToggleGroupItem>
+                  </span>
+                </TooltipTrigger>
+                {!scopeCtl.pertoDeMim && (
+                  <TooltipContent>GPS atual indisponível</TooltipContent>
+                )}
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <ToggleGroupItem
+                      value="perto_da_obra"
+                      disabled={!scopeCtl.pertoDaObra || disabled}
+                      className="h-7 px-2 text-xs"
+                    >
+                      <MapPin className="h-3 w-3 mr-1" />
+                      Perto da obra
+                    </ToggleGroupItem>
+                  </span>
+                </TooltipTrigger>
+                {!scopeCtl.pertoDaObra && (
+                  <TooltipContent>Centro de custo sem coordenada</TooltipContent>
+                )}
+              </Tooltip>
+              <ToggleGroupItem value="todo_rj" disabled={disabled} className="h-7 px-2 text-xs">
+                <Globe className="h-3 w-3 mr-1" />
+                Todo RJ
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+        </TooltipProvider>
+      )}
+
       {showDropdown && suggestions.length > 0 && (
         <div className="absolute z-50 w-full bg-popover border rounded-md shadow-lg max-h-60 overflow-auto">
+          {expandedToRj && (
+            <div className="px-3 py-1.5 text-[11px] text-muted-foreground bg-muted/50 border-b flex items-center gap-1">
+              <Globe className="h-3 w-3" /> Expandimos a busca para todo o RJ.
+            </div>
+          )}
           {suggestions.map((s, i) => (
             <button
               key={i}
@@ -337,27 +412,49 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         </div>
       )}
 
-      {showDropdown && suggestions.length === 0 && emptyByCityFilter && (
-        <div className="absolute z-50 w-full bg-popover border rounded-md shadow-lg p-3 text-xs text-muted-foreground">
-          Não encontramos esse logradouro dentro da cidade selecionada. Complete o
-          bairro/CEP ou ajuste manualmente no mapa.
-        </div>
-      )}
-
+      {/* M7-D: aviso neutro sem sugestões (sem CTA duplicado — a ação principal fica no rodapé) */}
+      {noSuggestions &&
+        !loading &&
+        !resolving &&
+        query.trim().length >= 3 &&
+        !selectedFromListRef.current && (
+          <div className="rounded-md border bg-muted/30 p-2 text-xs text-muted-foreground flex items-start gap-2">
+            <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span>Não encontramos uma sugestão exata. Confirme o ponto no mapa.</span>
+          </div>
+        )}
 
       <div className="flex items-center justify-between gap-2 flex-wrap">
         {renderBadge()}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-7 px-2 text-xs gap-1"
-          onClick={() => setMapOpen(true)}
-          disabled={disabled}
-        >
-          <Crosshair className="h-3 w-3" />
-          Ajustar no mapa
-        </Button>
+        <div className="ml-auto flex items-center gap-2">
+          {onUseCurrentLocation && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs gap-1"
+              onClick={onUseCurrentLocation}
+              disabled={disabled}
+            >
+              <Crosshair className="h-3.5 w-3.5" />
+              Usar minha localização
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="default"
+            size="sm"
+            className="h-8 px-3 text-xs gap-1"
+            onClick={() => {
+              if (query.trim() && onUseTypedText) onUseTypedText(query.trim());
+              setMapOpen(true);
+            }}
+            disabled={disabled || !canConfirmMap}
+          >
+            <MapPin className="h-3.5 w-3.5" />
+            Confirmar no mapa
+          </Button>
+        </div>
       </div>
 
       <MapAdjustModal
