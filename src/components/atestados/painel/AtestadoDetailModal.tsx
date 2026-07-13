@@ -290,9 +290,12 @@ export default function AtestadoDetailModal({
 
                 {!hasPreview && !isLoadingThis && error && (
                   <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                    Não foi possível exibir o arquivo. Tente novamente.
+                    {error === "unsupported_media"
+                      ? "Formato do arquivo não suportado para pré-visualização."
+                      : "Não foi possível exibir o arquivo. Tente novamente."}
                   </div>
                 )}
+
               </>
             )}
           </TabsContent>

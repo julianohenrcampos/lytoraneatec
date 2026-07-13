@@ -131,3 +131,42 @@ export async function obterArquivoAssinado(atestadoId: string): Promise<{
   }
   return { signed_url: data.signed_url, expires_at: data.expires_at };
 }
+
+/**
+ * Baixa o arquivo do atestado como Blob binário via Edge dedicada.
+ * A Edge devolve o binário com CORS próprio — signed_url nunca sai do servidor.
+ */
+export async function obterArquivoBlob(atestadoId: string): Promise<Blob> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) {
+    throw Object.assign(new Error("unauthorized"), {
+      status: 401,
+      code: "unauthorized",
+    });
+  }
+
+  const res = await fetch(fnUrl("atestado-arquivo-blob"), {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON,
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ atestado_id: atestadoId }),
+  });
+
+  if (!res.ok) {
+    let code = `http_${res.status}`;
+    try {
+      const j = await res.json();
+      if (j?.error) code = j.error;
+    } catch {
+      /* ignore */
+    }
+    throw Object.assign(new Error(code), { status: res.status, code });
+  }
+
+  return await res.blob();
+}
+

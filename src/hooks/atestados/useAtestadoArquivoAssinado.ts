@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
-import { obterArquivoAssinado } from "@/services/atestadosService";
+import { obterArquivoBlob } from "@/services/atestadosService";
 
 export type AtestadoPreviewKind = "pdf" | "image" | "unknown";
 
@@ -59,18 +59,9 @@ export function useAtestadoArquivoAssinado() {
       setLoadingId(atestadoId);
       setError(null);
       try {
-        // signed_url exists only in this local scope — never persisted.
-        const { signed_url } = await obterArquivoAssinado(atestadoId);
-        let resp: Response;
-        try {
-          resp = await fetch(signed_url);
-        } catch {
-          throw Object.assign(new Error("fetch_failed"), { status: 0 });
-        }
-        if (!resp.ok) {
-          throw Object.assign(new Error("fetch_failed"), { status: resp.status });
-        }
-        const arrayBuffer = await resp.arrayBuffer();
+        // Blob binário via Edge dedicada — sem signed_url no frontend.
+        const rawBlob = await obterArquivoBlob(atestadoId);
+        const arrayBuffer = await rawBlob.arrayBuffer();
         const head = new Uint8Array(arrayBuffer.slice(0, 8));
         const isPdf =
           head[0] === 0x25 &&
@@ -97,8 +88,7 @@ export function useAtestadoArquivoAssinado() {
           detectedMime = "image/jpeg";
           detectedKind = "image";
         } else {
-          detectedMime =
-            resp.headers.get("content-type") || "application/octet-stream";
+          detectedMime = rawBlob.type || "application/octet-stream";
           detectedKind = kindFromMime(detectedMime);
         }
 
@@ -110,9 +100,9 @@ export function useAtestadoArquivoAssinado() {
         setMime(detectedMime);
         setKind(detectedKind);
         setPreviewFor(atestadoId);
-
       } catch (e: any) {
         const status = e?.status;
+        const code = e?.code;
         if (status === 401) {
           setError("session_expired");
           toast.error("Sua sessão expirou. Faça login novamente.");
@@ -124,6 +114,9 @@ export function useAtestadoArquivoAssinado() {
         } else if (status === 404) {
           setError("not_found");
           toast.error("Arquivo do atestado não encontrado.");
+        } else if (status === 415 || code === "unsupported_media") {
+          setError("unsupported_media");
+          toast.error("Formato do arquivo não suportado para pré-visualização.");
         } else {
           setError("preview_failed");
           toast.error(
