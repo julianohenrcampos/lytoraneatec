@@ -5,6 +5,8 @@
 const ALLOWED = new Set<string>([
   "https://app.lytoranea.com.br",
   "https://staging.lytoranea.com.br",
+  "https://lytotec.com.br",
+  "https://www.lytotec.com.br",
   "https://id-preview--1adc7942-e288-48d3-a624-545b9db75a12.lovable.app",
   "https://1adc7942-e288-48d3-a624-545b9db75a12.lovableproject.com",
   "http://localhost:8080",
