@@ -17,7 +17,6 @@ interface Props {
   canDownload: boolean;
   onVer: (row: AtestadoRow) => void;
   onAbrirArquivo: (row: AtestadoRow) => void;
-  arquivoLoadingId: string | null;
 }
 
 function mask(m: string) {
@@ -47,7 +46,6 @@ export default function AtestadosTable({
   canDownload,
   onVer,
   onAbrirArquivo,
-  arquivoLoadingId,
 }: Props) {
   return (
     <div className="border border-border rounded-md overflow-x-auto">
@@ -116,7 +114,12 @@ export default function AtestadosTable({
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
-                    <Button size="sm" variant="ghost" onClick={() => onVer(r)}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onVer(r)}
+                      title="Ver detalhes"
+                    >
                       <Eye className="w-4 h-4" />
                     </Button>
                     {canDownload && (
@@ -124,14 +127,9 @@ export default function AtestadosTable({
                         size="sm"
                         variant="ghost"
                         onClick={() => onAbrirArquivo(r)}
-                        disabled={arquivoLoadingId === r.id}
-                        title="Abrir arquivo"
+                        title="Ver arquivo"
                       >
-                        {arquivoLoadingId === r.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <FileText className="w-4 h-4" />
-                        )}
+                        <FileText className="w-4 h-4" />
                       </Button>
                     )}
                   </div>

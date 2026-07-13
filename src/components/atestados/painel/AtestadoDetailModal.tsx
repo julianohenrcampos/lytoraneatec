@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -8,16 +9,17 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Download, Eye, FileText, Loader2, RefreshCw } from "lucide-react";
 import type { AtestadoRow } from "@/types/atestadoMedico";
+import { useAtestadoArquivoAssinado } from "@/hooks/atestados/useAtestadoArquivoAssinado";
 
 interface Props {
   row: AtestadoRow | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
   canDownload: boolean;
-  onAbrirArquivo: (row: AtestadoRow) => void;
-  arquivoLoading: boolean;
+  initialTab?: "dados" | "arquivo";
 }
 
 function fmtBRT(iso: string | null) {
@@ -55,13 +57,38 @@ export default function AtestadoDetailModal({
   open,
   onOpenChange,
   canDownload,
-  onAbrirArquivo,
-  arquivoLoading,
+  initialTab = "dados",
 }: Props) {
+  const {
+    loadingId,
+    previewFor,
+    objectUrl,
+    kind,
+    error,
+    load,
+    reset,
+    download,
+  } = useAtestadoArquivoAssinado();
+
+  // Reset preview when modal closes or the selected row changes.
+  useEffect(() => {
+    if (!open) reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  useEffect(() => {
+    reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row?.id]);
+
   if (!row) return null;
+
+  const isLoadingThis = loadingId === row.id;
+  const hasPreview = previewFor === row.id && !!objectUrl;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>Atestado {row.protocolo}</DialogTitle>
           <DialogDescription>
@@ -69,134 +96,209 @@ export default function AtestadoDetailModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Colaborador">{row.nome_snapshot}</Field>
-          <Field label="Matrícula">{mask(row.matricula_snapshot)}</Field>
-          <Field label="Centro de custo">{row.centro_custo_snapshot ?? "—"}</Field>
-          <Field label="Enviado em">{fmtBRT(row.enviado_em)}</Field>
-          <Field label="Data de emissão">{fmtDate(row.data_emissao)}</Field>
-          <Field label="Início do afastamento">
-            {fmtDate(row.data_inicio_afastamento)}
-          </Field>
-          <Field label="Dias de afastamento">{row.dias_afastamento}</Field>
-          <Field label="Dentro de 24h">
-            {row.dentro_prazo_24h ? (
-              <Badge variant="secondary">Sim</Badge>
-            ) : (
-              <Badge variant="destructive">Não</Badge>
-            )}
-          </Field>
-          <Field label="Status">
-            <Badge variant="outline">{row.status}</Badge>
-          </Field>
-          <Field label="Notificação e-mail">
-            <Badge variant="outline">{row.notificacao_email_status}</Badge>
-            <span className="text-xs text-muted-foreground ml-2">
-              tentativas: {row.notificacao_email_tentativas}
-            </span>
-          </Field>
-        </div>
+        <Tabs defaultValue={initialTab} key={`${row.id}-${initialTab}`}>
+          <TabsList>
+            <TabsTrigger value="dados">
+              <Eye className="w-4 h-4 mr-2" />
+              Dados
+            </TabsTrigger>
+            <TabsTrigger value="arquivo">
+              <FileText className="w-4 h-4 mr-2" />
+              Arquivo
+            </TabsTrigger>
+          </TabsList>
 
-        <div className="border-t border-border pt-4">
-          <div className="text-sm font-medium text-foreground mb-2">Declarações</div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Veracidade">
-              {row.declaracao_veracidade ? (
-                <Badge variant="secondary">Sim</Badge>
-              ) : (
-                <Badge variant="destructive">Não</Badge>
-              )}
-            </Field>
-            <Field label="Original em 48h">
-              {row.declaracao_original_48h ? (
-                <Badge variant="secondary">Sim</Badge>
-              ) : (
-                <Badge variant="destructive">Não</Badge>
-              )}
-            </Field>
-            <Field label="Ciência da não-validação">
-              {row.declaracao_ciencia_nao_validacao ? (
-                <Badge variant="secondary">Sim</Badge>
-              ) : (
-                <Badge variant="destructive">Não</Badge>
-              )}
-            </Field>
-            <Field label="Aceitas em">{fmtBRT(row.declaracoes_aceitas_em)}</Field>
-          </div>
-        </div>
-
-        <div className="border-t border-border pt-4">
-          <div className="text-sm font-medium text-foreground mb-2">
-            Sistema afetado
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Sistema">
-              {row.sistema_afetado_codigo
-                ? `${row.sistema_afetado_codigo} - ${row.sistema_afetado_descricao ?? "—"}`
-                : "—"}
-            </Field>
-            {row.sistema_afetado_codigo === "21" && (
-              <Field label="Observação">
-                <span className="whitespace-pre-wrap">
-                  {row.sistema_afetado_observacao ?? "—"}
+          <TabsContent value="dados" className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Colaborador">{row.nome_snapshot}</Field>
+              <Field label="Matrícula">{mask(row.matricula_snapshot)}</Field>
+              <Field label="Centro de custo">{row.centro_custo_snapshot ?? "—"}</Field>
+              <Field label="Enviado em">{fmtBRT(row.enviado_em)}</Field>
+              <Field label="Data de emissão">{fmtDate(row.data_emissao)}</Field>
+              <Field label="Início do afastamento">
+                {fmtDate(row.data_inicio_afastamento)}
+              </Field>
+              <Field label="Dias de afastamento">{row.dias_afastamento}</Field>
+              <Field label="Dentro de 24h">
+                {row.dentro_prazo_24h ? (
+                  <Badge variant="secondary">Sim</Badge>
+                ) : (
+                  <Badge variant="destructive">Não</Badge>
+                )}
+              </Field>
+              <Field label="Status">
+                <Badge variant="outline">{row.status}</Badge>
+              </Field>
+              <Field label="Notificação e-mail">
+                <Badge variant="outline">{row.notificacao_email_status}</Badge>
+                <span className="text-xs text-muted-foreground ml-2">
+                  tentativas: {row.notificacao_email_tentativas}
                 </span>
               </Field>
-            )}
-          </div>
-        </div>
-
-        {row.alertas_gerados && row.alertas_gerados.length > 0 && (
-          <div className="border-t border-border pt-4">
-            <div className="text-sm font-medium text-foreground mb-2">
-              Alertas gerados
             </div>
-            <div className="flex flex-wrap gap-2">
-              {row.alertas_gerados.map((a, i) => (
-                <Badge key={i} variant="outline" className="font-mono text-xs">
-                  {a.codigo}
-                  {a.meta && Object.keys(a.meta).length > 0 && (
-                    <span className="ml-1 text-muted-foreground">
-                      ({Object.entries(a.meta)
-                        .map(([k, v]) => `${k}=${String(v)}`)
-                        .join(", ")})
-                    </span>
+
+            <div className="border-t border-border pt-4">
+              <div className="text-sm font-medium text-foreground mb-2">Declarações</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="Veracidade">
+                  {row.declaracao_veracidade ? (
+                    <Badge variant="secondary">Sim</Badge>
+                  ) : (
+                    <Badge variant="destructive">Não</Badge>
                   )}
-                </Badge>
-              ))}
+                </Field>
+                <Field label="Original em 48h">
+                  {row.declaracao_original_48h ? (
+                    <Badge variant="secondary">Sim</Badge>
+                  ) : (
+                    <Badge variant="destructive">Não</Badge>
+                  )}
+                </Field>
+                <Field label="Ciência da não-validação">
+                  {row.declaracao_ciencia_nao_validacao ? (
+                    <Badge variant="secondary">Sim</Badge>
+                  ) : (
+                    <Badge variant="destructive">Não</Badge>
+                  )}
+                </Field>
+                <Field label="Aceitas em">{fmtBRT(row.declaracoes_aceitas_em)}</Field>
+              </div>
             </div>
-          </div>
-        )}
 
-        {row.observacao_saude && (
-          <div className="border-t border-border pt-4">
-            <div className="text-sm font-medium text-foreground mb-1">
-              Observação SSO
+            <div className="border-t border-border pt-4">
+              <div className="text-sm font-medium text-foreground mb-2">
+                Sistema afetado
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="Sistema">
+                  {row.sistema_afetado_codigo
+                    ? `${row.sistema_afetado_codigo} - ${row.sistema_afetado_descricao ?? "—"}`
+                    : "—"}
+                </Field>
+                {row.sistema_afetado_codigo === "21" && (
+                  <Field label="Observação">
+                    <span className="whitespace-pre-wrap">
+                      {row.sistema_afetado_observacao ?? "—"}
+                    </span>
+                  </Field>
+                )}
+              </div>
             </div>
-            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-              {row.observacao_saude}
-            </p>
-          </div>
-        )}
+
+            {row.alertas_gerados && row.alertas_gerados.length > 0 && (
+              <div className="border-t border-border pt-4">
+                <div className="text-sm font-medium text-foreground mb-2">
+                  Alertas gerados
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {row.alertas_gerados.map((a, i) => (
+                    <Badge key={i} variant="outline" className="font-mono text-xs">
+                      {a.codigo}
+                      {a.meta && Object.keys(a.meta).length > 0 && (
+                        <span className="ml-1 text-muted-foreground">
+                          ({Object.entries(a.meta)
+                            .map(([k, v]) => `${k}=${String(v)}`)
+                            .join(", ")})
+                        </span>
+                      )}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {row.observacao_saude && (
+              <div className="border-t border-border pt-4">
+                <div className="text-sm font-medium text-foreground mb-1">
+                  Observação SSO
+                </div>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                  {row.observacao_saude}
+                </p>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="arquivo" className="space-y-3">
+            {!canDownload ? (
+              <div className="rounded-md border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+                Você não tem permissão para baixar arquivos de atestados.
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  {!hasPreview && !isLoadingThis && (
+                    <Button onClick={() => load(row.id)}>
+                      <Eye className="w-4 h-4 mr-2" />
+                      Visualizar arquivo
+                    </Button>
+                  )}
+                  {isLoadingThis && (
+                    <Button disabled>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Carregando…
+                    </Button>
+                  )}
+                  {hasPreview && (
+                    <>
+                      <Button onClick={() => download(row.protocolo)}>
+                        <Download className="w-4 h-4 mr-2" />
+                        Baixar arquivo
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => load(row.id, { force: true })}
+                        disabled={isLoadingThis}
+                      >
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Atualizar arquivo
+                      </Button>
+                    </>
+                  )}
+                </div>
+
+                {hasPreview && kind === "pdf" && (
+                  <>
+                    <iframe
+                      src={objectUrl!}
+                      title={`Atestado ${row.protocolo}`}
+                      className="w-full h-[70vh] rounded-md border border-border bg-white"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Caso a pré-visualização não carregue, use o botão Baixar arquivo.
+                    </p>
+                  </>
+                )}
+
+
+                {hasPreview && kind === "image" && (
+                  <div className="w-full flex justify-center bg-muted rounded-md border border-border p-2">
+                    <img
+                      src={objectUrl!}
+                      alt={`Arquivo do atestado ${row.protocolo}`}
+                      className="max-h-[70vh] object-contain"
+                    />
+                  </div>
+                )}
+
+                {hasPreview && kind === "unknown" && (
+                  <div className="rounded-md border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+                    Pré-visualização indisponível para este formato. Use o
+                    botão Baixar arquivo.
+                  </div>
+                )}
+
+                {!hasPreview && !isLoadingThis && error && (
+                  <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                    Não foi possível exibir o arquivo. Tente novamente.
+                  </div>
+                )}
+              </>
+            )}
+          </TabsContent>
+        </Tabs>
 
         <DialogFooter className="gap-2 sm:gap-2">
-          {canDownload ? (
-            <Button
-              onClick={() => onAbrirArquivo(row)}
-              disabled={arquivoLoading}
-            >
-              {arquivoLoading ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <FileText className="w-4 h-4 mr-2" />
-              )}
-              Abrir arquivo
-            </Button>
-          ) : (
-            <Button disabled title="Sem permissão para baixar arquivos">
-              <FileText className="w-4 h-4 mr-2" />
-              Abrir arquivo
-            </Button>
-          )}
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Fechar
           </Button>

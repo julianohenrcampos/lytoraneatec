@@ -7,7 +7,6 @@ import MainLayout from "@/components/layout/MainLayout";
 import { usePageTitle } from "@/contexts/PageTitleContext";
 import { useHasPermission } from "@/hooks/usePermission";
 import { useAtestadosPainel } from "@/hooks/atestados/useAtestadosPainel";
-import { useAtestadoArquivoAssinado } from "@/hooks/atestados/useAtestadoArquivoAssinado";
 import AtestadosFilters from "@/components/atestados/painel/AtestadosFilters";
 import AtestadosTable from "@/components/atestados/painel/AtestadosTable";
 import AtestadoDetailModal from "@/components/atestados/painel/AtestadoDetailModal";
@@ -25,7 +24,7 @@ export default function AtestadosMedicosPainel() {
   const { data, isLoading } = useAtestadosPainel(filters);
   const [selected, setSelected] = useState<AtestadoRow | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const { abrir, loadingId } = useAtestadoArquivoAssinado();
+  const [initialTab, setInitialTab] = useState<"dados" | "arquivo">("dados");
 
   return (
     <MainLayout>
@@ -37,18 +36,21 @@ export default function AtestadosMedicosPainel() {
           canDownload={canDownload}
           onVer={(r) => {
             setSelected(r);
+            setInitialTab("dados");
             setModalOpen(true);
           }}
-          onAbrirArquivo={(r) => abrir(r.id)}
-          arquivoLoadingId={loadingId}
+          onAbrirArquivo={(r) => {
+            setSelected(r);
+            setInitialTab("arquivo");
+            setModalOpen(true);
+          }}
         />
         <AtestadoDetailModal
           row={selected}
           open={modalOpen}
           onOpenChange={setModalOpen}
           canDownload={canDownload}
-          onAbrirArquivo={(r) => abrir(r.id)}
-          arquivoLoading={!!selected && loadingId === selected.id}
+          initialTab={initialTab}
         />
       </div>
     </MainLayout>
