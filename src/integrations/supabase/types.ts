@@ -905,6 +905,7 @@ export type Database = {
       }
       bd_atestados_medicos: {
         Row: {
+          alertas_gerados: Json
           analisado_em: string | null
           analisado_por: string | null
           arquivo_hash_sha256: string
@@ -940,11 +941,15 @@ export type Database = {
           origem_hmac_nonce: string
           prazo_calculo_regra: string
           protocolo: string
+          sistema_afetado_codigo: string | null
+          sistema_afetado_descricao: string | null
+          sistema_afetado_observacao: string | null
           status: string
           updated_at: string
           user_agent: string | null
         }
         Insert: {
+          alertas_gerados?: Json
           analisado_em?: string | null
           analisado_por?: string | null
           arquivo_hash_sha256: string
@@ -980,11 +985,15 @@ export type Database = {
           origem_hmac_nonce: string
           prazo_calculo_regra?: string
           protocolo: string
+          sistema_afetado_codigo?: string | null
+          sistema_afetado_descricao?: string | null
+          sistema_afetado_observacao?: string | null
           status?: string
           updated_at?: string
           user_agent?: string | null
         }
         Update: {
+          alertas_gerados?: Json
           analisado_em?: string | null
           analisado_por?: string | null
           arquivo_hash_sha256?: string
@@ -1020,6 +1029,9 @@ export type Database = {
           origem_hmac_nonce?: string
           prazo_calculo_regra?: string
           protocolo?: string
+          sistema_afetado_codigo?: string | null
+          sistema_afetado_descricao?: string | null
+          sistema_afetado_observacao?: string | null
           status?: string
           updated_at?: string
           user_agent?: string | null
@@ -4717,6 +4729,7 @@ export type Database = {
           nome_tecnico: string
           obrigatorio: boolean | null
           ordem: number
+          permission_id: string | null
           permite_multiplo: boolean | null
           status_fluxo_nome: string | null
           tipo_aprovador: string
@@ -4731,6 +4744,7 @@ export type Database = {
           nome_tecnico: string
           obrigatorio?: boolean | null
           ordem: number
+          permission_id?: string | null
           permite_multiplo?: boolean | null
           status_fluxo_nome?: string | null
           tipo_aprovador: string
@@ -4745,6 +4759,7 @@ export type Database = {
           nome_tecnico?: string
           obrigatorio?: boolean | null
           ordem?: number
+          permission_id?: string | null
           permite_multiplo?: boolean | null
           status_fluxo_nome?: string | null
           tipo_aprovador?: string
@@ -4755,6 +4770,20 @@ export type Database = {
             columns: ["fluxo_id"]
             isOneToOne: false
             referencedRelation: "bd_fluxos_aprovacao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_fluxo_etapas_permission_id_fkey"
+            columns: ["permission_id"]
+            isOneToOne: false
+            referencedRelation: "bd_permissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_fluxo_etapas_permission_id_fkey"
+            columns: ["permission_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rbac_permissions_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -20670,6 +20699,28 @@ export type Database = {
       fn_diaria_can_update_row: {
         Args: { p_solicitacao_id: string; p_user_id?: string }
         Returns: boolean
+      }
+      fn_diaria_capacidades_aprovacao: {
+        Args: { p_solicitacao_ids: string[] }
+        Returns: {
+          actionable_stage_count: number
+          actionable_stage_ids: string[]
+          approval_requires_signature: boolean
+          approve_block_reason: string
+          authorization_source: string
+          can_approve: boolean
+          can_reject: boolean
+          can_view: boolean
+          current_stage_code: string
+          current_stage_exec_id: string
+          current_stage_label: string
+          has_parallel_stages: boolean
+          has_signature: boolean
+          is_in_scope: boolean
+          is_requester: boolean
+          reject_block_reason: string
+          solicitacao_id: string
+        }[]
       }
       fn_diaria_funcionario_elegibilidade: {
         Args: {

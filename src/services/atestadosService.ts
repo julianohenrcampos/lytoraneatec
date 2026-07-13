@@ -87,6 +87,8 @@ export async function enviarAtestado(input: {
   data_emissao: string;
   data_inicio_afastamento: string;
   dias_afastamento: number;
+  sistema_afetado_codigo: string;
+  sistema_afetado_observacao?: string;
 }): Promise<AtestadoSubmeterResponse> {
   return publicPost<AtestadoSubmeterResponse>("atestado-submeter", {
     token_validacao: input.token_validacao,
@@ -94,6 +96,8 @@ export async function enviarAtestado(input: {
     data_emissao: input.data_emissao,
     data_inicio_afastamento: input.data_inicio_afastamento,
     dias_afastamento: input.dias_afastamento,
+    sistema_afetado_codigo: input.sistema_afetado_codigo,
+    sistema_afetado_observacao: input.sistema_afetado_observacao,
     declaracao_veracidade: true,
     declaracao_original_48h: true,
     declaracao_ciencia_nao_validacao: true,

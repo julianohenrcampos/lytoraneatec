@@ -61,7 +61,10 @@ export const ROUTE_PERMISSIONS = {
   '/requisicoes/diarias/solicitacoes': ['diarias_solicitacoes_view', 'diarias_view'],
   '/requisicoes/diarias/apontamento-campo': ['diarias_apontamento_view'],
   '/requisicoes/diarias/relatorio': ['diarias_relatorio_view'],
-  '/gestao-aprovacoes-diarias': ['acesso_gestao_aprovacoes'],
+  // Rota legada mantida para gate defensivo (a rota em si é redirect).
+  '/gestao-aprovacoes-diarias': ['acesso_gestao_aprovacoes', 'central_aprovacoes_view'],
+  // Central de Aprovações (Fase 1): compatibilidade OR entre permissão nova e a legada.
+  '/gestao-rh/central-aprovacoes': ['central_aprovacoes_view', 'acesso_gestao_aprovacoes'],
   // Shadow audit: gate sintético — apenas SuperAdmin passa pelo SecureRouteGuard.
   '/requisicoes/diarias/auditoria-ponto-shadow': ['__superadmin_only__'],
 

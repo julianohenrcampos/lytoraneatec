@@ -102,7 +102,9 @@ const portalModules: PortalModule[] = [
       { route: "/requisicoes/diarias/solicitacoes", permission: "diarias_view" },
       { route: "/requisicoes/diarias/apontamento-campo", permission: "diarias_apontamento_view" },
       { route: "/requisicoes/diarias/relatorio", permission: "diarias_relatorio_view" },
-      { route: "/gestao-aprovacoes-diarias", permission: "acesso_gestao_aprovacoes" },
+      // Central de Aprovações (Fase 1): entrada mantida no card de Diárias com nova permissão + legada.
+      { route: "/gestao-rh/central-aprovacoes", permission: "central_aprovacoes_view" },
+      { route: "/gestao-rh/central-aprovacoes", permission: "acesso_gestao_aprovacoes" },
     ],
   },
   {

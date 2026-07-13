@@ -31,8 +31,9 @@ export default function EtapaOrientacoes({ onIniciar }: Props) {
           <li className="flex gap-3">
             <FileCheck className="w-4 h-4 mt-0.5 text-primary shrink-0" />
             <span>
-              Arquivo em <b>PDF, JPG ou PNG</b>, legível, com data de emissão,
-              CID (quando houver) e assinatura do profissional.
+              Arquivo em <b>PDF, JPG ou PNG</b>, legível, contendo as
+              informações necessárias do atestado e assinatura/carimbo do
+              profissional, quando aplicável.
             </span>
           </li>
           <li className="flex gap-3">

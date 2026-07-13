@@ -24,7 +24,11 @@ const SELECT_COLS = `
   declaracao_ciencia_nao_validacao,
   declaracoes_aceitas_em,
   observacao_saude,
-  arquivo_path
+  arquivo_path,
+  sistema_afetado_codigo,
+  sistema_afetado_descricao,
+  sistema_afetado_observacao,
+  alertas_gerados
 `;
 
 export function useAtestadosPainel(filters: AtestadosPainelFilters) {

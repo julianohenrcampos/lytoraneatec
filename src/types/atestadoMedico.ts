@@ -22,10 +22,25 @@ export interface AtestadoUploadUrlResponse {
   bucket: string;
 }
 
+export type AtestadoAlertaCodigo =
+  | "prazo_ok"
+  | "prazo_fora"
+  | "afastamento_5_dias"
+  | "recorrencia_mes"
+  | "acompanhamento_60d";
+
+export interface AtestadoAlerta {
+  codigo: AtestadoAlertaCodigo;
+  meta?: Record<string, unknown>;
+}
+
 export interface AtestadoSubmeterResponse {
   ok: true;
   protocolo: string;
   dentro_prazo_24h: boolean;
+  sistema_afetado_codigo?: string;
+  sistema_afetado_descricao?: string;
+  alertas_gerados?: AtestadoAlerta[];
 }
 
 export interface AtestadoEdgeError {
@@ -56,6 +71,10 @@ export interface AtestadoRow {
   declaracoes_aceitas_em: string | null;
   observacao_saude: string | null;
   arquivo_path: string;
+  sistema_afetado_codigo: string | null;
+  sistema_afetado_descricao: string | null;
+  sistema_afetado_observacao: string | null;
+  alertas_gerados: AtestadoAlerta[];
 }
 
 export interface AtestadosPainelFilters {
@@ -74,4 +93,6 @@ export interface AtestadoFormValues {
   declaracao_veracidade: boolean;
   declaracao_original_48h: boolean;
   declaracao_ciencia_nao_validacao: boolean;
+  sistema_afetado_codigo: string;
+  sistema_afetado_observacao?: string;
 }

@@ -84,6 +84,8 @@ const DiariasSolicitacoes = lazy(() => import("@/pages/DiariasSolicitacoes"));
 const DiariasRelatorio = lazy(() => import("@/pages/DiariasRelatorio"));
 const DiariasApontamentoCampo = lazy(() => import("@/pages/DiariasApontamentoCampo"));
 const GestaoAprovacoesDiarias = lazy(() => import("@/pages/diarias/GestaoAprovacoesDiarias"));
+const CentralAprovacoes = lazy(() => import("@/pages/central-aprovacoes/CentralAprovacoes"));
+const RedirectGestaoAprovacoesToCentral = lazy(() => import("@/pages/central-aprovacoes/RedirectLegacy"));
 const PontoShadowAuditoria = lazy(() => import("@/pages/diarias/PontoShadowAuditoria"));
 
 const SSOChecklistList = lazy(() => import("@/pages/SSOChecklistList"));
@@ -248,7 +250,24 @@ const App = () => {
                     <Route path="/requisicoes/diarias/solicitacoes" element={<Secure permission="diarias_solicitacoes_view"><DiariasSolicitacoes /></Secure>} />
                     <Route path="/requisicoes/diarias/relatorio" element={<Secure permission="diarias_relatorio_view"><DiariasRelatorio /></Secure>} />
                     <Route path="/requisicoes/diarias/apontamento-campo" element={<Secure permission="diarias_apontamento_view"><DiariasApontamentoCampo /></Secure>} />
-                    <Route path="/gestao-aprovacoes-diarias" element={<Secure permission="acesso_gestao_aprovacoes"><GestaoAprovacoesDiarias /></Secure>} />
+                    {/* Central de Aprovações (Fase 1) — aceita 3 permissões compatíveis (OR) via requiredPermissions. */}
+                    <Route path="/gestao-rh/central-aprovacoes" element={
+                      <SimpleAuthGuard><SimplePermissionGuard>
+                        <SecureRouteGuard requiredPermissions={["central_aprovacoes_view", "acesso_gestao_aprovacoes"]}>
+                          <CentralAprovacoes />
+                        </SecureRouteGuard>
+                      </SimplePermissionGuard></SimpleAuthGuard>
+                    } />
+                    {/* Rota legada — redireciona preservando querystring/hash. */}
+                    <Route path="/gestao-aprovacoes-diarias" element={<RedirectGestaoAprovacoesToCentral />} />
+                    {/* Página antiga preservada apenas como fallback interno (não linkada no menu). */}
+                    <Route path="/_legacy/gestao-aprovacoes-diarias" element={
+                      <SimpleAuthGuard><SimplePermissionGuard>
+                        <SecureRouteGuard requiredPermissions={["central_aprovacoes_view", "acesso_gestao_aprovacoes"]}>
+                          <GestaoAprovacoesDiarias />
+                        </SecureRouteGuard>
+                      </SimplePermissionGuard></SimpleAuthGuard>
+                    } />
                     <Route path="/requisicoes/diarias/auditoria-ponto-shadow" element={<Secure permission="__superadmin_only__"><PontoShadowAuditoria /></Secure>} />
 
                     {/* Licitações */}

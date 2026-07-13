@@ -26,7 +26,7 @@ export function inferirModuloPorCodigo(codigo: string): ModuloValue | undefined 
   const c = (codigo || '').toLowerCase();
   if (!c) return undefined;
   if (c.startsWith('dashboard_') && !c.startsWith('dashboard_licitacoes')) return 'dashboard';
-  if (c.startsWith('gestao_rh_') || c === 'acesso_sso_agendamento_exames') return 'gestao_rh';
+  if (c.startsWith('gestao_rh_') || c === 'acesso_sso_agendamento_exames' || c === 'central_aprovacoes_view') return 'gestao_rh';
   if (
     c.startsWith('gestao_maquinas_') ||
     c === 'requisicoes_chamados_os_view' ||

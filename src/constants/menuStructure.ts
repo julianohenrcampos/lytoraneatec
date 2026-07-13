@@ -86,6 +86,13 @@ export const menuStructure = [
         requiredPermission: "gestao_rh_arquivo_morto_view"
       },
       {
+        name: "Central de Aprovações",
+        href: "/gestao-rh/central-aprovacoes",
+        icon: FileCheck,
+        // Fase 1: aceita permissão nova OU a legada (compatibilidade).
+        requiredPermissions: ["central_aprovacoes_view", "acesso_gestao_aprovacoes"]
+      },
+      {
         name: "Agendamento de Exames",
         href: "/sso/agendamento-exames",
         icon: Calendar,
@@ -278,12 +285,7 @@ export const menuStructure = [
         icon: BarChart3,
         requiredPermission: "diarias_relatorio_view"
       },
-      {
-        name: "Gestão de Aprovações",
-        href: "/gestao-aprovacoes-diarias",
-        icon: ClipboardCheck,
-        requiredPermission: "acesso_gestao_aprovacoes"
-      }
+      // "Gestão de Aprovações" migrada para "Central de Aprovações" em Gestão de RH (Fase 1).
       // Removido do menu operacional: "Auditoria Ponto × Diárias (Shadow)".
       // Rota /requisicoes/diarias/auditoria-ponto-shadow segue acessível
       // apenas a SuperAdm como ferramenta de diagnóstico (sem botões operacionais).

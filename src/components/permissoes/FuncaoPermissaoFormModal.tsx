@@ -210,6 +210,14 @@ const FuncaoPermissaoFormModal: React.FC<FuncaoPermissaoFormModalProps> = ({
           </DialogTitle>
         </DialogHeader>
 
+        <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
+          <strong className="text-foreground">Permissões de etapa (Diárias):</strong>{" "}
+          <code>diarias_aprovar_gerente_adm</code>, <code>diarias_aprovar_diretor_operacional</code>,{" "}
+          <code>diarias_aprovar_diretor_adm</code>. Vincule a ação <strong>Aprovar</strong> à(s)
+          etapa(s) que esta função pode decidir. SuperAdm já vem com todas.
+        </div>
+
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
             <FormField

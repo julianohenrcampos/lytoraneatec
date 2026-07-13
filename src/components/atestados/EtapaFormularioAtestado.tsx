@@ -1,14 +1,27 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useEnviarAtestado } from "@/hooks/atestados/useEnviarAtestado";
 import type { AtestadoSubmeterResponse } from "@/types/atestadoMedico";
+import {
+  SISTEMAS_AFETADOS,
+  SISTEMAS_AFETADOS_CODIGOS,
+  SISTEMA_OUTROS_CODIGO,
+} from "@/constants/atestadosSistemasAfetados";
 
 interface Props {
   tokenValidacao: string;
@@ -31,13 +44,16 @@ const hoje = () => new Date().toISOString().slice(0, 10);
 
 const schema = z
   .object({
-    data_emissao: z
+    sistema_afetado_codigo: z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida")
-      .refine((v) => v <= hoje(), "Data de emissão não pode ser futura"),
+      .refine((v) => SISTEMAS_AFETADOS_CODIGOS.includes(v), {
+        message: "Selecione o sistema afetado",
+      }),
+    sistema_afetado_observacao: z.string().optional(),
     data_inicio_afastamento: z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida"),
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida")
+      .refine((v) => v <= hoje(), "Data não pode ser futura"),
     dias_afastamento: z
       .number({ invalid_type_error: "Informe os dias" })
       .int("Somente números inteiros")
@@ -53,9 +69,17 @@ const schema = z
       errorMap: () => ({ message: "Obrigatório" }),
     }),
   })
-  .refine((v) => v.data_inicio_afastamento >= v.data_emissao, {
-    path: ["data_inicio_afastamento"],
-    message: "Deve ser igual ou posterior à data de emissão",
+  .superRefine((v, ctx) => {
+    if (v.sistema_afetado_codigo === SISTEMA_OUTROS_CODIGO) {
+      const obs = (v.sistema_afetado_observacao || "").trim();
+      if (obs.length < 3 || obs.length > 2000) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["sistema_afetado_observacao"],
+          message: "Informe entre 3 e 2000 caracteres",
+        });
+      }
+    }
   });
 
 export default function EtapaFormularioAtestado({
@@ -65,7 +89,9 @@ export default function EtapaFormularioAtestado({
   onEnviado,
   onTokenInvalido,
 }: Props) {
-  const [dataEmissao, setDataEmissao] = useState("");
+  const dataRegistro = useMemo(() => hoje(), []);
+  const [sistemaCodigo, setSistemaCodigo] = useState<string>("");
+  const [sistemaObs, setSistemaObs] = useState<string>("");
   const [dataInicio, setDataInicio] = useState("");
   const [dias, setDias] = useState<string>("");
   const [file, setFile] = useState<File | null>(null);
@@ -74,6 +100,8 @@ export default function EtapaFormularioAtestado({
   const [decC, setDecC] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const enviar = useEnviarAtestado();
+
+  const precisaObservacao = sistemaCodigo === SISTEMA_OUTROS_CODIGO;
 
   function validarArquivo(f: File | null): string | null {
     if (!f) return "Selecione o arquivo do atestado";
@@ -88,7 +116,8 @@ export default function EtapaFormularioAtestado({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const parsed = schema.safeParse({
-      data_emissao: dataEmissao,
+      sistema_afetado_codigo: sistemaCodigo,
+      sistema_afetado_observacao: sistemaObs,
       data_inicio_afastamento: dataInicio,
       dias_afastamento: Number(dias),
       declaracao_veracidade: decV,
@@ -110,9 +139,13 @@ export default function EtapaFormularioAtestado({
       const resp = await enviar.mutateAsync({
         token_validacao: tokenValidacao,
         file: file!,
-        data_emissao: dataEmissao,
+        data_emissao: dataRegistro,
         data_inicio_afastamento: dataInicio,
         dias_afastamento: Number(dias),
+        sistema_afetado_codigo: sistemaCodigo,
+        sistema_afetado_observacao: precisaObservacao
+          ? sistemaObs.trim()
+          : undefined,
       });
       onEnviado(resp);
     } catch (e: any) {
@@ -120,7 +153,13 @@ export default function EtapaFormularioAtestado({
       if (code === "token_invalido" || code === "token_ja_utilizado") {
         toast.error("Sua sessão expirou. Refaça a validação.");
         onTokenInvalido();
-      } else if (code === "invalid_input" || code === "declaracoes_obrigatorias") {
+      } else if (
+        code === "invalid_input" ||
+        code === "declaracoes_obrigatorias" ||
+        code === "sistema_afetado_invalido" ||
+        code === "sistema_afetado_observacao_obrigatoria" ||
+        code === "sistema_afetado_observacao_invalida"
+      ) {
         toast.error("Verifique os campos e tente novamente.");
       } else if (code === "arquivo_extensao_invalida") {
         setErrors((prev) => ({ ...prev, arquivo: "Extensão não permitida" }));
@@ -144,26 +183,62 @@ export default function EtapaFormularioAtestado({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="sistema_afetado">Sistema afetado</Label>
+            <Select value={sistemaCodigo} onValueChange={setSistemaCodigo}>
+              <SelectTrigger id="sistema_afetado">
+                <SelectValue placeholder="Selecione o sistema afetado" />
+              </SelectTrigger>
+              <SelectContent>
+                {SISTEMAS_AFETADOS.map((s) => (
+                  <SelectItem key={s.codigo} value={s.codigo}>
+                    {s.codigo} - {s.descricao}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.sistema_afetado_codigo && (
+              <p className="text-xs text-destructive">
+                {errors.sistema_afetado_codigo}
+              </p>
+            )}
+          </div>
+
+          {precisaObservacao && (
             <div className="space-y-2">
-              <Label htmlFor="data_emissao">Data de emissão</Label>
-              <Input
-                id="data_emissao"
-                type="date"
-                max={hoje()}
-                value={dataEmissao}
-                onChange={(e) => setDataEmissao(e.target.value)}
+              <Label htmlFor="sistema_obs">
+                Observação do sistema afetado
+              </Label>
+              <Textarea
+                id="sistema_obs"
+                value={sistemaObs}
+                onChange={(e) => setSistemaObs(e.target.value.slice(0, 2000))}
+                maxLength={2000}
+                minLength={3}
+                rows={3}
+                placeholder="Descreva brevemente (3 a 2000 caracteres)"
                 required
               />
-              {errors.data_emissao && (
-                <p className="text-xs text-destructive">{errors.data_emissao}</p>
-              )}
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>
+                  {errors.sistema_afetado_observacao && (
+                    <span className="text-destructive">
+                      {errors.sistema_afetado_observacao}
+                    </span>
+                  )}
+                </span>
+                <span>{sistemaObs.length}/2000</span>
+              </div>
             </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="data_inicio">Início do afastamento</Label>
               <Input
                 id="data_inicio"
                 type="date"
+                max={hoje()}
                 value={dataInicio}
                 onChange={(e) => setDataInicio(e.target.value)}
                 required
@@ -173,6 +248,20 @@ export default function EtapaFormularioAtestado({
                   {errors.data_inicio_afastamento}
                 </p>
               )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="data_registro">Data do registro</Label>
+              <Input
+                id="data_registro"
+                type="date"
+                value={dataRegistro}
+                disabled
+                readOnly
+                title="Definida automaticamente pelo sistema"
+              />
+              <p className="text-xs text-muted-foreground">
+                Definida automaticamente pelo sistema.
+              </p>
             </div>
           </div>
 

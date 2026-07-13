@@ -80,7 +80,15 @@ export default function AtestadosMedicos() {
       {etapa === "protocolo" && resultado && (
         <TelaProtocoloEnviado
           protocolo={resultado.protocolo}
-          dentroPrazo24h={resultado.dentro_prazo_24h}
+          alertas={
+            resultado.alertas_gerados ?? [
+              {
+                codigo: resultado.dentro_prazo_24h ? "prazo_ok" : "prazo_fora",
+              },
+            ]
+          }
+          sistemaDescricao={resultado.sistema_afetado_descricao ?? null}
+          enviadoEm={new Date().toISOString()}
           onNovo={reset}
         />
       )}

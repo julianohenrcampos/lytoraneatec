@@ -12,6 +12,8 @@ interface EnviarAtestadoParams {
   data_emissao: string;
   data_inicio_afastamento: string;
   dias_afastamento: number;
+  sistema_afetado_codigo: string;
+  sistema_afetado_observacao?: string;
 }
 
 async function pipeline(
@@ -44,6 +46,8 @@ async function pipeline(
     data_emissao: params.data_emissao,
     data_inicio_afastamento: params.data_inicio_afastamento,
     dias_afastamento: params.dias_afastamento,
+    sistema_afetado_codigo: params.sistema_afetado_codigo,
+    sistema_afetado_observacao: params.sistema_afetado_observacao,
   });
 }
 

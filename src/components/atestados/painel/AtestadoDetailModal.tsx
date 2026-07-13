@@ -125,6 +125,48 @@ export default function AtestadoDetailModal({
           </div>
         </div>
 
+        <div className="border-t border-border pt-4">
+          <div className="text-sm font-medium text-foreground mb-2">
+            Sistema afetado
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Sistema">
+              {row.sistema_afetado_codigo
+                ? `${row.sistema_afetado_codigo} - ${row.sistema_afetado_descricao ?? "—"}`
+                : "—"}
+            </Field>
+            {row.sistema_afetado_codigo === "21" && (
+              <Field label="Observação">
+                <span className="whitespace-pre-wrap">
+                  {row.sistema_afetado_observacao ?? "—"}
+                </span>
+              </Field>
+            )}
+          </div>
+        </div>
+
+        {row.alertas_gerados && row.alertas_gerados.length > 0 && (
+          <div className="border-t border-border pt-4">
+            <div className="text-sm font-medium text-foreground mb-2">
+              Alertas gerados
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {row.alertas_gerados.map((a, i) => (
+                <Badge key={i} variant="outline" className="font-mono text-xs">
+                  {a.codigo}
+                  {a.meta && Object.keys(a.meta).length > 0 && (
+                    <span className="ml-1 text-muted-foreground">
+                      ({Object.entries(a.meta)
+                        .map(([k, v]) => `${k}=${String(v)}`)
+                        .join(", ")})
+                    </span>
+                  )}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+
         {row.observacao_saude && (
           <div className="border-t border-border pt-4">
             <div className="text-sm font-medium text-foreground mb-1">
