@@ -50,12 +50,18 @@ const ApontamentoCaminhoes: React.FC = () => {
     handleClearFilters,
     handleExportToExcel,
     handleGetUltimoHorimetro,
-    handleUploadFoto,
   } = useApontamentoCaminhoes();
-  const centrosCustoOptions = centrosCusto.map(centro => ({
-    id: centro.id,
-    label: centro.codigo_centro_custo
-  }));
+  const centrosCustoOptions = centrosCusto.map((centro) => {
+    const codigo = centro.codigo_centro_custo || "";
+    const nome = centro.nome_centro_custo || "";
+    const label = codigo && nome ? `${codigo} - ${nome}` : codigo || nome;
+    return {
+      id: centro.id,
+      label,
+      searchText: `${codigo} ${nome}`.trim(),
+    };
+  });
+
 
   const guardedDelete = async () => {
     if (!canDeleteApontamento) {
@@ -152,7 +158,6 @@ const ApontamentoCaminhoes: React.FC = () => {
         isLoading={isLoading}
         currentUser={currentUser}
         getUltimoHorimetro={handleGetUltimoHorimetro}
-        uploadFoto={handleUploadFoto}
       />
 
       <ApontamentoCaminhoesDetailsModal

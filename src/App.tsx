@@ -49,6 +49,7 @@ const LinhasOperacionaisPage = lazy(() => import("@/pages/LinhasOperacionaisPage
 const CentralTransporte = lazy(() => import("@/pages/CentralTransporte"));
 const ChecklistSaida = lazy(() => import("@/pages/ChecklistSaida"));
 const Abastecimento = lazy(() => import("@/pages/GestaoAbastecimento"));
+const MapaOperacional = lazy(() => import("@/pages/gestao-maquinas/MapaOperacional"));
 
 const TestePonto = lazy(() => import("@/pages/dev/TestePonto"));
 const PwaStatus = lazy(() => import("@/pages/dev/PwaStatus"));
@@ -203,6 +204,7 @@ const App = () => {
                     <Route path="/gestao-maquinas/portfolio-empresas" element={<Secure permission="gestao_maquinas_caminhoes_view"><GestaoPortfolio /></Secure>} />
                     <Route path="/gestao-maquinas/linhas-operacionais" element={<Perm><LinhasOperacionaisPage /></Perm>} />
                     <Route path="/gestao-maquinas/central-transporte" element={<Secure permission="gestao_maquinas_caminhoes_view"><CentralTransporte /></Secure>} />
+                    <Route path="/gestao-maquinas/mapa-operacional" element={<Secure permission="veiculos_equipamentos_mapa_operacional_view"><MapaOperacional /></Secure>} />
                     <Route path="/gestao-maquinas/checklist-saida/:movimentacaoId" element={<Perm><ChecklistSaida /></Perm>} />
                     {/* FASE 1/2: rota antiga mantida apenas como redirect para a nova rota definitiva em /engenharia. */}
                     <Route path="/gestao-maquinas/planejamento-macro" element={<Navigate to="/engenharia/planejamento-macro" replace />} />

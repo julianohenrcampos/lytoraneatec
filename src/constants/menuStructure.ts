@@ -23,7 +23,8 @@ import {
   FileSearch,
   Clock,
   ScanFace,
-  HardHat
+  HardHat,
+  MapPinned
 } from "lucide-react";
 
 export const menuStructure = [
@@ -206,6 +207,12 @@ export const menuStructure = [
         href: "/gestao-maquinas/central-transporte",
         icon: Truck,
         requiredPermission: "gestao_maquinas_caminhoes_view"
+      },
+      {
+        name: "Mapa Operacional",
+        href: "/gestao-maquinas/mapa-operacional",
+        icon: MapPinned,
+        requiredPermission: "veiculos_equipamentos_mapa_operacional_view"
       }
     ]
   },

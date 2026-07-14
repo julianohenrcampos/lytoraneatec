@@ -1,0 +1,1 @@
+ALTER TYPE public.origem_localizacao_enum ADD VALUE IF NOT EXISTS 'APONTAMENTO_CE';

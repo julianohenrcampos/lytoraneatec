@@ -1,73 +1,41 @@
+/**
+ * @deprecated Fase 0 (Apontamento C&E) — o fluxo antigo `createApontamento` foi
+ * removido. O modo offline será reintroduzido em fase posterior com o mesmo
+ * contrato transacional da RPC `fn_salvar_apontamento_ce_com_inspecao`.
+ */
 
-import { useState } from 'react';
-import { useConnectionStatus } from './useConnectionStatus';
-import { useToast } from './use-toast';
-import { salvarApontamentoOffline } from '@/utils/salvarOffline';
-import { createApontamento } from '@/services/apontamentoCaminhoesService';
-import { usePermission } from './usePermission';
+import { useState } from "react";
+import { useConnectionStatus } from "./useConnectionStatus";
+import { useToast } from "./use-toast";
+import { usePermission } from "./usePermission";
 
 export const useApontamentoCaminhoesOffline = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { isSupabaseConnected } = useConnectionStatus();
   const { toast } = useToast();
-  const { userId, isSuperAdmin, permissions } = usePermission();
+  const { isSuperAdmin, permissions } = usePermission();
 
   const submitApontamento = async (
-    formData: any,
-    onSuccess?: () => void
-  ) => {
+    _formData: unknown,
+    _onSuccess?: () => void
+  ): Promise<void> => {
     setIsLoading(true);
-    
     try {
-      // Verificar permissão antes de salvar (online ou offline)
-      const canAccessCaminhoes = isSuperAdmin || permissions.includes('apontamentos_caminhoes_view');
-      
-      if (!canAccessCaminhoes) {
+      const canAccess =
+        isSuperAdmin || permissions.includes("requisicoes_apontamento_caminhoes_view");
+      if (!canAccess) {
         toast({
           title: "Acesso negado",
-          description: "Você não tem permissão para salvar apontamentos de caminhões",
-          variant: "destructive"
+          description: "Você não tem permissão para este módulo.",
+          variant: "destructive",
         });
         return;
       }
-      if (isSupabaseConnected) {
-        // Modo online - enviar diretamente para Supabase
-        console.log('📡 Enviando apontamento de caminhões online...');
-        
-        await createApontamento(formData); // Fixed function name
-        
-        toast({
-          title: "Apontamento registrado",
-          description: "Apontamento de caminhões salvo com sucesso",
-          variant: "default"
-        });
-        
-        onSuccess?.();
-      } else {
-        // Modo offline - salvar no localStorage
-        console.log('📵 Salvando apontamento de caminhões offline...');
-        
-        const id = salvarApontamentoOffline(
-          'apontamento_caminhoes',
-          formData,
-          userId // Fixed property name
-        );
-        
-        toast({
-          title: "Salvo offline",
-          description: "Apontamento será sincronizado quando a internet voltar",
-          variant: "default"
-        });
-        
-        onSuccess?.();
-      }
-    } catch (error) {
-      console.error('Erro ao submeter apontamento de caminhões:', error);
-      
       toast({
-        title: "Erro",
-        description: error instanceof Error ? error.message : "Erro ao salvar apontamento",
-        variant: "destructive"
+        title: "Modo offline indisponível",
+        description:
+          "Modo offline do Apontamento de C&E ainda não está habilitado. Utilize a página online.",
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
@@ -77,6 +45,6 @@ export const useApontamentoCaminhoesOffline = () => {
   return {
     submitApontamento,
     isLoading,
-    isOffline: !isSupabaseConnected
+    isOffline: !isSupabaseConnected,
   };
 };

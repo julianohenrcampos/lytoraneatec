@@ -11,11 +11,15 @@ export interface Caminhao {
   fabricante?: string;
   empresa_id?: string;
   nome_empresa?: string;
+  categoria_ativo_id?: string | null;
+  subcategoria_ativo_id?: string | null;
   nome_categoria?: string;
   nome_subcategoria?: string;
+  imagem_url?: string | null;
   /** @deprecated Use fabricante instead */
   marca?: string;
 }
+
 
 export const fetchCaminhoes = async (): Promise<Caminhao[]> => {
   try {
@@ -29,11 +33,15 @@ export const fetchCaminhoes = async (): Promise<Caminhao[]> => {
         frota,
         numero_frota,
         fabricante,
+        imagem_url,
         empresa_id,
+        categoria_ativo_id,
+        subcategoria_ativo_id,
         empresa:bd_empresas(id, nome_empresa),
         categoria:bd_categorias_ativos(nome_categoria),
         subcategoria:bd_subcategorias_ativos(nome_subcategoria)
       `)
+
       .order('placa', { ascending: true });
 
     if (error) {
@@ -62,9 +70,13 @@ export const fetchCaminhoes = async (): Promise<Caminhao[]> => {
         marca: item.fabricante,
         empresa_id: item.empresa_id,
         nome_empresa: nomeEmpresa,
+        categoria_ativo_id: item.categoria_ativo_id ?? null,
+        subcategoria_ativo_id: item.subcategoria_ativo_id ?? null,
         nome_categoria: item.categoria?.nome_categoria || null,
         nome_subcategoria: item.subcategoria?.nome_subcategoria || null,
+        imagem_url: item.imagem_url ?? null,
       } as Caminhao;
+
     }) || [];
 
     console.log(`fetchCaminhoes: ${caminhoes.length || 0} caminhões encontrados`, caminhoes);

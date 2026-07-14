@@ -1,0 +1,573 @@
+-- Fase 2A-R3 — Checklist C&E detalhado (assinaturas preservadas)
+-- 6 templates / 49 grupos / 221 itens / 15 subcategorias
+BEGIN;
+
+-- Auditoria dos 15 UUIDs de subcategoria
+DO $mig$
+DECLARE v_count int;
+BEGIN
+  SELECT count(*) INTO v_count
+    FROM public.bd_subcategorias_ativos
+   WHERE id IN (
+     '0fbca844-b069-4da0-91b6-b6563940116d'::uuid,
+     'b3468354-71df-496c-be0e-3ee3d69d413a'::uuid,
+     'c407e9b4-15a3-4732-833b-a2e62da641fd'::uuid,
+     '1177d077-4340-48e7-a651-b6923d423c5b'::uuid,
+     'cee49223-d1f4-42cb-a092-59473ae719f9'::uuid,
+     'c0f5f5c5-e117-4c60-a1ea-3a88abf43725'::uuid,
+     '5f6ed89a-972a-4168-903f-8768c2da3c51'::uuid,
+     '6a58912a-1a6b-4251-b192-56503d6423eb'::uuid,
+     'faf5ee95-884a-4d8c-a072-64f9afc3de18'::uuid,
+     '81df7e70-28a6-4b33-8903-96281a6a8e3d'::uuid,
+     '7bc3daa3-3ff2-4be3-ae5e-73a58692e915'::uuid,
+     '3631ceae-e90e-4fef-8bad-f6aaf13e3ba6'::uuid,
+     '280723c8-8bc9-4348-8453-890570d87e99'::uuid,
+     'ea5176c0-67c2-44c8-bf4e-37c496f95f4c'::uuid,
+     '7fe91d65-fc6f-4ed8-8ef7-87dea69c79b2'::uuid
+   );
+  IF v_count <> 15 THEN
+    RAISE EXCEPTION 'subcategorias_auditoria_falhou: %', v_count;
+  END IF;
+END $mig$;
+
+-- Auditoria dos 6 templates
+DO $mig$
+DECLARE v_count int;
+BEGIN
+  SELECT count(*) INTO v_count
+    FROM public.bd_configuracoes_sistema
+   WHERE chave LIKE 'checklist_ce_template_%' AND ativo = true;
+  IF v_count <> 6 THEN
+    RAISE EXCEPTION 'catalogo_incompleto: %', v_count;
+  END IF;
+END $mig$;
+
+-- Helper: catálogo bruto (agregado a partir das 6 linhas da tabela de configurações)
+CREATE OR REPLACE FUNCTION public.fn_checklist_ce_catalog_raw()
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $fn$
+  SELECT jsonb_object_agg(substring(chave from 22), valor::jsonb)
+    FROM public.bd_configuracoes_sistema
+   WHERE chave LIKE 'checklist_ce_template_%' AND ativo = true
+$fn$;
+
+-- Helper: catálogo flat por código
+CREATE OR REPLACE FUNCTION public.fn_checklist_ce_catalog_flat(p_codigo text)
+RETURNS TABLE(
+  grupo_codigo text, grupo_titulo text, grupo_icone text, grupo_ordem int,
+  item_codigo text, item_descricao text, item_ordem int,
+  criticidade text, obrigatorio boolean, exige_foto_nao_ok boolean,
+  template_nome text, template_versao int
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $fn$
+  WITH t AS (SELECT public.fn_checklist_ce_catalog_raw() -> p_codigo AS j)
+  SELECT (g->>'c')::text, (g->>'t')::text, (g->>'i')::text, (g->>'o')::int,
+         (it->>'c')::text, (it->>'d')::text, (it->>'o')::int,
+         (it->>'cr')::text, (it->>'m')::boolean, (it->>'f')::boolean,
+         (t.j->>'n')::text, (t.j->>'v')::int
+    FROM t,
+         LATERAL jsonb_array_elements(t.j->'g') g,
+         LATERAL jsonb_array_elements(g->'it') it
+   WHERE t.j IS NOT NULL
+$fn$;
+
+-- Helper: mapeamento subcategoria → template
+CREATE OR REPLACE FUNCTION public.fn_checklist_ce_template_por_subcategoria(p_subcat uuid)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+PARALLEL SAFE
+AS $fn$
+  SELECT CASE p_subcat
+    WHEN '0fbca844-b069-4da0-91b6-b6563940116d'::uuid THEN 'CE-ESCAVADEIRA-V1'
+    WHEN 'b3468354-71df-496c-be0e-3ee3d69d413a'::uuid THEN 'CE-ESCAVADEIRA-V1'
+    WHEN 'c407e9b4-15a3-4732-833b-a2e62da641fd'::uuid THEN 'CE-ESCAVADEIRA-V1'
+    WHEN '1177d077-4340-48e7-a651-b6923d423c5b'::uuid THEN 'CE-RETRO-V1'
+    WHEN 'cee49223-d1f4-42cb-a092-59473ae719f9'::uuid THEN 'CE-CAMINHAO-BASC-V1'
+    WHEN 'c0f5f5c5-e117-4c60-a1ea-3a88abf43725'::uuid THEN 'CE-CAMINHAO-BASC-V1'
+    WHEN '5f6ed89a-972a-4168-903f-8768c2da3c51'::uuid THEN 'CE-CAMINHAO-BASC-V1'
+    WHEN '6a58912a-1a6b-4251-b192-56503d6423eb'::uuid THEN 'CE-ROLO-V1'
+    WHEN 'faf5ee95-884a-4d8c-a072-64f9afc3de18'::uuid THEN 'CE-ROLO-V1'
+    WHEN '81df7e70-28a6-4b33-8903-96281a6a8e3d'::uuid THEN 'CE-ROLO-V1'
+    WHEN '7bc3daa3-3ff2-4be3-ae5e-73a58692e915'::uuid THEN 'CE-ROLO-V1'
+    WHEN '3631ceae-e90e-4fef-8bad-f6aaf13e3ba6'::uuid THEN 'CE-MOTONIVELADORA-V1'
+    WHEN '280723c8-8bc9-4348-8453-890570d87e99'::uuid THEN 'CE-CAMINHAO-CABAUX-V1'
+    WHEN 'ea5176c0-67c2-44c8-bf4e-37c496f95f4c'::uuid THEN 'CE-CAMINHAO-CABAUX-V1'
+    WHEN '7fe91d65-fc6f-4ed8-8ef7-87dea69c79b2'::uuid THEN 'CE-CAMINHAO-CABAUX-V1'
+    ELSE NULL
+  END
+$fn$;
+
+-- RPC: salvar apontamento + inspeção (modo legado ou detalhado)
+CREATE OR REPLACE FUNCTION public.fn_salvar_apontamento_ce_com_inspecao(
+  p_apontamento_id uuid,
+  p_cabecalho jsonb,
+  p_inspecao jsonb
+)
+RETURNS TABLE(apontamento_id uuid, inspecao_id uuid)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'pg_catalog','public'
+AS $function$
+DECLARE
+  v_uid              uuid := auth.uid();
+  v_now_time         time := timezone('America/Sao_Paulo', clock_timestamp())::time;
+  v_current_func     uuid;
+  v_is_priv          boolean;
+  v_caminhao_id      uuid;
+  v_operador_id      uuid;
+  v_cc_id            uuid;
+  v_data             date;
+  v_hora_inicial     time;
+  v_hora_final       time;
+  v_horim_inicial    numeric;
+  v_horim_final      numeric;
+  v_situacao         text;
+  v_abastecimento    numeric;
+  v_existing_cab     public.bd_registro_apontamento_cam_equipa%ROWTYPE;
+  v_modo             text;
+  v_nivel_oleo             text;
+  v_nivel_agua             text;
+  v_nivel_combustivel      text;
+  v_pressao_pneus          text;
+  v_estado_pneus           text;
+  v_luzes_funcionamento    text;
+  v_freios_funcionamento   text;
+  v_direcao_funcionamento  text;
+  v_equipamentos_seguranca text;
+  v_limpeza_veiculo        text;
+  v_avarias                text;
+  v_observacoes            text;
+  v_fotos                  text[];
+  v_possui_nao_ok          boolean;
+  v_inspecao_aprovada      boolean;
+  v_valid_values     constant text[] := ARRAY['OK','NAO_OK','NA'];
+  v_checklist_codigo text;
+  v_checklist_versao int;
+  v_subcategoria_id  uuid;
+  v_esperado_codigo  text;
+  v_respostas_in     jsonb;
+  v_snapshot         jsonb;
+  v_template_nome    text;
+  v_template_versao_srv int;
+  v_fotos_gerais     text[];
+  v_path             text;
+  v_path_re_legacy   text;
+  v_path_re_detail   text;
+  v_existe_insp_id   uuid;
+  v_out_apontamento  uuid;
+  v_out_inspecao     uuid;
+  v_ativo_id         uuid;
+  v_ativo_frota      text;
+  v_ativo_numfrota   text;
+  v_ativo_placa      text;
+  v_ativo_fab        text;
+  v_ativo_ano        text;
+  v_ativo_img        text;
+  v_ativo_subnome    text;
+BEGIN
+  IF v_uid IS NULL THEN RAISE EXCEPTION 'auth_required' USING ERRCODE='28000'; END IF;
+  IF p_apontamento_id IS NULL THEN RAISE EXCEPTION 'apontamento_id_obrigatorio' USING ERRCODE='22004'; END IF;
+  IF p_cabecalho IS NULL OR jsonb_typeof(p_cabecalho)<>'object' THEN RAISE EXCEPTION 'cabecalho_invalido' USING ERRCODE='22023'; END IF;
+  IF p_inspecao IS NULL OR jsonb_typeof(p_inspecao)<>'object' THEN RAISE EXCEPTION 'inspecao_invalida' USING ERRCODE='22023'; END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtextextended(p_apontamento_id::text, 0));
+
+  v_caminhao_id   := NULLIF(p_cabecalho->>'caminhao_equipamento_id','')::uuid;
+  v_operador_id   := NULLIF(p_cabecalho->>'operador_id','')::uuid;
+  v_cc_id         := NULLIF(p_cabecalho->>'centro_custo_id','')::uuid;
+  v_data          := NULLIF(p_cabecalho->>'data','')::date;
+  v_hora_inicial  := NULLIF(p_cabecalho->>'hora_inicial','')::time;
+  v_hora_final    := NULLIF(p_cabecalho->>'hora_final','')::time;
+  v_horim_inicial := NULLIF(p_cabecalho->>'horimetro_inicial','')::numeric;
+  v_horim_final   := NULLIF(p_cabecalho->>'horimetro_final','')::numeric;
+  v_situacao      := NULLIF(p_cabecalho->>'situacao','');
+  v_abastecimento := NULLIF(p_cabecalho->>'abastecimento','')::numeric;
+
+  IF v_caminhao_id IS NULL OR v_operador_id IS NULL OR v_cc_id IS NULL OR v_data IS NULL OR v_situacao IS NULL THEN
+    RAISE EXCEPTION 'cabecalho_campos_obrigatorios' USING ERRCODE='23502';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.bd_caminhoes_equipamentos WHERE id=v_caminhao_id) THEN RAISE EXCEPTION 'caminhao_equipamento_inexistente' USING ERRCODE='23503'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.bd_funcionarios WHERE id=v_operador_id AND status IN ('Ativo','Ativo sem Registro')) THEN RAISE EXCEPTION 'operador_invalido_ou_inativo' USING ERRCODE='23503'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.bd_centros_custo WHERE id=v_cc_id) THEN RAISE EXCEPTION 'centro_custo_inexistente' USING ERRCODE='23503'; END IF;
+  IF v_horim_inicial IS NOT NULL AND v_horim_inicial<0 THEN RAISE EXCEPTION 'horimetro_inicial_negativo' USING ERRCODE='23514'; END IF;
+  IF v_horim_final IS NOT NULL AND v_horim_final<0 THEN RAISE EXCEPTION 'horimetro_final_negativo' USING ERRCODE='23514'; END IF;
+  IF v_horim_inicial IS NOT NULL AND v_horim_final IS NOT NULL AND v_horim_final<v_horim_inicial THEN RAISE EXCEPTION 'horimetro_final_menor_que_inicial' USING ERRCODE='23514'; END IF;
+  IF v_abastecimento IS NOT NULL AND v_abastecimento<0 THEN RAISE EXCEPTION 'abastecimento_negativo' USING ERRCODE='23514'; END IF;
+
+  v_is_priv      := public.fn_logistica_is_privileged_user();
+  v_current_func := public.fn_logistica_current_funcionario_id();
+
+  SELECT * INTO v_existing_cab FROM public.bd_registro_apontamento_cam_equipa WHERE id=p_apontamento_id FOR UPDATE;
+
+  IF v_existing_cab.id IS NULL THEN
+    IF NOT (v_is_priv OR v_operador_id=v_current_func OR public.fn_logistica_can_access_centro_custo(v_cc_id)) THEN
+      RAISE EXCEPTION 'forbidden_scope' USING ERRCODE='42501';
+    END IF;
+  ELSE
+    IF NOT public.fn_logistica_can_access_apontamento_cam(p_apontamento_id) THEN
+      RAISE EXCEPTION 'forbidden_row' USING ERRCODE='42501';
+    END IF;
+    IF v_existing_cab.centro_custo_id IS DISTINCT FROM v_cc_id AND NOT (v_is_priv OR public.fn_logistica_can_access_centro_custo(v_cc_id)) THEN
+      RAISE EXCEPTION 'forbidden_scope_novo_cc' USING ERRCODE='42501';
+    END IF;
+  END IF;
+
+  v_modo := p_inspecao->>'modo';
+
+  IF v_modo = 'detalhado' THEN
+    v_checklist_codigo := NULLIF(p_inspecao->>'checklist_codigo','');
+    v_checklist_versao := NULLIF(p_inspecao->>'checklist_versao','')::int;
+    IF v_checklist_codigo IS NULL OR v_checklist_versao IS NULL THEN
+      RAISE EXCEPTION 'checklist_codigo_ou_versao_ausente' USING ERRCODE='22004';
+    END IF;
+
+    SELECT ce.subcategoria_ativo_id, ce.frota, ce.numero_frota, ce.placa, ce.fabricante, ce.ano_fabricacao, ce.imagem_url, sa.nome_subcategoria
+      INTO v_subcategoria_id, v_ativo_frota, v_ativo_numfrota, v_ativo_placa, v_ativo_fab, v_ativo_ano, v_ativo_img, v_ativo_subnome
+      FROM public.bd_caminhoes_equipamentos ce
+      LEFT JOIN public.bd_subcategorias_ativos sa ON sa.id = ce.subcategoria_ativo_id
+     WHERE ce.id = v_caminhao_id;
+    v_ativo_id := v_caminhao_id;
+
+    v_esperado_codigo := public.fn_checklist_ce_template_por_subcategoria(v_subcategoria_id);
+    IF v_esperado_codigo IS NULL THEN RAISE EXCEPTION 'subcategoria_sem_template' USING ERRCODE='23514'; END IF;
+    IF v_esperado_codigo <> v_checklist_codigo THEN RAISE EXCEPTION 'subcategoria_incompativel_com_checklist' USING ERRCODE='23514'; END IF;
+
+    SELECT (public.fn_checklist_ce_catalog_raw() -> v_checklist_codigo ->> 'n'),
+           (public.fn_checklist_ce_catalog_raw() -> v_checklist_codigo ->> 'v')::int
+      INTO v_template_nome, v_template_versao_srv;
+    IF v_template_nome IS NULL THEN RAISE EXCEPTION 'template_inexistente' USING ERRCODE='P0002'; END IF;
+
+    v_respostas_in := COALESCE(p_inspecao->'respostas','[]'::jsonb);
+    IF jsonb_typeof(v_respostas_in)<>'array' THEN RAISE EXCEPTION 'respostas_formato_invalido' USING ERRCODE='22023'; END IF;
+
+    v_path_re_detail :=
+      '^' || p_apontamento_id::text ||
+      '/checklist/[a-z0-9_]+/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|jpeg|png|webp)$';
+
+    IF EXISTS (
+      SELECT 1 FROM jsonb_array_elements(v_respostas_in) r
+       WHERE (r->>'item_codigo') IS NULL OR (r->>'status') IS NULL
+          OR NOT ((r->>'status') = ANY(v_valid_values))
+    ) THEN RAISE EXCEPTION 'resposta_campos_obrigatorios' USING ERRCODE='23514'; END IF;
+
+    IF EXISTS (
+      SELECT 1 FROM jsonb_array_elements(v_respostas_in) r
+       WHERE NOT EXISTS (SELECT 1 FROM public.fn_checklist_ce_catalog_flat(v_checklist_codigo) c WHERE c.item_codigo = r->>'item_codigo')
+    ) THEN RAISE EXCEPTION 'item_codigo_desconhecido' USING ERRCODE='23514'; END IF;
+
+    IF EXISTS (
+      SELECT 1 FROM public.fn_checklist_ce_catalog_flat(v_checklist_codigo) c
+       WHERE c.obrigatorio
+         AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v_respostas_in) r WHERE r->>'item_codigo' = c.item_codigo AND r->>'status' IS NOT NULL)
+    ) THEN RAISE EXCEPTION 'obrigatorio_ausente' USING ERRCODE='23514'; END IF;
+
+    IF EXISTS (
+      SELECT 1 FROM jsonb_array_elements(v_respostas_in) r
+       WHERE r->>'status' = 'NAO_OK' AND NULLIF(btrim(COALESCE(r->>'observacao','')),'') IS NULL
+    ) THEN RAISE EXCEPTION 'nao_ok_sem_observacao' USING ERRCODE='23514'; END IF;
+
+    IF EXISTS (
+      SELECT 1 FROM jsonb_array_elements(v_respostas_in) r
+       JOIN public.fn_checklist_ce_catalog_flat(v_checklist_codigo) c ON c.item_codigo = r->>'item_codigo'
+       WHERE r->>'status' = 'NAO_OK' AND c.exige_foto_nao_ok
+         AND COALESCE(jsonb_array_length(COALESCE(r->'fotos_paths','[]'::jsonb)),0) < 1
+    ) THEN RAISE EXCEPTION 'nao_ok_sem_foto_obrigatoria' USING ERRCODE='23514'; END IF;
+
+    IF EXISTS (
+      SELECT 1 FROM jsonb_array_elements(v_respostas_in) r,
+                   LATERAL jsonb_array_elements_text(COALESCE(r->'fotos_paths','[]'::jsonb)) p
+       WHERE p IS NULL OR position('..' in p)>0 OR left(p,1)='/'
+          OR position('apontamentos/' in p)>0 OR p !~ v_path_re_detail
+          OR split_part(p,'/',3) <> (r->>'item_codigo')
+    ) THEN RAISE EXCEPTION 'foto_path_invalido' USING ERRCODE='22023'; END IF;
+
+    v_path_re_legacy := '^' || p_apontamento_id::text || '/[0-9a-fA-F-]{36}\.(jpg|jpeg|png|webp)$';
+    IF jsonb_typeof(COALESCE(p_inspecao->'fotos_gerais','[]'::jsonb))<>'array' THEN
+      RAISE EXCEPTION 'fotos_gerais_formato_invalido' USING ERRCODE='22023';
+    END IF;
+    v_fotos_gerais := ARRAY(SELECT jsonb_array_elements_text(COALESCE(p_inspecao->'fotos_gerais','[]'::jsonb)));
+    IF v_fotos_gerais IS NOT NULL THEN
+      FOREACH v_path IN ARRAY v_fotos_gerais LOOP
+        IF v_path IS NULL OR length(v_path)=0 OR position('..' in v_path)>0 OR left(v_path,1)='/'
+           OR position('apontamentos/' in v_path)>0 OR v_path !~ v_path_re_legacy THEN
+          RAISE EXCEPTION 'fotos_gerais_path_invalido' USING ERRCODE='22023';
+        END IF;
+      END LOOP;
+    END IF;
+
+    WITH resp AS (
+      SELECT r->>'item_codigo' AS item_codigo,
+             r->>'status' AS status,
+             NULLIF(btrim(COALESCE(r->>'observacao','')),'') AS observacao,
+             ARRAY(SELECT jsonb_array_elements_text(COALESCE(r->'fotos_paths','[]'::jsonb))) AS fotos
+        FROM jsonb_array_elements(v_respostas_in) r
+    ),
+    itens AS (
+      SELECT c.grupo_codigo, c.grupo_titulo, c.grupo_ordem,
+             c.item_codigo, c.item_descricao, c.item_ordem, c.criticidade, c.obrigatorio,
+             r.status, r.observacao, r.fotos
+        FROM public.fn_checklist_ce_catalog_flat(v_checklist_codigo) c
+        LEFT JOIN resp r ON r.item_codigo = c.item_codigo
+    ),
+    grupos AS (
+      SELECT grupo_codigo, grupo_titulo, grupo_ordem,
+             jsonb_agg(
+               jsonb_build_object(
+                 'codigo', item_codigo, 'ordem', item_ordem,
+                 'descricao', item_descricao, 'criticidade', criticidade,
+                 'obrigatorio', obrigatorio, 'status', status,
+                 'observacao', observacao,
+                 'fotos', to_jsonb(COALESCE(fotos, ARRAY[]::text[]))
+               ) ORDER BY item_ordem
+             ) AS itens_agg
+        FROM itens
+       GROUP BY grupo_codigo, grupo_titulo, grupo_ordem
+    ),
+    grupos_json AS (
+      SELECT jsonb_agg(
+               jsonb_build_object('codigo', grupo_codigo, 'titulo', grupo_titulo, 'ordem', grupo_ordem, 'itens', itens_agg)
+               ORDER BY grupo_ordem
+             ) AS grupos_agg
+        FROM grupos
+    ),
+    resumo AS (
+      SELECT jsonb_build_object(
+               'total_itens', count(*),
+               'obrigatorios_total', count(*) FILTER (WHERE obrigatorio),
+               'obrigatorios_respondidos', count(*) FILTER (WHERE obrigatorio AND status IS NOT NULL),
+               'ok', count(*) FILTER (WHERE status='OK'),
+               'nao_ok', count(*) FILTER (WHERE status='NAO_OK'),
+               'na', count(*) FILTER (WHERE status='NA'),
+               'aprovado', NOT COALESCE(bool_or(status='NAO_OK'), false)
+             ) AS r
+        FROM itens
+    )
+    SELECT jsonb_build_object(
+      'schema_version', 1,
+      'template_codigo', v_checklist_codigo,
+      'template_versao', v_template_versao_srv,
+      'template_nome', v_template_nome,
+      'ativo', jsonb_build_object(
+        'id', v_ativo_id, 'frota', v_ativo_frota, 'numero_frota', v_ativo_numfrota,
+        'placa', v_ativo_placa, 'fabricante', v_ativo_fab, 'ano_fabricacao', v_ativo_ano,
+        'imagem_url', v_ativo_img, 'subcategoria_id', v_subcategoria_id,
+        'subcategoria_nome', v_ativo_subnome
+      ),
+      'grupos', (SELECT grupos_agg FROM grupos_json),
+      'resumo', (SELECT r FROM resumo),
+      'gerado_em', to_char(timezone('UTC', clock_timestamp()), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+    ) INTO v_snapshot;
+
+    v_observacoes := NULLIF(btrim(COALESCE(p_inspecao->>'observacoes_gerais','')),'');
+    v_inspecao_aprovada := (v_snapshot->'resumo'->>'aprovado')::boolean;
+
+  ELSE
+    v_nivel_oleo             := p_inspecao->>'nivel_oleo';
+    v_nivel_agua             := p_inspecao->>'nivel_agua';
+    v_nivel_combustivel      := p_inspecao->>'nivel_combustivel';
+    v_pressao_pneus          := p_inspecao->>'pressao_pneus';
+    v_estado_pneus           := p_inspecao->>'estado_pneus';
+    v_luzes_funcionamento    := p_inspecao->>'luzes_funcionamento';
+    v_freios_funcionamento   := p_inspecao->>'freios_funcionamento';
+    v_direcao_funcionamento  := p_inspecao->>'direcao_funcionamento';
+    v_equipamentos_seguranca := p_inspecao->>'equipamentos_seguranca';
+    v_limpeza_veiculo        := p_inspecao->>'limpeza_veiculo';
+
+    IF v_nivel_oleo IS NULL OR NOT (v_nivel_oleo = ANY(v_valid_values))
+    OR v_nivel_agua IS NULL OR NOT (v_nivel_agua = ANY(v_valid_values))
+    OR v_nivel_combustivel IS NULL OR NOT (v_nivel_combustivel = ANY(v_valid_values))
+    OR v_pressao_pneus IS NULL OR NOT (v_pressao_pneus = ANY(v_valid_values))
+    OR v_estado_pneus IS NULL OR NOT (v_estado_pneus = ANY(v_valid_values))
+    OR v_luzes_funcionamento IS NULL OR NOT (v_luzes_funcionamento = ANY(v_valid_values))
+    OR v_freios_funcionamento IS NULL OR NOT (v_freios_funcionamento = ANY(v_valid_values))
+    OR v_direcao_funcionamento IS NULL OR NOT (v_direcao_funcionamento = ANY(v_valid_values))
+    OR v_equipamentos_seguranca IS NULL OR NOT (v_equipamentos_seguranca = ANY(v_valid_values))
+    OR v_limpeza_veiculo IS NULL OR NOT (v_limpeza_veiculo = ANY(v_valid_values)) THEN
+      RAISE EXCEPTION 'inspecao_incompleta' USING ERRCODE='23514';
+    END IF;
+
+    v_possui_nao_ok := v_nivel_oleo='NAO_OK' OR v_nivel_agua='NAO_OK' OR v_nivel_combustivel='NAO_OK'
+      OR v_pressao_pneus='NAO_OK' OR v_estado_pneus='NAO_OK'
+      OR v_luzes_funcionamento='NAO_OK' OR v_freios_funcionamento='NAO_OK'
+      OR v_direcao_funcionamento='NAO_OK' OR v_equipamentos_seguranca='NAO_OK' OR v_limpeza_veiculo='NAO_OK';
+
+    v_avarias     := NULLIF(btrim(coalesce(p_inspecao->>'avarias_observadas','')),'');
+    v_observacoes := NULLIF(btrim(coalesce(p_inspecao->>'observacoes_gerais','')),'');
+    IF v_possui_nao_ok AND v_avarias IS NULL AND v_observacoes IS NULL THEN
+      RAISE EXCEPTION 'nao_conformidade_sem_observacao' USING ERRCODE='23514';
+    END IF;
+
+    IF jsonb_typeof(coalesce(p_inspecao->'fotos_inspecao','[]'::jsonb))<>'array' THEN
+      RAISE EXCEPTION 'fotos_formato_invalido' USING ERRCODE='22023';
+    END IF;
+    v_fotos := ARRAY(SELECT jsonb_array_elements_text(COALESCE(p_inspecao->'fotos_inspecao','[]'::jsonb)));
+    v_path_re_legacy := '^' || p_apontamento_id::text || '/[0-9a-fA-F-]{36}\.(jpg|jpeg|png|webp)$';
+    IF v_fotos IS NOT NULL THEN
+      FOREACH v_path IN ARRAY v_fotos LOOP
+        IF v_path IS NULL OR length(v_path)=0 OR position('..' in v_path)>0 OR left(v_path,1)='/'
+           OR position('apontamentos/' in v_path)>0 OR v_path !~ v_path_re_legacy THEN
+          RAISE EXCEPTION 'fotos_path_invalido' USING ERRCODE='22023';
+        END IF;
+      END LOOP;
+    END IF;
+    v_inspecao_aprovada := NOT v_possui_nao_ok;
+  END IF;
+
+  IF v_existing_cab.id IS NULL THEN
+    INSERT INTO public.bd_registro_apontamento_cam_equipa (
+      id, caminhao_equipamento_id, operador_id, centro_custo_id,
+      data, hora_inicial, hora_final, horimetro_inicial, horimetro_final,
+      situacao, abastecimento, created_by, modificado_por
+    ) VALUES (
+      p_apontamento_id, v_caminhao_id, v_operador_id, v_cc_id,
+      v_data, v_hora_inicial, v_hora_final, v_horim_inicial, v_horim_final,
+      v_situacao, v_abastecimento, v_uid, NULL
+    );
+    v_out_apontamento := p_apontamento_id;
+  ELSE
+    UPDATE public.bd_registro_apontamento_cam_equipa SET
+      caminhao_equipamento_id=v_caminhao_id, operador_id=v_operador_id,
+      centro_custo_id=v_cc_id, data=v_data, hora_inicial=v_hora_inicial,
+      hora_final=v_hora_final, horimetro_inicial=v_horim_inicial,
+      horimetro_final=v_horim_final, situacao=v_situacao, abastecimento=v_abastecimento,
+      updated_at=now(), modificado_por=v_uid
+     WHERE id=p_apontamento_id;
+    v_out_apontamento := p_apontamento_id;
+  END IF;
+
+  SELECT id INTO v_existe_insp_id
+    FROM public.bd_registro_apontamento_inspecao
+   WHERE apontamento_caminhao_equipamento_id = v_out_apontamento
+   ORDER BY updated_at DESC NULLS LAST, created_at DESC, id DESC
+   LIMIT 1 FOR UPDATE;
+
+  IF v_modo = 'detalhado' THEN
+    IF v_existe_insp_id IS NULL THEN
+      INSERT INTO public.bd_registro_apontamento_inspecao (
+        apontamento_caminhao_equipamento_id, data_inspecao, hora_inspecao,
+        observacoes_gerais, fotos_inspecao, inspecao_aprovada,
+        checklist_codigo, checklist_versao, checklist_respostas,
+        created_by, modificado_por
+      ) VALUES (
+        v_out_apontamento, v_data, v_now_time,
+        v_observacoes, v_fotos_gerais, v_inspecao_aprovada,
+        v_checklist_codigo, v_checklist_versao, v_snapshot,
+        v_uid, NULL
+      ) RETURNING id INTO v_out_inspecao;
+    ELSE
+      UPDATE public.bd_registro_apontamento_inspecao SET
+        data_inspecao=v_data,
+        nivel_oleo=NULL, nivel_agua=NULL, nivel_combustivel=NULL,
+        pressao_pneus=NULL, estado_pneus=NULL,
+        luzes_funcionamento=NULL, freios_funcionamento=NULL, direcao_funcionamento=NULL,
+        equipamentos_seguranca=NULL, limpeza_veiculo=NULL, avarias_observadas=NULL,
+        observacoes_gerais=v_observacoes, fotos_inspecao=v_fotos_gerais,
+        inspecao_aprovada=v_inspecao_aprovada,
+        checklist_codigo=v_checklist_codigo, checklist_versao=v_checklist_versao,
+        checklist_respostas=v_snapshot, modificado_por=v_uid
+       WHERE id=v_existe_insp_id;
+      v_out_inspecao := v_existe_insp_id;
+    END IF;
+  ELSE
+    IF v_existe_insp_id IS NULL THEN
+      INSERT INTO public.bd_registro_apontamento_inspecao (
+        apontamento_caminhao_equipamento_id, data_inspecao, hora_inspecao,
+        nivel_oleo, nivel_agua, nivel_combustivel, pressao_pneus, estado_pneus,
+        luzes_funcionamento, freios_funcionamento, direcao_funcionamento,
+        equipamentos_seguranca, limpeza_veiculo,
+        avarias_observadas, observacoes_gerais, fotos_inspecao, inspecao_aprovada,
+        created_by, modificado_por
+      ) VALUES (
+        v_out_apontamento, v_data, v_now_time,
+        v_nivel_oleo, v_nivel_agua, v_nivel_combustivel, v_pressao_pneus, v_estado_pneus,
+        v_luzes_funcionamento, v_freios_funcionamento, v_direcao_funcionamento,
+        v_equipamentos_seguranca, v_limpeza_veiculo,
+        v_avarias, v_observacoes, v_fotos, v_inspecao_aprovada,
+        v_uid, NULL
+      ) RETURNING id INTO v_out_inspecao;
+    ELSE
+      UPDATE public.bd_registro_apontamento_inspecao SET
+        data_inspecao=v_data,
+        nivel_oleo=v_nivel_oleo, nivel_agua=v_nivel_agua, nivel_combustivel=v_nivel_combustivel,
+        pressao_pneus=v_pressao_pneus, estado_pneus=v_estado_pneus,
+        luzes_funcionamento=v_luzes_funcionamento, freios_funcionamento=v_freios_funcionamento,
+        direcao_funcionamento=v_direcao_funcionamento, equipamentos_seguranca=v_equipamentos_seguranca,
+        limpeza_veiculo=v_limpeza_veiculo, avarias_observadas=v_avarias,
+        observacoes_gerais=v_observacoes, fotos_inspecao=v_fotos,
+        inspecao_aprovada=v_inspecao_aprovada, modificado_por=v_uid
+       WHERE id=v_existe_insp_id;
+      v_out_inspecao := v_existe_insp_id;
+    END IF;
+  END IF;
+
+  apontamento_id := v_out_apontamento;
+  inspecao_id    := v_out_inspecao;
+  RETURN NEXT;
+END;
+$function$;
+
+-- RPC: excluir apontamento + inspeções (coleta fotos legadas + detalhadas)
+CREATE OR REPLACE FUNCTION public.fn_excluir_apontamento_ce_com_inspecao(p_apontamento_id uuid)
+RETURNS TABLE(apontamento_id uuid, inspecoes_removidas integer, fotos_paths text[])
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'pg_catalog','public'
+AS $function$
+DECLARE
+  v_uid       uuid := auth.uid();
+  v_exists    boolean;
+  v_paths     text[] := ARRAY[]::text[];
+  v_removidas integer := 0;
+BEGIN
+  IF v_uid IS NULL THEN RAISE EXCEPTION 'auth_required' USING ERRCODE='28000'; END IF;
+  IF p_apontamento_id IS NULL THEN RAISE EXCEPTION 'apontamento_id_obrigatorio' USING ERRCODE='22004'; END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtextextended(p_apontamento_id::text,0));
+
+  SELECT EXISTS(SELECT 1 FROM public.bd_registro_apontamento_cam_equipa WHERE id=p_apontamento_id) INTO v_exists;
+  IF NOT v_exists THEN RAISE EXCEPTION 'apontamento_inexistente' USING ERRCODE='P0002'; END IF;
+  IF NOT public.fn_logistica_can_access_apontamento_cam(p_apontamento_id) THEN RAISE EXCEPTION 'forbidden_row' USING ERRCODE='42501'; END IF;
+
+  WITH gerais AS (
+    SELECT f FROM public.bd_registro_apontamento_inspecao i,
+                LATERAL unnest(COALESCE(i.fotos_inspecao, ARRAY[]::text[])) AS f
+     WHERE i.apontamento_caminhao_equipamento_id = p_apontamento_id
+  ),
+  detalhadas AS (
+    SELECT jsonb_array_elements_text(item->'fotos') AS f
+      FROM public.bd_registro_apontamento_inspecao i,
+           LATERAL jsonb_array_elements(COALESCE(i.checklist_respostas->'grupos','[]'::jsonb)) g,
+           LATERAL jsonb_array_elements(COALESCE(g->'itens','[]'::jsonb)) item
+     WHERE i.apontamento_caminhao_equipamento_id = p_apontamento_id
+       AND i.checklist_respostas IS NOT NULL
+  )
+  SELECT COALESCE(array_agg(f), ARRAY[]::text[]) INTO v_paths
+    FROM (SELECT f FROM gerais UNION ALL SELECT f FROM detalhadas) u
+   WHERE f IS NOT NULL AND length(f)>0;
+
+  WITH d AS (
+    DELETE FROM public.bd_registro_apontamento_inspecao
+     WHERE apontamento_caminhao_equipamento_id = p_apontamento_id
+     RETURNING 1
+  )
+  SELECT count(*)::integer INTO v_removidas FROM d;
+
+  DELETE FROM public.bd_registro_apontamento_cam_equipa WHERE id=p_apontamento_id;
+
+  apontamento_id      := p_apontamento_id;
+  inspecoes_removidas := v_removidas;
+  fotos_paths         := v_paths;
+  RETURN NEXT;
+END;
+$function$;
+
+COMMIT;

@@ -6386,6 +6386,7 @@ export type Database = {
       }
       bd_localizacao_equipamentos: {
         Row: {
+          apontamento_id: string | null
           centro_custo_id: string | null
           data_registro: string | null
           equipamento_id: string
@@ -6393,8 +6394,10 @@ export type Database = {
           latitude: number | null
           longitude: number | null
           origem: Database["public"]["Enums"]["origem_localizacao_enum"] | null
+          precisao_gps: number | null
         }
         Insert: {
+          apontamento_id?: string | null
           centro_custo_id?: string | null
           data_registro?: string | null
           equipamento_id: string
@@ -6402,8 +6405,10 @@ export type Database = {
           latitude?: number | null
           longitude?: number | null
           origem?: Database["public"]["Enums"]["origem_localizacao_enum"] | null
+          precisao_gps?: number | null
         }
         Update: {
+          apontamento_id?: string | null
           centro_custo_id?: string | null
           data_registro?: string | null
           equipamento_id?: string
@@ -6411,6 +6416,7 @@ export type Database = {
           latitude?: number | null
           longitude?: number | null
           origem?: Database["public"]["Enums"]["origem_localizacao_enum"] | null
+          precisao_gps?: number | null
         }
         Relationships: [
           {
@@ -6488,6 +6494,20 @@ export type Database = {
             columns: ["equipamento_id"]
             isOneToOne: false
             referencedRelation: "vw_ativos_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_localizacao_apontamento"
+            columns: ["apontamento_id"]
+            isOneToOne: true
+            referencedRelation: "bd_registro_apontamento_cam_equipa"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_localizacao_apontamento"
+            columns: ["apontamento_id"]
+            isOneToOne: true
+            referencedRelation: "vw_apontamento_cam_equipa_seguro"
             referencedColumns: ["id"]
           },
         ]
@@ -11600,6 +11620,9 @@ export type Database = {
         Row: {
           apontamento_caminhao_equipamento_id: string
           avarias_observadas: string | null
+          checklist_codigo: string | null
+          checklist_respostas: Json | null
+          checklist_versao: number | null
           created_at: string | null
           created_by: string | null
           data_inspecao: string
@@ -11624,6 +11647,9 @@ export type Database = {
         Insert: {
           apontamento_caminhao_equipamento_id: string
           avarias_observadas?: string | null
+          checklist_codigo?: string | null
+          checklist_respostas?: Json | null
+          checklist_versao?: number | null
           created_at?: string | null
           created_by?: string | null
           data_inspecao?: string
@@ -11648,6 +11674,9 @@ export type Database = {
         Update: {
           apontamento_caminhao_equipamento_id?: string
           avarias_observadas?: string | null
+          checklist_codigo?: string | null
+          checklist_respostas?: Json | null
+          checklist_versao?: number | null
           created_at?: string | null
           created_by?: string | null
           data_inspecao?: string
@@ -20566,6 +20595,28 @@ export type Database = {
           status: string
         }[]
       }
+      fn_checklist_ce_catalog_flat: {
+        Args: { p_codigo: string }
+        Returns: {
+          criticidade: string
+          exige_foto_nao_ok: boolean
+          grupo_codigo: string
+          grupo_icone: string
+          grupo_ordem: number
+          grupo_titulo: string
+          item_codigo: string
+          item_descricao: string
+          item_ordem: number
+          obrigatorio: boolean
+          template_nome: string
+          template_versao: number
+        }[]
+      }
+      fn_checklist_ce_catalog_raw: { Args: never; Returns: Json }
+      fn_checklist_ce_template_por_subcategoria: {
+        Args: { p_subcat: string }
+        Returns: string
+      }
       fn_clear_user_admin_roles_secure: {
         Args: { p_target_user_id: string }
         Returns: undefined
@@ -20789,6 +20840,14 @@ export type Database = {
         Args: { p_ordem_id: string }
         Returns: undefined
       }
+      fn_excluir_apontamento_ce_com_inspecao: {
+        Args: { p_apontamento_id: string }
+        Returns: {
+          apontamento_id: string
+          fotos_paths: string[]
+          inspecoes_removidas: number
+        }[]
+      }
       fn_funcionarios_can_select_row: {
         Args: { p_funcionario_id: string; p_user_id: string }
         Returns: boolean
@@ -20955,6 +21014,10 @@ export type Database = {
       fn_logistica_can_view_sensitive_exports: { Args: never; Returns: boolean }
       fn_logistica_current_funcionario_id: { Args: never; Returns: string }
       fn_logistica_is_privileged_user: { Args: never; Returns: boolean }
+      fn_mapa_operacional_ultimas_localizacoes: {
+        Args: { p_filtros?: Json }
+        Returns: Json
+      }
       fn_motoristas_operacional_lookup: {
         Args: never
         Returns: {
@@ -21217,6 +21280,13 @@ export type Database = {
         }[]
       }
       fn_role_is_protected: { Args: { p_role_id: string }; Returns: boolean }
+      fn_salvar_apontamento_ce_com_inspecao: {
+        Args: { p_apontamento_id: string; p_cabecalho: Json; p_inspecao: Json }
+        Returns: {
+          apontamento_id: string
+          inspecao_id: string
+        }[]
+      }
       fn_server_now_brt: { Args: never; Returns: string }
       fn_solicitacao_tem_lote_pendente: {
         Args: { p_solicitacao_id: string }
@@ -21744,7 +21814,11 @@ export type Database = {
         | "totem_device"
         | "api_interna"
         | "trigger_db"
-      origem_localizacao_enum: "CENTRO_CUSTO" | "MANUAL" | "TELEMETRIA"
+      origem_localizacao_enum:
+        | "CENTRO_CUSTO"
+        | "MANUAL"
+        | "TELEMETRIA"
+        | "APONTAMENTO_CE"
       papel_equipe_tarefa:
         | "execucao"
         | "apoio"
@@ -21939,7 +22013,12 @@ export const Constants = {
         "api_interna",
         "trigger_db",
       ],
-      origem_localizacao_enum: ["CENTRO_CUSTO", "MANUAL", "TELEMETRIA"],
+      origem_localizacao_enum: [
+        "CENTRO_CUSTO",
+        "MANUAL",
+        "TELEMETRIA",
+        "APONTAMENTO_CE",
+      ],
       papel_equipe_tarefa: [
         "execucao",
         "apoio",
