@@ -140,7 +140,7 @@ export const STATUS_COLORS: Record<StatusMapa, StatusVisual> = {
   PARADO: {
     mapboxColor: "#F59E0B",
     badgeClass: "bg-amber-500/15 text-amber-500 border-amber-500/30",
-    label: "Parado",
+    label: "Parado/indisponível",
     icon: Ban,
   },
   DESATUALIZADO: {

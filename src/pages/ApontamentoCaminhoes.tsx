@@ -35,13 +35,15 @@ const ApontamentoCaminhoes: React.FC = () => {
     operadoresDropdown,
     currentUser,
     isFormModalOpen,
-    setIsFormModalOpen,
     isDetailsModalOpen,
     setIsDetailsModalOpen,
     isDeleteModalOpen,
     setIsDeleteModalOpen,
     currentApontamento,
+    formMode,
     handleOpenFormModal,
+    handleOpenFinalizarModal,
+    handleCloseFormModal,
     handleOpenDetailsModal,
     handleOpenDeleteModal,
     handleCreateOrUpdate,
@@ -127,6 +129,7 @@ const ApontamentoCaminhoes: React.FC = () => {
           onView={handleOpenDetailsModal}
           onEdit={handleOpenFormModal}
           onDelete={handleOpenDeleteModal}
+          onFinalizar={handleOpenFinalizarModal}
           isLoading={isLoading}
           canDelete={canDeleteApontamento}
         />
@@ -149,7 +152,8 @@ const ApontamentoCaminhoes: React.FC = () => {
 
       <ApontamentoCaminhoesForm
         isOpen={isFormModalOpen}
-        onClose={() => setIsFormModalOpen(false)}
+        onClose={handleCloseFormModal}
+        onCloseAfterSuccess={handleCloseFormModal}
         onSubmit={handleCreateOrUpdate}
         currentApontamento={currentApontamento}
         veiculosOptions={veiculosDropdown}
@@ -158,7 +162,9 @@ const ApontamentoCaminhoes: React.FC = () => {
         isLoading={isLoading}
         currentUser={currentUser}
         getUltimoHorimetro={handleGetUltimoHorimetro}
+        mode={formMode}
       />
+
 
       <ApontamentoCaminhoesDetailsModal
         isOpen={isDetailsModalOpen}

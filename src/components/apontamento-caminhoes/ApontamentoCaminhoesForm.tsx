@@ -36,10 +36,20 @@ import {
 } from "@/services/apontamentoCaminhoesService";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { CATEGORIA_IDS } from "@/constants/categorias";
-import { mapSituacaoToDatabase, mapSituacaoFromDatabase } from "@/utils/situacaoMapping";
+import {
+  mapSituacaoToDatabase,
+  mapSituacaoFromDatabase,
+  SITUACOES_APONTAMENTO,
+} from "@/utils/situacaoMapping";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import type { FormSubmitPayload, DetalhadoSubmit } from "@/hooks/useApontamentoCaminhoes";
+import type {
+  FormSubmitPayload,
+  DetalhadoSubmit,
+  ApontamentoSubmitResult,
+  ApontamentoFormMode,
+} from "@/hooks/useApontamentoCaminhoes";
 import type { VeiculoDropdownItem } from "@/hooks/useApontamentoCaminhoes";
+import { useToast } from "@/hooks/use-toast";
 import {
   CHECKLIST_CE_TEMPLATES,
   resolveTemplateCE,
@@ -109,8 +119,11 @@ interface FotoNova {
 
 interface ApontamentoCaminhoesFormProps {
   isOpen: boolean;
+  /** Fechamento por ação manual (X, Cancelar, ESC, backdrop). Sujeito ao dirty guard. */
   onClose: () => void;
-  onSubmit: (payload: FormSubmitPayload) => Promise<void>;
+  /** Fechamento direto após persistência confirmada. Bypass do dirty guard. */
+  onCloseAfterSuccess?: () => void;
+  onSubmit: (payload: FormSubmitPayload) => Promise<ApontamentoSubmitResult>;
   currentApontamento: {
     apontamento: ApontamentoCaminhao | null;
     inspecao: ApontamentoInspecao | null;
@@ -121,6 +134,7 @@ interface ApontamentoCaminhoesFormProps {
   isLoading: boolean;
   currentUser: any;
   getUltimoHorimetro: (caminhaoId: string) => Promise<number | null>;
+  mode?: ApontamentoFormMode;
 }
 
 /** Uploader compacto de fotos gerais (modo legado). */
@@ -221,6 +235,7 @@ const FotosGeraisLegado: React.FC<{
 const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
   isOpen,
   onClose,
+  onCloseAfterSuccess,
   onSubmit,
   currentApontamento,
   veiculosOptions,
@@ -228,11 +243,26 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
   isLoading,
   currentUser,
   getUltimoHorimetro,
+  mode: modeProp,
 }) => {
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("dados");
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [date, setDate] = useState<Date | undefined>(new Date());
+  // Ref sticky: só é resetada ao abrir uma nova sessão do modal.
+  // Nunca é resetada em catch/finally/handleDialogClose — evita a corrida
+  // do dirty guard após onCloseAfterSuccess.
+  const suppressDirtyGuardRef = useRef(false);
+  // Alias mantido só para minimizar diff com histórico; use suppressDirtyGuardRef.
+  const isClosingAfterSaveRef = suppressDirtyGuardRef;
+
+  // Reset da ref ao iniciar uma NOVA sessão do modal.
+  useEffect(() => {
+    if (isOpen) {
+      suppressDirtyGuardRef.current = false;
+    }
+  }, [isOpen]);
 
 
 
@@ -263,7 +293,13 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
   const [existingGeo, setExistingGeo] = useState<LocalizacaoApontamentoRow | null>(null);
   const [existingGeoLoading, setExistingGeoLoading] = useState(false);
 
-  const isEditing = !!currentApontamento.apontamento?.id;
+  // Modo do formulário: create (novo, hora/horímetro final ocultos),
+  // edit (edição livre), finalizacao (read-only exceto Hora/Horímetro Finais).
+  const mode: ApontamentoFormMode =
+    modeProp ?? (currentApontamento.apontamento?.id ? "edit" : "create");
+  const isCreating = mode === "create";
+  const isFinalizing = mode === "finalizacao";
+  const isEditing = mode !== "create"; // edit e finalizacao carregam do registro existente
   const isHistoricalEdit = useMemo(() => {
     if (!isEditing) return false;
     const d = currentApontamento.apontamento?.data;
@@ -745,164 +781,255 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setValidationError(null);
     setShowValidation(true);
+    setIsSubmitting(true);
 
-    if (checklistMode === "bloqueado") {
-      setValidationError(
-        `Complete os Dados Operacionais: ${dadosFaltantes.join(", ")}.`
-      );
-      setActiveTab("dados");
-      return;
-    }
+    try {
+      // eslint-disable-next-line no-console
+      console.info("[apontamento-ce][SUBMIT_START]", {
+        mode,
+        checklistMode,
+        isCreating,
+        isFinalizing,
+      });
 
-    const errHead = validarCabecalho();
-    if (errHead) {
-      setValidationError(errHead);
-      setActiveTab("dados");
-      return;
-    }
-    const isDetalhado =
-      checklistMode === "detalhado-create" || checklistMode === "detalhado-edit";
-    const errChecklist = isDetalhado ? validarDetalhado() : validarChecklist();
-    if (errChecklist) {
-      setValidationError(errChecklist);
-      setActiveTab("checklist");
-      return;
-    }
+      // Modo finalizacao: preservar todo o snapshot já carregado, só validar campos finais.
+      if (isFinalizing) {
+        if (
+          cabecalho.hora_final == null || cabecalho.hora_final === "" ||
+          cabecalho.horimetro_final == null || Number.isNaN(Number(cabecalho.horimetro_final))
+        ) {
+          setValidationError("Informe Hora Final e Horímetro/KM Final para finalizar o apontamento.");
+          return;
+        }
+        const horaIniStr = (cabecalho.hora_inicial || "") as string;
+        if (horaIniStr && String(cabecalho.hora_final) < horaIniStr) {
+          setValidationError("Hora Final não pode ser anterior à Hora Inicial.");
+          return;
+        }
+        if (
+          cabecalho.horimetro_inicial != null &&
+          Number(cabecalho.horimetro_final) < Number(cabecalho.horimetro_inicial)
+        ) {
+          setValidationError("Horímetro/KM Final não pode ser menor que o inicial.");
+          return;
+        }
+      } else {
+        if (checklistMode === "bloqueado") {
+          setValidationError(
+            `Complete os Dados Operacionais: ${dadosFaltantes.join(", ")}.`
+          );
+          setActiveTab("dados");
+          return;
+        }
 
-    const apontamentoId = draftIdRef.current;
-    if (!apontamentoId) {
-      setValidationError("Não foi possível gerar o identificador do apontamento.");
-      return;
-    }
-
-
-    // L1..L9 — CREATE exige GPS. Retry preserva captura.
-    // EDIT com localização existente NÃO envia o bloco.
-    // EDIT sem localização: usuário precisa clicar "Capturar localização".
-    let localizacaoParaEnviar: LocalizacaoApontamentoPayload | null = null;
-    if (!isEditing) {
-      let loc = capturedGeoRef.current;
-      if (!loc) {
-        loc = await doCaptureGeo();
+        const errHead = validarCabecalho();
+        if (errHead) {
+          setValidationError(errHead);
+          setActiveTab("dados");
+          return;
+        }
+        const errChecklist =
+          (checklistMode === "detalhado-create" || checklistMode === "detalhado-edit")
+            ? validarDetalhado()
+            : validarChecklist();
+        if (errChecklist) {
+          setValidationError(errChecklist);
+          setActiveTab("checklist");
+          return;
+        }
       }
-      if (!loc) {
-        setValidationError(
-          "Não foi possível obter a localização (GPS). Ative o GPS e tente novamente."
-        );
-        setActiveTab("checklist");
+      const isDetalhado =
+        checklistMode === "detalhado-create" || checklistMode === "detalhado-edit";
+
+      const apontamentoId = draftIdRef.current;
+      if (!apontamentoId) {
+        setValidationError("Não foi possível gerar o identificador do apontamento.");
         return;
       }
-      localizacaoParaEnviar = loc;
-    } else if (capturedGeoRef.current) {
-      // EDIT com captura explícita solicitada pelo usuário.
-      localizacaoParaEnviar = capturedGeoRef.current;
-    }
 
-    const dataStr = date ? format(date, "yyyy-MM-dd") : (cabecalho.data as string);
-    const situacaoDb =
-      mapSituacaoToDatabase(cabecalho.situacao as string) || (cabecalho.situacao as string);
-
-    const cabecalhoPayload: CabecalhoApontamentoPayload = {
-      caminhao_equipamento_id: cabecalho.caminhao_equipamento_id as string,
-      operador_id: cabecalho.operador_id as string,
-      centro_custo_id: cabecalho.centro_custo_id as string,
-      data: dataStr as string,
-      hora_inicial: cabecalho.hora_inicial ?? null,
-      hora_final: cabecalho.hora_final ?? null,
-      horimetro_inicial:
-        cabecalho.horimetro_inicial === undefined ? null : cabecalho.horimetro_inicial,
-      horimetro_final:
-        cabecalho.horimetro_final === undefined ? null : cabecalho.horimetro_final,
-      situacao: situacaoDb as string,
-      abastecimento: cabecalho.abastecimento === undefined ? null : cabecalho.abastecimento,
-      ...(localizacaoParaEnviar ? { localizacao: localizacaoParaEnviar } : {}),
-    };
-
-    const inspecaoPayload = {
-      nivel_oleo: checklist.nivel_oleo as ChecklistValor,
-      nivel_agua: checklist.nivel_agua as ChecklistValor,
-      nivel_combustivel: checklist.nivel_combustivel as ChecklistValor,
-      pressao_pneus: checklist.pressao_pneus as ChecklistValor,
-      estado_pneus: checklist.estado_pneus as ChecklistValor,
-      luzes_funcionamento: checklist.luzes_funcionamento as ChecklistValor,
-      freios_funcionamento: checklist.freios_funcionamento as ChecklistValor,
-      direcao_funcionamento: checklist.direcao_funcionamento as ChecklistValor,
-      equipamentos_seguranca: checklist.equipamentos_seguranca as ChecklistValor,
-      limpeza_veiculo: checklist.limpeza_veiculo as ChecklistValor,
-      avarias_observadas: avarias.trim() || null,
-      observacoes_gerais: (() => {
-        const obsTxt = observacoes.trim();
-        const avTxt = (avarias || "").trim();
-        // EDIT legado: se o campo único foi pré-carregado a partir de
-        // avarias_observadas (observacoes_gerais originalmente vazia) e o
-        // usuário não editou, não duplicar no banco.
-        if (
-          isEditing &&
-          !initialObservacoesGeraisRef.current &&
-          avariaPreloadedRef.current &&
-          obsTxt === avTxt
-        ) {
-          return null;
+      // GPS — apenas na criação. Edição/finalização não recapturam.
+      let localizacaoParaEnviar: LocalizacaoApontamentoPayload | null = null;
+      if (isCreating) {
+        let loc = capturedGeoRef.current;
+        if (!loc) {
+          loc = await doCaptureGeo();
         }
-        return obsTxt || null;
-      })(),
-      fotos_inspecao: [],
-    };
-
-    let detalhado: DetalhadoSubmit | undefined;
-    if (isDetalhado && detalhadoTemplate && detalhadoState) {
-      const tpl = CHECKLIST_CE_TEMPLATES[detalhadoTemplate];
-      const itensSubmit = tpl.grupos.flatMap((g) =>
-        g.itens.map((i) => {
-          const s = detalhadoState[i.codigo];
-          return {
-            item_codigo: i.codigo,
-            status: (s?.status || "NA") as ChecklistValor,
-            observacao: s?.observacao?.trim() || null,
-            fotosSalvas: s?.fotosSalvas || [],
-            fotosNovas: (s?.fotosNovas || []).map((f) => f.file),
-            fotosRemovidas: [],
-          };
-        })
-      );
-      detalhado = {
-        template_codigo: detalhadoTemplate,
-        template_versao: detalhadoVersao,
-        observacoes_gerais: observacoes.trim() || null,
-        itens: itensSubmit.filter((i) => detalhadoState[i.item_codigo]?.status),
-      };
-      if (detalhadoRemovidos.length > 0 && detalhado.itens.length > 0) {
-        detalhado.itens[0].fotosRemovidas = [...detalhadoRemovidos];
+        if (!loc) {
+          setValidationError(
+            "Não foi possível obter a localização (GPS). Ative o GPS e tente novamente."
+          );
+          setActiveTab("checklist");
+          return;
+        }
+        localizacaoParaEnviar = loc;
+        // eslint-disable-next-line no-console
+        console.info("[apontamento-ce][GEO_OK]", {
+          apontamentoId,
+          precisao: loc.precisao_metros,
+          capturadoEm: loc.capturado_em,
+        });
+      } else if (mode === "edit" && capturedGeoRef.current) {
+        // EDIT com captura explícita solicitada pelo usuário.
+        localizacaoParaEnviar = capturedGeoRef.current;
       }
-    }
 
-    const payload: FormSubmitPayload = {
-      apontamentoId,
-      cabecalho: cabecalhoPayload,
-      inspecao: inspecaoPayload,
-      arquivosNovos: isDetalhado ? [] : fotosNovas.map((f) => f.file),
-      pathsMantidos: isDetalhado ? [] : fotosExistentes.map((f) => f.path),
-      pathsRemovidos: isDetalhado ? [] : pathsRemovidos,
-      detalhado,
-    };
+      const dataStr = date ? format(date, "yyyy-MM-dd") : (cabecalho.data as string);
+      const situacaoDb =
+        mapSituacaoToDatabase(cabecalho.situacao as string) || (cabecalho.situacao as string);
 
-    setIsSubmitting(true);
-    try {
-      await onSubmit(payload);
+      // Em CREATE forçamos finais nulos (garante ciclo "em andamento").
+      const horaFinalPayload = isCreating ? null : (cabecalho.hora_final ?? null);
+      const horimetroFinalPayload = isCreating
+        ? null
+        : cabecalho.horimetro_final === undefined
+        ? null
+        : cabecalho.horimetro_final;
+
+      const cabecalhoPayload: CabecalhoApontamentoPayload = {
+        caminhao_equipamento_id: cabecalho.caminhao_equipamento_id as string,
+        operador_id: cabecalho.operador_id as string,
+        centro_custo_id: cabecalho.centro_custo_id as string,
+        data: dataStr as string,
+        hora_inicial: cabecalho.hora_inicial ?? null,
+        hora_final: horaFinalPayload,
+        horimetro_inicial:
+          cabecalho.horimetro_inicial === undefined ? null : cabecalho.horimetro_inicial,
+        horimetro_final: horimetroFinalPayload,
+        situacao: situacaoDb as string,
+        abastecimento: cabecalho.abastecimento === undefined ? null : cabecalho.abastecimento,
+        ...(localizacaoParaEnviar ? { localizacao: localizacaoParaEnviar } : {}),
+      };
+
+      const inspecaoPayload = {
+        nivel_oleo: checklist.nivel_oleo as ChecklistValor,
+        nivel_agua: checklist.nivel_agua as ChecklistValor,
+        nivel_combustivel: checklist.nivel_combustivel as ChecklistValor,
+        pressao_pneus: checklist.pressao_pneus as ChecklistValor,
+        estado_pneus: checklist.estado_pneus as ChecklistValor,
+        luzes_funcionamento: checklist.luzes_funcionamento as ChecklistValor,
+        freios_funcionamento: checklist.freios_funcionamento as ChecklistValor,
+        direcao_funcionamento: checklist.direcao_funcionamento as ChecklistValor,
+        equipamentos_seguranca: checklist.equipamentos_seguranca as ChecklistValor,
+        limpeza_veiculo: checklist.limpeza_veiculo as ChecklistValor,
+        avarias_observadas: avarias.trim() || null,
+        observacoes_gerais: (() => {
+          const obsTxt = observacoes.trim();
+          const avTxt = (avarias || "").trim();
+          if (
+            isEditing &&
+            !initialObservacoesGeraisRef.current &&
+            avariaPreloadedRef.current &&
+            obsTxt === avTxt
+          ) {
+            return null;
+          }
+          return obsTxt || null;
+        })(),
+        fotos_inspecao: [],
+      };
+
+      let detalhado: DetalhadoSubmit | undefined;
+      if (isDetalhado && detalhadoTemplate && detalhadoState) {
+        const tpl = CHECKLIST_CE_TEMPLATES[detalhadoTemplate];
+        const itensSubmit = tpl.grupos.flatMap((g) =>
+          g.itens.map((i) => {
+            const s = detalhadoState[i.codigo];
+            return {
+              item_codigo: i.codigo,
+              status: (s?.status || "NA") as ChecklistValor,
+              observacao: s?.observacao?.trim() || null,
+              fotosSalvas: s?.fotosSalvas || [],
+              fotosNovas: (s?.fotosNovas || []).map((f) => f.file),
+              fotosRemovidas: [],
+            };
+          })
+        );
+        detalhado = {
+          template_codigo: detalhadoTemplate,
+          template_versao: detalhadoVersao,
+          observacoes_gerais: observacoes.trim() || null,
+          itens: itensSubmit.filter((i) => detalhadoState[i.item_codigo]?.status),
+        };
+        if (detalhadoRemovidos.length > 0 && detalhado.itens.length > 0) {
+          detalhado.itens[0].fotosRemovidas = [...detalhadoRemovidos];
+        }
+      }
+
+      const payload: FormSubmitPayload = {
+        apontamentoId,
+        cabecalho: cabecalhoPayload,
+        inspecao: inspecaoPayload,
+        arquivosNovos: isDetalhado ? [] : fotosNovas.map((f) => f.file),
+        pathsMantidos: isDetalhado ? [] : fotosExistentes.map((f) => f.path),
+        pathsRemovidos: isDetalhado ? [] : pathsRemovidos,
+        detalhado,
+      };
+
+      // eslint-disable-next-line no-console
+      console.info("[apontamento-ce][PAYLOAD_READY]", {
+        apontamentoId,
+        isDetalhado,
+        hasLocalizacao: Boolean(payload.cabecalho.localizacao),
+        itensDetalhados: payload.detalhado?.itens.length ?? 0,
+      });
+
+      const result = await onSubmit(payload);
+      // Sucesso — marca supressão do dirty-guard, toast contextual, fecha via callback direto.
       fotosNovas.forEach((f) => URL.revokeObjectURL(f.previewUrl));
       if (detalhadoState) {
         Object.values(detalhadoState).forEach((it) =>
           it.fotosNovas.forEach((f) => URL.revokeObjectURL(f.previewUrl))
         );
       }
-    } catch {
-      // hooks já tratam
+      const titleByKind: Record<ApontamentoSubmitResult["kind"], string> = {
+        created: "Apontamento iniciado com sucesso.",
+        finalized: "Apontamento finalizado com sucesso.",
+        updated: "Apontamento atualizado com sucesso.",
+      };
+      const descByKind: Record<ApontamentoSubmitResult["kind"], string> = {
+        created: "Finalize-o quando encerrar a operação.",
+        finalized: "Ciclo encerrado com sucesso.",
+        updated: "Alterações salvas com sucesso.",
+      };
+      toast({
+        title: titleByKind[result.kind],
+        description: descByKind[result.kind],
+      });
+      // A ref sticky garante que qualquer onOpenChange subsequente do Radix
+      // seja ignorado pelo dirty guard. NÃO resetar aqui.
+      suppressDirtyGuardRef.current = true;
+      // eslint-disable-next-line no-console
+      console.info("[apontamento-ce][CLOSE_AFTER_SUCCESS]", {
+        apontamentoId: result.apontamentoId,
+        kind: result.kind,
+      });
+      (onCloseAfterSuccess ?? onClose)();
+    } catch (error: any) {
+      // Erro: NÃO marcar bypass, NÃO fechar, NÃO toast de sucesso.
+      const message =
+        error?.message && typeof error.message === "string"
+          ? error.message
+          : "Não foi possível concluir o apontamento. Tente novamente.";
+      // eslint-disable-next-line no-console
+      console.error("[apontamento-ce][SUBMIT_ERROR]", {
+        message,
+        error,
+      });
+      setValidationError(message);
+      toast({
+        title: "Erro ao salvar apontamento",
+        description: message,
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
+
+
 
   const hasDraftChanges =
     !isEditing &&
@@ -913,12 +1040,16 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
       pathsRemovidos.length > 0);
 
   const handleDialogClose = () => {
+    // Ref sticky: se marcada, ignorar solicitação de fechamento (sucesso já fechou).
+    if (suppressDirtyGuardRef.current) {
+      return;
+    }
     if (isSubmitting) return;
     if (hasDraftChanges) {
       setShowCancelDialog(true);
-    } else {
-      onClose();
+      return;
     }
+    onClose();
   };
   const handleConfirmCancel = () => {
     fotosNovas.forEach((f) => URL.revokeObjectURL(f.previewUrl));
@@ -940,17 +1071,107 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
           if (!o) handleDialogClose();
         }}
       >
-        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className={isFinalizing ? "sm:max-w-[520px]" : "sm:max-w-[800px] max-h-[90vh] overflow-y-auto"}>
           <DialogHeader>
-            <DialogTitle>{isEditing ? "Editar Apontamento" : "Novo Apontamento"}</DialogTitle>
+            <DialogTitle>
+              {isFinalizing
+                ? "Finalizar Apontamento"
+                : isCreating
+                ? "Iniciar Novo Apontamento"
+                : "Editar Apontamento"}
+            </DialogTitle>
             <DialogDescription>
-              {isEditing
-                ? "Edite as informações do apontamento de caminhão/equipamento."
-                : "Registre um novo apontamento de caminhões e equipamentos."}
+              {isFinalizing
+                ? "Informe a Hora Final e o Horímetro/KM Final para encerrar o ciclo deste apontamento."
+                : isCreating
+                ? "Registre o início da operação. Os campos finais são preenchidos ao finalizar."
+                : "Edite as informações do apontamento de caminhão/equipamento."}
             </DialogDescription>
           </DialogHeader>
 
+          {isFinalizing ? (
+            <form onSubmit={handleSubmit} className="space-y-4 py-2">
+              <div className="rounded-md border bg-muted/30 p-3 text-sm space-y-1">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-muted-foreground">Equipamento:</span>{" "}
+                    <span className="font-medium">
+                      {veiculosOptions.find(v => v.id === cabecalho.caminhao_equipamento_id)?.label || "—"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Centro de Custo:</span>{" "}
+                    <span className="font-medium">
+                      {centrosCustoOptions.find(c => c.id === cabecalho.centro_custo_id)?.label || "—"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Data:</span>{" "}
+                    <span className="font-medium">
+                      {date ? format(date, "dd/MM/yyyy") : (cabecalho.data as string) || "—"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Hora Inicial:</span>{" "}
+                    <span className="font-medium">{cabecalho.hora_inicial || "—"}</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">Horímetro/KM Inicial:</span>{" "}
+                    <span className="font-medium">
+                      {cabecalho.horimetro_inicial != null ? cabecalho.horimetro_inicial : "—"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="hora_final_compact">
+                    Hora Final <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="hora_final_compact"
+                    type="time"
+                    value={(cabecalho.hora_final as string) || ""}
+                    onChange={(e) => setCabecalho({ ...cabecalho, hora_final: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="horimetro_final_compact">
+                    Horímetro/KM Final <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="horimetro_final_compact"
+                    type="number"
+                    step="0.01"
+                    min={cabecalho.horimetro_inicial ?? undefined}
+                    value={cabecalho.horimetro_final ?? ""}
+                    onChange={(e) =>
+                      setCabecalho({
+                        ...cabecalho,
+                        horimetro_final: e.target.value === "" ? undefined : Number(e.target.value),
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              {validationError && (
+                <p className="text-sm text-destructive">{validationError}</p>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={handleDialogClose} disabled={isSubmitting}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={isSubmitting || isLoading}>
+                  {isSubmitting ? "Finalizando..." : "Finalizar apontamento"}
+                </Button>
+              </div>
+            </form>
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-4 py-4">
+
             <Tabs
               value={activeTab}
               onValueChange={(v) => {
@@ -1075,21 +1296,26 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>{medidorFinalLabel}</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={cabecalho.horimetro_final ?? ""}
-                      onChange={(e) =>
-                        setCab({
-                          horimetro_final:
-                            e.target.value === "" ? null : Number(e.target.value),
-                        })
-                      }
-                      placeholder="0.00"
-                    />
-                  </div>
+                  {!isCreating && (
+                    <div className="space-y-2">
+                      <Label>
+                        {medidorFinalLabel}
+                        {isFinalizing ? " *" : ""}
+                      </Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={cabecalho.horimetro_final ?? ""}
+                        onChange={(e) =>
+                          setCab({
+                            horimetro_final:
+                              e.target.value === "" ? null : Number(e.target.value),
+                          })
+                        }
+                        placeholder="0.00"
+                      />
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label>Hora Inicial</Label>
@@ -1101,32 +1327,37 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Hora Final</Label>
-                    <Input
-                      type="time"
-                      value={cabecalho.hora_final || ""}
-                      onChange={(e) => setCab({ hora_final: e.target.value })}
-                    />
-                  </div>
+                  {!isCreating && (
+                    <div className="space-y-2">
+                      <Label>Hora Final{isFinalizing ? " *" : ""}</Label>
+                      <Input
+                        type="time"
+                        value={cabecalho.hora_final || ""}
+                        onChange={(e) => setCab({ hora_final: e.target.value })}
+                      />
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label>Situação *</Label>
                     <Select
                       value={cabecalho.situacao || ""}
                       onValueChange={(v) => setCab({ situacao: v })}
+                      disabled={isFinalizing}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione a situação" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Operando">Operando</SelectItem>
-                        <SelectItem value="Em Manutenção">Em Manutenção</SelectItem>
-                        <SelectItem value="Parado">Parado</SelectItem>
-                        <SelectItem value="Intempérie">Intempérie</SelectItem>
+                        {SITUACOES_APONTAMENTO.map((s) => (
+                          <SelectItem key={s.value} value={s.label}>
+                            {s.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
+
 
                   <div className="space-y-2">
                     <Label>Abastecimento (litros)</Label>
@@ -1431,13 +1662,24 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
                       Cancelar
                     </Button>
                     <Button type="submit" disabled={isSubmitting || isLoading}>
-                      {isSubmitting ? "Salvando..." : "Salvar"}
+                      {isSubmitting
+                        ? isCreating
+                          ? "Iniciando..."
+                          : isFinalizing
+                          ? "Finalizando..."
+                          : "Salvando..."
+                        : isCreating
+                        ? "Iniciar apontamento"
+                        : isFinalizing
+                        ? "Finalizar apontamento"
+                        : "Salvar"}
                     </Button>
                   </div>
                 </div>
               </TabsContent>
             </Tabs>
           </form>
+          )}
         </DialogContent>
       </Dialog>
 

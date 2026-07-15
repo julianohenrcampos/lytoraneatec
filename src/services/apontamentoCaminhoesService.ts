@@ -207,6 +207,14 @@ const RPC_ERROR_MESSAGES: Record<string, string> = {
   localizacao_data_obrigatoria: "Horário da captura é obrigatório.",
   forbidden_equipamento:
     "Você não tem permissão para registrar localização deste equipamento.",
+  apontamento_finalizacao_parcial:
+    "Preencha Hora Final e Horímetro Final juntos (ou deixe ambos em branco).",
+  apontamento_create_nao_pode_ser_finalizado:
+    "Não é possível criar um apontamento já finalizado. Use 'Iniciar apontamento' e finalize depois.",
+  apontamento_finalizado_nao_pode_ser_reaberto:
+    "Este apontamento já foi finalizado e não pode ser reaberto.",
+  apontamento_ativo_existente:
+    "Já existe um apontamento em andamento para este ativo. Finalize-o antes de iniciar outro.",
 };
 
 export function traduzirErroRpc(err: any, apontamentoId?: string): string {
@@ -332,6 +340,50 @@ export const fetchApontamentoById = async (
 };
 
 /**
+ * Pré-check de ciclo: existe um apontamento em andamento para o ativo?
+ * Usado antes de iniciar novo apontamento para evitar esperar GPS/upload/RPC
+ * quando a operação já será bloqueada no banco.
+ */
+export const fetchApontamentoAbertoPorAtivo = async (
+  caminhaoEquipamentoId: string,
+  excludeApontamentoId?: string
+): Promise<ApontamentoCaminhao | null> => {
+  if (!caminhaoEquipamentoId) return null;
+
+  let query = supabase
+    .from("bd_registro_apontamento_cam_equipa")
+    .select(
+      `
+      *,
+      operador:operador_id(id, nome_completo),
+      veiculo:caminhao_equipamento_id(id, placa, frota, numero_frota),
+      centro_custo:centro_custo_id(id, nome_centro_custo, codigo_centro_custo)
+    `
+    )
+    .eq("caminhao_equipamento_id", caminhaoEquipamentoId)
+    .is("hora_final", null)
+    .is("horimetro_final", null);
+
+  if (excludeApontamentoId) {
+    query = query.neq("id", excludeApontamentoId);
+  }
+
+  const { data, error } = await query
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+
+  return {
+    ...(data as any),
+    nome_operador: (data as any).operador?.nome_completo || "Não informado",
+    veiculo_identificacao: formatarIdentificacaoVeiculo(data),
+    nome_centro_custo: (data as any).centro_custo?.codigo_centro_custo || "Não informado",
+  };
+};
+
+/**
  * Busca apenas os paths de fotos da inspeção atual (usado antes do DELETE
  * como fallback caso a RPC falhe no meio).
  */
@@ -383,16 +435,54 @@ export const salvarApontamentoComInspecao = async (
   cabecalho: CabecalhoApontamentoPayload,
   inspecao: InspecaoApontamentoPayload | InspecaoDetalhadaPayload
 ): Promise<SalvarApontamentoResult> => {
+  // Contrato da RPC (detalhado) usa checklist_codigo/checklist_versao/respostas.
+  // Traduzimos aqui para não vazar essa nomenclatura para o restante do frontend.
+  let inspecaoRpc: any = inspecao;
+  if ((inspecao as any)?.modo === "detalhado") {
+    const det = inspecao as InspecaoDetalhadaPayload;
+    inspecaoRpc = {
+      modo: "detalhado",
+      checklist_codigo: det.template_codigo,
+      checklist_versao: det.template_versao,
+      observacoes_gerais: det.observacoes_gerais ?? null,
+      fotos_gerais: det.fotos_gerais ?? [],
+      respostas: det.itens ?? [],
+    };
+  }
+
+  // eslint-disable-next-line no-console
+  console.info("[apontamento-ce][RPC_START]", {
+    apontamentoId,
+    modo: (inspecaoRpc as any)?.modo || "legado",
+    isCreatePayload: cabecalho.hora_final == null && cabecalho.horimetro_final == null,
+    hasLocalizacao: Boolean(cabecalho.localizacao),
+  });
+
   const { data, error } = await (supabase as any).rpc(
     "fn_salvar_apontamento_ce_com_inspecao",
     {
       p_apontamento_id: apontamentoId,
       p_cabecalho: cabecalho,
-      p_inspecao: inspecao,
+      p_inspecao: inspecaoRpc,
     }
   );
-  if (error) throw error;
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.error("[apontamento-ce][RPC_ERROR]", {
+      apontamentoId,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    throw error;
+  }
   const row = Array.isArray(data) ? data[0] : data;
+  // eslint-disable-next-line no-console
+  console.info("[apontamento-ce][RPC_OK]", {
+    apontamentoId: row?.apontamento_id || apontamentoId,
+    inspecaoId: row?.inspecao_id,
+  });
   return {
     apontamento_id: row?.apontamento_id,
     inspecao_id: row?.inspecao_id,

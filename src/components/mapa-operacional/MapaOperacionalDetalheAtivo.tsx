@@ -1,11 +1,16 @@
 import { useNavigate } from "react-router-dom";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { toast } from "@/hooks/use-toast";
-import { Copy, Crosshair, ExternalLink, Info, Truck } from "lucide-react";
+import { Crosshair, ExternalLink, Truck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   STATUS_COLORS,
@@ -23,48 +28,35 @@ interface Props {
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-4 text-sm py-1">
+    <div className="flex items-start justify-between gap-4 text-sm py-1.5">
       <span className="text-muted-foreground">{label}</span>
       <span className="text-right font-medium">{value ?? "—"}</span>
     </div>
   );
 }
 
-export function MapaOperacionalDetalheAtivo({ ativo, open, onOpenChange, onCentralizar }: Props) {
+export function MapaOperacionalDetalheAtivo({
+  ativo,
+  open,
+  onOpenChange,
+  onCentralizar,
+}: Props) {
   const navigate = useNavigate();
   if (!ativo) return null;
 
   const colors = STATUS_COLORS[ativo.status_mapa];
-  const copiar = async () => {
-    try {
-      await navigator.clipboard.writeText(`${ativo.latitude}, ${ativo.longitude}`);
-      toast({ title: "Coordenadas copiadas" });
-    } catch {
-      toast({ title: "Não foi possível copiar", variant: "destructive" });
-    }
-  };
+  const tituloFrota = [ativo.frota, ativo.numero_frota].filter(Boolean).join(" ").trim();
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[90dvh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
             <Truck className="h-5 w-5" />
-            {ativo.frota} {ativo.numero_frota}
-          </SheetTitle>
-          <SheetDescription>Detalhe operacional do ativo</SheetDescription>
-        </SheetHeader>
-
-        <div className="mt-4 space-y-4">
-          {ativo.imagem_url && (
-            <img
-              src={ativo.imagem_url}
-              alt=""
-              className="w-full h-40 object-cover rounded border"
-            />
-          )}
-
-          <div className="flex items-center gap-2">
+            {tituloFrota || ativo.placa || "Ativo"}
+          </DialogTitle>
+          <DialogDescription>Detalhe operacional do ativo</DialogDescription>
+          <div className="flex flex-wrap items-center gap-2 pt-2">
             <Badge variant="outline" className={cn(colors.badgeClass)}>
               {colors.label}
             </Badge>
@@ -72,53 +64,41 @@ export function MapaOperacionalDetalheAtivo({ ativo, open, onOpenChange, onCentr
               <Badge variant="secondary">{ativo.situacao_veiculo}</Badge>
             )}
           </div>
+        </DialogHeader>
 
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-              Posição referente à última localização registrada. Não é rastreamento em tempo real.
-            </AlertDescription>
-          </Alert>
-
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mt-2">
           <div>
             <Row label="Placa" value={ativo.placa} />
             <Row label="Categoria" value={ativo.categoria_nome} />
             <Row label="Subcategoria" value={ativo.subcategoria_nome} />
             <Row label="Centro de Custo" value={ativo.centro_custo_nome} />
             <Row label="Operador" value={ativo.operador_nome} />
-            <Separator className="my-2" />
+          </div>
+          <div>
             <Row
               label="Apontamento"
-              value={
-                ativo.data_apontamento
-                  ? `${ativo.data_apontamento}${ativo.hora_apontamento ? " · " + ativo.hora_apontamento : ""}`
-                  : "—"
-              }
+              value={(() => {
+                if (!ativo.data_apontamento) return "—";
+                // data_apontamento vem como 'YYYY-MM-DD' do banco (data pura, sem TZ)
+                const [y, m, d] = String(ativo.data_apontamento).slice(0, 10).split("-");
+                const dataBR = d && m && y ? `${d}/${m}/${y}` : ativo.data_apontamento;
+                const horaBR = ativo.hora_apontamento
+                  ? String(ativo.hora_apontamento).slice(0, 5)
+                  : "";
+                return horaBR ? `${dataBR} · ${horaBR}` : dataBR;
+              })()}
             />
             <Row
-              label="Localização registrada"
-              value={new Date(ativo.data_registro).toLocaleString("pt-BR")}
-            />
-            <Row
-              label="Idade da localização"
+              label="Tempo:"
               value={formatDistanceToNow(new Date(ativo.data_registro), {
                 addSuffix: true,
                 locale: ptBR,
               })}
             />
             <Row
-              label="Precisão GPS"
-              value={
-                ativo.precisao_gps != null ? `${Math.round(ativo.precisao_gps)} m` : "—"
-              }
-            />
-            <Row
               label="Horímetro/KM"
               value={ativo.horimetro_final != null ? String(ativo.horimetro_final) : "—"}
             />
-            <Separator className="my-2" />
-            <Row label="Checklist" value={ativo.checklist_codigo || "—"} />
-            <Row label="Total de itens" value={ativo.total_checklist} />
             <Row
               label="Não conformidades"
               value={
@@ -128,47 +108,38 @@ export function MapaOperacionalDetalheAtivo({ ativo, open, onOpenChange, onCentr
               }
             />
           </div>
-
-          <Separator />
-
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                navigate(`/gestao-maquinas/caminhoes?focus=${ativo.equipamento_id}`)
-              }
-            >
-              <ExternalLink className="h-4 w-4 mr-2" /> Ver equipamento
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                navigate(`/requisicoes/apontamento-caminhoes?focus=${ativo.apontamento_id}`)
-              }
-            >
-              <ExternalLink className="h-4 w-4 mr-2" /> Ver apontamento
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => onCentralizar(ativo.equipamento_id)}>
-              <Crosshair className="h-4 w-4 mr-2" /> Centralizar
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!ativo.coordenada_precisa}
-              onClick={copiar}
-              title={
-                ativo.coordenada_precisa
-                  ? "Copiar coordenadas"
-                  : "Coordenadas exatas requerem permissão dedicada"
-              }
-            >
-              <Copy className="h-4 w-4 mr-2" /> Copiar coordenadas
-            </Button>
-          </div>
         </div>
-      </SheetContent>
-    </Sheet>
+
+        <Separator className="my-2" />
+
+        <DialogFooter className="flex-wrap gap-2 sm:justify-start">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              navigate(`/gestao-maquinas/caminhoes?focus=${ativo.equipamento_id}`)
+            }
+          >
+            <ExternalLink className="h-4 w-4 mr-2" /> Ver equipamento
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              navigate(`/requisicoes/apontamento-caminhoes?focus=${ativo.apontamento_id}`)
+            }
+          >
+            <ExternalLink className="h-4 w-4 mr-2" /> Ver apontamento
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onCentralizar(ativo.equipamento_id)}
+          >
+            <Crosshair className="h-4 w-4 mr-2" /> Centralizar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

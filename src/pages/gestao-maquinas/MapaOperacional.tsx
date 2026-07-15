@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import MainLayout from "@/components/layout/MainLayout";
 import { usePageTitle } from "@/contexts/PageTitleContext";
 import { Card } from "@/components/ui/card";
@@ -42,8 +42,18 @@ export default function MapaOperacional() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detalheOpen, setDetalheOpen] = useState(false);
   const [painelAberto, setPainelAberto] = useState(false);
+  const [descartadosCount, setDescartadosCount] = useState(0);
 
   const { data, isLoading, isFetching, error, refetch } = useMapaOperacional(filtros);
+
+  // Debounce da busca livre → aplica reativamente em filtros.busca
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const v = buscaLocal.trim();
+      setFiltros((f) => (f.busca === (v || undefined) ? f : { ...f, busca: v || undefined }));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [buscaLocal]);
 
   const ativos = data?.ativos ?? [];
   const resumo = data?.resumo;
@@ -81,9 +91,6 @@ export default function MapaOperacional() {
             }}
             buscaLocal={buscaLocal}
             onBuscaLocalChange={setBuscaLocal}
-            onAplicarBusca={() =>
-              setFiltros((f) => ({ ...f, busca: buscaLocal.trim() || undefined }))
-            }
           />
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
@@ -154,8 +161,14 @@ export default function MapaOperacional() {
                     ativos={ativos}
                     selectedId={selectedId}
                     onSelect={handleSelect}
+                    onDescartados={setDescartadosCount}
                   />
                 </div>
+                {descartadosCount > 0 && (
+                  <div className="absolute top-3 left-3 z-10 rounded bg-background/95 border px-2 py-1 text-[11px] text-muted-foreground shadow-sm">
+                    {descartadosCount} ativo(s) com coordenadas inválidas não foram exibidos.
+                  </div>
+                )}
 
                 {!temAtivos && !isFetching && (
                   <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">

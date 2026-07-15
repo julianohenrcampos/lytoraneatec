@@ -11,6 +11,7 @@ import {
   InspecaoDetalhadaPayload,
   fetchApontamentos,
   fetchApontamentoById,
+  fetchApontamentoAbertoPorAtivo,
   salvarApontamentoComInspecao,
   excluirApontamentoComInspecao,
   confirmarApontamentoPersistido,
@@ -43,7 +44,6 @@ export interface VeiculoDropdownItem {
   imagem_url?: string | null;
 }
 
-
 export interface DetalhadoItemSubmit {
   item_codigo: string;
   status: "OK" | "NAO_OK" | "NA";
@@ -69,6 +69,13 @@ export interface FormSubmitPayload {
   detalhado?: DetalhadoSubmit;
 }
 
+export type ApontamentoFormMode = "create" | "edit" | "finalizacao";
+
+export type ApontamentoSubmitResult =
+  | { kind: "created"; apontamentoId: string }
+  | { kind: "updated"; apontamentoId: string }
+  | { kind: "finalized"; apontamentoId: string };
+
 export const useApontamentoCaminhoes = () => {
   const { toast } = useToast();
   const [apontamentos, setApontamentos] = useState<ApontamentoCaminhao[]>([]);
@@ -82,6 +89,7 @@ export const useApontamentoCaminhoes = () => {
   const [apontamentoToDelete, setApontamentoToDelete] = useState<string | null>(null);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [formMode, setFormMode] = useState<ApontamentoFormMode>("create");
   const [currentApontamento, setCurrentApontamento] = useState<{
     apontamento: ApontamentoCaminhao | null;
     inspecao: ApontamentoInspecao | null;
@@ -170,7 +178,6 @@ export const useApontamentoCaminhoes = () => {
     }
   };
 
-
   const loadOperadores = async () => {
     try {
       const operadores = await fetchFuncionariosOperacionais();
@@ -201,11 +208,27 @@ export const useApontamentoCaminhoes = () => {
   const handleOpenFormModal = (id?: string) => {
     if (id) {
       loadApontamentoById(id);
+      setFormMode("edit");
     } else {
       setCurrentApontamento({ apontamento: null, inspecao: null });
+      setFormMode("create");
     }
     setPendingRetry(null);
     setIsFormModalOpen(true);
+  };
+
+  const handleOpenFinalizarModal = (id: string) => {
+    loadApontamentoById(id);
+    setPendingRetry(null);
+    setFormMode("finalizacao");
+    setIsFormModalOpen(true);
+  };
+
+  const handleCloseFormModal = () => {
+    setIsFormModalOpen(false);
+    setFormMode("create");
+    setCurrentApontamento({ apontamento: null, inspecao: null });
+    setPendingRetry(null);
   };
 
   const handleOpenDetailsModal = (id: string) => {
@@ -280,10 +303,55 @@ export const useApontamentoCaminhoes = () => {
     }
   };
 
-  const handleCreateOrUpdate = async (payload: FormSubmitPayload): Promise<void> => {
-    setIsLoading(true);
+  const buildResult = (
+    apontamentoId: string,
+    payload: FormSubmitPayload
+  ): ApontamentoSubmitResult => {
+    const isFinalizing =
+      payload.cabecalho.hora_final != null && payload.cabecalho.horimetro_final != null;
+    const preexisted = !!currentApontamento.apontamento?.id;
+    const kind: ApontamentoSubmitResult["kind"] = isFinalizing
+      ? "finalized"
+      : preexisted
+      ? "updated"
+      : "created";
+    return { kind, apontamentoId };
+  };
+
+  const refreshApontamentosAfterSave = async () => {
+    try {
+      await loadApontamentos();
+    } catch (error) {
+      toast({
+        title: "Apontamento salvo",
+        description: "Não foi possível atualizar a listagem automaticamente. Atualize a página se necessário.",
+      });
+    }
+  };
+
+  const assertPodeIniciarApontamento = async (payload: FormSubmitPayload) => {
+    const isCreateRequest = !currentApontamento.apontamento?.id;
+    if (!isCreateRequest) return;
+
+    const ativoId = payload.cabecalho.caminhao_equipamento_id;
+    if (!ativoId) return;
+
+    const aberto = await fetchApontamentoAbertoPorAtivo(ativoId, payload.apontamentoId);
+    if (aberto) {
+      throw new Error(
+        "Já existe um apontamento em andamento para este ativo. Finalize-o antes de iniciar outro."
+      );
+    }
+  };
+
+  const handleCreateOrUpdate = async (
+    payload: FormSubmitPayload
+  ): Promise<ApontamentoSubmitResult> => {
     const { apontamentoId, cabecalho, inspecao, arquivosNovos, pathsMantidos, pathsRemovidos, detalhado } =
       payload;
+
+    await assertPodeIniciarApontamento(payload);
+    setIsLoading(true);
 
     // ============ R3 — MODO DETALHADO ============
     if (detalhado) {
@@ -334,15 +402,9 @@ export const useApontamentoCaminhoes = () => {
       try {
         await salvarApontamentoComInspecao(apontamentoId, cabecalho, detPayload);
         if (removidos.length > 0) await removerFotosStorage(removidos);
-        await loadApontamentos();
+        await refreshApontamentosAfterSave();
         setPendingRetry(null);
-        setIsFormModalOpen(false);
-        toast({
-          title: currentApontamento.apontamento?.id
-            ? "Apontamento atualizado"
-            : "Apontamento criado",
-          description: "Checklist detalhado salvo com sucesso.",
-        });
+        return buildResult(apontamentoId, payload);
       } catch (err: any) {
         const conf = await confirmarApontamentoDetalhadoPersistido({
           apontamentoId,
@@ -350,14 +412,9 @@ export const useApontamentoCaminhoes = () => {
         });
         if (conf.status === "match") {
           if (removidos.length > 0) await removerFotosStorage(removidos);
-          await loadApontamentos();
+          await refreshApontamentosAfterSave();
           setPendingRetry(null);
-          setIsFormModalOpen(false);
-          toast({
-            title: "Apontamento salvo",
-            description: "Confirmado após tentativa interrompida.",
-          });
-          return;
+          return buildResult(apontamentoId, payload);
         }
         if (conf.status === "mismatch") {
           const persistidas = new Set(coletarFotosDoSnapshot(conf) || conf.fotosPersistidas || []);
@@ -370,17 +427,15 @@ export const useApontamentoCaminhoes = () => {
           });
           throw err;
         }
-        // unknown — não apagar
         toast({
           title: "Não foi possível confirmar o salvamento",
-          description: "Tente novamente. Suas fotos foram preservadas.",
+          description: traduzirErroRpc(err, apontamentoId),
           variant: "destructive",
         });
         throw err;
       } finally {
         setIsLoading(false);
       }
-      return;
     }
 
     // ============ LEGADO ============
@@ -410,13 +465,9 @@ export const useApontamentoCaminhoes = () => {
     try {
       await salvarApontamentoComInspecao(apontamentoId, cabecalho, inspecaoFinal);
       if (pathsRemovidos.length > 0) await removerFotosStorage(pathsRemovidos);
-      await loadApontamentos();
+      await refreshApontamentosAfterSave();
       setPendingRetry(null);
-      setIsFormModalOpen(false);
-      toast({
-        title: currentApontamento.apontamento?.id ? "Apontamento atualizado" : "Apontamento criado",
-        description: "Salvo com sucesso.",
-      });
+      return buildResult(apontamentoId, payload);
     } catch (err: any) {
       const confirmacao = await confirmarApontamentoPersistido({
         apontamentoId,
@@ -426,14 +477,9 @@ export const useApontamentoCaminhoes = () => {
 
       if (confirmacao.status === "match") {
         if (pathsRemovidos.length > 0) await removerFotosStorage(pathsRemovidos);
-        await loadApontamentos();
+        await refreshApontamentosAfterSave();
         setPendingRetry(null);
-        setIsFormModalOpen(false);
-        toast({
-          title: "Apontamento salvo",
-          description: "O salvamento foi confirmado após uma tentativa interrompida.",
-        });
-        return;
+        return buildResult(apontamentoId, payload);
       }
 
       if (confirmacao.status === "mismatch") {
@@ -448,7 +494,6 @@ export const useApontamentoCaminhoes = () => {
         throw err;
       }
 
-      // unknown — retry sem novos uploads
       setPendingRetry({
         apontamentoId,
         payload: {
@@ -469,9 +514,9 @@ export const useApontamentoCaminhoes = () => {
     }
   };
 
-  const retryPendingSave = async (): Promise<void> => {
-    if (!pendingRetry) return;
-    await handleCreateOrUpdate(pendingRetry.payload);
+  const retryPendingSave = async (): Promise<ApontamentoSubmitResult | null> => {
+    if (!pendingRetry) return null;
+    return await handleCreateOrUpdate(pendingRetry.payload);
   };
 
   const handleGetUltimoHorimetro = async (caminhaoId: string): Promise<number | null> => {
@@ -562,8 +607,11 @@ export const useApontamentoCaminhoes = () => {
     isFilterApplied,
     pendingRetry,
     retryPendingSave,
+    formMode,
     handleOpenDeleteModal,
     handleOpenFormModal,
+    handleOpenFinalizarModal,
+    handleCloseFormModal,
     handleOpenDetailsModal,
     handleDelete,
     handleCreateOrUpdate,
