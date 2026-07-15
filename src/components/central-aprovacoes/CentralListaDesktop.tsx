@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { CentralApprovalItem } from '@/services/central-aprovacoes/types';
+import { statusVisual } from './statusVisual';
 
 interface Props {
   itens: CentralApprovalItem[];
@@ -22,6 +23,7 @@ export default function CentralListaDesktop({ itens, selectedId, onSelect }: Pro
       <ul className="divide-y">
         {itens.map((item) => {
           const selected = item.id === selectedId;
+          const visual = statusVisual(item.statusCodigo);
           return (
             <li key={item.id}>
               <button
@@ -29,7 +31,10 @@ export default function CentralListaDesktop({ itens, selectedId, onSelect }: Pro
                 onClick={() => onSelect(item)}
                 className={cn(
                   'w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors',
-                  selected && 'bg-primary/10 border-l-4 border-l-primary',
+                  selected ? 'border-l-8' : 'border-l-4',
+                  visual.border,
+                  visual.bg,
+                  selected && 'ring-2 ring-primary ring-inset',
                 )}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -46,7 +51,7 @@ export default function CentralListaDesktop({ itens, selectedId, onSelect }: Pro
                       {item.solicitanteNome ?? '—'} · {fmtDate(item.dataReferencia)}
                     </p>
                   </div>
-                  <Badge variant="outline" className="text-[10px] whitespace-nowrap">{item.statusLabel}</Badge>
+                  <Badge variant="outline" className={cn('text-[10px] whitespace-nowrap', visual.badgeClass)}>{item.statusLabel}</Badge>
                 </div>
               </button>
             </li>

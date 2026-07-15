@@ -338,7 +338,14 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
           departamentos={departamentos || []}
           empresas={empresas || []}
           categorias={categorias || []}
+          centroCustoAtual={veiculo ? {
+            nome: veiculo.centro_custo_atual_nome ?? veiculo.nome_centro_custo ?? null,
+            codigo: veiculo.centro_custo_atual_codigo ?? null,
+            origem: veiculo.centro_custo_origem ?? 'SEM_ALOCACAO',
+            atualizadoEm: veiculo.centro_custo_atualizado_em ?? null,
+          } : null}
         />
+
       </DialogContent>
     </Dialog>
   );

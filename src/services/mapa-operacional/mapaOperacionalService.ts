@@ -56,8 +56,32 @@ export interface MapaOperacionalResumo {
   sem_status: number;
 }
 
+export interface MapaOperacionalCentroCustoEquipamento {
+  equipamento_id: string;
+  frota: string | null;
+  numero_frota: string | null;
+  placa: string | null;
+  imagem_url: string | null;
+  situacao: string | null;
+  tem_gps: boolean;
+}
+
+export interface MapaOperacionalCentroCusto {
+  centro_custo_id: string;
+  codigo: string | null;
+  nome: string | null;
+  endereco: string | null;
+  latitude: number;
+  longitude: number;
+  total_alocados: number;
+  total_com_gps: number;
+  total_sem_gps: number;
+  equipamentos: MapaOperacionalCentroCustoEquipamento[];
+}
+
 export interface MapaOperacionalResponse {
   ativos: MapaOperacionalAtivo[];
+  centros_custo: MapaOperacionalCentroCusto[];
   resumo: MapaOperacionalResumo;
   gerado_em: string;
   coordenada_precisa: boolean;
@@ -80,6 +104,7 @@ export interface MapaOperacionalFiltros {
 
 export const EMPTY_MAPA_RESPONSE: MapaOperacionalResponse = {
   ativos: [],
+  centros_custo: [],
   resumo: {
     total_ativos_acessiveis: 0,
     localizados: 0,
@@ -120,7 +145,14 @@ export async function fetchMapaOperacional(
   );
   if (error) throw error;
   if (!data) return EMPTY_MAPA_RESPONSE;
-  return data as MapaOperacionalResponse;
+  const raw = data as Partial<MapaOperacionalResponse>;
+  return {
+    ativos: Array.isArray(raw.ativos) ? raw.ativos : [],
+    centros_custo: Array.isArray(raw.centros_custo) ? raw.centros_custo : [],
+    resumo: raw.resumo ?? EMPTY_MAPA_RESPONSE.resumo,
+    gerado_em: raw.gerado_em ?? new Date().toISOString(),
+    coordenada_precisa: !!raw.coordenada_precisa,
+  };
 }
 
 export interface StatusVisual {

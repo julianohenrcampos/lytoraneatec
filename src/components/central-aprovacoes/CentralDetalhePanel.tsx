@@ -5,12 +5,15 @@ import { CheckCircle2, XCircle, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { CentralApprovalItem } from '@/services/central-aprovacoes/types';
+import CentralDetalheEquipamento from './CentralDetalheEquipamento';
 
 interface Props {
   item: CentralApprovalItem | null;
   onVer: () => void;
   onAprovar: () => void;
   onReprovar: () => void;
+  onReverter?: () => void;
+  onCancelar?: () => void;
 }
 
 function fmtDate(iso: string | null): string {
@@ -22,7 +25,7 @@ function fmtBRL(v: number | null): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 }
 
-export default function CentralDetalhePanel({ item, onVer, onAprovar, onReprovar }: Props) {
+export default function CentralDetalhePanel({ item, onVer, onAprovar, onReprovar, onReverter, onCancelar }: Props) {
   if (!item) {
     return (
       <Card className="rounded-2xl shadow-sm">
@@ -32,6 +35,19 @@ export default function CentralDetalhePanel({ item, onVer, onAprovar, onReprovar
       </Card>
     );
   }
+
+  if (item.modulo === 'equipamentos') {
+    return (
+      <CentralDetalheEquipamento
+        item={item}
+        onAprovar={onAprovar}
+        onReprovar={onReprovar}
+        onReverter={onReverter}
+        onCancelar={onCancelar}
+      />
+    );
+  }
+
 
   return (
     <Card className="rounded-2xl shadow-sm sticky top-4">

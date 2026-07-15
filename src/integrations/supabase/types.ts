@@ -21288,6 +21288,132 @@ export type Database = {
         }[]
       }
       fn_server_now_brt: { Args: never; Returns: string }
+      fn_solic_equip_capacidades_aprovacao: {
+        Args: { p_ids: string[] }
+        Returns: {
+          authorization_source: string
+          auto_approval: boolean
+          block_reason: string
+          can_approve: boolean
+          can_reject: boolean
+          exists_visible: boolean
+          solicitacao_id: string
+        }[]
+      }
+      fn_solic_equip_criar: {
+        Args: {
+          p_apontador_responsavel_id: string
+          p_centro_custo_id: string
+          p_com_operador: boolean
+          p_data_inicio: string
+          p_engenheiro_solicitante_id: string
+          p_itens: Json
+          p_justificativa: string
+          p_prioridade: string
+          p_regime_trabalho: string
+          p_solicitacao_id: string
+          p_tempo_previsto_dias: number
+          p_tipo_equipamento_id: string
+        }
+        Returns: Json
+      }
+      fn_solic_equip_decidir: {
+        Args: {
+          p_comentario: string
+          p_decisao: string
+          p_solicitacao_id: string
+        }
+        Returns: Json
+      }
+      fn_solic_equip_detalhe_central: {
+        Args: { p_solicitacao_id: string }
+        Returns: Json
+      }
+      fn_solic_equip_indicadores_central: { Args: never; Returns: Json }
+      fn_solic_equip_listar_central:
+        | {
+            Args: {
+              p_apenas_minha_acao?: boolean
+              p_busca?: string
+              p_centro_custo_ids?: string[]
+              p_limit?: number
+              p_offset?: number
+              p_periodo_fim?: string
+              p_periodo_inicio?: string
+              p_solicitante_id?: string
+              p_status_fluxo?: string[]
+            }
+            Returns: {
+              aprovador_centro_custo_id: string
+              authorization_source: string
+              auto_approval: boolean
+              block_reason: string
+              can_approve: boolean
+              can_reject: boolean
+              centro_custo_id: string
+              codigo_cc: string
+              created_at: string
+              data_inicio: string
+              itens_resumo: string
+              nome_cc: string
+              prioridade: string
+              qtd_itens: number
+              quantidade: number
+              solicitacao_id: string
+              solicitante_id: string
+              solicitante_nome: string
+              status: string
+              status_fluxo: string
+              total_count: number
+              updated_at: string
+            }[]
+          }
+        | {
+            Args: {
+              p_apenas_minha_acao?: boolean
+              p_busca?: string
+              p_centro_custo_ids?: string[]
+              p_limit?: number
+              p_minhas_decisoes?: boolean
+              p_offset?: number
+              p_periodo_fim?: string
+              p_periodo_inicio?: string
+              p_solicitante_id?: string
+              p_status_fluxo?: string[]
+            }
+            Returns: {
+              aprovador_centro_custo_id: string
+              authorization_source: string
+              auto_approval: boolean
+              block_reason: string
+              can_approve: boolean
+              can_reject: boolean
+              centro_custo_id: string
+              codigo_cc: string
+              created_at: string
+              data_inicio: string
+              itens_resumo: string
+              nome_cc: string
+              prioridade: string
+              qtd_itens: number
+              quantidade: number
+              solicitacao_id: string
+              solicitante_id: string
+              solicitante_nome: string
+              status: string
+              status_fluxo: string
+              total_count: number
+              updated_at: string
+            }[]
+          }
+      fn_solic_equip_pos_decisao: {
+        Args: {
+          p_acao: string
+          p_comentario?: string
+          p_solicitacao_id: string
+        }
+        Returns: Json
+      }
       fn_solicitacao_tem_lote_pendente: {
         Args: { p_solicitacao_id: string }
         Returns: boolean
@@ -21341,6 +21467,18 @@ export type Database = {
       fn_user_has_any_named_role: {
         Args: { _roles: string[]; _user_id: string }
         Returns: boolean
+      }
+      fn_veiculos_alocacao_atual: {
+        Args: { p_equipamento_ids?: string[] }
+        Returns: {
+          centro_custo_atual_codigo: string
+          centro_custo_atual_id: string
+          centro_custo_atual_nome: string
+          centro_custo_atualizado_em: string
+          centro_custo_origem: string
+          equipamento_id: string
+          ultimo_apontamento_id: string
+        }[]
       }
       force_update_all_delivery_statuses: {
         Args: never

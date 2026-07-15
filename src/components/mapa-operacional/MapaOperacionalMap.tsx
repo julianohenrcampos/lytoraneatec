@@ -4,12 +4,21 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import { Button } from "@/components/ui/button";
 import { Maximize2 } from "lucide-react";
 import { useGeocoding } from "@/hooks/useGeocoding";
-import { type MapaOperacionalAtivo } from "@/services/mapa-operacional/mapaOperacionalService";
 import {
+  type MapaOperacionalAtivo,
+  type MapaOperacionalCentroCusto,
+} from "@/services/mapa-operacional/mapaOperacionalService";
+import {
+  buildCentroCustoFeatureCollection,
+  buildCentroCustoPopupDom,
   buildFeatureCollection,
   buildMapaOperacionalPopupDom,
   fitFeatureCollection,
+  loadCentroCustoIcon,
   loadMachineIcon,
+  CC_PIN_ICON_SVG,
+  type CentroCustoFeatureCollection,
+  type CentroCustoFeatureProps,
   type MapaOpFeatureCollection,
   type MapaOpFeatureProps,
 } from "./mapaOperacionalGeo";
@@ -22,16 +31,47 @@ const POINTS_BASE_LAYER = "mapa-op-points-base";
 const POINTS_ICON_LAYER = "mapa-op-points-icon";
 const HITBOX_LAYER = "mapa-op-hitbox";
 const MACHINE_ICON_ID = "mapa-op-machine";
+
+const CC_SOURCE_ID = "mapa-op-cc-src";
+const CC_ICON_LAYER = "mapa-op-cc-icon";
+const CC_LABEL_LAYER = "mapa-op-cc-label";
+const CC_HITBOX_LAYER = "mapa-op-cc-hitbox";
+const CC_ICON_ID = "mapa-op-cc-factory";
+const CC_ICON_FALLBACK_ID = "mapa-op-cc-pin";
+
+const CC_LAYERS = [CC_ICON_LAYER, CC_LABEL_LAYER, CC_HITBOX_LAYER];
+const EQ_LAYERS = [
+  HALO_LAYER,
+  CLUSTER_LAYER,
+  CLUSTER_COUNT_LAYER,
+  POINTS_BASE_LAYER,
+  POINTS_ICON_LAYER,
+  HITBOX_LAYER,
+];
+
 const RJ_CENTER: [number, number] = [-43.1729, -22.9068];
 
 interface Props {
   ativos: MapaOperacionalAtivo[];
+  centrosCusto?: MapaOperacionalCentroCusto[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onDescartados?: (n: number) => void;
+  showCentrosCusto?: boolean;
+  showEquipamentos?: boolean;
+  onSelectCentroCusto?: (cc: MapaOperacionalCentroCusto) => void;
 }
 
-export function MapaOperacionalMap({ ativos, selectedId, onSelect, onDescartados }: Props) {
+export function MapaOperacionalMap({
+  ativos,
+  centrosCusto = [],
+  selectedId,
+  onSelect,
+  onDescartados,
+  showCentrosCusto = true,
+  showEquipamentos = true,
+  onSelectCentroCusto,
+}: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const readyRef = useRef(false);
@@ -42,6 +82,10 @@ export function MapaOperacionalMap({ ativos, selectedId, onSelect, onDescartados
   onSelectRef.current = onSelect;
   const onDescartadosRef = useRef(onDescartados);
   onDescartadosRef.current = onDescartados;
+  const onSelectCcRef = useRef(onSelectCentroCusto);
+  onSelectCcRef.current = onSelectCentroCusto;
+  const centrosCustoRef = useRef(centrosCusto);
+  centrosCustoRef.current = centrosCusto;
 
   const { getPublicToken } = useGeocoding();
 
@@ -49,6 +93,14 @@ export function MapaOperacionalMap({ ativos, selectedId, onSelect, onDescartados
     () => buildFeatureCollection(ativos),
     [ativos],
   );
+
+  const ccFeatureCollection = useMemo(
+    () => buildCentroCustoFeatureCollection(centrosCusto),
+    [centrosCusto],
+  );
+
+  const ccPendingRef = useRef<CentroCustoFeatureCollection | null>(null);
+  const ccHoverPopupRef = useRef<mapboxgl.Popup | null>(null);
 
   useEffect(() => {
     onDescartadosRef.current?.(descartados.length);
@@ -251,6 +303,123 @@ export function MapaOperacionalMap({ ativos, selectedId, onSelect, onDescartados
       map.on("mouseenter", CLUSTER_LAYER, () => (map.getCanvas().style.cursor = "pointer"));
       map.on("mouseleave", CLUSTER_LAYER, () => (map.getCanvas().style.cursor = ""));
 
+      // =====================================================
+      // Camada de Centros de Custo (independente)
+      // =====================================================
+      if (!map.getSource(CC_SOURCE_ID)) {
+        map.addSource(CC_SOURCE_ID, {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        });
+      }
+      // Registra ícones de CC (não-SDF: cores baked in)
+      const registerCcIcon = async () => {
+        try {
+          if (!map.hasImage(CC_ICON_ID)) {
+            const img = await loadCentroCustoIcon();
+            if (!map.hasImage(CC_ICON_ID)) map.addImage(CC_ICON_ID, img, { pixelRatio: 2 });
+          }
+        } catch {
+          try {
+            if (!map.hasImage(CC_ICON_FALLBACK_ID)) {
+              const pin = await loadCentroCustoIcon(CC_PIN_ICON_SVG);
+              if (!map.hasImage(CC_ICON_FALLBACK_ID))
+                map.addImage(CC_ICON_FALLBACK_ID, pin, { pixelRatio: 2 });
+            }
+          } catch {
+            /* noop */
+          }
+        }
+      };
+      await registerCcIcon();
+      const ccIconId = map.hasImage(CC_ICON_ID) ? CC_ICON_ID : CC_ICON_FALLBACK_ID;
+
+      const beforeId = map.getLayer(HALO_LAYER) ? HALO_LAYER : undefined;
+      if (!map.getLayer(CC_ICON_LAYER)) {
+        map.addLayer({
+          id: CC_ICON_LAYER,
+          type: "symbol",
+          source: CC_SOURCE_ID,
+          layout: {
+            "icon-image": ccIconId,
+            "icon-size": [
+              "interpolate", ["linear"], ["zoom"],
+              6, 1.1, 10, 1.5, 14, 2.0, 18, 2.5,
+            ],
+            "icon-allow-overlap": true,
+            "icon-anchor": "center",
+          },
+        }, beforeId);
+      }
+      if (!map.getLayer(CC_LABEL_LAYER)) {
+        map.addLayer({
+          id: CC_LABEL_LAYER,
+          type: "symbol",
+          source: CC_SOURCE_ID,
+          minzoom: 11,
+          layout: {
+            "text-field": ["coalesce", ["get", "codigo"], ["get", "nome"]],
+            "text-size": 11,
+            "text-offset": [0, 1.6],
+            "text-anchor": "top",
+            "text-allow-overlap": false,
+          },
+          paint: {
+            "text-color": "#0369A1",
+            "text-halo-color": "#ffffff",
+            "text-halo-width": 1.4,
+          },
+        }, beforeId);
+      }
+      if (!map.getLayer(CC_HITBOX_LAYER)) {
+        map.addLayer({
+          id: CC_HITBOX_LAYER,
+          type: "circle",
+          source: CC_SOURCE_ID,
+          paint: { "circle-radius": 22, "circle-color": "#000", "circle-opacity": 0 },
+        }, beforeId);
+      }
+
+      const showCcHoverPopup = (e: mapboxgl.MapLayerMouseEvent) => {
+        const f = e.features?.[0];
+        if (!f) return;
+        map.getCanvas().style.cursor = "pointer";
+        const coords = (f.geometry as GeoJSON.Point).coordinates.slice() as [number, number];
+        const props = f.properties as unknown as CentroCustoFeatureProps;
+        if (!ccHoverPopupRef.current) {
+          ccHoverPopupRef.current = new mapboxgl.Popup({
+            closeButton: false,
+            closeOnClick: false,
+            offset: 18,
+            className: "mapa-op-popup",
+            maxWidth: "300px",
+          });
+        }
+        ccHoverPopupRef.current
+          .setLngLat(coords)
+          .setDOMContent(buildCentroCustoPopupDom(props))
+          .addTo(map);
+      };
+      const hideCcPopup = () => {
+        map.getCanvas().style.cursor = "";
+        ccHoverPopupRef.current?.remove();
+      };
+      map.on("mouseenter", CC_HITBOX_LAYER, showCcHoverPopup);
+      map.on("mouseenter", CC_ICON_LAYER, showCcHoverPopup);
+      map.on("mouseleave", CC_HITBOX_LAYER, hideCcPopup);
+      map.on("mouseleave", CC_ICON_LAYER, hideCcPopup);
+
+      const handleCcClick = (e: mapboxgl.MapLayerMouseEvent) => {
+        const f = e.features?.[0];
+        const ccId = f?.properties?.centro_custo_id as string | undefined;
+        if (!ccId) return;
+        ccHoverPopupRef.current?.remove();
+        const cc = centrosCustoRef.current.find((c) => c.centro_custo_id === ccId);
+        if (cc) onSelectCcRef.current?.(cc);
+      };
+      map.on("click", CC_HITBOX_LAYER, handleCcClick);
+      map.on("click", CC_ICON_LAYER, handleCcClick);
+
       readyRef.current = true;
 
       // Aplica dados pendentes
@@ -262,6 +431,11 @@ export function MapaOperacionalMap({ ativos, selectedId, onSelect, onDescartados
           fitFeatureCollection(map, pending);
           didInitialFitRef.current = true;
         }
+      }
+      const pendingCc = ccPendingRef.current;
+      if (pendingCc) {
+        const ccSrc = map.getSource(CC_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+        ccSrc?.setData(pendingCc);
       }
     };
 
@@ -307,11 +481,14 @@ export function MapaOperacionalMap({ ativos, selectedId, onSelect, onDescartados
       cancelled = true;
       hoverPopupRef.current?.remove();
       hoverPopupRef.current = null;
+      ccHoverPopupRef.current?.remove();
+      ccHoverPopupRef.current = null;
       mapRef.current?.remove();
       mapRef.current = null;
       readyRef.current = false;
       didInitialFitRef.current = false;
       pendingDataRef.current = null;
+      ccPendingRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -329,6 +506,33 @@ export function MapaOperacionalMap({ ativos, selectedId, onSelect, onDescartados
       didInitialFitRef.current = true;
     }
   }, [featureCollection]);
+
+  // ---- update centros de custo source ----
+  useEffect(() => {
+    ccPendingRef.current = ccFeatureCollection;
+    const map = mapRef.current;
+    if (!map || !readyRef.current) return;
+    const src = map.getSource(CC_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+    src?.setData(ccFeatureCollection);
+  }, [ccFeatureCollection]);
+
+  // ---- toggle visibility das camadas ----
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !readyRef.current) return;
+    const apply = (ids: string[], visible: boolean) => {
+      ids.forEach((id) => {
+        if (!map.getLayer(id)) return;
+        try {
+          map.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
+        } catch {
+          /* noop */
+        }
+      });
+    };
+    apply(EQ_LAYERS, showEquipamentos);
+    apply(CC_LAYERS, showCentrosCusto);
+  }, [showEquipamentos, showCentrosCusto]);
 
   // ---- resize on container change ----
   useEffect(() => {

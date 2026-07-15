@@ -17,16 +17,21 @@ import {
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useMapaOperacional } from "@/hooks/useMapaOperacional";
 import {
   STATUS_COLORS,
   type MapaOperacionalAtivo,
+  type MapaOperacionalCentroCusto,
   type MapaOperacionalFiltros as Filtros,
 } from "@/services/mapa-operacional/mapaOperacionalService";
 import { MapaOperacionalMap } from "@/components/mapa-operacional/MapaOperacionalMap";
 import { MapaOperacionalFiltros } from "@/components/mapa-operacional/MapaOperacionalFiltros";
 import { MapaOperacionalPainelLateral } from "@/components/mapa-operacional/MapaOperacionalPainelLateral";
 import { MapaOperacionalDetalheAtivo } from "@/components/mapa-operacional/MapaOperacionalDetalheAtivo";
+import { CentroCustoEquipamentosDialog } from "@/components/mapa-operacional/CentroCustoEquipamentosDialog";
+
+type MapViewMode = "AMBOS" | "CC" | "EQUIPAMENTOS";
 
 const INITIAL_FILTROS: Filtros = {
   limite_desatualizado_horas: 24,
@@ -43,6 +48,12 @@ export default function MapaOperacional() {
   const [detalheOpen, setDetalheOpen] = useState(false);
   const [painelAberto, setPainelAberto] = useState(false);
   const [descartadosCount, setDescartadosCount] = useState(0);
+  const [mapViewMode, setMapViewMode] = useState<MapViewMode>("AMBOS");
+  const [ccSelecionado, setCcSelecionado] = useState<MapaOperacionalCentroCusto | null>(null);
+  const [ccDialogOpen, setCcDialogOpen] = useState(false);
+
+  const showEquipamentos = mapViewMode === "AMBOS" || mapViewMode === "EQUIPAMENTOS";
+  const showCentrosCusto = mapViewMode === "AMBOS" || mapViewMode === "CC";
 
   const { data, isLoading, isFetching, error, refetch } = useMapaOperacional(filtros);
 
@@ -56,8 +67,10 @@ export default function MapaOperacional() {
   }, [buscaLocal]);
 
   const ativos = data?.ativos ?? [];
+  const centrosCusto = data?.centros_custo ?? [];
   const resumo = data?.resumo;
   const temAtivos = ativos.length > 0;
+  const temCentrosCusto = centrosCusto.length > 0;
 
   const ativoSelecionado: MapaOperacionalAtivo | null = useMemo(
     () => ativos.find((a) => a.equipamento_id === selectedId) ?? null,
@@ -92,6 +105,21 @@ export default function MapaOperacional() {
             buscaLocal={buscaLocal}
             onBuscaLocalChange={setBuscaLocal}
           />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">Visualização do mapa:</span>
+            <ToggleGroup
+              type="single"
+              size="sm"
+              value={mapViewMode}
+              onValueChange={(v) => v && setMapViewMode(v as MapViewMode)}
+              className="border rounded-md"
+            >
+              <ToggleGroupItem value="AMBOS" className="text-xs px-3">Ambos</ToggleGroupItem>
+              <ToggleGroupItem value="CC" className="text-xs px-3">Centros de Custo</ToggleGroupItem>
+              <ToggleGroupItem value="EQUIPAMENTOS" className="text-xs px-3">Equipamentos</ToggleGroupItem>
+            </ToggleGroup>
+          </div>
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
             {indicadores.map((i) => {
@@ -159,28 +187,50 @@ export default function MapaOperacional() {
                 <div className="absolute inset-0">
                   <MapaOperacionalMap
                     ativos={ativos}
+                    centrosCusto={centrosCusto}
                     selectedId={selectedId}
                     onSelect={handleSelect}
                     onDescartados={setDescartadosCount}
+                    showCentrosCusto={showCentrosCusto}
+                    showEquipamentos={showEquipamentos}
+                    onSelectCentroCusto={(cc) => {
+                      setCcSelecionado(cc);
+                      setCcDialogOpen(true);
+                    }}
                   />
                 </div>
+                {(showCentrosCusto || showEquipamentos) && (temCentrosCusto || temAtivos) && (
+                  <div className="absolute bottom-3 right-3 z-10 rounded-md border bg-background/95 px-2.5 py-1.5 shadow-sm flex items-center gap-3 text-[11px]">
+                    {showCentrosCusto && temCentrosCusto && (
+                      <span className="flex items-center gap-1.5">
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "#0EA5E9" }} />
+                        Centros de Custo ({centrosCusto.length})
+                      </span>
+                    )}
+                    {showEquipamentos && temAtivos && (
+                      <span className="flex items-center gap-1.5">
+                        <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                        Equipamentos localizados ({ativos.length})
+                      </span>
+                    )}
+                    {showCentrosCusto && !showEquipamentos && (
+                      <span className="text-muted-foreground">Clique no ponto para ver equipamentos</span>
+                    )}
+                  </div>
+                )}
                 {descartadosCount > 0 && (
                   <div className="absolute top-3 left-3 z-10 rounded bg-background/95 border px-2 py-1 text-[11px] text-muted-foreground shadow-sm">
                     {descartadosCount} ativo(s) com coordenadas inválidas não foram exibidos.
                   </div>
                 )}
 
-                {!temAtivos && !isFetching && (
-                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
-                    <div className="pointer-events-auto max-w-sm bg-background/95 border rounded-lg px-4 py-3 shadow-sm text-sm">
+                {!temAtivos && showEquipamentos && !isFetching && (
+                  <div className="pointer-events-none absolute top-14 left-1/2 -translate-x-1/2 z-10">
+                    <div className="pointer-events-auto max-w-sm bg-background/95 border rounded-lg px-4 py-2 shadow-sm text-xs">
                       <div className="flex items-center gap-2 font-medium">
-                        <Compass className="h-4 w-4 text-muted-foreground" />
-                        Ainda não há apontamentos com GPS.
+                        <Compass className="h-3.5 w-3.5 text-muted-foreground" />
+                        Nenhum equipamento com GPS no período.
                       </div>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Registre um novo apontamento C&amp;E com a localização
-                        autorizada para que o ativo apareça no monitoramento.
-                      </p>
                     </div>
                   </div>
                 )}
@@ -281,6 +331,12 @@ export default function MapaOperacional() {
             setSelectedId(id);
             setDetalheOpen(false);
           }}
+        />
+
+        <CentroCustoEquipamentosDialog
+          centroCusto={ccSelecionado}
+          open={ccDialogOpen}
+          onOpenChange={setCcDialogOpen}
         />
       </div>
     </MainLayout>

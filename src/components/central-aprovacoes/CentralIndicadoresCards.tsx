@@ -1,6 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Clock, AlertTriangle, UserCheck, CheckCircle2, Timer } from 'lucide-react';
+import { Clock, AlertTriangle, UserCheck, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CentralIndicadores } from '@/services/central-aprovacoes/types';
 
@@ -19,12 +19,11 @@ export default function CentralIndicadoresCards({ indicadores, isLoading }: Prop
     { key: 'urgentes', label: 'Urgentes', value: fmt(indicadores.urgentes), Icon: AlertTriangle, border: 'border-l-red-500', bg: 'bg-red-50', color: 'text-red-600' },
     { key: 'acao', label: 'Aguardando minha ação', value: fmt(indicadores.aguardandoMinhaAcao), Icon: UserCheck, border: 'border-l-primary', bg: 'bg-primary/10', color: 'text-primary' },
     { key: 'concluidas', label: 'Concluídas hoje', value: fmt(indicadores.concluidasHoje), Icon: CheckCircle2, border: 'border-l-green-500', bg: 'bg-green-50', color: 'text-green-600' },
-    { key: 'tmp', label: 'Tempo médio hoje', value: indicadores.tempoMedioHojeMin === null ? '—' : `${indicadores.tempoMedioHojeMin} min`, Icon: Timer, border: 'border-l-blue-500', bg: 'bg-blue-50', color: 'text-blue-600' },
   ];
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {cards.map((c) => (
           <Card key={c.key} className="border-l-4 border-l-muted rounded-2xl">
             <CardContent className="p-4 flex items-center justify-between">
@@ -38,7 +37,7 @@ export default function CentralIndicadoresCards({ indicadores, isLoading }: Prop
   }
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       {cards.map(({ key, label, value, Icon, border, bg, color }) => (
         <Card key={key} className={cn('border-l-4 rounded-2xl shadow-sm', border)}>
           <CardContent className="p-4 flex items-center justify-between">

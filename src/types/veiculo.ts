@@ -42,6 +42,24 @@ export interface Veiculo {
   nome_empresa_locadora?: string;
   nome_centro_custo?: string;
   centro_custo_id?: string | null;
+
+  // Alocação atual (fonte única — fn_veiculos_alocacao_atual)
+  centro_custo_atual_id?: string | null;
+  centro_custo_atual_codigo?: string | null;
+  centro_custo_atual_nome?: string | null;
+  centro_custo_origem?: 'APONTAMENTO_CE' | 'DISPONIBILIDADE' | 'SEM_ALOCACAO' | null;
+  ultimo_apontamento_id?: string | null;
+  centro_custo_atualizado_em?: string | null;
+}
+
+export interface VeiculoAlocacaoAtual {
+  equipamento_id: string;
+  centro_custo_atual_id: string | null;
+  centro_custo_atual_codigo: string | null;
+  centro_custo_atual_nome: string | null;
+  centro_custo_origem: 'APONTAMENTO_CE' | 'DISPONIBILIDADE' | 'SEM_ALOCACAO';
+  ultimo_apontamento_id: string | null;
+  centro_custo_atualizado_em: string | null;
 }
 
 export type VeiculoFormData = Omit<Veiculo, 'id' | 'created_at' | 'updated_at' | 'nome_departamento' | 'nome_empresa' | 'nome_categoria' | 'nome_subcategoria'>;

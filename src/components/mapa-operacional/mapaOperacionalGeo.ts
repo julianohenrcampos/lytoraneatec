@@ -2,6 +2,7 @@ import mapboxgl from "mapbox-gl";
 import {
   STATUS_COLORS,
   type MapaOperacionalAtivo,
+  type MapaOperacionalCentroCusto,
   type StatusMapa,
 } from "@/services/mapa-operacional/mapaOperacionalService";
 
@@ -225,3 +226,148 @@ export function loadMachineIcon(): Promise<HTMLImageElement> {
     img.src = `data:image/svg+xml;utf8,${encodeURIComponent(MACHINE_ICON_SVG)}`;
   });
 }
+
+// =========================================================
+// Centros de Custo — camada georreferenciada
+// =========================================================
+
+export interface CentroCustoFeatureProps {
+  centro_custo_id: string;
+  codigo: string;
+  nome: string;
+  endereco: string;
+  total_alocados: number;
+  total_com_gps: number;
+  total_sem_gps: number;
+  equipamentos_json: string;
+}
+
+export interface CentroCustoFeature {
+  type: "Feature";
+  id: string;
+  properties: CentroCustoFeatureProps;
+  geometry: { type: "Point"; coordinates: [number, number] };
+}
+
+export interface CentroCustoFeatureCollection {
+  type: "FeatureCollection";
+  features: CentroCustoFeature[];
+}
+
+export function buildCentroCustoFeatureCollection(
+  ccs: MapaOperacionalCentroCusto[],
+): CentroCustoFeatureCollection {
+  const features: CentroCustoFeature[] = [];
+  for (const cc of ccs) {
+    if (!Number.isFinite(cc.latitude) || !Number.isFinite(cc.longitude)) continue;
+    if (cc.latitude === 0 && cc.longitude === 0) continue;
+    features.push({
+      type: "Feature",
+      id: cc.centro_custo_id,
+      properties: {
+        centro_custo_id: cc.centro_custo_id,
+        codigo: cc.codigo ?? "",
+        nome: cc.nome ?? "",
+        endereco: cc.endereco ?? "",
+        total_alocados: cc.total_alocados ?? 0,
+        total_com_gps: cc.total_com_gps ?? 0,
+        total_sem_gps: cc.total_sem_gps ?? 0,
+        equipamentos_json: JSON.stringify(cc.equipamentos ?? []),
+      },
+      geometry: { type: "Point", coordinates: [cc.longitude, cc.latitude] },
+    });
+  }
+  return { type: "FeatureCollection", features };
+}
+
+/**
+ * SVG colorido (não-SDF) usado como marcador de Centro de Custo.
+ * Fábrica industrial estilizada com fundo circular branco e traço azul,
+ * claramente diferente do ícone dos equipamentos.
+ */
+export const CC_FACTORY_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="44" height="44">
+  <defs>
+    <filter id="s" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-color="#0f172a" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <circle cx="22" cy="22" r="18" fill="#ffffff" stroke="#0369A1" stroke-width="2.2" filter="url(#s)"/>
+  <g fill="none" stroke="#0369A1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 30 V21 l5 3 V21 l5 3 V19 l7 4 V30 Z" fill="#0EA5E9" fill-opacity="0.18"/>
+    <path d="M12 30 h18"/>
+    <path d="M15 17 v-3 M20 17 v-3"/>
+    <circle cx="15" cy="12.5" r="1.1" fill="#0369A1"/>
+    <circle cx="20" cy="12.5" r="1.1" fill="#0369A1"/>
+  </g>
+</svg>`;
+
+/** Fallback: pin de localização caso o ícone fábrica falhe. */
+export const CC_PIN_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="44" height="44">
+  <path d="M22 4c-7 0-12 5-12 12 0 8.5 12 24 12 24s12-15.5 12-24c0-7-5-12-12-12z" fill="#0EA5E9" stroke="#ffffff" stroke-width="2"/>
+  <circle cx="22" cy="16" r="4.5" fill="#ffffff"/>
+</svg>`;
+
+export function loadCentroCustoIcon(svg = CC_FACTORY_ICON_SVG): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image(44, 44);
+    img.onload = () => resolve(img);
+    img.onerror = (e) => reject(e);
+    img.src = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+  });
+}
+
+/**
+ * Popup resumido de Centro de Custo (hover). A listagem completa é feita no modal.
+ */
+export function buildCentroCustoPopupDom(p: CentroCustoFeatureProps): HTMLElement {
+  const root = document.createElement("div");
+  root.className = "text-xs space-y-1 min-w-[220px] max-w-[280px]";
+
+  const title = document.createElement("div");
+  title.className = "font-semibold text-sm flex items-center gap-1.5";
+  const badge = document.createElement("span");
+  badge.style.display = "inline-block";
+  badge.style.width = "8px";
+  badge.style.height = "8px";
+  badge.style.borderRadius = "9999px";
+  badge.style.backgroundColor = "#0EA5E9";
+  title.appendChild(badge);
+  const tspan = document.createElement("span");
+  tspan.textContent = p.codigo ? `${p.codigo} — ${p.nome}` : p.nome || "Centro de Custo";
+  title.appendChild(tspan);
+  root.appendChild(title);
+
+  if (p.endereco) {
+    const addr = document.createElement("div");
+    addr.className = "text-muted-foreground";
+    addr.textContent = p.endereco;
+    root.appendChild(addr);
+  }
+
+  const totals = document.createElement("div");
+  totals.className = "pt-1 flex flex-wrap gap-x-3 gap-y-0.5";
+  const mk = (label: string, val: number) => {
+    const s = document.createElement("span");
+    const l = document.createElement("span");
+    l.className = "text-muted-foreground";
+    l.textContent = `${label}: `;
+    const v = document.createElement("span");
+    v.style.fontWeight = "600";
+    v.textContent = String(val);
+    s.appendChild(l);
+    s.appendChild(v);
+    return s;
+  };
+  totals.appendChild(mk("Alocados", p.total_alocados));
+  totals.appendChild(mk("Com GPS", p.total_com_gps));
+  totals.appendChild(mk("Sem GPS", p.total_sem_gps));
+  root.appendChild(totals);
+
+  const cta = document.createElement("div");
+  cta.className = "pt-1 text-[11px] italic text-muted-foreground";
+  cta.textContent = "Clique para ver equipamentos";
+  root.appendChild(cta);
+
+  return root;
+}
+

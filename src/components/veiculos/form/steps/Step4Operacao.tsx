@@ -11,9 +11,15 @@ interface Props {
   form: UseFormReturn<any>;
   departamentos: { id: string; nome_departamento: string }[];
   empresas: { id: string; nome_empresa: string }[];
+  centroCustoAtual?: {
+    nome: string | null;
+    codigo: string | null;
+    origem: 'APONTAMENTO_CE' | 'DISPONIBILIDADE' | 'SEM_ALOCACAO' | null;
+    atualizadoEm: string | null;
+  } | null;
 }
 
-const Step4Operacao: React.FC<Props> = ({ form, departamentos, empresas }) => {
+const Step4Operacao: React.FC<Props> = ({ form, departamentos, empresas, centroCustoAtual }) => {
   const departamentoOptions = useMemo(() => [
     { value: "_none", label: "Nenhum" },
     ...departamentos.map((d) => ({ value: d.id, label: d.nome_departamento })),
@@ -25,6 +31,36 @@ const Step4Operacao: React.FC<Props> = ({ form, departamentos, empresas }) => {
         <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
           📊 Operação
         </h3>
+
+        {centroCustoAtual !== undefined && (
+          <div className="rounded-md border bg-muted/40 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">
+              Centro de Custo Atual (somente leitura)
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <span className="font-medium">
+                {centroCustoAtual?.nome
+                  ? (centroCustoAtual.codigo
+                      ? `${centroCustoAtual.codigo} — ${centroCustoAtual.nome}`
+                      : centroCustoAtual.nome)
+                  : 'Sem alocação'}
+              </span>
+              {centroCustoAtual?.origem && centroCustoAtual.origem !== 'SEM_ALOCACAO' && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded border bg-background uppercase tracking-wide">
+                  {centroCustoAtual.origem === 'APONTAMENTO_CE' ? 'Apontamento C&E' : 'Disponibilidade'}
+                </span>
+              )}
+            </div>
+            {centroCustoAtual?.atualizadoEm && (
+              <div className="mt-1 text-[11px] text-muted-foreground">
+                Atualizado em {new Date(centroCustoAtual.atualizadoEm).toLocaleString('pt-BR')}
+              </div>
+            )}
+            <div className="mt-1 text-[11px] text-muted-foreground italic">
+              Origem: último apontamento C&amp;E → última disponibilidade. Ajustado automaticamente.
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Situação */}

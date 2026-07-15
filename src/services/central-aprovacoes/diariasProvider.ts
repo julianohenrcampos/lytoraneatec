@@ -113,6 +113,7 @@ function mapItem(
     authorizationSource: cap?.authorization_source ?? null,
     capabilitiesUnavailable: capsUnavailable,
     urgente: false,
+    autoApproval: false,
     raw: sol,
   };
 }
@@ -176,14 +177,25 @@ export function useDiariasCentralProvider(filtros: CentralFiltrosBase): CentralP
     };
   }, [gestao.kpis, itens]);
 
+  const refetchAll = () => { gestao.refetch(); capsQuery.refetch(); };
+
   return {
     itens,
     indicadores,
     isLoading: gestao.isLoading || capsQuery.isLoading,
     isError: gestao.isError,
-    refetch: () => { gestao.refetch(); capsQuery.refetch(); },
+    refetch: refetchAll,
     centrosCustoOptions: gestao.centrosCustoOptions,
     solicitantesOptions: gestao.solicitantesOptions,
     statusOptions: STATUS_OPTIONS,
+    moduleStates: {
+      diarias: {
+        enabled: true,
+        isLoading: gestao.isLoading || capsQuery.isLoading,
+        isError: gestao.isError,
+        errorMessage: gestao.isError ? 'Erro ao carregar Diárias' : null,
+        refetch: refetchAll,
+      },
+    },
   };
 }

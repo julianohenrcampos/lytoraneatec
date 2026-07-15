@@ -20,6 +20,12 @@ interface VeiculoFormStepperProps {
   departamentos: { id: string; nome_departamento: string }[];
   empresas: { id: string; nome_empresa: string }[];
   categorias: { id: string; nome_categoria: string }[];
+  centroCustoAtual?: {
+    nome: string | null;
+    codigo: string | null;
+    origem: 'APONTAMENTO_CE' | 'DISPONIBILIDADE' | 'SEM_ALOCACAO' | null;
+    atualizadoEm: string | null;
+  } | null;
 }
 
 const steps = [
@@ -30,7 +36,7 @@ const steps = [
 ];
 
 const VeiculoFormStepper: React.FC<VeiculoFormStepperProps> = ({
-  form, onSubmit, isSubmitting, onClose, currentImage, onImageChange, onImageRemove, departamentos, empresas, categorias,
+  form, onSubmit, isSubmitting, onClose, currentImage, onImageChange, onImageRemove, departamentos, empresas, categorias, centroCustoAtual,
 }) => {
   const [step, setStep] = useState(0);
 
@@ -84,7 +90,7 @@ const VeiculoFormStepper: React.FC<VeiculoFormStepperProps> = ({
           {step === 0 && <Step1Classificacao form={form} categorias={categorias} currentImage={currentImage} onImageChange={onImageChange} onImageRemove={onImageRemove} />}
           {step === 1 && <Step2Identificacao form={form} />}
           {step === 2 && <Step3DadosTecnicos form={form} />}
-          {step === 3 && <Step4Operacao form={form} departamentos={departamentos} empresas={empresas} />}
+          {step === 3 && <Step4Operacao form={form} departamentos={departamentos} empresas={empresas} centroCustoAtual={centroCustoAtual} />}
         </div>
 
         {/* Footer */}
