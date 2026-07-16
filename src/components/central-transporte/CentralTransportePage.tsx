@@ -11,9 +11,22 @@ import { getDestinatariosStatusCentral } from "@/services/notifications/recipien
 import { formatProtocolo } from "@/utils/formatProtocolo";
 import { useAuth } from "@/hooks/useAuth";
 
+export type SelectedContext = {
+  solicitacao: SolicitacaoTransporteComItens;
+  item: SolicitacaoItem | null;
+};
+
+export type CentralTransporteFilterState = {
+  centro_custo_id?: string;
+  departamento_id?: string;
+  prioridade?: string;
+  tipo_equipamento_id?: string;
+  status_fluxo?: string;
+};
+
 const CentralTransportePage: React.FC = () => {
-  const [filters, setFilters] = useState<any>({});
-  const [selected, setSelected] = useState<SolicitacaoTransporte | null>(null);
+  const [filters, setFilters] = useState<CentralTransporteFilterState>({});
+  const [selected, setSelected] = useState<SelectedContext | null>(null);
   const { userId } = useAuth();
 
   const { data, isLoading, refetch } = useQuery({
@@ -21,15 +34,12 @@ const CentralTransportePage: React.FC = () => {
     queryFn: () => fetchSolicitacoesTransporte(filters),
   });
 
-  const handleSelect = (s: SolicitacaoTransporteComItens, _item?: SolicitacaoItem) => {
-    setSelected(s);
+  const handleSelect = (s: SolicitacaoTransporteComItens, item?: SolicitacaoItem) => {
+    setSelected({ solicitacao: s, item: item ?? null });
   };
 
   return (
     <div className="space-y-4">
-
-
-
       <CentralTransporteFilters filters={filters} onChange={setFilters} />
 
       {isLoading ? (
@@ -39,15 +49,15 @@ const CentralTransportePage: React.FC = () => {
       )}
 
       <AnaliseOperacionalSheet
-        solicitacao={selected}
+        context={selected}
         open={!!selected}
         onClose={() => setSelected(null)}
         onDecisaoSaved={() => {
-          const solicitacaoSelecionada = selected as (SolicitacaoTransporte & {
+          const solicitacaoSelecionada = selected?.solicitacao as (SolicitacaoTransporte & {
             solicitante_id?: string | null;
             engenheiro_solicitante_id?: string | null;
             apontador_responsavel_id?: string | null;
-          }) | null;
+          }) | undefined;
 
           refetch();
           setSelected(null);
@@ -63,13 +73,7 @@ const CentralTransportePage: React.FC = () => {
               });
 
               const destinatarios = destinatariosBase.filter((id) => id !== userId);
-
-              if (destinatarios.length === 0) {
-                console.warn("[CENTRAL_TRANSPORTE][NOTIF_STATUS_SKIP] sem destinatários", {
-                  solicitacao_id: solicitacaoSelecionada.id,
-                });
-                return;
-              }
+              if (destinatarios.length === 0) return;
 
               const protocolo = formatProtocolo(solicitacaoSelecionada.id);
 
