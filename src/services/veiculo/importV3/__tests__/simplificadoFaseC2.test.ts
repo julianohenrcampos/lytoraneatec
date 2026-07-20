@@ -195,7 +195,7 @@ describe('parseWorkbookV3Simplificado (round-trip)', () => {
     expect(res.linhas[0].codigo_canonico).toBe('CB30');
   });
 
-  it('rejeita arquivo do layout completo (41 colunas) com MODELO_INCOMPATIVEL', async () => {
+  it('rejeita arquivo do layout completo (41 colunas) com SCHEMA_VERSION_INCOMPATIVEL', async () => {
     // Cria um workbook manual sem METADADOS válido do simplificado.
     const wb = new ExcelJS.Workbook();
     const eq = wb.addWorksheet('EQUIPAMENTOS');
@@ -205,6 +205,6 @@ describe('parseWorkbookV3Simplificado (round-trip)', () => {
     meta.getRow(2).values = ['schema_version', 'EQUIPAMENTOS_IMPORT_EXPORT_V3']; // legado
     const buf = await wb.xlsx.writeBuffer();
     const res = await parseWorkbookV3Simplificado(buf as ArrayBuffer);
-    expect(res.erros_globais[0].codigo).toBe('MODELO_INCOMPATIVEL_BAIXE_NOVO_MODELO');
+    expect(res.erros_globais[0].codigo).toBe('SCHEMA_VERSION_INCOMPATIVEL');
   });
 });

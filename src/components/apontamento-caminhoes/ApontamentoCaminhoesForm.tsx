@@ -33,6 +33,7 @@ import {
   fetchLocalizacaoByApontamento,
   type LocalizacaoApontamentoPayload,
   type LocalizacaoApontamentoRow,
+  traduzirErroRpc,
 } from "@/services/apontamentoCaminhoesService";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { CATEGORIA_IDS } from "@/constants/categorias";
@@ -1009,14 +1010,14 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
       (onCloseAfterSuccess ?? onClose)();
     } catch (error: any) {
       // Erro: NÃO marcar bypass, NÃO fechar, NÃO toast de sucesso.
-      const message =
-        error?.message && typeof error.message === "string"
-          ? error.message
-          : "Não foi possível concluir o apontamento. Tente novamente.";
+      // Traduz códigos técnicos de RPC (ex: apontamento_ativo_existente,
+      // 42501, ambiguidade SQL) em mensagens humanas. Nunca expor error.message cru.
+      const message = traduzirErroRpc(error);
       // eslint-disable-next-line no-console
       console.error("[apontamento-ce][SUBMIT_ERROR]", {
-        message,
-        error,
+        rawMessage: error?.message,
+        code: error?.code,
+        translated: message,
       });
       setValidationError(message);
       toast({
@@ -1648,7 +1649,7 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
                   )}
                 </div>
 
-                {validationError && (
+                {validationError && geoStatus !== "error" && (
                   <p className="text-sm text-destructive mt-2">{validationError}</p>
                 )}
 

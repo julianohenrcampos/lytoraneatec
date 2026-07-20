@@ -12,10 +12,10 @@
 //   FROTA              → bd_frotas.codigo
 //   SUBCATEGORIA       → bd_subcategorias_ativos.nome_subcategoria (parent = categoria_id)
 //   LINHA_OPERACIONAL  → bd_linhas_operacionais.codigo
-//   CENTRO_CUSTO       → bd_centros_custo.codigo_centro_custo
+//   CENTRO_CUSTO       → bd_centros_custo.codigo_centro_custo (status via situacao)
 //   FABRICANTE         → bd_fabricantes.nome
-//   DEPARTAMENTO       → bd_departamentos.nome_departamento
-//   PROPRIETARIO       → união bd_empresas (contexto=EMPRESA) + bd_empresas_locadoras (LOCADORA)
+//   DEPARTAMENTO       → bd_departamentos.nome_departamento (sem coluna de status no schema atual)
+//   PROPRIETARIO       → união bd_empresas (situacao) + bd_empresas_locadoras (sem status no schema atual)
 //
 // bd_modelos NÃO é consultada (modelo é texto livre — PR-3.3 Fase A).
 
@@ -86,6 +86,12 @@ function inSet(id: string | null | undefined, set: Set<string> | undefined): boo
   return set.has(id);
 }
 
+function statusAtivo(valor: string | null | undefined): boolean {
+  const normalizado = (valor ?? '').trim().toUpperCase();
+  if (!normalizado) return true;
+  return normalizado.startsWith('ATIV');
+}
+
 export async function carregarListasReferenciaV3(input: CarregarListasInput): Promise<ListasReferenciaV3> {
   const modo = input.modo;
   const vinc = input.vinculados ?? {};
@@ -111,24 +117,24 @@ export async function carregarListasReferenciaV3(input: CarregarListasInput): Pr
     empresasRes,
     locadorasRes,
   ] = await Promise.all([
-    supabase.from('bd_frotas').select('id, codigo, nome, ativo'),
+    supabase.from('bd_frotas').select('id, codigo, descricao, ativo'),
     supabase.from('bd_subcategorias_ativos').select('id, nome_subcategoria, categoria_id, ativo'),
     supabase.from('bd_linhas_operacionais').select('id, codigo, nome, ativo'),
-    supabase.from('bd_centros_custo').select('id, codigo_centro_custo, nome_centro_custo, ativo'),
+    supabase.from('bd_centros_custo').select('id, codigo_centro_custo, nome_centro_custo, situacao'),
     supabase.from('bd_fabricantes').select('id, nome, ativo'),
-    supabase.from('bd_departamentos').select('id, nome_departamento, ativo'),
-    supabase.from('bd_empresas').select('id, nome_empresa, ativa'),
-    supabase.from('bd_empresas_locadoras').select('id, nome_empresa_locadora, ativa'),
+    supabase.from('bd_departamentos').select('id, nome_departamento'),
+    supabase.from('bd_empresas').select('id, nome_empresa, situacao'),
+    supabase.from('bd_empresas_locadoras').select('id, nome_empresa'),
   ]);
 
-  const frotas = assertOk('FROTA', frotasRes as never) as Array<{ id: string; codigo: string; nome: string | null; ativo: boolean }>;
+  const frotas = assertOk('FROTA', frotasRes as never) as Array<{ id: string; codigo: string; descricao: string | null; ativo: boolean }>;
   const subs = assertOk('SUBCATEGORIA', subsRes as never) as Array<{ id: string; nome_subcategoria: string; categoria_id: string | null; ativo: boolean }>;
   const linhas = assertOk('LINHA_OPERACIONAL', linhasRes as never) as Array<{ id: string; codigo: string | null; nome: string | null; ativo: boolean }>;
-  const ccs = assertOk('CENTRO_CUSTO', ccsRes as never) as Array<{ id: string; codigo_centro_custo: string; nome_centro_custo: string | null; ativo: boolean }>;
+  const ccs = assertOk('CENTRO_CUSTO', ccsRes as never) as Array<{ id: string; codigo_centro_custo: string; nome_centro_custo: string | null; situacao: string | null }>;
   const fabs = assertOk('FABRICANTE', fabsRes as never) as Array<{ id: string; nome: string; ativo: boolean }>;
-  const deps = assertOk('DEPARTAMENTO', depsRes as never) as Array<{ id: string; nome_departamento: string; ativo: boolean }>;
-  const empresas = assertOk('EMPRESA', empresasRes as never) as Array<{ id: string; nome_empresa: string; ativa: boolean }>;
-  const locadoras = assertOk('LOCADORA', locadorasRes as never) as Array<{ id: string; nome_empresa_locadora: string; ativa: boolean }>;
+  const deps = assertOk('DEPARTAMENTO', depsRes as never) as Array<{ id: string; nome_departamento: string }>;
+  const empresas = assertOk('EMPRESA', empresasRes as never) as Array<{ id: string; nome_empresa: string; situacao: string | null }>;
+  const locadoras = assertOk('LOCADORA', locadorasRes as never) as Array<{ id: string; nome_empresa: string }>;
 
   const out: ItemListaV3[] = [];
   const incluir = (i: ItemListaV3, vinculadoSet?: Set<string>): void => {
@@ -145,7 +151,7 @@ export async function carregarListasReferenciaV3(input: CarregarListasInput): Pr
   frotas.forEach((r) => incluir({
     tipo_catalogo: 'FROTA', id_erp: r.id,
     valor_exibicao: r.codigo,
-    codigo: r.codigo, nome: r.nome, parent_id_erp: null,
+    codigo: r.codigo, nome: r.descricao, parent_id_erp: null,
     ativo: !!r.ativo, vinculado_atualmente: false, contexto: null,
   }, vSet.frota));
 
@@ -167,7 +173,7 @@ export async function carregarListasReferenciaV3(input: CarregarListasInput): Pr
     tipo_catalogo: 'CENTRO_CUSTO', id_erp: r.id,
     valor_exibicao: r.codigo_centro_custo,
     codigo: r.codigo_centro_custo, nome: r.nome_centro_custo, parent_id_erp: null,
-    ativo: !!r.ativo, vinculado_atualmente: false, contexto: null,
+    ativo: statusAtivo(r.situacao), vinculado_atualmente: false, contexto: null,
   }, vSet.centro_custo));
 
   fabs.forEach((r) => incluir({
@@ -181,7 +187,7 @@ export async function carregarListasReferenciaV3(input: CarregarListasInput): Pr
     tipo_catalogo: 'DEPARTAMENTO', id_erp: r.id,
     valor_exibicao: r.nome_departamento,
     codigo: null, nome: r.nome_departamento, parent_id_erp: null,
-    ativo: !!r.ativo, vinculado_atualmente: false, contexto: null,
+    ativo: true, vinculado_atualmente: false, contexto: null,
   }, vSet.departamento));
 
   // PROPRIETÁRIO — desambiguação por prefixo "EMPRESA | " / "LOCADORA | ".
@@ -199,16 +205,16 @@ export async function carregarListasReferenciaV3(input: CarregarListasInput): Pr
       tipo_catalogo: 'PROPRIETARIO', id_erp: r.id,
       valor_exibicao: rotular(base, r.id),
       codigo: null, nome: r.nome_empresa, parent_id_erp: null,
-      ativo: !!r.ativa, vinculado_atualmente: false, contexto: 'EMPRESA',
+      ativo: statusAtivo(r.situacao), vinculado_atualmente: false, contexto: 'EMPRESA',
     }, vSet.empresa);
   });
   locadoras.forEach((r) => {
-    const base = `LOCADORA | ${r.nome_empresa_locadora}`;
+    const base = `LOCADORA | ${r.nome_empresa}`;
     incluir({
       tipo_catalogo: 'PROPRIETARIO', id_erp: r.id,
       valor_exibicao: rotular(base, r.id),
-      codigo: null, nome: r.nome_empresa_locadora, parent_id_erp: null,
-      ativo: !!r.ativa, vinculado_atualmente: false, contexto: 'LOCADORA',
+      codigo: null, nome: r.nome_empresa, parent_id_erp: null,
+      ativo: true, vinculado_atualmente: false, contexto: 'LOCADORA',
     }, vSet.empresa_locadora);
   });
 

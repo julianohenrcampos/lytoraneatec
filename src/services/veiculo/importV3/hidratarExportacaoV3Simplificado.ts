@@ -81,8 +81,8 @@ export async function hidratarExportacaoV3Simplificado(): Promise<HidratarExport
       supabase.from('bd_departamentos').select('id, nome_departamento')),
     paginado<{ id: string; nome_empresa: string }>(() =>
       supabase.from('bd_empresas').select('id, nome_empresa')),
-    paginado<{ id: string; nome_empresa_locadora: string }>(() =>
-      supabase.from('bd_empresas_locadoras').select('id, nome_empresa_locadora')),
+    paginado<{ id: string; nome_empresa: string }>(() =>
+      supabase.from('bd_empresas_locadoras').select('id, nome_empresa')),
     paginado<{ id: string; codigo: string }>(() =>
       supabase.from('bd_frotas').select('id, codigo')),
   ]);
@@ -97,7 +97,7 @@ export async function hidratarExportacaoV3Simplificado(): Promise<HidratarExport
   const mFab = new Map(fabs.map((f) => [f.id, f.nome]));
   const mDep = new Map(deps.map((d) => [d.id, d.nome_departamento]));
   const mEmp = new Map(empresas.map((e) => [e.id, e.nome_empresa]));
-  const mLoc = new Map(locadoras.map((l) => [l.id, l.nome_empresa_locadora]));
+  const mLoc = new Map(locadoras.map((l) => [l.id, l.nome_empresa]));
 
   // 2) Vinculados atuais → informa modo EXPORTACAO das listas (mantém inativos vinculados).
   const uniq = (xs: Array<string | null | undefined>) =>

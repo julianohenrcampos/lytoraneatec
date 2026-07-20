@@ -21159,6 +21159,10 @@ export type Database = {
         Args: { p_ordem_id: string }
         Returns: undefined
       }
+      fn_equipamento_definir_cc_manual: {
+        Args: { p_centro_custo_id: string; p_equipamento_id: string }
+        Returns: Json
+      }
       fn_excluir_apontamento_ce_com_inspecao: {
         Args: { p_apontamento_id: string }
         Returns: {

@@ -10,6 +10,7 @@ import { uploadFile } from "@/services/storageService";
 import VeiculoFormStepper from "./form/VeiculoFormStepper";
 import { supabase } from "@/integrations/supabase/client";
 import { getCentrosCustoAtivosDropdown } from "@/services/veiculo/dropdownsRelacional";
+import { usePermission } from "@/hooks/usePermission";
 
 interface VeiculoFormModalProps {
   isOpen: boolean;
@@ -89,10 +90,13 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
 
   const mode: 'create' | 'edit' = veiculo ? 'edit' : 'create';
 
+  const { hasActionPermission } = usePermission();
+  const canEditCentroCusto = hasActionPermission('gestao_maquinas_caminhoes_view', 'editar');
+
   const { data: centrosCustoAtivos } = useQuery({
     queryKey: ["centros-custo-ativos-dropdown"],
     queryFn: getCentrosCustoAtivosDropdown,
-    enabled: isOpen && mode === 'create',
+    enabled: isOpen && (mode === 'create' || canEditCentroCusto),
     staleTime: 5 * 60 * 1000,
   });
   
@@ -169,6 +173,7 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
         chassi: veiculo.chassi || "",
         informacoes_complementares: veiculo.informacoes_complementares || "",
         linha_operacional_id: (veiculo as any).linha_operacional_id || "_none",
+        centro_custo_atual_id: (veiculo as any).centro_custo_atual_id || "_none",
       });
     } else {
       form.reset({
@@ -317,6 +322,32 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
 
       await onSave(veiculo?.id, formData);
 
+      // Edição manual de Centro de Custo — só executada quando o valor mudou e
+      // o usuário tem permissão. A RPC valida escopo + prioridade de origem.
+      if (mode === 'edit' && veiculo?.id && canEditCentroCusto) {
+        const ccAtual = (veiculo as any).centro_custo_atual_id ?? null;
+        const ccNovoRaw = values.centro_custo_atual_id === "_none" ? null : (values.centro_custo_atual_id || null);
+        if ((ccAtual ?? null) !== (ccNovoRaw ?? null)) {
+          const { data: rpcResp, error: rpcErr } = await (supabase.rpc as any)('fn_equipamento_definir_cc_manual', {
+            p_equipamento_id: veiculo.id,
+            p_centro_custo_id: ccNovoRaw,
+          });
+          if (rpcErr) {
+            toast({
+              title: 'Centro de Custo não alterado',
+              description: rpcErr.message || 'Falha ao alterar o Centro de Custo.',
+              variant: 'destructive',
+            });
+          } else if (rpcResp && rpcResp.aplicado === false) {
+            toast({
+              title: 'Centro de Custo não aplicado',
+              description: rpcResp.mensagem || 'A operação foi rejeitada pela regra de prioridade de origem.',
+              variant: 'destructive',
+            });
+          }
+        }
+      }
+
       onSuccess();
       onClose();
     } catch (error) {
@@ -356,10 +387,11 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
           categorias={categorias || []}
           mode={mode}
           centrosCustoAtivos={centrosCustoAtivos ?? []}
+          canEditCentroCusto={canEditCentroCusto}
           centroCustoAtual={veiculo ? {
             nome: veiculo.centro_custo_atual_nome ?? veiculo.nome_centro_custo ?? null,
             codigo: veiculo.centro_custo_atual_codigo ?? null,
-            origem: veiculo.centro_custo_origem ?? 'SEM_ALOCACAO',
+            origem: (veiculo.centro_custo_origem ?? 'SEM_ALOCACAO') as any,
             atualizadoEm: veiculo.centro_custo_atualizado_em ?? null,
           } : null}
         />

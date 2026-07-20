@@ -12,10 +12,13 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { FileUploader } from '@/components/ui/file-uploader';
-import { AlertCircle, Info, Play, FileSpreadsheet, Lock } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Info, Play, FileSpreadsheet, Lock, Download } from 'lucide-react';
 import { useEquipamentosImportV3Simplificado } from '@/hooks/vehicles/useEquipamentosImportV3Simplificado';
-import type { AcaoInferida } from '@/services/veiculo/importV3/parseWorkbookV3Simplificado';
+import { ehCodigoFatal, type AcaoInferida } from '@/services/veiculo/importV3/parseWorkbookV3Simplificado';
 import type { StatusResultadoV3S } from '@/services/veiculo/importV3/executarImportacaoV3Simplificado';
+import {
+  gerarRelatorioInconsistenciasV3, baixarBlobComoArquivo,
+} from '@/services/veiculo/importV3/gerarRelatorioInconsistenciasV3';
 
 interface Props {
   isOpen: boolean;
@@ -42,6 +45,8 @@ const BADGE_FINAL: Partial<Record<StatusResultadoV3S, string>> = {
   SEM_ALTERACAO: 'bg-muted text-muted-foreground',
 };
 
+const PARSER_BUILD_MARKER = 'PARSER SHEETJS BUILD 2026-07-20-01';
+
 /** Gate global. Default = habilitado. */
 export function writeEnabledV3(): boolean {
   const v = String(import.meta.env.VITE_IMPORTADOR_V3_WRITE_ENABLED ?? 'true').toLowerCase();
@@ -63,7 +68,26 @@ const ImportadorV3Modal: React.FC<Props> = ({ isOpen, onClose, onImportSucesso }
   }, [filtro, state.linhas]);
 
   const resumo = state.parsed?.resumo;
+  const warnings = state.parsed?.warnings_globais ?? [];
+  const errosFatais = (state.parsed?.erros_globais ?? []).filter((e) => ehCodigoFatal(e.codigo));
+  const isFatal = errosFatais.length > 0;
+
   const handleClose = () => { reset(); onClose(); };
+
+  const baixarRelatorio = async () => {
+    if (!state.parsed) return;
+    try {
+      const blob = await gerarRelatorioInconsistenciasV3({
+        parsed: state.parsed,
+        arquivoNome: state.file?.name ?? 'importador-v3.xlsx',
+      });
+      const nome = `inconsistencias-v3-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      baixarBlobComoArquivo(blob, nome);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[ImportadorV3Modal] falha ao gerar relatório', e);
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={(o) => { if (!o) handleClose(); }}>
@@ -76,6 +100,7 @@ const ImportadorV3Modal: React.FC<Props> = ({ isOpen, onClose, onImportSucesso }
           <DialogDescription>
             Layout oficial: 20 colunas operacionais + inferência automática de ação por diff canônico.
             Apenas o novo modelo simplificado é aceito.
+            <span className="block font-mono text-xs text-muted-foreground mt-1">{PARSER_BUILD_MARKER}</span>
           </DialogDescription>
         </DialogHeader>
 
@@ -116,13 +141,20 @@ const ImportadorV3Modal: React.FC<Props> = ({ isOpen, onClose, onImportSucesso }
             {state.erroGlobal && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Arquivo incompatível</AlertTitle>
+                <AlertTitle>{isFatal ? 'Arquivo incompatível' : 'Não foi possível interpretar uma ou mais linhas da planilha'}</AlertTitle>
                 <AlertDescription className="space-y-2">
                   <p>{state.erroGlobal}</p>
-                  <p className="text-xs">
-                    Este arquivo pertence a uma versão anterior (17/41 colunas, CSV ou schema divergente).
-                    Baixe o novo modelo simplificado e tente novamente.
-                  </p>
+                  {isFatal ? (
+                    <p className="text-xs">
+                      Este arquivo é de uma versão anterior (17/41 colunas, CSV ou schema divergente).
+                      Baixe o novo modelo simplificado e tente novamente.
+                    </p>
+                  ) : (
+                    <p className="text-xs">
+                      Verifique os detalhes no console do navegador. Se o erro persistir, exporte um novo modelo
+                      a partir da base atual.
+                    </p>
+                  )}
                 </AlertDescription>
               </Alert>
             )}
@@ -146,9 +178,35 @@ const ImportadorV3Modal: React.FC<Props> = ({ isOpen, onClose, onImportSucesso }
               </div>
             )}
 
+            {resumo && (resumo.linhas_com_erro > 0 || warnings.length > 0) && (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                <Card label="Linhas com erro" v={resumo.linhas_com_erro} />
+                <Card label="Total de inconsistências" v={resumo.total_inconsistencias} />
+                <Card label="Warnings globais" v={warnings.length} />
+              </div>
+            )}
+
+            {warnings.length > 0 && (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Avisos ({warnings.length})</AlertTitle>
+                <AlertDescription className="text-xs space-y-1 max-h-24 overflow-auto">
+                  {warnings.slice(0, 5).map((w, i) => (
+                    <p key={i}><strong>{w.codigo}</strong> — {w.mensagem}</p>
+                  ))}
+                  {warnings.length > 5 && <p>+{warnings.length - 5} avisos no relatório.</p>}
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" variant="outline" onClick={selecionarTodos} disabled={state.isProcessing}>Selecionar todos elegíveis</Button>
               <Button size="sm" variant="ghost" onClick={limparSelecao} disabled={state.isProcessing}>Limpar seleção</Button>
+              <Button size="sm" variant="outline" onClick={baixarRelatorio}
+                disabled={!state.parsed || (resumo?.total_inconsistencias ?? 0) === 0 && warnings.length === 0}>
+                <Download className="h-4 w-4 mr-1" />
+                Baixar relatório
+              </Button>
               <div className="flex-1" />
               <Badge variant="outline">{state.selecionados.size} selecionados</Badge>
               <Button size="sm" onClick={processar}

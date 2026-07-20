@@ -26,6 +26,11 @@ export const TOKENS_ALLOWLIST = [
   'ALUGUEL',
   'DEPARTAMENTO',
   'OBSERVACOES',
+  // FASE C4: CENTRO_CUSTO é token atômico. A RPC aplica via
+  // fn_aplicar_centro_custo_atual_equipamento(..., 'IMPORTACAO', ...),
+  // prioridade 20 (não sobrescreve APONTAMENTO_CE/CENTRAL_TRANSPORTE
+  // sem forcar=true), em bloco atômico com os demais campos.
+  'CENTRO_CUSTO',
 ] as const;
 
 export type TokenV3 = (typeof TOKENS_ALLOWLIST)[number];
@@ -40,13 +45,13 @@ export const TOKEN_TO_PAYLOAD: Record<TokenV3, readonly string[]> = {
   SUBCATEGORIA:      ['subcategoria_id_erp', 'subcategoria_nome'],
   LINHA_OPERACIONAL: ['linha_operacional_id_erp', 'linha_operacional_codigo'],
   PROPRIETARIO: [
-    'proprietario_regime',        // PROPRIO | LOCADO
-    'proprietario_cadastro_tipo', // EMPRESA | LOCADORA (derivado de _LISTAS.contexto)
+    'proprietario_regime',
+    'proprietario_cadastro_tipo',
     'proprietario_id_erp',
     'proprietario_nome',
   ],
   CAPACIDADE:        ['capacidade', 'capacidade_valor', 'capacidade_unidade'],
-  ALUGUEL:           ['aluguel'],  // string canônica ("1234.56")
+  ALUGUEL:           ['aluguel'],
   MOTOR:             ['motor'],
   COR:               ['cor'],
   PLACA:             ['placa'],
@@ -56,6 +61,7 @@ export const TOKEN_TO_PAYLOAD: Record<TokenV3, readonly string[]> = {
   TIPO_COMBUSTIVEL:  ['tipo_combustivel'],
   ANO_FABRICACAO:    ['ano_fabricacao'],
   OBSERVACOES:       ['observacoes'],
+  CENTRO_CUSTO:      ['centro_custo_id_erp', 'centro_custo_codigo'],
 };
 
 /** Nomes físicos que NUNCA podem aparecer como token. */
@@ -65,8 +71,8 @@ export const NAO_TOKENS: ReadonlySet<string> = new Set([
   'departamento_id',
   'departamento_id_erp',
   'numero_serie',
-  'centro_custo',
   'frota_codigo',
+  // 'centro_custo' saiu — agora é o token CENTRO_CUSTO.
 ]);
 
 export interface ParseTokensV3Result {

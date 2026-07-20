@@ -16,7 +16,6 @@ import {
   gerarWorkbookV3Simplificado,
   bytesToXlsxBlob,
 } from "@/services/veiculo/importV3";
-import { baixarBlob } from "@/services/veiculo/importV3/gerarRelatorioV3";
 
 interface VeiculoHeaderActionsProps {
   onNewClick: () => void;
@@ -44,6 +43,18 @@ const VeiculoHeaderActions: React.FC<VeiculoHeaderActionsProps> = ({
   const { toast } = useToast();
   const [baixandoModelo, setBaixandoModelo] = useState(false);
 
+  const baixarArquivo = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   const baixarModeloSimplificado = async () => {
     if (baixandoModelo) return;
     setBaixandoModelo(true);
@@ -59,10 +70,15 @@ const VeiculoHeaderActions: React.FC<VeiculoHeaderActionsProps> = ({
         gerado_por: 'ui.header_actions',
         observacoes: 'Modelo oficial V3 simplificado — 20 colunas visíveis + 1 técnica oculta.',
       });
+      const blob = bytesToXlsxBlob(bytes);
+      if (blob.size === 0) {
+        throw new Error("O gerador retornou um arquivo vazio.");
+      }
       const stamp = new Date().toISOString().slice(0, 10);
-      baixarBlob(bytesToXlsxBlob(bytes), `modelo_importacao_equipamentos_v3_${stamp}.xlsx`);
+      baixarArquivo(blob, `modelo_importacao_equipamentos_v3_${stamp}.xlsx`);
       toast({ title: "Modelo pronto", description: "Arquivo baixado com listas atualizadas." });
     } catch (err) {
+      console.error("[Importador V3] Falha ao baixar modelo:", err);
       toast({
         title: "Falha ao gerar modelo",
         description: err instanceof Error ? err.message : String(err),
@@ -104,14 +120,32 @@ const VeiculoHeaderActions: React.FC<VeiculoHeaderActionsProps> = ({
             <ChevronDown className="ml-2 h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="bg-popover">
-          <DropdownMenuItem onClick={(e) => { e.preventDefault(); baixarModeloSimplificado(); }} disabled={baixandoModelo}>
-            {baixandoModelo ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-            Baixar Modelo (V3)
+        <DropdownMenuContent align="end" className="bg-popover w-[340px]">
+          <DropdownMenuItem
+            disabled={baixandoModelo}
+            onSelect={(event) => {
+              event.preventDefault();
+              void baixarModeloSimplificado();
+            }}
+            className="flex-col items-start gap-0.5 py-2"
+          >
+            <div className="flex items-center w-full">
+              {baixandoModelo ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+              <span className="font-medium">{baixandoModelo ? "Gerando modelo…" : "Baixar Modelo (V3)"}</span>
+            </div>
+            <span className="text-[11px] text-muted-foreground pl-6 leading-snug">
+              Para <strong>cadastrar novos ativos</strong>. Ativos já existentes são bloqueados e devem ser editados via Exportação.
+            </span>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={onExport} disabled={!canExport}>
-            <FileDown className="mr-2 h-4 w-4" />
-            Exportar (V3)
+
+          <DropdownMenuItem onClick={onExport} disabled={!canExport} className="flex-col items-start gap-0.5 py-2">
+            <div className="flex items-center w-full">
+              <FileDown className="mr-2 h-4 w-4" />
+              <span className="font-medium">Exportar (V3)</span>
+            </div>
+            <span className="text-[11px] text-muted-foreground pl-6 leading-snug">
+              Para <strong>editar ativos existentes</strong> (inclui Centro de Custo). Traz o snapshot atual.
+            </span>
           </DropdownMenuItem>
           <DropdownMenuItem onClick={onImport}>
             <FileUp className="mr-2 h-4 w-4" />

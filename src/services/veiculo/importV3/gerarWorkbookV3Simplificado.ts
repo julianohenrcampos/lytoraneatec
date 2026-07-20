@@ -351,61 +351,53 @@ export async function gerarWorkbookV3Simplificado(
   aplicarDataValidations(wsEq, intervalos, linhaFimValidations);
 
   // ═══ 8) EXCEL TABLES ═══════════════════════════════════════════════════
-  // A tabela cobre A:U inclusive quando não há registros; ExcelJS exige ao
-  // menos 1 linha de dados — usamos vazio como placeholder e depois removemos.
-  const linhasTabela: unknown[][] = registros.map((r) =>
-    COLUNAS_EQUIPAMENTOS_SIMPLIFICADO.map((c) => {
-      const v = (r as unknown as Record<string, unknown>)[c.chave];
-      return v === null || v === undefined ? '' : v;
-    }),
-  );
-  const rowsForTable = linhasTabela.length > 0
-    ? linhasTabela
-    : [COLUNAS_EQUIPAMENTOS_SIMPLIFICADO.map(() => '')];
+  // MODELO vazio não cria Excel Table: evita tbl_equipamentos.ref=A1:U2 com
+  // totalsRowShown herdado/reconciliado de forma insegura no upload.
+  // EXPORTACAO cria tabela somente com dados reais e totalsRow=false, cobrindo
+  // exatamente A1:U(N+1).
+  if (registros.length > 0) {
+    const linhasTabela: unknown[][] = registros.map((r) =>
+      COLUNAS_EQUIPAMENTOS_SIMPLIFICADO.map((c) => {
+        const v = (r as unknown as Record<string, unknown>)[c.chave];
+        return v === null || v === undefined ? '' : v;
+      }),
+    );
 
-  // Excel Tables — usamos apenas as colunas visíveis por padrão do Excel;
-  // porém a especificação exige cobrir A:U (21 colunas). ExcelJS aceita
-  // colunas ocultas dentro da tabela — a coluna hidden segue oculta pela
-  // definição do worksheet.columns.
-  const colunasTabela = COLUNAS_EQUIPAMENTOS_SIMPLIFICADO.map((c) => ({
-    name: c.cabecalho,
-    filterButton: c.visivel, // sem filtro na coluna oculta
-  }));
+    const colunasTabela = COLUNAS_EQUIPAMENTOS_SIMPLIFICADO.map((c) => ({
+      name: c.cabecalho,
+      filterButton: c.visivel,
+    }));
 
-  // Se a versão do ExcelJS falhar em adicionar a tabela sobre linhas já escritas,
-  // capturamos e seguimos — a validação física (openpyxl) apontaria; nesta rodada
-  // a tabela é essencial e não capturamos erros aqui.
-  wsEq.addTable({
-    name: NOME_TABELA_EQUIPAMENTOS,
-    ref: 'A1',
-    headerRow: true,
-    totalsRow: false,
-    style: {
-      theme: 'TableStyleMedium2',
-      showRowStripes: true,
-    },
-    columns: colunasTabela,
-    rows: rowsForTable,
-  });
+    wsEq.addTable({
+      name: NOME_TABELA_EQUIPAMENTOS,
+      ref: 'A1',
+      headerRow: true,
+      totalsRow: false,
+      style: {
+        theme: 'TableStyleMedium2',
+        showRowStripes: true,
+      },
+      columns: colunasTabela,
+      rows: linhasTabela,
+    });
 
-  // Excel Table sobre _CONTROLE (cabeçalho + linhas). Mesmo tratamento.
-  const linhasCtrl = registros.map((r) => [
-    r._controle_ref, r.equipamento_id_erp, r.updated_at_origem, r.codigo_canonico, r.snapshot_original_json,
-  ]);
-  const rowsForCtrlTable = linhasCtrl.length > 0 ? linhasCtrl : [['', '', '', '', '']];
-  wsCtrl.addTable({
-    name: NOME_TABELA_CONTROLE,
-    ref: 'A1',
-    headerRow: true,
-    totalsRow: false,
-    style: { theme: 'TableStyleLight8', showRowStripes: true },
-    columns: [
-      { name: '_controle_ref' }, { name: 'equipamento_id_erp' },
-      { name: 'updated_at_origem' }, { name: 'codigo_canonico' },
-      { name: 'snapshot_original_json' },
-    ],
-    rows: rowsForCtrlTable,
-  });
+    const linhasCtrl = registros.map((r) => [
+      r._controle_ref, r.equipamento_id_erp, r.updated_at_origem, r.codigo_canonico, r.snapshot_original_json,
+    ]);
+    wsCtrl.addTable({
+      name: NOME_TABELA_CONTROLE,
+      ref: 'A1',
+      headerRow: true,
+      totalsRow: false,
+      style: { theme: 'TableStyleLight8', showRowStripes: true },
+      columns: [
+        { name: '_controle_ref' }, { name: 'equipamento_id_erp' },
+        { name: 'updated_at_origem' }, { name: 'codigo_canonico' },
+        { name: 'snapshot_original_json' },
+      ],
+      rows: linhasCtrl,
+    });
+  }
 
   const buffer = await wb.xlsx.writeBuffer();
   return new Uint8Array(buffer as ArrayBuffer);

@@ -160,12 +160,10 @@ export async function captureGeo(
     console.warn(`${LOG}[GEO_ERROR]`, { code: errorCode, message: error, attempt: 0 });
     return { ok: false, data: null, error, errorCode };
   }
-  if (permissionState === "denied") {
-    const errorCode: GeoErrorCode = "permission_denied";
-    const error = mapErrMsg(errorCode);
-    console.warn(`${LOG}[GEO_ERROR]`, { code: errorCode, message: error, attempt: 0 });
-    return { ok: false, data: null, error, errorCode };
-  }
+  // NOTA: permissionState é APENAS informativo (log/telemetria).
+  // Em PWA/iOS a Permissions API pode retornar "denied" mesmo quando a origem
+  // já tem permissão concedida, o que provocava "falso bloqueio" de GPS.
+  // A fonte de verdade é o retorno de getCurrentPosition (código 1 = PERMISSION_DENIED).
 
   // 1ª tentativa: high accuracy, ~metade do timeout total (cap 10s)
   const t1 = Math.min(10000, Math.floor(totalTimeout / 2));

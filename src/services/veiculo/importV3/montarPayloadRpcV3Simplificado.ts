@@ -45,6 +45,7 @@ export interface PayloadRpcV3Simplificado {
   proprietario_id_erp?: string;
   proprietario_nome?: string;
   centro_custo_codigo?: string;
+  centro_custo_id_erp?: string;
   fabricante_id_erp?: string;
   fabricante_nome?: string;
   modelo?: string;
@@ -123,6 +124,9 @@ export function montarPayloadRpcV3Simplificado(
   // Resolve DEPARTAMENTO
   const depLabel = txt(raw['departamento']);
   const depItem = depLabel ? idx.get(`DEPARTAMENTO::${depLabel}`) : undefined;
+  // Resolve CENTRO_CUSTO (label da coluna = código do CC em maiúsculas)
+  const ccLabel = upperTxt(raw['centro_custo']);
+  const ccItem = ccLabel ? idx.get(`CENTRO_CUSTO::${ccLabel}`) : undefined;
 
   const cap = parseCapacidade(raw['capacidade']);
   if (cap.erro) erros.push({ codigo: cap.erro, campo: 'capacidade', mensagem: cap.texto || 'capacidade inválida' });
@@ -139,6 +143,7 @@ export function montarPayloadRpcV3Simplificado(
     p.numero_frota = txt(raw['numero_frota']);
     p.codigo_canonico = linha.codigo_canonico;
     p.centro_custo_codigo = upperTxt(raw['centro_custo']);
+    if (ccItem?.id_erp) p.centro_custo_id_erp = ccItem.id_erp;
     if (subItem) { p.subcategoria_id_erp = subItem.id_erp; p.subcategoria_nome = subItem.valor_exibicao; }
     else if (subLabel) erros.push({ codigo: 'SUBCATEGORIA_NAO_ENCONTRADA', campo: 'subcategoria', mensagem: `Subcategoria "${subLabel}" não encontrada em _LISTAS` });
     else erros.push({ codigo: 'SUBCATEGORIA_OBRIGATORIA', campo: 'subcategoria', mensagem: 'subcategoria obrigatória para INSERIR' });
@@ -185,6 +190,11 @@ export function montarPayloadRpcV3Simplificado(
           break;
         case 'DEPARTAMENTO':
           if (depItem) { p.departamento_id_erp = depItem.id_erp; p.departamento_nome = depItem.valor_exibicao; }
+          break;
+        case 'CENTRO_CUSTO':
+          // A RPC aceita id (preferencial) e código (fallback); envia ambos.
+          if (ccItem?.id_erp) p.centro_custo_id_erp = ccItem.id_erp;
+          if (ccLabel) p.centro_custo_codigo = ccLabel;
           break;
         default: break;
       }

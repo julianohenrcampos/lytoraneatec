@@ -18,6 +18,7 @@ interface Props {
     codigo: string | null;
     origem:
       | 'CADASTRO'
+      | 'IMPORTACAO'
       | 'APONTAMENTO_CE'
       | 'DISPONIBILIDADE'
       | 'CENTRAL_TRANSPORTE'
@@ -29,13 +30,14 @@ interface Props {
 
 const ORIGEM_LABEL: Record<string, string> = {
   CADASTRO: 'Cadastro',
+  IMPORTACAO: 'Importação',
   APONTAMENTO_CE: 'Apontamento C&E',
   DISPONIBILIDADE: 'Disponibilidade',
   CENTRAL_TRANSPORTE: 'Central do Transporte',
   SEM_ALOCACAO: 'Sem alocação',
 };
 
-const Step4Operacao: React.FC<Props> = ({ form, departamentos, empresas, mode, centrosCustoAtivos, centroCustoAtual }) => {
+const Step4Operacao: React.FC<Props & { canEditCentroCusto?: boolean }> = ({ form, departamentos, empresas, mode, centrosCustoAtivos, centroCustoAtual, canEditCentroCusto = false }) => {
   const departamentoOptions = useMemo(() => [
     { value: "_none", label: "Nenhum" },
     ...departamentos.map((d) => ({ value: d.id, label: d.nome_departamento })),
@@ -49,6 +51,8 @@ const Step4Operacao: React.FC<Props> = ({ form, departamentos, empresas, mode, c
     })),
   ], [centrosCustoAtivos]);
 
+  const mostrarSelecaoCC = mode === 'create' || (mode === 'edit' && canEditCentroCusto);
+
   return (
     <div className="space-y-4">
       <div className="rounded-lg border p-4 space-y-4">
@@ -56,10 +60,12 @@ const Step4Operacao: React.FC<Props> = ({ form, departamentos, empresas, mode, c
           📊 Operação
         </h3>
 
-        {mode === 'create' && (
+        {mostrarSelecaoCC && (
           <FormField control={form.control} name="centro_custo_atual_id" render={({ field }) => (
             <FormItem>
-              <FormLabel>Centro de Custo inicial (opcional)</FormLabel>
+              <FormLabel>
+                {mode === 'create' ? 'Centro de Custo inicial (opcional)' : 'Centro de Custo atual'}
+              </FormLabel>
               <FormControl>
                 <Combobox
                   options={centroCustoOptions}
@@ -70,16 +76,22 @@ const Step4Operacao: React.FC<Props> = ({ form, departamentos, empresas, mode, c
                   emptyText="Nenhum Centro de Custo encontrado"
                 />
               </FormControl>
+              {mode === 'edit' && centroCustoAtual?.origem && centroCustoAtual.origem !== 'SEM_ALOCACAO' && centroCustoAtual.origem !== 'CADASTRO' && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                  Alocação atual veio de {ORIGEM_LABEL[centroCustoAtual.origem]}. A alteração manual só é aplicada
+                  se a origem operacional atual tiver prioridade menor.
+                </p>
+              )}
               <p className="text-[11px] text-muted-foreground">
-                Após o primeiro apontamento C&amp;E ou mudança de disponibilidade, esta alocação é
-                atualizada automaticamente.
+                Após apontamentos C&amp;E ou movimentações da Central do Transporte, esta alocação
+                é atualizada automaticamente.
               </p>
               <FormMessage />
             </FormItem>
           )} />
         )}
 
-        {mode === 'edit' && centroCustoAtual !== undefined && (
+        {mode === 'edit' && !canEditCentroCusto && centroCustoAtual !== undefined && (
           <div className="rounded-md border bg-muted/40 p-3">
             <div className="text-xs uppercase tracking-wide text-muted-foreground">
               Centro de Custo Atual (somente leitura)
@@ -104,7 +116,7 @@ const Step4Operacao: React.FC<Props> = ({ form, departamentos, empresas, mode, c
               </div>
             )}
             <div className="mt-1 text-[11px] text-muted-foreground italic">
-              Origem: Apontamento C&amp;E &gt; Central do Transporte &gt; Disponibilidade &gt; Cadastro. Ajustado automaticamente.
+              Você não tem permissão para editar. Origem: Apontamento C&amp;E &gt; Central do Transporte &gt; Disponibilidade &gt; Cadastro.
             </div>
           </div>
         )}

@@ -2,18 +2,16 @@
 // Usa parseWorkbookV3Simplificado + executarImportacaoV3Simplificado.
 
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import {
-  parseWorkbookV3Simplificado, type LinhaClassificadaSimplificada,
-  type ParseWorkbookV3SimplificadoResult, type AcaoInferida,
+  parseWorkbookV3Simplificado, ehCodigoFatal,
+  type LinhaClassificadaSimplificada,
+  type ParseWorkbookV3SimplificadoResult,
 } from '../../services/veiculo/importV3/parseWorkbookV3Simplificado';
 import {
   executarImportacaoV3Simplificado,
   type ProgressoV3S, type ResultadoLinhaV3S, type StatusResultadoV3S,
 } from '../../services/veiculo/importV3/executarImportacaoV3Simplificado';
-import {
-  carregarListasReferenciaV3, type ListasReferenciaV3,
-} from '../../services/veiculo/importV3/carregarListasReferenciaV3';
+import type { ListasReferenciaV3 } from '../../services/veiculo/importV3/carregarListasReferenciaV3';
 
 export type StatusV3S = 'idle' | 'parsing' | 'ready' | 'running' | 'done' | 'error';
 
@@ -55,11 +53,19 @@ export function useEquipamentosImportV3Simplificado() {
       }
       const buf = await file.arrayBuffer();
       const parsed = await parseWorkbookV3Simplificado(buf);
-      if (parsed.erros_globais.length > 0) {
-        throw new Error(parsed.erros_globais[0].mensagem);
+
+      // Apenas códigos FATAIS bloqueiam o preview.
+      const fatal = parsed.erros_globais.find((e) => ehCodigoFatal(e.codigo));
+      if (fatal) {
+        setState((s) => ({
+          ...s, status: 'error', file, parsed, listas: parsed.listas,
+          linhas: [], selecionados: new Set(), erroGlobal: fatal.mensagem,
+        }));
+        return;
       }
-      // Carrega listas EXPORTACAO (mantém inativos vinculados)
-      const listas = await carregarListasReferenciaV3({ modo: 'EXPORTACAO' });
+
+      // Listas vêm do próprio XLSX — nada de banco durante o preview.
+      const listas = parsed.listas;
       snapshotRef.current = parsed.linhas;
       const selecionados = new Set(
         parsed.linhas
@@ -71,7 +77,13 @@ export function useEquipamentosImportV3Simplificado() {
         arquivoSha256Logico: parsed.arquivo_sha256_logico ?? '', listas, selecionados,
       }));
     } catch (e) {
-      setState((s) => ({ ...s, status: 'error', erroGlobal: e instanceof Error ? e.message : String(e) }));
+      // Exceção inesperada é tratada como falha genérica — jamais como "modelo incompatível".
+      // eslint-disable-next-line no-console
+      console.error('[useEquipamentosImportV3Simplificado] erro inesperado', e);
+      setState((s) => ({
+        ...s, status: 'error',
+        erroGlobal: 'Não foi possível interpretar uma ou mais linhas da planilha.',
+      }));
     }
   }, []);
 

@@ -23,11 +23,13 @@ interface VeiculoFormStepperProps {
   categorias: { id: string; nome_categoria: string }[];
   mode: 'create' | 'edit';
   centrosCustoAtivos?: { id: string; nome_centro_custo: string; codigo_centro_custo: string }[];
+  canEditCentroCusto?: boolean;
   centroCustoAtual?: {
     nome: string | null;
     codigo: string | null;
     origem:
       | 'CADASTRO'
+      | 'IMPORTACAO'
       | 'APONTAMENTO_CE'
       | 'DISPONIBILIDADE'
       | 'CENTRAL_TRANSPORTE'
@@ -75,7 +77,7 @@ const FIELD_TO_STEP: Record<string, number> = {
 
 const VeiculoFormStepper: React.FC<VeiculoFormStepperProps> = ({
   form, onSubmit, onInvalid, isSubmitting, onClose, currentImage, onImageChange, onImageRemove,
-  departamentos, empresas, categorias, mode, centrosCustoAtivos, centroCustoAtual,
+  departamentos, empresas, categorias, mode, centrosCustoAtivos, centroCustoAtual, canEditCentroCusto,
 }) => {
   const [step, setStep] = useState(0);
   const [stepsComErro, setStepsComErro] = useState<Set<number>>(new Set());
@@ -142,7 +144,7 @@ const VeiculoFormStepper: React.FC<VeiculoFormStepperProps> = ({
           {step === 0 && <Step1Classificacao form={form} categorias={categorias} currentImage={currentImage} onImageChange={onImageChange} onImageRemove={onImageRemove} />}
           {step === 1 && <Step2Identificacao form={form} />}
           {step === 2 && <Step3DadosTecnicos form={form} />}
-          {step === 3 && <Step4Operacao form={form} departamentos={departamentos} empresas={empresas} mode={mode} centrosCustoAtivos={centrosCustoAtivos} centroCustoAtual={centroCustoAtual} />}
+          {step === 3 && <Step4Operacao form={form} departamentos={departamentos} empresas={empresas} mode={mode} centrosCustoAtivos={centrosCustoAtivos} centroCustoAtual={centroCustoAtual} canEditCentroCusto={canEditCentroCusto} />}
         </div>
 
         <div className="flex justify-between pt-4 border-t">
