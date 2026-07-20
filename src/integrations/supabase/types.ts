@@ -1747,6 +1747,10 @@ export type Database = {
           capacidade_valor: number | null
           catalogo_equipamento_id: string | null
           categoria_ativo_id: string | null
+          centro_custo_atual_id: string | null
+          centro_custo_atual_origem: string
+          centro_custo_atualizado_em: string | null
+          centro_custo_atualizado_por: string | null
           chassi: string | null
           cor: string | null
           created_at: string | null
@@ -1761,6 +1765,7 @@ export type Database = {
           imagem_url: string | null
           informacoes_complementares: string | null
           linha_operacional_id: string | null
+          modelo: string | null
           modelo_id: string | null
           modificado_por: string | null
           motor: string | null
@@ -1788,6 +1793,10 @@ export type Database = {
           capacidade_valor?: number | null
           catalogo_equipamento_id?: string | null
           categoria_ativo_id?: string | null
+          centro_custo_atual_id?: string | null
+          centro_custo_atual_origem?: string
+          centro_custo_atualizado_em?: string | null
+          centro_custo_atualizado_por?: string | null
           chassi?: string | null
           cor?: string | null
           created_at?: string | null
@@ -1802,6 +1811,7 @@ export type Database = {
           imagem_url?: string | null
           informacoes_complementares?: string | null
           linha_operacional_id?: string | null
+          modelo?: string | null
           modelo_id?: string | null
           modificado_por?: string | null
           motor?: string | null
@@ -1829,6 +1839,10 @@ export type Database = {
           capacidade_valor?: number | null
           catalogo_equipamento_id?: string | null
           categoria_ativo_id?: string | null
+          centro_custo_atual_id?: string | null
+          centro_custo_atual_origem?: string
+          centro_custo_atualizado_em?: string | null
+          centro_custo_atualizado_por?: string | null
           chassi?: string | null
           cor?: string | null
           created_at?: string | null
@@ -1843,6 +1857,7 @@ export type Database = {
           imagem_url?: string | null
           informacoes_complementares?: string | null
           linha_operacional_id?: string | null
+          modelo?: string | null
           modelo_id?: string | null
           modificado_por?: string | null
           motor?: string | null
@@ -1946,6 +1961,62 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "bd_tipos_equipamento"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_caminhoes_eq_cc_atual"
+            columns: ["centro_custo_atual_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_caminhoes_eq_cc_atual"
+            columns: ["centro_custo_atual_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "fk_caminhoes_eq_cc_atual"
+            columns: ["centro_custo_atual_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "fk_caminhoes_eq_cc_atual"
+            columns: ["centro_custo_atual_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "fk_caminhoes_eq_cc_atual"
+            columns: ["centro_custo_atual_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "fk_caminhoes_eq_cc_atual"
+            columns: ["centro_custo_atual_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "fk_caminhoes_eq_cc_atual"
+            columns: ["centro_custo_atual_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "fk_caminhoes_eq_cc_atual"
+            columns: ["centro_custo_atual_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
           },
         ]
       }
@@ -6057,6 +6128,128 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_funcoes_publicas"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_importador_v2_execucoes: {
+        Row: {
+          arquivo_nome: string | null
+          arquivo_sha256: string
+          encerrado_em: string | null
+          execucao_anterior_id: string | null
+          execution_id: string
+          iniciado_em: string
+          iniciado_por: string | null
+          resumo: Json | null
+        }
+        Insert: {
+          arquivo_nome?: string | null
+          arquivo_sha256: string
+          encerrado_em?: string | null
+          execucao_anterior_id?: string | null
+          execution_id?: string
+          iniciado_em?: string
+          iniciado_por?: string | null
+          resumo?: Json | null
+        }
+        Update: {
+          arquivo_nome?: string | null
+          arquivo_sha256?: string
+          encerrado_em?: string | null
+          execucao_anterior_id?: string | null
+          execution_id?: string
+          iniciado_em?: string
+          iniciado_por?: string | null
+          resumo?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_importador_v2_execucoes_execucao_anterior_id_fkey"
+            columns: ["execucao_anterior_id"]
+            isOneToOne: false
+            referencedRelation: "bd_importador_v2_execucoes"
+            referencedColumns: ["execution_id"]
+          },
+        ]
+      }
+      bd_importador_v2_linhas_processadas: {
+        Row: {
+          arquivo_sha256: string
+          codigo_ativo_canonico: string
+          created_at: string
+          equipamento_id: string | null
+          execucao_anterior_id: string | null
+          execution_id: string
+          id: string
+          linha_excel: number
+          mensagem: string | null
+          payload_gravado: Json | null
+          status: string
+          tentativa: number
+        }
+        Insert: {
+          arquivo_sha256: string
+          codigo_ativo_canonico: string
+          created_at?: string
+          equipamento_id?: string | null
+          execucao_anterior_id?: string | null
+          execution_id: string
+          id?: string
+          linha_excel: number
+          mensagem?: string | null
+          payload_gravado?: Json | null
+          status: string
+          tentativa?: number
+        }
+        Update: {
+          arquivo_sha256?: string
+          codigo_ativo_canonico?: string
+          created_at?: string
+          equipamento_id?: string | null
+          execucao_anterior_id?: string | null
+          execution_id?: string
+          id?: string
+          linha_excel?: number
+          mensagem?: string | null
+          payload_gravado?: Json | null
+          status?: string
+          tentativa?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_importador_v2_linhas_processadas_equipamento_id_fkey"
+            columns: ["equipamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_caminhoes_equipamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_importador_v2_linhas_processadas_equipamento_id_fkey"
+            columns: ["equipamento_id"]
+            isOneToOne: false
+            referencedRelation: "vw_ativos_logistica_manutencao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_importador_v2_linhas_processadas_equipamento_id_fkey"
+            columns: ["equipamento_id"]
+            isOneToOne: false
+            referencedRelation: "vw_ativos_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_importador_v2_linhas_processadas_execucao_anterior_id_fkey"
+            columns: ["execucao_anterior_id"]
+            isOneToOne: false
+            referencedRelation: "bd_importador_v2_execucoes"
+            referencedColumns: ["execution_id"]
+          },
+          {
+            foreignKeyName: "bd_importador_v2_linhas_processadas_execution_id_fkey"
+            columns: ["execution_id"]
+            isOneToOne: false
+            referencedRelation: "bd_importador_v2_execucoes"
+            referencedColumns: ["execution_id"]
           },
         ]
       }
@@ -11189,6 +11382,7 @@ export type Database = {
           id: string
           latitude: number | null
           logradouro_nome: string
+          logradouro_nome_local: string | null
           longitude: number | null
           ordem_rua: number
           origem_localizacao: string | null
@@ -11206,6 +11400,7 @@ export type Database = {
           id?: string
           latitude?: number | null
           logradouro_nome: string
+          logradouro_nome_local?: string | null
           longitude?: number | null
           ordem_rua: number
           origem_localizacao?: string | null
@@ -11223,6 +11418,7 @@ export type Database = {
           id?: string
           latitude?: number | null
           logradouro_nome?: string
+          logradouro_nome_local?: string | null
           longitude?: number | null
           ordem_rua?: number
           origem_localizacao?: string | null
@@ -11948,6 +12144,117 @@ export type Database = {
           {
             foreignKeyName: "bd_registro_desvios_sso_obra_id_fkey"
             columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+        ]
+      }
+      bd_relatorio_aps_carimbos: {
+        Row: {
+          ativo: boolean
+          bairro: string | null
+          centro_custo_id: string | null
+          cliente: string | null
+          created_at: string
+          created_by: string
+          empresa: string | null
+          id: string
+          nome: string
+          obra: string | null
+          observacoes: string | null
+          padrao_centro_custo: boolean
+          revisao: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          bairro?: string | null
+          centro_custo_id?: string | null
+          cliente?: string | null
+          created_at?: string
+          created_by: string
+          empresa?: string | null
+          id?: string
+          nome: string
+          obra?: string | null
+          observacoes?: string | null
+          padrao_centro_custo?: boolean
+          revisao?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          bairro?: string | null
+          centro_custo_id?: string | null
+          cliente?: string | null
+          created_at?: string
+          created_by?: string
+          empresa?: string | null
+          id?: string
+          nome?: string
+          obra?: string | null
+          observacoes?: string | null
+          padrao_centro_custo?: boolean
+          revisao?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_relatorio_aps_carimbos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_relatorio_aps_carimbos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_relatorio_aps_carimbos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_relatorio_aps_carimbos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_relatorio_aps_carimbos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_relatorio_aps_carimbos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_relatorio_aps_carimbos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_relatorio_aps_carimbos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
             isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
@@ -19813,6 +20120,7 @@ export type Database = {
     }
     Functions: {
       __test_2d3e: { Args: { p_case: string }; Returns: Json }
+      _aps_carimbo_assert_acao: { Args: { _acao: string }; Returns: string }
       _map_tipo_aprovador_to_role: { Args: { p_tipo: string }; Returns: string }
       _map_tipo_aprovador_to_status: {
         Args: { p_tipo: string }
@@ -20183,6 +20491,17 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      fn_aplicar_centro_custo_atual_equipamento: {
+        Args: {
+          p_centro_custo_id: string
+          p_equipamento_id: string
+          p_evento_em: string
+          p_forcar?: boolean
+          p_origem: string
+          p_usuario_id?: string
+        }
+        Returns: boolean
       }
       fn_aplicar_saneamento_auto: {
         Args: {
@@ -20940,6 +21259,63 @@ export type Database = {
         Returns: boolean
       }
       fn_hash_sensitive_value: { Args: { p_value: string }; Returns: string }
+      fn_importador_ativos_atualizar: {
+        Args: {
+          p_arquivo_sha256: string
+          p_execucao_anterior_id: string
+          p_execution_id: string
+          p_linha_excel: number
+          p_payload: Json
+          p_tentativa: number
+        }
+        Returns: Json
+      }
+      fn_importador_ativos_inserir: {
+        Args: {
+          p_arquivo_sha256: string
+          p_execucao_anterior_id: string
+          p_execution_id: string
+          p_linha_excel: number
+          p_payload: Json
+          p_tentativa: number
+        }
+        Returns: Json
+      }
+      fn_importador_v2_abrir_execucao: {
+        Args: {
+          p_arquivo_nome: string
+          p_arquivo_sha256: string
+          p_execucao_anterior_id?: string
+        }
+        Returns: string
+      }
+      fn_importador_v2_encerrar_execucao: {
+        Args: { p_execution_id: string; p_resumo: Json }
+        Returns: undefined
+      }
+      fn_importador_v2_inserir_novo_ativo: {
+        Args: {
+          p_arquivo_sha256: string
+          p_codigo_canonico: string
+          p_execution_id: string
+          p_linha_excel: number
+          p_payload: Json
+        }
+        Returns: Json
+      }
+      fn_importador_v2_status_arquivo: {
+        Args: { p_arquivo_sha256: string }
+        Returns: {
+          codigo_ativo_canonico: string
+          created_at: string
+          equipamento_id: string
+          execution_id: string
+          linha_excel: number
+          mensagem: string
+          numero_tentativas: number
+          status: string
+        }[]
+      }
       fn_is_responsavel_item_ordem_diaria: {
         Args: { _ordem: string; _user: string }
         Returns: boolean
@@ -21217,6 +21593,156 @@ export type Database = {
           p_tipo?: string
         }
         Returns: string
+      }
+      fn_relatorio_aps_atualizar_carimbo: {
+        Args: {
+          p_bairro: string
+          p_carimbo_id: string
+          p_cliente: string
+          p_empresa: string
+          p_nome: string
+          p_obra: string
+          p_observacoes: string
+          p_revisao: string
+          p_updated_at_esperado: string
+        }
+        Returns: {
+          ativo: boolean
+          bairro: string | null
+          centro_custo_id: string | null
+          cliente: string | null
+          created_at: string
+          created_by: string
+          empresa: string | null
+          id: string
+          nome: string
+          obra: string | null
+          observacoes: string | null
+          padrao_centro_custo: boolean
+          revisao: string
+          updated_at: string
+          updated_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bd_relatorio_aps_carimbos"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      fn_relatorio_aps_criar_carimbo: {
+        Args: {
+          p_bairro: string
+          p_centro_custo_id: string
+          p_cliente: string
+          p_definir_padrao?: boolean
+          p_empresa: string
+          p_nome: string
+          p_obra: string
+          p_observacoes: string
+          p_revisao: string
+        }
+        Returns: {
+          ativo: boolean
+          bairro: string | null
+          centro_custo_id: string | null
+          cliente: string | null
+          created_at: string
+          created_by: string
+          empresa: string | null
+          id: string
+          nome: string
+          obra: string | null
+          observacoes: string | null
+          padrao_centro_custo: boolean
+          revisao: string
+          updated_at: string
+          updated_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bd_relatorio_aps_carimbos"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      fn_relatorio_aps_definir_carimbo_padrao: {
+        Args: { p_carimbo_id: string; p_centro_custo_id: string }
+        Returns: {
+          ativo: boolean
+          bairro: string | null
+          centro_custo_id: string | null
+          cliente: string | null
+          created_at: string
+          created_by: string
+          empresa: string | null
+          id: string
+          nome: string
+          obra: string | null
+          observacoes: string | null
+          padrao_centro_custo: boolean
+          revisao: string
+          updated_at: string
+          updated_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bd_relatorio_aps_carimbos"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      fn_relatorio_aps_desvincular_padrao: {
+        Args: { p_centro_custo_id: string }
+        Returns: {
+          ativo: boolean
+          bairro: string | null
+          centro_custo_id: string | null
+          cliente: string | null
+          created_at: string
+          created_by: string
+          empresa: string | null
+          id: string
+          nome: string
+          obra: string | null
+          observacoes: string | null
+          padrao_centro_custo: boolean
+          revisao: string
+          updated_at: string
+          updated_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bd_relatorio_aps_carimbos"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      fn_relatorio_aps_inativar_carimbo: {
+        Args: { p_carimbo_id: string; p_updated_at_esperado: string }
+        Returns: {
+          ativo: boolean
+          bairro: string | null
+          centro_custo_id: string | null
+          cliente: string | null
+          created_at: string
+          created_by: string
+          empresa: string | null
+          id: string
+          nome: string
+          obra: string | null
+          observacoes: string | null
+          padrao_centro_custo: boolean
+          revisao: string
+          updated_at: string
+          updated_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bd_relatorio_aps_carimbos"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       fn_remove_user_role_secure: {
         Args: { p_role_id: string; p_target_user_id: string }

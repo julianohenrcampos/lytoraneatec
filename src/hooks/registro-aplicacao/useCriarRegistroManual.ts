@@ -44,6 +44,8 @@ export interface RuaPayloadV2 {
   idLocal?: string;
   ordem_rua: number;
   logradouro: string;
+  /** Nome atual/local declarado manualmente pelo apontador (opcional). */
+  logradouro_nome_local?: string | null;
   bairro: string;
   cidade?: string | null;
   uf?: string | null;

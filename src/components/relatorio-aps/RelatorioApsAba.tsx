@@ -8,7 +8,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { RelatorioApsMapaHandle } from "./RelatorioApsMapa";
 import { format } from "date-fns";
-import { CalendarIcon, Info, RotateCcw, Search } from "lucide-react";
+import { CalendarIcon, Info, RotateCcw, Search, Stamp, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,12 +23,26 @@ import {
 } from "@/hooks/relatorio-aps/useRelatorioApsFiltros";
 import {
   useRelatorioApsIndice,
-  stripDiacritics,
 } from "@/hooks/relatorio-aps/useRelatorioApsIndice";
 import { useRelatorioApsState } from "@/hooks/relatorio-aps/useRelatorioApsState";
 import { extrairObservacoesLimpas } from "@/lib/relatorio-aps/limparObservacoes";
 import RelatorioApsBuilderContent from "./RelatorioApsBuilderContent";
 import RelatorioApsExportDropdown from "./RelatorioApsExportDropdown";
+import RelatorioApsCarimboSelector from "./RelatorioApsCarimboSelector";
+import RelatorioApsCarimboDialog from "./RelatorioApsCarimboDialog";
+import { useCarimboPadrao } from "@/hooks/relatorio-aps/useRelatorioApsCarimbos";
+import { usePermission } from "@/hooks/usePermission";
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface CentroCusto {
   id: string;
@@ -97,7 +111,7 @@ const RelatorioApsAba: React.FC<Props> = ({ centrosCusto }) => {
       ruasVisiveis.map((r) => ({
         value: r.chave,
         label: r.nome,
-        searchText: `${r.nome} ${stripDiacritics(r.nome)}`,
+        searchText: r.searchText,
       })),
     [ruasVisiveis],
   );
@@ -107,14 +121,22 @@ const RelatorioApsAba: React.FC<Props> = ({ centrosCusto }) => {
     [ruasVisiveis, ruaChave],
   );
 
+  // Rastreia o CC usado na última montagem para decidir se preserva o cabeçalho
+  // administrativo (5 campos) ao remontar. Rastreia também o CC atualmente aplicado
+  // para proteção contra respostas assíncronas obsoletas.
+  const ccUltimaMontagemRef = useRef<string>("");
+  const ccAtualRef = useRef<string>("");
+  useEffect(() => {
+    ccAtualRef.current = centroCustoId;
+  }, [centroCustoId]);
+
   const executarMontagem = async () => {
     if (!centroCustoId) return;
-    relatorioCtrl.resetar();
     const input: RelatorioApsFiltrosInput = {
       centroCustoId,
       dataInicio,
       dataFim,
-      logradouro: nomeRuaSelecionada || "__all__",
+      logradouroChave: ruaChave || "__all__",
     };
     await filtrosHook.buscar(input);
   };
@@ -142,17 +164,25 @@ const RelatorioApsAba: React.FC<Props> = ({ centrosCusto }) => {
     const primeiroRegistroId = resultado.detalhes[0].registro_aplicacao_id;
     const registro = resultado.registros.find((r) => r.id === primeiroRegistroId);
     const situacaoDefault = registro?.status_aplicacao || "";
-    const ruasUnicas = Array.from(
+    const exibicoesUnicas = Array.from(
       new Set(
         resultado.detalhes
-          .map((d) => (d.logradouro_nome || "").trim())
+          .map((d) => (d.logradouroExibicao || "").trim())
           .filter(Boolean),
       ),
     );
     const ruaSugerida =
-      ruasUnicas.length === 1
-        ? ruasUnicas[0]
+      exibicoesUnicas.length === 1
+        ? exibicoesUnicas[0]
         : registro?.logradouro_aplicado || nomeRuaSelecionada || "";
+
+    const mesmoCc = ccUltimaMontagemRef.current === centroCustoId;
+    ccUltimaMontagemRef.current = centroCustoId;
+
+    const mapaAtividade: Record<string, string | null> = {};
+    for (const r of resultado.registros) {
+      mapaAtividade[r.id] = r.atividade ?? null;
+    }
 
     relatorioCtrl.carregarDeSelecao({
       detalhes: resultado.detalhes,
@@ -161,9 +191,53 @@ const RelatorioApsAba: React.FC<Props> = ({ centrosCusto }) => {
         rua: ruaSugerida,
         observacoes: extrairObservacoesLimpas(registro?.observacoes_gerais),
       },
+      preservarCabecalhoAdmin: mesmoCc,
+      mapaAtividadePorRegistro: mapaAtividade,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtrosHook.resultado, filtrosHook.buscouAlgumaVez, filtrosHook.carregando]);
+
+  // ============ Carimbo padrão do CC (auto-aplicação) ============
+  const padraoQuery = useCarimboPadrao(centroCustoId || null);
+  const padraoAplicadoRef = useRef<string>(""); // "ccId::carimboId" já aplicado
+  useEffect(() => {
+    if (!centroCustoId) return;
+    // Anti-race: só aplica se o resultado corresponde ao CC atualmente selecionado
+    if (ccAtualRef.current !== centroCustoId) return;
+    const row = padraoQuery.data;
+    if (!row) return;
+    // Não sobrescreve se já existe carimbo selecionado
+    if (relatorioCtrl.carimboAtual) return;
+    // Não sobrescreve se o usuário mexeu nos campos administrativos
+    if (relatorioCtrl.carimboDirty) return;
+    const chave = `${centroCustoId}::${row.id}`;
+    if (padraoAplicadoRef.current === chave) return;
+    padraoAplicadoRef.current = chave;
+    relatorioCtrl.aplicarCarimbo(row);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [padraoQuery.data, centroCustoId]);
+
+  // Ao trocar CC manualmente, zera a marca do padrão aplicado do CC anterior.
+  useEffect(() => {
+    padraoAplicadoRef.current = "";
+  }, [centroCustoId]);
+
+  // Interceptação da troca de CC quando há alterações não salvas.
+  const [pendingCcChange, setPendingCcChange] = useState<string | null>(null);
+  const trocarCentroCusto = (novoCc: string) => {
+    if (novoCc === centroCustoId) return;
+    if (relatorioCtrl.carimboDirty) {
+      setPendingCcChange(novoCc);
+      return;
+    }
+    setCentroCustoId(novoCc);
+  };
+  const confirmarDescarteCcChange = () => {
+    if (pendingCcChange !== null) {
+      setCentroCustoId(pendingCcChange);
+      setPendingCcChange(null);
+    }
+  };
 
   const handleLimpar = () => {
     setCentroCustoId("");
@@ -172,16 +246,42 @@ const RelatorioApsAba: React.FC<Props> = ({ centrosCusto }) => {
     setDataFim(hoje);
     filtrosHook.resetar();
     relatorioCtrl.resetar();
+    relatorioCtrl.limparCarimboAtual();
+    ccUltimaMontagemRef.current = "";
+    padraoAplicadoRef.current = "";
   };
 
   const { erro, carregando, buscouAlgumaVez, resultado } = filtrosHook;
 
+  const { hasActionPermission } = usePermission();
+  const podeCriarCarimbo = hasActionPermission("relatorio_aplicacao_view", "criar");
+  const [novoCarimboOpen, setNovoCarimboOpen] = useState(false);
+
   return (
     <div className="space-y-4">
-      {/* Exportar no topo direito da aba */}
-      <div className="flex justify-end">
-        <RelatorioApsExportDropdown state={relatorioCtrl.state} mapaRef={mapaRef} />
+      {/* Ações no topo direito da aba */}
+      <div className="flex flex-wrap justify-end items-center gap-2">
+        {podeCriarCarimbo && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setNovoCarimboOpen(true)}
+            className="gap-2"
+          >
+            <Stamp className="h-4 w-4" />
+            Novo carimbo
+          </Button>
+        )}
+        <RelatorioApsExportDropdown
+          state={relatorioCtrl.state}
+          mapaRef={mapaRef}
+          centroCustoCodigo={
+            centrosCusto.find((c) => c.id === centroCustoId)?.codigo_centro_custo || ""
+          }
+        />
+
       </div>
+
 
       {/* Filtros */}
       <Card>
@@ -198,7 +298,7 @@ const RelatorioApsAba: React.FC<Props> = ({ centrosCusto }) => {
               <Combobox
                 options={ccOptions}
                 value={centroCustoId}
-                onChange={setCentroCustoId}
+                onChange={trocarCentroCusto}
                 placeholder="Selecione (código ou nome)"
                 emptyText="Nenhum centro no período"
                 searchPlaceholder="Buscar por código ou nome..."
@@ -282,8 +382,56 @@ const RelatorioApsAba: React.FC<Props> = ({ centrosCusto }) => {
               <AlertDescription>{indice.erro}</AlertDescription>
             </Alert>
           )}
+
+          {/* Carimbo do Relatório AP's */}
+          <RelatorioApsCarimboSelector
+            centroCustoId={centroCustoId || null}
+            centrosCusto={centrosCusto}
+            cabecalho={{
+              obra: relatorioCtrl.state.cabecalho.obra,
+              empresa: relatorioCtrl.state.cabecalho.empresa,
+              cliente: relatorioCtrl.state.cabecalho.cliente,
+              rua: relatorioCtrl.state.cabecalho.rua,
+              bairro: relatorioCtrl.state.cabecalho.bairro,
+              revisao: relatorioCtrl.state.cabecalho.revisao,
+              observacoes: relatorioCtrl.state.cabecalho.observacoes,
+            }}
+            carimboAtual={relatorioCtrl.carimboAtual}
+            isDirty={relatorioCtrl.carimboDirty}
+            onAplicar={(row) => relatorioCtrl.aplicarCarimbo(row)}
+            onLimparSelecao={() => relatorioCtrl.limparCarimboAtual()}
+            onLimparCabecalho={() => relatorioCtrl.limparCabecalhoAdmin()}
+            onRestaurar={() => relatorioCtrl.restaurarCarimbo()}
+            onSnapshotAtualizado={(row) => relatorioCtrl.atualizarSnapshotComRow(row)}
+          />
+
+
+          <div className="flex justify-end pt-2">
+            <Button variant="outline" size="sm" onClick={handleLimpar} disabled={carregando} className="gap-2">
+              <X className="h-4 w-4" />
+              Limpar Filtros
+            </Button>
+          </div>
         </CardContent>
       </Card>
+
+      <AlertDialog open={pendingCcChange !== null} onOpenChange={(v) => !v && setPendingCcChange(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Descartar alterações do carimbo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Há alterações não salvas nos campos administrativos. Ao trocar o Centro de Custo,
+              essas alterações serão perdidas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmarDescarteCcChange}>
+              Descartar e continuar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {buscouAlgumaVez && !carregando && resultado.detalhes.length === 0 && (
         <Alert>
@@ -315,7 +463,26 @@ const RelatorioApsAba: React.FC<Props> = ({ centrosCusto }) => {
           </CardContent>
         </Card>
       )}
+
+      <RelatorioApsCarimboDialog
+        open={novoCarimboOpen}
+        onOpenChange={setNovoCarimboOpen}
+        mode="criar"
+        centroCustoId={centroCustoId || null}
+        centrosCusto={centrosCusto}
+        initial={{
+          obra: relatorioCtrl.state.cabecalho.obra,
+          empresa: relatorioCtrl.state.cabecalho.empresa,
+          cliente: relatorioCtrl.state.cabecalho.cliente,
+          bairro: relatorioCtrl.state.cabecalho.bairro,
+          revisao: relatorioCtrl.state.cabecalho.revisao || "00",
+          observacoes: relatorioCtrl.state.cabecalho.observacoes,
+        }}
+        podeEditarPadrao={hasActionPermission("relatorio_aplicacao_view", "editar")}
+        onSalvo={(row) => relatorioCtrl.aplicarCarimbo(row)}
+      />
     </div>
+
   );
 };
 

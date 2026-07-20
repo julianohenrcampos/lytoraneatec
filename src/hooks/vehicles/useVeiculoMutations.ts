@@ -23,6 +23,9 @@ export const useVeiculoMutations = (
     mutationFn: (data: VeiculoFormData) => createVeiculo(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['veiculos'] });
+      queryClient.invalidateQueries({ queryKey: ['disponibilidades'] });
+      queryClient.invalidateQueries({ queryKey: ['mapa-operacional'] });
+      queryClient.invalidateQueries({ queryKey: ['equipamentos-dd'] });
       toast({
         title: "Sucesso",
         description: "Veículo/Equipamento criado com sucesso!",
@@ -65,6 +68,7 @@ export const useVeiculoMutations = (
     mutationFn: (id: string) => deleteVeiculo(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['veiculos'] });
+      queryClient.invalidateQueries({ queryKey: ['equipamentos-dd'] });
       toast({
         title: "Sucesso",
         description: "Veículo/Equipamento excluído com sucesso!",
@@ -86,6 +90,8 @@ export const useVeiculoMutations = (
     mutationFn: (veiculos: VeiculoFormData[] | File) => importVeiculos(veiculos),
     onSuccess: (result: { success: any[]; errors: any[] }) => {
       queryClient.invalidateQueries({ queryKey: ['veiculos'] });
+      queryClient.invalidateQueries({ queryKey: ['equipamentos-dd'] });
+
 
       if (result.success.length > 0) {
         toast({
@@ -121,10 +127,13 @@ export const useVeiculoMutations = (
 
   return {
     createVeiculo: createMutation.mutate,
+    createVeiculoAsync: (data: VeiculoFormData) => createMutation.mutateAsync(data),
     isCreating: createMutation.isPending,
     updateVeiculo: (id: string, data: Partial<Veiculo>) => updateMutation.mutate({ id, data }),
+    updateVeiculoAsync: (id: string, data: Partial<Veiculo>) => updateMutation.mutateAsync({ id, data }),
     isUpdating: updateMutation.isPending,
     deleteVeiculo: deleteMutation.mutate,
+    deleteVeiculoAsync: (id: string) => deleteMutation.mutateAsync(id),
     isDeleting: deleteMutation.isPending,
     importVeiculos: (data: VeiculoFormData[] | File) => {
       return importMutation.mutateAsync(data);
@@ -132,3 +141,4 @@ export const useVeiculoMutations = (
     isImporting: importMutation.isPending,
   };
 };
+

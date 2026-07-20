@@ -1,13 +1,19 @@
 /**
- * useRelatorioApsIndice — E3.2
- * Índice cruzado (Centro de Custo ↔ Rua/Logradouro) dos registros manuais
- * dentro do período informado. Popula os dois Combobox da aba
- * "Relatório AP's" e habilita filtro cruzado bidirecional.
+ * useRelatorioApsIndice — E3.2 (revisado no fechamento "Nome Local da Rua").
  *
- * Somente leitura. Nenhuma escrita no Supabase.
+ * Índice cruzado (Centro de Custo ↔ Rua/Logradouro) dos registros manuais
+ * no período. Usa a mesma identidade estável (chaveRelatorioRua) do
+ * useRelatorioApsFiltros. Somente leitura, batch único por execução.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  buscarRuasAplicacaoPorRegistroIds,
+  enriquecerDetalhes,
+} from "@/services/relatorio-aps/relatorioApsRuasService";
+import type { DetalheAps } from "@/types/relatorioApsDetalhe";
+import type { RuaOption } from "@/types/relatorioApsRuaOption";
+import { normalizarTextoLogradouro } from "@/utils/registroAplicacao/normalizarTextoLogradouro";
 
 const toIsoDate = (d: Date): string => {
   const y = d.getFullYear();
@@ -19,22 +25,18 @@ const toIsoDate = (d: Date): string => {
 export const stripDiacritics = (s: string): string =>
   s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-export const normalizarRua = (s: string | null | undefined): string =>
-  stripDiacritics((s || "").trim().toLocaleLowerCase("pt-BR")).replace(/\s+/g, " ");
-
 interface RegistroLite {
   id: string;
   centro_custo_id: string | null;
 }
 interface DetalheLite {
+  id: string;
   registro_aplicacao_id: string;
+  rua_aplicacao_id: string | null;
   logradouro_nome: string | null;
 }
 
-export interface RuaOption {
-  chave: string;
-  nome: string;
-}
+export type { RuaOption };
 
 export function useRelatorioApsIndice(dataInicio: Date, dataFim: Date) {
   const [ccIds, setCcIds] = useState<Set<string>>(new Set());
@@ -77,19 +79,45 @@ export function useRelatorioApsIndice(dataInicio: Date, dataFim: Date) {
       const ids = regs.map((r) => r.id);
       const { data: detalhes, error: e2 } = await supabase
         .from("bd_registro_aplicacao_detalhes")
-        .select("registro_aplicacao_id, logradouro_nome")
+        .select("id, registro_aplicacao_id, rua_aplicacao_id, logradouro_nome")
         .in("registro_aplicacao_id", ids);
       if (e2) throw e2;
-      const dets = (detalhes || []) as DetalheLite[];
+      const ruasLocais = await buscarRuasAplicacaoPorRegistroIds(ids);
 
-      const nomePorChave = new Map<string, string>();
+      // Enriquecimento tipado: usa DetalheAps parcial preenchido com campos
+      // efetivamente lidos aqui — os demais campos ficam ausentes (unknown).
+      const detsParaEnriq: DetalheAps[] = ((detalhes || []) as DetalheLite[]).map(
+        (d) => ({
+          id: d.id,
+          registro_aplicacao_id: d.registro_aplicacao_id,
+          rua_aplicacao_id: d.rua_aplicacao_id ?? null,
+          sequencia_aplicacao: null,
+          logradouro_nome: d.logradouro_nome,
+          data_aplicacao: null,
+          latitude: null,
+          longitude: null,
+          fotos_aplicacao: null,
+        }),
+      );
+      const dets = enriquecerDetalhes(detsParaEnriq, ruasLocais);
+
+      const opcoesPorChave = new Map<string, RuaOption>();
       const ccToRuas = new Map<string, Set<string>>();
       const ruaToCcs = new Map<string, Set<string>>();
       for (const d of dets) {
-        const nome = (d.logradouro_nome || "").trim();
-        if (!nome) continue;
-        const chave = normalizarRua(nome);
-        if (!nomePorChave.has(chave)) nomePorChave.set(chave, nome);
+        if (!d.logradouroMapa && !d.logradouroLocal) continue;
+        const chave = d.chaveRelatorioRua;
+        if (!opcoesPorChave.has(chave)) {
+          opcoesPorChave.set(chave, {
+            chave,
+            nome: d.logradouroExibicao || "Sem logradouro",
+            searchText: normalizarTextoLogradouro(
+              `${d.logradouroMapa} ${d.logradouroLocal}`,
+            ),
+            logradouroMapa: d.logradouroMapa,
+            logradouroLocal: d.logradouroLocal,
+          });
+        }
         const cc = regToCc.get(d.registro_aplicacao_id);
         if (!cc) continue;
         if (!ccToRuas.has(cc)) ccToRuas.set(cc, new Set());
@@ -97,9 +125,9 @@ export function useRelatorioApsIndice(dataInicio: Date, dataFim: Date) {
         if (!ruaToCcs.has(chave)) ruaToCcs.set(chave, new Set());
         ruaToCcs.get(chave)!.add(cc);
       }
-      const opts: RuaOption[] = Array.from(nomePorChave.entries())
-        .map(([chave, nome]) => ({ chave, nome }))
-        .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+      const opts: RuaOption[] = Array.from(opcoesPorChave.values()).sort(
+        (a, b) => a.nome.localeCompare(b.nome, "pt-BR"),
+      );
       setCcIds(ccSet);
       setRuas(opts);
       setMapCcToRuas(ccToRuas);

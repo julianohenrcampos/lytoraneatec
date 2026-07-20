@@ -159,7 +159,20 @@ const rotuloItem = (tipo_item: string, seq: number): string => {
 };
 
 const genLocalId = () =>
-  `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  `local-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
+
+/**
+ * Narrowing tipado para hidratar strings vindas de drafts persistidos.
+ * Isolado aqui para não espalhar `any` pelo modal — cobre drafts antigos
+ * (propriedade ausente) e drafts com propriedade de tipo inválido.
+ */
+function lerStringDeDraft(fonte: unknown, chave: string): string {
+  if (fonte && typeof fonte === "object") {
+    const v = (fonte as Record<string, unknown>)[chave];
+    if (typeof v === "string") return v;
+  }
+  return "";
+}
 
 interface CentroCustoOpt {
   id: string;
@@ -218,6 +231,7 @@ interface RuaLocal {
   idLocal: string;
   chaveNorm: string;
   logradouro: string;
+  logradouroNomeLocal: string;
   bairro: string;
   cidade: string;
   uf: string;
@@ -236,6 +250,7 @@ interface RuaLocal {
 
 interface RuaFormState {
   logradouro: string;
+  logradouroNomeLocal: string;
   bairro: string;
   cidade: string;
   uf: string;
@@ -282,6 +297,7 @@ const emptyCarga = (): DadosCargaState => ({
 
 const emptyRuaForm = (): RuaFormState => ({
   logradouro: "",
+  logradouroNomeLocal: "",
   bairro: "",
   cidade: "",
   uf: "",
@@ -650,6 +666,9 @@ const NovoRegistroManualModal: React.FC<Props> = ({
         if (Array.isArray(d.ruas) && d.ruas.length) {
           ruasHidr = d.ruas.map((r: any) => ({
             ...r,
+            // Narrowing tipado: draft antigo (sem propriedade) e draft com
+            // valor inválido caem para "".
+            logradouroNomeLocal: lerStringDeDraft(r, "logradouroNomeLocal"),
             buracos: (r.buracos || []).map((b: any) => ({
               ...b,
               fotos: [], // Files não são persistidos
@@ -669,6 +688,7 @@ const NovoRegistroManualModal: React.FC<Props> = ({
               idLocal: ruaId,
               chaveNorm: chave,
               logradouro: iniAny.logradouro || "",
+              logradouroNomeLocal: lerStringDeDraft(iniAny, "logradouroNomeLocal"),
               bairro: iniAny.bairro || "",
               cidade: iniAny.cidade || "",
               uf: iniAny.uf || "",
@@ -771,6 +791,7 @@ const NovoRegistroManualModal: React.FC<Props> = ({
         idLocal: r.idLocal,
         chaveNorm: chave,
         logradouro: r.logradouro,
+        logradouroNomeLocal: r.logradouroNomeLocal || "",
         bairro: r.bairro,
         cidade: r.cidade,
         uf: r.uf,
@@ -1170,6 +1191,7 @@ const NovoRegistroManualModal: React.FC<Props> = ({
                   ...r,
                   chaveNorm: chave,
                   logradouro: logr,
+                  logradouroNomeLocal: ruaForm.logradouroNomeLocal.trim(),
                   bairro: bair,
                   cidade: ruaForm.cidade.trim(),
                   uf: ruaForm.uf.trim(),
@@ -1202,6 +1224,7 @@ const NovoRegistroManualModal: React.FC<Props> = ({
       idLocal: genLocalId(),
       chaveNorm: chave,
       logradouro: logr,
+      logradouroNomeLocal: ruaForm.logradouroNomeLocal.trim(),
       bairro: bair,
       cidade: ruaForm.cidade.trim(),
       uf: ruaForm.uf.trim(),
@@ -1496,6 +1519,7 @@ const NovoRegistroManualModal: React.FC<Props> = ({
     setEditingRuaId(ruaId);
     setRuaForm({
       logradouro: r.logradouro,
+      logradouroNomeLocal: r.logradouroNomeLocal || "",
       bairro: r.bairro,
       cidade: r.cidade,
       uf: r.uf,
@@ -1713,6 +1737,7 @@ const NovoRegistroManualModal: React.FC<Props> = ({
         idLocal: r.idLocal,
         ordem_rua: idx + 1,
         logradouro: r.logradouro,
+        logradouro_nome_local: (r.logradouroNomeLocal || "").trim() || null,
         bairro: bairroPayload,
         cidade: cidadePayload || null,
         uf: ufPayload || null,
@@ -2305,9 +2330,23 @@ const NovoRegistroManualModal: React.FC<Props> = ({
                                 availableScopes={availableAddressScopes}
                               />
 
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">Bairro *</Label>
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <Label className="text-xs">Nome atual/local da rua</Label>
+              <Input
+                value={ruaForm.logradouroNomeLocal}
+                maxLength={250}
+                placeholder="Ex.: Beco do João"
+                onChange={(e) =>
+                  setRuaForm({ ...ruaForm, logradouroNomeLocal: e.target.value })
+                }
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Preencha somente quando o nome exibido no mapa for diferente do nome atual da placa ou conhecido no local.
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Bairro *</Label>
                               <Input
                                 value={ruaForm.bairro}
                                 onChange={(e) =>

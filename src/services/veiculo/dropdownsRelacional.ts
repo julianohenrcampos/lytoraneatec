@@ -94,3 +94,28 @@ export const getCentrosCustoDropdown = async () => {
 
   return data;
 };
+
+/**
+ * Centros de Custo ativos e no escopo do usuário — usado no cadastro de veículo
+ * para permitir informar opcionalmente o CC inicial (origem CADASTRO).
+ */
+export const getCentrosCustoAtivosDropdown = async () => {
+  const { data, error } = await supabase
+    .from("bd_centros_custo")
+    .select("id, nome_centro_custo, codigo_centro_custo, situacao")
+    .eq("situacao", "Ativo")
+    .order("codigo_centro_custo")
+    .order("nome_centro_custo");
+
+  if (error) {
+    console.error("Error fetching centros custo ativos dropdown:", error);
+    throw error;
+  }
+
+  return (data ?? []) as {
+    id: string;
+    nome_centro_custo: string;
+    codigo_centro_custo: string;
+    situacao: string | null;
+  }[];
+};

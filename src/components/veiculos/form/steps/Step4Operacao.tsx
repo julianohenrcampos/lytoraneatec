@@ -11,19 +11,43 @@ interface Props {
   form: UseFormReturn<any>;
   departamentos: { id: string; nome_departamento: string }[];
   empresas: { id: string; nome_empresa: string }[];
+  mode: 'create' | 'edit';
+  centrosCustoAtivos?: { id: string; nome_centro_custo: string; codigo_centro_custo: string }[];
   centroCustoAtual?: {
     nome: string | null;
     codigo: string | null;
-    origem: 'APONTAMENTO_CE' | 'DISPONIBILIDADE' | 'SEM_ALOCACAO' | null;
+    origem:
+      | 'CADASTRO'
+      | 'APONTAMENTO_CE'
+      | 'DISPONIBILIDADE'
+      | 'CENTRAL_TRANSPORTE'
+      | 'SEM_ALOCACAO'
+      | null;
     atualizadoEm: string | null;
   } | null;
 }
 
-const Step4Operacao: React.FC<Props> = ({ form, departamentos, empresas, centroCustoAtual }) => {
+const ORIGEM_LABEL: Record<string, string> = {
+  CADASTRO: 'Cadastro',
+  APONTAMENTO_CE: 'Apontamento C&E',
+  DISPONIBILIDADE: 'Disponibilidade',
+  CENTRAL_TRANSPORTE: 'Central do Transporte',
+  SEM_ALOCACAO: 'Sem alocação',
+};
+
+const Step4Operacao: React.FC<Props> = ({ form, departamentos, empresas, mode, centrosCustoAtivos, centroCustoAtual }) => {
   const departamentoOptions = useMemo(() => [
     { value: "_none", label: "Nenhum" },
     ...departamentos.map((d) => ({ value: d.id, label: d.nome_departamento })),
   ], [departamentos]);
+
+  const centroCustoOptions = useMemo(() => [
+    { value: "_none", label: "Nenhum (definir depois via apontamento/disponibilidade)" },
+    ...(centrosCustoAtivos ?? []).map((c) => ({
+      value: c.id,
+      label: `${c.codigo_centro_custo} — ${c.nome_centro_custo}`,
+    })),
+  ], [centrosCustoAtivos]);
 
   return (
     <div className="space-y-4">
@@ -32,7 +56,30 @@ const Step4Operacao: React.FC<Props> = ({ form, departamentos, empresas, centroC
           📊 Operação
         </h3>
 
-        {centroCustoAtual !== undefined && (
+        {mode === 'create' && (
+          <FormField control={form.control} name="centro_custo_atual_id" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Centro de Custo inicial (opcional)</FormLabel>
+              <FormControl>
+                <Combobox
+                  options={centroCustoOptions}
+                  value={field.value || "_none"}
+                  onChange={field.onChange}
+                  placeholder="Selecione um Centro de Custo"
+                  searchPlaceholder="Buscar por código ou nome..."
+                  emptyText="Nenhum Centro de Custo encontrado"
+                />
+              </FormControl>
+              <p className="text-[11px] text-muted-foreground">
+                Após o primeiro apontamento C&amp;E ou mudança de disponibilidade, esta alocação é
+                atualizada automaticamente.
+              </p>
+              <FormMessage />
+            </FormItem>
+          )} />
+        )}
+
+        {mode === 'edit' && centroCustoAtual !== undefined && (
           <div className="rounded-md border bg-muted/40 p-3">
             <div className="text-xs uppercase tracking-wide text-muted-foreground">
               Centro de Custo Atual (somente leitura)
@@ -47,7 +94,7 @@ const Step4Operacao: React.FC<Props> = ({ form, departamentos, empresas, centroC
               </span>
               {centroCustoAtual?.origem && centroCustoAtual.origem !== 'SEM_ALOCACAO' && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded border bg-background uppercase tracking-wide">
-                  {centroCustoAtual.origem === 'APONTAMENTO_CE' ? 'Apontamento C&E' : 'Disponibilidade'}
+                  {ORIGEM_LABEL[centroCustoAtual.origem] ?? centroCustoAtual.origem}
                 </span>
               )}
             </div>
@@ -57,10 +104,12 @@ const Step4Operacao: React.FC<Props> = ({ form, departamentos, empresas, centroC
               </div>
             )}
             <div className="mt-1 text-[11px] text-muted-foreground italic">
-              Origem: último apontamento C&amp;E → última disponibilidade. Ajustado automaticamente.
+              Origem: Apontamento C&amp;E &gt; Central do Transporte &gt; Disponibilidade &gt; Cadastro. Ajustado automaticamente.
             </div>
           </div>
         )}
+
+
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Situação */}
@@ -77,6 +126,7 @@ const Step4Operacao: React.FC<Props> = ({ form, departamentos, empresas, centroC
                     <SelectItem value="Em Manutenção">Em Manutenção</SelectItem>
                     <SelectItem value="Disponível">Disponível</SelectItem>
                     <SelectItem value="Intempérie">Intempérie</SelectItem>
+                    <SelectItem value="Ativo">Ativo</SelectItem>
                   </SelectContent>
                 </Select>
               </FormControl>
@@ -126,7 +176,7 @@ const Step4Operacao: React.FC<Props> = ({ form, departamentos, empresas, centroC
           {/* Capacidade Valor */}
           <FormField control={form.control} name="capacidade_valor" render={({ field }) => (
             <FormItem>
-              <FormLabel>Capacidade (valor)</FormLabel>
+              <FormLabel>Capacidade</FormLabel>
               <FormControl>
                 <Input type="number" step="0.01" min={0} placeholder="Ex: 14" {...field} value={field.value || ""} />
               </FormControl>
@@ -155,7 +205,7 @@ const Step4Operacao: React.FC<Props> = ({ form, departamentos, empresas, centroC
           {/* Aluguel */}
           <FormField control={form.control} name="aluguel" render={({ field }) => (
             <FormItem>
-              <FormLabel>Aluguel (se aplicável)</FormLabel>
+              <FormLabel>Valor (locação)</FormLabel>
               <FormControl>
                 <Input placeholder="Valor do aluguel" {...field} value={field.value || ""} />
               </FormControl>

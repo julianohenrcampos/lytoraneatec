@@ -1,7 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchRegistroAplicacaoById } from "@/services/registro-aplicacao/fetchRegistroAplicacao";
 import { buscarAplicacoesPorRegistro } from "@/services/registro-aplicacao/aplicacaoPorRuaService";
+import type {
+  RelatorioApsCarimboCabecalho,
+  RelatorioApsCarimboRow,
+} from "@/types/relatorioApsCarimbo";
+import {
+  aplicarCarimboNoCabecalho,
+  extrairCarimboDoRow,
+  isCarimboDirty as calcCarimboDirty,
+  limparCarimboDoCabecalho,
+} from "@/lib/relatorio-aps/montarCabecalhoRelatorioAps";
 import {
   montarFotosDisponiveisFromDetalhes,
   montarLinhasFromDetalhes,
@@ -42,7 +52,7 @@ async function carregarPontosRua(registroIds: string[]): Promise<RelatorioApsPon
   try {
     const { data, error } = await supabase
       .from("bd_registro_aplicacao_ruas")
-      .select("id, ordem_rua, logradouro_nome, latitude, longitude")
+      .select("id, ordem_rua, logradouro_nome, logradouro_nome_local, latitude, longitude")
       .in("registro_aplicacao_id", ids)
       .order("ordem_rua", { ascending: true });
     if (error) {
@@ -63,6 +73,25 @@ export interface CarregarDeSelecaoOpts {
   situacaoDefault?: string;
   /** Sobrescreve campos do cabeçalho (Rua/Obs) — usados quando montado a partir de múltiplos registros. */
   cabecalhoOverride?: Partial<RelatorioApsCabecalhoEditavel>;
+  /**
+   * Quando true, PRESERVA os 5 campos administrativos (obra/empresa/cliente/bairro/revisao)
+   * e o carimbo atualmente selecionado. Usado quando o CC permanece o mesmo entre remontagens
+   * (evita "flash" com cabeçalho vazio).
+   */
+  preservarCabecalhoAdmin?: boolean;
+  /**
+   * Mapa registro_aplicacao_id → atividade original de `bd_registro_apontamento_aplicacao`.
+   * Propagado para as linhas para permitir tradução do tipo de aplicação nos exportadores.
+   */
+  mapaAtividadePorRegistro?: Record<string, string | null | undefined>;
+}
+
+export interface CarimboAtualMeta {
+  id: string;
+  nome: string;
+  centro_custo_id: string | null;
+  padrao_centro_custo: boolean;
+  updated_at: string;
 }
 
 /**
@@ -84,6 +113,63 @@ export function useRelatorioApsState(registroAplicacaoId: string | null) {
     fotosSelecionadas: [],
     mapa: mapaVazio(),
   });
+
+  // ============ Carimbo do Relatório AP's (persistência dos 5 campos) ============
+  const [carimboAtual, setCarimboAtual] = useState<CarimboAtualMeta | null>(null);
+  const [carimboSnapshot, setCarimboSnapshot] =
+    useState<RelatorioApsCarimboCabecalho | null>(null);
+
+  const aplicarCarimbo = useCallback((row: RelatorioApsCarimboRow) => {
+    const snap = extrairCarimboDoRow(row);
+    setCarimboAtual({
+      id: row.id,
+      nome: row.nome,
+      centro_custo_id: row.centro_custo_id,
+      padrao_centro_custo: row.padrao_centro_custo,
+      updated_at: row.updated_at,
+    });
+    setCarimboSnapshot(snap);
+    setState((prev) => ({
+      ...prev,
+      cabecalho: aplicarCarimboNoCabecalho(prev.cabecalho, snap),
+    }));
+  }, []);
+
+  const restaurarCarimbo = useCallback(() => {
+    setState((prev) =>
+      carimboSnapshot
+        ? { ...prev, cabecalho: aplicarCarimboNoCabecalho(prev.cabecalho, carimboSnapshot) }
+        : prev,
+    );
+  }, [carimboSnapshot]);
+
+  const limparCabecalhoAdmin = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      cabecalho: limparCarimboDoCabecalho(prev.cabecalho),
+    }));
+  }, []);
+
+  const limparCarimboAtual = useCallback(() => {
+    setCarimboAtual(null);
+    setCarimboSnapshot(null);
+  }, []);
+
+  const atualizarSnapshotComRow = useCallback((row: RelatorioApsCarimboRow) => {
+    setCarimboAtual({
+      id: row.id,
+      nome: row.nome,
+      centro_custo_id: row.centro_custo_id,
+      padrao_centro_custo: row.padrao_centro_custo,
+      updated_at: row.updated_at,
+    });
+    setCarimboSnapshot(extrairCarimboDoRow(row));
+  }, []);
+
+  const carimboDirty = useMemo(
+    () => calcCarimboDirty(state.cabecalho, carimboSnapshot),
+    [state.cabecalho, carimboSnapshot],
+  );
 
   const carregar = useCallback(async (id: string) => {
     setState((prev) => ({
@@ -151,7 +237,13 @@ export function useRelatorioApsState(registroAplicacaoId: string | null) {
   }, []);
 
   const carregarDeSelecao = useCallback(async (opts: CarregarDeSelecaoOpts) => {
-    const { detalhes, situacaoDefault = "", cabecalhoOverride = {} } = opts;
+    const {
+      detalhes,
+      situacaoDefault = "",
+      cabecalhoOverride = {},
+      preservarCabecalhoAdmin = false,
+      mapaAtividadePorRegistro,
+    } = opts;
     setState((prev) => ({
       ...prev,
       carregando: true,
@@ -161,8 +253,12 @@ export function useRelatorioApsState(registroAplicacaoId: string | null) {
       fotosSelecionadas: [],
       mapa: mapaVazio(),
     }));
+    if (!preservarCabecalhoAdmin) {
+      setCarimboAtual(null);
+      setCarimboSnapshot(null);
+    }
     try {
-      const linhas = montarLinhasFromDetalhes(detalhes, situacaoDefault);
+      const linhas = montarLinhasFromDetalhes(detalhes, situacaoDefault, mapaAtividadePorRegistro);
       const pontosServico = montarPontosServicoFromDetalhes(detalhes);
       const registroIds = (detalhes || [])
         .map((d) => String(d?.registro_aplicacao_id ?? ""))
@@ -175,24 +271,28 @@ export function useRelatorioApsState(registroAplicacaoId: string | null) {
         pontos: pontosServico.length,
         pontosRua: pontosRua.length,
         fotos: fotosDisponiveis.length,
+        preservarCabecalhoAdmin,
       });
-      setState((prev) => ({
-        registroId: null,
-        carregando: false,
-        erro: null,
-        cabecalho: {
-          ...criarCabecalhoDefault(),
-          ...cabecalhoOverride,
-        },
-        linhas,
-        fotosDisponiveis,
-        fotosSelecionadas: [],
-        mapa: {
-          ...mapaVazio(),
-          pontosServico,
-          pontosRua,
-        },
-      }));
+      setState((prev) => {
+        // Base: default OU cabeçalho atual (para preservar 5 campos + peso).
+        const base = preservarCabecalhoAdmin
+          ? prev.cabecalho
+          : criarCabecalhoDefault();
+        return {
+          registroId: null,
+          carregando: false,
+          erro: null,
+          cabecalho: { ...base, ...cabecalhoOverride },
+          linhas,
+          fotosDisponiveis,
+          fotosSelecionadas: [],
+          mapa: {
+            ...mapaVazio(),
+            pontosServico,
+            pontosRua,
+          },
+        };
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Erro ao montar relatório";
       setState((prev) => ({ ...prev, carregando: false, erro: msg }));
@@ -600,6 +700,15 @@ export function useRelatorioApsState(registroAplicacaoId: string | null) {
     recarregar,
     carregarDeSelecao,
     resetar,
+    // Carimbo
+    carimboAtual,
+    carimboSnapshot,
+    carimboDirty,
+    aplicarCarimbo,
+    restaurarCarimbo,
+    limparCabecalhoAdmin,
+    limparCarimboAtual,
+    atualizarSnapshotComRow,
   };
 }
 

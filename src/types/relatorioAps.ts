@@ -35,6 +35,14 @@ export interface RelatorioApsLinha {
   pesoKgM2: number;
   /** Regra A: tonelada_aplicada * 1000. Não editável. */
   totalKg: number;
+  /** registro_aplicacao_id — usado por exportadores para deduzir tipo de aplicação. */
+  registroAplicacaoId?: string;
+  /**
+   * Tipo real da aplicação já traduzido a partir de
+   * `bd_registro_apontamento_aplicacao.atividade`. Propagado somente pelo fluxo
+   * multi-registro (`carregarDeSelecao`). Fluxos legados (E1/E2) deixam null.
+   */
+  tipoAplicacao?: string | null;
 }
 
 export interface RelatorioApsFotoDisponivel {

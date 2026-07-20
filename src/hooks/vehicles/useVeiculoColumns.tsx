@@ -7,6 +7,7 @@ import VeiculoStatusBadge from "@/components/veiculos/table/VeiculoStatusBadge";
 import VeiculoActions from "@/components/veiculos/table/VeiculoActions";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
+import { formatIdentificadorFromVeiculo } from "@/utils/formatIdentificadorAtivo";
 
 
 interface UseVeiculoColumnsProps {
@@ -39,19 +40,15 @@ export const useVeiculoColumns = ({
       header: "Identificador",
       cell: ({ row }) => {
         const veiculo = row.original;
-        let identificador = "";
-        
-        if (veiculo.frota && veiculo.numero_frota) {
-          identificador += `${veiculo.frota}${veiculo.numero_frota}`;
+        const principal = formatIdentificadorFromVeiculo(veiculo);
+        const placa = veiculo.placa && veiculo.placa.trim();
+        if (principal !== "Sem identificador" && placa && !principal.includes(placa)) {
+          return `${principal} — ${placa}`;
         }
-        
-        if (veiculo.placa) {
-          identificador += identificador ? ` - ${veiculo.placa}` : veiculo.placa;
-        }
-        
-        return identificador || "N/A";
+        return principal;
       },
     },
+
     {
       id: "categoria",
       header: "Categoria",

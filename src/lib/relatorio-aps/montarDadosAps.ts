@@ -2,8 +2,14 @@
  * Helpers puros para transformar detalhes brutos (bd_registro_aplicacao_detalhes)
  * em estruturas do Relatório AP's. Reutilizados pelo hook em modo registro-único
  * (E1/E2) e pelo modo multi-registro/multi-trecho (E3.1).
+ *
+ * Fechamento "Nome Local da Rua": os detalhes enriquecidos passam a expor
+ * `logradouroExibicao` (label "Mapa / Local"). Todas as labels visíveis
+ * (linhas, pontos, fotos) usam esse campo — nunca `logradouro_nome`
+ * diretamente. Coordenadas/geometria/geocode NÃO são alteradas.
  */
 import { criarSignedUrlFotoManual } from "@/services/registro-aplicacao/uploadFotosManual";
+import type { DetalheApsEnriquecido } from "@/types/relatorioApsDetalhe";
 import {
   montarLegendaSugerida,
   RELATORIO_APS_PESO_DEFAULT,
@@ -13,11 +19,20 @@ import {
   type RelatorioApsPontoServico,
 } from "@/types/relatorioAps";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DetalheRaw = Record<string, any>;
 
+/** Extrai o label combinado quando o detalhe já foi enriquecido; senão cai no logradouro_nome. */
+function labelDetalhe(d: DetalheRaw | DetalheApsEnriquecido): string {
+  const enriquecido = (d as DetalheApsEnriquecido)?.logradouroExibicao;
+  if (typeof enriquecido === "string" && enriquecido.length > 0) return enriquecido;
+  return (d?.logradouro_nome as string | undefined) || "";
+}
+
 export function montarLinhasFromDetalhes(
-  detalhes: DetalheRaw[],
+  detalhes: Array<DetalheRaw | DetalheApsEnriquecido>,
   situacaoDefault: string,
+  tipoAplicacaoPorRegistro?: Record<string, string | null | undefined>,
 ): RelatorioApsLinha[] {
   const linhas: RelatorioApsLinha[] = (detalhes || []).map((d) => {
     const tonelada = Number(d?.tonelada_aplicada ?? 0);
@@ -27,10 +42,13 @@ export function montarLinhasFromDetalhes(
         : d?.espessura_calculada != null
           ? Number(d.espessura_calculada)
           : null;
+    const registroId = d?.registro_aplicacao_id
+      ? String(d.registro_aplicacao_id)
+      : undefined;
     return {
       id: String(d.id),
       sequencia: Number(d?.sequencia_aplicacao ?? 0),
-      logradouro: d?.logradouro_nome || "",
+      logradouro: labelDetalhe(d),
       data: d?.data_aplicacao || "",
       trecho: String(d?.sequencia_aplicacao ?? ""),
       situacao: situacaoDefault,
@@ -40,10 +58,13 @@ export function montarLinhasFromDetalhes(
       espessura,
       pesoKgM2: RELATORIO_APS_PESO_DEFAULT,
       totalKg: tonelada * 1000,
+      registroAplicacaoId: registroId,
+      tipoAplicacao:
+        registroId && tipoAplicacaoPorRegistro
+          ? tipoAplicacaoPorRegistro[registroId] ?? null
+          : null,
     };
   });
-  // B.3.5-D.M7-A parte 2: ordenação canônica compartilhada por tela/PDF/Excel.
-  // 1) data ASC (normalizada), 2) logradouro ASC, 3) sequencia ASC, 4) id ASC.
   const normData = (d: string): string => {
     if (!d) return "";
     if (/^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0, 10);
@@ -65,7 +86,7 @@ export function montarLinhasFromDetalhes(
 }
 
 export function montarPontosServicoFromDetalhes(
-  detalhes: DetalheRaw[],
+  detalhes: Array<DetalheRaw | DetalheApsEnriquecido>,
 ): RelatorioApsPontoServico[] {
   const pontos: RelatorioApsPontoServico[] = [];
   for (const d of detalhes || []) {
@@ -83,7 +104,7 @@ export function montarPontosServicoFromDetalhes(
         sequencia: Number(d?.sequencia_aplicacao ?? 0),
         latitude: lat,
         longitude: lng,
-        logradouro: d?.logradouro_nome || "",
+        logradouro: labelDetalhe(d),
       });
     }
   }
@@ -91,9 +112,13 @@ export function montarPontosServicoFromDetalhes(
   return pontos;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type RuaRaw = Record<string, any>;
 
-/** Extrai pontos de ruas (bd_registro_aplicacao_ruas) com lat/lng válidos. */
+/**
+ * Extrai pontos de ruas (bd_registro_aplicacao_ruas) com lat/lng válidos.
+ * O label usa o combinado "Mapa / Local" quando disponível.
+ */
 export function montarPontosRuaFromRuas(ruas: RuaRaw[]): RelatorioApsPontoRua[] {
   const pontos: RelatorioApsPontoRua[] = [];
   for (const r of ruas || []) {
@@ -106,12 +131,18 @@ export function montarPontosRuaFromRuas(ruas: RuaRaw[]): RelatorioApsPontoRua[] 
       Math.abs(lng) <= 180 &&
       !(lat === 0 && lng === 0)
     ) {
+      const mapa = String(r?.logradouro_nome || "").trim();
+      const local = String(r?.logradouro_nome_local || "").trim();
+      const label =
+        mapa && local && mapa.toLowerCase() !== local.toLowerCase()
+          ? `${mapa} / ${local}`
+          : mapa || local || "";
       pontos.push({
         ruaId: String(r.id),
         ordem: Number(r?.ordem_rua ?? 0),
         latitude: lat,
         longitude: lng,
-        logradouro: r?.logradouro_nome || "",
+        logradouro: label,
       });
     }
   }
@@ -124,11 +155,11 @@ export function montarPontosRuaFromRuas(ruas: RuaRaw[]): RelatorioApsPontoRua[] 
  * quando o mesmo path aparecer em mais de um detalhe (evita chamadas duplicadas).
  */
 export async function montarFotosDisponiveisFromDetalhes(
-  detalhes: DetalheRaw[],
+  detalhes: Array<DetalheRaw | DetalheApsEnriquecido>,
   cachePreExistente?: Map<string, string>,
 ): Promise<RelatorioApsFotoDisponivel[]> {
   const cache = cachePreExistente || new Map<string, string>();
-  const pares: Array<{ detalhe: DetalheRaw; path: string }> = [];
+  const pares: Array<{ detalhe: DetalheRaw | DetalheApsEnriquecido; path: string }> = [];
   for (const d of detalhes || []) {
     const paths: string[] = Array.isArray(d?.fotos_aplicacao) ? d.fotos_aplicacao : [];
     for (const p of paths) {
@@ -160,7 +191,7 @@ export async function montarFotosDisponiveisFromDetalhes(
     if (!url) continue;
     const detalhe = par.detalhe;
     const sequencia = Number(detalhe?.sequencia_aplicacao ?? 0);
-    const logradouro = detalhe?.logradouro_nome || "";
+    const logradouro = labelDetalhe(detalhe);
     const trecho = String(sequencia || "");
     fotos.push({
       id: `${detalhe.id}::${par.path}`,

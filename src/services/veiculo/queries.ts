@@ -28,6 +28,11 @@ function mergeAlocacao(item: any, aloc?: VeiculoAlocacaoAtual): Veiculo {
     nome_categoria: item.categoria?.nome_categoria,
     nome_subcategoria: item.subcategoria?.nome_subcategoria,
     nome_empresa_locadora: item.empresa_locadora?.nome_empresa,
+    // Relacionais hidratados (Rodada 2A.3):
+    frota_codigo: item.frota_rel?.codigo ?? item.frota ?? null,
+    fabricante_nome: item.fabricante_rel?.nome ?? item.fabricante ?? null,
+    modelo_id: item.modelo_id ?? item.modelo_rel?.id ?? null,
+    modelo_nome: item.modelo_rel?.nome_modelo ?? null,
     nome_centro_custo: aloc?.centro_custo_atual_nome ?? null,
     centro_custo_id: aloc?.centro_custo_atual_id ?? null,
     centro_custo_atual_id: aloc?.centro_custo_atual_id ?? null,
@@ -49,8 +54,12 @@ export const getVeiculos = async (filters: VeiculoFilter = {}) => {
       empresa:bd_empresas(id, nome_empresa),
       categoria:bd_categorias_ativos(id, nome_categoria),
       subcategoria:bd_subcategorias_ativos(id, nome_subcategoria),
-      empresa_locadora:bd_empresas_locadoras(id, nome_empresa)
+      empresa_locadora:bd_empresas_locadoras(id, nome_empresa),
+      frota_rel:bd_frotas!frota_id(id, codigo, tipo_propriedade_padrao),
+      fabricante_rel:bd_fabricantes!fabricante_id(id, nome),
+      modelo_rel:bd_modelos!modelo_id(id, nome_modelo, fabricante_id)
     `);
+
 
   if (filters.placa) query = query.ilike("placa", `%${filters.placa}%`);
   if (filters.fabricante) query = query.ilike("fabricante", `%${filters.fabricante}%`);
@@ -87,7 +96,10 @@ export const getVeiculoById = async (id: string) => {
       empresa:bd_empresas(id, nome_empresa),
       categoria:bd_categorias_ativos(id, nome_categoria),
       subcategoria:bd_subcategorias_ativos(id, nome_subcategoria),
-      empresa_locadora:bd_empresas_locadoras(id, nome_empresa)
+      empresa_locadora:bd_empresas_locadoras(id, nome_empresa),
+      frota_rel:bd_frotas!frota_id(id, codigo, tipo_propriedade_padrao),
+      fabricante_rel:bd_fabricantes!fabricante_id(id, nome),
+      modelo_rel:bd_modelos!modelo_id(id, nome_modelo, fabricante_id)
     `)
     .eq("id", id)
     .single();

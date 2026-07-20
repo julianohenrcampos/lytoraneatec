@@ -1,19 +1,30 @@
 /**
- * useRelatorioApsFiltros — E3.1
- * Busca registros manuais (bd_registro_apontamento_aplicacao com origem_registro='manual')
- * no período e centro de custo informados, junto de seus detalhes
- * (bd_registro_aplicacao_detalhes) e agrupa por logradouro.
+ * useRelatorioApsFiltros — E3.1 (revisado no fechamento "Nome Local da Rua").
  *
- * Somente leitura. Nenhum insert/update/delete. Nenhuma alteração de banco.
+ * Somente leitura. Nenhuma escrita. Nenhuma alteração de banco.
+ * Enriquecimento de detalhes com dados de `bd_registro_aplicacao_ruas`
+ * em batch único (sem N+1), preservando `logradouro_nome` original e
+ * expondo `logradouroExibicao` + `chaveRelatorioRua`.
  */
 import { useCallback, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  buscarRuasAplicacaoPorRegistroIds,
+  enriquecerDetalhes,
+} from "@/services/relatorio-aps/relatorioApsRuasService";
+import type {
+  DetalheAps,
+  DetalheApsEnriquecido,
+} from "@/types/relatorioApsDetalhe";
+import type { RuaOption } from "@/types/relatorioApsRuaOption";
+import { normalizarTextoLogradouro } from "@/utils/registroAplicacao/normalizarTextoLogradouro";
 
 export interface RelatorioApsFiltrosInput {
   centroCustoId: string;
   dataInicio: Date;
   dataFim: Date;
-  logradouro?: string;
+  /** Chave estável do combobox de rua. Vazio ou "__all__" = todas. */
+  logradouroChave?: string;
 }
 
 export interface RegistroManualCabecalho {
@@ -23,31 +34,21 @@ export interface RegistroManualCabecalho {
   status_aplicacao: string | null;
   observacoes_gerais: string | null;
   centro_custo_id: string | null;
-}
-
-export interface DetalheAps extends Record<string, any> {
-  id: string;
-  registro_aplicacao_id: string;
-  sequencia_aplicacao: number | null;
-  logradouro_nome: string | null;
-  data_aplicacao: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  fotos_aplicacao: string[] | null;
+  atividade: string | null;
 }
 
 export interface GrupoRua {
   chave: string;
-  logradouro: string;
+  logradouroExibicao: string;
   registroIds: string[];
-  trechos: DetalheAps[];
+  trechos: DetalheApsEnriquecido[];
 }
 
 export interface RelatorioApsFiltrosResult {
   registros: RegistroManualCabecalho[];
-  detalhes: DetalheAps[];
+  detalhes: DetalheApsEnriquecido[];
   grupos: GrupoRua[];
-  logradouros: string[];
+  logradouros: RuaOption[];
   semDados: boolean;
 }
 
@@ -57,9 +58,6 @@ const toIsoDate = (d: Date): string => {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 };
-
-const normalizarChave = (s: string | null | undefined): string =>
-  (s || "").trim().toLocaleLowerCase("pt-BR").replace(/\s+/g, " ");
 
 export function useRelatorioApsFiltros() {
   const [resultado, setResultado] = useState<RelatorioApsFiltrosResult>({
@@ -83,13 +81,13 @@ export function useRelatorioApsFiltros() {
         cc: filtros.centroCustoId,
         de,
         ate,
-        logradouro: filtros.logradouro || null,
+        chave: filtros.logradouroChave || null,
       });
 
       const { data: registros, error: eReg } = await supabase
         .from("bd_registro_apontamento_aplicacao")
         .select(
-          "id, data_aplicacao, logradouro_aplicado, status_aplicacao, observacoes_gerais, centro_custo_id",
+          "id, data_aplicacao, logradouro_aplicado, status_aplicacao, observacoes_gerais, centro_custo_id, atividade",
         )
         .eq("origem_registro", "manual")
         .eq("centro_custo_id", filtros.centroCustoId)
@@ -120,22 +118,25 @@ export function useRelatorioApsFiltros() {
         .order("sequencia_aplicacao", { ascending: true });
       if (eDet) throw eDet;
 
-      let detList = (detalhes || []) as DetalheAps[];
+      // Batch único de ruas + enriquecimento tipado (sem mutar logradouro_nome).
+      const ruasLocais = await buscarRuasAplicacaoPorRegistroIds(ids);
+      const detalhesCrus = (detalhes || []) as unknown as DetalheAps[];
+      let detList = enriquecerDetalhes(detalhesCrus, ruasLocais);
 
-      // Filtro client-side por logradouro (opcional)
-      if (filtros.logradouro && filtros.logradouro !== "__all__") {
-        const alvo = normalizarChave(filtros.logradouro);
-        detList = detList.filter((d) => normalizarChave(d.logradouro_nome) === alvo);
+      // Filtro client-side por chave estável (opcional).
+      const chaveFiltro = filtros.logradouroChave;
+      if (chaveFiltro && chaveFiltro !== "__all__") {
+        detList = detList.filter((d) => d.chaveRelatorioRua === chaveFiltro);
       }
 
-      // Agrupar por logradouro
+      // Agrupamento por chave estável.
       const mapaGrupos = new Map<string, GrupoRua>();
       for (const d of detList) {
-        const chave = normalizarChave(d.logradouro_nome) || "__sem_logradouro__";
+        const chave = d.chaveRelatorioRua;
         if (!mapaGrupos.has(chave)) {
           mapaGrupos.set(chave, {
             chave,
-            logradouro: (d.logradouro_nome || "Sem logradouro").trim(),
+            logradouroExibicao: d.logradouroExibicao || "Sem logradouro",
             registroIds: [],
             trechos: [],
           });
@@ -147,16 +148,28 @@ export function useRelatorioApsFiltros() {
         }
       }
       const grupos = Array.from(mapaGrupos.values()).sort((a, b) =>
-        a.logradouro.localeCompare(b.logradouro, "pt-BR"),
+        a.logradouroExibicao.localeCompare(b.logradouroExibicao, "pt-BR"),
       );
 
-      const logradouros = Array.from(
-        new Set(
-          (detalhes as DetalheAps[])
-            .map((d) => (d.logradouro_nome || "").trim())
-            .filter(Boolean),
-        ),
-      ).sort((a, b) => a.localeCompare(b, "pt-BR"));
+      // Opções únicas por chave.
+      const mapaOpts = new Map<string, RuaOption>();
+      for (const d of detList) {
+        if (mapaOpts.has(d.chaveRelatorioRua)) continue;
+        const nome = d.logradouroExibicao || "Sem logradouro";
+        const searchText = normalizarTextoLogradouro(
+          `${d.logradouroMapa} ${d.logradouroLocal}`,
+        );
+        mapaOpts.set(d.chaveRelatorioRua, {
+          chave: d.chaveRelatorioRua,
+          nome,
+          searchText,
+          logradouroMapa: d.logradouroMapa,
+          logradouroLocal: d.logradouroLocal,
+        });
+      }
+      const logradouros = Array.from(mapaOpts.values()).sort((a, b) =>
+        a.nome.localeCompare(b.nome, "pt-BR"),
+      );
 
       console.log("[RELATORIO_APS][FILTROS_RESULT]", {
         registros: regList.length,

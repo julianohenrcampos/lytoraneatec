@@ -44,6 +44,7 @@ export interface RegistroManualEditable {
   ruas: Array<{
     idLocal: string;
     logradouro: string;
+    logradouroNomeLocal: string;
     bairro: string;
     cidade: string;
     uf: string;
@@ -103,6 +104,7 @@ interface RuaPersistidaRow {
   id: string;
   ordem_rua: number | null;
   logradouro_nome: string | null;
+  logradouro_nome_local: string | null;
   bairro: string | null;
   cidade: string | null;
   uf: string | null;
@@ -154,7 +156,7 @@ async function fetchRegistroEditable(
         .order("sequencia_aplicacao", { ascending: true }),
       supabase
         .from("bd_registro_aplicacao_ruas")
-        .select("id, ordem_rua, logradouro_nome, bairro, cidade, uf, latitude, longitude, geo_accuracy")
+        .select("id, ordem_rua, logradouro_nome, logradouro_nome_local, bairro, cidade, uf, latitude, longitude, geo_accuracy")
         .eq("registro_aplicacao_id", registroId)
         .order("ordem_rua", { ascending: true }),
     ]);
@@ -222,6 +224,7 @@ async function fetchRegistroEditable(
     ruas.push({
       idLocal: genId(),
       logradouro: normStr(persistida?.logradouro_nome) || logradouro,
+      logradouroNomeLocal: normStr(persistida?.logradouro_nome_local),
       bairro,
       cidade,
       uf,
