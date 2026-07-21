@@ -75,6 +75,11 @@ export const AgendamentoExamesMobileCards: React.FC<AgendamentoExamesMobileCards
               <div className="flex justify-between items-start mb-3">
                 <div className="flex-1">
                   <h4 className="font-semibold text-lg">{agendamento.nome_colaborador}</h4>
+                  {agendamento.profiles?.nome_completo && (
+                    <p className="text-[11px] text-muted-foreground leading-tight">
+                      por {agendamento.profiles.nome_completo.trim().split(/\s+/)[0]}
+                    </p>
+                  )}
                   <p className="text-sm text-muted-foreground">{agendamento.funcao}</p>
                 </div>
                 <div className="flex gap-1">
@@ -106,7 +111,14 @@ export const AgendamentoExamesMobileCards: React.FC<AgendamentoExamesMobileCards
               <div className="grid grid-cols-2 gap-2 text-sm mb-3">
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span>{formatBrazilianDateForDisplay(agendamento.data_agendamento)}</span>
+                  <div className="flex flex-col leading-tight">
+                    <span className="font-semibold">{formatBrazilianDateForDisplay(agendamento.data_agendamento)}</span>
+                    {agendamento.criado_em && (
+                      <span className="text-[11px] text-muted-foreground">
+                        {new Date(agendamento.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', '')}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground" />

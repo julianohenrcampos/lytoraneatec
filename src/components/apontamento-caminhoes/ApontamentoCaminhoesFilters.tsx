@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
 import { DateRange } from "react-day-picker";
 import { ApontamentoFilterParams } from "@/services/apontamentoCaminhoesService";
 import { format } from "date-fns";
@@ -134,22 +135,18 @@ const ApontamentoCaminhoesFilters: React.FC<ApontamentoCaminhoesFiltersProps> = 
 
           <div className="space-y-2">
             <Label htmlFor="caminhao" className="font-medium text-gray-700">Caminhão/Equipamento</Label>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Select value={caminhaoId} onValueChange={setCaminhaoId}>
-                <SelectTrigger id="caminhao" className="pl-8 border border-slate-300 bg-white">
-                  <SelectValue placeholder="Selecione um veículo" />
-                </SelectTrigger>
-                <SelectContent className="bg-white">
-                  <SelectItem value="_all">Todos</SelectItem>
-                  {veiculosOptions.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Combobox
+              options={[
+                { value: "_all", label: "Todos" },
+                ...veiculosOptions.map((o) => ({ value: o.id, label: o.label, searchText: o.label })),
+              ]}
+              value={caminhaoId}
+              onChange={setCaminhaoId}
+              placeholder="Selecione um veículo"
+              searchPlaceholder="Buscar veículo..."
+              emptyText="Nenhum veículo encontrado"
+              className="border border-slate-300 bg-white"
+            />
           </div>
 
           <div className="space-y-2">

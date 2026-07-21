@@ -92,21 +92,19 @@ const ApontamentoCaminhoes: React.FC = () => {
   return (
     <MainLayout>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-          <div className="flex space-x-2 w-full sm:w-auto">
-            <Button 
-              onClick={() => handleOpenFormModal()}
-              className="flex-1 sm:flex-none"
-            >
+        <div className="flex justify-end mb-6">
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => handleOpenFormModal()} className="whitespace-nowrap">
               <Plus className="h-4 w-4 mr-2" />
               Novo Apontamento
             </Button>
-            
+
             {!isMobile && (
-              <Button 
+              <Button
                 onClick={guardedExport}
                 variant="outline"
                 disabled={!canExportApontamento}
+                className="whitespace-nowrap"
               >
                 <FileDown className="h-4 w-4 mr-2" />
                 Exportar
