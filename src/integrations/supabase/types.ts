@@ -2491,6 +2491,370 @@ export type Database = {
           },
         ]
       }
+      bd_chamado_interno_atendentes: {
+        Row: {
+          atendente_profile_id: string
+          ativo: boolean
+          created_at: string
+          id: string
+          setor: Database["public"]["Enums"]["chamado_interno_setor"]
+          updated_at: string
+        }
+        Insert: {
+          atendente_profile_id: string
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          setor: Database["public"]["Enums"]["chamado_interno_setor"]
+          updated_at?: string
+        }
+        Update: {
+          atendente_profile_id?: string
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          setor?: Database["public"]["Enums"]["chamado_interno_setor"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_at_profile"
+            columns: ["atendente_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_at_profile"
+            columns: ["atendente_profile_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_at_profile"
+            columns: ["atendente_profile_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_chamado_interno_categorias: {
+        Row: {
+          ativo: boolean
+          codigo: string
+          created_at: string
+          descricao: string | null
+          id: string
+          is_critico: boolean
+          nome: string
+          ordem: number
+          prioridade_padrao: Database["public"]["Enums"]["chamado_interno_prioridade"]
+          requer_evidencia: boolean
+          setor: Database["public"]["Enums"]["chamado_interno_setor"]
+          sla_horas: number | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          codigo: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          is_critico?: boolean
+          nome: string
+          ordem: number
+          prioridade_padrao?: Database["public"]["Enums"]["chamado_interno_prioridade"]
+          requer_evidencia?: boolean
+          setor: Database["public"]["Enums"]["chamado_interno_setor"]
+          sla_horas?: number | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          codigo?: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          is_critico?: boolean
+          nome?: string
+          ordem?: number
+          prioridade_padrao?: Database["public"]["Enums"]["chamado_interno_prioridade"]
+          requer_evidencia?: boolean
+          setor?: Database["public"]["Enums"]["chamado_interno_setor"]
+          sla_horas?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      bd_chamado_interno_eventos: {
+        Row: {
+          autor_profile_id: string | null
+          chamado_id: string
+          created_at: string
+          id: string
+          mensagem: string | null
+          payload: Json
+          status_anterior:
+            | Database["public"]["Enums"]["chamado_interno_status"]
+            | null
+          status_novo:
+            | Database["public"]["Enums"]["chamado_interno_status"]
+            | null
+          tipo: Database["public"]["Enums"]["chamado_interno_evento_tipo"]
+          visivel_solicitante: boolean
+        }
+        Insert: {
+          autor_profile_id?: string | null
+          chamado_id: string
+          created_at?: string
+          id?: string
+          mensagem?: string | null
+          payload?: Json
+          status_anterior?:
+            | Database["public"]["Enums"]["chamado_interno_status"]
+            | null
+          status_novo?:
+            | Database["public"]["Enums"]["chamado_interno_status"]
+            | null
+          tipo: Database["public"]["Enums"]["chamado_interno_evento_tipo"]
+          visivel_solicitante?: boolean
+        }
+        Update: {
+          autor_profile_id?: string | null
+          chamado_id?: string
+          created_at?: string
+          id?: string
+          mensagem?: string | null
+          payload?: Json
+          status_anterior?:
+            | Database["public"]["Enums"]["chamado_interno_status"]
+            | null
+          status_novo?:
+            | Database["public"]["Enums"]["chamado_interno_status"]
+            | null
+          tipo?: Database["public"]["Enums"]["chamado_interno_evento_tipo"]
+          visivel_solicitante?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_ev_autor"
+            columns: ["autor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_ev_autor"
+            columns: ["autor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_ev_autor"
+            columns: ["autor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_ev_chamado"
+            columns: ["chamado_id"]
+            isOneToOne: false
+            referencedRelation: "bd_chamados_internos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_chamados_internos: {
+        Row: {
+          aberto_por: string
+          categoria_id: string
+          centro_custo_id: string
+          created_at: string
+          descricao: string
+          id: string
+          is_critico: boolean
+          numero: number
+          prioridade: Database["public"]["Enums"]["chamado_interno_prioridade"]
+          protocolo: string
+          responsavel_atual_profile_id: string | null
+          setor: Database["public"]["Enums"]["chamado_interno_setor"]
+          sla_prazo: string | null
+          solicitante_funcionario_id: string
+          status: Database["public"]["Enums"]["chamado_interno_status"]
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          aberto_por: string
+          categoria_id: string
+          centro_custo_id: string
+          created_at?: string
+          descricao: string
+          id?: string
+          is_critico: boolean
+          numero: number
+          prioridade: Database["public"]["Enums"]["chamado_interno_prioridade"]
+          protocolo: string
+          responsavel_atual_profile_id?: string | null
+          setor: Database["public"]["Enums"]["chamado_interno_setor"]
+          sla_prazo?: string | null
+          solicitante_funcionario_id: string
+          status?: Database["public"]["Enums"]["chamado_interno_status"]
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          aberto_por?: string
+          categoria_id?: string
+          centro_custo_id?: string
+          created_at?: string
+          descricao?: string
+          id?: string
+          is_critico?: boolean
+          numero?: number
+          prioridade?: Database["public"]["Enums"]["chamado_interno_prioridade"]
+          protocolo?: string
+          responsavel_atual_profile_id?: string | null
+          setor?: Database["public"]["Enums"]["chamado_interno_setor"]
+          sla_prazo?: string | null
+          solicitante_funcionario_id?: string
+          status?: Database["public"]["Enums"]["chamado_interno_status"]
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_ci_aberto_por"
+            columns: ["aberto_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_ci_aberto_por"
+            columns: ["aberto_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_ci_aberto_por"
+            columns: ["aberto_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_ci_categoria"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "bd_chamado_interno_categorias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_ci_cc"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_ci_cc"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "fk_ci_cc"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "fk_ci_cc"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "fk_ci_cc"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "fk_ci_cc"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "fk_ci_cc"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "fk_ci_cc"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "fk_ci_responsavel"
+            columns: ["responsavel_atual_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_ci_responsavel"
+            columns: ["responsavel_atual_profile_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_ci_responsavel"
+            columns: ["responsavel_atual_profile_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_ci_solicitante"
+            columns: ["solicitante_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_ci_solicitante"
+            columns: ["solicitante_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_ci_solicitante"
+            columns: ["solicitante_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_chamados_os: {
         Row: {
           caminhao_equipamento_id: string | null
@@ -11675,6 +12039,7 @@ export type Database = {
           modificado_por: string | null
           operador_id: string | null
           situacao: string | null
+          turno: string
           updated_at: string | null
         }
         Insert: {
@@ -11692,6 +12057,7 @@ export type Database = {
           modificado_por?: string | null
           operador_id?: string | null
           situacao?: string | null
+          turno?: string
           updated_at?: string | null
         }
         Update: {
@@ -11709,6 +12075,7 @@ export type Database = {
           modificado_por?: string | null
           operador_id?: string | null
           situacao?: string | null
+          turno?: string
           updated_at?: string | null
         }
         Relationships: [
@@ -20529,6 +20896,10 @@ export type Database = {
           warnings: Json
         }[]
       }
+      fn_apontamento_ce_definir_turno: {
+        Args: { p_apontamento_id: string; p_turno: string }
+        Returns: undefined
+      }
       fn_aprovar_classificacao_solicitacao: {
         Args: { p_id: string }
         Returns: undefined
@@ -20896,6 +21267,136 @@ export type Database = {
       }
       fn_cancelar_ordem_diaria: {
         Args: { p_motivo: string; p_ordem_id: string }
+        Returns: undefined
+      }
+      fn_chamado_interno_abrir: {
+        Args: {
+          p_categoria_id: string
+          p_centro_custo_id: string
+          p_descricao: string
+          p_solicitante_funcionario_id: string
+          p_titulo: string
+        }
+        Returns: {
+          chamado_id: string
+          numero: number
+          protocolo: string
+        }[]
+      }
+      fn_chamado_interno_adicionar_nota_interna: {
+        Args: { p_chamado_id: string; p_mensagem: string }
+        Returns: undefined
+      }
+      fn_chamado_interno_assumir: {
+        Args: { p_chamado_id: string }
+        Returns: undefined
+      }
+      fn_chamado_interno_atendente_desativar: {
+        Args: { p_vinculo_id: string }
+        Returns: undefined
+      }
+      fn_chamado_interno_atendente_vincular: {
+        Args: {
+          p_profile_id: string
+          p_setor: Database["public"]["Enums"]["chamado_interno_setor"]
+        }
+        Returns: string
+      }
+      fn_chamado_interno_atendentes_listar: {
+        Args: { p_setor?: Database["public"]["Enums"]["chamado_interno_setor"] }
+        Returns: {
+          atendente_profile_id: string
+          ativo: boolean
+          created_at: string
+          funcionario_nome_completo: string
+          id: string
+          profile_nome: string
+          setor: Database["public"]["Enums"]["chamado_interno_setor"]
+          updated_at: string
+        }[]
+      }
+      fn_chamado_interno_can_attend: {
+        Args: { p_setor: Database["public"]["Enums"]["chamado_interno_setor"] }
+        Returns: boolean
+      }
+      fn_chamado_interno_can_open_cc: {
+        Args: { p_cc_id: string }
+        Returns: boolean
+      }
+      fn_chamado_interno_can_operate: {
+        Args: { p_chamado_id: string }
+        Returns: boolean
+      }
+      fn_chamado_interno_can_read: {
+        Args: { p_chamado_id: string }
+        Returns: boolean
+      }
+      fn_chamado_interno_cancelar: {
+        Args: { p_chamado_id: string; p_motivo: string }
+        Returns: undefined
+      }
+      fn_chamado_interno_confirmar_encerramento: {
+        Args: { p_chamado_id: string }
+        Returns: undefined
+      }
+      fn_chamado_interno_listar_ccs_abertura: {
+        Args: never
+        Returns: {
+          centro_custo_id: string
+          codigo_centro_custo: string
+          nome_centro_custo: string
+        }[]
+      }
+      fn_chamado_interno_listar_fila_atendimento: {
+        Args: {
+          p_setor?: Database["public"]["Enums"]["chamado_interno_setor"]
+          p_status?: Database["public"]["Enums"]["chamado_interno_status"][]
+        }
+        Returns: {
+          categoria_id: string
+          categoria_nome: string
+          centro_custo_codigo: string
+          centro_custo_id: string
+          centro_custo_nome: string
+          created_at: string
+          fonte_autorizacao: string
+          id: string
+          is_critico: boolean
+          prioridade: Database["public"]["Enums"]["chamado_interno_prioridade"]
+          protocolo: string
+          responsavel_atual_profile_id: string
+          setor: Database["public"]["Enums"]["chamado_interno_setor"]
+          sla_prazo: string
+          status: Database["public"]["Enums"]["chamado_interno_status"]
+          titulo: string
+          updated_at: string
+        }[]
+      }
+      fn_chamado_interno_listar_solicitantes_cc: {
+        Args: { p_cc_id: string }
+        Returns: {
+          id: string
+          nome_completo: string
+        }[]
+      }
+      fn_chamado_interno_reabrir: {
+        Args: { p_chamado_id: string; p_mensagem: string }
+        Returns: undefined
+      }
+      fn_chamado_interno_resolver: {
+        Args: { p_chamado_id: string; p_mensagem: string }
+        Returns: undefined
+      }
+      fn_chamado_interno_responder: {
+        Args: { p_chamado_id: string; p_mensagem: string }
+        Returns: undefined
+      }
+      fn_chamado_interno_responder_solicitante: {
+        Args: { p_chamado_id: string; p_mensagem: string }
+        Returns: undefined
+      }
+      fn_chamado_interno_solicitar_informacao: {
+        Args: { p_chamado_id: string; p_mensagem: string }
         Returns: undefined
       }
       fn_check_email_autorizado: {
@@ -22462,6 +22963,37 @@ export type Database = {
       }
     }
     Enums: {
+      chamado_interno_evento_tipo:
+        | "abertura"
+        | "roteamento"
+        | "atribuicao"
+        | "resposta_atendente"
+        | "resposta_solicitante"
+        | "solicitacao_informacao"
+        | "nota_interna"
+        | "mudanca_status"
+        | "resolucao"
+        | "confirmacao_encerramento"
+        | "reabertura"
+        | "cancelamento"
+      chamado_interno_prioridade: "baixa" | "normal" | "alta" | "critico"
+      chamado_interno_setor:
+        | "administracao"
+        | "financeiro"
+        | "ti"
+        | "manutencao"
+        | "eletrica"
+        | "sso"
+      chamado_interno_status:
+        | "aberto"
+        | "em_triagem"
+        | "em_analise"
+        | "aguardando_solicitante"
+        | "respondido"
+        | "resolvido"
+        | "encerrado"
+        | "reaberto"
+        | "cancelado"
       confiabilidade_previsao_enum: "ALTA" | "MEDIA" | "BAIXA"
       diaria_lote_item_status:
         | "rascunho"
@@ -22658,6 +23190,40 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      chamado_interno_evento_tipo: [
+        "abertura",
+        "roteamento",
+        "atribuicao",
+        "resposta_atendente",
+        "resposta_solicitante",
+        "solicitacao_informacao",
+        "nota_interna",
+        "mudanca_status",
+        "resolucao",
+        "confirmacao_encerramento",
+        "reabertura",
+        "cancelamento",
+      ],
+      chamado_interno_prioridade: ["baixa", "normal", "alta", "critico"],
+      chamado_interno_setor: [
+        "administracao",
+        "financeiro",
+        "ti",
+        "manutencao",
+        "eletrica",
+        "sso",
+      ],
+      chamado_interno_status: [
+        "aberto",
+        "em_triagem",
+        "em_analise",
+        "aguardando_solicitante",
+        "respondido",
+        "resolvido",
+        "encerrado",
+        "reaberto",
+        "cancelado",
+      ],
       confiabilidade_previsao_enum: ["ALTA", "MEDIA", "BAIXA"],
       diaria_lote_item_status: [
         "rascunho",

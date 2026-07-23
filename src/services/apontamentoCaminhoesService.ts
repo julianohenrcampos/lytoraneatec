@@ -16,6 +16,8 @@ export interface Caminhao {
   numero_frota?: string;
 }
 
+export type TurnoApontamento = "diurno" | "noturno";
+
 export interface ApontamentoCaminhao {
   id: string;
   data: string;
@@ -28,6 +30,7 @@ export interface ApontamentoCaminhao {
   hora_final: string | null;
   abastecimento: number | null;
   situacao: string | null;
+  turno?: TurnoApontamento | null;
   created_at?: string;
   updated_at?: string;
   created_by?: string | null;
@@ -38,6 +41,7 @@ export interface ApontamentoCaminhao {
   veiculo_identificacao?: string;
   nome_centro_custo?: string;
 }
+
 
 /**
  * Estrutura REAL da tabela `bd_registro_apontamento_inspecao`.
@@ -215,7 +219,11 @@ const RPC_ERROR_MESSAGES: Record<string, string> = {
     "Este apontamento já foi finalizado e não pode ser reaberto.",
   apontamento_ativo_existente:
     "Já existe um apontamento em andamento para este ativo. Finalize-o antes de iniciar outro.",
+  turno_invalido: "Turno inválido. Selecione Diurno ou Noturno.",
+  hora_final_anterior_diurno:
+    "Hora Final anterior à Inicial só é permitida em turno Noturno. Ajuste o turno ou o horário.",
 };
+
 
 export function traduzirErroRpc(err: any, apontamentoId?: string): string {
   const raw = String(err?.message || "").trim();
@@ -488,6 +496,24 @@ export const salvarApontamentoComInspecao = async (
     inspecao_id: row?.inspecao_id,
   };
 };
+
+/**
+ * Atualiza o turno (diurno/noturno) de um apontamento existente.
+ * Deve ser chamado ANTES da RPC de finalização quando o turno for noturno,
+ * pois o CHECK constraint no banco só aceita hora_final < hora_inicial em turno noturno.
+ */
+export const definirTurnoApontamento = async (
+  apontamentoId: string,
+  turno: TurnoApontamento
+): Promise<void> => {
+  const { error } = await (supabase as any).rpc(
+    "fn_apontamento_ce_definir_turno",
+    { p_apontamento_id: apontamentoId, p_turno: turno }
+  );
+  if (error) throw error;
+};
+
+
 
 export const excluirApontamentoComInspecao = async (
   apontamentoId: string

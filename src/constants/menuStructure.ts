@@ -17,14 +17,17 @@ import {
   Calendar,
   ClipboardCheck,
   FileCheck,
-  
   Activity,
   Briefcase,
   FileSearch,
   Clock,
   ScanFace,
   HardHat,
-  MapPinned
+  MapPinned,
+  LifeBuoy,
+  ListChecks,
+  CirclePlus,
+  Headphones
 } from "lucide-react";
 
 export const menuStructure = [
@@ -415,6 +418,36 @@ export const menuStructure = [
         href: "/admin/gestao-ponto",
         icon: ClipboardList,
         requiredPermission: "biometria_facial_gerenciar"
+      }
+    ]
+  },
+  {
+    groupIcon: LifeBuoy,
+    title: "Chamados Internos",
+    items: [
+      {
+        name: "Meus Chamados",
+        href: "/chamados-internos",
+        icon: ListChecks,
+        requiredPermission: "chamados_internos_view"
+      },
+      {
+        name: "Abrir Chamado",
+        href: "/chamados-internos/abrir",
+        icon: CirclePlus,
+        requiredPermission: "chamados_internos_abrir"
+      },
+      {
+        name: "Atendimento",
+        href: "/chamados-internos/atendimento",
+        icon: Headphones,
+        requiredPermission: "chamados_internos_atender"
+      },
+      {
+        name: "Administração",
+        href: "/chamados-internos/admin",
+        icon: Settings,
+        requiredPermission: "chamados_internos_admin"
       }
     ]
   }

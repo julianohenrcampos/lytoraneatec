@@ -203,7 +203,7 @@ const ApontamentoCaminhoesFilters: React.FC<ApontamentoCaminhoesFiltersProps> = 
         </div>
         
         <div className="mt-2 text-center text-sm text-slate-500 italic">
-          Utilize os filtros acima para refinar sua busca
+          {"\n"}
         </div>
       </CardContent>
     </Card>

@@ -104,6 +104,13 @@ const OrgaosPendentes = lazy(() => import("@/pages/OrgaosPendentes"));
 const RelatorioLicitacoes = lazy(() => import("@/pages/RelatorioLicitacoes"));
 const ConfiguracoesMatching = lazy(() => import("@/pages/ConfiguracoesMatching"));
 
+const ChamadosInternosList = lazy(() => import("@/pages/chamados-internos/ChamadosInternosList"));
+const ChamadosInternosAbrir = lazy(() => import("@/pages/chamados-internos/ChamadosInternosAbrir"));
+const ChamadosInternosAtendimento = lazy(() => import("@/pages/chamados-internos/ChamadosInternosAtendimento"));
+const ChamadosInternosAdmin = lazy(() => import("@/pages/chamados-internos/ChamadosInternosAdmin"));
+
+const ChamadoInternoDetalhe = lazy(() => import("@/pages/chamados-internos/ChamadoInternoDetalhe"));
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -289,6 +296,14 @@ const App = () => {
                     {/* Dev */}
                     <Route path="/dev/teste-ponto" element={<Auth><TestePonto /></Auth>} />
                     <Route path="/dev/pwa-status" element={<Auth><PwaStatus /></Auth>} />
+
+                    {/* Chamados Internos */}
+                    <Route path="/chamados-internos" element={<Secure permission="chamados_internos_view"><ChamadosInternosList /></Secure>} />
+                    
+                    <Route path="/chamados-internos/abrir" element={<Secure permission="chamados_internos_abrir"><ChamadosInternosAbrir /></Secure>} />
+                    <Route path="/chamados-internos/atendimento" element={<Secure permission="chamados_internos_atender"><ChamadosInternosAtendimento /></Secure>} />
+                    <Route path="/chamados-internos/admin" element={<Secure permission="chamados_internos_admin"><ChamadosInternosAdmin /></Secure>} />
+                    <Route path="/chamados-internos/:chamadoId" element={<Secure permission="chamados_internos_view"><ChamadoInternoDetalhe /></Secure>} />
 
                     <Route path="*" element={<NotFound />} />
                   </Routes>

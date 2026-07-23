@@ -90,14 +90,56 @@ export const ROUTE_PERMISSIONS = {
 
   // Ponto
   '/ponto': ['ponto_registrar'],
+
+  // Chamados Internos
+  '/chamados-internos': ['chamados_internos_view'],
+  
+  '/chamados-internos/abrir': ['chamados_internos_abrir'],
+  '/chamados-internos/atendimento': ['chamados_internos_atender'],
+  '/chamados-internos/admin': ['chamados_internos_admin'],
+  '/chamados-internos/:chamadoId': ['chamados_internos_view'],
 } as const satisfies Record<string, readonly string[]>;
 
 export type AppRoute = keyof typeof ROUTE_PERMISSIONS;
 
 const _MAP = ROUTE_PERMISSIONS as Record<string, readonly string[]>;
 
+function normalizePath(pathname: string): string {
+  if (pathname.length > 1 && pathname.endsWith('/')) {
+    return pathname.slice(0, -1);
+  }
+  return pathname;
+}
+
+function matchDynamicRoute(pathname: string): readonly string[] | undefined {
+  const normalized = normalizePath(pathname);
+  const segments = normalized.split('/');
+  for (const pattern of Object.keys(_MAP)) {
+    if (!pattern.includes(':')) continue;
+    const patternSegments = pattern.split('/');
+    if (patternSegments.length !== segments.length) continue;
+    let ok = true;
+    for (let i = 0; i < patternSegments.length; i++) {
+      const p = patternSegments[i];
+      const s = segments[i];
+      if (p.startsWith(':')) {
+        if (!s) { ok = false; break; }
+      } else if (p !== s) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) return _MAP[pattern];
+  }
+  return undefined;
+}
+
 export function getRoutePermissions(pathname: string): readonly string[] {
-  return _MAP[pathname] ?? [];
+  const normalized = normalizePath(pathname);
+  // 1) correspondência exata
+  if (_MAP[normalized]) return _MAP[normalized];
+  // 2) padrões dinâmicos
+  return matchDynamicRoute(normalized) ?? [];
 }
 
 export function hasRoutePermission(
@@ -107,7 +149,8 @@ export function hasRoutePermission(
 ): boolean {
   if (isSuperAdmin) return true;
   if (userPermissions.includes('*')) return true;
-  const required = _MAP[pathname];
-  if (!required) return true; // rota não mapeada => permitida
+  const normalized = normalizePath(pathname);
+  const required = _MAP[normalized] ?? matchDynamicRoute(normalized);
+  if (!required) return true; // rota não mapeada => permitida (legado)
   return required.some((p) => userPermissions.includes(p));
 }

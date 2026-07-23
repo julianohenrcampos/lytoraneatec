@@ -33,8 +33,11 @@ import {
   fetchLocalizacaoByApontamento,
   type LocalizacaoApontamentoPayload,
   type LocalizacaoApontamentoRow,
+  type TurnoApontamento,
   traduzirErroRpc,
+  definirTurnoApontamento,
 } from "@/services/apontamentoCaminhoesService";
+
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { CATEGORIA_IDS } from "@/constants/categorias";
 import {
@@ -268,6 +271,9 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
 
 
   const [cabecalho, setCabecalho] = useState<Partial<CabecalhoApontamentoPayload>>({});
+  const [turno, setTurno] = useState<TurnoApontamento>("diurno");
+  const initialTurnoRef = useRef<TurnoApontamento>("diurno");
+
   const [checklist, setChecklist] = useState<ChecklistState>(emptyChecklist());
   const [avarias, setAvarias] = useState<string>("");
   const [observacoes, setObservacoes] = useState<string>("");
@@ -408,7 +414,12 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
         situacao: mappedSituacao,
         abastecimento: ap.abastecimento,
       });
+      const turnoAp: TurnoApontamento =
+        ((ap as any).turno === "noturno" ? "noturno" : "diurno");
+      setTurno(turnoAp);
+      initialTurnoRef.current = turnoAp;
       if (ap.data) setDate(new Date(ap.data));
+
 
       // Hidratação: detalhado vs legado
       const respostas = (insp as any)?.checklist_respostas;
@@ -490,7 +501,10 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
         caminhao_equipamento_id: undefined,
         centro_custo_id: undefined,
       });
+      setTurno("diurno");
+      initialTurnoRef.current = "diurno";
       setDate(now);
+
       setChecklist(novoEstadoLegadoOK() as ChecklistState);
       setAvarias("");
       setObservacoes("");
@@ -806,9 +820,16 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
           return;
         }
         const horaIniStr = (cabecalho.hora_inicial || "") as string;
-        if (horaIniStr && String(cabecalho.hora_final) < horaIniStr) {
-          setValidationError("Hora Final não pode ser anterior à Hora Inicial.");
+        if (
+          horaIniStr &&
+          turno === "diurno" &&
+          String(cabecalho.hora_final) < horaIniStr
+        ) {
+          setValidationError(
+            "Hora Final anterior à Inicial só é permitida em turno Noturno. Ajuste o turno ou o horário."
+          );
           return;
+
         }
         if (
           cabecalho.horimetro_inicial != null &&
@@ -977,7 +998,32 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
         itensDetalhados: payload.detalhado?.itens.length ?? 0,
       });
 
+      // Se a jornada é noturna e o registro já existe (edit/finalizacao), grava o turno
+      // ANTES do UPDATE de hora_final para não violar o CHECK constraint do banco.
+      if (!isCreating && turno !== initialTurnoRef.current) {
+        try {
+          await definirTurnoApontamento(apontamentoId, turno);
+          initialTurnoRef.current = turno;
+        } catch (e: any) {
+          const message = traduzirErroRpc(e);
+          setValidationError(message);
+          toast({ title: "Erro ao salvar turno", description: message, variant: "destructive" });
+          return;
+        }
+      }
+
       const result = await onSubmit(payload);
+
+      // Em criação, o registro foi criado agora com turno default 'diurno'.
+      // Se o operador selecionou 'noturno', sincroniza no banco (não bloqueia sucesso).
+      if (isCreating && turno === "noturno") {
+        try {
+          await definirTurnoApontamento(result.apontamentoId, "noturno");
+        } catch (e) {
+          console.warn("[apontamento-ce][TURNO_SYNC_FAIL]", e);
+        }
+      }
+
       // Sucesso — marca supressão do dirty-guard, toast contextual, fecha via callback direto.
       fotosNovas.forEach((f) => URL.revokeObjectURL(f.previewUrl));
       if (detalhadoState) {
@@ -1125,7 +1171,29 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
                 </div>
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="turno_compact">
+                  Turno <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={turno}
+                  onValueChange={(v) => setTurno(v as TurnoApontamento)}
+                >
+                  <SelectTrigger id="turno_compact">
+                    <SelectValue placeholder="Selecione o turno" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="diurno">Diurno</SelectItem>
+                    <SelectItem value="noturno">Noturno (atravessa a meia-noite)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Selecione Noturno quando a Hora Final for no dia seguinte à Hora Inicial.
+                </p>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
+
                 <div className="space-y-2">
                   <Label htmlFor="hora_final_compact">
                     Hora Final <span className="text-destructive">*</span>
@@ -1327,6 +1395,25 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
                       disabled={isEditing}
                     />
                   </div>
+
+                  <div className="space-y-2">
+                    <Label>Turno *</Label>
+                    <Select
+                      value={turno}
+                      onValueChange={(v) => setTurno(v as TurnoApontamento)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o turno" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="diurno">Diurno</SelectItem>
+                        <SelectItem value="noturno">
+                          Noturno (atravessa a meia-noite)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
 
                   {!isCreating && (
                     <div className="space-y-2">
