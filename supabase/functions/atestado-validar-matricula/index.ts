@@ -22,6 +22,13 @@ const STATUS_PERMITIDOS = new Set([
 // Mesma resposta genérica em qualquer falha de validação, para evitar enumeração.
 const GENERIC_ERROR = { ok: false, error: "credenciais_invalidas" };
 
+/** Segundos restantes de bloqueio (mínimo 60) para exibir ao usuário. */
+function retryAfter(bloqueadoAte: string | null | undefined): number {
+  if (!bloqueadoAte) return 600;
+  const ms = new Date(bloqueadoAte).getTime() - Date.now();
+  return Math.max(60, Math.ceil(ms / 1000));
+}
+
 async function delay(minMs: number, maxMs: number) {
   const ms = minMs + Math.floor(Math.random() * (maxMs - minMs));
   await new Promise((r) => setTimeout(r, ms));
@@ -67,16 +74,20 @@ Deno.serve(async (req) => {
       p_escopo: "atestado_validar",
       p_chave_tipo: "ip",
       p_chave_valor: ip,
-      p_max_tentativas: 10,
+      p_max_tentativas: 30,
       p_janela_segundos: 900,
-      p_bloqueio_segundos: 3600,
+      p_bloqueio_segundos: 600,
     },
   );
   if (rlIpErr) {
     return jsonResponse({ error: "rate_limit_error" }, 500, cors);
   }
   if (rlIp && rlIp[0] && rlIp[0].permitido === false) {
-    return jsonResponse({ error: "rate_limited" }, 429, cors);
+    return jsonResponse(
+      { error: "rate_limited", retry_after_segundos: retryAfter(rlIp[0].bloqueado_ate) },
+      429,
+      cors,
+    );
   }
 
   // Rate limit por matrícula (hash): 5/15 min, bloqueio 1h.
@@ -84,42 +95,96 @@ Deno.serve(async (req) => {
     p_escopo: "atestado_validar",
     p_chave_tipo: "matricula_hash",
     p_chave_valor: matriculaHash,
-    p_max_tentativas: 5,
+    p_max_tentativas: 8,
     p_janela_segundos: 900,
-    p_bloqueio_segundos: 3600,
+    p_bloqueio_segundos: 600,
   });
   if (rlMat && rlMat[0] && rlMat[0].permitido === false) {
-    return jsonResponse({ error: "rate_limited" }, 429, cors);
+    return jsonResponse(
+      { error: "rate_limited", retry_after_segundos: retryAfter(rlMat[0].bloqueado_ate) },
+      429,
+      cors,
+    );
   }
 
-  // Busca funcionário + CPF sensível.
-  const { data: func, error: funcErr } = await supabase
+  // Matrícula NÃO é única no cadastro: buscamos todos os candidatos e
+  // desempatamos pelos 4 últimos dígitos do CPF.
+  const { data: candidatos, error: funcErr } = await supabase
     .from("bd_funcionarios")
     .select("id, nome_completo, matricula, status, centro_custo_id")
     .eq("matricula", matricula)
-    .maybeSingle();
+    .limit(20);
 
-  if (funcErr || !func) {
+  if (funcErr || !candidatos || candidatos.length === 0) {
     await delay(500, 1200);
     return jsonResponse(GENERIC_ERROR, 401, cors);
   }
 
-  if (!STATUS_PERMITIDOS.has(func.status)) {
+  const elegiveis = candidatos.filter((c) => STATUS_PERMITIDOS.has(c.status));
+  if (elegiveis.length === 0) {
     await delay(500, 1200);
     return jsonResponse(GENERIC_ERROR, 401, cors);
   }
 
-  const { data: sens } = await supabase
+  const { data: sensRows } = await supabase
     .from("bd_funcionarios_sensivel")
-    .select("cpf")
-    .eq("funcionario_id", func.id)
-    .maybeSingle();
+    .select("funcionario_id, cpf")
+    .in("funcionario_id", elegiveis.map((c) => c.id));
 
-  const cpfLimpo = String(sens?.cpf || "").replace(/\D/g, "");
-  if (!cpfLimpo || cpfLimpo.slice(-4) !== cpfUlt4) {
+  const cpfPorFuncionario = new Map<string, string>();
+  for (const r of sensRows ?? []) {
+    cpfPorFuncionario.set(
+      String(r.funcionario_id),
+      String(r.cpf || "").replace(/\D/g, ""),
+    );
+  }
+
+  const compativeis = elegiveis.filter((c) => {
+    const cpfLimpo = cpfPorFuncionario.get(c.id) || "";
+    return cpfLimpo.length >= 4 && cpfLimpo.slice(-4) === cpfUlt4;
+  });
+
+  if (compativeis.length === 0) {
     await delay(500, 1200);
     return jsonResponse(GENERIC_ERROR, 401, cors);
   }
+
+  if (compativeis.length > 1) {
+    // Cadastro ambíguo: nunca escolher "no chute".
+    try {
+      await supabase.from("bd_security_audit_log").insert({
+        event_type: "atestado_validar_matricula_ambiguo",
+        table_name: "bd_funcionarios",
+        ip,
+        contexto: {
+          matricula_hash: matriculaHash,
+          candidatos: compativeis.map((c) => c.id),
+        },
+      });
+    } catch (_) { /* noop */ }
+    return jsonResponse(
+      { ok: false, error: "identidade_ambigua" },
+      409,
+      cors,
+    );
+  }
+
+  const func = compativeis[0];
+
+
+  // Validação correta: zera contadores para não punir quem acertou.
+  try {
+    await supabase.rpc("fn_rate_limit_reset", {
+      p_escopo: "atestado_validar",
+      p_chave_tipo: "matricula_hash",
+      p_chave_valor: matriculaHash,
+    });
+    await supabase.rpc("fn_rate_limit_reset", {
+      p_escopo: "atestado_validar",
+      p_chave_tipo: "ip",
+      p_chave_valor: ip,
+    });
+  } catch (_) { /* noop */ }
 
   // Emite token HMAC (10 min).
   const nonce = crypto.randomUUID();

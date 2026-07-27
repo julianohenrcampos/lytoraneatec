@@ -20536,7 +20536,7 @@ export type Database = {
       }
       aprovar_aditivo: {
         Args: { p_aditivo_id: string; p_observacao?: string }
-        Returns: undefined
+        Returns: Json
       }
       aprovar_diretor_adm: {
         Args: {
@@ -22060,6 +22060,10 @@ export type Database = {
           permitido: boolean
           tentativas: number
         }[]
+      }
+      fn_rate_limit_reset: {
+        Args: { p_chave_tipo: string; p_chave_valor: string; p_escopo: string }
+        Returns: undefined
       }
       fn_recalcula_total_os: { Args: { p_os_id: string }; Returns: undefined }
       fn_registrar_apontamento_item_ordem_diaria: {

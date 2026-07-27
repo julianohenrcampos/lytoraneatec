@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,14 +13,30 @@ interface Props {
   onVoltar: () => void;
 }
 
+function formatarEspera(segundos: number) {
+  if (segundos >= 60) {
+    const min = Math.ceil(segundos / 60);
+    return `${min} minuto${min > 1 ? "s" : ""}`;
+  }
+  return `${segundos} segundos`;
+}
+
 export default function EtapaValidacaoMatricula({ onValidado, onVoltar }: Props) {
   const [matricula, setMatricula] = useState("");
   const [cpf4, setCpf4] = useState("");
   const [erro, setErro] = useState<string | null>(null);
+  const [espera, setEspera] = useState(0);
   const validar = useValidarMatricula();
+
+  useEffect(() => {
+    if (espera <= 0) return;
+    const t = setInterval(() => setEspera((s) => (s > 1 ? s - 1 : 0)), 1000);
+    return () => clearInterval(t);
+  }, [espera]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (espera > 0) return;
     setErro(null);
     const m = matricula.trim();
     const c = cpf4.trim();
@@ -36,14 +52,26 @@ export default function EtapaValidacaoMatricula({ onValidado, onVoltar }: Props)
       const resp = await validar.mutateAsync({ matricula: m, cpf_ultimos_4: c });
       onValidado(resp);
     } catch (e: any) {
-      if (e?.code === "rate_limited") {
-        setErro("Muitas tentativas. Aguarde alguns minutos e tente novamente.");
-        toast.error("Muitas tentativas. Aguarde alguns minutos.");
+      const code = e?.code || "";
+      if (code === "rate_limited") {
+        const segundos = Number(e?.retry_after_segundos) || 600;
+        setEspera(segundos);
+        const msg = `Muitas tentativas. Tente novamente em ${formatarEspera(segundos)}.`;
+        setErro(msg);
+        toast.error(msg);
+      } else if (code === "timeout" || code === "network_error") {
+        setErro("A conexão demorou demais. Verifique sua internet e tente novamente.");
+      } else if (code === "identidade_ambigua") {
+        setErro(
+          "Encontramos mais de um cadastro com esta matrícula. Procure o RH para regularizar.",
+        );
       } else {
         setErro("Não foi possível validar. Verifique os dados.");
       }
+
     }
   }
+
 
   return (
     <Card>
@@ -93,9 +121,13 @@ export default function EtapaValidacaoMatricula({ onValidado, onVoltar }: Props)
           )}
 
           <div className="flex flex-col sm:flex-row gap-2 pt-2">
-            <Button type="submit" disabled={validar.isPending} className="sm:flex-1">
+            <Button
+              type="submit"
+              disabled={validar.isPending || espera > 0}
+              className="sm:flex-1"
+            >
               {validar.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Validar
+              {espera > 0 ? `Aguarde ${formatarEspera(espera)}` : "Validar"}
             </Button>
             <Button type="button" variant="outline" onClick={onVoltar}>
               Voltar

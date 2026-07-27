@@ -16,16 +16,56 @@ function fnUrl(name: string) {
   return `${SUPABASE_URL}/functions/v1/${name}`;
 }
 
-async function publicPost<T>(fnName: string, body: unknown): Promise<T> {
-  const res = await fetch(fnUrl(fnName), {
-    method: "POST",
-    headers: {
-      apikey: SUPABASE_ANON,
-      Authorization: `Bearer ${SUPABASE_ANON}`,
-      "Content-Type": "application/json",
+/** Timeouts por etapa (ms) — sem eles a promise pode ficar pendurada para sempre. */
+export const ATESTADO_TIMEOUTS = {
+  uploadUrl: 20_000,
+  upload: 120_000,
+  submeter: 45_000,
+};
+
+function timeoutError() {
+  const err: any = new Error("timeout");
+  err.code = "timeout";
+  return err;
+}
+
+async function fetchComTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } catch (e: any) {
+    if (e?.name === "AbortError") throw timeoutError();
+    const err: any = new Error("network_error");
+    err.code = "network_error";
+    throw err;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function publicPost<T>(
+  fnName: string,
+  body: unknown,
+  timeoutMs: number,
+): Promise<T> {
+  const res = await fetchComTimeout(
+    fnUrl(fnName),
+    {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON,
+        Authorization: `Bearer ${SUPABASE_ANON}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
     },
-    body: JSON.stringify(body),
-  });
+    timeoutMs,
+  );
   let data: any = null;
   try {
     data = await res.json();
@@ -37,6 +77,7 @@ async function publicPost<T>(fnName: string, body: unknown): Promise<T> {
     err.status = res.status;
     err.code = data?.error || `http_${res.status}`;
     err.detail = data?.detail;
+    err.retry_after_segundos = data?.retry_after_segundos;
     throw err;
   }
   return data as T;
@@ -46,20 +87,28 @@ export async function validarMatricula(input: {
   matricula: string;
   cpf_ultimos_4: string;
 }): Promise<AtestadoValidarResponse> {
-  return publicPost<AtestadoValidarResponse>("atestado-validar-matricula", {
-    matricula: input.matricula,
-    cpf_ultimos_4: input.cpf_ultimos_4,
-  });
+  return publicPost<AtestadoValidarResponse>(
+    "atestado-validar-matricula",
+    {
+      matricula: input.matricula,
+      cpf_ultimos_4: input.cpf_ultimos_4,
+    },
+    ATESTADO_TIMEOUTS.uploadUrl,
+  );
 }
 
 export async function criarUploadUrl(input: {
   token_validacao: string;
   extensao: string;
 }): Promise<AtestadoUploadUrlResponse> {
-  return publicPost<AtestadoUploadUrlResponse>("atestado-criar-upload-url", {
-    token_validacao: input.token_validacao,
-    extensao: input.extensao,
-  });
+  return publicPost<AtestadoUploadUrlResponse>(
+    "atestado-criar-upload-url",
+    {
+      token_validacao: input.token_validacao,
+      extensao: input.extensao,
+    },
+    ATESTADO_TIMEOUTS.uploadUrl,
+  );
 }
 
 export async function uploadArquivo(params: {
@@ -68,18 +117,42 @@ export async function uploadArquivo(params: {
   token: string;
   file: File;
 }): Promise<void> {
-  const { error } = await supabase.storage
-    .from(params.bucket)
-    .uploadToSignedUrl(params.arquivo_path, params.token, params.file, {
-      contentType: params.file.type || undefined,
-      upsert: false,
-    });
-  if (error) {
+  // Upload direto no endpoint de signed upload, com timeout — o helper
+  // `uploadToSignedUrl` do supabase-js não aceita AbortSignal.
+  const url =
+    `${SUPABASE_URL}/storage/v1/object/upload/sign/${params.bucket}/${params.arquivo_path}` +
+    `?token=${encodeURIComponent(params.token)}`;
+
+  let res: Response;
+  try {
+    res = await fetchComTimeout(
+      url,
+      {
+        method: "PUT",
+        headers: {
+          apikey: SUPABASE_ANON,
+          "Content-Type": params.file.type || "application/octet-stream",
+          "x-upsert": "false",
+        },
+        body: params.file,
+      },
+      ATESTADO_TIMEOUTS.upload,
+    );
+  } catch (e: any) {
+    if (e?.code === "timeout") throw e;
     const err: any = new Error("upload_failed");
     err.code = "upload_failed";
     throw err;
   }
+
+  if (!res.ok) {
+    const err: any = new Error("upload_failed");
+    err.code = "upload_failed";
+    err.status = res.status;
+    throw err;
+  }
 }
+
 
 export async function enviarAtestado(input: {
   token_validacao: string;
@@ -90,18 +163,22 @@ export async function enviarAtestado(input: {
   sistema_afetado_codigo: string;
   sistema_afetado_observacao?: string;
 }): Promise<AtestadoSubmeterResponse> {
-  return publicPost<AtestadoSubmeterResponse>("atestado-submeter", {
-    token_validacao: input.token_validacao,
-    arquivo_path: input.arquivo_path,
-    data_emissao: input.data_emissao,
-    data_inicio_afastamento: input.data_inicio_afastamento,
-    dias_afastamento: input.dias_afastamento,
-    sistema_afetado_codigo: input.sistema_afetado_codigo,
-    sistema_afetado_observacao: input.sistema_afetado_observacao,
-    declaracao_veracidade: true,
-    declaracao_original_48h: true,
-    declaracao_ciencia_nao_validacao: true,
-  });
+  return publicPost<AtestadoSubmeterResponse>(
+    "atestado-submeter",
+    {
+      token_validacao: input.token_validacao,
+      arquivo_path: input.arquivo_path,
+      data_emissao: input.data_emissao,
+      data_inicio_afastamento: input.data_inicio_afastamento,
+      dias_afastamento: input.dias_afastamento,
+      sistema_afetado_codigo: input.sistema_afetado_codigo,
+      sistema_afetado_observacao: input.sistema_afetado_observacao,
+      declaracao_veracidade: true,
+      declaracao_original_48h: true,
+      declaracao_ciencia_nao_validacao: true,
+    },
+    ATESTADO_TIMEOUTS.submeter,
+  );
 }
 
 /**

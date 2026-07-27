@@ -15,7 +15,10 @@ import {
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { useEnviarAtestado } from "@/hooks/atestados/useEnviarAtestado";
+import {
+  useEnviarAtestado,
+  type EtapaEnvio,
+} from "@/hooks/atestados/useEnviarAtestado";
 import type { AtestadoSubmeterResponse } from "@/types/atestadoMedico";
 import {
   SISTEMAS_AFETADOS,
@@ -99,7 +102,17 @@ export default function EtapaFormularioAtestado({
   const [decO, setDecO] = useState(false);
   const [decC, setDecC] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [etapaEnvio, setEtapaEnvio] = useState<EtapaEnvio | null>(null);
   const enviar = useEnviarAtestado();
+
+  const rotuloEtapa =
+    etapaEnvio === "preparando"
+      ? "Preparando envio…"
+      : etapaEnvio === "enviando_arquivo"
+      ? "Enviando arquivo…"
+      : etapaEnvio === "registrando"
+      ? "Registrando atestado…"
+      : "Enviar atestado";
 
   const precisaObservacao = sistemaCodigo === SISTEMA_OUTROS_CODIGO;
 
@@ -137,6 +150,7 @@ export default function EtapaFormularioAtestado({
 
     try {
       const resp = await enviar.mutateAsync({
+        onEtapa: setEtapaEnvio,
         token_validacao: tokenValidacao,
         file: file!,
         data_emissao: dataRegistro,
@@ -151,8 +165,14 @@ export default function EtapaFormularioAtestado({
     } catch (e: any) {
       const code = e?.code || "";
       if (code === "token_invalido" || code === "token_ja_utilizado") {
-        toast.error("Sua sessão expirou. Refaça a validação.");
+        toast.error(
+          "Sua sessão de validação expirou durante o envio. Refaça a validação e envie novamente.",
+        );
         onTokenInvalido();
+      } else if (code === "timeout" || code === "network_error") {
+        toast.error(
+          "A conexão demorou demais. Verifique sua internet e tente novamente.",
+        );
       } else if (
         code === "invalid_input" ||
         code === "declaracoes_obrigatorias" ||
@@ -168,6 +188,8 @@ export default function EtapaFormularioAtestado({
       } else {
         toast.error("Não foi possível enviar. Tente novamente.");
       }
+    } finally {
+      setEtapaEnvio(null);
     }
   }
 
@@ -345,7 +367,7 @@ export default function EtapaFormularioAtestado({
           <div className="pt-2">
             <Button type="submit" className="w-full" disabled={enviar.isPending}>
               {enviar.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Enviar atestado
+              {rotuloEtapa}
             </Button>
           </div>
         </form>

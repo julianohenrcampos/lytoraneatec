@@ -122,6 +122,7 @@ async function enviarEmail(
   try {
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
+      signal: AbortSignal.timeout(10000),
       headers: {
         "Authorization": `Bearer ${RESEND_API_KEY}`,
         "Content-Type": "application/json",
@@ -391,21 +392,27 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "insert_failed", detalhe: insErr?.message }, 500, cors);
   }
 
-  const mail = await enviarEmail(
-    protocolo,
-    func.matricula,
-    func.nome_completo,
-    dias,
-    dentroPrazo,
-  );
-  await supabase.from("bd_atestados_medicos").update({
-    notificacao_email_status: mail.ok
-      ? "enviada"
-      : (RESEND_API_KEY ? "erro" : "desabilitada"),
-    notificacao_email_enviada_em: mail.ok ? new Date().toISOString() : null,
-    notificacao_email_erro: mail.ok ? null : (mail.erro || null),
-    notificacao_email_tentativas: 1,
-  }).eq("id", inserted.id);
+  // E-mail em segundo plano: o colaborador nunca espera pelo Resend.
+  const notificar = (async () => {
+    const mail = await enviarEmail(
+      protocolo,
+      func.matricula,
+      func.nome_completo,
+      dias,
+      dentroPrazo,
+    );
+    await supabase.from("bd_atestados_medicos").update({
+      notificacao_email_status: mail.ok
+        ? "enviada"
+        : (RESEND_API_KEY ? "erro" : "desabilitada"),
+      notificacao_email_enviada_em: mail.ok ? new Date().toISOString() : null,
+      notificacao_email_erro: mail.ok ? null : (mail.erro || null),
+      notificacao_email_tentativas: 1,
+    }).eq("id", inserted.id);
+  })().catch(() => {});
+
+  const runtime = (globalThis as any).EdgeRuntime;
+  if (runtime?.waitUntil) runtime.waitUntil(notificar);
 
   return jsonResponse({
     ok: true,

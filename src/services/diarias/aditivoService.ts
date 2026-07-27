@@ -81,6 +81,7 @@ function traduzirErroAditivo(rawMessage: string): string {
   const msg = (rawMessage || '').toUpperCase();
   if (msg.includes('AUTH_REQUIRED')) return 'Sessão expirada. Faça login novamente.';
   if (msg.includes('PERMISSION_DENIED') || msg.includes('PERMISSAO_NEGADA_APROVAR_ADITIVO')) return 'Você não tem permissão para aprovar este aditivo.';
+  if (msg.includes('REMOCAO_BLOQUEADA_PRESENCA_REAL_TOTAL')) return 'Não é possível aprovar a remoção: todos os funcionários já possuem presença real registrada nessa data.';
   if (msg.includes('REMOCAO_BLOQUEADA_PRESENCA_REAL')) return 'Não é possível aprovar a remoção. Já existe presença real registrada nessa data.';
   if (msg.includes('JUSTIFICATIVA_OBRIGATORIA')) return 'Justificativa é obrigatória para solicitar o aditivo.';
   if (msg.includes('CONFLICT_PRESENCA_REAL')) return 'Conflito: já existe presença registrada para essa data.';
@@ -127,13 +128,26 @@ export async function solicitarAditivoDia(input: SolicitarAditivoDiaInput): Prom
   return data as string;
 }
 
-export async function aprovarAditivo(aditivoId: string, observacao?: string): Promise<void> {
-  const { error } = await supabase.rpc('aprovar_aditivo', {
+export interface AprovarAditivoResumo {
+  aditivo_id: string;
+  tipo: string;
+  data: string | null;
+  aplicados: Array<{ funcionario_id: string }>;
+  ignorados: Array<{ funcionario_id: string; nome: string; data: string; motivo: string }>;
+}
+
+export async function aprovarAditivo(
+  aditivoId: string,
+  observacao?: string,
+): Promise<AprovarAditivoResumo | null> {
+  const { data, error } = await (supabase.rpc as any)('aprovar_aditivo', {
     p_aditivo_id: aditivoId,
     p_observacao: observacao,
   });
   if (error) throwTraduzido(error);
+  return (data as AprovarAditivoResumo) ?? null;
 }
+
 
 export async function reprovarAditivo(aditivoId: string, motivo: string): Promise<void> {
   if (!motivo?.trim()) {

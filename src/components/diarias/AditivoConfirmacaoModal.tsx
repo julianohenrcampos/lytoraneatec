@@ -239,6 +239,40 @@ export function AditivoConfirmacaoModal({
     });
   }, [funcionariosSnapshotRaw, hidratacao]);
 
+  // ---------- Remoção de dia: quem já tem presença real (não será removido) ----------
+  const ehRemocao = aditivo?.tipo === "remover_dia";
+  const idsAfetados = useMemo(
+    () => funcionariosSnapshot.map((s: any) => s?.funcionario_id).filter(Boolean) as string[],
+    [funcionariosSnapshot],
+  );
+
+  const { data: presencasReaisIds } = useQuery({
+    queryKey: [
+      "aditivo-presencas-reais",
+      aditivo?.solicitacao_id,
+      aditivo?.data_ajustada,
+      idsAfetados.slice().sort().join(","),
+    ],
+    enabled: open && ehRemocao && idsAfetados.length > 0 && !!aditivo?.solicitacao_id && !!aditivo?.data_ajustada,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bd_diaria_presencas")
+        .select("funcionario_id, hora_entrada")
+        .eq("solicitacao_id", aditivo!.solicitacao_id!)
+        .eq("data", aditivo!.data_ajustada!)
+        .in("funcionario_id", idsAfetados)
+        .not("hora_entrada", "is", null);
+      if (error) throw error;
+      return new Set(((data ?? []) as any[]).map((p) => p.funcionario_id as string));
+    },
+  });
+
+  const qtdBloqueadosPresenca = useMemo(() => {
+    if (!ehRemocao || !presencasReaisIds) return 0;
+    return idsAfetados.filter((id) => presencasReaisIds.has(id)).length;
+  }, [ehRemocao, presencasReaisIds, idsAfetados]);
+
+
   const impacto = (aditivo?.impacto_financeiro as any) ?? {};
   const totalImpacto =
     typeof impacto?.total === "number"
@@ -479,21 +513,37 @@ export function AditivoConfirmacaoModal({
               <Card>
                 <CardContent className="py-3 space-y-2">
                   <div className="text-sm font-semibold flex items-center gap-2">
-                    Funcionário{funcionariosSnapshot.length > 1 ? "s" : ""} afetado
-                    {funcionariosSnapshot.length > 1 ? "s" : ""} ({funcionariosSnapshot.length})
+                    {ehRemocao ? "Funcionários a remover" : "Funcionário"}
+                    {!ehRemocao && funcionariosSnapshot.length > 1 ? "s" : ""}
+                    {!ehRemocao ? " afetado" : ""}
+                    {!ehRemocao && funcionariosSnapshot.length > 1 ? "s" : ""} ({funcionariosSnapshot.length})
                     {isHidratando && (
                       <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
                     )}
                   </div>
+                  {ehRemocao && qtdBloqueadosPresenca > 0 && (
+                    <div className="rounded border border-amber-500/40 bg-amber-500/10 p-2 text-xs">
+                      {qtdBloqueadosPresenca} funcionário(s) já possuem presença real registrada nesta data e
+                      <strong> serão mantidos</strong> na convocação. Os demais serão removidos ao confirmar.
+                    </div>
+                  )}
                   <div className="space-y-2">
                     {funcionariosSnapshot.map((s: any, idx: number) => (
                       <div key={idx} className="rounded border p-2 text-sm grid grid-cols-1 sm:grid-cols-2 gap-1">
-                        <div className="sm:col-span-2 font-medium">
-                          {s?.nome ?? (s?.funcionario_id ? `Funcionário ${String(s.funcionario_id).slice(0, 8)}` : "—")}
-                          {s?.matricula ? (
-                            <span className="text-muted-foreground"> · {s.matricula}</span>
-                          ) : null}
+                        <div className="sm:col-span-2 font-medium flex flex-wrap items-center gap-2">
+                          <span>
+                            {s?.nome ?? (s?.funcionario_id ? `Funcionário ${String(s.funcionario_id).slice(0, 8)}` : "—")}
+                            {s?.matricula ? (
+                              <span className="text-muted-foreground"> · {s.matricula}</span>
+                            ) : null}
+                          </span>
+                          {ehRemocao && s?.funcionario_id && presencasReaisIds?.has(s.funcionario_id) && (
+                            <Badge variant="outline" className="text-[10px]">
+                              Presença registrada — não será removido
+                            </Badge>
+                          )}
                         </div>
+
                         <div>
                           <span className="text-muted-foreground">Função:</span>{" "}
                           <span>{s?.funcao_nome ?? "—"}</span>

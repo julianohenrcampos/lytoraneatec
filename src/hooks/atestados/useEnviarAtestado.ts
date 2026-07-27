@@ -6,6 +6,8 @@ import {
 } from "@/services/atestadosService";
 import type { AtestadoSubmeterResponse } from "@/types/atestadoMedico";
 
+export type EtapaEnvio = "preparando" | "enviando_arquivo" | "registrando";
+
 interface EnviarAtestadoParams {
   token_validacao: string;
   file: File;
@@ -14,6 +16,20 @@ interface EnviarAtestadoParams {
   dias_afastamento: number;
   sistema_afetado_codigo: string;
   sistema_afetado_observacao?: string;
+  onEtapa?: (etapa: EtapaEnvio) => void;
+}
+
+/** Repete apenas etapas idempotentes (nunca `atestado-submeter`). */
+async function comRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e: any) {
+    const code = e?.code || "";
+    if (code === "timeout" || code === "network_error" || code === "upload_failed") {
+      return await fn();
+    }
+    throw e;
+  }
 }
 
 async function pipeline(
@@ -28,18 +44,25 @@ async function pipeline(
     throw err;
   }
 
-  const upload = await criarUploadUrl({
-    token_validacao: params.token_validacao,
-    extensao: ext,
-  });
+  params.onEtapa?.("preparando");
+  const upload = await comRetry(() =>
+    criarUploadUrl({
+      token_validacao: params.token_validacao,
+      extensao: ext,
+    })
+  );
 
-  await uploadArquivo({
-    bucket: upload.bucket,
-    arquivo_path: upload.arquivo_path,
-    token: upload.token,
-    file: params.file,
-  });
+  params.onEtapa?.("enviando_arquivo");
+  await comRetry(() =>
+    uploadArquivo({
+      bucket: upload.bucket,
+      arquivo_path: upload.arquivo_path,
+      token: upload.token,
+      file: params.file,
+    })
+  );
 
+  params.onEtapa?.("registrando");
   return enviarAtestado({
     token_validacao: params.token_validacao,
     arquivo_path: upload.arquivo_path,
