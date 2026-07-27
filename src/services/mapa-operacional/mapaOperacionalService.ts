@@ -8,7 +8,7 @@ export type StatusMapa =
   | "OPERACIONAL"
   | "SEM_STATUS";
 
-export type PeriodoLocalizacao = "TODAS" | "2H" | "24H" | "7D" | "PERSONALIZADO";
+export type PeriodoLocalizacao = "HOJE" | "TODAS" | "2H" | "24H" | "7D" | "PERSONALIZADO";
 
 export interface MapaOperacionalAtivo {
   localizacao_id: string;
@@ -54,6 +54,7 @@ export interface MapaOperacionalResumo {
   parados: number;
   desatualizados: number;
   sem_status: number;
+  apontamentos_dia?: number;
 }
 
 export interface MapaOperacionalCentroCustoEquipamento {
@@ -114,6 +115,7 @@ export const EMPTY_MAPA_RESPONSE: MapaOperacionalResponse = {
     parados: 0,
     desatualizados: 0,
     sem_status: 0,
+    apontamentos_dia: 0,
   },
   gerado_em: new Date(0).toISOString(),
   coordenada_precisa: false,
@@ -129,8 +131,9 @@ export async function fetchMapaOperacional(
   if (filtros.somente_nao_conformes) payload.somente_nao_conformes = true;
   if (filtros.limite_desatualizado_horas)
     payload.limite_desatualizado_horas = filtros.limite_desatualizado_horas;
-  if (filtros.periodo_localizacao && filtros.periodo_localizacao !== "TODAS")
-    payload.periodo_localizacao = filtros.periodo_localizacao;
+  // Padrão do mapa = apontamentos do dia (HOJE). Enviado sempre que definido para
+  // que a RPC não recaia no default quando o usuário escolher outro período.
+  payload.periodo_localizacao = filtros.periodo_localizacao ?? "HOJE";
   if (filtros.periodo_inicio) payload.periodo_inicio = filtros.periodo_inicio;
   if (filtros.periodo_fim) payload.periodo_fim = filtros.periodo_fim;
   if (filtros.centro_custo_ids?.length) payload.centro_custo_ids = filtros.centro_custo_ids;

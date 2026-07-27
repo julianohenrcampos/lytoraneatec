@@ -229,6 +229,7 @@ export function traduzirErroRpc(err: any, apontamentoId?: string): string {
   const raw = String(err?.message || "").trim();
   const key = raw.split(":")[0]?.trim();
   const msg = RPC_ERROR_MESSAGES[key] || RPC_ERROR_MESSAGES[raw] || null;
+  const contexto = String(err?.contextoUsuario || "").trim();
 
   // eslint-disable-next-line no-console
   console.error("[apontamento-ce] RPC error", {
@@ -239,10 +240,16 @@ export function traduzirErroRpc(err: any, apontamentoId?: string): string {
     apontamentoId,
   });
 
-  if (msg) return msg;
+  if (msg) return contexto ? `${msg} ${contexto}` : msg;
   if (err?.code === "42501") return "Você não tem permissão para esta operação.";
+  // Erro local já humanizado (lançado pelo próprio app, sem código PostgREST):
+  // preserva a mensagem original em vez de mascarar com o texto genérico.
+  if (!err?.code && raw.length > 0 && /\s/.test(raw) && !/^[a-z0-9_]+$/i.test(raw)) {
+    return raw;
+  }
   return "Não foi possível concluir a operação. Tente novamente.";
 }
+
 
 // =============================================================
 // Leituras
@@ -390,6 +397,33 @@ export const fetchApontamentoAbertoPorAtivo = async (
     nome_centro_custo: (data as any).centro_custo?.codigo_centro_custo || "Não informado",
   };
 };
+
+/**
+ * Descreve, em linguagem humana, o ciclo em aberto que impede iniciar outro
+ * apontamento para o mesmo ativo. Ex.:
+ * "LYC238 — iniciado em 23/07/2026 às 06:20 (horímetro 26.509), operador José Augusto."
+ */
+export function descreverApontamentoAberto(aberto: any): string {
+  if (!aberto) return "";
+  const ativo = aberto.veiculo_identificacao || "Este ativo";
+  const dataStr = aberto.data
+    ? new Date(`${String(aberto.data).slice(0, 10)}T12:00:00`).toLocaleDateString("pt-BR")
+    : null;
+  const horaStr = aberto.hora_inicial ? String(aberto.hora_inicial).slice(0, 5) : null;
+  const medicao =
+    aberto.horimetro_inicial !== null && aberto.horimetro_inicial !== undefined
+      ? Number(aberto.horimetro_inicial).toLocaleString("pt-BR")
+      : null;
+
+  const partes: string[] = [];
+  if (dataStr) partes.push(`iniciado em ${dataStr}${horaStr ? ` às ${horaStr}` : ""}`);
+  if (medicao) partes.push(`medição inicial ${medicao}`);
+  if (aberto.nome_operador) partes.push(`operador ${aberto.nome_operador}`);
+
+  return partes.length > 0 ? `${ativo} — ${partes.join(", ")}.` : `${ativo} possui um ciclo aberto.`;
+}
+
+
 
 /**
  * Busca apenas os paths de fotos da inspeção atual (usado antes do DELETE

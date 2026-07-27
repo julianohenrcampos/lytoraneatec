@@ -95,9 +95,21 @@ export interface ChamadoFilaAtendimentoRow {
   categoria_nome: string;
   responsavel_atual_profile_id: string | null;
   fonte_autorizacao: string;
+  solicitante_funcionario_id: string | null;
+  solicitante_nome: string | null;
   created_at: string;
   updated_at: string;
 }
+
+// ---------- Enriquecimento de lista (RPC fn_chamado_interno_enriquecer_lista) ----------
+export interface ChamadoInternoEnriquecimentoRow {
+  chamado_id: string;
+  centro_custo_codigo: string | null;
+  centro_custo_nome: string | null;
+  solicitante_funcionario_id: string | null;
+  solicitante_nome: string | null;
+}
+
 
 // ---------- Filtros de listagem ----------
 export interface ChamadosInternosListaFiltro {

@@ -928,6 +928,10 @@ export type Database = {
           funcionario_id: string
           id: string
           ip_origem: unknown
+          lido: boolean
+          lido_em: string | null
+          lido_por: string | null
+          lido_por_nome: string | null
           matricula_snapshot: string
           medico_nome: string | null
           medico_registro: string | null
@@ -972,6 +976,10 @@ export type Database = {
           funcionario_id: string
           id?: string
           ip_origem?: unknown
+          lido?: boolean
+          lido_em?: string | null
+          lido_por?: string | null
+          lido_por_nome?: string | null
           matricula_snapshot: string
           medico_nome?: string | null
           medico_registro?: string | null
@@ -1016,6 +1024,10 @@ export type Database = {
           funcionario_id?: string
           id?: string
           ip_origem?: unknown
+          lido?: boolean
+          lido_em?: string | null
+          lido_por?: string | null
+          lido_por_nome?: string | null
           matricula_snapshot?: string
           medico_nome?: string | null
           medico_registro?: string | null
@@ -20909,6 +20921,16 @@ export type Database = {
         Args: { p_role_id: string; p_target_user_id: string }
         Returns: undefined
       }
+      fn_atestado_marcar_lido: {
+        Args: { p_atestado_id: string; p_lido: boolean }
+        Returns: {
+          id: string
+          lido: boolean
+          lido_em: string
+          lido_por: string
+          lido_por_nome: string
+        }[]
+      }
       fn_ativos_can_access_centro_custo: {
         Args: { p_centro_custo_id: string; p_user_id?: string }
         Returns: boolean
@@ -21339,6 +21361,16 @@ export type Database = {
         Args: { p_chamado_id: string }
         Returns: undefined
       }
+      fn_chamado_interno_enriquecer_lista: {
+        Args: { p_ids: string[] }
+        Returns: {
+          centro_custo_codigo: string
+          centro_custo_nome: string
+          chamado_id: string
+          solicitante_funcionario_id: string
+          solicitante_nome: string
+        }[]
+      }
       fn_chamado_interno_listar_ccs_abertura: {
         Args: never
         Returns: {
@@ -21367,6 +21399,8 @@ export type Database = {
           responsavel_atual_profile_id: string
           setor: Database["public"]["Enums"]["chamado_interno_setor"]
           sla_prazo: string
+          solicitante_funcionario_id: string
+          solicitante_nome: string
           status: Database["public"]["Enums"]["chamado_interno_status"]
           titulo: string
           updated_at: string

@@ -75,6 +75,10 @@ export interface AtestadoRow {
   sistema_afetado_descricao: string | null;
   sistema_afetado_observacao: string | null;
   alertas_gerados: AtestadoAlerta[];
+  lido: boolean;
+  lido_em: string | null;
+  lido_por: string | null;
+  lido_por_nome: string | null;
 }
 
 export interface AtestadosPainelFilters {

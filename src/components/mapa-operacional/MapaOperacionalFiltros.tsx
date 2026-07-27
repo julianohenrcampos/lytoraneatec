@@ -94,13 +94,14 @@ export function MapaOperacionalFiltros({
 
         <div className="md:col-span-3">
           <Select
-            value={filtros.periodo_localizacao ?? "TODAS"}
+            value={filtros.periodo_localizacao ?? "HOJE"}
             onValueChange={(v) => set("periodo_localizacao", v as PeriodoLocalizacao)}
           >
             <SelectTrigger>
               <SelectValue placeholder="Período" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="HOJE">Hoje (apontamentos do dia)</SelectItem>
               <SelectItem value="TODAS">Todas</SelectItem>
               <SelectItem value="2H">Últimas 2h</SelectItem>
               <SelectItem value="24H">Últimas 24h</SelectItem>

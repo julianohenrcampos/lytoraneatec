@@ -230,6 +230,27 @@ const AnaliseBody: React.FC<{ analise: AnaliseOperacional; onRetry: () => void }
 
   return (
     <div className="space-y-4">
+      {analise.resumo.compatibilidade === "PARCIAL" && (
+        <Alert className="py-2">
+          <Info className="h-4 w-4" />
+          <AlertDescription className="text-xs">
+            {analise.resumo.motivo_compatibilidade ||
+              "Compatibilidade parcial — capacidade dos ativos não confirmada."}{" "}
+            Ver detalhamento na aba Resumo.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {!analise.localizacao_disponivel && (
+        <Alert className="py-2">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="text-xs">
+            Localização atual indisponível no momento — a análise dos ativos continua válida,
+            mas o Centro de Custo atual não pôde ser consultado.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Tabs defaultValue="propria">
         <TabsList className="grid grid-cols-5 w-full">
           <TabsTrigger value="propria" className="text-xs">
@@ -248,10 +269,10 @@ const AnaliseBody: React.FC<{ analise: AnaliseOperacional; onRetry: () => void }
         </TabsList>
 
         <TabsContent value="propria">
-          <AtivosTable rows={analise.disponibilidadePropria} empty="Nenhum equipamento próprio disponível." />
+          <AtivosTable rows={analise.disponibilidadePropria} empty="Nenhum equipamento próprio cadastrado para este item." />
         </TabsContent>
         <TabsContent value="grupo">
-          <AtivosTable rows={analise.disponibilidadeGrupo} empty="Nenhum equipamento do grupo disponível." />
+          <AtivosTable rows={analise.disponibilidadeGrupo} empty="Nenhum equipamento do grupo cadastrado para este item." />
         </TabsContent>
         <TabsContent value="previsao">
           <PrevisaoTable rows={analise.equipamentosComPrevisao} />
@@ -279,22 +300,32 @@ const AnaliseBody: React.FC<{ analise: AnaliseOperacional; onRetry: () => void }
             </div>
           )}
         </TabsContent>
-        <TabsContent value="resumo">
+        <TabsContent value="resumo" className="space-y-4">
           <ResumoBox analise={analise} />
+          {(analise.naoClassificado?.length ?? 0) > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
+                Ativos sem propriedade classificada ({analise.naoClassificado?.length ?? 0})
+              </h4>
+              <AtivosTable rows={analise.naoClassificado ?? []} empty="—" />
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
       {analise.status === "sem_disponibilidade" && (
         <Alert>
           <Info className="h-4 w-4" />
-          <AlertTitle>Sem disponibilidade no momento</AlertTitle>
+          <AlertTitle>Sem disponibilidade confirmada no momento</AlertTitle>
           <AlertDescription className="text-xs">
-            Existem {analise.totalCandidatos} ativo(s) cadastrado(s) compatível(is), mas nenhum está disponível agora e nenhum tem previsão de liberação.
+            Existem {analise.totalCandidatos} ativo(s) cadastrado(s) compatível(is), mas nenhum consta como
+            DISPONÍVEL agora e nenhum tem previsão de liberação.
           </AlertDescription>
         </Alert>
       )}
     </div>
   );
+
 };
 
 const propriedadeBadge = (p: AtivoAnalise["propriedade"]) => {
@@ -307,16 +338,24 @@ const propriedadeBadge = (p: AtivoAnalise["propriedade"]) => {
   return <Badge variant="outline" className={`text-[10px] ${map[p] || ""}`}>{p.replace("_", " ")}</Badge>;
 };
 
-const statusBadge = (s: string | null) => {
-  if (!s) return <span className="text-muted-foreground">SEM STATUS</span>;
+/** CC atual — exclusivamente da projeção autoritativa (fn_veiculos_alocacao_atual). */
+const ccLabel = (r: AtivoAnalise): string => {
+  if (!r.centro_custo_nome && !r.centro_custo_codigo) return "—";
+  return [r.centro_custo_codigo, r.centro_custo_nome].filter(Boolean).join(" — ");
+};
+
+const statusBadge = (s: AtivoAnalise["status_operacional"]) => {
+  if (s === "SEM_STATUS") return <span className="text-xs text-muted-foreground">SEM STATUS</span>;
   const map: Record<string, string> = {
-    DISPONIVEL: "bg-emerald-600 text-white",
-    ALOCADO: "bg-blue-600 text-white",
-    MANUTENCAO: "bg-amber-600 text-white",
-    INDISPONIVEL: "bg-red-600 text-white",
+    DISPONIVEL: "bg-emerald-600 text-primary-foreground",
+    ALOCADO: "bg-blue-600 text-primary-foreground",
+    MANUTENCAO: "bg-amber-600 text-primary-foreground",
+    INDISPONIVEL: "bg-destructive text-destructive-foreground",
+    DESCONHECIDO: "bg-muted text-muted-foreground",
   };
   return <Badge className={`text-[10px] ${map[s] || ""}`}>{s}</Badge>;
 };
+
 
 const AtivosTable: React.FC<{ rows: AtivoAnalise[]; empty: string }> = ({ rows, empty }) => (
   <div className="rounded-md border overflow-auto max-h-[400px]">
@@ -352,7 +391,8 @@ const AtivosTable: React.FC<{ rows: AtivoAnalise[]; empty: string }> = ({ rows, 
               <TableCell className="text-xs">
                 {r.capacidade_valor != null ? `${r.capacidade_valor} ${r.capacidade_unidade || ""}` : "—"}
               </TableCell>
-              <TableCell className="text-xs">{r.centro_custo || "—"}</TableCell>
+              <TableCell className="text-xs">{ccLabel(r)}</TableCell>
+
               <TableCell>{statusBadge(r.status_operacional)}</TableCell>
               <TableCell>
                 <Badge variant="outline" className="text-[10px]">{r.compatibilidade}</Badge>
@@ -392,7 +432,7 @@ const PrevisaoTable: React.FC<{ rows: AtivoAnalise[] }> = ({ rows }) => (
               <TableCell className="text-xs">{r.frota || "—"}</TableCell>
               <TableCell className="text-xs">{r.numero_frota || "—"}</TableCell>
               <TableCell>{propriedadeBadge(r.propriedade)}</TableCell>
-              <TableCell className="text-xs">{r.centro_custo || "—"}</TableCell>
+              <TableCell className="text-xs">{ccLabel(r)}</TableCell>
               <TableCell>{statusBadge(r.status_operacional)}</TableCell>
               <TableCell className="text-xs">
                 {r.previsao_liberacao ? formatDateBR(r.previsao_liberacao) : "—"}
@@ -447,28 +487,58 @@ const PortfolioTable: React.FC<{ rows: AnaliseOperacional["portfolioExterno"] }>
 
 const ResumoBox: React.FC<{ analise: AnaliseOperacional }> = ({ analise }) => {
   const r = analise.resumo;
+  const d = analise.diagnosticoCapacidade;
   const linhas: { k: string; v: string | number }[] = [
     { k: "Quantidade solicitada", v: r.quantidade_solicitada },
-    { k: "Própria disponível", v: r.propria_disponivel },
-    { k: "Grupo disponível", v: r.grupo_disponivel },
-    { k: "Locada cadastrada", v: r.locado_cadastrado },
+    { k: "Total de candidatos cadastrados", v: r.total_candidatos },
+    { k: "Próprios cadastrados", v: r.propria_cadastrada },
+    { k: "Grupo cadastrados", v: r.grupo_cadastrado },
+    { k: "Locados cadastrados", v: r.locado_cadastrado },
+    { k: "Não classificados", v: r.nao_classificado },
+    { k: "Disponíveis agora", v: r.disponiveis_agora },
+    { k: "Sem status operacional", v: r.sem_status },
     { k: "Com previsão de liberação", v: r.com_previsao },
     { k: "Fornecedores compatíveis", v: r.fornecedores_compativeis },
     { k: "Compatibilidade", v: r.compatibilidade },
     { k: "Estratégia de matching", v: analise.matchingUsed },
   ];
   return (
-    <div className="rounded-md border p-4 space-y-2 bg-muted/30">
-      <div className="grid grid-cols-2 gap-2">
-        {linhas.map((l) => (
-          <div key={l.k} className="flex justify-between text-xs border-b py-1">
-            <span className="text-muted-foreground">{l.k}</span>
-            <span className="font-medium">{l.v}</span>
-          </div>
-        ))}
+    <div className="space-y-3">
+      <div className="rounded-md border p-4 space-y-2 bg-muted/30">
+        <div className="grid grid-cols-2 gap-2">
+          {linhas.map((l) => (
+            <div key={l.k} className="flex justify-between text-xs border-b py-1">
+              <span className="text-muted-foreground">{l.k}</span>
+              <span className="font-medium">{l.v}</span>
+            </div>
+          ))}
+        </div>
+        <div className="text-[11px] text-muted-foreground pt-1">
+          Reconciliação: {r.total_candidatos} = {r.propria_cadastrada} própria + {r.grupo_cadastrado} grupo +{" "}
+          {r.locado_cadastrado} externo + {r.nao_classificado} não classificado
+          {analise.reconciliacao_ok ? " ✓" : " ✗"}
+        </div>
       </div>
+
+      {d && (
+        <div className="rounded-md border p-4 space-y-1 text-xs">
+          <h4 className="font-semibold text-muted-foreground uppercase tracking-wide text-[11px]">
+            Diagnóstico de capacidade
+          </h4>
+          <div>{d.candidatos} candidato(s) da estratégia “{analise.matchingUsed}”</div>
+          <div>{d.sem_capacidade} sem capacidade cadastrada</div>
+          <div>{d.com_valor_sem_unidade} com valor de capacidade e unidade não informada</div>
+          <div>
+            {d.correspondencia_exata} com correspondência exata
+            {d.capacidade_solicitada_valor != null
+              ? ` a ${d.capacidade_solicitada_valor}${d.capacidade_solicitada_unidade ? ` ${d.capacidade_solicitada_unidade}` : ""}`
+              : ""}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
 
 export default AnaliseOperacionalSheet;

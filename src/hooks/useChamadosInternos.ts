@@ -6,6 +6,8 @@ import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/rea
 import * as svc from "@/services/chamadosInternosService";
 import type {
   ChamadoInternoAbrirInput,
+  ChamadoInternoEnriquecimentoRow,
+
   ChamadoInternoSetor,
   ChamadoInternoStatus,
   ChamadosInternosListaFiltro,
@@ -38,7 +40,28 @@ export const CHAMADOS_INTERNOS_KEYS = {
   profilesAdmin: (busca: string) => ["chamados-internos", "profiles-admin", busca] as const,
   filaAtendimento: (params: { status?: ChamadoInternoStatus[]; setor?: ChamadoInternoSetor | null }) =>
     ["chamados-internos", "fila-atendimento", params] as const,
+  enriquecimento: (ids: string[]) =>
+    ["chamados-internos", "enriquecimento", [...ids].sort().join(",")] as const,
 };
+
+/**
+ * Enriquecimento (CC + solicitante) para um conjunto de chamados já visíveis.
+ * Fail-soft: em caso de erro devolve mapa vazio — a UI apenas omite os extras.
+ */
+export function useChamadoInternoEnriquecimento(ids: string[]) {
+  const idsEstaveis = Array.from(new Set(ids.filter(Boolean))).sort();
+  const query = useQuery({
+    queryKey: CHAMADOS_INTERNOS_KEYS.enriquecimento(idsEstaveis),
+    queryFn: () => svc.enriquecerChamados(idsEstaveis),
+    enabled: idsEstaveis.length > 0,
+    staleTime: 60_000,
+  });
+
+  const mapa = new Map<string, ChamadoInternoEnriquecimentoRow>();
+  for (const row of query.data ?? []) mapa.set(row.chamado_id, row);
+  return { mapa, isLoading: query.isLoading };
+}
+
 
 /**
  * Fila de atendimento (RPC única). Backend aplica escopo SuperAdm/AdmSede/Atendente.

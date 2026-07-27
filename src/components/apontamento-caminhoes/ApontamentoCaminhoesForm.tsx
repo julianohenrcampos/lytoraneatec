@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
+import { parseDateOnly, toDateOnlyString } from "@/utils/dateOnly";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -31,12 +32,15 @@ import {
   ChecklistValor,
   getSignedFotoUrl,
   fetchLocalizacaoByApontamento,
+  fetchApontamentoAbertoPorAtivo,
+  descreverApontamentoAberto,
   type LocalizacaoApontamentoPayload,
   type LocalizacaoApontamentoRow,
   type TurnoApontamento,
   traduzirErroRpc,
   definirTurnoApontamento,
 } from "@/services/apontamentoCaminhoesService";
+
 
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { CATEGORIA_IDS } from "@/constants/categorias";
@@ -139,7 +143,10 @@ interface ApontamentoCaminhoesFormProps {
   currentUser: any;
   getUltimoHorimetro: (caminhaoId: string) => Promise<number | null>;
   mode?: ApontamentoFormMode;
+  /** Abre o fluxo de finalização do ciclo em aberto detectado no passo 1. */
+  onFinalizarAberto?: (apontamento: ApontamentoCaminhao) => void;
 }
+
 
 /** Uploader compacto de fotos gerais (modo legado). */
 const FotosGeraisLegado: React.FC<{
@@ -248,6 +255,8 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
   currentUser,
   getUltimoHorimetro,
   mode: modeProp,
+  onFinalizarAberto,
+
 }) => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("dados");
@@ -418,7 +427,7 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
         ((ap as any).turno === "noturno" ? "noturno" : "diurno");
       setTurno(turnoAp);
       initialTurnoRef.current = turnoAp;
-      if (ap.data) setDate(new Date(ap.data));
+      if (ap.data) setDate(parseDateOnly(String(ap.data)));
 
 
       // Hidratação: detalhado vs legado
@@ -611,6 +620,34 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
     () => veiculosOptions.find((item) => item.id === cabecalho.caminhao_equipamento_id),
     [veiculosOptions, cabecalho.caminhao_equipamento_id]
   );
+
+  // Alerta preventivo: ciclo em aberto para o ativo selecionado (somente em create).
+  const [apontamentoAberto, setApontamentoAberto] = useState<ApontamentoCaminhao | null>(null);
+  const [checandoAberto, setChecandoAberto] = useState(false);
+  useEffect(() => {
+    const ativoId = cabecalho.caminhao_equipamento_id;
+    if (!isOpen || !isCreating || !ativoId) {
+      setApontamentoAberto(null);
+      setChecandoAberto(false);
+      return;
+    }
+    let cancelado = false;
+    setChecandoAberto(true);
+    fetchApontamentoAbertoPorAtivo(ativoId, draftIdRef.current ?? undefined)
+      .then((aberto) => {
+        if (!cancelado) setApontamentoAberto((aberto as ApontamentoCaminhao) ?? null);
+      })
+      .catch(() => {
+        if (!cancelado) setApontamentoAberto(null);
+      })
+      .finally(() => {
+        if (!cancelado) setChecandoAberto(false);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [isOpen, isCreating, cabecalho.caminhao_equipamento_id]);
+
   const isVeiculo = useMemo(
     () => veiculoSelecionado?.categoria_ativo_id === CATEGORIA_IDS.VEICULO,
     [veiculoSelecionado]
@@ -720,7 +757,7 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
 
 
   const validarCabecalho = (): string | null => {
-    const dataStr = date ? format(date, "yyyy-MM-dd") : cabecalho.data;
+    const dataStr = date ? (toDateOnlyString(date) as string) : cabecalho.data;
     if (!cabecalho.caminhao_equipamento_id) return "Selecione o Caminhão/Equipamento.";
     if (!cabecalho.operador_id) return "Operador não identificado.";
     if (!cabecalho.centro_custo_id) return "Selecione o Centro de Custo.";
@@ -898,7 +935,7 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
         localizacaoParaEnviar = capturedGeoRef.current;
       }
 
-      const dataStr = date ? format(date, "yyyy-MM-dd") : (cabecalho.data as string);
+      const dataStr = date ? (toDateOnlyString(date) as string) : (cabecalho.data as string);
       const situacaoDb =
         mapSituacaoToDatabase(cabecalho.situacao as string) || (cabecalho.situacao as string);
 
@@ -1333,7 +1370,40 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
                       emptyText="Nenhum veículo ou equipamento encontrado"
                       disabled={isEditing}
                     />
+                    {checandoAberto && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Verificando ciclos em aberto...
+                      </p>
+                    )}
+                    {apontamentoAberto && (
+                      <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 space-y-2">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                          <div className="text-sm">
+                            <p className="font-medium text-destructive">
+                              Este ativo já possui um apontamento em andamento.
+                            </p>
+                            <p className="text-muted-foreground">
+                              {descreverApontamentoAberto(apontamentoAberto)} Finalize o ciclo
+                              aberto antes de iniciar um novo.
+                            </p>
+                          </div>
+                        </div>
+                        {onFinalizarAberto && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onFinalizarAberto(apontamentoAberto)}
+                          >
+                            Finalizar apontamento aberto
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </div>
+
 
                   <div className="space-y-2">
                     <Label>Centro de Custo *</Label>
@@ -1500,7 +1570,7 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
                       key={veiculoSelecionado?.id ?? "sem-veiculo"}
                       veiculo={veiculoSelecionado || null}
                       operadorNome={getCurrentOperatorName()}
-                      data={date ? format(date, "yyyy-MM-dd") : cabecalho.data ?? null}
+                      data={date ? (toDateOnlyString(date) as string) : cabecalho.data ?? null}
                       medidorLabel={medidorInicialLabel}
                       medidorValor={cabecalho.horimetro_inicial ?? null}
                       centroCustoLabel={
@@ -1749,7 +1819,11 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
                     <Button type="button" variant="outline" onClick={handleDialogClose}>
                       Cancelar
                     </Button>
-                    <Button type="submit" disabled={isSubmitting || isLoading}>
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting || isLoading || !!apontamentoAberto}
+                    >
+
                       {isSubmitting
                         ? isCreating
                           ? "Iniciando..."

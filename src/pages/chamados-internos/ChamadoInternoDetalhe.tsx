@@ -56,7 +56,10 @@ import {
   useChamadoInternoReabrir,
   useChamadoInternoCancelar,
   useChamadoInternoCapacidadeOperar,
+  useChamadoInternoEnriquecimento,
 } from "@/hooks/useChamadosInternos";
+import { primeiroNome } from "@/utils/primeiroNome";
+
 import { useChamadosInternosRealtime } from "@/hooks/useChamadosInternosRealtime";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -105,6 +108,11 @@ const ChamadoInternoDetalhe: React.FC = () => {
   const chamadoQ = useChamadoInterno(chamadoId);
   const eventosQ = useChamadoInternoEventos(chamadoId);
   const chamado = chamadoQ.data;
+  const { mapa: extrasMapa } = useChamadoInternoEnriquecimento(
+    chamadoId ? [chamadoId] : [],
+  );
+  const extras = chamadoId ? extrasMapa.get(chamadoId) : undefined;
+
 
   // Autorização operacional via `fn_chamado_interno_can_operate(chamado_id)` —
   // cobre SuperAdm, AdmSede (por CC) e Atendente (por setor), sem depender de
@@ -594,7 +602,18 @@ const ChamadoInternoDetalhe: React.FC = () => {
             <Meta label="Última atualização">
               {formatarDataHora(chamado.updated_at)}
             </Meta>
+            <Meta label="Centro de custo">
+              {extras?.centro_custo_codigo
+                ? `${extras.centro_custo_codigo}${extras.centro_custo_nome ? ` — ${extras.centro_custo_nome}` : ""}`
+                : "—"}
+            </Meta>
+            <Meta label="Solicitante">
+              {extras?.solicitante_nome
+                ? `por: ${primeiroNome(extras.solicitante_nome)}`
+                : "—"}
+            </Meta>
             <Meta label="Responsável pelo atendimento">
+
               {chamado.responsavel_atual_profile_id
                 ? chamado.responsavel_atual_profile_id === userId
                   ? "Você"

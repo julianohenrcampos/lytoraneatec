@@ -116,10 +116,28 @@ export const fetchSolicitacoesTransporte = async (filters?: {
 };
 
 /* ------------------------------------------------------------------
- * Análise Operacional — Rodada 1 (Blocos A–D, frontend-only)
+ * Análise Operacional — CT-1 v3 (frontend/service only)
+ *
+ * Regras estruturais:
+ *  - PROPRIEDADE é a dimensão de classificação PRIMÁRIA e mutuamente exclusiva.
+ *  - STATUS OPERACIONAL é dimensão independente (badge/coluna), nunca filtra.
+ *  - PREVISÃO é visão DERIVADA (não entra na reconciliação).
+ *  - CC atual vem EXCLUSIVAMENTE de fn_veiculos_alocacao_atual (projeção
+ *    autoritativa), em UMA única chamada em lote deduplicada.
+ *  - Nenhuma equivalência silenciosa de unidade (T ≢ TON).
  * ------------------------------------------------------------------ */
 
-export type PropriedadeClasse = "PROPRIA" | "GRUPO" | "LOCADO" | "NAO_CLASSIFICADO";
+export type PropriedadeCanonica = "PROPRIA" | "GRUPO" | "LOCADO" | "NAO_CLASSIFICADO";
+/** @deprecated alias histórico — usar PropriedadeCanonica */
+export type PropriedadeClasse = PropriedadeCanonica;
+
+export type StatusOperacionalUI =
+  | "DISPONIVEL"
+  | "ALOCADO"
+  | "MANUTENCAO"
+  | "INDISPONIVEL"
+  | "SEM_STATUS"
+  | "DESCONHECIDO";
 
 export type AnaliseStatus =
   | "ok"
@@ -136,12 +154,20 @@ export interface AtivoAnalise {
   placa: string | null;
   imagem_url: string | null;
   empresa: string | null;
-  propriedade: PropriedadeClasse;
-  centro_custo: string | null;
-  status_operacional: string | null;
+  propriedade: PropriedadeCanonica;
+  /** Projeção autoritativa (fn_veiculos_alocacao_atual) */
+  centro_custo_id: string | null;
+  centro_custo_codigo: string | null;
+  centro_custo_nome: string | null;
+  centro_custo_origem: string | null;
+  centro_custo_atualizado_em: string | null;
+  /** Somente diagnóstico — NUNCA usado como fonte visual de CC */
+  centro_custo_disponibilidade_nome: string | null;
+  status_operacional: StatusOperacionalUI;
   previsao_liberacao: string | null;
   confiabilidade: string | null;
   compatibilidade: "EXATA" | "PARCIAL";
+  motivo_compatibilidade?: string;
   capacidade_valor: number | null;
   capacidade_unidade: string | null;
 }
@@ -155,6 +181,15 @@ export interface PortfolioAnalise {
   variacao: string | null;
 }
 
+export interface DiagnosticoCapacidade {
+  candidatos: number;
+  sem_capacidade: number;
+  com_valor_sem_unidade: number;
+  correspondencia_exata: number;
+  capacidade_solicitada_valor: number | null;
+  capacidade_solicitada_unidade: string | null;
+}
+
 export interface AnaliseOperacional {
   status: AnaliseStatus;
   errorMessage?: string;
@@ -163,16 +198,26 @@ export interface AnaliseOperacional {
   disponibilidadeGrupo: AtivoAnalise[];
   equipamentosComPrevisao: AtivoAnalise[];
   externoLocado: AtivoAnalise[];
+  naoClassificado: AtivoAnalise[];
   portfolioExterno: PortfolioAnalise[];
   totalCandidatos: number;
+  reconciliacao_ok: boolean;
+  /** false quando fn_veiculos_alocacao_atual esteve indisponível (fail-soft) */
+  localizacao_disponivel: boolean;
+  diagnosticoCapacidade: DiagnosticoCapacidade | null;
   resumo: {
     quantidade_solicitada: number;
-    propria_disponivel: number;
-    grupo_disponivel: number;
+    total_candidatos: number;
+    propria_cadastrada: number;
+    grupo_cadastrado: number;
     locado_cadastrado: number;
+    nao_classificado: number;
+    disponiveis_agora: number;
+    sem_status: number;
     com_previsao: number;
     fornecedores_compativeis: number;
     compatibilidade: "EXATA" | "PARCIAL" | "N/A";
+    motivo_compatibilidade?: string;
   };
 }
 
@@ -187,6 +232,16 @@ export interface AnaliseInput {
 }
 
 /**
+ * Normalização canônica: remove diacríticos, trim e uppercase.
+ */
+export const canon = (value: string | null | undefined): string =>
+  String(value ?? "")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .trim()
+    .toUpperCase();
+
+/**
  * Normalização de unidade de capacidade.
  * Comparação apenas por `trim().toUpperCase()`. Nenhuma equivalência silenciosa
  * (por exemplo T≡TON) é aplicada — se necessário, deve ser tratada em migração
@@ -197,12 +252,49 @@ export const normUnid = (u: string | null | undefined): string | null => {
   return v || null;
 };
 
-export const normPropriedade = (v: string | null | undefined): PropriedadeClasse => {
-  const s = String(v || "").trim().toUpperCase();
-  if (s === "PROPRIO" || s === "PRÓPRIA" || s === "PROPRIA") return "PROPRIA";
+export const normPropriedade = (v: string | null | undefined): PropriedadeCanonica => {
+  const s = canon(v);
+  if (s === "PROPRIO" || s === "PROPRIA") return "PROPRIA";
   if (s === "GRUPO") return "GRUPO";
-  if (s === "LOCADO" || s === "TERCEIRO" || s === "LOCACAO" || s === "LOCAÇÃO") return "LOCADO";
+  if (s === "LOCADO" || s === "TERCEIRO" || s === "LOCACAO") return "LOCADO";
   return "NAO_CLASSIFICADO";
+};
+
+/**
+ * Precedência aprovada (etapa seguinte só roda se a anterior não classificar):
+ *  1. bd_caminhoes_equipamentos.proprietario_tipo
+ *  2. bd_frotas.tipo_propriedade_padrao
+ *  3. empresa_locadora_id -> LOCADO
+ *  4. NAO_CLASSIFICADO
+ */
+export const resolverPropriedadeCanonica = (e: {
+  proprietario_tipo?: string | null;
+  frota_ref?: { tipo_propriedade_padrao?: string | null } | null;
+  empresa_locadora_id?: string | null;
+}): PropriedadeCanonica => {
+  const direta = normPropriedade(e.proprietario_tipo);
+  if (direta !== "NAO_CLASSIFICADO") return direta;
+  const porFrota = normPropriedade(e.frota_ref?.tipo_propriedade_padrao);
+  if (porFrota !== "NAO_CLASSIFICADO") return porFrota;
+  if (e.empresa_locadora_id) return "LOCADO";
+  return "NAO_CLASSIFICADO";
+};
+
+/**
+ * SEM_STATUS  = não existe linha em bd_disponibilidade_equipamentos.
+ * DESCONHECIDO = existe linha, mas o status não é um valor reconhecido/é nulo.
+ */
+export const normStatusOperacional = (
+  temLinha: boolean,
+  status: string | null | undefined,
+): StatusOperacionalUI => {
+  if (!temLinha) return "SEM_STATUS";
+  const s = canon(status);
+  if (s === "DISPONIVEL") return "DISPONIVEL";
+  if (s === "ALOCADO") return "ALOCADO";
+  if (s === "MANUTENCAO") return "MANUTENCAO";
+  if (s === "INDISPONIVEL") return "INDISPONIVEL";
+  return "DESCONHECIDO";
 };
 
 const emptyAnalise = (
@@ -217,13 +309,21 @@ const emptyAnalise = (
   disponibilidadeGrupo: [],
   equipamentosComPrevisao: [],
   externoLocado: [],
+  naoClassificado: [],
   portfolioExterno: [],
   totalCandidatos: 0,
+  reconciliacao_ok: true,
+  localizacao_disponivel: true,
+  diagnosticoCapacidade: null,
   resumo: {
     quantidade_solicitada: 0,
-    propria_disponivel: 0,
-    grupo_disponivel: 0,
+    total_candidatos: 0,
+    propria_cadastrada: 0,
+    grupo_cadastrado: 0,
     locado_cadastrado: 0,
+    nao_classificado: 0,
+    disponiveis_agora: 0,
+    sem_status: 0,
     com_previsao: 0,
     fornecedores_compativeis: 0,
     compatibilidade: "N/A",
@@ -235,6 +335,7 @@ export const isAccessDenied = (err: SupabaseErrorLike): boolean => {
   const msg = String(err?.message || err?.code || "").toLowerCase();
   return msg.includes("permission denied") || msg.includes("rls") || err?.code === "42501";
 };
+
 
 /* ------------ Tipos internos de linha (evitam `any`) ------------ */
 type VariacaoRow = {
@@ -292,6 +393,57 @@ type PortfolioRow = {
   } | null;
 };
 
+export type AlocacaoRow = {
+  equipamento_id: string;
+  centro_custo_atual_id: string | null;
+  centro_custo_atual_codigo: string | null;
+  centro_custo_atual_nome: string | null;
+  centro_custo_origem: string | null;
+  centro_custo_atualizado_em: string | null;
+};
+
+type ResultadoAlocacao =
+  | { kind: "success"; data: AlocacaoRow[] }
+  | { kind: "unavailable" }
+  | { kind: "access_denied"; message?: string };
+
+/**
+ * Projeção autoritativa de CC atual — UMA chamada em lote, fail-soft.
+ * Somente acesso negado comprovado interrompe a análise; qualquer outra falha
+ * (rede, exceção de fetch, abort, indisponibilidade) degrada para "unavailable".
+ */
+export const carregarAlocacoesAutoritativas = async (
+  ids: string[],
+): Promise<ResultadoAlocacao> => {
+  if (ids.length === 0) return { kind: "success", data: [] };
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any).rpc("fn_veiculos_alocacao_atual", {
+      p_equipamento_ids: ids,
+    });
+    if (error) {
+      if (isAccessDenied(error)) {
+        return { kind: "access_denied", message: error.message };
+      }
+      console.warn("[CENTRAL_TRANSPORTE][ALOCACAO_INDISPONIVEL]", {
+        equipamentos: ids.length,
+        motivo: "error",
+        code: error?.code ?? null,
+      });
+      return { kind: "unavailable" };
+    }
+    return { kind: "success", data: ((data as AlocacaoRow[] | null) ?? []) };
+  } catch {
+    console.warn("[CENTRAL_TRANSPORTE][ALOCACAO_INDISPONIVEL]", {
+      equipamentos: ids.length,
+      motivo: "exception",
+    });
+    return { kind: "unavailable" };
+  }
+};
+
+
+
 export const fetchAnaliseOperacional = async (
   input: AnaliseInput,
 ): Promise<AnaliseOperacional> => {
@@ -347,6 +499,7 @@ export const fetchAnaliseOperacional = async (
 
   let matchingUsed: AnaliseOperacional["matchingUsed"] = "nenhum";
   let compatibilidade: "EXATA" | "PARCIAL" = "EXATA";
+  let motivoCompatibilidade: string | undefined;
   let equipamentos: EquipamentoRow[] = [];
 
   type EqFilter = [string, string | number];
@@ -396,6 +549,7 @@ export const fetchAnaliseOperacional = async (
       equipamentos = data;
       matchingUsed = "subcategoria";
       compatibilidade = "PARCIAL";
+      motivoCompatibilidade = "Compatibilidade parcial — capacidade dos ativos não confirmada.";
     }
   }
 
@@ -406,8 +560,11 @@ export const fetchAnaliseOperacional = async (
       equipamentos = data;
       matchingUsed = "tipo_equipamento";
       compatibilidade = "PARCIAL";
+      motivoCompatibilidade =
+        "Compatibilidade parcial — correspondência apenas pelo tipo genérico de equipamento.";
     }
   }
+
 
 
   if (equipamentos.length === 0) {
@@ -423,29 +580,44 @@ export const fetchAnaliseOperacional = async (
     const out = emptyAnalise("sem_ativos_cadastrados", matchingUsed);
     out.portfolioExterno = portfolio.data;
     out.resumo = {
+      ...out.resumo,
       quantidade_solicitada: quantidadeSolicitada,
-      propria_disponivel: 0,
-      grupo_disponivel: 0,
-      locado_cadastrado: 0,
-      com_previsao: 0,
       fornecedores_compativeis: portfolio.data.length,
       compatibilidade: "N/A",
     };
     return out;
   }
 
-  const equipIds = equipamentos.map((e) => e.id);
-  const { data: dispRaw, error: dispErr } = await supabase
-    .from("bd_disponibilidade_equipamentos")
-    .select(`
-      equipamento_id, status_operacional, previsao_liberacao, confiabilidade_previsao,
-      centro_custo_id, updated_at, created_at,
-      centro_custo:bd_centros_custo(nome_centro_custo)
-    `)
-    .in("equipamento_id", equipIds);
+  // Deduplicação defensiva: uma única chamada em lote por análise.
+  const equipIds = Array.from(new Set(equipamentos.map((e) => e.id)));
+
+  const [dispRes, alocRes] = await Promise.all([
+    supabase
+      .from("bd_disponibilidade_equipamentos")
+      .select(`
+        equipamento_id, status_operacional, previsao_liberacao, confiabilidade_previsao,
+        centro_custo_id, updated_at, created_at,
+        centro_custo:bd_centros_custo(nome_centro_custo)
+      `)
+      .in("equipamento_id", equipIds),
+    carregarAlocacoesAutoritativas(equipIds),
+  ]);
+
+  const { data: dispRaw, error: dispErr } = dispRes;
 
   if (dispErr) {
     return emptyAnalise(isAccessDenied(dispErr) ? "acesso_negado" : "erro_consulta", matchingUsed, dispErr.message);
+  }
+  if (alocRes.kind === "access_denied") {
+    return emptyAnalise("acesso_negado", matchingUsed, alocRes.message);
+  }
+
+  const localizacaoDisponivel = alocRes.kind === "success";
+  const alocByEquip = new Map<string, AlocacaoRow>();
+  if (alocRes.kind === "success") {
+    for (const row of alocRes.data) {
+      if (row?.equipamento_id) alocByEquip.set(row.equipamento_id, row);
+    }
   }
 
   const dispRows = ((dispRaw as unknown) as DisponibilidadeRow[]) || [];
@@ -463,15 +635,35 @@ export const fetchAnaliseOperacional = async (
   const grupo: AtivoAnalise[] = [];
   const previsao: AtivoAnalise[] = [];
   const externoLocado: AtivoAnalise[] = [];
+  const naoClassificado: AtivoAnalise[] = [];
+
+  const vistos = new Set<string>();
+  let semCapacidade = 0;
+  let comValorSemUnidade = 0;
+  let correspondenciaExata = 0;
 
   for (const e of equipamentos) {
-    const disp = dispByEquip.get(e.id) || null;
-    const status = disp?.status_operacional ? String(disp.status_operacional).toUpperCase() : null;
-    const empresaNome = e.empresa?.nome_empresa || e.empresa_locadora?.nome_empresa || null;
+    if (vistos.has(e.id)) continue;
+    vistos.add(e.id);
 
-    let prop = normPropriedade(e.proprietario_tipo);
-    if (prop === "NAO_CLASSIFICADO") prop = normPropriedade(e.frota_ref?.tipo_propriedade_padrao);
-    if (prop === "NAO_CLASSIFICADO" && e.empresa_locadora_id) prop = "LOCADO";
+    const disp = dispByEquip.get(e.id) || null;
+    const aloc = alocByEquip.get(e.id) || null;
+    const status = normStatusOperacional(!!disp, disp?.status_operacional);
+    const empresaNome = e.empresa?.nome_empresa || e.empresa_locadora?.nome_empresa || null;
+    const prop = resolverPropriedadeCanonica(e);
+
+    const capValor = e.capacidade_valor ?? null;
+    const capUnid = normUnid(e.capacidade_unidade);
+    if (capValor == null) semCapacidade++;
+    else if (!capUnid) comValorSemUnidade++;
+    if (
+      capacidadeValor != null &&
+      capValor === capacidadeValor &&
+      !!capacidadeUnidade &&
+      capUnid === capacidadeUnidade
+    ) {
+      correspondenciaExata++;
+    }
 
     const ativo: AtivoAnalise = {
       equipamento_id: e.id,
@@ -481,30 +673,39 @@ export const fetchAnaliseOperacional = async (
       imagem_url: e.imagem_url,
       empresa: empresaNome,
       propriedade: prop,
-      centro_custo: disp?.centro_custo?.nome_centro_custo || null,
+      centro_custo_id: aloc?.centro_custo_atual_id ?? null,
+      centro_custo_codigo: aloc?.centro_custo_atual_codigo ?? null,
+      centro_custo_nome: aloc?.centro_custo_atual_nome ?? null,
+      centro_custo_origem: aloc?.centro_custo_origem ?? null,
+      centro_custo_atualizado_em: aloc?.centro_custo_atualizado_em ?? null,
+      centro_custo_disponibilidade_nome: disp?.centro_custo?.nome_centro_custo || null,
       status_operacional: status,
       previsao_liberacao: disp?.previsao_liberacao || null,
       confiabilidade: disp?.confiabilidade_previsao || null,
       compatibilidade,
-      capacidade_valor: e.capacidade_valor ?? null,
-      capacidade_unidade: normUnid(e.capacidade_unidade),
+      motivo_compatibilidade: motivoCompatibilidade,
+      capacidade_valor: capValor,
+      capacidade_unidade: capUnid,
     };
 
-    const isDisponivel = status === "DISPONIVEL";
-    const isIndisponivelComPrev =
-      !isDisponivel &&
-      (status === "ALOCADO" || status === "MANUTENCAO" || status === "INDISPONIVEL") &&
-      !!disp?.previsao_liberacao;
-
-    if (isDisponivel) {
-      if (prop === "PROPRIA") propria.push(ativo);
-      else if (prop === "GRUPO") grupo.push(ativo);
-      else if (prop === "LOCADO") externoLocado.push(ativo);
-    } else if (isIndisponivelComPrev) {
-      previsao.push(ativo);
-    } else if (prop === "LOCADO") {
-      externoLocado.push(ativo);
+    // Classificação PRIMÁRIA — exclusivamente por propriedade.
+    switch (prop) {
+      case "PROPRIA":
+        propria.push(ativo);
+        break;
+      case "GRUPO":
+        grupo.push(ativo);
+        break;
+      case "LOCADO":
+        externoLocado.push(ativo);
+        break;
+      default:
+        naoClassificado.push(ativo);
+        break;
     }
+
+    // Visão DERIVADA — não participa da reconciliação.
+    if (ativo.previsao_liberacao) previsao.push(ativo);
   }
 
   const portfolio = await fetchPortfolioCompativel({
@@ -517,10 +718,21 @@ export const fetchAnaliseOperacional = async (
     return emptyAnalise(portfolio.erro === "acesso" ? "acesso_negado" : "erro_consulta", matchingUsed, portfolio.msg);
   }
 
-  const totalDisponivel =
-    propria.length + grupo.length + externoLocado.filter((a) => a.status_operacional === "DISPONIVEL").length;
+  const todos = [...propria, ...grupo, ...externoLocado, ...naoClassificado];
+  const totalCandidatos = vistos.size;
+  const disponiveisAgora = todos.filter((a) => a.status_operacional === "DISPONIVEL").length;
+  const semStatus = todos.filter((a) => a.status_operacional === "SEM_STATUS").length;
+
+  const reconciliacaoOk = totalCandidatos === todos.length;
+  if (!reconciliacaoOk) {
+    console.error("[CENTRAL_TRANSPORTE][RECONCILIACAO_FALHOU]", {
+      totalCandidatos,
+      classificados: todos.length,
+    });
+  }
+
   const finalStatus: AnaliseStatus =
-    totalDisponivel === 0 && previsao.length === 0 && portfolio.data.length === 0
+    disponiveisAgora === 0 && previsao.length === 0 && portfolio.data.length === 0
       ? "sem_disponibilidade"
       : "ok";
 
@@ -531,19 +743,36 @@ export const fetchAnaliseOperacional = async (
     disponibilidadeGrupo: grupo,
     equipamentosComPrevisao: previsao,
     externoLocado,
+    naoClassificado,
     portfolioExterno: portfolio.data,
-    totalCandidatos: equipamentos.length,
+    totalCandidatos,
+    reconciliacao_ok: reconciliacaoOk,
+    localizacao_disponivel: localizacaoDisponivel,
+    diagnosticoCapacidade: {
+      candidatos: totalCandidatos,
+      sem_capacidade: semCapacidade,
+      com_valor_sem_unidade: comValorSemUnidade,
+      correspondencia_exata: correspondenciaExata,
+      capacidade_solicitada_valor: capacidadeValor,
+      capacidade_solicitada_unidade: capacidadeUnidade,
+    },
     resumo: {
       quantidade_solicitada: quantidadeSolicitada,
-      propria_disponivel: propria.length,
-      grupo_disponivel: grupo.length,
+      total_candidatos: totalCandidatos,
+      propria_cadastrada: propria.length,
+      grupo_cadastrado: grupo.length,
       locado_cadastrado: externoLocado.length,
+      nao_classificado: naoClassificado.length,
+      disponiveis_agora: disponiveisAgora,
+      sem_status: semStatus,
       com_previsao: previsao.length,
       fornecedores_compativeis: portfolio.data.length,
       compatibilidade,
+      motivo_compatibilidade: motivoCompatibilidade,
     },
   };
 };
+
 
 type PortfolioRes = { data: PortfolioAnalise[] } | { erro: "consulta" | "acesso"; msg: string };
 

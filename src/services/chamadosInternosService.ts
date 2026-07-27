@@ -19,6 +19,8 @@ import type {
   ChamadoInternoSetor,
   ChamadoInternoStatus,
   ChamadoFilaAtendimentoRow,
+  ChamadoInternoEnriquecimentoRow,
+
   ChamadosInternosError,
   ChamadosInternosListaFiltro,
 } from "@/types/chamadosInternos";
@@ -185,6 +187,25 @@ export async function listarFilaAtendimento(
   if (error) raise(error);
   return (data ?? []) as ChamadoFilaAtendimentoRow[];
 }
+
+/**
+ * Enriquecimento de lista — CC (código/nome) e nome do solicitante.
+ * A RPC valida cada ID com `fn_chamado_interno_can_read`, portanto NÃO amplia
+ * escopo: só devolve dados de chamados que o usuário já enxerga.
+ * Uso fail-soft: chamadas com erro devem degradar a UI, nunca escondê-la.
+ */
+export async function enriquecerChamados(
+  ids: string[],
+): Promise<ChamadoInternoEnriquecimentoRow[]> {
+  const unicos = Array.from(new Set(ids.filter(Boolean)));
+  if (unicos.length === 0) return [];
+  const { data, error } = await supabase.rpc("fn_chamado_interno_enriquecer_lista", {
+    p_ids: unicos,
+  });
+  if (error) raise(error);
+  return (data ?? []) as ChamadoInternoEnriquecimentoRow[];
+}
+
 
 // ---------------- Leitura administrativa de profiles (para vincular atendentes) ----------------
 export interface ProfileAdminSafeRow {

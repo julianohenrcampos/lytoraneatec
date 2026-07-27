@@ -7,6 +7,7 @@ import MainLayout from "@/components/layout/MainLayout";
 import { usePageTitle } from "@/contexts/PageTitleContext";
 import { useHasPermission } from "@/hooks/usePermission";
 import { useAtestadosPainel } from "@/hooks/atestados/useAtestadosPainel";
+import { useMarcarAtestadoLido } from "@/hooks/atestados/useMarcarAtestadoLido";
 import AtestadosFilters from "@/components/atestados/painel/AtestadosFilters";
 import AtestadosTable from "@/components/atestados/painel/AtestadosTable";
 import AtestadoDetailModal from "@/components/atestados/painel/AtestadoDetailModal";
@@ -18,6 +19,11 @@ import type {
 export default function AtestadosMedicosPainel() {
   usePageTitle("Atestados Médicos");
   const canDownload = useHasPermission("saude_atestados_download");
+  const canAnalisar = useHasPermission("saude_atestados_analisar");
+  const canStatusUpdate = useHasPermission("saude_atestados_status_update");
+  const canMarcarLido = canAnalisar || canStatusUpdate;
+  const marcarLido = useMarcarAtestadoLido();
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [filters, setFilters] = useState<AtestadosPainelFilters>({
     prazo: "todos",
   });
@@ -34,6 +40,15 @@ export default function AtestadosMedicosPainel() {
           rows={data ?? []}
           isLoading={isLoading}
           canDownload={canDownload}
+          canMarcarLido={canMarcarLido}
+          togglingId={togglingId}
+          onToggleLido={(r, lido) => {
+            setTogglingId(r.id);
+            marcarLido.mutate(
+              { id: r.id, lido },
+              { onSettled: () => setTogglingId(null) },
+            );
+          }}
           onVer={(r) => {
             setSelected(r);
             setInitialTab("dados");

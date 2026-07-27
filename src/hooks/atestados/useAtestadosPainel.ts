@@ -28,7 +28,11 @@ const SELECT_COLS = `
   sistema_afetado_codigo,
   sistema_afetado_descricao,
   sistema_afetado_observacao,
-  alertas_gerados
+  alertas_gerados,
+  lido,
+  lido_em,
+  lido_por,
+  lido_por_nome
 `;
 
 export function useAtestadosPainel(filters: AtestadosPainelFilters) {

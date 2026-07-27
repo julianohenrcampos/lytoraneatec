@@ -35,7 +35,7 @@ type MapViewMode = "AMBOS" | "CC" | "EQUIPAMENTOS";
 
 const INITIAL_FILTROS: Filtros = {
   limite_desatualizado_horas: 24,
-  periodo_localizacao: "TODAS",
+  periodo_localizacao: "HOJE",
 };
 
 export default function MapaOperacional() {
@@ -89,6 +89,19 @@ export default function MapaOperacional() {
     { key: "DESATUALIZADO", label: "Desatualizados", value: resumo?.desatualizados ?? 0 },
   ] as const;
 
+  const statusSelecionados = filtros.status_mapa ?? [];
+
+  const toggleStatus = (key: (typeof indicadores)[number]["key"]) => {
+    setFiltros((f) => {
+      const atual = f.status_mapa ?? [];
+      const proximo = atual.includes(key)
+        ? atual.filter((s) => s !== key)
+        : [...atual, key];
+      return { ...f, status_mapa: proximo.length ? proximo : undefined };
+    });
+  };
+
+
   const painelDesktopAberto = !isMobile && painelAberto && temAtivos;
 
   return (
@@ -124,8 +137,29 @@ export default function MapaOperacional() {
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
             {indicadores.map((i) => {
               const c = STATUS_COLORS[i.key];
+              const ativo = statusSelecionados.includes(i.key);
+              const algumAtivo = statusSelecionados.length > 0;
               return (
-                <Card key={i.key} className="p-3 flex items-center gap-3">
+                <Card
+                  key={i.key}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={ativo}
+                  onClick={() => toggleStatus(i.key)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      toggleStatus(i.key);
+                    }
+                  }}
+                  className={cn(
+                    "p-3 flex items-center gap-3 cursor-pointer transition-all outline-none hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring",
+                    ativo && "ring-2",
+                    algumAtivo && !ativo && "opacity-60",
+                  )}
+                  style={ativo ? { boxShadow: `0 0 0 2px ${c.mapboxColor}` } : undefined}
+                  title={ativo ? `Remover filtro: ${i.label}` : `Filtrar por ${i.label}`}
+                >
                   <span
                     className="h-2.5 w-2.5 rounded-full shrink-0"
                     style={{ backgroundColor: c.mapboxColor }}
@@ -137,6 +171,7 @@ export default function MapaOperacional() {
                 </Card>
               );
             })}
+
             <Card className="p-3 flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-xs text-muted-foreground">Localizados</div>

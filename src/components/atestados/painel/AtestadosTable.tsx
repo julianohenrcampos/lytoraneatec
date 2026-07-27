@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -10,13 +11,18 @@ import {
 } from "@/components/ui/table";
 import { Eye, FileText, Loader2 } from "lucide-react";
 import type { AtestadoRow } from "@/types/atestadoMedico";
+import { primeiroNome } from "@/utils/primeiroNome";
+import { cn } from "@/lib/utils";
 
 interface Props {
   rows: AtestadoRow[];
   isLoading: boolean;
   canDownload: boolean;
+  canMarcarLido?: boolean;
   onVer: (row: AtestadoRow) => void;
   onAbrirArquivo: (row: AtestadoRow) => void;
+  onToggleLido?: (row: AtestadoRow, lido: boolean) => void;
+  togglingId?: string | null;
 }
 
 function mask(m: string) {
@@ -44,14 +50,18 @@ export default function AtestadosTable({
   rows,
   isLoading,
   canDownload,
+  canMarcarLido = false,
   onVer,
   onAbrirArquivo,
+  onToggleLido,
+  togglingId,
 }: Props) {
   return (
     <div className="border border-border rounded-md overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead>Lido</TableHead>
             <TableHead>Protocolo</TableHead>
             <TableHead>Enviado em</TableHead>
             <TableHead>Colaborador</TableHead>
@@ -69,7 +79,7 @@ export default function AtestadosTable({
         <TableBody>
           {isLoading && (
             <TableRow>
-              <TableCell colSpan={12} className="text-center py-8">
+              <TableCell colSpan={13} className="text-center py-8">
                 <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
                 Carregando…
               </TableCell>
@@ -77,14 +87,52 @@ export default function AtestadosTable({
           )}
           {!isLoading && rows.length === 0 && (
             <TableRow>
-              <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={13} className="text-center py-8 text-muted-foreground">
                 Nenhum atestado encontrado.
               </TableCell>
             </TableRow>
           )}
           {!isLoading &&
             rows.map((r) => (
-              <TableRow key={r.id}>
+              <TableRow
+                key={r.id}
+                className={cn(
+                  r.lido
+                    ? "bg-success/10 hover:bg-success/20"
+                    : "bg-warning/10 hover:bg-warning/20",
+                )}
+              >
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    {togglingId === r.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                    ) : (
+                      <Switch
+                        checked={r.lido}
+                        disabled={!canMarcarLido || !onToggleLido}
+                        onCheckedChange={(v) => onToggleLido?.(r, v)}
+                        aria-label={
+                          r.lido
+                            ? `Marcar protocolo ${r.protocolo} como não lido`
+                            : `Marcar protocolo ${r.protocolo} como lido`
+                        }
+                        className={cn(
+                          r.lido
+                            ? "data-[state=checked]:bg-success"
+                            : "data-[state=unchecked]:bg-warning",
+                        )}
+                      />
+                    )}
+                    <span
+                      className={cn(
+                        "text-xs font-medium",
+                        r.lido ? "text-success" : "text-warning",
+                      )}
+                    >
+                      {r.lido ? "Sim" : "Não"}
+                    </span>
+                  </div>
+                </TableCell>
                 <TableCell className="font-mono text-xs">{r.protocolo}</TableCell>
                 <TableCell className="text-xs">{fmtBRT(r.enviado_em)}</TableCell>
                 <TableCell>{r.nome_snapshot}</TableCell>
@@ -107,7 +155,14 @@ export default function AtestadosTable({
                   )}
                 </TableCell>
                 <TableCell>
-                  <Badge variant="outline">{r.status}</Badge>
+                  <div className="flex flex-col items-start gap-1">
+                    <Badge variant="outline">{r.status}</Badge>
+                    {r.lido && r.lido_por_nome && (
+                      <span className="text-[11px] text-muted-foreground">
+                        lido por: {primeiroNome(r.lido_por_nome)}
+                      </span>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <Badge variant="outline">{r.notificacao_email_status}</Badge>

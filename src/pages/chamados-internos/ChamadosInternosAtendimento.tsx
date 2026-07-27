@@ -28,7 +28,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { primeiroNome } from "@/utils/primeiroNome";
+
 
 import { useChamadoInternoFilaAtendimento } from "@/hooks/useChamadosInternos";
 import { useChamadosInternosRealtime } from "@/hooks/useChamadosInternosRealtime";
@@ -55,6 +58,13 @@ const COLUNAS: ChamadoInternoStatus[] = [
   "respondido",
   "resolvido",
 ];
+
+/** Colunas extras exibidas quando o filtro inclui status finalizados. */
+const COLUNAS_FINALIZADAS: ChamadoInternoStatus[] = ["encerrado", "cancelado"];
+
+/** Quantidade inicial de cards por coluna e incremento do "Carregar mais". */
+const PAGINA_KANBAN = 10;
+
 
 const TODOS = "todos" as const;
 type SetorSelecionado = ChamadoInternoSetor | typeof TODOS;
@@ -104,15 +114,34 @@ const ChamadosInternosAtendimento: React.FC = () => {
     status: statusParam,
   });
 
+  const colunasVisiveis = React.useMemo(
+    () =>
+      statusModo === "operacional"
+        ? COLUNAS
+        : statusModo === "historico"
+          ? [...COLUNAS.filter((s) => s === "resolvido"), ...COLUNAS_FINALIZADAS]
+          : [...COLUNAS, ...COLUNAS_FINALIZADAS],
+    [statusModo],
+  );
+
   const porStatus = React.useMemo(() => {
     const m = new Map<ChamadoInternoStatus, ChamadoFilaAtendimentoRow[]>();
-    for (const s of COLUNAS) m.set(s, []);
+    for (const s of colunasVisiveis) m.set(s, []);
     for (const r of q.data ?? []) {
       const arr = m.get(r.status);
       if (arr) arr.push(r);
     }
     return m;
-  }, [q.data]);
+  }, [q.data, colunasVisiveis]);
+
+  // "Carregar mais" por coluna — reinicia quando os filtros mudam.
+  const [visiveisPorColuna, setVisiveisPorColuna] = React.useState<
+    Partial<Record<ChamadoInternoStatus, number>>
+  >({});
+  React.useEffect(() => {
+    setVisiveisPorColuna({});
+  }, [setor, statusModo]);
+
 
   return (
     <MainLayout>
@@ -202,9 +231,12 @@ const ChamadosInternosAtendimento: React.FC = () => {
         ) : (
           <div className="overflow-x-auto">
             <div className="flex min-w-max gap-3 pb-3">
-              {COLUNAS.map((s) => {
+              {colunasVisiveis.map((s) => {
                 const meta = CHAMADO_INTERNO_STATUS_META[s];
                 const rows = porStatus.get(s) ?? [];
+                const visiveis = visiveisPorColuna[s] ?? PAGINA_KANBAN;
+                const exibidos = rows.slice(0, visiveis);
+                const restantes = rows.length - exibidos.length;
                 return (
                   <div key={s} className="w-72 shrink-0">
                     <div
@@ -224,34 +256,61 @@ const ChamadosInternosAtendimento: React.FC = () => {
                           Sem chamados nesta coluna.
                         </div>
                       ) : (
-                        rows.map((r) => (
-                          <button
-                            key={r.id}
-                            onClick={() =>
-                              navigate(`/chamados-internos/${r.id}`)
-                            }
-                            className={cn(
-                              "rounded-md border bg-card p-3 text-left transition-colors hover:border-primary",
-                              r.is_critico && "border-destructive/50",
-                            )}
-                          >
-                            <div className="mb-1 flex items-center justify-between gap-2">
-                              <span className="font-mono text-[10px] text-muted-foreground">
-                                {r.protocolo}
-                              </span>
-                              <PrioridadeBadge prioridade={r.prioridade} />
-                            </div>
-                            <div className="line-clamp-2 text-sm font-medium">
-                              {r.titulo}
-                            </div>
-                            <div className="mt-2 flex flex-wrap items-center gap-1">
-                              <SetorBadge setor={r.setor} />
-                              <span className="text-[11px] text-muted-foreground">
-                                {formatarPrazoRestante(r.sla_prazo)}
-                              </span>
-                            </div>
-                          </button>
-                        ))
+                        <>
+                          {exibidos.map((r) => (
+                            <button
+                              key={r.id}
+                              onClick={() =>
+                                navigate(`/chamados-internos/${r.id}`)
+                              }
+                              className={cn(
+                                "rounded-md border p-3 text-left transition-colors hover:border-primary",
+                                r.status === "encerrado"
+                                  ? "border-success/40 bg-success/10"
+                                  : "bg-card",
+                                r.is_critico && "border-destructive/50",
+                              )}
+                            >
+                              <div className="mb-1 flex items-center justify-between gap-2">
+                                <span className="font-mono text-[10px] text-muted-foreground">
+                                  {r.protocolo}
+                                  {r.centro_custo_codigo &&
+                                    ` · CC ${r.centro_custo_codigo}`}
+                                </span>
+                                <PrioridadeBadge prioridade={r.prioridade} />
+                              </div>
+                              <div className="line-clamp-2 text-sm font-medium">
+                                {r.titulo}
+                              </div>
+                              {r.solicitante_nome && (
+                                <div className="text-[11px] text-muted-foreground">
+                                  por: {primeiroNome(r.solicitante_nome)}
+                                </div>
+                              )}
+                              <div className="mt-2 flex flex-wrap items-center gap-1">
+                                <SetorBadge setor={r.setor} />
+                                <span className="text-[11px] text-muted-foreground">
+                                  {formatarPrazoRestante(r.sla_prazo)}
+                                </span>
+                              </div>
+                            </button>
+                          ))}
+                          {restantes > 0 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full"
+                              onClick={() =>
+                                setVisiveisPorColuna((prev) => ({
+                                  ...prev,
+                                  [s]: visiveis + PAGINA_KANBAN,
+                                }))
+                              }
+                            >
+                              Carregar mais ({restantes})
+                            </Button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
@@ -260,6 +319,7 @@ const ChamadosInternosAtendimento: React.FC = () => {
             </div>
           </div>
         )}
+
       </div>
     </MainLayout>
   );

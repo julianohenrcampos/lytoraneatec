@@ -37,8 +37,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import { useChamadosInternosLista } from "@/hooks/useChamadosInternos";
+import {
+  useChamadosInternosLista,
+  useChamadoInternoEnriquecimento,
+} from "@/hooks/useChamadosInternos";
 import { useChamadosInternosRealtime } from "@/hooks/useChamadosInternosRealtime";
+import { usePagination } from "@/hooks/usePagination";
+import TablePagination from "@/components/ui/table-pagination";
+import { primeiroNome } from "@/utils/primeiroNome";
+
 import {
   StatusBadge,
   PrioridadeBadge,
@@ -99,7 +106,13 @@ const ChamadosInternosList: React.FC = () => {
   );
 
   const q = useChamadosInternosLista(filtro);
-  const rows = q.data ?? [];
+  const rows = React.useMemo(() => q.data ?? [], [q.data]);
+
+  // Paginação client-side (25/pág). O enriquecimento só busca a página visível.
+  const pagination = usePagination(rows, { pageSize: 25 });
+  const pageRows = pagination.paginatedData;
+  const idsPagina = React.useMemo(() => pageRows.map((r) => r.id), [pageRows]);
+  const { mapa: extras } = useChamadoInternoEnriquecimento(idsPagina);
 
   const limparFiltros = () => {
     setBusca("");
@@ -107,7 +120,9 @@ const ChamadosInternosList: React.FC = () => {
     setSetor("todos");
     setPrioridade("todos");
     setSoloCriticos(false);
+    pagination.setPage(0);
   };
+
 
   const kpis = React.useMemo(() => {
     const abertos = rows.filter((r) =>
@@ -231,7 +246,8 @@ const ChamadosInternosList: React.FC = () => {
                 </div>
               ) : rows.length === 0 ? (
                 <div className="p-8 text-center text-sm text-muted-foreground">
-                  Nenhum chamado encontrado com os filtros atuais.
+                  Nenhum chamado encontrado no seu escopo de gestão com os
+                  filtros atuais.
                 </div>
               ) : (
                 <>
@@ -250,54 +266,97 @@ const ChamadosInternosList: React.FC = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {rows.map((r) => (
-                          <TableRow
-                            key={r.id}
-                            className="cursor-pointer"
-                            onClick={() => navigate(`/chamados-internos/${r.id}`)}
-                          >
-                            <TableCell className="font-mono text-xs">{r.protocolo}</TableCell>
-                            <TableCell className="max-w-md truncate">{r.titulo}</TableCell>
-                            <TableCell><StatusBadge status={r.status} /></TableCell>
-                            <TableCell><SetorBadge setor={r.setor} /></TableCell>
-                            <TableCell><PrioridadeBadge prioridade={r.prioridade} /></TableCell>
-                            <TableCell className="text-xs text-muted-foreground">
-                              {formatarPrazoRestante(r.sla_prazo)}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">
-                              {formatarDataHora(r.updated_at ?? r.created_at)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {pageRows.map((r) => {
+                          const ex = extras.get(r.id);
+                          const encerrado = r.status === "encerrado";
+                          return (
+                            <TableRow
+                              key={r.id}
+                              className={
+                                "cursor-pointer " +
+                                (encerrado
+                                  ? "bg-success/10 hover:bg-success/20 border-l-2 border-success"
+                                  : "")
+                              }
+                              onClick={() => navigate(`/chamados-internos/${r.id}`)}
+                            >
+                              <TableCell className="align-top font-mono text-xs">
+                                {r.protocolo}
+                                {ex?.centro_custo_codigo && (
+                                  <div className="mt-0.5 font-sans text-[11px] text-muted-foreground">
+                                    CC {ex.centro_custo_codigo}
+                                  </div>
+                                )}
+                              </TableCell>
+                              <TableCell className="max-w-md align-top">
+                                <div className="truncate">{r.titulo}</div>
+                                {ex?.solicitante_nome && (
+                                  <div className="mt-0.5 text-[11px] text-muted-foreground">
+                                    por: {primeiroNome(ex.solicitante_nome)}
+                                  </div>
+                                )}
+                              </TableCell>
+                              <TableCell className="align-top"><StatusBadge status={r.status} /></TableCell>
+                              <TableCell className="align-top"><SetorBadge setor={r.setor} /></TableCell>
+                              <TableCell className="align-top"><PrioridadeBadge prioridade={r.prioridade} /></TableCell>
+                              <TableCell className="align-top text-xs text-muted-foreground">
+                                {formatarPrazoRestante(r.sla_prazo)}
+                              </TableCell>
+                              <TableCell className="align-top text-xs text-muted-foreground">
+                                {formatarDataHora(r.updated_at ?? r.created_at)}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </div>
                   {/* Mobile cards */}
                   <div className="grid gap-2 p-2 md:hidden">
-                    {rows.map((r) => (
-                      <button
-                        key={r.id}
-                        onClick={() => navigate(`/chamados-internos/${r.id}`)}
-                        className="rounded-md border bg-card p-3 text-left"
-                      >
-                        <div className="mb-1 flex items-center justify-between gap-2">
-                          <span className="font-mono text-xs text-muted-foreground">{r.protocolo}</span>
-                          <StatusBadge status={r.status} />
-                        </div>
-                        <div className="text-sm font-medium">{r.titulo}</div>
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          <SetorBadge setor={r.setor} />
-                          <PrioridadeBadge prioridade={r.prioridade} />
-                        </div>
-                        <div className="mt-1 text-[11px] text-muted-foreground">
-                          {formatarPrazoRestante(r.sla_prazo)} · {formatarDataHora(r.updated_at ?? r.created_at)}
-                        </div>
-                      </button>
-                    ))}
+                    {pageRows.map((r) => {
+                      const ex = extras.get(r.id);
+                      const encerrado = r.status === "encerrado";
+                      return (
+                        <button
+                          key={r.id}
+                          onClick={() => navigate(`/chamados-internos/${r.id}`)}
+                          className={
+                            "rounded-md border p-3 text-left " +
+                            (encerrado ? "border-success/40 bg-success/10" : "bg-card")
+                          }
+                        >
+                          <div className="mb-1 flex items-center justify-between gap-2">
+                            <span className="font-mono text-xs text-muted-foreground">
+                              {r.protocolo}
+                              {ex?.centro_custo_codigo && ` · CC ${ex.centro_custo_codigo}`}
+                            </span>
+                            <StatusBadge status={r.status} />
+                          </div>
+                          <div className="text-sm font-medium">{r.titulo}</div>
+                          {ex?.solicitante_nome && (
+                            <div className="text-[11px] text-muted-foreground">
+                              por: {primeiroNome(ex.solicitante_nome)}
+                            </div>
+                          )}
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            <SetorBadge setor={r.setor} />
+                            <PrioridadeBadge prioridade={r.prioridade} />
+                          </div>
+                          <div className="mt-1 text-[11px] text-muted-foreground">
+                            {formatarPrazoRestante(r.sla_prazo)} · {formatarDataHora(r.updated_at ?? r.created_at)}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="border-t p-2">
+                    <TablePagination pagination={pagination} />
                   </div>
                 </>
               )}
             </div>
+
           </CardContent>
         </Card>
       </div>

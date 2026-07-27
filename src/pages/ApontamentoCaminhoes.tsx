@@ -161,6 +161,11 @@ const ApontamentoCaminhoes: React.FC = () => {
         currentUser={currentUser}
         getUltimoHorimetro={handleGetUltimoHorimetro}
         mode={formMode}
+        onFinalizarAberto={(apontamento) => {
+          handleCloseFormModal();
+          handleOpenFinalizarModal(apontamento as any);
+        }}
+
       />
 
 

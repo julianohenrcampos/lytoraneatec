@@ -12,6 +12,8 @@ import {
   fetchApontamentos,
   fetchApontamentoById,
   fetchApontamentoAbertoPorAtivo,
+  descreverApontamentoAberto,
+
   salvarApontamentoComInspecao,
   excluirApontamentoComInspecao,
   confirmarApontamentoPersistido,
@@ -338,11 +340,12 @@ export const useApontamentoCaminhoes = () => {
 
     const aberto = await fetchApontamentoAbertoPorAtivo(ativoId, payload.apontamentoId);
     if (aberto) {
-      throw new Error(
-        "Já existe um apontamento em andamento para este ativo. Finalize-o antes de iniciar outro."
-      );
+      const err: any = new Error("apontamento_ativo_existente");
+      err.contextoUsuario = descreverApontamentoAberto(aberto);
+      throw err;
     }
   };
+
 
   const handleCreateOrUpdate = async (
     payload: FormSubmitPayload
