@@ -1,5 +1,15 @@
 import { supabase } from "@/integrations/supabase/client";
 import { SolicitacaoItem } from "@/services/solicitacaoItensService";
+import {
+  avaliarCapacidade,
+  detectarConflitoCadastral,
+  derivarBloqueioOperacional,
+  montarChaveOrdenacao,
+  montarTextoBusca,
+  ordenarPorChave,
+  casaBusca,
+  indexarDisponibilidadePorEquipamento,
+} from "@/lib/ativos/reconciliacaoOperacional";
 
 export type DecisaoTransporte = "INTERNO" | "RESERVA" | "COTACAO" | "INDISPONIVEL";
 
@@ -170,6 +180,25 @@ export interface AtivoAnalise {
   motivo_compatibilidade?: string;
   capacidade_valor: number | null;
   capacidade_unidade: string | null;
+
+  /* --- D1 / F2 — estado reconciliado (fonte: reconciliacaoOperacional) --- */
+  /** false quando não há linha em bd_disponibilidade_equipamentos. */
+  possui_registro_disponibilidade: boolean;
+  /** false quando a projeção autoritativa não tem CC atual. */
+  possui_centro_custo_atual: boolean;
+  /** true quando o CC atual é igual ao CC de destino da solicitação. */
+  ja_no_centro_custo_destino: boolean;
+  /** Situação cadastral crua (bd_caminhoes_equipamentos.situacao). */
+  situacao_cadastral: string | null;
+  /** Divergência entre situação cadastral e disponibilidade operacional. */
+  conflito_cadastral: boolean;
+  conflito_cadastral_motivo: string | null;
+  /** Motivo de bloqueio operacional (somente leitura/UI). */
+  bloqueio_motivo: string | null;
+  /** Texto canônico para busca global (frota, nº, placa, empresa, CC). */
+  texto_busca: string;
+  /** Chave de ordenação estável e determinística. */
+  chave_ordenacao: string;
 }
 
 export interface PortfolioAnalise {
@@ -229,6 +258,8 @@ export interface AnaliseInput {
   capacidadeValor?: number | null;
   capacidadeUnidade?: string | null;
   quantidade?: number | null;
+  /** CC de destino da solicitação — usado para priorizar “já no destino”. */
+  centroCustoDestinoId?: string | null;
 }
 
 /**
@@ -369,6 +400,7 @@ type EquipamentoRow = {
 };
 
 type DisponibilidadeRow = {
+  id: string;
   equipamento_id: string;
   status_operacional: string | null;
   previsao_liberacao: string | null;
@@ -448,6 +480,7 @@ export const fetchAnaliseOperacional = async (
   input: AnaliseInput,
 ): Promise<AnaliseOperacional> => {
   const quantidadeSolicitada = Math.max(1, Number(input.quantidade || 1));
+  const centroCustoDestinoId = input.centroCustoDestinoId || null;
 
   let subcategoriaId: string | null = input.subcategoriaId || null;
   let capacidadeValor: number | null = input.capacidadeValor ?? null;
@@ -595,7 +628,7 @@ export const fetchAnaliseOperacional = async (
     supabase
       .from("bd_disponibilidade_equipamentos")
       .select(`
-        equipamento_id, status_operacional, previsao_liberacao, confiabilidade_previsao,
+        id, equipamento_id, status_operacional, previsao_liberacao, confiabilidade_previsao,
         centro_custo_id, updated_at, created_at,
         centro_custo:bd_centros_custo(nome_centro_custo)
       `)
@@ -620,22 +653,17 @@ export const fetchAnaliseOperacional = async (
     }
   }
 
+  // Desempate canônico compartilhado: updated_at > created_at > id (todos DESC,
+  // NULLS LAST). Nunca confia na ordem retornada pelo Supabase.
   const dispRows = ((dispRaw as unknown) as DisponibilidadeRow[]) || [];
-  const dispSorted = [...dispRows].sort((a, b) => {
-    const ua = String(b.updated_at || "").localeCompare(String(a.updated_at || ""));
-    if (ua !== 0) return ua;
-    return String(b.created_at || "").localeCompare(String(a.created_at || ""));
-  });
-  const dispByEquip = new Map<string, DisponibilidadeRow>();
-  for (const row of dispSorted) {
-    if (!dispByEquip.has(row.equipamento_id)) dispByEquip.set(row.equipamento_id, row);
-  }
+  const dispByEquip = indexarDisponibilidadePorEquipamento(dispRows);
 
-  const propria: AtivoAnalise[] = [];
-  const grupo: AtivoAnalise[] = [];
-  const previsao: AtivoAnalise[] = [];
-  const externoLocado: AtivoAnalise[] = [];
-  const naoClassificado: AtivoAnalise[] = [];
+
+  let propria: AtivoAnalise[] = [];
+  let grupo: AtivoAnalise[] = [];
+  let previsao: AtivoAnalise[] = [];
+  let externoLocado: AtivoAnalise[] = [];
+  let naoClassificado: AtivoAnalise[] = [];
 
   const vistos = new Set<string>();
   let semCapacidade = 0;
@@ -665,28 +693,72 @@ export const fetchAnaliseOperacional = async (
       correspondenciaExata++;
     }
 
+    // Compatibilidade POR ATIVO — nunca exclui, apenas rebaixa para PARCIAL
+    // com motivo específico (ex.: unidade de capacidade ausente no cadastro).
+    const cap = avaliarCapacidade(
+      { capacidade_valor: capValor, capacidade_unidade: capUnid },
+      { valor: capacidadeValor, unidade: capacidadeUnidade },
+      { matchTipo: compatibilidade === "EXATA" ? "EXATO" : "PARCIAL", motivo: motivoCompatibilidade },
+    );
+
+    const ccAtualId = aloc?.centro_custo_atual_id ?? null;
+    const ccAtualCodigo = aloc?.centro_custo_atual_codigo ?? null;
+    const ccAtualNome = aloc?.centro_custo_atual_nome ?? null;
+    const jaNoDestino = !!centroCustoDestinoId && !!ccAtualId && ccAtualId === centroCustoDestinoId;
+    const conflito = detectarConflitoCadastral(e.situacao, status);
+    const previsaoLiberacao = disp?.previsao_liberacao || null;
+    const frotaStr = typeof e.frota === "string" ? e.frota : null;
+
     const ativo: AtivoAnalise = {
       equipamento_id: e.id,
-      frota: typeof e.frota === "string" ? e.frota : null,
+      frota: frotaStr,
       numero_frota: e.numero_frota,
       placa: e.placa,
       imagem_url: e.imagem_url,
       empresa: empresaNome,
       propriedade: prop,
-      centro_custo_id: aloc?.centro_custo_atual_id ?? null,
-      centro_custo_codigo: aloc?.centro_custo_atual_codigo ?? null,
-      centro_custo_nome: aloc?.centro_custo_atual_nome ?? null,
+      centro_custo_id: ccAtualId,
+      centro_custo_codigo: ccAtualCodigo,
+      centro_custo_nome: ccAtualNome,
       centro_custo_origem: aloc?.centro_custo_origem ?? null,
       centro_custo_atualizado_em: aloc?.centro_custo_atualizado_em ?? null,
       centro_custo_disponibilidade_nome: disp?.centro_custo?.nome_centro_custo || null,
       status_operacional: status,
-      previsao_liberacao: disp?.previsao_liberacao || null,
+      previsao_liberacao: previsaoLiberacao,
       confiabilidade: disp?.confiabilidade_previsao || null,
-      compatibilidade,
-      motivo_compatibilidade: motivoCompatibilidade,
+      compatibilidade: cap.matchTipo === "EXATO" ? "EXATA" : "PARCIAL",
+      motivo_compatibilidade: cap.matchMotivo ?? undefined,
       capacidade_valor: capValor,
       capacidade_unidade: capUnid,
+
+      possui_registro_disponibilidade: !!disp,
+      possui_centro_custo_atual: !!ccAtualId,
+      ja_no_centro_custo_destino: jaNoDestino,
+      situacao_cadastral: e.situacao ?? null,
+      conflito_cadastral: conflito.possuiConflitoCadastral,
+      conflito_cadastral_motivo: conflito.conflitoCadastralMotivo,
+      bloqueio_motivo: derivarBloqueioOperacional(status, previsaoLiberacao),
+      texto_busca: montarTextoBusca([
+        frotaStr,
+        e.numero_frota,
+        e.placa,
+        empresaNome,
+        ccAtualCodigo,
+        ccAtualNome,
+      ]),
+      chave_ordenacao: montarChaveOrdenacao({
+        statusOperacional: status,
+        jaNoCentroCustoDestino: jaNoDestino,
+        previsaoLiberacao,
+        matchTipo: cap.matchTipo,
+        possuiCentroCustoAtual: !!ccAtualId,
+        frota: frotaStr,
+        numeroFrota: e.numero_frota,
+        placa: e.placa,
+        equipamentoId: e.id,
+      }),
     };
+
 
     // Classificação PRIMÁRIA — exclusivamente por propriedade.
     switch (prop) {
@@ -717,6 +789,19 @@ export const fetchAnaliseOperacional = async (
   if ("erro" in portfolio) {
     return emptyAnalise(portfolio.erro === "acesso" ? "acesso_negado" : "erro_consulta", matchingUsed, portfolio.msg);
   }
+
+  // Ordenação estável e determinística — SEMPRE após matching/reconciliação.
+  // Nenhum ativo é removido: a ordem apenas prioriza o que é operacionalmente útil.
+  const ordenar = (lista: AtivoAnalise[]): AtivoAnalise[] =>
+    ordenarPorChave(
+      lista.map((a) => ({ ...a, chaveOrdenacao: a.chave_ordenacao, equipamentoId: a.equipamento_id })),
+    ).map(({ chaveOrdenacao: _c, equipamentoId: _e, ...rest }) => rest as AtivoAnalise);
+
+  propria = ordenar(propria);
+  grupo = ordenar(grupo);
+  externoLocado = ordenar(externoLocado);
+  naoClassificado = ordenar(naoClassificado);
+  previsao = ordenar(previsao);
 
   const todos = [...propria, ...grupo, ...externoLocado, ...naoClassificado];
   const totalCandidatos = vistos.size;
@@ -856,4 +941,19 @@ export const registrarDecisaoTransporte = async (data: {
     .update({ status_fluxo: "EM_TRANSPORTE" } as any)
     .eq("id", data.solicitacao_id);
   if (updateErr) throw updateErr;
+};
+
+/* ------------------------------------------------------------------
+ * D1 / F2 — Busca global na Central do Transporte.
+ * Aplica-se a TODAS as abas de candidatos, sobre o conjunto completo já
+ * carregado (frota, nº de frota, placa, empresa e Centro de Custo atual).
+ * Não recorta o universo: apenas filtra a exibição.
+ * ------------------------------------------------------------------ */
+export const filtrarAtivosPorBusca = (
+  ativos: readonly AtivoAnalise[],
+  termo: string,
+): AtivoAnalise[] => {
+  const t = String(termo ?? "").trim();
+  if (!t) return [...ativos];
+  return ativos.filter((a) => casaBusca(a.texto_busca, t));
 };

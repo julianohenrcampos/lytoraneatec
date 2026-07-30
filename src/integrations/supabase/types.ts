@@ -13137,6 +13137,152 @@ export type Database = {
           },
         ]
       }
+      bd_solicitacao_item_atendimentos: {
+        Row: {
+          contexto_decisao: Json
+          created_at: string
+          created_by: string
+          encerrado_em: string | null
+          encerrado_por: string | null
+          equipamento_id: string
+          id: string
+          janela_aprovada_fim: string
+          janela_aprovada_inicio: string
+          justificativa_override: string | null
+          match_tipo: string
+          modalidade: string
+          motivo_encerramento: string | null
+          override_disponibilidade: boolean
+          override_periodo: boolean
+          periodo_fim: string
+          periodo_inicio: string
+          request_id_criacao: string
+          request_id_encerramento: string | null
+          solicitacao_item_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          contexto_decisao: Json
+          created_at?: string
+          created_by: string
+          encerrado_em?: string | null
+          encerrado_por?: string | null
+          equipamento_id: string
+          id?: string
+          janela_aprovada_fim: string
+          janela_aprovada_inicio: string
+          justificativa_override?: string | null
+          match_tipo: string
+          modalidade: string
+          motivo_encerramento?: string | null
+          override_disponibilidade?: boolean
+          override_periodo?: boolean
+          periodo_fim: string
+          periodo_inicio: string
+          request_id_criacao: string
+          request_id_encerramento?: string | null
+          solicitacao_item_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          contexto_decisao?: Json
+          created_at?: string
+          created_by?: string
+          encerrado_em?: string | null
+          encerrado_por?: string | null
+          equipamento_id?: string
+          id?: string
+          janela_aprovada_fim?: string
+          janela_aprovada_inicio?: string
+          justificativa_override?: string | null
+          match_tipo?: string
+          modalidade?: string
+          motivo_encerramento?: string | null
+          override_disponibilidade?: boolean
+          override_periodo?: boolean
+          periodo_fim?: string
+          periodo_inicio?: string
+          request_id_criacao?: string
+          request_id_encerramento?: string | null
+          solicitacao_item_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_sia_created_by"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_sia_created_by"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_sia_created_by"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_sia_encerrado_por"
+            columns: ["encerrado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_sia_encerrado_por"
+            columns: ["encerrado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_sia_encerrado_por"
+            columns: ["encerrado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_sia_equipamento"
+            columns: ["equipamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_caminhoes_equipamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_sia_equipamento"
+            columns: ["equipamento_id"]
+            isOneToOne: false
+            referencedRelation: "vw_ativos_logistica_manutencao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_sia_equipamento"
+            columns: ["equipamento_id"]
+            isOneToOne: false
+            referencedRelation: "vw_ativos_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_sia_solicitacao_item"
+            columns: ["solicitacao_item_id"]
+            isOneToOne: false
+            referencedRelation: "bd_solicitacoes_itens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_solicitacao_transferencia_itens: {
         Row: {
           alteracao_passagem: boolean
@@ -21533,6 +21679,89 @@ export type Database = {
       fn_criar_registro_aplicacao_manual_v2: {
         Args: { p_payload: Json }
         Returns: Json
+      }
+      fn_ct_atendimento_atribuir: {
+        Args: {
+          p_equipamento_id: string
+          p_justificativa_override?: string
+          p_modalidade: string
+          p_periodo_fim?: string
+          p_periodo_inicio?: string
+          p_request_id: string
+          p_solicitacao_item_id: string
+        }
+        Returns: Json
+      }
+      fn_ct_atendimento_encerrar: {
+        Args: {
+          p_atendimento_id: string
+          p_motivo: string
+          p_novo_status: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
+      fn_ct_atendimento_json: {
+        Args: { p_atendimento_id: string }
+        Returns: Json
+      }
+      fn_ct_atendimento_listar: {
+        Args: { p_solicitacao_id: string }
+        Returns: Json
+      }
+      fn_ct_atendimento_substituir: {
+        Args: {
+          p_atendimento_id: string
+          p_justificativa_override?: string
+          p_modalidade: string
+          p_motivo: string
+          p_novo_equipamento_id: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
+      fn_ct_avaliar_disponibilidade: {
+        Args: {
+          p_equipamento_id: string
+          p_modalidade: string
+          p_periodo_inicio: string
+        }
+        Returns: Json
+      }
+      fn_ct_avaliar_match: {
+        Args: { p_equipamento_id: string; p_item_id: string }
+        Returns: Json
+      }
+      fn_ct_contadores_item: { Args: { p_item_id: string }; Returns: Json }
+      fn_ct_disponibilidade_upsert: {
+        Args: {
+          p_centro_custo_id?: string
+          p_confiabilidade?: string
+          p_data_inicio?: string
+          p_equipamento_id: string
+          p_motivo_risco?: string
+          p_observacao?: string
+          p_previsao_liberacao?: string
+          p_status_operacional: string
+        }
+        Returns: Json
+      }
+      fn_ct_estado_efetivo_lote: {
+        Args: {
+          p_centro_custo_ids?: string[]
+          p_equipamento_ids: string[]
+          p_periodo_fim?: string
+          p_periodo_inicio?: string
+        }
+        Returns: Json
+      }
+      fn_ct_item_resumo_json: {
+        Args: { p_solicitacao_item_id: string }
+        Returns: Json
+      }
+      fn_ct_recalcular_status_item: {
+        Args: { p_solicitacao_item_id: string }
+        Returns: string
       }
       fn_designar_equipe_atividade: {
         Args: {

@@ -8,6 +8,11 @@ import VeiculoActions from "@/components/veiculos/table/VeiculoActions";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { formatIdentificadorFromVeiculo } from "@/utils/formatIdentificadorAtivo";
+import {
+  STATUS_OPERACIONAL_LABELS,
+  type StatusOperacionalCanonico,
+} from "@/lib/ativos/reconciliacaoOperacional";
+import { useStatusOperacionalMap } from "@/hooks/vehicles/useStatusOperacionalMap";
 
 
 interface UseVeiculoColumnsProps {
@@ -21,6 +26,7 @@ export const useVeiculoColumns = ({
   onEdit,
   onDelete
 }: UseVeiculoColumnsProps): ColumnDef<Veiculo>[] => {
+  const { data: statusOperacionalMap } = useStatusOperacionalMap();
   return [
     {
       id: "imagem",
@@ -113,10 +119,42 @@ export const useVeiculoColumns = ({
     },
     {
       accessorKey: "situacao",
-      header: "Situação",
+      // G3: dimensão CADASTRAL — nunca confundir com disponibilidade operacional.
+      header: "Situação cadastral",
       cell: ({ row }) => {
         const situacao = row.original.situacao;
         return <VeiculoStatusBadge situacao={situacao} />;
+      },
+    },
+    {
+      id: "status_operacional",
+      // G3: dimensão OPERACIONAL — origem exclusiva bd_disponibilidade_equipamentos.
+      header: "Disponibilidade operacional",
+      cell: ({ row }) => {
+        const estado = statusOperacionalMap?.[row.original.id];
+        const status: StatusOperacionalCanonico = estado?.statusOperacional ?? "SEM_STATUS";
+        const tone =
+          status === "DISPONIVEL" ? "default"
+          : status === "SEM_STATUS" || status === "DESCONHECIDO" ? "outline"
+          : "secondary";
+        return (
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant={tone as any} data-testid="veiculo-status-operacional">
+                  {STATUS_OPERACIONAL_LABELS[status]}
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <div className="text-xs max-w-[260px]">
+                  {status === "SEM_STATUS"
+                    ? "Sem disponibilidade operacional confirmada — o ativo não pode ser atendido pela Central do Transporte até ser regularizado."
+                    : "Disponibilidade operacional registrada em Disponibilidade Operacional; independente da situação cadastral."}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
       },
     },
     {

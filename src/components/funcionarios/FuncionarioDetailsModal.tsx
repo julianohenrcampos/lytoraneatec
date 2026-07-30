@@ -13,6 +13,8 @@ import { ptBR } from "date-fns/locale";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatCPF } from "@/utils/textTransform";
+import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
+
 
 interface FuncionarioDetailsModalProps {
   isOpen: boolean;
@@ -27,10 +29,13 @@ const FuncionarioDetailsModal: React.FC<FuncionarioDetailsModalProps> = ({
 }) => {
   if (!funcionario) return null;
 
+  // Datas date-only (YYYY-MM-DD) precisam ser ancoradas ao meio-dia local:
+  // new Date("1983-05-05") é meia-noite UTC e vira o dia anterior em UTC-3.
   const formatDate = (dateString?: string) => {
     if (!dateString) return "-";
-    return format(new Date(dateString), "dd/MM/yyyy", { locale: ptBR });
+    return formatBrazilianDateForDisplay(dateString);
   };
+
 
   const formatCurrency = (value?: number) => {
     if (value === undefined || value === null) return "-";

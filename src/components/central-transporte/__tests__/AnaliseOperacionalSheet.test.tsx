@@ -8,6 +8,8 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 vi.mock("@/services/centralTransporteService", async () => {
   return {
+    filtrarAtivosPorBusca: (ativos: any[], termo: string) =>
+      termo ? ativos.filter((a) => String(a.texto_busca ?? "").includes(termo.toUpperCase())) : ativos,
     fetchAnaliseOperacional: vi.fn(async () => ({
       status: "ok",
       matchingUsed: "tipo_equipamento",

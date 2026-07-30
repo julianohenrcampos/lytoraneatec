@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { usePermission } from '@/hooks/usePermission';
+import { usePermission, type Acao } from '@/hooks/usePermission';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ShieldX } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -10,6 +10,8 @@ interface SecureRouteGuardProps {
   children: React.ReactNode;
   requiredPermission?: string;
   requiredPermissions?: string[];
+  /** Action granular (visualizar|criar|editar|aprovar) exigida sobre requiredPermission. */
+  requiredAction?: Acao;
   fallbackRoute?: string;
 }
 
@@ -17,10 +19,11 @@ const SecureRouteGuard: React.FC<SecureRouteGuardProps> = ({
   children, 
   requiredPermission, 
   requiredPermissions,
+  requiredAction,
   fallbackRoute = '/dashboard'
 }) => {
   const location = useLocation();
-  const { isSuperAdmin, permissions, isLoading, userId } = usePermission();
+  const { isSuperAdmin, permissions, isLoading, userId, hasActionPermission } = usePermission();
   
   // Estado para manter permissões válidas anteriores (evita perda durante revalidação)
   const [hasVerifiedOnce, setHasVerifiedOnce] = useState(false);
@@ -161,6 +164,28 @@ const SecureRouteGuard: React.FC<SecureRouteGuardProps> = ({
           </div>
         );
       }
+    }
+  }
+
+  // Verificação granular por action (RBAC CT-2). Só avaliada após o RBAC
+  // terminar de carregar, para não bloquear indevidamente durante revalidação.
+  if (requiredAction && requiredPermission && !isLoading && permissions.length > 0) {
+    if (!hasActionPermission(requiredPermission, requiredAction)) {
+      console.log('❌ [SECURE ROUTE] Action negada:', requiredPermission, requiredAction);
+      return (
+        <div className="flex items-center justify-center min-h-screen p-4">
+          <Alert className="max-w-md">
+            <ShieldX className="h-4 w-4" />
+            <AlertDescription>
+              Você não tem permissão para acessar esta página.
+              <br />
+              <small className="text-muted-foreground">
+                Necessário: {requiredPermission} ({requiredAction})
+              </small>
+            </AlertDescription>
+          </Alert>
+        </div>
+      );
     }
   }
 

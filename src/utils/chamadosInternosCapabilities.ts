@@ -49,10 +49,16 @@ const STATUS_CANCELAR: ReadonlyArray<ChamadoInternoStatus> = [
   "em_triagem",
   "aguardando_solicitante",
 ];
+const STATUS_REABRIR: ReadonlyArray<ChamadoInternoStatus> = [
+  "respondido",
+  "resolvido",
+  "encerrado",
+];
 const STATUS_ENCERRADOS: ReadonlyArray<ChamadoInternoStatus> = [
   "encerrado",
   "cancelado",
 ];
+
 
 export function getChamadoActionCapabilities(
   input: ChamadoCapabilitiesInput,
@@ -110,6 +116,13 @@ export function getChamadoActionCapabilities(
     (podeCancelarComoAdmin || podeCancelarComoSolicitante) &&
     STATUS_CANCELAR.includes(status);
 
+  // Encerrar / Reabrir — atos do SOLICITANTE (ou admin), nunca do atendente.
+  // Espelha `fn_chamado_interno_confirmar_encerramento` / `..._reabrir`.
+  const atorDoSolicitante = podeCancelarComoAdmin || podeCancelarComoSolicitante;
+  const canConfirmarEncerramento = atorDoSolicitante && status === "resolvido";
+  const canReabrir =
+    atorDoSolicitante && STATUS_REABRIR.includes(status);
+
   // Aba do atendente — só aparece quando há ação REAL de atendente disponível.
   // "Assumir" não é ação da aba: é um passo prévio, exposto como botão no
   // cabeçalho. Antes de assumir, o chamado ainda não tem responsável, então
@@ -127,9 +140,12 @@ export function getChamadoActionCapabilities(
     canAdicionarNotaInterna,
     canResolver,
     canCancelar,
+    canConfirmarEncerramento,
+    canReabrir,
     showAcoesAtendenteTab,
   };
 }
+
 
 // ---------------------------------------------------------------------------
 // Tradução de erros de RPC para mensagens amigáveis.

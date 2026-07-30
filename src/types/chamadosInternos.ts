@@ -160,5 +160,10 @@ export interface ChamadoActionCapabilities {
   canAdicionarNotaInterna: boolean;
   canResolver: boolean;
   canCancelar: boolean;
+  /** Confirmar encerramento — ato do solicitante/abridor ou admin, só em `resolvido`. */
+  canConfirmarEncerramento: boolean;
+  /** Reabrir — ato do solicitante/abridor ou admin. */
+  canReabrir: boolean;
   showAcoesAtendenteTab: boolean;
 }
+

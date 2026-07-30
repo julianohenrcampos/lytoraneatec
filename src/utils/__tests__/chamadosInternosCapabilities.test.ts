@@ -277,3 +277,44 @@ describe("traduzirErroAssumir", () => {
     expect(msg).not.toMatch(/forbidden|SQLSTATE|42501|fn_chamado_interno/i);
   });
 });
+
+describe("encerrar / reabrir — ato do solicitante ou admin", () => {
+  it("atendente responsável NÃO pode encerrar (status respondido)", () => {
+    const caps = getChamadoActionCapabilities(
+      input({
+        chamado: chamado({ status: "respondido", responsavel_atual_profile_id: PROFILE }),
+        permissions: perms({ canAbrirEditar: false, canAdministrarEditar: false }),
+      }),
+    );
+    expect(caps.canConfirmarEncerramento).toBe(false);
+    expect(caps.canReabrir).toBe(false);
+    expect(caps.canResolver).toBe(true);
+  });
+
+  it("solicitante só encerra quando status é resolvido", () => {
+    const base = {
+      chamado: chamado({ status: "respondido", aberto_por: PROFILE }),
+      permissions: perms({ canAbrirEditar: true }),
+    };
+    expect(getChamadoActionCapabilities(input(base)).canConfirmarEncerramento).toBe(false);
+    const resolvido = getChamadoActionCapabilities(
+      input({ ...base, chamado: chamado({ status: "resolvido", aberto_por: PROFILE }) }),
+    );
+    expect(resolvido.canConfirmarEncerramento).toBe(true);
+    expect(resolvido.canReabrir).toBe(true);
+  });
+
+  it("admin pode encerrar em resolvido e reabrir em encerrado", () => {
+    const perm = perms({ canAdministrarEditar: true });
+    expect(
+      getChamadoActionCapabilities(
+        input({ chamado: chamado({ status: "resolvido" }), permissions: perm }),
+      ).canConfirmarEncerramento,
+    ).toBe(true);
+    expect(
+      getChamadoActionCapabilities(
+        input({ chamado: chamado({ status: "encerrado" }), permissions: perm }),
+      ).canReabrir,
+    ).toBe(true);
+  });
+});

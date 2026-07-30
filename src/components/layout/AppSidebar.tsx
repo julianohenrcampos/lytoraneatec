@@ -35,7 +35,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const location = useLocation();
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
-  const { isSuperAdmin, userRole, permissions, isLoading } = usePermission();
+  const { isSuperAdmin, userRole, permissions, isLoading, hasActionPermission } = usePermission();
   const { count: pendentesCount } = useDiariasPendentes();
   const { data: hasOrdemCampoAccess } = useOrdemDiariaCampoAccess();
 
@@ -48,6 +48,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       return true;
     }
     if (!item.requiredPermission && !item.requiredPermissions?.length) return true;
+    // Gate granular por ação (respeita ALLOW/DENY de bd_user_permission_overrides).
+    if (item.requiredPermission && item.requiredAction) {
+      return hasActionPermission(item.requiredPermission, item.requiredAction);
+    }
     if (item.requiredPermission) return permissions.includes(item.requiredPermission);
     if (item.requiredPermissions?.length) {
       return item.requiredPermissions.some((perm: string) => permissions.includes(perm));

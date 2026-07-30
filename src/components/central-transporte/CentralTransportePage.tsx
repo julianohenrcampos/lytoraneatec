@@ -10,6 +10,10 @@ import { emitNotification } from "@/services/notifications/notificationEmitter";
 import { getDestinatariosStatusCentral } from "@/services/notifications/recipientsService";
 import { formatProtocolo } from "@/utils/formatProtocolo";
 import { useAuth } from "@/hooks/useAuth";
+import useCtOperation from "@/hooks/central-transporte/useCtOperation";
+import useCentralTransporteCapabilities from "@/hooks/central-transporte/useCentralTransporteCapabilities";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
 
 export type SelectedContext = {
   solicitacao: SolicitacaoTransporteComItens;
@@ -29,6 +33,15 @@ const CentralTransportePage: React.FC = () => {
   const [selected, setSelected] = useState<SelectedContext | null>(null);
   const { userId } = useAuth();
 
+  // Motor de idempotência: vive aqui (componente persistente) para que o
+  // request_id sobreviva ao fechamento do modal e à reabertura da solicitação.
+  const ctOperation = useCtOperation();
+  const capabilities = useCentralTransporteCapabilities();
+
+  const temTentativaIncerta = Array.from(ctOperation.attempts.values()).some(
+    (a) => a.state === "UNCERTAIN",
+  );
+
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["central-transporte", filters],
     queryFn: () => fetchSolicitacoesTransporte(filters),
@@ -40,6 +53,17 @@ const CentralTransportePage: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      {temTentativaIncerta && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="text-xs">
+            Existe uma operação da Central do Transporte sem confirmação. Reabra a solicitação
+            correspondente e repita a mesma operação — a chave de idempotência foi preservada e o
+            registro não será duplicado.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <CentralTransporteFilters filters={filters} onChange={setFilters} />
 
       {isLoading ? (
@@ -52,6 +76,9 @@ const CentralTransportePage: React.FC = () => {
         context={selected}
         open={!!selected}
         onClose={() => setSelected(null)}
+        ctOperation={ctOperation}
+        capabilities={capabilities}
+
         onDecisaoSaved={() => {
           const solicitacaoSelecionada = selected?.solicitacao as (SolicitacaoTransporte & {
             solicitante_id?: string | null;
@@ -60,7 +87,9 @@ const CentralTransportePage: React.FC = () => {
           }) | undefined;
 
           refetch();
-          setSelected(null);
+          // A análise permanece aberta: o operador pode registrar outros
+          // atendimentos do mesmo item sem reabrir a solicitação.
+
 
           void (async () => {
             try {

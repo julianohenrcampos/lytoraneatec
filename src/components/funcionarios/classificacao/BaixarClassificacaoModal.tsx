@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/select";
 import { Funcionario } from "@/types/funcionario";
 import { supabase } from "@/integrations/supabase/client";
+import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
+
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import ConfirmExameModal from "./ConfirmExameModal";
 import { toast } from "sonner";
@@ -407,12 +409,11 @@ const BaixarClassificacaoModal: React.FC<Props> = ({
             <div>
               <Label className="text-muted-foreground">Data de Admissão</Label>
               <p className="font-medium">
-                {funcionario.data_admissao
-                  ? new Date(funcionario.data_admissao).toLocaleDateString(
-                      "pt-BR"
-                    )
-                  : "-"}
+                {formatBrazilianDateForDisplay(
+                  funcionario.data_admissao ?? undefined,
+                )}
               </p>
+
             </div>
             <div>
               <Label className="text-muted-foreground">Cargo Atual</Label>

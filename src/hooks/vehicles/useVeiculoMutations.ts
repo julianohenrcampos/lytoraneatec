@@ -8,6 +8,7 @@ import {
 } from "@/services/veiculo";
 import { Veiculo } from "@/types/veiculo";
 import { VeiculoFormData } from "@/services/veiculo/types";
+import { invalidarCachesAtivosOperacionais } from "@/lib/queryInvalidation/ativosOperacionais";
 
 export const useVeiculoMutations = (
   onSuccessCallback?: () => void,
@@ -22,10 +23,8 @@ export const useVeiculoMutations = (
   const createMutation = useMutation({
     mutationFn: (data: VeiculoFormData) => createVeiculo(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['veiculos'] });
-      queryClient.invalidateQueries({ queryKey: ['disponibilidades'] });
-      queryClient.invalidateQueries({ queryKey: ['mapa-operacional'] });
-      queryClient.invalidateQueries({ queryKey: ['equipamentos-dd'] });
+      // G2: invalidação por prefixo (inclui Central do Transporte e reconciliação).
+      void invalidarCachesAtivosOperacionais(queryClient);
       toast({
         title: "Sucesso",
         description: "Veículo/Equipamento criado com sucesso!",
@@ -46,7 +45,8 @@ export const useVeiculoMutations = (
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<VeiculoFormData> }) => updateVeiculo(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['veiculos'] });
+      // G2: invalidação por prefixo (inclui Central do Transporte e reconciliação).
+      void invalidarCachesAtivosOperacionais(queryClient);
       toast({
         title: "Sucesso",
         description: "Veículo/Equipamento atualizado com sucesso!",
@@ -67,8 +67,8 @@ export const useVeiculoMutations = (
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteVeiculo(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['veiculos'] });
-      queryClient.invalidateQueries({ queryKey: ['equipamentos-dd'] });
+      // G2: invalidação por prefixo (inclui Central do Transporte e reconciliação).
+      void invalidarCachesAtivosOperacionais(queryClient);
       toast({
         title: "Sucesso",
         description: "Veículo/Equipamento excluído com sucesso!",
@@ -89,8 +89,8 @@ export const useVeiculoMutations = (
   const importMutation = useMutation({
     mutationFn: (veiculos: VeiculoFormData[] | File) => importVeiculos(veiculos),
     onSuccess: (result: { success: any[]; errors: any[] }) => {
-      queryClient.invalidateQueries({ queryKey: ['veiculos'] });
-      queryClient.invalidateQueries({ queryKey: ['equipamentos-dd'] });
+      // G2: invalidação por prefixo (inclui Central do Transporte e reconciliação).
+      void invalidarCachesAtivosOperacionais(queryClient);
 
 
       if (result.success.length > 0) {

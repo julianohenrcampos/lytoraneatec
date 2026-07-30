@@ -12,6 +12,7 @@ import { PageTitleProvider } from "@/contexts/PageTitleContext";
 import SimpleAuthGuard from "@/components/routing/SimpleAuthGuard";
 import SimplePermissionGuard from "@/components/routing/SimplePermissionGuard";
 import SecureRouteGuard from "@/components/routing/SecureRouteGuard";
+import type { Acao } from "@/hooks/usePermission";
 import OrdemDiariaCampoGuard from "@/components/routing/OrdemDiariaCampoGuard";
 import SimpleLogin from "@/pages/SimpleLogin";
 import Portal from "@/pages/Portal";
@@ -135,13 +136,30 @@ const Perm = ({ children }: { children: React.ReactNode }) => (
     <SimplePermissionGuard>{children}</SimplePermissionGuard>
   </SimpleAuthGuard>
 );
-const Secure = ({ permission, children }: { permission: string; children: React.ReactNode }) => (
-  <SimpleAuthGuard>
-    <SimplePermissionGuard>
-      <SecureRouteGuard requiredPermission={permission}>{children}</SecureRouteGuard>
-    </SimplePermissionGuard>
-  </SimpleAuthGuard>
-);
+const Secure = ({
+  permission,
+  action,
+  children,
+}: {
+  permission: string;
+  action?: Acao;
+  children: React.ReactNode;
+}) =>
+  action ? (
+    // Rotas com action granular usam apenas o SecureRouteGuard, que conhece
+    // o contrato de capabilities; o SimplePermissionGuard não avalia actions.
+    <SimpleAuthGuard>
+      <SecureRouteGuard requiredPermission={permission} requiredAction={action}>
+        {children}
+      </SecureRouteGuard>
+    </SimpleAuthGuard>
+  ) : (
+    <SimpleAuthGuard>
+      <SimplePermissionGuard>
+        <SecureRouteGuard requiredPermission={permission}>{children}</SecureRouteGuard>
+      </SimplePermissionGuard>
+    </SimpleAuthGuard>
+  );
 
 // Redireciona a rota antiga /gestao-rh/desligamentos para a aba dentro de funcionários,
 // preservando quaisquer query params já presentes (ex.: deep links externos).
@@ -210,7 +228,7 @@ const App = () => {
                     <Route path="/gestao-maquinas/disponibilidade" element={<Secure permission="gestao_maquinas_caminhoes_view"><GestaoDisponibilidade /></Secure>} />
                     <Route path="/gestao-maquinas/portfolio-empresas" element={<Secure permission="gestao_maquinas_caminhoes_view"><GestaoPortfolio /></Secure>} />
                     <Route path="/gestao-maquinas/linhas-operacionais" element={<Perm><LinhasOperacionaisPage /></Perm>} />
-                    <Route path="/gestao-maquinas/central-transporte" element={<Secure permission="gestao_maquinas_caminhoes_view"><CentralTransporte /></Secure>} />
+                    <Route path="/gestao-maquinas/central-transporte" element={<Secure permission="gestao_maquinas_central_transporte_view" action="visualizar"><CentralTransporte /></Secure>} />
                     <Route path="/gestao-maquinas/mapa-operacional" element={<Secure permission="veiculos_equipamentos_mapa_operacional_view"><MapaOperacional /></Secure>} />
                     <Route path="/gestao-maquinas/checklist-saida/:movimentacaoId" element={<Perm><ChecklistSaida /></Perm>} />
                     {/* FASE 1/2: rota antiga mantida apenas como redirect para a nova rota definitiva em /engenharia. */}

@@ -209,7 +209,8 @@ export const menuStructure = [
         name: "Central do Transporte",
         href: "/gestao-maquinas/central-transporte",
         icon: Truck,
-        requiredPermission: "gestao_maquinas_caminhoes_view"
+        requiredPermission: "gestao_maquinas_central_transporte_view",
+        requiredAction: "visualizar"
       },
       {
         name: "Mapa Operacional",

@@ -148,9 +148,12 @@ const ChamadoInternoDetalhe: React.FC = () => {
         canAdicionarNotaInterna: false,
         canResolver: false,
         canCancelar: false,
+        canConfirmarEncerramento: false,
+        canReabrir: false,
         showAcoesAtendenteTab: false,
       };
     }
+
     return getChamadoActionCapabilities({
       chamado: {
         status: chamado.status,
@@ -543,26 +546,29 @@ const ChamadoInternoDetalhe: React.FC = () => {
                 Cancelar
               </Button>
             )}
-            {(chamado.status === "resolvido" ||
-              chamado.status === "respondido") && (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setReabrirOpen(true)}
-                  disabled={reabrirM.isPending}
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" /> Reabrir
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={executarConfirmar}
-                  disabled={confirmarM.isPending}
-                >
-                  <CheckCircle2 className="mr-2 h-4 w-4" /> Encerrar
-                </Button>
-              </>
+            {capabilities.canReabrir && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setReabrirOpen(true)}
+                disabled={reabrirM.isPending}
+                data-testid="btn-reabrir"
+              >
+                <RefreshCw className="mr-2 h-4 w-4" /> Reabrir
+              </Button>
             )}
+            {capabilities.canConfirmarEncerramento && (
+              <Button
+                size="sm"
+                onClick={executarConfirmar}
+                disabled={confirmarM.isPending}
+                data-testid="btn-encerrar"
+                title="Confirmar o encerramento do chamado (ação do solicitante)."
+              >
+                <CheckCircle2 className="mr-2 h-4 w-4" /> Encerrar
+              </Button>
+            )}
+
           </div>
         </div>
 

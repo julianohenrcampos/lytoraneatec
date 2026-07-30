@@ -124,7 +124,50 @@ export const SolicitacaoDesligamentoLoteDialog: React.FC<Props> = ({
     setItens(mapped);
     setSalarioStr(ss);
     setRescisaoStr(rs);
+
+    // Re-hidratação de snapshots em RASCUNHO: o cadastro do funcionário pode ter
+    // mudado (ex.: transferência de Centro de Custo) após a gravação do item.
+    // Enquanto o documento não é emitido, exibimos o cadastro ATUAL.
+    if (existente.header.status !== 'rascunho') return;
+    const ids = mapped.map((m) => m.funcionario_id).filter(Boolean) as string[];
+    if (ids.length === 0) return;
+    let cancelado = false;
+    void (async () => {
+      const { data, error } = await supabase
+        .from('bd_funcionarios')
+        .select(`
+          id, nome_completo, matricula, cpf, data_admissao, centro_custo_id,
+          bd_funcoes(nome_funcao),
+          bd_centros_custo:centro_custo_id(codigo_centro_custo, nome_centro_custo)
+        `)
+        .in('id', ids);
+      if (error || !data || cancelado) return;
+      const atuais = new Map<string, any>((data as any[]).map((f) => [f.id, f]));
+      setItens((prev) =>
+        prev.map((it) => {
+          const f = atuais.get(it.funcionario_id);
+          if (!f) return it;
+          const cc = f.bd_centros_custo
+            ? `${f.bd_centros_custo.codigo_centro_custo} - ${f.bd_centros_custo.nome_centro_custo}`
+            : it.centro_custo;
+          return {
+            ...it,
+            nome: f.nome_completo ?? it.nome,
+            matricula: f.matricula ?? it.matricula,
+            cargo: f.bd_funcoes?.nome_funcao || it.cargo,
+            cpf: f.cpf ?? it.cpf,
+            data_admissao: f.data_admissao ?? it.data_admissao,
+            centro_custo_id: f.centro_custo_id ?? it.centro_custo_id,
+            centro_custo: cc,
+          };
+        }),
+      );
+    })();
+    return () => {
+      cancelado = true;
+    };
   }, [open, solicitacaoId, existente]);
+
 
   const adicionarFuncionario = async (funcId: string) => {
     if (readOnly) return;
