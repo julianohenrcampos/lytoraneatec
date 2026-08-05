@@ -31,9 +31,42 @@ const baseAtivo = {
   centro_custo_atual_nome: "OBRA TESTE",
 };
 
+/**
+ * CT-2.2: o adapter só libera operações com estado efetivo CONSULTADO.
+ * Os casos abaixo simulam a consulta bem-sucedida (livre) para isolar o gate G0.
+ */
+const estadoLivre = (over: Record<string, unknown> = {}) =>
+  ({
+    equipamentoId: "eq-1",
+    centroCustoId: null,
+    condicaoOperacional: "DISPONIVEL",
+    possuiRegistroOperacional: true,
+    previsaoLiberacao: null,
+    compromissoAtivo: "LIVRE",
+    compromissoAtual: null,
+    proximoCompromisso: null,
+    quantidadeCompromissosFuturos: 0,
+    compromissosNaJanela: [],
+    quantidadeCompromissosNaJanela: 0,
+    possuiAnomaliaSobreposicao: false,
+    possuiSobreposicaoNaJanela: false,
+    possuiCompromissoVencidoAtivo: false,
+    periodoComprometido: null,
+    atendimentoId: null,
+    solicitacaoId: null,
+    solicitacaoItemId: null,
+    estadoLogistico: "SEM_MOVIMENTACAO",
+    estadoExibicao: "DISPONIVEL",
+    alertas: [],
+    bloqueios: [],
+    origemDecisao: "CT2_2",
+    ...over,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fixture parcial
+  }) as any;
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const cand = (over: Record<string, unknown>) =>
-  toCandidateSelection({ ...baseAtivo, ...over } as any, "PROPRIA");
+const cand = (over: Record<string, unknown>, estado: unknown = estadoLivre()) =>
+  toCandidateSelection({ ...baseAtivo, ...over } as any, "PROPRIA", estado as any);
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 describe("G0 — fail-closed no adapter de candidatos", () => {
@@ -43,26 +76,45 @@ describe("G0 — fail-closed no adapter de candidatos", () => {
     expect(c?.precisaRegularizarDisponibilidade).toBe(false);
   });
 
+  it("sem estado efetivo consultado o ativo não é operável", () => {
+    const c = cand({}, null);
+    expect(c?.estadoConsultado).toBe(false);
+    expect(c?.permiteInterno).toBe(false);
+    expect(c?.permiteReservaFutura).toBe(false);
+  });
+
   it("ativo SEM registro NÃO permite interno mesmo com status DISPONIVEL herdado", () => {
-    const c = cand({ possui_registro_disponibilidade: false, status_operacional: "DISPONIVEL" });
+    const c = cand(
+      { possui_registro_disponibilidade: false, status_operacional: "DISPONIVEL" },
+      estadoLivre({ possuiRegistroOperacional: false }),
+    );
     expect(c?.permiteInterno).toBe(false);
     expect(c?.precisaRegularizarDisponibilidade).toBe(true);
   });
 
   it("ativo SEM registro NÃO permite reserva futura nem com previsão de liberação", () => {
-    const c = cand({ possui_registro_disponibilidade: false, previsao_liberacao: "2026-08-01" });
+    const c = cand(
+      { possui_registro_disponibilidade: false, previsao_liberacao: "2026-08-01" },
+      estadoLivre({ possuiRegistroOperacional: false }),
+    );
     expect(c?.permiteReservaFutura).toBe(false);
   });
 
   it("ativo SEM_STATUS canônico permanece bloqueado", () => {
-    const c = cand({ possui_registro_disponibilidade: false, status_operacional: "SEM_STATUS" });
+    const c = cand(
+      { possui_registro_disponibilidade: false, status_operacional: "SEM_STATUS" },
+      estadoLivre({ possuiRegistroOperacional: false }),
+    );
     expect(c?.permiteInterno).toBe(false);
     expect(c?.permiteReservaFutura).toBe(false);
     expect(c?.precisaRegularizarDisponibilidade).toBe(true);
   });
 
-  it("ativo COM registro em MANUTENCAO não permite interno, mas permite reserva com previsão", () => {
-    const c = cand({ status_operacional: "MANUTENCAO", previsao_liberacao: "2026-08-10" });
+  it("ativo COM registro em MANUTENCAO não permite interno, mas segue elegível a reserva", () => {
+    const c = cand(
+      { status_operacional: "MANUTENCAO", previsao_liberacao: "2026-08-10" },
+      estadoLivre({ condicaoOperacional: "MANUTENCAO", previsaoLiberacao: "2026-08-10" }),
+    );
     expect(c?.permiteInterno).toBe(false);
     expect(c?.permiteReservaFutura).toBe(true);
     expect(c?.precisaRegularizarDisponibilidade).toBe(false);

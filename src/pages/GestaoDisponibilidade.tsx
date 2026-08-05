@@ -4,7 +4,7 @@ import DisponibilidadePage from "@/components/disponibilidade/DisponibilidadePag
 import { usePageTitle } from "@/contexts/PageTitleContext";
 
 const GestaoDisponibilidade: React.FC = () => {
-  usePageTitle("Disponibilidade Operacional");
+  usePageTitle("Saneamento da Frota");
   return (
     <MainLayout>
       <DisponibilidadePage />

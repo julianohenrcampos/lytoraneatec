@@ -50,6 +50,43 @@ vi.mock("@/services/centralTransporteService", () => ({
   })),
 }));
 
+// CT-2.2 — fail-closed: a lista de candidatos só habilita operações quando o
+// estado efetivo foi consultado. Baseline mocka a consulta como "LIVRE".
+vi.mock("@/services/centralTransporteEstadoEfetivoService", () => ({
+  fetchEstadoEfetivoAtivos: vi.fn(async () =>
+    new Map([
+      [
+        "eq-1",
+        {
+          equipamentoId: "eq-1",
+          centroCustoId: null,
+          condicaoOperacional: "DISPONIVEL",
+          possuiRegistroOperacional: true,
+          previsaoLiberacao: null,
+          compromissoAtivo: "LIVRE",
+          compromissoAtual: null,
+          proximoCompromisso: null,
+          quantidadeCompromissosFuturos: 0,
+          compromissosNaJanela: [],
+          quantidadeCompromissosNaJanela: 0,
+          possuiSobreposicaoNaJanela: false,
+          possuiAnomaliaSobreposicao: false,
+          possuiCompromissoVencidoAtivo: false,
+          periodoComprometido: null,
+          atendimentoId: null,
+          solicitacaoId: null,
+          solicitacaoItemId: null,
+          estadoLogistico: "SEM_MOVIMENTACAO",
+          estadoExibicao: "DISPONIVEL",
+          alertas: [],
+          bloqueios: [],
+          origemDecisao: "TESTE",
+        },
+      ],
+    ]),
+  ),
+}));
+
 const contadoresMock = vi.fn();
 const refetchMock = vi.fn();
 
@@ -141,10 +178,14 @@ const renderSheet = (capabilities: CentralTransporteCapabilities) => {
   );
 };
 
+// CT-3B.2 — a placa aparece na tabela (desktop) e no card (mobile); a
+// seleção do teste usa explicitamente a linha da tabela.
 const selecionarAtivo = async () => {
-  const linha = await screen.findByText("ABC1D23");
-  fireEvent.click(linha.closest("tr")!);
+  const ocorrencias = await screen.findAllByText("ABC1D23");
+  const linha = ocorrencias.map((el) => el.closest("tr")).find((tr): tr is HTMLTableRowElement => !!tr);
+  fireEvent.click(linha!);
 };
+
 
 beforeEach(() => {
   contadoresMock.mockReturnValue(contadores(1));
@@ -188,10 +229,12 @@ describe("AnaliseOperacionalSheet — gates CT-2", () => {
     expect(screen.getByTestId("ct2-btn-interno")).not.toBeDisabled();
   });
 
-  it("reserva futura permanece travada para ativo disponível sem previsão", async () => {
+  // CT-2.2: reserva futura é liberada para ativo com estado efetivo consultado e
+  // compromisso LIVRE — a janela é validada dentro do modal de reserva.
+  it("reserva futura é liberada para ativo livre com estado efetivo consultado", async () => {
     renderSheet(caps());
     await selecionarAtivo();
-    expect(screen.getByTestId("ct2-btn-reserva")).toBeDisabled();
+    expect(screen.getByTestId("ct2-btn-reserva")).not.toBeDisabled();
   });
 
   it("pendentes = 0 trava as operações mesmo com ativo selecionado", async () => {

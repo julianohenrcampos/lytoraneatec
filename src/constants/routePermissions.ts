@@ -38,6 +38,8 @@ export const ROUTE_PERMISSIONS = {
   '/gestao-maquinas/dashboard': ['dashboard_maquinas_view'],
   '/gestao-maquinas/mapa-operacional': ['veiculos_equipamentos_mapa_operacional_view'],
   '/gestao-maquinas/central-transporte': ['gestao_maquinas_central_transporte_view'],
+  // CT-3B: página dedicada da solicitação herda exatamente a mesma permissão.
+  '/gestao-maquinas/central-transporte/solicitacao': ['gestao_maquinas_central_transporte_view'],
   // Módulo Engenharia oficializado no RBAC com permissão dedicada.
   // Entrada legacy mantida apontando para a mesma permissão para evitar bypass
   // em helpers que ainda referenciem a rota antiga (rota em si só faz redirect).
@@ -99,7 +101,12 @@ export const ROUTE_PERMISSIONS = {
   '/chamados-internos/atendimento': ['chamados_internos_atender'],
   '/chamados-internos/admin': ['chamados_internos_admin'],
   '/chamados-internos/:chamadoId': ['chamados_internos_view'],
+
+  // POPs — Procedimentos Operacionais Padrão
+  '/pops': ['pops_view'],
+  '/pops/gestao': ['pops_view'],
 } as const satisfies Record<string, readonly string[]>;
+
 
 export type AppRoute = keyof typeof ROUTE_PERMISSIONS;
 

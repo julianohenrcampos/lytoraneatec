@@ -21,8 +21,12 @@ export const PREFIXOS_ATIVOS_OPERACIONAIS = [
   "central-transporte-atendimentos",
   // CT-2.2: estado efetivo (condição operacional + compromisso ativo) em lote.
   "ct-estado-efetivo",
-
+  // CT-2.5: trava de edição da condição operacional do ativo.
+  "ct-edicao-ativo",
+  // CT-3C: estado de mobilização (viagens, movimentações, planejamento vigente).
+  "ct-mobilizacao",
 ] as const;
+
 
 export type PrefixoAtivoOperacional = (typeof PREFIXOS_ATIVOS_OPERACIONAIS)[number];
 

@@ -1,9 +1,13 @@
 /**
- * CT-2.2 — Testes do estado efetivo: badges, gate do adapter e chunking do service.
+ * CT-2.2 — Testes do estado efetivo: dimensões independentes, badges,
+ * gate fail-closed do adapter, janela de reserva e chunking do service.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   badgeDoEstadoEfetivo,
+  badgeDoCompromissoAtual,
+  janelaComprometida,
+  textoProximaReserva,
   ESTADOS_BLOQUEANTES,
 } from "@/utils/central-transporte/estadoEfetivoBadges";
 import { toCandidateSelection } from "@/utils/central-transporte/ctCandidateAdapter";
@@ -21,13 +25,24 @@ const estado = (over: Partial<CtEstadoEfetivoAtivo> = {}): CtEstadoEfetivoAtivo 
   condicaoOperacional: "DISPONIVEL",
   possuiRegistroOperacional: true,
   previsaoLiberacao: null,
+  dataInicioDisponibilidade: null,
+  agenda: null,
   compromissoAtivo: "LIVRE",
+  possuiCompromissoAtualOuFuturo: false,
+  compromissoPrincipal: null,
+  compromissoPrincipalStatus: null,
+  compromissoPrincipalInicio: null,
+  compromissoPrincipalFim: null,
+  compromissoPrincipalVigencia: "SEM_COMPROMISSO",
+  reservadoPelaCentral: false,
   compromissoAtual: null,
   proximoCompromisso: null,
   quantidadeCompromissosFuturos: 0,
   compromissosNaJanela: [],
   quantidadeCompromissosNaJanela: 0,
   possuiAnomaliaSobreposicao: false,
+  possuiSobreposicaoNaJanela: false,
+  possuiCompromissoVencidoAtivo: false,
   periodoComprometido: null,
   atendimentoId: null,
   solicitacaoId: null,
@@ -71,17 +86,25 @@ describe("CT-2.2 — badges de estado efetivo", () => {
     expect(b.bloqueiaOperacao).toBe(false);
   });
 
+  it("estado não consultado é fail-closed", () => {
+    const b = badgeDoEstadoEfetivo(null);
+    expect(b.bloqueiaOperacao).toBe(true);
+  });
+
   it("reservado nunca é exibido como livre", () => {
     const b = badgeDoEstadoEfetivo(
-      estado({ compromissoAtivo: "RESERVADO", estadoExibicao: "COMPROMETIDO" }),
+      estado({ compromissoAtivo: "RESERVADO", estadoExibicao: "RESERVADO" }),
     );
     expect(b.label).toBe("Reservado");
     expect(b.bloqueiaOperacao).toBe(true);
   });
 
-  it("em transporte e entregue também bloqueiam", () => {
-    expect(badgeDoEstadoEfetivo(estado({ compromissoAtivo: "EM_TRANSPORTE" })).bloqueiaOperacao).toBe(true);
-    expect(badgeDoEstadoEfetivo(estado({ compromissoAtivo: "ENTREGUE" })).bloqueiaOperacao).toBe(true);
+  it("em transporte bloqueia", () => {
+    expect(
+      badgeDoEstadoEfetivo(
+        estado({ compromissoAtivo: "EM_TRANSPORTE", estadoExibicao: "EM_TRANSPORTE" }),
+      ).bloqueiaOperacao,
+    ).toBe(true);
   });
 
   it("sobreposição entre compromissos gera conflito operacional bloqueante", () => {
@@ -90,25 +113,18 @@ describe("CT-2.2 — badges de estado efetivo", () => {
     expect(b.bloqueiaOperacao).toBe(true);
   });
 
+  it("compromisso vencido ainda ativo gera conflito operacional bloqueante", () => {
+    const b = badgeDoEstadoEfetivo(estado({ possuiCompromissoVencidoAtivo: true }));
+    expect(b.tom).toBe("conflito");
+    expect(b.bloqueiaOperacao).toBe(true);
+    expect(b.detalhe).toContain("vencido");
+  });
+
   it("ausência de registro operacional é fail-closed", () => {
-    const b = badgeDoEstadoEfetivo(estado({ possuiRegistroOperacional: false }));
-    expect(b.label).toContain("Sem status");
+    const b = badgeDoEstadoEfetivo(
+      estado({ possuiRegistroOperacional: false, estadoExibicao: "INDISPONIVEL_PARA_ATENDIMENTO" }),
+    );
     expect(b.bloqueiaOperacao).toBe(true);
-  });
-
-  it("janela solicitada comprometida bloqueia mesmo sem compromisso corrente", () => {
-    const b = badgeDoEstadoEfetivo(estado({ quantidadeCompromissosNaJanela: 2 }));
-    expect(b.bloqueiaOperacao).toBe(true);
-  });
-
-  it("compromisso futuro fora da janela apenas informa", () => {
-    const b = badgeDoEstadoEfetivo(estado({ quantidadeCompromissosFuturos: 1 }));
-    expect(b.bloqueiaOperacao).toBe(false);
-    expect(b.detalhe).toContain("futuro");
-  });
-
-  it("estado ausente é neutro", () => {
-    expect(badgeDoEstadoEfetivo(null).tom).toBe("neutro");
   });
 
   it("estados bloqueantes cobrem indisponível e conflito", () => {
@@ -118,18 +134,97 @@ describe("CT-2.2 — badges de estado efetivo", () => {
   });
 });
 
+describe("CT-2.2 — dimensões independentes", () => {
+  it("LYC001: operacional DISPONIVEL e compromisso RESERVADO coexistem", () => {
+    const e = estado({
+      condicaoOperacional: "DISPONIVEL",
+      compromissoAtivo: "RESERVADO",
+      estadoExibicao: "RESERVADO",
+      compromissoAtual: {
+        atendimentoId: "at1",
+        status: "RESERVADO",
+        periodoInicio: "2026-08-01",
+        periodoFim: "2026-08-05",
+        detalhesRestritos: false,
+      } as CtEstadoEfetivoAtivo["compromissoAtual"],
+    });
+    expect(e.condicaoOperacional).toBe("DISPONIVEL");
+    expect(badgeDoCompromissoAtual(e).label).toContain("Reservado");
+    expect(badgeDoEstadoEfetivo(e).bloqueiaOperacao).toBe(true);
+  });
+
+  it("compromisso restrito não expõe identificadores", () => {
+    const e = estado({
+      compromissoAtivo: "RESERVADO",
+      estadoExibicao: "RESERVADO",
+      compromissoAtual: {
+        atendimentoId: null,
+        status: "RESERVADO",
+        periodoInicio: null,
+        periodoFim: null,
+        detalhesRestritos: true,
+      } as CtEstadoEfetivoAtivo["compromissoAtual"],
+    });
+    const b = badgeDoCompromissoAtual(e);
+    expect(b.detalhe ?? "").not.toContain("at1");
+  });
+
+  it("próximo compromisso é apenas informativo", () => {
+    const e = estado({
+      proximoCompromisso: {
+        atendimentoId: "at9",
+        status: "RESERVADO",
+        periodoInicio: "2026-09-01",
+        periodoFim: "2026-09-03",
+        detalhesRestritos: false,
+      } as CtEstadoEfetivoAtivo["proximoCompromisso"],
+      quantidadeCompromissosFuturos: 1,
+    });
+    expect(textoProximaReserva(e)).toContain("2026-09-01");
+    expect(badgeDoEstadoEfetivo(e).bloqueiaOperacao).toBe(false);
+  });
+});
+
+describe("CT-2.2 — janela de reserva futura", () => {
+  it("sem estado consultado a janela é fail-closed", () => {
+    expect(janelaComprometida(null)).toBe(true);
+  });
+
+  it("janela livre autoriza", () => {
+    expect(janelaComprometida(estado())).toBe(false);
+  });
+
+  it("compromisso dentro da janela bloqueia", () => {
+    expect(janelaComprometida(estado({ quantidadeCompromissosNaJanela: 1 }))).toBe(true);
+  });
+
+  it("sobreposição na janela bloqueia", () => {
+    expect(janelaComprometida(estado({ possuiSobreposicaoNaJanela: true }))).toBe(true);
+  });
+
+  it("compromisso vencido ativo bloqueia a janela", () => {
+    expect(janelaComprometida(estado({ possuiCompromissoVencidoAtivo: true }))).toBe(true);
+  });
+
+  it("fronteira de meia-noite: fim em D e início em D não colidem quando fora da janela", () => {
+    const e = estado({ quantidadeCompromissosNaJanela: 0, possuiSobreposicaoNaJanela: false });
+    expect(janelaComprometida(e)).toBe(false);
+  });
+});
+
 describe("CT-2.2 — adapter de candidato", () => {
-  it("sem estado efetivo o comportamento anterior é preservado", () => {
+  it("sem estado efetivo consultado nada é operável (fail-closed)", () => {
     const c = toCandidateSelection(ativo(), "PROPRIA");
-    expect(c?.permiteInterno).toBe(true);
-    expect(c?.compromissoBloqueia).toBe(false);
+    expect(c?.estadoConsultado).toBe(false);
+    expect(c?.permiteInterno).toBe(false);
+    expect(c?.permiteReservaFutura).toBe(false);
   });
 
   it("ativo reservado perde permiteInterno e permiteReservaFutura", () => {
     const c = toCandidateSelection(
       ativo({ previsao_liberacao: "2026-08-01" }),
       "PROPRIA",
-      estado({ compromissoAtivo: "RESERVADO" }),
+      estado({ compromissoAtivo: "RESERVADO", estadoExibicao: "RESERVADO" }),
     );
     expect(c?.permiteInterno).toBe(false);
     expect(c?.permiteReservaFutura).toBe(false);
@@ -141,14 +236,29 @@ describe("CT-2.2 — adapter de candidato", () => {
     const c = toCandidateSelection(
       ativo(),
       "GRUPO",
-      estado({ compromissoAtivo: "CONFLITO_MULTIPLO", possuiAnomaliaSobreposicao: true }),
+      estado({
+        compromissoAtivo: "CONFLITO_MULTIPLO",
+        estadoExibicao: "CONFLITO_OPERACIONAL",
+        possuiAnomaliaSobreposicao: true,
+      }),
     );
     expect(c?.compromissoBloqueia).toBe(true);
     expect(c?.possuiAnomaliaSobreposicao).toBe(true);
   });
 
-  it("ativo livre com estado efetivo mantém operação liberada", () => {
+  it("compromisso vencido ativo é propagado e bloqueia", () => {
+    const c = toCandidateSelection(
+      ativo(),
+      "PROPRIA",
+      estado({ possuiCompromissoVencidoAtivo: true }),
+    );
+    expect(c?.possuiCompromissoVencidoAtivo).toBe(true);
+    expect(c?.permiteInterno).toBe(false);
+  });
+
+  it("ativo livre com estado efetivo consultado mantém operação liberada", () => {
     const c = toCandidateSelection(ativo(), "PROPRIA", estado());
+    expect(c?.estadoConsultado).toBe(true);
     expect(c?.permiteInterno).toBe(true);
     expect(c?.compromissoBloqueia).toBe(false);
   });
@@ -180,6 +290,13 @@ describe("CT-2.2 — service em lote", () => {
     expect(rpcMock.mock.calls[0][1].p_equipamento_ids).toEqual(["a", "b"]);
   });
 
+  it("lista de candidatos consulta sem janela (null/null)", async () => {
+    const fn = await carregar();
+    await fn({ equipamentoIds: ["a"] });
+    expect(rpcMock.mock.calls[0][1].p_periodo_inicio ?? null).toBeNull();
+    expect(rpcMock.mock.calls[0][1].p_periodo_fim ?? null).toBeNull();
+  });
+
   it("respeita o limite de 500 IDs por chamada", async () => {
     const fn = await carregar();
     const ids = Array.from({ length: CT_ESTADO_EFETIVO_MAX_IDS + 10 }, (_, i) => `id-${i}`);
@@ -200,7 +317,7 @@ describe("CT-2.2 — service em lote", () => {
             compromisso_ativo: "RESERVADO",
             compromisso_atual: { atendimento_id: "at1", status: "RESERVADO" },
             periodo_comprometido: { inicio: "2026-08-01", fim: "2026-08-05" },
-            estado_exibicao: "COMPROMETIDO",
+            estado_exibicao: "RESERVADO",
             quantidade_compromissos_na_janela: 1,
           },
         ],

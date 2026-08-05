@@ -188,12 +188,6 @@ export const menuStructure = [
         requiredPermission: "gestao_maquinas_relatorio_medicao_view"
       },
       {
-        name: "Disponibilidade",
-        href: "/gestao-maquinas/disponibilidade",
-        icon: Activity,
-        requiredPermission: "gestao_maquinas_caminhoes_view"
-      },
-      {
         name: "Portfólio de Empresas / Veic. e Equip.",
         href: "/gestao-maquinas/portfolio-empresas",
         icon: Briefcase,
@@ -451,5 +445,24 @@ export const menuStructure = [
         requiredPermission: "chamados_internos_admin"
       }
     ]
+  },
+  {
+    groupIcon: FileText,
+    title: "POPs",
+    items: [
+      {
+        name: "Biblioteca de POPs",
+        href: "/pops",
+        icon: FileText,
+        requiredPermission: "pops_view"
+      },
+      {
+        name: "Gestão de POPs",
+        href: "/pops/gestao",
+        icon: FileCheck,
+        requiredPermission: "pops_view"
+      }
+    ]
   }
 ];
+

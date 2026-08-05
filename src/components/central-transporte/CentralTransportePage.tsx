@@ -1,5 +1,7 @@
 import React, { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { CT3B_SOLICITACAO_PAGE_ENABLED } from "@/config/ct3Flags";
 
 import { fetchSolicitacoesTransporte, SolicitacaoTransporte } from "@/services/centralTransporteService";
 import { SolicitacaoItem } from "@/services/solicitacaoItensService";
@@ -14,6 +16,10 @@ import useCtOperation from "@/hooks/central-transporte/useCtOperation";
 import useCentralTransporteCapabilities from "@/hooks/central-transporte/useCentralTransporteCapabilities";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
+import {
+  criarStateDeRetorno,
+  lerFiltrosDoState,
+} from "@/utils/central-transporte/centralReturnState";
 
 export type SelectedContext = {
   solicitacao: SolicitacaoTransporteComItens;
@@ -29,9 +35,14 @@ export type CentralTransporteFilterState = {
 };
 
 const CentralTransportePage: React.FC = () => {
-  const [filters, setFilters] = useState<CentralTransporteFilterState>({});
+  const location = useLocation();
+  // Retorno da página dedicada: restaura os filtros vigentes na saída.
+  const [filters, setFilters] = useState<CentralTransporteFilterState>(() =>
+    lerFiltrosDoState(location.state),
+  );
   const [selected, setSelected] = useState<SelectedContext | null>(null);
   const { userId } = useAuth();
+  const navigate = useNavigate();
 
   // Motor de idempotência: vive aqui (componente persistente) para que o
   // request_id sobreviva ao fechamento do modal e à reabertura da solicitação.
@@ -48,6 +59,14 @@ const CentralTransportePage: React.FC = () => {
   });
 
   const handleSelect = (s: SolicitacaoTransporteComItens, item?: SolicitacaoItem) => {
+    // CT-3B: com a flag ligada, a análise passa a ser uma página dedicada.
+    if (CT3B_SOLICITACAO_PAGE_ENABLED) {
+      const query = item?.id ? `?item=${encodeURIComponent(item.id)}` : "";
+      navigate(`/gestao-maquinas/central-transporte/solicitacao/${s.id}${query}`, {
+        state: criarStateDeRetorno(filters),
+      });
+      return;
+    }
     setSelected({ solicitacao: s, item: item ?? null });
   };
 

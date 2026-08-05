@@ -10,6 +10,10 @@ import type { AtivoAnalise } from "@/services/centralTransporteService";
 import type { CtCandidateOrigem, CtCandidateSelection } from "@/types/centralTransporteCT2";
 import type { CtEstadoEfetivoAtivo } from "@/types/centralTransporteEstadoEfetivo";
 import { badgeDoEstadoEfetivo } from "@/utils/central-transporte/estadoEfetivoBadges";
+import {
+  situacaoMobilizacaoDerivada,
+  situacaoNaCentral,
+} from "@/utils/central-transporte/situacaoNaCentral";
 
 const ccLabel = (a: AtivoAnalise): string | null => {
   const parts = [a.centro_custo_codigo, a.centro_custo_nome].filter(Boolean);
@@ -35,8 +39,13 @@ export const toCandidateSelection = (
   if (!ativo?.equipamento_id) return null;
 
   const possuiRegistro = !!ativo.possui_registro_disponibilidade;
-  const badge = estadoEfetivo ? badgeDoEstadoEfetivo(estadoEfetivo) : null;
-  const comprometido = !!badge?.bloqueiaOperacao;
+  // Fail-closed: sem estado efetivo consultado nada é operável.
+  const estadoConsultado = !!estadoEfetivo;
+  const badge = badgeDoEstadoEfetivo(estadoEfetivo ?? null);
+  const comprometido = badge.bloqueiaOperacao;
+  const operavel = estadoConsultado && possuiRegistro && !comprometido;
+  // CT-2.4 (aditivo): apresentação apenas — nunca altera a elegibilidade acima.
+  const central = situacaoNaCentral(estadoEfetivo ?? null);
 
   return {
     equipamentoId: ativo.equipamento_id,
@@ -44,8 +53,10 @@ export const toCandidateSelection = (
     matchTipo: ativo.compatibilidade === "EXATA" ? "EXATO" : "PARCIAL",
     disponibilidadeStatus: ativo.status_operacional,
     previsaoLiberacao: ativo.previsao_liberacao ?? null,
-    permiteInterno: possuiRegistro && !comprometido && ativo.status_operacional === "DISPONIVEL",
-    permiteReservaFutura: possuiRegistro && !comprometido && !!ativo.previsao_liberacao,
+    dataInicioDisponibilidade: ativo.data_inicio_disponibilidade ?? null,
+    permiteInterno: operavel && ativo.status_operacional === "DISPONIVEL",
+    /** A janela real é exigida no modal; aqui apenas a elegibilidade do ativo. */
+    permiteReservaFutura: operavel,
     /** true ⇒ exige regularização humana antes de qualquer atendimento. */
     precisaRegularizarDisponibilidade: !possuiRegistro,
     frota: ativo.frota ?? null,
@@ -66,9 +77,22 @@ export const toCandidateSelection = (
     compromissoAtivo: estadoEfetivo?.compromissoAtivo ?? null,
     estadoExibicao: estadoEfetivo?.estadoExibicao ?? null,
     compromissoBloqueia: comprometido,
-    compromissoLabel: badge?.label ?? null,
-    compromissoDetalhe: badge?.detalhe ?? null,
+    compromissoLabel: badge.label,
+    compromissoDetalhe: badge.detalhe,
     possuiAnomaliaSobreposicao: estadoEfetivo?.possuiAnomaliaSobreposicao ?? false,
+    possuiCompromissoVencidoAtivo: estadoEfetivo?.possuiCompromissoVencidoAtivo ?? false,
+    estadoConsultado,
+
+    /* --- CT-2.4 (ADITIVO) — apresentação da situação na Central ---
+     * Puramente informativo: NÃO participa de permiteInterno /
+     * permiteReservaFutura / compromissoBloqueia. Uma reserva futura continua
+     * não bloqueando a operação de hoje (quem decide é o servidor). */
+    situacaoCentralLabel: central.label,
+    situacaoCentralComplemento: central.complemento,
+    compromissoPrincipalVigencia: estadoEfetivo?.compromissoPrincipalVigencia ?? null,
+    reservadoPelaCentral: estadoEfetivo?.reservadoPelaCentral ?? false,
+    possuiCompromissoAtualOuFuturo: estadoEfetivo?.possuiCompromissoAtualOuFuturo ?? false,
+    situacaoMobilizacao: situacaoMobilizacaoDerivada(estadoEfetivo ?? null),
   };
 };
 

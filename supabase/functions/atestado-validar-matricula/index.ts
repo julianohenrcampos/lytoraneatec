@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
   // desempatamos pelos 4 últimos dígitos do CPF.
   const { data: candidatos, error: funcErr } = await supabase
     .from("bd_funcionarios")
-    .select("id, nome_completo, matricula, status, centro_custo_id")
+    .select("id, nome_completo, matricula, status, centro_custo_id, cpf")
     .eq("matricula", matricula)
     .limit(20);
 
@@ -139,15 +139,24 @@ Deno.serve(async (req) => {
     );
   }
 
-  const compativeis = elegiveis.filter((c) => {
-    const cpfLimpo = cpfPorFuncionario.get(c.id) || "";
-    return cpfLimpo.length >= 4 && cpfLimpo.slice(-4) === cpfUlt4;
-  });
+  // Fonte dupla de CPF: prioriza bd_funcionarios_sensivel; quando ausente/vazio,
+  // usa bd_funcionarios.cpf (há cadastros ativos sem linha na tabela sensível).
+  const onlyDigits = (v: unknown) => String(v || "").replace(/\D/g, "");
+  const cpfEfetivo = (c: { id: string; cpf?: string | null }) => {
+    const sens = cpfPorFuncionario.get(c.id) || "";
+    if (sens.length >= 4) return { cpf: sens, fonte: "sensivel" as const };
+    return { cpf: onlyDigits(c.cpf), fonte: "funcionarios" as const };
+  };
+
+  const compativeis = elegiveis
+    .map((c) => ({ func: c, ...cpfEfetivo(c) }))
+    .filter((x) => x.cpf.length >= 4 && x.cpf.slice(-4) === cpfUlt4);
 
   if (compativeis.length === 0) {
     await delay(500, 1200);
     return jsonResponse(GENERIC_ERROR, 401, cors);
   }
+
 
   if (compativeis.length > 1) {
     // Cadastro ambíguo: nunca escolher "no chute".
@@ -158,7 +167,7 @@ Deno.serve(async (req) => {
         ip,
         contexto: {
           matricula_hash: matriculaHash,
-          candidatos: compativeis.map((c) => c.id),
+          candidatos: compativeis.map((c) => c.func.id),
         },
       });
     } catch (_) { /* noop */ }
@@ -169,7 +178,22 @@ Deno.serve(async (req) => {
     );
   }
 
-  const func = compativeis[0];
+  const escolhido = compativeis[0];
+  const func = escolhido.func;
+
+  // Observabilidade de saneamento: validou apenas pela fonte bd_funcionarios.
+  if (escolhido.fonte === "funcionarios") {
+    try {
+      await supabase.from("bd_security_audit_log").insert({
+        event_type: "atestado_validar_cpf_fallback_funcionarios",
+        table_name: "bd_funcionarios",
+        ip,
+        contexto: { funcionario_id: func.id, fonte_cpf: "bd_funcionarios" },
+      });
+    } catch (_) { /* noop */ }
+  }
+
+
 
 
   // Validação correta: zera contadores para não punir quem acertou.

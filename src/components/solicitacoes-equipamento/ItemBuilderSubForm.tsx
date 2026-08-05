@@ -12,6 +12,8 @@ import { SolicitacaoItemInsert, TipoItem, RegimeTrabalho, REGIME_LABELS } from "
 import { getSubcategoriasDropdown, UNIDADES_CAPACIDADE, buildVariacaoLabel } from "@/services/catalogoVariacoesService";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
+import { filtrarSubcategoriasPorTipo, pertenceAoTipo } from "@/utils/solicitacoesEquipamento/filtrarSubcategoriasPorTipo";
+
 
 interface Props {
   onAdd: (item: SolicitacaoItemInsert & { _displayName?: string }) => void;
@@ -74,12 +76,13 @@ const ItemBuilderSubForm: React.FC<Props> = ({ onAdd, onCancel, editingItem, ini
   const { data: subcategorias = [] } = useQuery({ queryKey: ["subcategorias-dd"], queryFn: getSubcategoriasDropdown });
 
   const subcategoriaOptions = useMemo(() => {
-    const base = subcategorias.map((s: any) => ({ value: s.id, label: s.nome_subcategoria }));
-    if (!categoriaMatch || categoriaMatch.length === 0) return base;
-    const terms = categoriaMatch.map(norm).filter(Boolean);
-    if (terms.length === 0) return base;
-    return base.filter((o) => terms.some((t) => norm(o.label).includes(t)));
-  }, [subcategorias, categoriaMatch]);
+    const base = subcategorias.map((s: any) => ({
+      value: s.id,
+      label: s.nome_subcategoria,
+      categoriaNome: s.categoria_nome ?? s.categoria?.nome_categoria ?? null,
+    }));
+    return filtrarSubcategoriasPorTipo(base, item.tipo_item as TipoItem, categoriaMatch);
+  }, [subcategorias, categoriaMatch, item.tipo_item]);
 
   // Ao mudar subcategoria em item novo, inferir tipo_item pelo nome da subcategoria.
   useEffect(() => {
@@ -98,6 +101,26 @@ const ItemBuilderSubForm: React.FC<Props> = ({ onAdd, onCancel, editingItem, ini
     setItem((prev) => ({ ...prev, [key]: value }));
     setErrors((prev) => ({ ...prev, [key]: "" }));
   };
+
+  /** Troca manual do tipo: limpa subcategoria incoerente com o novo tipo. */
+  const handleTipoChange = (novoTipo: TipoItem) => {
+    setItem((prev) => {
+      const atual = subcategorias.find((s: any) => s.id === prev.subcategoria_id);
+      const catNome = atual?.categoria_nome ?? atual?.categoria?.nome_categoria ?? null;
+      const manterSubcat = !prev.subcategoria_id || pertenceAoTipo(catNome, novoTipo);
+      if (manterSubcat) return { ...prev, tipo_item: novoTipo };
+      prevSubcatRef.current = null;
+      return {
+        ...prev,
+        tipo_item: novoTipo,
+        subcategoria_id: null,
+        capacidade_valor: null,
+        capacidade_unidade: null,
+      };
+    });
+    setErrors({});
+  };
+
 
   const subcategoriaNome = subcategorias.find((s: any) => s.id === item.subcategoria_id)?.nome_subcategoria;
   const previewLabel = !item.item_nao_catalogado && item.subcategoria_id
@@ -177,7 +200,7 @@ const ItemBuilderSubForm: React.FC<Props> = ({ onAdd, onCancel, editingItem, ini
         <Label className="font-medium">Tipo do Item</Label>
         <RadioGroup
           value={item.tipo_item}
-          onValueChange={(v) => update("tipo_item", v as TipoItem)}
+          onValueChange={(v) => handleTipoChange(v as TipoItem)}
           className="flex gap-4 mt-1"
         >
           <div className="flex items-center gap-2">

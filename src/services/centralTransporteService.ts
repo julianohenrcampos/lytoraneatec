@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { SolicitacaoItem } from "@/services/solicitacaoItensService";
+import { SolicitacaoItem, fetchItensBySolicitacao } from "@/services/solicitacaoItensService";
 import {
   avaliarCapacidade,
   detectarConflitoCadastral,
@@ -125,6 +125,46 @@ export const fetchSolicitacoesTransporte = async (filters?: {
   return results;
 };
 
+/**
+ * CT-3B — Leitura de UMA solicitação por ID (página dedicada / deep link).
+ *
+ * Reaproveita exatamente as mesmas tabelas, relações e mapeamentos da listagem.
+ * Não filtra status_fluxo: um deep link deve conseguir abrir a solicitação
+ * mesmo depois de a lista deixar de exibi-la. Leitura pura — RLS inalterada.
+ */
+export const fetchSolicitacaoTransporteById = async (
+  solicitacaoId: string,
+): Promise<SolicitacaoTransporte | null> => {
+  const { data, error } = await supabase
+    .from("bd_solicitacoes_equipamento")
+    .select(`
+      *,
+      centro_custo:bd_centros_custo(nome_centro_custo, codigo_centro_custo, departamento_id, departamento:bd_departamentos(nome_departamento)),
+      tipo_equipamento:bd_tipos_equipamento(descricao_padronizada),
+      engenheiro:profiles!bd_solicitacoes_equipamento_engenheiro_solicitante_id_fkey(nome_completo),
+      apontador:profiles!bd_solicitacoes_equipamento_apontador_responsavel_id_fkey(nome_completo)
+    `)
+    .eq("id", solicitacaoId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+
+  const row = data as any;
+  const itens = await fetchItensBySolicitacao(solicitacaoId);
+
+  return {
+    ...row,
+    nome_centro_custo: row.centro_custo?.nome_centro_custo || null,
+    codigo_centro_custo: row.centro_custo?.codigo_centro_custo || null,
+    departamento_nome: row.centro_custo?.departamento?.nome_departamento || null,
+    engenheiro_nome: row.engenheiro?.nome_completo || null,
+    apontador_nome: row.apontador?.nome_completo || null,
+    descricao_tipo_equipamento: row.tipo_equipamento?.descricao_padronizada || null,
+    itens,
+  } as SolicitacaoTransporte;
+};
+
 /* ------------------------------------------------------------------
  * Análise Operacional — CT-1 v3 (frontend/service only)
  *
@@ -175,7 +215,10 @@ export interface AtivoAnalise {
   centro_custo_disponibilidade_nome: string | null;
   status_operacional: StatusOperacionalUI;
   previsao_liberacao: string | null;
+  /** CT-3B.1 — vigência do status operacional (bd_disponibilidade_equipamentos.data_inicio). */
+  data_inicio_disponibilidade: string | null;
   confiabilidade: string | null;
+
   compatibilidade: "EXATA" | "PARCIAL";
   motivo_compatibilidade?: string;
   capacidade_valor: number | null;
@@ -404,6 +447,8 @@ type DisponibilidadeRow = {
   equipamento_id: string;
   status_operacional: string | null;
   previsao_liberacao: string | null;
+  data_inicio: string | null;
+
   confiabilidade_previsao: string | null;
   centro_custo_id: string | null;
   updated_at: string | null;
@@ -628,7 +673,7 @@ export const fetchAnaliseOperacional = async (
     supabase
       .from("bd_disponibilidade_equipamentos")
       .select(`
-        id, equipamento_id, status_operacional, previsao_liberacao, confiabilidade_previsao,
+        id, equipamento_id, status_operacional, previsao_liberacao, data_inicio, confiabilidade_previsao,
         centro_custo_id, updated_at, created_at,
         centro_custo:bd_centros_custo(nome_centro_custo)
       `)
@@ -725,6 +770,7 @@ export const fetchAnaliseOperacional = async (
       centro_custo_disponibilidade_nome: disp?.centro_custo?.nome_centro_custo || null,
       status_operacional: status,
       previsao_liberacao: previsaoLiberacao,
+      data_inicio_disponibilidade: disp?.data_inicio || null,
       confiabilidade: disp?.confiabilidade_previsao || null,
       compatibilidade: cap.matchTipo === "EXATO" ? "EXATA" : "PARCIAL",
       motivo_compatibilidade: cap.matchMotivo ?? undefined,

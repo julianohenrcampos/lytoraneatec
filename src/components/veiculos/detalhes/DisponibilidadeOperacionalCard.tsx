@@ -9,6 +9,11 @@ import { formatDataOperacional } from "./formatadores";
 import type { StatusOperacionalCanonico } from "@/lib/ativos/reconciliacaoOperacional";
 import type { EstadoOperacionalDetalhado } from "@/services/disponibilidadeEquipamentoService";
 import { ACAO_LISTAGEM } from "@/components/disponibilidade/disponibilidadeFormLogic";
+import {
+  AVISO_VIGENCIA_FUTURA,
+  LABEL_PREVISAO_LIBERACAO,
+  rotuloDataInicio,
+} from "@/utils/central-transporte/disponibilidadeTemporal";
 
 export const STATUS_OPERACIONAL_TEXTO: Record<StatusOperacionalCanonico, string> = {
   DISPONIVEL: "Disponível",
@@ -55,6 +60,9 @@ const DisponibilidadeOperacionalCard: React.FC<DisponibilidadeOperacionalCardPro
       </Button>
     ) : null;
 
+  // Rótulo contextual da vigência: campo `data_inicio`, nunca `previsao_liberacao`.
+  const vigencia = rotuloDataInicio(estado?.statusOperacional, estado?.registro?.dataInicio ?? null);
+
   return (
     <AssetInfoSection title="Disponibilidade operacional" icon={Activity} action={acao}>
       {isLoading ? (
@@ -87,16 +95,24 @@ const DisponibilidadeOperacionalCard: React.FC<DisponibilidadeOperacionalCardPro
 
           <AssetInfoItem
             icon={CalendarDays}
-            label="Data de início"
+            label={vigencia.label}
             value={formatDataOperacional(estado.registro?.dataInicio, "")}
             emptyLabel="Não registrada"
           />
           <AssetInfoItem
             icon={CalendarClock}
-            label="Previsão de liberação"
+            label={LABEL_PREVISAO_LIBERACAO}
             value={formatDataOperacional(estado.registro?.previsaoLiberacao, "")}
             emptyLabel="Não informada"
           />
+          {vigencia.vigenciaFutura ? (
+            <p
+              className="text-xs text-amber-700 sm:col-span-2 lg:col-span-4"
+              data-testid="ct3b1-aviso-vigencia-futura"
+            >
+              {AVISO_VIGENCIA_FUTURA}
+            </p>
+          ) : null}
           {estado.registro?.confiabilidadePrevisao ? (
             <AssetInfoItem
               icon={ShieldAlert}
@@ -111,7 +127,14 @@ const DisponibilidadeOperacionalCard: React.FC<DisponibilidadeOperacionalCardPro
           ) : null}
         </div>
       )}
+
+      {/* CT-3B.1 — dimensões distintas: aqui não se lê nem se edita compromisso logístico. */}
+      <p className="mt-3 text-[11px] text-muted-foreground" data-testid="ct3b1-nota-dimensoes">
+        Esta seção descreve apenas a condição operacional do ativo. Reservas e transportes
+        (compromissos logísticos) são consultados na Central do Transporte e não são editáveis aqui.
+      </p>
     </AssetInfoSection>
+
   );
 };
 

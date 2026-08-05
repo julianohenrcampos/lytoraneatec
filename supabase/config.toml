@@ -74,3 +74,15 @@ verify_jwt = false
 
 [functions.atestado-notificar-reenvio]
 verify_jwt = false
+
+[functions.pop-upload-arquivo]
+verify_jwt = false
+
+[functions.pop-arquivo-blob]
+verify_jwt = false
+
+[functions.pop-descartar-rascunho]
+verify_jwt = false
+
+[functions.pop-excluir]
+verify_jwt = false

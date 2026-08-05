@@ -33,6 +33,9 @@ const CT2_MESSAGES: Record<string, string> = {
   CT2_DISPONIBILIDADE_BLOQUEADA: "O equipamento não está disponível para esta modalidade.",
   CT2_DISPONIBILIDADE_SEM_REGISTRO:
     "O ativo não possui disponibilidade operacional confirmada. Regularize o status antes de realizar o atendimento.",
+  CT2_ATIVO_AINDA_NAO_DISPONIVEL:
+    "O ativo só fica disponível a partir da data de vigência do status operacional — o período solicitado começa antes disso.",
+
   CT2_MATCH_PARCIAL_BLOQUEADO:
     "Compatibilidade parcial exige aprovação. Solicite a um usuário com permissão de aprovar.",
   CT2_JANELA_INDEFINIDA: "A solicitação não possui janela aprovada definida.",
@@ -48,9 +51,34 @@ const CT2_MESSAGES: Record<string, string> = {
   CT2_IDEMPOTENCY_STATE_INCONSISTENT:
     "Estado inconsistente de idempotência. Recarregue a página e verifique o atendimento.",
   CT2_INVARIANTE_VIOLADA: "A operação violaria uma regra de integridade da Central do Transporte.",
+  CT2_RESPOSTA_INVALIDA: "Resposta inesperada do servidor. Recarregue a página e tente novamente.",
+
+  /* CT-2.5 — trava de edição da condição operacional */
+  CT25_ATIVO_COMPROMETIDO:
+    "Este ativo possui compromisso na Central do Transporte. Encerre o compromisso ou registre uma justificativa de exceção para editar a condição operacional.",
+  CT25_JUSTIFICATIVA_INSUFICIENTE:
+    "A justificativa de exceção precisa de ao menos 20 caracteres.",
+  CT25_TRAVA_NAO_CONSULTADA:
+    "Não foi possível confirmar se este ativo pode ser editado. Tente novamente antes de alterar a condição operacional.",
+
+  /* CT-3C — mobilização */
+  CT3C_PLANEJAMENTO_JA_PROGRAMADO:
+    "Já existe uma programação vigente para esta solicitação. Cancele-a antes de criar um novo rascunho.",
+  CT3C_PLANEJAMENTO_NAO_ENCONTRADO: "Planejamento de mobilização não encontrado.",
+  CT3C_VERSAO_SUPERADA:
+    "Esta versão do planejamento foi superada por outra mais recente. Recarregue a página.",
+  CT3C_ATIVO_EM_MAIS_DE_UMA_VIAGEM: "Cada ativo reservado pode estar em apenas uma viagem.",
+  CT3C_ATENDIMENTO_INVALIDO: "O atendimento informado não pertence a esta solicitação.",
+  CT3C_ATENDIMENTO_NAO_MOBILIZAVEL:
+    "Somente atendimentos reservados ou em transporte podem ser mobilizados.",
+  CT3C_ATIVOS_SEM_VIAGEM: "Existem ativos reservados sem viagem atribuída.",
+  CT3C_VIAGEM_INCOMPLETA:
+    "Informe responsável, data de saída e data de entrega em todas as viagens.",
+  CT3C_SEM_VIAGENS: "Crie ao menos uma viagem antes de programar a mobilização.",
 };
 
-const CT2_CODE_RE = /\b(CT2_[A-Z_]+)\b/;
+const CT2_CODE_RE = /\b(CT2_[A-Z_]+|CT25_[A-Z_]+|CT3C_[A-Z_]+)\b/;
+
 
 const NETWORK_HINTS = [
   "failed to fetch",
@@ -90,17 +118,47 @@ export const extractCt2Code = (err: unknown): string | null => {
   return m ? m[1] : null;
 };
 
+/**
+ * CT-2.3 — o servidor devolve DETAIL em JSON com a data de vigência
+ * (`data_inicio`) e o início solicitado. Nunca expõe SQL bruto à UI.
+ */
+const detalheVigencia = (err: unknown): string | null => {
+  const raw = [readField(err, "details"), readField(err, "hint")].find((v) => v.includes("{"));
+  if (!raw) return null;
+  try {
+    const json = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1)) as Record<
+      string,
+      unknown
+    >;
+    const inicio = typeof json.data_inicio === "string" ? json.data_inicio : null;
+    const solicitado =
+      typeof json.periodo_inicio === "string" ? json.periodo_inicio : null;
+    if (!inicio) return null;
+    return solicitado
+      ? `Disponível a partir de ${inicio}; período solicitado inicia em ${solicitado}.`
+      : `Disponível a partir de ${inicio}.`;
+  } catch {
+    return null;
+  }
+};
+
 export const normalizeCt2Error = (err: unknown): Ct2NormalizedError => {
   const code = extractCt2Code(err);
 
+
   if (code) {
     // Erro determinístico do servidor: a transação abortou.
+    const base = CT2_MESSAGES[code] || "Não foi possível concluir a operação.";
     return {
       code,
-      message: CT2_MESSAGES[code] || "Não foi possível concluir a operação.",
+      message:
+        code === "CT2_ATIVO_AINDA_NAO_DISPONIVEL"
+          ? [base, detalheVigencia(err)].filter(Boolean).join(" ")
+          : base,
       isUncertain: false,
     };
   }
+
 
   const raw = [readField(err, "message"), readField(err, "details"), typeof err === "string" ? err : ""]
     .join(" ")

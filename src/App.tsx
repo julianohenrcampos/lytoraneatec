@@ -48,6 +48,7 @@ const GestaoDisponibilidade = lazy(() => import("@/pages/GestaoDisponibilidade")
 const GestaoPortfolio = lazy(() => import("@/pages/GestaoPortfolio"));
 const LinhasOperacionaisPage = lazy(() => import("@/pages/LinhasOperacionaisPage"));
 const CentralTransporte = lazy(() => import("@/pages/CentralTransporte"));
+const CentralTransporteSolicitacao = lazy(() => import("@/pages/CentralTransporteSolicitacao"));
 const ChecklistSaida = lazy(() => import("@/pages/ChecklistSaida"));
 const Abastecimento = lazy(() => import("@/pages/GestaoAbastecimento"));
 const MapaOperacional = lazy(() => import("@/pages/gestao-maquinas/MapaOperacional"));
@@ -111,6 +112,11 @@ const ChamadosInternosAtendimento = lazy(() => import("@/pages/chamados-internos
 const ChamadosInternosAdmin = lazy(() => import("@/pages/chamados-internos/ChamadosInternosAdmin"));
 
 const ChamadoInternoDetalhe = lazy(() => import("@/pages/chamados-internos/ChamadoInternoDetalhe"));
+
+const BibliotecaPops = lazy(() => import("@/pages/pops/BibliotecaPops"));
+const GestaoPops = lazy(() => import("@/pages/pops/GestaoPops"));
+
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -229,6 +235,7 @@ const App = () => {
                     <Route path="/gestao-maquinas/portfolio-empresas" element={<Secure permission="gestao_maquinas_caminhoes_view"><GestaoPortfolio /></Secure>} />
                     <Route path="/gestao-maquinas/linhas-operacionais" element={<Perm><LinhasOperacionaisPage /></Perm>} />
                     <Route path="/gestao-maquinas/central-transporte" element={<Secure permission="gestao_maquinas_central_transporte_view" action="visualizar"><CentralTransporte /></Secure>} />
+                    <Route path="/gestao-maquinas/central-transporte/solicitacao/:solicitacaoId" element={<Secure permission="gestao_maquinas_central_transporte_view" action="visualizar"><CentralTransporteSolicitacao /></Secure>} />
                     <Route path="/gestao-maquinas/mapa-operacional" element={<Secure permission="veiculos_equipamentos_mapa_operacional_view"><MapaOperacional /></Secure>} />
                     <Route path="/gestao-maquinas/checklist-saida/:movimentacaoId" element={<Perm><ChecklistSaida /></Perm>} />
                     {/* FASE 1/2: rota antiga mantida apenas como redirect para a nova rota definitiva em /engenharia. */}
@@ -322,6 +329,11 @@ const App = () => {
                     <Route path="/chamados-internos/atendimento" element={<Secure permission="chamados_internos_atender"><ChamadosInternosAtendimento /></Secure>} />
                     <Route path="/chamados-internos/admin" element={<Secure permission="chamados_internos_admin"><ChamadosInternosAdmin /></Secure>} />
                     <Route path="/chamados-internos/:chamadoId" element={<Secure permission="chamados_internos_view"><ChamadoInternoDetalhe /></Secure>} />
+
+                    {/* POPs — Procedimentos Operacionais Padrão */}
+                    <Route path="/pops" element={<Secure permission="pops_view"><BibliotecaPops /></Secure>} />
+                    <Route path="/pops/gestao" element={<Secure permission="pops_view"><GestaoPops /></Secure>} />
+
 
                     <Route path="*" element={<NotFound />} />
                   </Routes>

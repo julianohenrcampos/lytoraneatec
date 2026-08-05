@@ -25,6 +25,12 @@ import {
   type CtModalidade,
 } from "@/types/centralTransporteCT2";
 import type { CtOperationApi } from "@/hooks/central-transporte/useCtOperation";
+import useEstadoEfetivoAtivos from "@/hooks/central-transporte/useEstadoEfetivoAtivos";
+import {
+  CT_MSG_COMPROMISSO_RESTRITO,
+  CT_MSG_PERIODO_OBRIGATORIO,
+} from "@/types/centralTransporteEstadoEfetivo";
+import { janelaComprometida } from "@/utils/central-transporte/estadoEfetivoBadges";
 
 interface Props {
   open: boolean;
@@ -53,15 +59,39 @@ const AtribuirAtendimentoModal: React.FC<Props> = ({
   const [justificativa, setJustificativa] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // CT-2.2: a Reserva Futura sempre exige período explícito, mesmo sem aprovação.
+  const exigePeriodo = modalidade === "RESERVA_FUTURA";
+  const usaPeriodo = exigePeriodo || canAprovar;
+
   const materialKey = JSON.stringify([
     "ATRIBUIR",
     solicitacaoItemId,
     candidate.equipamentoId,
     modalidade,
-    canAprovar ? periodoInicio || null : null,
-    canAprovar ? periodoFim || null : null,
+    usaPeriodo ? periodoInicio || null : null,
+    usaPeriodo ? periodoFim || null : null,
     canAprovar ? justificativa.trim() : "",
   ]);
+
+  const periodoIncompleto = exigePeriodo && (!periodoInicio || !periodoFim);
+  const periodoInvertido =
+    !!periodoInicio && !!periodoFim && periodoFim < periodoInicio;
+
+  // Revalidação server-side da JANELA informada (fail-closed).
+  const janelaQuery = useEstadoEfetivoAtivos({
+    equipamentoIds: [candidate.equipamentoId],
+    periodoInicio: usaPeriodo ? periodoInicio || null : null,
+    periodoFim: usaPeriodo ? periodoFim || null : null,
+    enabled:
+      open && exigePeriodo && !periodoIncompleto && !periodoInvertido,
+  });
+
+  const janelaBloqueada =
+    exigePeriodo &&
+    !periodoIncompleto &&
+    !periodoInvertido &&
+    (!janelaQuery.consultado ||
+      janelaComprometida(janelaQuery.estados.get(candidate.equipamentoId)));
 
   const attempt = ctOperation.getAttempt(materialKey);
   const travadoPorIncerteza = ctOperation.attempts.size > 0 && !attempt
@@ -76,7 +106,13 @@ const AtribuirAtendimentoModal: React.FC<Props> = ({
     canAprovar && justificativa.trim().length > 0 && justificativa.trim().length < CT_TEXTO_MIN;
 
   const disabled =
-    submitting || travadoPorIncerteza || justificativaInvalida || attempt?.state === "PENDING";
+    submitting ||
+    travadoPorIncerteza ||
+    justificativaInvalida ||
+    periodoIncompleto ||
+    periodoInvertido ||
+    janelaBloqueada ||
+    attempt?.state === "PENDING";
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -90,8 +126,8 @@ const AtribuirAtendimentoModal: React.FC<Props> = ({
           equipamentoId: candidate.equipamentoId,
           modalidade,
           requestId,
-          periodoInicio: canAprovar ? periodoInicio || null : null,
-          periodoFim: canAprovar ? periodoFim || null : null,
+          periodoInicio: usaPeriodo ? periodoInicio || null : null,
+          periodoFim: usaPeriodo ? periodoFim || null : null,
           justificativaOverride: canAprovar && justificativa.trim() ? justificativa.trim() : null,
         }),
     });
@@ -182,7 +218,25 @@ const AtribuirAtendimentoModal: React.FC<Props> = ({
             </Alert>
           )}
 
-          {canAprovar ? (
+          {periodoIncompleto && (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                {CT_MSG_PERIODO_OBRIGATORIO}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {janelaBloqueada && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                {CT_MSG_COMPROMISSO_RESTRITO}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {usaPeriodo ? (
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
@@ -204,20 +258,24 @@ const AtribuirAtendimentoModal: React.FC<Props> = ({
                   />
                 </div>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Justificativa de override (opcional, mín. {CT_TEXTO_MIN})</Label>
-                <Textarea
-                  rows={3}
-                  value={justificativa}
-                  disabled={!!uncertainAttempt}
-                  onChange={(e) => setJustificativa(e.target.value)}
-                />
-                {justificativaInvalida && (
-                  <p className="text-[11px] text-destructive">
-                    Mínimo de {CT_TEXTO_MIN} caracteres.
-                  </p>
-                )}
-              </div>
+              {canAprovar && (
+                <div className="space-y-1">
+                  <Label className="text-xs">
+                    Justificativa de override (opcional, mín. {CT_TEXTO_MIN})
+                  </Label>
+                  <Textarea
+                    rows={3}
+                    value={justificativa}
+                    disabled={!!uncertainAttempt}
+                    onChange={(e) => setJustificativa(e.target.value)}
+                  />
+                  {justificativaInvalida && (
+                    <p className="text-[11px] text-destructive">
+                      Mínimo de {CT_TEXTO_MIN} caracteres.
+                    </p>
+                  )}
+                </div>
+              )}
             </>
           ) : (
             <p className="text-xs text-muted-foreground">

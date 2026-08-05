@@ -5,21 +5,24 @@
  * detalhe de Caminhões e Equipamentos) gravam EXCLUSIVAMENTE via a RPC
  * transacional `fn_ct_disponibilidade_upsert`, cuja assinatura viva é:
  *
- *   p_equipamento_id     uuid       (obrigatório)
- *   p_status_operacional text       (obrigatório)
- *   p_previsao_liberacao date       (default null)
- *   p_centro_custo_id    uuid       (default null)
- *   p_confiabilidade     text       (default null)
- *   p_data_inicio        date       (default null)
- *   p_motivo_risco       text       (default null)
- *   p_observacao         text       (default null)
+ *   p_equipamento_id        uuid       (obrigatório)
+ *   p_status_operacional    text       (obrigatório)
+ *   p_previsao_liberacao    date       (default null)
+ *   p_centro_custo_id       uuid       (default null)
+ *   p_confiabilidade        text       (default null)
+ *   p_data_inicio           date       (default null)
+ *   p_motivo_risco          text       (default null)
+ *   p_observacao            text       (default null)
+ *   p_justificativa_excecao text       (default null)  ← CT-2.5
  *
  * A RPC valida capability (`gestao_maquinas_central_transporte_view` + action
- * `editar`), escopo do equipamento, advisory lock por ativo e faz o upsert pelo
- * EQUIPAMENTO — não existe parâmetro de identificador da linha. Por isso a UI
- * jamais envia `id`, `disponibilidade_id`, `request_id`, `created_by` ou
- * `updated_by`, e nunca executa insert/update direto em
- * bd_disponibilidade_equipamentos.
+ * `editar`), escopo do equipamento, advisory lock por ativo, a TRAVA CT-2.5
+ * (ativo com compromisso vigente/futuro na Central só é editado com
+ * justificativa de exceção ≥ 20 caracteres) e faz o upsert pelo EQUIPAMENTO —
+ * não existe parâmetro de identificador da linha. Por isso a UI jamais envia
+ * `id`, `disponibilidade_id`, `request_id`, `created_by` ou `updated_by`, e
+ * nunca executa insert/update direto em bd_disponibilidade_equipamentos.
+
  */
 import { supabase } from "@/integrations/supabase/client";
 import type { StatusOperacionalCanonico } from "@/lib/ativos/reconciliacaoOperacional";
@@ -62,6 +65,12 @@ export interface RegularizarDisponibilidadeParams {
   dataInicio?: string | null;
   motivoRisco?: string | null;
   observacao?: string | null;
+  /**
+   * CT-2.5 — justificativa de exceção exigida quando o ativo possui
+   * compromisso vigente/futuro na Central. Mínimo de 20 caracteres validado
+   * também no servidor.
+   */
+  justificativaExcecao?: string | null;
   /** Somente para diagnóstico sanitizado em console. */
   modo?: DisponibilidadeFormMode;
 }
@@ -72,9 +81,11 @@ export interface RegularizarDisponibilidadeResult {
   disponibilidade_id: string;
   equipamento_id: string;
   status_operacional: StatusOperacionalEditavel;
+  /** true quando a gravação usou a exceção CT-2.5. */
+  excecao_registrada?: boolean;
 }
 
-/** Payload literal da RPC — exatamente estas 8 chaves, nada além. */
+/** Payload literal da RPC — exatamente estas 9 chaves, nada além. */
 export interface ArgsDisponibilidadeUpsert {
   p_equipamento_id: string;
   p_status_operacional: StatusOperacionalEditavel;
@@ -84,6 +95,7 @@ export interface ArgsDisponibilidadeUpsert {
   p_data_inicio: string | null;
   p_motivo_risco: string | null;
   p_observacao: string | null;
+  p_justificativa_excecao: string | null;
 }
 
 /** Erro determinístico de validação local — nada é enviado ao banco. */
@@ -128,8 +140,10 @@ export const montarArgsDisponibilidadeUpsert = (
     p_data_inicio: textoOuNull(p.dataInicio),
     p_motivo_risco: textoOuNull(p.motivoRisco),
     p_observacao: textoOuNull(p.observacao),
+    p_justificativa_excecao: textoOuNull(p.justificativaExcecao),
   };
 };
+
 
 /** Diagnóstico sanitizado: nome do parâmetro, estado e modo. Sem UUID/SQL/PII. */
 export const diagnosticoSanitizado = (

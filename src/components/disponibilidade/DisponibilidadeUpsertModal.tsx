@@ -32,7 +32,15 @@ import {
   type StatusOperacionalEditavel,
 } from "@/services/centralTransporteDisponibilidadeService";
 import { invalidarCachesAtivosOperacionais } from "@/lib/queryInvalidation/ativosOperacionais";
+import useAtivoEdicaoPermitida from "@/hooks/central-transporte/useAtivoEdicaoPermitida";
+import {
+  CT25_MSG_TRAVA,
+  CT25_MSG_TRAVA_NAO_CONSULTADA,
+  CT3C_JUSTIFICATIVA_MIN,
+} from "@/types/centralTransporteMobilizacao";
+import { formatDateBR } from "@/utils/formatDateBR";
 import { normalizeDisponibilidadeError } from "@/utils/ct2ErrorMapper";
+
 import {
   BOTAO_POR_MODO,
   TITULO_POR_MODO,
@@ -43,6 +51,11 @@ import {
   type RegistroDisponibilidadeAtual,
   type ValoresFormDisponibilidade,
 } from "./disponibilidadeFormLogic";
+import {
+  AVISO_VIGENCIA_FUTURA,
+  LABEL_PREVISAO_LIBERACAO,
+  rotuloDataInicio,
+} from "@/utils/central-transporte/disponibilidadeTemporal";
 
 export const STATUS_LABELS: Record<StatusOperacionalEditavel, string> = {
   DISPONIVEL: "Disponível",
@@ -77,6 +90,17 @@ const DisponibilidadeUpsertModal: React.FC<DisponibilidadeUpsertModalProps> = ({
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // CT-2.5 — trava de edição: ativo com compromisso vigente/futuro na Central
+  // só é editado com justificativa de exceção. Fail-closed até consultar.
+  const {
+    trava,
+    consultado: travaConsultada,
+    isLoading: travaCarregando,
+    refetch: recarregarTrava,
+  } = useAtivoEdicaoPermitida(equipamentoId, open);
+
+  const [justificativaExcecao, setJustificativaExcecao] = useState("");
+
   const [valores, setValores] = useState<ValoresFormDisponibilidade>(() => {
     const base = construirValoresIniciais(modo, registroAtual);
     return modo === "CREATE" && centroCustoIdSugerido
@@ -84,6 +108,7 @@ const DisponibilidadeUpsertModal: React.FC<DisponibilidadeUpsertModalProps> = ({
       : base;
   });
   const [erros, setErros] = useState<ErrosFormDisponibilidade>({});
+
 
   useEffect(() => {
     if (!open) return;
@@ -94,8 +119,10 @@ const DisponibilidadeUpsertModal: React.FC<DisponibilidadeUpsertModalProps> = ({
         : base,
     );
     setErros({});
+    setJustificativaExcecao("");
     // registroAtual é estável por abertura do modal
   }, [open, modo, registroAtual, centroCustoIdSugerido]);
+
 
   const { data: centrosCusto = [] } = useQuery({
     queryKey: ["cc-dd"],
@@ -129,6 +156,7 @@ const DisponibilidadeUpsertModal: React.FC<DisponibilidadeUpsertModalProps> = ({
         confiabilidade: (limpos.confiabilidade || null) as ConfiabilidadePrevisao | null,
         motivoRisco: limpos.motivoRisco,
         observacao: limpos.observacao,
+        justificativaExcecao: exigeJustificativa ? justificativaExcecao : null,
         modo,
       });
     },
@@ -152,11 +180,25 @@ const DisponibilidadeUpsertModal: React.FC<DisponibilidadeUpsertModalProps> = ({
     const validacao = validarFormDisponibilidade(limpos, equipamentoId);
     setErros(validacao);
     if (Object.keys(validacao).length > 0) return;
+    // CT-2.5: sem trava consultada nada é enviado (fail-closed).
+    if (!travaConsultada) return;
+    if (exigeJustificativa && justificativaExcecao.trim().length < CT3C_JUSTIFICATIVA_MIN) return;
     setValores(limpos);
     mutation.mutate();
   };
 
   const exigeDetalhes = valores.status && valores.status !== "DISPONIVEL";
+  // CT-3B.1 — rótulo contextual: cada data continua ligada ao seu campo real.
+  const rotuloVigencia = rotuloDataInicio(valores.status, valores.dataInicio);
+  // CT-2.5 — trava do ativo comprometido na Central.
+  const exigeJustificativa = travaConsultada && !trava.permitida;
+  const justificativaValida =
+    !exigeJustificativa || justificativaExcecao.trim().length >= CT3C_JUSTIFICATIVA_MIN;
+  const periodoTrava = [trava.periodoInicio, trava.periodoFim]
+    .map((d) => (d ? formatDateBR(d) : null))
+    .filter(Boolean)
+    .join(" a ");
+
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !mutation.isPending && onClose()}>
@@ -164,7 +206,8 @@ const DisponibilidadeUpsertModal: React.FC<DisponibilidadeUpsertModalProps> = ({
         <DialogHeader>
           <DialogTitle>{TITULO_POR_MODO[modo]}</DialogTitle>
           <DialogDescription>
-            {identificacao} — a situação cadastral{situacaoCadastral ? ` ("${situacaoCadastral}")` : ""} não é
+            {identificacao} — apenas a condição operacional é editada aqui; compromissos
+            logísticos (reservas e transportes) não são alterados. A situação cadastral{situacaoCadastral ? ` ("${situacaoCadastral}")` : ""} não é
             alterada por esta ação.
           </DialogDescription>
         </DialogHeader>
@@ -178,6 +221,45 @@ const DisponibilidadeUpsertModal: React.FC<DisponibilidadeUpsertModalProps> = ({
             </AlertDescription>
           </Alert>
         )}
+
+        {open && !travaConsultada && (
+          <Alert variant="destructive" data-testid="ct25-trava-nao-consultada">
+            <ShieldAlert className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              {travaCarregando
+                ? "Confirmando se este ativo pode ser editado…"
+                : CT25_MSG_TRAVA_NAO_CONSULTADA}
+              {!travaCarregando && (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 pl-1 text-xs"
+                  onClick={() => void recarregarTrava()}
+                >
+                  Tentar novamente
+                </Button>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {exigeJustificativa && (
+          <Alert variant="destructive" data-testid="ct25-trava-compromisso">
+            <ShieldAlert className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              {CT25_MSG_TRAVA}
+              {trava.compromissoStatus && (
+                <>
+                  {" "}
+                  Compromisso atual: {trava.compromissoStatus}
+                  {periodoTrava ? ` (${periodoTrava})` : ""}.
+                </>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
+
 
         <div className="space-y-3">
           <div className="space-y-1.5">
@@ -213,17 +295,22 @@ const DisponibilidadeUpsertModal: React.FC<DisponibilidadeUpsertModalProps> = ({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Data de início *</Label>
+              <Label>{rotuloVigencia.label} *</Label>
               <Input
                 type="date"
                 value={valores.dataInicio}
                 onChange={(e) => set("dataInicio", e.target.value)}
               />
               {erros.dataInicio && <p className="text-xs text-destructive">{erros.dataInicio}</p>}
+              {rotuloVigencia.vigenciaFutura && (
+                <p className="text-xs text-amber-700" data-testid="ct3b1-modal-vigencia-futura">
+                  {AVISO_VIGENCIA_FUTURA}
+                </p>
+              )}
             </div>
             {exigeDetalhes && (
               <div className="space-y-1.5">
-                <Label>Previsão de liberação</Label>
+                <Label>{LABEL_PREVISAO_LIBERACAO}</Label>
                 <Input
                   type="date"
                   value={valores.previsaoLiberacao}
@@ -276,6 +363,24 @@ const DisponibilidadeUpsertModal: React.FC<DisponibilidadeUpsertModalProps> = ({
               onChange={(e) => set("observacao", e.target.value)}
             />
           </div>
+
+          {exigeJustificativa && (
+            <div className="space-y-1.5">
+              <Label>Justificativa de exceção * (mínimo {CT3C_JUSTIFICATIVA_MIN} caracteres)</Label>
+              <Textarea
+                rows={3}
+                data-testid="ct25-justificativa-excecao"
+                value={justificativaExcecao}
+                onChange={(e) => setJustificativaExcecao(e.target.value)}
+                placeholder="Explique por que a condição operacional precisa ser alterada apesar do compromisso na Central."
+              />
+              {!justificativaValida && (
+                <p className="text-xs text-destructive">
+                  A justificativa precisa de ao menos {CT3C_JUSTIFICATIVA_MIN} caracteres.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         <DialogFooter>
@@ -285,8 +390,11 @@ const DisponibilidadeUpsertModal: React.FC<DisponibilidadeUpsertModalProps> = ({
           <Button
             data-testid="ct2-regularizar-salvar"
             onClick={submeter}
-            disabled={!valores.status || mutation.isPending}
+            disabled={
+              !valores.status || mutation.isPending || !travaConsultada || !justificativaValida
+            }
           >
+
             {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
             {BOTAO_POR_MODO[modo]}
           </Button>

@@ -3225,6 +3225,423 @@ export type Database = {
           },
         ]
       }
+      bd_ct_comando_requests: {
+        Row: {
+          command_hash: string
+          created_at: string
+          created_by: string
+          operacao: string
+          planejamento_id: string | null
+          request_id: string
+          response_json: Json
+          solicitacao_id: string
+        }
+        Insert: {
+          command_hash: string
+          created_at?: string
+          created_by: string
+          operacao: string
+          planejamento_id?: string | null
+          request_id: string
+          response_json: Json
+          solicitacao_id: string
+        }
+        Update: {
+          command_hash?: string
+          created_at?: string
+          created_by?: string
+          operacao?: string
+          planejamento_id?: string | null
+          request_id?: string
+          response_json?: Json
+          solicitacao_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_ct_comando_requests_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_comando_requests_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_comando_requests_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_comando_requests_planejamento_id_fkey"
+            columns: ["planejamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_solicitacoes_planejamento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_comando_requests_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_solicitacoes_equipamento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_comando_requests_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_solicitacoes_equipamento_financeiro"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_comando_requests_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_solicitacoes_equipamento_operacional"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_ct_viagens: {
+        Row: {
+          codigo: string
+          created_at: string
+          created_by: string | null
+          data_prevista_entrega: string | null
+          data_prevista_saida: string | null
+          destino_cc_codigo_snapshot: string | null
+          destino_cc_endereco_snapshot: string | null
+          destino_cc_latitude_snapshot: number | null
+          destino_cc_longitude_snapshot: number | null
+          destino_cc_nome_snapshot: string | null
+          destino_centro_custo_id: string | null
+          destino_descricao: string | null
+          distancia_km: number | null
+          empresa_transportadora_id: string | null
+          empresa_transportadora_nome_snapshot: string | null
+          id: string
+          modalidade_deslocamento: string | null
+          motorista_cpf_snapshot: string | null
+          motorista_id: string | null
+          motorista_nome_snapshot: string | null
+          observacoes: string | null
+          origem_cc_codigo_snapshot: string | null
+          origem_cc_endereco_snapshot: string | null
+          origem_cc_latitude_snapshot: number | null
+          origem_cc_longitude_snapshot: number | null
+          origem_cc_nome_snapshot: string | null
+          origem_centro_custo_id: string | null
+          origem_descricao: string | null
+          placa_transportador_snapshot: string | null
+          planejamento_id: string | null
+          responsavel_transporte: string | null
+          solicitacao_id: string
+          status: string
+          tipo_transporte: string | null
+          transportadora: string | null
+          updated_at: string
+          updated_by: string | null
+          veiculo_transportador_id: string | null
+        }
+        Insert: {
+          codigo?: string
+          created_at?: string
+          created_by?: string | null
+          data_prevista_entrega?: string | null
+          data_prevista_saida?: string | null
+          destino_cc_codigo_snapshot?: string | null
+          destino_cc_endereco_snapshot?: string | null
+          destino_cc_latitude_snapshot?: number | null
+          destino_cc_longitude_snapshot?: number | null
+          destino_cc_nome_snapshot?: string | null
+          destino_centro_custo_id?: string | null
+          destino_descricao?: string | null
+          distancia_km?: number | null
+          empresa_transportadora_id?: string | null
+          empresa_transportadora_nome_snapshot?: string | null
+          id?: string
+          modalidade_deslocamento?: string | null
+          motorista_cpf_snapshot?: string | null
+          motorista_id?: string | null
+          motorista_nome_snapshot?: string | null
+          observacoes?: string | null
+          origem_cc_codigo_snapshot?: string | null
+          origem_cc_endereco_snapshot?: string | null
+          origem_cc_latitude_snapshot?: number | null
+          origem_cc_longitude_snapshot?: number | null
+          origem_cc_nome_snapshot?: string | null
+          origem_centro_custo_id?: string | null
+          origem_descricao?: string | null
+          placa_transportador_snapshot?: string | null
+          planejamento_id?: string | null
+          responsavel_transporte?: string | null
+          solicitacao_id: string
+          status?: string
+          tipo_transporte?: string | null
+          transportadora?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          veiculo_transportador_id?: string | null
+        }
+        Update: {
+          codigo?: string
+          created_at?: string
+          created_by?: string | null
+          data_prevista_entrega?: string | null
+          data_prevista_saida?: string | null
+          destino_cc_codigo_snapshot?: string | null
+          destino_cc_endereco_snapshot?: string | null
+          destino_cc_latitude_snapshot?: number | null
+          destino_cc_longitude_snapshot?: number | null
+          destino_cc_nome_snapshot?: string | null
+          destino_centro_custo_id?: string | null
+          destino_descricao?: string | null
+          distancia_km?: number | null
+          empresa_transportadora_id?: string | null
+          empresa_transportadora_nome_snapshot?: string | null
+          id?: string
+          modalidade_deslocamento?: string | null
+          motorista_cpf_snapshot?: string | null
+          motorista_id?: string | null
+          motorista_nome_snapshot?: string | null
+          observacoes?: string | null
+          origem_cc_codigo_snapshot?: string | null
+          origem_cc_endereco_snapshot?: string | null
+          origem_cc_latitude_snapshot?: number | null
+          origem_cc_longitude_snapshot?: number | null
+          origem_cc_nome_snapshot?: string | null
+          origem_centro_custo_id?: string | null
+          origem_descricao?: string | null
+          placa_transportador_snapshot?: string | null
+          planejamento_id?: string | null
+          responsavel_transporte?: string | null
+          solicitacao_id?: string
+          status?: string
+          tipo_transporte?: string | null
+          transportadora?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          veiculo_transportador_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_ct_viagens_destino_centro_custo_id_fkey"
+            columns: ["destino_centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_destino_centro_custo_id_fkey"
+            columns: ["destino_centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_destino_centro_custo_id_fkey"
+            columns: ["destino_centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_destino_centro_custo_id_fkey"
+            columns: ["destino_centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_destino_centro_custo_id_fkey"
+            columns: ["destino_centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_destino_centro_custo_id_fkey"
+            columns: ["destino_centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_destino_centro_custo_id_fkey"
+            columns: ["destino_centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_destino_centro_custo_id_fkey"
+            columns: ["destino_centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_empresa_transportadora_id_fkey"
+            columns: ["empresa_transportadora_id"]
+            isOneToOne: false
+            referencedRelation: "bd_empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_motorista_id_fkey"
+            columns: ["motorista_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_motorista_id_fkey"
+            columns: ["motorista_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_motorista_id_fkey"
+            columns: ["motorista_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_origem_centro_custo_id_fkey"
+            columns: ["origem_centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_origem_centro_custo_id_fkey"
+            columns: ["origem_centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_origem_centro_custo_id_fkey"
+            columns: ["origem_centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_origem_centro_custo_id_fkey"
+            columns: ["origem_centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_origem_centro_custo_id_fkey"
+            columns: ["origem_centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_origem_centro_custo_id_fkey"
+            columns: ["origem_centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_origem_centro_custo_id_fkey"
+            columns: ["origem_centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_origem_centro_custo_id_fkey"
+            columns: ["origem_centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_solicitacoes_equipamento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_solicitacoes_equipamento_financeiro"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_solicitacoes_equipamento_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_veiculo_transportador_id_fkey"
+            columns: ["veiculo_transportador_id"]
+            isOneToOne: false
+            referencedRelation: "bd_caminhoes_equipamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_veiculo_transportador_id_fkey"
+            columns: ["veiculo_transportador_id"]
+            isOneToOne: false
+            referencedRelation: "vw_ativos_logistica_manutencao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_veiculo_transportador_id_fkey"
+            columns: ["veiculo_transportador_id"]
+            isOneToOne: false
+            referencedRelation: "vw_ativos_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_ct_viagens_planejamento"
+            columns: ["planejamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_solicitacoes_planejamento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_custos_equipamentos: {
         Row: {
           ativo: boolean | null
@@ -7461,15 +7878,19 @@ export type Database = {
       }
       bd_movimentacoes: {
         Row: {
+          atendimento_id: string | null
           created_at: string | null
+          created_by: string | null
           custo_total: number | null
           destino_id: string | null
           destino_tipo: string
           distancia_km: number | null
           equipamento_id: string | null
           id: string
+          observacoes: string | null
           origem_id: string | null
           origem_tipo: string
+          planejamento_id: string | null
           prazo_estimado_horas: number | null
           responsavel_transporte: string | null
           solicitacao_id: string
@@ -7477,19 +7898,25 @@ export type Database = {
           status: string | null
           tipo_atendimento: string | null
           tipo_deslocamento: string | null
+          tipo_movimentacao: string
           updated_at: string | null
           valor_km: number | null
+          viagem_id: string | null
         }
         Insert: {
+          atendimento_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           custo_total?: number | null
           destino_id?: string | null
           destino_tipo: string
           distancia_km?: number | null
           equipamento_id?: string | null
           id?: string
+          observacoes?: string | null
           origem_id?: string | null
           origem_tipo: string
+          planejamento_id?: string | null
           prazo_estimado_horas?: number | null
           responsavel_transporte?: string | null
           solicitacao_id: string
@@ -7497,19 +7924,25 @@ export type Database = {
           status?: string | null
           tipo_atendimento?: string | null
           tipo_deslocamento?: string | null
+          tipo_movimentacao?: string
           updated_at?: string | null
           valor_km?: number | null
+          viagem_id?: string | null
         }
         Update: {
+          atendimento_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           custo_total?: number | null
           destino_id?: string | null
           destino_tipo?: string
           distancia_km?: number | null
           equipamento_id?: string | null
           id?: string
+          observacoes?: string | null
           origem_id?: string | null
           origem_tipo?: string
+          planejamento_id?: string | null
           prazo_estimado_horas?: number | null
           responsavel_transporte?: string | null
           solicitacao_id?: string
@@ -7517,10 +7950,19 @@ export type Database = {
           status?: string | null
           tipo_atendimento?: string | null
           tipo_deslocamento?: string | null
+          tipo_movimentacao?: string
           updated_at?: string | null
           valor_km?: number | null
+          viagem_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "bd_movimentacoes_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_solicitacao_item_atendimentos"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bd_movimentacoes_equipamento_id_fkey"
             columns: ["equipamento_id"]
@@ -7540,6 +7982,13 @@ export type Database = {
             columns: ["equipamento_id"]
             isOneToOne: false
             referencedRelation: "vw_ativos_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_movimentacoes_planejamento_id_fkey"
+            columns: ["planejamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_solicitacoes_planejamento"
             referencedColumns: ["id"]
           },
           {
@@ -7568,6 +8017,13 @@ export type Database = {
             columns: ["solicitacao_planejamento_id"]
             isOneToOne: false
             referencedRelation: "bd_solicitacoes_planejamento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_movimentacoes_viagem_id_fkey"
+            columns: ["viagem_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ct_viagens"
             referencedColumns: ["id"]
           },
         ]
@@ -11287,6 +11743,173 @@ export type Database = {
           },
         ]
       }
+      bd_pop_rascunhos: {
+        Row: {
+          arquivo_mime_type: string | null
+          arquivo_nome_original: string | null
+          arquivo_path: string | null
+          arquivo_sha256: string | null
+          arquivo_tamanho_bytes: number | null
+          categoria: string | null
+          codigo: string
+          created_at: string
+          criado_por: string
+          elaborado_por_id: string
+          elaborado_por_nome_snapshot: string
+          id: string
+          motivo_revisao: string
+          pop_id: string
+          setor_id: string
+          tipo_incremento: string
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          arquivo_mime_type?: string | null
+          arquivo_nome_original?: string | null
+          arquivo_path?: string | null
+          arquivo_sha256?: string | null
+          arquivo_tamanho_bytes?: number | null
+          categoria?: string | null
+          codigo: string
+          created_at?: string
+          criado_por: string
+          elaborado_por_id: string
+          elaborado_por_nome_snapshot: string
+          id?: string
+          motivo_revisao: string
+          pop_id: string
+          setor_id: string
+          tipo_incremento: string
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          arquivo_mime_type?: string | null
+          arquivo_nome_original?: string | null
+          arquivo_path?: string | null
+          arquivo_sha256?: string | null
+          arquivo_tamanho_bytes?: number | null
+          categoria?: string | null
+          codigo?: string
+          created_at?: string
+          criado_por?: string
+          elaborado_por_id?: string
+          elaborado_por_nome_snapshot?: string
+          id?: string
+          motivo_revisao?: string
+          pop_id?: string
+          setor_id?: string
+          tipo_incremento?: string
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_bd_pop_rascunhos_pop"
+            columns: ["pop_id"]
+            isOneToOne: true
+            referencedRelation: "bd_pops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_bd_pop_rascunhos_setor"
+            columns: ["setor_id"]
+            isOneToOne: false
+            referencedRelation: "bd_departamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_pops: {
+        Row: {
+          aprovado_por: string | null
+          arquivo_mime_type: string | null
+          arquivo_nome_original: string | null
+          arquivo_path: string | null
+          arquivo_sha256: string | null
+          arquivo_tamanho_bytes: number | null
+          atualizado_por: string | null
+          categoria: string | null
+          codigo: string
+          created_at: string
+          criado_por: string
+          elaborado_por_id: string | null
+          elaborado_por_nome_snapshot: string | null
+          id: string
+          motivo_obsolescencia: string | null
+          obsoleto_em: string | null
+          obsoleto_por: string | null
+          publicado_em: string | null
+          setor_id: string
+          status: string
+          titulo: string
+          updated_at: string
+          versao_major: number
+          versao_minor: number
+        }
+        Insert: {
+          aprovado_por?: string | null
+          arquivo_mime_type?: string | null
+          arquivo_nome_original?: string | null
+          arquivo_path?: string | null
+          arquivo_sha256?: string | null
+          arquivo_tamanho_bytes?: number | null
+          atualizado_por?: string | null
+          categoria?: string | null
+          codigo: string
+          created_at?: string
+          criado_por: string
+          elaborado_por_id?: string | null
+          elaborado_por_nome_snapshot?: string | null
+          id?: string
+          motivo_obsolescencia?: string | null
+          obsoleto_em?: string | null
+          obsoleto_por?: string | null
+          publicado_em?: string | null
+          setor_id: string
+          status?: string
+          titulo: string
+          updated_at?: string
+          versao_major?: number
+          versao_minor?: number
+        }
+        Update: {
+          aprovado_por?: string | null
+          arquivo_mime_type?: string | null
+          arquivo_nome_original?: string | null
+          arquivo_path?: string | null
+          arquivo_sha256?: string | null
+          arquivo_tamanho_bytes?: number | null
+          atualizado_por?: string | null
+          categoria?: string | null
+          codigo?: string
+          created_at?: string
+          criado_por?: string
+          elaborado_por_id?: string | null
+          elaborado_por_nome_snapshot?: string | null
+          id?: string
+          motivo_obsolescencia?: string | null
+          obsoleto_em?: string | null
+          obsoleto_por?: string | null
+          publicado_em?: string | null
+          setor_id?: string
+          status?: string
+          titulo?: string
+          updated_at?: string
+          versao_major?: number
+          versao_minor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_bd_pops_setor"
+            columns: ["setor_id"]
+            isOneToOne: false
+            referencedRelation: "bd_departamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_portfolio_empresas: {
         Row: {
           ano_fabricacao: string | null
@@ -14006,40 +14629,73 @@ export type Database = {
       }
       bd_solicitacoes_planejamento: {
         Row: {
+          content_hash: string | null
           created_at: string | null
+          created_by: string | null
           data_prevista_entrega: string | null
           decisao: string | null
           id: string
+          lock_version: number
           observacoes: string | null
+          programado_em: string | null
+          programado_por: string | null
+          request_id: string | null
           responsavel_transporte_id: string | null
+          revisao_de_planejamento_id: string | null
           solicitacao_id: string
           status: string | null
+          status_planejamento: string
           updated_at: string | null
+          updated_by: string | null
           usuario_transporte_id: string | null
+          versao: number
+          vigente: boolean
         }
         Insert: {
+          content_hash?: string | null
           created_at?: string | null
+          created_by?: string | null
           data_prevista_entrega?: string | null
           decisao?: string | null
           id?: string
+          lock_version?: number
           observacoes?: string | null
+          programado_em?: string | null
+          programado_por?: string | null
+          request_id?: string | null
           responsavel_transporte_id?: string | null
+          revisao_de_planejamento_id?: string | null
           solicitacao_id: string
           status?: string | null
+          status_planejamento?: string
           updated_at?: string | null
+          updated_by?: string | null
           usuario_transporte_id?: string | null
+          versao?: number
+          vigente?: boolean
         }
         Update: {
+          content_hash?: string | null
           created_at?: string | null
+          created_by?: string | null
           data_prevista_entrega?: string | null
           decisao?: string | null
           id?: string
+          lock_version?: number
           observacoes?: string | null
+          programado_em?: string | null
+          programado_por?: string | null
+          request_id?: string | null
           responsavel_transporte_id?: string | null
+          revisao_de_planejamento_id?: string | null
           solicitacao_id?: string
           status?: string | null
+          status_planejamento?: string
           updated_at?: string | null
+          updated_by?: string | null
           usuario_transporte_id?: string | null
+          versao?: number
+          vigente?: boolean
         }
         Relationships: [
           {
@@ -14064,6 +14720,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_solicitacoes_planejamento_revisao_de_planejamento_id_fkey"
+            columns: ["revisao_de_planejamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_solicitacoes_planejamento"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_solicitacoes_planejamento_solicitacao_id_fkey"
             columns: ["solicitacao_id"]
             isOneToOne: false
@@ -14082,6 +14745,27 @@ export type Database = {
             columns: ["solicitacao_id"]
             isOneToOne: false
             referencedRelation: "vw_solicitacoes_equipamento_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_planejamento_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_planejamento_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_planejamento_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
             referencedColumns: ["id"]
           },
           {
@@ -21720,6 +22404,10 @@ export type Database = {
         }
         Returns: Json
       }
+      fn_ct_ativo_edicao_permitida: {
+        Args: { p_equipamento_id: string }
+        Returns: Json
+      }
       fn_ct_avaliar_disponibilidade: {
         Args: {
           p_equipamento_id: string
@@ -21733,19 +22421,34 @@ export type Database = {
         Returns: Json
       }
       fn_ct_contadores_item: { Args: { p_item_id: string }; Returns: Json }
-      fn_ct_disponibilidade_upsert: {
-        Args: {
-          p_centro_custo_id?: string
-          p_confiabilidade?: string
-          p_data_inicio?: string
-          p_equipamento_id: string
-          p_motivo_risco?: string
-          p_observacao?: string
-          p_previsao_liberacao?: string
-          p_status_operacional: string
-        }
-        Returns: Json
-      }
+      fn_ct_disponibilidade_upsert:
+        | {
+            Args: {
+              p_centro_custo_id?: string
+              p_confiabilidade?: string
+              p_data_inicio?: string
+              p_equipamento_id: string
+              p_motivo_risco?: string
+              p_observacao?: string
+              p_previsao_liberacao?: string
+              p_status_operacional: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_centro_custo_id?: string
+              p_confiabilidade?: string
+              p_data_inicio?: string
+              p_equipamento_id: string
+              p_justificativa_excecao?: string
+              p_motivo_risco?: string
+              p_observacao?: string
+              p_previsao_liberacao?: string
+              p_status_operacional: string
+            }
+            Returns: Json
+          }
       fn_ct_estado_efetivo_lote: {
         Args: {
           p_centro_custo_ids?: string[]
@@ -21757,6 +22460,68 @@ export type Database = {
       }
       fn_ct_item_resumo_json: {
         Args: { p_solicitacao_item_id: string }
+        Returns: Json
+      }
+      fn_ct_mob_command_hash: {
+        Args: {
+          p_motivo: string
+          p_operacao: string
+          p_payload: Json
+          p_planejamento_id: string
+          p_solicitacao_id: string
+          p_versao_esperada: number
+        }
+        Returns: string
+      }
+      fn_ct_mob_content_hash: { Args: { p_payload: Json }; Returns: string }
+      fn_ct_mob_norm_texto: { Args: { p: string }; Returns: string }
+      fn_ct_mob_plan_json: {
+        Args: {
+          p_plan: Database["public"]["Tables"]["bd_solicitacoes_planejamento"]["Row"]
+        }
+        Returns: Json
+      }
+      fn_ct_mob_validar_viagem: {
+        Args: { p_viagem_id: string }
+        Returns: undefined
+      }
+      fn_ct_mob_viagens_json: {
+        Args: { p_planejamento_id: string }
+        Returns: Json
+      }
+      fn_ct_mobilizacao_cancelar: {
+        Args: {
+          p_motivo: string
+          p_planejamento_id: string
+          p_request_id: string
+          p_versao_esperada: number
+        }
+        Returns: Json
+      }
+      fn_ct_mobilizacao_estado: {
+        Args: { p_solicitacao_id: string }
+        Returns: Json
+      }
+      fn_ct_mobilizacao_nova_revisao: {
+        Args: { p_planejamento_id: string; p_request_id: string }
+        Returns: Json
+      }
+      fn_ct_mobilizacao_programar: {
+        Args: {
+          p_planejamento_id: string
+          p_request_id: string
+          p_versao_esperada: number
+        }
+        Returns: Json
+      }
+      fn_ct_mobilizacao_salvar_rascunho: {
+        Args: {
+          p_payload: Json
+          p_planejamento_id: string
+          p_request_id: string
+          p_solicitacao_id: string
+          p_versao_esperada: number
+        }
         Returns: Json
       }
       fn_ct_recalcular_status_item: {
@@ -22308,6 +23073,69 @@ export type Database = {
       fn_ponto_user_can_access_funcionario: {
         Args: { _funcionario_id: string }
         Returns: boolean
+      }
+      fn_pop_anexar_arquivo_rascunho: {
+        Args: {
+          p_ator: string
+          p_mime: string
+          p_nome_original: string
+          p_path: string
+          p_pop_id: string
+          p_sha256: string
+          p_tamanho: number
+        }
+        Returns: Json
+      }
+      fn_pop_atualizar_rascunho: {
+        Args: {
+          p_categoria?: string
+          p_codigo?: string
+          p_elaborado_por_id?: string
+          p_motivo?: string
+          p_pop_id: string
+          p_setor_id?: string
+          p_tipo_incremento?: string
+          p_titulo?: string
+        }
+        Returns: string
+      }
+      fn_pop_criar: {
+        Args: {
+          p_categoria?: string
+          p_codigo: string
+          p_elaborado_por_id?: string
+          p_setor_id: string
+          p_titulo: string
+        }
+        Returns: string
+      }
+      fn_pop_descartar_rascunho: {
+        Args: { p_motivo: string; p_pop_id: string }
+        Returns: Json
+      }
+      fn_pop_excluir: {
+        Args: { p_motivo: string; p_pop_id: string }
+        Returns: Json
+      }
+      fn_pop_gate_homologacao: { Args: never; Returns: boolean }
+      fn_pop_gate_homologacao_ator: {
+        Args: { p_ator: string }
+        Returns: boolean
+      }
+      fn_pop_iniciar_revisao: {
+        Args: {
+          p_elaborado_por_id?: string
+          p_motivo: string
+          p_pop_id: string
+          p_tipo_incremento: string
+        }
+        Returns: string
+      }
+      fn_pop_publicar_rascunho: { Args: { p_pop_id: string }; Returns: Json }
+      fn_pop_reativar: { Args: { p_pop_id: string }; Returns: string }
+      fn_pop_tornar_obsoleto: {
+        Args: { p_motivo: string; p_pop_id: string }
+        Returns: string
       }
       fn_rate_limit_check: {
         Args: {

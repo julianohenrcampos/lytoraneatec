@@ -1,15 +1,25 @@
+/**
+ * CT-3B.1 — Central do Transporte: lista principal COMPACTA por protocolo.
+ *
+ * A lista é apenas um índice de solicitações: protocolo, obra, responsáveis,
+ * período, prioridade, status e contagem de itens. Nenhuma descrição de item,
+ * capacidade, regime ou status de item aparece aqui — o detalhamento vive na
+ * etapa Itens da página dedicada. Nenhum contador de atendimento é consultado.
+ */
 import React from "react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { SolicitacaoTransporte } from "@/services/centralTransporteService";
-import { SolicitacaoItem, STATUS_ITEM_LABELS, StatusItem, REGIME_LABELS, RegimeTrabalho } from "@/services/solicitacaoItensService";
+import { SolicitacaoItem } from "@/services/solicitacaoItensService";
 import { formatProtocolo } from "@/utils/formatProtocolo";
-import { AlertTriangle, Package } from "lucide-react";
+import { formatDateBR } from "@/utils/formatDateBR";
+import { ChevronRight } from "lucide-react";
 
 const prioridadeBadge = (p: string) => {
   const map: Record<string, string> = {
     URGENTE: "bg-destructive text-destructive-foreground",
-    ALTA: "bg-orange-500 text-white",
+    ALTA: "bg-orange-500 text-primary-foreground",
     NORMAL: "bg-secondary text-secondary-foreground",
   };
   return <Badge className={map[p] || ""}>{p}</Badge>;
@@ -17,36 +27,23 @@ const prioridadeBadge = (p: string) => {
 
 const statusBadge = (s: string) => {
   const map: Record<string, string> = {
-    APROVADO: "bg-green-600 text-white",
-    EM_TRANSPORTE: "bg-blue-600 text-white",
+    APROVADO: "bg-emerald-600 text-primary-foreground",
+    EM_TRANSPORTE: "bg-blue-600 text-primary-foreground",
   };
   return <Badge className={map[s] || ""}>{s.replace(/_/g, " ")}</Badge>;
 };
 
-const statusItemBadge = (s: StatusItem) => {
-  const map: Record<string, string> = {
-    PENDENTE: "bg-amber-100 text-amber-800",
-    EM_ANALISE: "bg-blue-100 text-blue-800",
-    PLANEJADO: "bg-indigo-100 text-indigo-800",
-    EM_COTACAO: "bg-purple-100 text-purple-800",
-    ATENDIDO: "bg-green-100 text-green-800",
-  };
-  return <Badge className={map[s] || ""} variant="outline">{STATUS_ITEM_LABELS[s] || s}</Badge>;
-};
-
-const buildItemLabel = (item: SolicitacaoItem): string => {
-  if (item.item_nao_catalogado) {
-    return item.descricao_livre || "Não catalogado";
-  }
-  // Use subcategoria + capacidade if available
+export const buildItemLabel = (item: SolicitacaoItem): string => {
+  if (item.item_nao_catalogado) return item.descricao_livre || "Não catalogado";
   if (item.subcategoria_nome) {
     const parts = [item.subcategoria_nome];
     if (item.capacidade_valor != null) {
-      parts.push(`${item.capacidade_valor}${item.capacidade_unidade ? ` ${item.capacidade_unidade}` : ""}`);
+      parts.push(
+        `${item.capacidade_valor}${item.capacidade_unidade ? ` ${item.capacidade_unidade}` : ""}`,
+      );
     }
     return parts.join(" — ");
   }
-  // Fallback to catalogo
   return item.catalogo_descricao || "Catálogo";
 };
 
@@ -59,90 +56,93 @@ interface Props {
   onSelect: (s: SolicitacaoTransporteComItens, item?: SolicitacaoItem) => void;
 }
 
+const MetaField: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+  <div className="flex min-w-0 flex-col">
+    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
+    <span className="truncate text-xs">{value}</span>
+  </div>
+);
+
 const CentralTransporteTable: React.FC<Props> = ({ data, onSelect }) => {
+  if (data.length === 0) {
+    return (
+      <div
+        className="rounded-md border py-12 text-center text-sm text-muted-foreground"
+        data-testid="ct-lista-vazia"
+      >
+        Nenhuma solicitação aprovada pendente.
+      </div>
+    );
+  }
+
   return (
-    <div className="rounded-md border overflow-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Protocolo</TableHead>
-            <TableHead>Centro de Custo</TableHead>
-            <TableHead>Engenheiro</TableHead>
-            <TableHead>Apontador</TableHead>
-            <TableHead>Item</TableHead>
-            <TableHead>Tipo</TableHead>
-            <TableHead>Qtd</TableHead>
-            <TableHead>Regime</TableHead>
-            <TableHead>Prioridade</TableHead>
-            <TableHead>Status Fluxo</TableHead>
-            <TableHead>Status Item</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.length === 0 && (
-            <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground py-8">Nenhuma solicitação aprovada pendente.</TableCell></TableRow>
-          )}
-          {data.map((s) => {
-            const itens = s.itens && s.itens.length > 0 ? s.itens : null;
+    <div className="space-y-2" data-testid="ct-lista-agrupada">
+      {data.map((s) => {
+        const itens = s.itens ?? [];
+        const quantidadeTotal = itens.length
+          ? itens.reduce((acc, i) => acc + (Number(i.quantidade) || 0), 0)
+          : Number(s.quantidade) || 0;
+        const periodo = [
+          s.data_inicio ? formatDateBR(s.data_inicio) : null,
+          s.data_fim ? formatDateBR(s.data_fim) : null,
+        ]
+          .filter(Boolean)
+          .join(" a ");
 
-            if (!itens) {
-              return (
-                <TableRow key={s.id} className="cursor-pointer hover:bg-muted/50" onClick={() => onSelect(s)}>
-                  <TableCell className="font-mono text-xs">{formatProtocolo(s.id)}</TableCell>
-                  <TableCell>{s.nome_centro_custo || "—"}</TableCell>
-                  <TableCell>{s.engenheiro_nome || "—"}</TableCell>
-                  <TableCell>{s.apontador_nome || "—"}</TableCell>
-                  <TableCell>{s.descricao_tipo_equipamento || "—"}</TableCell>
-                  <TableCell>—</TableCell>
-                  <TableCell>{s.quantidade}</TableCell>
-                  <TableCell>—</TableCell>
-                  <TableCell>{prioridadeBadge(s.prioridade)}</TableCell>
-                  <TableCell>{statusBadge(s.status_fluxo)}</TableCell>
-                  <TableCell>—</TableCell>
-                </TableRow>
-              );
-            }
+        return (
+          <Card
+            key={s.id}
+            role="button"
+            tabIndex={0}
+            data-testid={`ct-card-solicitacao-${s.id}`}
+            className="cursor-pointer transition-colors hover:bg-muted/40"
+            onClick={() => onSelect(s)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelect(s);
+              }
+            }}
+          >
+            <CardContent className="space-y-2 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded bg-muted px-2 py-0.5 font-mono text-xs">
+                  {formatProtocolo(s.id)}
+                </span>
+                <h3 className="min-w-0 flex-1 truncate text-sm font-semibold">
+                  {s.nome_centro_custo || "Centro de Custo não informado"}
+                </h3>
+                {prioridadeBadge(s.prioridade)}
+                {statusBadge(s.status_fluxo)}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1"
+                  data-testid={`ct-abrir-solicitacao-${s.id}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelect(s);
+                  }}
+                >
+                  Abrir solicitação <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
 
-            return itens.map((item, idx) => (
-              <TableRow
-                key={`${s.id}-${item.id}`}
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => onSelect(s, item)}
-              >
-                <TableCell className="font-mono text-xs">{idx === 0 ? formatProtocolo(s.id) : ""}</TableCell>
-                <TableCell>{idx === 0 ? (s.nome_centro_custo || "—") : ""}</TableCell>
-                <TableCell>{idx === 0 ? (s.engenheiro_nome || "—") : ""}</TableCell>
-                <TableCell>{idx === 0 ? (s.apontador_nome || "—") : ""}</TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    {item.item_nao_catalogado ? (
-                      <>
-                        <AlertTriangle className="h-3.5 w-3.5 text-amber-600 flex-shrink-0" />
-                        <span className="truncate">{buildItemLabel(item)}</span>
-                      </>
-                    ) : (
-                      <>
-                        <Package className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                        <span className="truncate">{buildItemLabel(item)}</span>
-                      </>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline" className="text-xs">{item.tipo_item}</Badge>
-                </TableCell>
-                <TableCell>{item.quantidade}</TableCell>
-                <TableCell className="text-xs">
-                  {item.regime_trabalho ? (REGIME_LABELS[item.regime_trabalho as RegimeTrabalho] || item.regime_trabalho) : "—"}
-                </TableCell>
-                <TableCell>{idx === 0 ? prioridadeBadge(s.prioridade) : null}</TableCell>
-                <TableCell>{idx === 0 ? statusBadge(s.status_fluxo) : null}</TableCell>
-                <TableCell>{statusItemBadge(item.status_item)}</TableCell>
-              </TableRow>
-            ));
-          })}
-        </TableBody>
-      </Table>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                <MetaField label="Engenheiro" value={s.engenheiro_nome || "—"} />
+                <MetaField label="Apontador" value={s.apontador_nome || "—"} />
+                <MetaField label="Departamento" value={s.departamento_nome || "—"} />
+                <MetaField label="Período" value={periodo || "—"} />
+                <MetaField
+                  label="Itens"
+                  value={itens.length ? String(itens.length) : "Modelo legado"}
+                />
+                <MetaField label="Qtd. solicitada" value={String(quantidadeTotal)} />
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 };

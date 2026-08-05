@@ -146,6 +146,8 @@ export interface CtCandidateSelection {
   matchTipo: CtMatchTipo;
   disponibilidadeStatus: string;
   previsaoLiberacao: string | null;
+  /** CT-3B.1 — vigência do status operacional (data_inicio); nunca confundida com previsão. */
+  dataInicioDisponibilidade: string | null;
   permiteInterno: boolean;
   permiteReservaFutura: boolean;
   /** G0: true quando o ativo não possui linha operacional e exige regularização. */
@@ -184,5 +186,22 @@ export interface CtCandidateSelection {
   compromissoDetalhe: string | null;
   /** true apenas quando compromissos existentes se sobrepõem entre si. */
   possuiAnomaliaSobreposicao: boolean;
+  /** true quando existe compromisso vencido ainda ativo (bloqueia tudo). */
+  possuiCompromissoVencidoAtivo: boolean;
+  /** false quando o estado efetivo não pôde ser consultado (fail-closed). */
+  estadoConsultado: boolean;
+
+  /* --- CT-2.4 (ADITIVO) — apresentação; não participa da elegibilidade --- */
+  /** Rótulo de "Situação na Central" (contempla reserva vigente E futura). */
+  situacaoCentralLabel: string;
+  /** Ex.: "Inicia em 05/08/2026". */
+  situacaoCentralComplemento: string | null;
+  /** ATUAL | FUTURO | CONFLITO | SEM_COMPROMISSO; null quando não consultado. */
+  compromissoPrincipalVigencia: string | null;
+  /** true quando o compromisso principal foi criado pela Central. */
+  reservadoPelaCentral: boolean;
+  possuiCompromissoAtualOuFuturo: boolean;
+  /** Derivada (não persistida): AGUARDANDO_MOBILIZACAO ou null. */
+  situacaoMobilizacao: "AGUARDANDO_MOBILIZACAO" | null;
 }
 
