@@ -15,29 +15,40 @@ export const useAgendamentoExames = (agendamentoId?: string, filters?: Agendamen
   const queryClient = useQueryClient();
   const activeFilters = filters || {};
 
-  const { isGlobal, allowedNomes, isLoading: isLoadingEscopo } = useEscopoCentrosCusto();
+  const { isGlobal, allowedCentroIds, allowedContratos, isLoading: isLoadingEscopo } = useEscopoCentrosCusto();
 
-  // Restrição server-side por contrato (nome_centro_custo) para usuários NÃO globais.
-  const restrictContratos = isGlobal ? undefined : allowedNomes;
+  // Restrição server-side por contrato (texto livre) para usuários NÃO globais.
+  // Usa allowedContratos (inclui nome puro e formato legado "CODIGO - NOME")
+  // porque a coluna bd_agendamentos_exames.contrato foi gravada em ambos os formatos.
+  const restrictContratos = isGlobal ? undefined : allowedContratos;
 
   // Query: Listar agendamentos
   const listQuery = useQuery({
-    queryKey: ['agendamentos-exames', activeFilters, isGlobal ? '__global__' : (allowedNomes.join(',') || '__empty__')],
+    queryKey: ['agendamentos-exames', activeFilters, isGlobal ? '__global__' : (allowedContratos.join(',') || '__empty__')],
     queryFn: async () => {
       // Se !isGlobal e escopo vazio, não consulta servidor.
-      if (!isGlobal && (allowedNomes?.length ?? 0) === 0) {
+      if (!isGlobal && (allowedContratos?.length ?? 0) === 0) {
         return [];
       }
       const data = await agendamentoExamesService.list(activeFilters, { restrictContratos });
       // Defesa em profundidade client-side: oculta contrato null ou divergente para não-globais.
+      // Comparação por chave normalizada (UPPER+TRIM) para resistir a espaços/caixa residuais.
       if (!isGlobal) {
-        const allowed = new Set(allowedNomes);
-        return data.filter((a) => !!a.contrato && allowed.has(a.contrato));
+        const normKey = (s: unknown) =>
+          typeof s === 'string' ? s.trim().toUpperCase() : '';
+        const allowedNorm = new Set(
+          allowedContratos.map(normKey).filter(Boolean),
+        );
+        return data.filter((a) => {
+          const k = normKey(a.contrato);
+          return !!k && allowedNorm.has(k);
+        });
       }
       return data;
     },
     enabled: !agendamentoId && !isLoadingEscopo,
   });
+
 
   // Query: Buscar agendamento por ID
   const detailQuery = useQuery({
@@ -83,8 +94,10 @@ export const useAgendamentoExames = (agendamentoId?: string, filters?: Agendamen
         .order('nome_centro_custo');
       if (error) throw error;
       return data || [];
-    }
+    },
+    enabled: !isLoadingEscopo,
   });
+
 
   // Query: Listar anexos
   const anexosQuery = useQuery({
@@ -243,14 +256,17 @@ export const useAgendamentoExames = (agendamentoId?: string, filters?: Agendamen
     }
   });
 
-  // Aplica escopo no dropdown de centros de custo (filtros).
-  // SuperAdm/global vê todos; AdmOBRA vê apenas CCs do escopo.
+  // Aplica escopo no dropdown de centros de custo (filtros e modal).
+  // SuperAdm/global vê todos; AdmOBRA/restritos veem apenas CCs do escopo.
+  // Filtra por `id` (chave estável) em vez de `nome_centro_custo` para
+  // evitar perdas por normalização/whitespace nos nomes.
   const centrosCustoEscopados = useMemo(() => {
     const all = centrosCustoQuery.data || [];
     if (isGlobal) return all;
-    const allowedNomesSet = new Set(allowedNomes);
-    return all.filter((cc: any) => allowedNomesSet.has(cc.nome_centro_custo));
-  }, [centrosCustoQuery.data, isGlobal, allowedNomes]);
+    const allowedIdsSet = new Set(allowedCentroIds);
+    return all.filter((cc: any) => allowedIdsSet.has(cc.id));
+  }, [centrosCustoQuery.data, isGlobal, allowedCentroIds]);
+
 
   return {
     // Queries

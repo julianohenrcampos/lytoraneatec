@@ -8,6 +8,7 @@ export const MODULOS = [
   { value: 'licitacoes',                   label: 'Licitações' },
   { value: 'administracao',                label: 'Administração' },
   { value: 'ponto_eletronico',             label: 'Ponto Eletrônico' },
+  { value: 'engenharia',                   label: 'Engenharia' },
   { value: 'outros',                       label: 'Outros' },
 ] as const;
 
@@ -45,6 +46,7 @@ export function inferirModuloPorCodigo(codigo: string): ModuloValue | undefined 
   ) return 'licitacoes';
   if (c.startsWith('admin_')) return 'administracao';
   if (c.startsWith('ponto_') || c.startsWith('ponto_eletronico')) return 'ponto_eletronico';
+  if (c.startsWith('engenharia_')) return 'engenharia';
   return undefined;
 }
 
@@ -60,5 +62,6 @@ export function inferirModuloPorRota(rota?: string | null): ModuloValue | undefi
   if (r.startsWith('/licitacoes') || r.startsWith('/pncp') || r.startsWith('/dashboard-licitacoes')) return 'licitacoes';
   if (r.startsWith('/admin')) return 'administracao';
   if (r.startsWith('/ponto')) return 'ponto_eletronico';
+  if (r.startsWith('/engenharia')) return 'engenharia';
   return undefined;
 }

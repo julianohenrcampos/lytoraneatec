@@ -43,7 +43,12 @@ import { ValeTransporteStep, ValeTransporteStepData } from '@/components/agendam
 import { LinhaTransporte } from '@/components/agendamento-exames/vale-transporte/LinhaTransporteItem';
 import { PENDING_HISTORICO_KEY } from '@/hooks/useBaixarClassificacao';
 import { gerarPdfClassificacao } from '@/utils/pdf/gerarPdfClassificacao';
+<<<<<<< HEAD
 import { validarJanelaClinica } from '@/utils/sso/validarJanelaClinica';
+=======
+import { validarJanelaClinica, algumaClinicaAbertaAgora } from '@/utils/sso/validarJanelaClinica';
+import { useClinicasAbertasAgora } from '@/hooks/sso/useClinicasAbertasAgora';
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
 
 interface AgendamentoExamesDialogProps {
   open: boolean;
@@ -149,6 +154,10 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
     agendamento, locais, funcoes, empresas, centrosCusto, isLoading, create, update, isCreating, isUpdating,
     anexos, uploadAnexo, deleteAnexo, isUploadingAnexo, isDeletingAnexo
   } = useAgendamentoExames(agendamentoId);
+
+  // Gate de relógio do servidor (UTC-3) — usado como 2ª trava no submit, caso o
+  // usuário tenha aberto o dialog dentro do expediente e tente salvar depois.
+  const { nowServer, clinicas: clinicasGate } = useClinicasAbertasAgora(open);
 
   // Detecta se origem é classificação (presença do pending no sessionStorage)
   const isFromClassificacao = useMemo(() => {
@@ -540,7 +549,35 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
       toast.error(janela.motivo || 'Agendamento fora da janela de atendimento da clínica.');
       return;
     }
+<<<<<<< HEAD
     
+=======
+
+    // 2ª trava: gate global por relógio do servidor. Só aplica em CRIAÇÃO
+    // (edições de registros existentes não são bloqueadas).
+    if (!agendamentoId) {
+      const agora = nowServer;
+      if (!agora) {
+        toast.error('Não foi possível validar o horário das clínicas. Tente novamente em instantes.');
+        return;
+      }
+      const status = algumaClinicaAbertaAgora(clinicasGate || [], agora);
+      console.info('[gate-clinicas][submit]', {
+        agora: agora.toISOString(),
+        algumaAberta: status.algumaAberta,
+        motivo: status.motivo,
+        totalAtivas: status.totalAtivas,
+      });
+      if (!status.algumaAberta) {
+        toast.error(
+          status.motivo ||
+            'Horário comercial encerrado. Agendamento permitido apenas com pelo menos uma clínica aberta.'
+        );
+        return;
+      }
+    }
+
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
     try {
       // Bloqueio de duplicidade: mesmo CPF + mesmo tipo de exame com
       // agendamento ativo (Pendente/Agendado). Ignora o próprio registro em edição.

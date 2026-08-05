@@ -51,6 +51,12 @@ export interface EscopoCentrosCusto {
   isGlobal: boolean;
   allowedCentroIds: string[]; // ordenado
   allowedNomes: string[]; // ordenado
+  /**
+   * Variações de `contrato` (texto livre em bd_agendamentos_exames e similares)
+   * que correspondem aos CCs do escopo. Inclui o nome puro e o formato
+   * legado "CODIGO - NOME" para casar registros antigos.
+   */
+  allowedContratos: string[]; // ordenado
   isLoading: boolean;
 }
 
@@ -58,6 +64,7 @@ const EMPTY_GLOBAL: EscopoCentrosCusto = {
   isGlobal: true,
   allowedCentroIds: [],
   allowedNomes: [],
+  allowedContratos: [],
   isLoading: false,
 };
 
@@ -65,8 +72,10 @@ const EMPTY_RESTRITO: EscopoCentrosCusto = {
   isGlobal: false,
   allowedCentroIds: [],
   allowedNomes: [],
+  allowedContratos: [],
   isLoading: false,
 };
+
 
 export function useEscopoCentrosCusto(): EscopoCentrosCusto {
   const { userId, isSuperAdmin, isLoading: isLoadingPerm } = usePermission();
@@ -127,10 +136,12 @@ export function useEscopoCentrosCusto(): EscopoCentrosCusto {
 
       if (isGlobal) return EMPTY_GLOBAL;
 
-      // 2) Restrito: une CC vinculado ao funcionário do profile + fn_diaria_scope_centros_custo
+      // 2) Restrito: une CC vinculado ao funcionário do profile +
+      //    fn_diaria_scope_centros_custo + vínculos diretos em bd_centros_custo
+      //    (adm_obra_funcionario_id / adm_sede_funcionario_id / aprovador_diarias_id).
       const funcionarioId: string | null = profile?.funcionario_id || null;
 
-      const [vinculoRes, diariaScopeRes] = await Promise.allSettled([
+      const [vinculoRes, diariaScopeRes, ccDiretosRes] = await Promise.allSettled([
         funcionarioId
           ? supabase
               .from('bd_funcionarios')
@@ -141,6 +152,17 @@ export function useEscopoCentrosCusto(): EscopoCentrosCusto {
         supabase.rpc('fn_diaria_scope_centros_custo' as any, {
           p_user_id: userId,
         } as any),
+        funcionarioId
+          ? supabase
+              .from('bd_centros_custo')
+              .select('id')
+              .eq('situacao', 'Ativo')
+              .or(
+                `adm_obra_funcionario_id.eq.${funcionarioId},` +
+                  `adm_sede_funcionario_id.eq.${funcionarioId},` +
+                  `aprovador_diarias_id.eq.${funcionarioId}`,
+              )
+          : Promise.resolve({ data: [], error: null } as any),
       ]);
 
       const ids = new Set<string>();
@@ -174,28 +196,79 @@ export function useEscopoCentrosCusto(): EscopoCentrosCusto {
         );
       }
 
+      if (
+        ccDiretosRes.status === 'fulfilled' &&
+        !(ccDiretosRes.value as any).error
+      ) {
+        const rows = ((ccDiretosRes.value as any).data as any[]) || [];
+        rows.forEach((r: any) => {
+          if (r?.id) ids.add(r.id as string);
+        });
+      } else {
+        console.warn(
+          '[useEscopoCentrosCusto] vínculos diretos em bd_centros_custo falharam',
+          ccDiretosRes,
+        );
+      }
+
+
       const allowedCentroIds = Array.from(ids).sort();
 
       let allowedNomes: string[] = [];
+      let allowedContratos: string[] = [];
       if (allowedCentroIds.length > 0) {
         const { data: ccData, error: ccErr } = await supabase
           .from('bd_centros_custo')
-          .select('id, nome_centro_custo')
+          .select('id, nome_centro_custo, codigo_centro_custo')
           .in('id', allowedCentroIds);
         if (!ccErr && ccData) {
-          allowedNomes = (ccData as any[])
-            .map((c: any) => c.nome_centro_custo)
-            .filter(Boolean)
-            .sort();
+          const nomesSet = new Set<string>();
+          const contratosSet = new Set<string>();
+          (ccData as any[]).forEach((c: any) => {
+            const nomeRaw = (c?.nome_centro_custo ?? '').toString();
+            const codigoRaw = (c?.codigo_centro_custo ?? '').toString();
+            const nomeTrim = nomeRaw.trim();
+            const codigoTrim = codigoRaw.trim();
+            if (nomeTrim) {
+              nomesSet.add(nomeTrim);
+              // Inclui variantes para casar com `contrato` (texto livre)
+              // que pode ter sido gravado com espaços residuais.
+              // Adiciona também variante com 1 espaço ao final, pois há
+              // registros legados como 'MAZOMBINHA ' em bd_agendamentos_exames.
+              contratosSet.add(nomeTrim);
+              contratosSet.add(`${nomeTrim} `);
+              if (nomeRaw !== nomeTrim) contratosSet.add(nomeRaw);
+              if (codigoTrim) {
+                contratosSet.add(`${codigoTrim} - ${nomeTrim}`);
+                contratosSet.add(`${codigoTrim} - ${nomeTrim} `);
+                if (nomeRaw !== nomeTrim) {
+                  contratosSet.add(`${codigoTrim} - ${nomeRaw}`);
+                }
+              }
+            }
+          });
+          allowedNomes = Array.from(nomesSet).sort();
+          allowedContratos = Array.from(contratosSet).sort();
         }
+      }
+
+      if (import.meta.env.DEV) {
+        console.log('[useEscopoCentrosCusto] restrito resolvido', {
+          userId,
+          funcionarioId,
+          ccCount: allowedCentroIds.length,
+          ids: allowedCentroIds,
+        });
       }
 
       return {
         isGlobal: false,
         allowedCentroIds,
         allowedNomes,
+        allowedContratos,
         isLoading: false,
       };
+
     },
   });
 
@@ -205,9 +278,11 @@ export function useEscopoCentrosCusto(): EscopoCentrosCusto {
         isGlobal: false,
         allowedCentroIds: [],
         allowedNomes: [],
+        allowedContratos: [],
         isLoading: true,
       };
     }
     return query.data ?? EMPTY_RESTRITO;
   }, [isLoadingPerm, query.isLoading, query.data]);
 }
+

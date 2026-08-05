@@ -1,3 +1,7 @@
+/**
+ * @deprecated Substituído por AppUpdateButton (src/components/pwa/AppUpdateButton.tsx).
+ * Mantido temporariamente apenas como referência. Não usar em novos lugares.
+ */
 import { RefreshCw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAppVersionCheck } from '@/hooks/useAppVersionCheck';

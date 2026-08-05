@@ -7,7 +7,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 
 const manualInstructions: Record<string, { title: string; steps: { icon: string; text: string }[] }> = {
   ios: {
-    title: 'Instalar LYTEC',
+    title: 'Instalar App',
     steps: [
       { icon: '⬆️', text: 'Toque em "Compartilhar" na barra do Safari' },
       { icon: '➕', text: 'Selecione "Adicionar à Tela de Início"' },
@@ -15,7 +15,7 @@ const manualInstructions: Record<string, { title: string; steps: { icon: string;
     ],
   },
   android: {
-    title: 'Instalar LYTEC',
+    title: 'Instalar App',
     steps: [
       { icon: '⋮', text: 'Toque no menu do navegador (três pontos)' },
       { icon: '📥', text: 'Selecione "Instalar app" ou "Adicionar à tela inicial"' },
@@ -23,10 +23,10 @@ const manualInstructions: Record<string, { title: string; steps: { icon: string;
     ],
   },
   desktop: {
-    title: 'Instalar LYTEC',
+    title: 'Instalar App',
     steps: [
       { icon: '⊕', text: 'Clique no ícone de instalação na barra de endereço' },
-      { icon: '⋮', text: 'Ou abra o menu do navegador e selecione "Instalar LYTEC"' },
+      { icon: '⋮', text: 'Ou abra o menu do navegador e selecione "Instalar App"' },
       { icon: '✅', text: 'Confirme clicando em "Instalar"' },
     ],
   },
@@ -59,7 +59,7 @@ export const PWAInstallButton: React.FC<{ className?: string }> = ({ className }
           className={`gap-1.5 ${className ?? ''}`}
         >
           <Download className="h-4 w-4" />
-          <span>Instalar LYTEC</span>
+          <span>Instalar App</span>
         </Button>
       )}
 

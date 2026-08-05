@@ -1987,6 +1987,7 @@ export type Database = {
           cnpj_vinculado: string | null
           codigo_centro_custo: string
           created_at: string | null
+          created_by: string | null
           departamento_id: string | null
           diretoria_id: string | null
           endereco_bairro: string | null
@@ -2020,6 +2021,7 @@ export type Database = {
           cnpj_vinculado?: string | null
           codigo_centro_custo: string
           created_at?: string | null
+          created_by?: string | null
           departamento_id?: string | null
           diretoria_id?: string | null
           endereco_bairro?: string | null
@@ -2053,6 +2055,7 @@ export type Database = {
           cnpj_vinculado?: string | null
           codigo_centro_custo?: string
           created_at?: string | null
+          created_by?: string | null
           departamento_id?: string | null
           diretoria_id?: string | null
           endereco_bairro?: string | null
@@ -4641,6 +4644,10 @@ export type Database = {
           motivo_rejeicao: string | null
           observacao: string | null
           precisa_exame: boolean
+<<<<<<< HEAD
+=======
+          solicitacao_lote_id: string | null
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
           solicitado_em: string
           solicitado_por: string
           status: string
@@ -4667,6 +4674,10 @@ export type Database = {
           motivo_rejeicao?: string | null
           observacao?: string | null
           precisa_exame?: boolean
+<<<<<<< HEAD
+=======
+          solicitacao_lote_id?: string | null
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
           solicitado_em?: string
           solicitado_por?: string
           status?: string
@@ -4693,6 +4704,10 @@ export type Database = {
           motivo_rejeicao?: string | null
           observacao?: string | null
           precisa_exame?: boolean
+<<<<<<< HEAD
+=======
+          solicitacao_lote_id?: string | null
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
           solicitado_em?: string
           solicitado_por?: string
           status?: string
@@ -4811,6 +4826,16 @@ export type Database = {
             referencedRelation: "vw_funcionarios_rh"
             referencedColumns: ["id"]
           },
+<<<<<<< HEAD
+=======
+          {
+            foreignKeyName: "fk_fcs_solicitacao_lote"
+            columns: ["solicitacao_lote_id"]
+            isOneToOne: false
+            referencedRelation: "bd_solicitacoes_classificacao"
+            referencedColumns: ["id"]
+          },
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
         ]
       }
       bd_funcionario_status_historico: {
@@ -6766,6 +6791,382 @@ export type Database = {
           },
         ]
       }
+      bd_ordens_diarias_obra: {
+        Row: {
+          cancelado_em: string | null
+          cancelado_por: string | null
+          cancelamento_motivo: string | null
+          centro_custo_id: string
+          created_at: string
+          criado_por: string | null
+          data_ordem: string
+          emitido_em: string | null
+          emitido_por: string | null
+          id: string
+          observacao_geral: string | null
+          planejamento_id: string
+          responsavel_funcao_snapshot: string | null
+          responsavel_funcionario_id: string | null
+          responsavel_nome_snapshot: string | null
+          responsavel_profile_id: string | null
+          semana_fim: string | null
+          semana_inicio: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          cancelado_em?: string | null
+          cancelado_por?: string | null
+          cancelamento_motivo?: string | null
+          centro_custo_id: string
+          created_at?: string
+          criado_por?: string | null
+          data_ordem: string
+          emitido_em?: string | null
+          emitido_por?: string | null
+          id?: string
+          observacao_geral?: string | null
+          planejamento_id: string
+          responsavel_funcao_snapshot?: string | null
+          responsavel_funcionario_id?: string | null
+          responsavel_nome_snapshot?: string | null
+          responsavel_profile_id?: string | null
+          semana_fim?: string | null
+          semana_inicio?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          cancelado_em?: string | null
+          cancelado_por?: string | null
+          cancelamento_motivo?: string | null
+          centro_custo_id?: string
+          created_at?: string
+          criado_por?: string | null
+          data_ordem?: string
+          emitido_em?: string | null
+          emitido_por?: string | null
+          id?: string
+          observacao_geral?: string | null
+          planejamento_id?: string
+          responsavel_funcao_snapshot?: string | null
+          responsavel_funcionario_id?: string | null
+          responsavel_nome_snapshot?: string | null
+          responsavel_profile_id?: string | null
+          semana_fim?: string | null
+          semana_inicio?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_cancelado_por_fkey"
+            columns: ["cancelado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_cancelado_por_fkey"
+            columns: ["cancelado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_cancelado_por_fkey"
+            columns: ["cancelado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_emitido_por_fkey"
+            columns: ["emitido_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_emitido_por_fkey"
+            columns: ["emitido_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_emitido_por_fkey"
+            columns: ["emitido_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_planejamento_id_fkey"
+            columns: ["planejamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_planejamentos_obra"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_responsavel_funcionario_id_fkey"
+            columns: ["responsavel_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_responsavel_funcionario_id_fkey"
+            columns: ["responsavel_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_responsavel_funcionario_id_fkey"
+            columns: ["responsavel_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_responsavel_profile_id_fkey"
+            columns: ["responsavel_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_responsavel_profile_id_fkey"
+            columns: ["responsavel_profile_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_responsavel_profile_id_fkey"
+            columns: ["responsavel_profile_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_ordens_diarias_obra_itens: {
+        Row: {
+          atividade_id: string | null
+          atividade_is_critica_snapshot: boolean
+          atividade_quantidade_planejada_snapshot: number | null
+          atividade_unidade_medida_snapshot: string | null
+          codigo_eap_snapshot: string | null
+          created_at: string
+          equipamentos_snapshot: Json
+          equipe_snapshot: Json
+          fonte_progresso_snapshot: string | null
+          frente_servico_snapshot: string | null
+          id: string
+          materiais_snapshot: Json
+          nome_atividade_snapshot: string
+          observacao_item: string | null
+          ordem_execucao: number | null
+          ordem_id: string
+          pendencias_snapshot: Json
+          percentual_snapshot: number | null
+          responsavel_item_funcao_snapshot: string | null
+          responsavel_item_funcionario_id: string | null
+          responsavel_item_nome_snapshot: string | null
+          responsavel_item_profile_id: string | null
+          status_atividade_snapshot: string | null
+          updated_at: string
+        }
+        Insert: {
+          atividade_id?: string | null
+          atividade_is_critica_snapshot?: boolean
+          atividade_quantidade_planejada_snapshot?: number | null
+          atividade_unidade_medida_snapshot?: string | null
+          codigo_eap_snapshot?: string | null
+          created_at?: string
+          equipamentos_snapshot?: Json
+          equipe_snapshot?: Json
+          fonte_progresso_snapshot?: string | null
+          frente_servico_snapshot?: string | null
+          id?: string
+          materiais_snapshot?: Json
+          nome_atividade_snapshot: string
+          observacao_item?: string | null
+          ordem_execucao?: number | null
+          ordem_id: string
+          pendencias_snapshot?: Json
+          percentual_snapshot?: number | null
+          responsavel_item_funcao_snapshot?: string | null
+          responsavel_item_funcionario_id?: string | null
+          responsavel_item_nome_snapshot?: string | null
+          responsavel_item_profile_id?: string | null
+          status_atividade_snapshot?: string | null
+          updated_at?: string
+        }
+        Update: {
+          atividade_id?: string | null
+          atividade_is_critica_snapshot?: boolean
+          atividade_quantidade_planejada_snapshot?: number | null
+          atividade_unidade_medida_snapshot?: string | null
+          codigo_eap_snapshot?: string | null
+          created_at?: string
+          equipamentos_snapshot?: Json
+          equipe_snapshot?: Json
+          fonte_progresso_snapshot?: string | null
+          frente_servico_snapshot?: string | null
+          id?: string
+          materiais_snapshot?: Json
+          nome_atividade_snapshot?: string
+          observacao_item?: string | null
+          ordem_execucao?: number | null
+          ordem_id?: string
+          pendencias_snapshot?: Json
+          percentual_snapshot?: number | null
+          responsavel_item_funcao_snapshot?: string | null
+          responsavel_item_funcionario_id?: string | null
+          responsavel_item_nome_snapshot?: string | null
+          responsavel_item_profile_id?: string | null
+          status_atividade_snapshot?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_itens_atividade_id_fkey"
+            columns: ["atividade_id"]
+            isOneToOne: false
+            referencedRelation: "bd_planejamento_atividades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_itens_ordem_id_fkey"
+            columns: ["ordem_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ordens_diarias_obra"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_itens_responsavel_item_funcionario__fkey"
+            columns: ["responsavel_item_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_itens_responsavel_item_funcionario__fkey"
+            columns: ["responsavel_item_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_itens_responsavel_item_funcionario__fkey"
+            columns: ["responsavel_item_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_itens_responsavel_item_profile_id_fkey"
+            columns: ["responsavel_item_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_itens_responsavel_item_profile_id_fkey"
+            columns: ["responsavel_item_profile_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_itens_responsavel_item_profile_id_fkey"
+            columns: ["responsavel_item_profile_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_ordens_servico: {
         Row: {
           caminhao_equipamento_id: string | null
@@ -7482,6 +7883,572 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_rbac_permissions_safe"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_planejamento_atividade_equipe: {
+        Row: {
+          atividade_id: string
+          centro_custo_id: string
+          centro_custo_origem_id: string
+          created_at: string
+          criado_por: string | null
+          dias_previstos: number | null
+          funcao_id: string | null
+          funcionario_id: string
+          horas_previstas: number | null
+          id: string
+          modificado_por: string | null
+          observacao: string | null
+          papel_na_tarefa: Database["public"]["Enums"]["papel_equipe_tarefa"]
+          planejamento_id: string
+          semana_fim: string
+          semana_inicio: string
+          status: Database["public"]["Enums"]["status_equipe_designada"]
+          tipo_alocacao: Database["public"]["Enums"]["tipo_alocacao_equipe"]
+          updated_at: string
+        }
+        Insert: {
+          atividade_id: string
+          centro_custo_id: string
+          centro_custo_origem_id: string
+          created_at?: string
+          criado_por?: string | null
+          dias_previstos?: number | null
+          funcao_id?: string | null
+          funcionario_id: string
+          horas_previstas?: number | null
+          id?: string
+          modificado_por?: string | null
+          observacao?: string | null
+          papel_na_tarefa?: Database["public"]["Enums"]["papel_equipe_tarefa"]
+          planejamento_id: string
+          semana_fim: string
+          semana_inicio: string
+          status?: Database["public"]["Enums"]["status_equipe_designada"]
+          tipo_alocacao: Database["public"]["Enums"]["tipo_alocacao_equipe"]
+          updated_at?: string
+        }
+        Update: {
+          atividade_id?: string
+          centro_custo_id?: string
+          centro_custo_origem_id?: string
+          created_at?: string
+          criado_por?: string | null
+          dias_previstos?: number | null
+          funcao_id?: string | null
+          funcionario_id?: string
+          horas_previstas?: number | null
+          id?: string
+          modificado_por?: string | null
+          observacao?: string | null
+          papel_na_tarefa?: Database["public"]["Enums"]["papel_equipe_tarefa"]
+          planejamento_id?: string
+          semana_fim?: string
+          semana_inicio?: string
+          status?: Database["public"]["Enums"]["status_equipe_designada"]
+          tipo_alocacao?: Database["public"]["Enums"]["tipo_alocacao_equipe"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_atividade_id_fkey"
+            columns: ["atividade_id"]
+            isOneToOne: false
+            referencedRelation: "bd_planejamento_atividades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcoes_publicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_planejamento_id_fkey"
+            columns: ["planejamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_planejamentos_obra"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_planejamento_atividades: {
+        Row: {
+          arquivo_origem_nome: string | null
+          codigo_wbs: string | null
+          created_at: string
+          criado_por: string | null
+          data_fim: string
+          data_inicio: string
+          descricao: string | null
+          duracao_horas: number | null
+          fonte_progresso: string | null
+          frente_servico: string | null
+          id: string
+          id_externo: string | null
+          is_critica: boolean
+          is_marco: boolean
+          is_resumo: boolean
+          nome: string
+          nome_resumo: string | null
+          ordem_execucao: number | null
+          outline_level: number | null
+          outline_number: string | null
+          percentual_concluido_importado: number | null
+          percentual_manual: number | null
+          percentual_manual_atualizado_em: string | null
+          percentual_manual_atualizado_por: string | null
+          percentual_manual_observacao: string | null
+          planejamento_id: string
+          prioridade: string | null
+          producao_prevista: number | null
+          quantidade_origem: string | null
+          quantidade_prevista: number | null
+          status: string
+          trabalho_previsto_horas: number | null
+          uid_externo: string | null
+          unidade: string | null
+          updated_at: string
+        }
+        Insert: {
+          arquivo_origem_nome?: string | null
+          codigo_wbs?: string | null
+          created_at?: string
+          criado_por?: string | null
+          data_fim: string
+          data_inicio: string
+          descricao?: string | null
+          duracao_horas?: number | null
+          fonte_progresso?: string | null
+          frente_servico?: string | null
+          id?: string
+          id_externo?: string | null
+          is_critica?: boolean
+          is_marco?: boolean
+          is_resumo?: boolean
+          nome: string
+          nome_resumo?: string | null
+          ordem_execucao?: number | null
+          outline_level?: number | null
+          outline_number?: string | null
+          percentual_concluido_importado?: number | null
+          percentual_manual?: number | null
+          percentual_manual_atualizado_em?: string | null
+          percentual_manual_atualizado_por?: string | null
+          percentual_manual_observacao?: string | null
+          planejamento_id: string
+          prioridade?: string | null
+          producao_prevista?: number | null
+          quantidade_origem?: string | null
+          quantidade_prevista?: number | null
+          status?: string
+          trabalho_previsto_horas?: number | null
+          uid_externo?: string | null
+          unidade?: string | null
+          updated_at?: string
+        }
+        Update: {
+          arquivo_origem_nome?: string | null
+          codigo_wbs?: string | null
+          created_at?: string
+          criado_por?: string | null
+          data_fim?: string
+          data_inicio?: string
+          descricao?: string | null
+          duracao_horas?: number | null
+          fonte_progresso?: string | null
+          frente_servico?: string | null
+          id?: string
+          id_externo?: string | null
+          is_critica?: boolean
+          is_marco?: boolean
+          is_resumo?: boolean
+          nome?: string
+          nome_resumo?: string | null
+          ordem_execucao?: number | null
+          outline_level?: number | null
+          outline_number?: string | null
+          percentual_concluido_importado?: number | null
+          percentual_manual?: number | null
+          percentual_manual_atualizado_em?: string | null
+          percentual_manual_atualizado_por?: string | null
+          percentual_manual_observacao?: string | null
+          planejamento_id?: string
+          prioridade?: string | null
+          producao_prevista?: number | null
+          quantidade_origem?: string | null
+          quantidade_prevista?: number | null
+          status?: string
+          trabalho_previsto_horas?: number | null
+          uid_externo?: string | null
+          unidade?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_planejamento_atividades_planejamento_id_fkey"
+            columns: ["planejamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_planejamentos_obra"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_planejamento_recursos: {
+        Row: {
+          atividade_id: string
+          atividade_uid_externo: string | null
+          created_at: string
+          criado_por: string | null
+          data_necessaria_fim: string | null
+          data_necessaria_inicio: string | null
+          descricao: string
+          dias_previstos: number | null
+          familia: string | null
+          funcao_id: string | null
+          grupo: string | null
+          horas_previstas: number | null
+          id: string
+          observacao: string | null
+          planejamento_id: string
+          quantidade_prevista: number
+          recurso_uid_externo: string | null
+          status_origem: string
+          tipo_equipamento_id: string | null
+          tipo_recurso: string
+          unidade: string | null
+          updated_at: string
+        }
+        Insert: {
+          atividade_id: string
+          atividade_uid_externo?: string | null
+          created_at?: string
+          criado_por?: string | null
+          data_necessaria_fim?: string | null
+          data_necessaria_inicio?: string | null
+          descricao: string
+          dias_previstos?: number | null
+          familia?: string | null
+          funcao_id?: string | null
+          grupo?: string | null
+          horas_previstas?: number | null
+          id?: string
+          observacao?: string | null
+          planejamento_id: string
+          quantidade_prevista: number
+          recurso_uid_externo?: string | null
+          status_origem?: string
+          tipo_equipamento_id?: string | null
+          tipo_recurso: string
+          unidade?: string | null
+          updated_at?: string
+        }
+        Update: {
+          atividade_id?: string
+          atividade_uid_externo?: string | null
+          created_at?: string
+          criado_por?: string | null
+          data_necessaria_fim?: string | null
+          data_necessaria_inicio?: string | null
+          descricao?: string
+          dias_previstos?: number | null
+          familia?: string | null
+          funcao_id?: string | null
+          grupo?: string | null
+          horas_previstas?: number | null
+          id?: string
+          observacao?: string | null
+          planejamento_id?: string
+          quantidade_prevista?: number
+          recurso_uid_externo?: string | null
+          status_origem?: string
+          tipo_equipamento_id?: string | null
+          tipo_recurso?: string
+          unidade?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_planejamento_recursos_atividade_id_fkey"
+            columns: ["atividade_id"]
+            isOneToOne: false
+            referencedRelation: "bd_planejamento_atividades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_recursos_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_recursos_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcoes_publicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_recursos_planejamento_id_fkey"
+            columns: ["planejamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_planejamentos_obra"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_recursos_tipo_equipamento_id_fkey"
+            columns: ["tipo_equipamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_tipos_equipamento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_planejamentos_obra: {
+        Row: {
+          aprovado_em: string | null
+          aprovado_por: string | null
+          centro_custo_id: string
+          created_at: string
+          criado_por: string | null
+          id: string
+          observacao: string | null
+          origem: string
+          periodo_fim: string
+          periodo_inicio: string
+          status: string
+          updated_at: string
+          versao: number
+        }
+        Insert: {
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          centro_custo_id: string
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          observacao?: string | null
+          origem?: string
+          periodo_fim: string
+          periodo_inicio: string
+          status?: string
+          updated_at?: string
+          versao?: number
+        }
+        Update: {
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          centro_custo_id?: string
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          observacao?: string | null
+          origem?: string
+          periodo_fim?: string
+          periodo_inicio?: string
+          status?: string
+          updated_at?: string
+          versao?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_planejamentos_obra_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_planejamentos_obra_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamentos_obra_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamentos_obra_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamentos_obra_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamentos_obra_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamentos_obra_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamentos_obra_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
           },
         ]
       }
@@ -11093,6 +12060,69 @@ export type Database = {
           },
         ]
       }
+<<<<<<< HEAD
+=======
+      bd_solicitacoes_classificacao: {
+        Row: {
+          cancelado_em: string | null
+          cancelado_por: string | null
+          created_at: string
+          created_by: string
+          data_solicitacao: string
+          diretor_area_nome_snapshot: string | null
+          diretoria_financeira_nome_snapshot: string | null
+          gerente_area_nome_snapshot: string | null
+          id: string
+          motivo_cancelamento: string | null
+          observacoes: string | null
+          protocolo: string
+          solicitante_id: string
+          solicitante_nome_snapshot: string | null
+          status: string
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          cancelado_em?: string | null
+          cancelado_por?: string | null
+          created_at?: string
+          created_by?: string
+          data_solicitacao?: string
+          diretor_area_nome_snapshot?: string | null
+          diretoria_financeira_nome_snapshot?: string | null
+          gerente_area_nome_snapshot?: string | null
+          id?: string
+          motivo_cancelamento?: string | null
+          observacoes?: string | null
+          protocolo: string
+          solicitante_id?: string
+          solicitante_nome_snapshot?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Update: {
+          cancelado_em?: string | null
+          cancelado_por?: string | null
+          created_at?: string
+          created_by?: string
+          data_solicitacao?: string
+          diretor_area_nome_snapshot?: string | null
+          diretoria_financeira_nome_snapshot?: string | null
+          gerente_area_nome_snapshot?: string | null
+          id?: string
+          motivo_cancelamento?: string | null
+          observacoes?: string | null
+          protocolo?: string
+          solicitante_id?: string
+          solicitante_nome_snapshot?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: []
+      }
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
       bd_solicitacoes_desligamento: {
         Row: {
           created_at: string
@@ -18580,6 +19610,71 @@ export type Database = {
           centro_custo_id: string
         }[]
       }
+<<<<<<< HEAD
+=======
+      fn_atualizar_ordem_diaria_rascunho: {
+        Args: {
+          p_atividade_ids: string[]
+          p_observacao_geral: string
+          p_observacao_por_item: Json
+          p_ordem_id: string
+          p_responsaveis_por_item?: Json
+          p_responsavel_funcionario_id: string
+          p_responsavel_profile_id: string
+        }
+        Returns: undefined
+      }
+      fn_atualizar_progresso_manual_atividade: {
+        Args: {
+          p_atividade_id: string
+          p_observacao: string
+          p_percentual: number
+        }
+        Returns: {
+          arquivo_origem_nome: string | null
+          codigo_wbs: string | null
+          created_at: string
+          criado_por: string | null
+          data_fim: string
+          data_inicio: string
+          descricao: string | null
+          duracao_horas: number | null
+          fonte_progresso: string | null
+          frente_servico: string | null
+          id: string
+          id_externo: string | null
+          is_critica: boolean
+          is_marco: boolean
+          is_resumo: boolean
+          nome: string
+          nome_resumo: string | null
+          ordem_execucao: number | null
+          outline_level: number | null
+          outline_number: string | null
+          percentual_concluido_importado: number | null
+          percentual_manual: number | null
+          percentual_manual_atualizado_em: string | null
+          percentual_manual_atualizado_por: string | null
+          percentual_manual_observacao: string | null
+          planejamento_id: string
+          prioridade: string | null
+          producao_prevista: number | null
+          quantidade_origem: string | null
+          quantidade_prevista: number | null
+          status: string
+          trabalho_previsto_horas: number | null
+          uid_externo: string | null
+          unidade: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bd_planejamento_atividades"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
       fn_audit_sensitive_read: {
         Args: {
           p_campos?: string[]
@@ -18761,6 +19856,10 @@ export type Database = {
         Args: { p_funcionario_id?: string }
         Returns: boolean
       }
+      fn_can_manage_diaria_calendario: {
+        Args: { _user_id: string }
+        Returns: boolean
+      }
       fn_can_manage_permission_catalog: {
         Args: { p_user_id?: string }
         Returns: boolean
@@ -18773,6 +19872,10 @@ export type Database = {
         Args: { p_permission_id: string; p_user_id?: string }
         Returns: boolean
       }
+      fn_can_view_ordem_diaria_item_campo: {
+        Args: { _item: string; _user: string }
+        Returns: boolean
+      }
       fn_can_view_permission_admin: {
         Args: { p_user_id?: string }
         Returns: boolean
@@ -18781,6 +19884,13 @@ export type Database = {
         Args: { p_id: string }
         Returns: undefined
       }
+<<<<<<< HEAD
+=======
+      fn_cancelar_ordem_diaria: {
+        Args: { p_motivo: string; p_ordem_id: string }
+        Returns: undefined
+      }
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
       fn_check_email_autorizado: {
         Args: { _email: string }
         Returns: {
@@ -18801,10 +19911,97 @@ export type Database = {
         Args: { p_target_user_id: string }
         Returns: undefined
       }
+      fn_corrigir_quantitativo_atividade: {
+        Args: {
+          p_atividade_id: string
+          p_observacao?: string
+          p_quantidade_prevista: number
+          p_unidade: string
+        }
+        Returns: {
+          arquivo_origem_nome: string | null
+          codigo_wbs: string | null
+          created_at: string
+          criado_por: string | null
+          data_fim: string
+          data_inicio: string
+          descricao: string | null
+          duracao_horas: number | null
+          fonte_progresso: string | null
+          frente_servico: string | null
+          id: string
+          id_externo: string | null
+          is_critica: boolean
+          is_marco: boolean
+          is_resumo: boolean
+          nome: string
+          nome_resumo: string | null
+          ordem_execucao: number | null
+          outline_level: number | null
+          outline_number: string | null
+          percentual_concluido_importado: number | null
+          percentual_manual: number | null
+          percentual_manual_atualizado_em: string | null
+          percentual_manual_atualizado_por: string | null
+          percentual_manual_observacao: string | null
+          planejamento_id: string
+          prioridade: string | null
+          producao_prevista: number | null
+          quantidade_origem: string | null
+          quantidade_prevista: number | null
+          status: string
+          trabalho_previsto_horas: number | null
+          uid_externo: string | null
+          unidade: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bd_planejamento_atividades"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      fn_designar_equipe_atividade: {
+        Args: {
+          p_atividade_id: string
+          p_dias?: number
+          p_funcao_id: string
+          p_funcionario_id: string
+          p_horas?: number
+          p_observacao?: string
+          p_papel: Database["public"]["Enums"]["papel_equipe_tarefa"]
+          p_semana_fim: string
+          p_semana_inicio: string
+        }
+        Returns: string
+      }
       fn_desvio_can_select_row: {
         Args: { p_criado_por: string; p_obra_id: string }
         Returns: boolean
       }
+<<<<<<< HEAD
+=======
+      fn_detectar_conflito_designacao: {
+        Args: {
+          p_cc_atividade?: string
+          p_funcionario_id: string
+          p_ignorar_id?: string
+          p_semana_fim: string
+          p_semana_inicio: string
+        }
+        Returns: {
+          atividade_id: string
+          centro_custo_id: string
+          id: string
+          motivo: string
+          semana_fim: string
+          semana_inicio: string
+          tem_escopo: boolean
+          tipo_conflito: string
+        }[]
+      }
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
       fn_diaria_aditivos_pendentes_escopo: {
         Args: { p_solicitacao_ids: string[] }
         Returns: {
@@ -18902,10 +20099,32 @@ export type Database = {
         Args: { p_id: string; p_salario_atual?: number; p_salario_novo: number }
         Returns: string
       }
+<<<<<<< HEAD
+=======
+      fn_emitir_ordem_diaria: {
+        Args: { p_ordem_id: string }
+        Returns: undefined
+      }
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
       fn_funcionarios_can_select_row: {
         Args: { p_funcionario_id: string; p_user_id: string }
         Returns: boolean
       }
+<<<<<<< HEAD
+=======
+      fn_gerar_ordem_diaria_rascunho: {
+        Args: {
+          p_atividade_ids: string[]
+          p_data_ordem: string
+          p_observacao_geral: string
+          p_planejamento_id: string
+          p_responsaveis_por_item?: Json
+          p_responsavel_funcionario_id: string
+          p_responsavel_profile_id: string
+        }
+        Returns: string
+      }
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
       fn_get_classificacao_reimpressao_payload: {
         Args: { p_solicitacao_id: string }
         Returns: {
@@ -18968,6 +20187,10 @@ export type Database = {
         Args: { p_acoes: string[]; p_codigo: string; p_user_id: string }
         Returns: boolean
       }
+      fn_has_ordem_diaria_campo_access: {
+        Args: { _user: string }
+        Returns: boolean
+      }
       fn_has_permission: {
         Args: { p_nome_permissao: string; p_user_id?: string }
         Returns: boolean
@@ -18977,7 +20200,40 @@ export type Database = {
         Returns: boolean
       }
       fn_hash_sensitive_value: { Args: { p_value: string }; Returns: string }
+      fn_is_responsavel_item_ordem_diaria: {
+        Args: { _ordem: string; _user: string }
+        Returns: boolean
+      }
+      fn_is_responsavel_ordem_diaria: {
+        Args: { _ordem: string; _user: string }
+        Returns: boolean
+      }
       fn_is_super_admin: { Args: { p_user_id?: string }; Returns: boolean }
+      fn_listar_funcionarios_disponiveis_designacao: {
+        Args: {
+          p_atividade_id: string
+          p_busca?: string
+          p_incluir_outros_cc?: boolean
+          p_semana_fim?: string
+          p_semana_inicio?: string
+        }
+        Returns: {
+          centro_custo_id: string
+          codigo_centro_custo: string
+          cpf_mascarado: string
+          funcao_id: string
+          funcionario_id: string
+          matricula: string
+          motivo_conflito: string
+          nome_centro_custo: string
+          nome_completo: string
+          nome_funcao: string
+          status: string
+          tem_conflito_diaria_outro_cc: boolean
+          tem_conflito_diaria_previsto: boolean
+          tem_conflito_equipe: boolean
+        }[]
+      }
       fn_log_sensitive_read: {
         Args: {
           p_contexto?: Json
@@ -19019,6 +20275,17 @@ export type Database = {
       fn_logistica_current_funcionario_id: { Args: never; Returns: string }
       fn_logistica_is_privileged_user: { Args: never; Returns: boolean }
       fn_normalize_role_name: { Args: { p_nome: string }; Returns: string }
+      fn_ordem_diaria_build_item_snapshot: {
+        Args: { p_atividade_id: string }
+        Returns: Json
+      }
+      fn_ordem_diaria_resolver_responsavel: {
+        Args: { p_funcionario_id: string; p_profile_id: string }
+        Returns: {
+          funcao: string
+          nome: string
+        }[]
+      }
       fn_os_can_access_chamado: {
         Args: { _chamado_id: string }
         Returns: boolean
@@ -19048,6 +20315,10 @@ export type Database = {
       fn_permission_is_protected: {
         Args: { p_permission_id: string }
         Returns: boolean
+      }
+      fn_planejamento_scope_centros_custo: {
+        Args: { p_user_id?: string }
+        Returns: string[]
       }
       fn_pncp_can_access_sync_log_row: {
         Args: { p_row_user_id: string; p_user_id?: string }
@@ -19715,6 +20986,13 @@ export type Database = {
         | "api_interna"
         | "trigger_db"
       origem_localizacao_enum: "CENTRO_CUSTO" | "MANUAL" | "TELEMETRIA"
+      papel_equipe_tarefa:
+        | "execucao"
+        | "apoio"
+        | "encarregado"
+        | "mestre"
+        | "responsavel_tecnico"
+        | "apontador"
       ponto_modo_registro: "pwa_pessoal" | "totem" | "dispositivo_obra"
       ponto_status_sync: "sincronizado" | "pendente_sync" | "erro_sync"
       ponto_status_validacao:
@@ -19729,6 +21007,11 @@ export type Database = {
         | "saida"
       ponto_tipo_vinculo: "fixo" | "temporario" | "mobilizado" | "compartilhado"
       prioridade_solicitacao_enum: "NORMAL" | "ALTA" | "URGENTE"
+      status_equipe_designada:
+        | "rascunho"
+        | "confirmado"
+        | "substituido"
+        | "cancelado"
       status_operacional_enum:
         | "DISPONIVEL"
         | "ALOCADO"
@@ -19739,6 +21022,7 @@ export type Database = {
         | "EM_ANALISE"
         | "ATENDIDO"
         | "NEGADO"
+      tipo_alocacao_equipe: "proprio_cc" | "emprestado_outra_obra"
       tipo_evento_auditoria_biometria:
         | "biometria_cadastrada"
         | "biometria_substituida"
@@ -19897,6 +21181,14 @@ export const Constants = {
         "trigger_db",
       ],
       origem_localizacao_enum: ["CENTRO_CUSTO", "MANUAL", "TELEMETRIA"],
+      papel_equipe_tarefa: [
+        "execucao",
+        "apoio",
+        "encarregado",
+        "mestre",
+        "responsavel_tecnico",
+        "apontador",
+      ],
       ponto_modo_registro: ["pwa_pessoal", "totem", "dispositivo_obra"],
       ponto_status_sync: ["sincronizado", "pendente_sync", "erro_sync"],
       ponto_status_validacao: [
@@ -19913,6 +21205,12 @@ export const Constants = {
       ],
       ponto_tipo_vinculo: ["fixo", "temporario", "mobilizado", "compartilhado"],
       prioridade_solicitacao_enum: ["NORMAL", "ALTA", "URGENTE"],
+      status_equipe_designada: [
+        "rascunho",
+        "confirmado",
+        "substituido",
+        "cancelado",
+      ],
       status_operacional_enum: [
         "DISPONIVEL",
         "ALOCADO",
@@ -19925,6 +21223,7 @@ export const Constants = {
         "ATENDIDO",
         "NEGADO",
       ],
+      tipo_alocacao_equipe: ["proprio_cc", "emprestado_outra_obra"],
       tipo_evento_auditoria_biometria: [
         "biometria_cadastrada",
         "biometria_substituida",

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
@@ -13,7 +13,7 @@ import { getCentrosCustoDropdown } from "@/services/veiculo/dropdownsRelacional"
 import { useQuery } from "@tanstack/react-query";
 import { Combobox } from "@/components/ui/combobox";
 import { supabase } from "@/integrations/supabase/client";
-import { Shield, Plus, Pencil, Trash2, Package, ChevronRight, ChevronLeft, Check } from "lucide-react";
+import { Shield, Plus, Pencil, Trash2, Package, ChevronRight, ChevronLeft, Check, Info, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import ItemBuilderSubForm from "./ItemBuilderSubForm";
 import { SolicitacaoItemInsert, REGIME_LABELS, RegimeTrabalho } from "@/services/solicitacaoItensService";
@@ -43,10 +43,14 @@ interface Props {
   onClose: () => void;
   onSubmit: (data: SolicitacaoEquipamentoInsert, itens: SolicitacaoItemInsert[]) => Promise<void>;
   isSubmitting: boolean;
+  initialCentroCustoId?: string | null;
+  initialOrigem?: "planejamento_macro" | null;
 }
 
-const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onSubmit, isSubmitting }) => {
+const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onSubmit, isSubmitting, initialCentroCustoId, initialOrigem }) => {
   const [step, setStep] = useState<Step>("dados");
+  const [ccPreenchidoAuto, setCcPreenchidoAuto] = useState(false);
+  const [ccSugeridoNaoEncontrado, setCcSugeridoNaoEncontrado] = useState(false);
 
   const { data: centrosCusto = [] } = useQuery({
     queryKey: ["centros-custo-dropdown"],
@@ -98,6 +102,7 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
   const [showSubForm, setShowSubForm] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [itensError, setItensError] = useState("");
+  const sugestaoAplicadaRef = useRef(false);
 
   const form = useForm({
     resolver: zodResolver(schema),
@@ -131,8 +136,33 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
       setEditingIndex(null);
       setItensError("");
       setStep("dados");
+      setCcPreenchidoAuto(false);
+      setCcSugeridoNaoEncontrado(false);
+      sugestaoAplicadaRef.current = false;
     }
   }, [isOpen]);
+
+  // Pré-preenche Centro de Custo a partir do Planejamento Macro — UMA ÚNICA VEZ por abertura
+  // e nunca sobrescreve escolha manual do usuário.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (initialOrigem !== "planejamento_macro") return;
+    if (!initialCentroCustoId) return;
+    if (centrosCusto.length === 0) return;
+    if (sugestaoAplicadaRef.current) return;
+    if (form.getValues("centro_custo_id")) return;
+
+    const existe = centrosCusto.some((cc: any) => cc.id === initialCentroCustoId);
+    if (existe) {
+      form.setValue("centro_custo_id", initialCentroCustoId, { shouldValidate: true });
+      setCcPreenchidoAuto(true);
+      setCcSugeridoNaoEncontrado(false);
+    } else {
+      setCcPreenchidoAuto(false);
+      setCcSugeridoNaoEncontrado(true);
+    }
+    sugestaoAplicadaRef.current = true;
+  }, [isOpen, initialOrigem, initialCentroCustoId, centrosCusto]);
 
   const ccOptions = useMemo(() =>
     centrosCusto.map((cc) => ({
@@ -264,15 +294,38 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
             {/* STEP 1 — Dados */}
             {step === "dados" && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField control={form.control} name="centro_custo_id" render={({ field }) => (
-                  <FormItem className="col-span-2">
-                    <FormLabel>Centro de Custo *</FormLabel>
-                    <FormControl>
-                      <Combobox options={ccOptions} value={field.value} onChange={field.onChange} placeholder="Selecione o centro de custo" searchPlaceholder="Buscar..." emptyText="Nenhum encontrado" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
+                <FormField control={form.control} name="centro_custo_id" render={({ field }) => {
+                  const ccBloqueadoPorOrigem = initialOrigem === "planejamento_macro" && ccPreenchidoAuto;
+                  return (
+                    <FormItem className="col-span-2">
+                      <FormLabel>Centro de Custo *</FormLabel>
+                      <FormControl>
+                        <Combobox
+                          options={ccOptions}
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder="Selecione o centro de custo"
+                          searchPlaceholder="Buscar..."
+                          emptyText="Nenhum encontrado"
+                          disabled={ccBloqueadoPorOrigem}
+                        />
+                      </FormControl>
+                      {ccBloqueadoPorOrigem && (
+                        <p className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
+                          <Info className="h-3.5 w-3.5 text-primary" />
+                          Centro de Custo definido pelo Planejamento Macro. Para solicitar para outro Centro de Custo, inicie uma nova solicitação pelo fluxo normal.
+                        </p>
+                      )}
+                      {ccSugeridoNaoEncontrado && (
+                        <p className="flex items-center gap-1.5 text-xs text-destructive mt-1">
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          Não foi possível aplicar automaticamente o Centro de Custo informado pelo Planejamento Macro. Selecione manualmente.
+                        </p>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }} />
 
                 {centroCustoId && (
                   <div className="col-span-2 flex items-center gap-2 rounded-md border border-dashed p-3 bg-muted/30">

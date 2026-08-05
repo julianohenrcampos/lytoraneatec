@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import React, { useState, useMemo } from 'react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import MainLayout from '@/components/layout/MainLayout';
@@ -148,6 +149,19 @@ const GestaoDesligamentos = () => {
     });
   };
 
+=======
+import React from 'react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
+import MainLayout from '@/components/layout/MainLayout';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ArrowLeftRight, ListChecks, Users } from 'lucide-react';
+import DesligamentosSection from '@/components/desligamento/sections/DesligamentosSection';
+import SolicitacoesDesligamentoSection from '@/components/desligamento/sections/SolicitacoesDesligamentoSection';
+import SolicitacoesTransferenciaSection from '@/components/desligamento/sections/SolicitacoesTransferenciaSection';
+
+const GestaoDesligamentos = () => {
+  usePageTitle('Gestão de Desligamentos');
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -163,6 +177,7 @@ const GestaoDesligamentos = () => {
               <ArrowLeftRight className="h-4 w-4" /> Solicitações de Transferência
             </TabsTrigger>
           </TabsList>
+<<<<<<< HEAD
 
           {/* Aba 1 — Desligamentos efetivados / em andamento (lista atual) */}
           <TabsContent value="desligamentos" className="space-y-6 mt-4">
@@ -383,6 +398,18 @@ const GestaoDesligamentos = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+=======
+          <TabsContent value="desligamentos" className="mt-4">
+            <DesligamentosSection />
+          </TabsContent>
+          <TabsContent value="solicitacoes" className="mt-4">
+            <SolicitacoesDesligamentoSection />
+          </TabsContent>
+          <TabsContent value="transferencia" className="mt-4">
+            <SolicitacoesTransferenciaSection />
+          </TabsContent>
+        </Tabs>
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
       </div>
     </MainLayout>
   );

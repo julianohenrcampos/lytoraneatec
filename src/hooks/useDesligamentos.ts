@@ -2,14 +2,42 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Desligamento, DesligamentoFormData } from '@/types/desligamento';
+import { useRhSecurity } from '@/hooks/dashboard/useRhSecurity';
 
 export const useDesligamentos = () => {
   const queryClient = useQueryClient();
+  const {
+    canViewAllData,
+    shouldFilterByCentroCusto,
+    centroCustoIds = [],
+    isLoading: isSecurityLoading,
+  } = useRhSecurity();
 
   const { data: desligamentos = [], isLoading } = useQuery({
-    queryKey: ['desligamentos'],
+    // Inclui escopo na key para refazer fetch quando o contexto mudar
+    queryKey: ['desligamentos', canViewAllData ? '__all__' : centroCustoIds.join(',')],
+    enabled: !isSecurityLoading,
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fail-closed: usuário sem escopo nem acesso global → lista vazia.
+      // bd_desligamentos NÃO tem centro_custo_id; filtro precisa ir por funcionário.
+      let allowedFuncIds: string[] | null = null;
+      if (!canViewAllData) {
+        if (shouldFilterByCentroCusto) {
+          if (centroCustoIds.length === 0) return [] as Desligamento[];
+          const { data: funcsScope, error: errFs } = await supabase
+            .from('bd_funcionarios')
+            .select('id')
+            .in('centro_custo_id', centroCustoIds);
+          if (errFs) throw errFs;
+          allowedFuncIds = (funcsScope || []).map((f: any) => f.id);
+          if (allowedFuncIds.length === 0) return [] as Desligamento[];
+        } else {
+          // Sem flag de filtro e sem acesso global = fail-closed
+          return [] as Desligamento[];
+        }
+      }
+
+      let qDesl = supabase
         .from('bd_desligamentos')
         .select(`
           *,
@@ -22,11 +50,19 @@ export const useDesligamentos = () => {
           )
         `)
         .order('created_at', { ascending: false });
+      if (allowedFuncIds) {
+        qDesl = qDesl.in('funcionario_id', allowedFuncIds);
+      }
+      const { data, error } = await qDesl;
       if (error) throw error;
       const reais = (data || []) as unknown as Desligamento[];
 
       // Segunda query conservadora: funcionários Inativo/Aviso Prévio
+<<<<<<< HEAD
       // sem registro em bd_desligamentos. Respeita RLS, com limite.
+=======
+      // sem registro em bd_desligamentos. Respeita RLS + escopo.
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
       const cobertosIds = new Set(reais.map(d => d.funcionario_id).filter(Boolean));
       let q = supabase
         .from('bd_funcionarios')
@@ -40,6 +76,12 @@ export const useDesligamentos = () => {
         .in('status', ['Inativo', 'Aviso Prévio'])
         .order('data_desligamento', { ascending: false, nullsFirst: false })
         .limit(500);
+<<<<<<< HEAD
+=======
+      if (!canViewAllData && shouldFilterByCentroCusto) {
+        q = q.in('centro_custo_id', centroCustoIds);
+      }
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
       if (cobertosIds.size > 0) {
         q = q.not('id', 'in', `(${[...cobertosIds].join(',')})`);
       }

@@ -89,8 +89,16 @@ const SSOAgendamentoExames: React.FC = () => {
   const canChangeStatus = isSuperAdmin || hasActionPermission('acesso_sso_agendamento_exames', 'aprovar');
 
   // Bloqueio do botão "Novo Agendamento" por horário das clínicas (relógio do servidor UTC-3).
+<<<<<<< HEAD
   // SuperAdm (acesso_global) bypassa para suporte.
   const { podeAgendar, motivoBloqueio } = useClinicasAbertasAgora(canCreate);
+=======
+  // Aplica-se a TODOS (inclui SuperAdm) — não há bypass por permissão.
+  const location = useLocation();
+  const navigateRoute = useNavigate();
+  const hasClassificacaoState = (location.state as any)?.origem === 'classificacao';
+  const { podeAgendar, motivoBloqueio } = useClinicasAbertasAgora(canCreate || hasClassificacaoState);
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
   const novoAgendamentoDisabled = !podeAgendar;
 
   // Permissões granulares por coluna — todas derivam da mesma permissão base + ação
@@ -105,13 +113,20 @@ const SSOAgendamentoExames: React.FC = () => {
   }, [filters]);
 
   // Consumir state vindo de "Baixar Classificação"
-  const location = useLocation();
-  const navigateRoute = useNavigate();
   useEffect(() => {
     if (classificacaoHandled) return;
     const st: any = location.state;
     if (st?.origem !== 'classificacao') return;
     if (!st.funcionario_payload?.nome) return; // payload incompleto → ignora silenciosamente
+
+    // Gate por horário das clínicas — também se aplica ao fluxo de classificação.
+    if (!podeAgendar) {
+      console.info('[gate-clinicas][classificacao-bloqueada]', { motivoBloqueio });
+      toast.error(motivoBloqueio || 'Agendamento bloqueado: clínicas fechadas no momento.');
+      setClassificacaoHandled(true);
+      navigateRoute(location.pathname, { replace: true, state: null });
+      return;
+    }
 
     setTipoExameSelecionado('Mudança de Risco');
     setFuncionarioSelecionado(st.funcionario_payload as FuncionarioSelecionado);
@@ -125,11 +140,11 @@ const SSOAgendamentoExames: React.FC = () => {
     setClassificacaoHandled(true);
     navigateRoute(location.pathname, { replace: true, state: null });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state, classificacaoHandled]);
+  }, [location.state, classificacaoHandled, podeAgendar]);
 
-  // Filter agendamentos by carteira status
+  // Filter agendamentos by carteira status (Desistência encerra a obrigação → não conta como pendência)
   const agendamentosFiltrados = filterSemPendencia
-    ? agendamentos.filter(a => ['Registrado', 'Revisado'].includes(a.status_carteira || ''))
+    ? agendamentos.filter(a => ['Registrado', 'Revisado', 'Desistencia'].includes(a.status_carteira || ''))
     : agendamentos;
 
   // Handlers para dropdown

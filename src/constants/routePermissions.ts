@@ -36,6 +36,11 @@ export const ROUTE_PERMISSIONS = {
   '/gestao-maquinas/usinas': ['gestao_maquinas_usinas_view'],
   '/gestao-maquinas/relatorio-medicao': ['gestao_maquinas_relatorio_medicao_view'],
   '/gestao-maquinas/dashboard': ['dashboard_maquinas_view'],
+  // Módulo Engenharia oficializado no RBAC com permissão dedicada.
+  // Entrada legacy mantida apontando para a mesma permissão para evitar bypass
+  // em helpers que ainda referenciem a rota antiga (rota em si só faz redirect).
+  '/gestao-maquinas/planejamento-macro': ['engenharia_planejamento_macro_view'],
+  '/engenharia/planejamento-macro': ['engenharia_planejamento_macro_view'],
 
   // Requisições / Logística
   '/registro-aplicacao': ['requisicoes_registro_aplicacao_view'],

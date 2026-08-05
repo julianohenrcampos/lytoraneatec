@@ -34,12 +34,44 @@ function extrairRegrasOperacionais(
   snapshot: unknown,
 ): Record<string, RegraOperacionalPorData> {
   const result: Record<string, RegraOperacionalPorData> = {};
+<<<<<<< HEAD
   if (!snapshot) return result;
   const arr = Array.isArray(snapshot)
     ? snapshot
     : typeof snapshot === 'object'
     ? Object.values(snapshot as Record<string, unknown>)
     : [];
+=======
+  if (!snapshot || typeof snapshot !== 'object') return result;
+
+  // Formato persistido pelo SolicitacaoFormModal:
+  //   { datas: { 'YYYY-MM-DD': { ativa, tipo, descricao, ... } }, observacao, classificacao }
+  const datasMap = (snapshot as Record<string, unknown>).datas;
+  if (datasMap && typeof datasMap === 'object' && !Array.isArray(datasMap)) {
+    for (const [data, regraRaw] of Object.entries(datasMap as Record<string, unknown>)) {
+      if (!data || typeof data !== 'string') continue;
+      const regra = (regraRaw && typeof regraRaw === 'object') ? (regraRaw as Record<string, unknown>) : {};
+      const ativa =
+        regra.ativa === true ||
+        regra.operacional === true ||
+        regra.is_operacional === true ||
+        regra.tipo === 'feriado_ponte_operacional';
+      if (!ativa) continue;
+      // Preserva metadados originais da regra (tipo, descricao, classificacao,
+      // justificativa, ...) para uso futuro em relatório/PDF/auditoria.
+      result[data] = {
+        ...(regra as object),
+        ativa: true,
+      } as RegraOperacionalPorData;
+    }
+    return result;
+  }
+
+  // Fallback legado: array, ou objeto cujos values trazem `data`/`date`.
+  const arr = Array.isArray(snapshot)
+    ? snapshot
+    : Object.values(snapshot as Record<string, unknown>);
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
   for (const item of arr) {
     if (!item || typeof item !== 'object') continue;
     const obj = item as Record<string, unknown>;
@@ -49,7 +81,13 @@ function extrairRegrasOperacionais(
       obj.ativa === true ||
       obj.operacional === true ||
       obj.is_operacional === true;
+<<<<<<< HEAD
     if (ativa) result[data] = { ativa: true };
+=======
+    if (ativa) {
+      result[data] = { ...(obj as object), ativa: true } as RegraOperacionalPorData;
+    }
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
   }
   return result;
 }

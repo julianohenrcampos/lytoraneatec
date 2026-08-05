@@ -232,3 +232,123 @@ export const runMatching = async (solicitacaoId: string) => {
     return null;
   }
 };
+
+// ============================================================================
+// Fase 3 — Leitura para a aba Equipamentos do Planejamento Macro da Obra
+// Somente leitura. Sem alteração em banco/RLS/schema/triggers/functions.
+// ============================================================================
+
+export interface SolicitacaoEquipamentoPlanejamentoItem {
+  id: string;
+  id_curto: string;
+  centro_custo_id: string;
+  solicitante_id: string | null;
+  tipo_equipamento_id: string | null;
+  descricao_tipo_equipamento: string | null;
+  quantidade: number;
+  data_inicio: string;
+  tempo_previsto_dias: number | null;
+  prioridade: "NORMAL" | "ALTA" | "URGENTE";
+  status: "ABERTO" | "EM_ANALISE" | "ATENDIDO" | "NEGADO";
+  status_fluxo: StatusFluxo;
+  status_fluxo_label: string;
+  created_at: string | null;
+}
+
+const BASE_FIELDS = `
+  id,
+  centro_custo_id,
+  solicitante_id,
+  tipo_equipamento_id,
+  quantidade,
+  data_inicio,
+  tempo_previsto_dias,
+  prioridade,
+  status,
+  status_fluxo,
+  created_at
+`;
+
+const mapItem = (item: any): SolicitacaoEquipamentoPlanejamentoItem => {
+  const statusFluxo = (item.status_fluxo ?? "RASCUNHO") as StatusFluxo;
+  return {
+    id: item.id,
+    id_curto: `#${String(item.id ?? "").slice(0, 8)}`,
+    centro_custo_id: item.centro_custo_id,
+    solicitante_id: item.solicitante_id ?? null,
+    tipo_equipamento_id: item.tipo_equipamento_id ?? null,
+    descricao_tipo_equipamento:
+      item.tipo_equipamento?.descricao_padronizada ?? null,
+    quantidade: item.quantidade,
+    data_inicio: item.data_inicio,
+    tempo_previsto_dias: item.tempo_previsto_dias ?? null,
+    prioridade: item.prioridade,
+    status: item.status,
+    status_fluxo: statusFluxo,
+    status_fluxo_label: STATUS_FLUXO_LABELS[statusFluxo] ?? statusFluxo,
+    created_at: item.created_at ?? null,
+  };
+};
+
+export const listarSolicitacoesEquipamentoPorCentroPeriodo = async (params: {
+  centroCustoId: string;
+  dataInicio: string; // YYYY-MM-DD
+  dataFim: string; // YYYY-MM-DD
+}): Promise<SolicitacaoEquipamentoPlanejamentoItem[]> => {
+  const { centroCustoId, dataInicio, dataFim } = params;
+
+  if (!centroCustoId || !dataInicio || !dataFim) return [];
+
+  // Tentativa com join defensivo em bd_tipos_equipamento.
+  const withJoin = await supabase
+    .from("bd_solicitacoes_equipamento")
+    .select(`${BASE_FIELDS}, tipo_equipamento:bd_tipos_equipamento(descricao_padronizada)`)
+    .eq("centro_custo_id", centroCustoId)
+    .gte("data_inicio", dataInicio)
+    .lte("data_inicio", dataFim)
+    .order("data_inicio", { ascending: true })
+    .order("created_at", { ascending: false })
+    .limit(200);
+
+  if (!withJoin.error) {
+    return (withJoin.data ?? []).map(mapItem);
+  }
+
+  // Fallback: relacionamento PostgREST falhou (ex.: PGRST200). Não alterar banco.
+  const code = (withJoin.error as any)?.code;
+  const msg = (withJoin.error as any)?.message ?? "";
+  const isRelError =
+    code === "PGRST200" || /relationship|Could not find a relationship/i.test(msg);
+
+  if (!isRelError) {
+    console.error(
+      "[listarSolicitacoesEquipamentoPorCentroPeriodo] erro:",
+      withJoin.error,
+    );
+    throw withJoin.error;
+  }
+
+  console.warn(
+    "[listarSolicitacoesEquipamentoPorCentroPeriodo] join com bd_tipos_equipamento falhou, aplicando fallback visual.",
+  );
+
+  const fallback = await supabase
+    .from("bd_solicitacoes_equipamento")
+    .select(BASE_FIELDS)
+    .eq("centro_custo_id", centroCustoId)
+    .gte("data_inicio", dataInicio)
+    .lte("data_inicio", dataFim)
+    .order("data_inicio", { ascending: true })
+    .order("created_at", { ascending: false })
+    .limit(200);
+
+  if (fallback.error) {
+    console.error(
+      "[listarSolicitacoesEquipamentoPorCentroPeriodo] fallback falhou:",
+      fallback.error,
+    );
+    throw fallback.error;
+  }
+
+  return (fallback.data ?? []).map(mapItem);
+};

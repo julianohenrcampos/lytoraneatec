@@ -1,6 +1,13 @@
+<<<<<<< HEAD
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+=======
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { algumaClinicaAbertaAgora } from '@/utils/sso/validarJanelaClinica';
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
 
 const DIAS_MAP: Record<number, string> = {
   0: 'Domingo',
@@ -15,6 +22,10 @@ const DIAS_MAP: Record<number, string> = {
 interface ClinicaJanela {
   id: string;
   nome_local: string;
+<<<<<<< HEAD
+=======
+  ativo: boolean | null;
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
   dias_atendimento: string[] | null;
   horario_inicio: string | null;
   horario_fim: string | null;
@@ -27,6 +38,13 @@ interface Resultado {
   isLoading: boolean;
   clinicasAbertas: number;
   totalAtivas: number;
+<<<<<<< HEAD
+=======
+  /** Data/hora atual do servidor (UTC-3) com drift local aplicado. Null enquanto carrega. */
+  nowServer: Date | null;
+  /** Clínicas ativas brutas; usado pelo submit para revalidar o gate. */
+  clinicas: ClinicaJanela[] | null;
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
 }
 
 function parseHora(hhmm: string): number {
@@ -34,6 +52,7 @@ function parseHora(hhmm: string): number {
   return h * 60 + (m || 0);
 }
 
+<<<<<<< HEAD
 function estaAberta(clinica: ClinicaJanela, agora: Date): boolean {
   const dias = clinica.dias_atendimento && clinica.dias_atendimento.length > 0
     ? clinica.dias_atendimento
@@ -49,11 +68,20 @@ function estaAberta(clinica: ClinicaJanela, agora: Date): boolean {
 function calcularProximaAbertura(clinicas: ClinicaJanela[], agora: Date): string | null {
   let melhor: { ts: number; label: string } | null = null;
   for (const c of clinicas) {
+=======
+function calcularProximaAbertura(clinicas: ClinicaJanela[], agora: Date): string | null {
+  let melhor: { ts: number; label: string } | null = null;
+  for (const c of clinicas) {
+    if (c.ativo === false) continue;
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
     const dias = c.dias_atendimento && c.dias_atendimento.length > 0
       ? c.dias_atendimento
       : ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'];
     const ini = (c.horario_inicio || '07:00').substring(0, 5);
+<<<<<<< HEAD
     const iniMin = parseHora(ini);
+=======
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
     for (let offset = 0; offset < 8; offset++) {
       const cand = new Date(agora);
       cand.setDate(cand.getDate() + offset);
@@ -61,10 +89,16 @@ function calcularProximaAbertura(clinicas: ClinicaJanela[], agora: Date): string
       if (!dias.includes(diaNome)) continue;
       const [h, m] = ini.split(':').map(Number);
       cand.setHours(h, m || 0, 0, 0);
+<<<<<<< HEAD
       const candMin = cand.getHours() * 60 + cand.getMinutes();
       if (offset === 0) {
         const atual = agora.getHours() * 60 + agora.getMinutes();
         if (candMin <= atual) continue;
+=======
+      if (offset === 0) {
+        const atual = agora.getHours() * 60 + agora.getMinutes();
+        if (parseHora(ini) <= atual) continue;
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
       }
       const ts = cand.getTime();
       if (!melhor || ts < melhor.ts) {
@@ -86,21 +120,34 @@ export function useClinicasAbertasAgora(enabled: boolean = true): Resultado {
     queryKey: ['clinicas-ativas-janela'],
     enabled,
     staleTime: 5 * 60 * 1000,
+<<<<<<< HEAD
     queryFn: async () => {
       const { data, error } = await supabase
         .from('bd_locais_atendimento')
         .select('id, nome_local, dias_atendimento, horario_inicio, horario_fim')
+=======
+    placeholderData: keepPreviousData,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('bd_locais_atendimento')
+        .select('id, nome_local, ativo, dias_atendimento, horario_inicio, horario_fim')
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
         .eq('ativo', true);
       if (error) throw error;
       return (data || []) as ClinicaJanela[];
     },
   });
 
+<<<<<<< HEAD
   const { data: serverNowIso, isLoading: loadingNow } = useQuery({
+=======
+  const { data: serverSnapshot, isLoading: loadingNow } = useQuery({
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
     queryKey: ['fn_server_now_brt'],
     enabled,
     refetchInterval: 60_000,
     staleTime: 30_000,
+<<<<<<< HEAD
     queryFn: async () => {
       const { data, error } = await supabase.rpc('fn_server_now_brt' as any);
       if (error) throw error;
@@ -112,10 +159,29 @@ export function useClinicasAbertasAgora(enabled: boolean = true): Resultado {
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const i = setInterval(() => setTick(t => t + 1), 30_000);
+=======
+    placeholderData: keepPreviousData,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('fn_server_now_brt' as any);
+      if (error) throw error;
+      // Guarda o instante local do fetch para aplicar drift entre refetchs.
+      return {
+        serverIso: data as unknown as string,
+        fetchedAtLocal: Date.now(),
+      };
+    },
+  });
+
+  // Tick a cada 30s para reavaliar o relógio (gate fica "vivo" entre refetchs).
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const i = setInterval(() => setTick((t) => t + 1), 30_000);
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
     return () => clearInterval(i);
   }, []);
 
   const isLoading = loadingClinicas || loadingNow;
+<<<<<<< HEAD
   if (isLoading || !clinicas || !serverNowIso) {
     return {
       podeAgendar: true,
@@ -136,13 +202,46 @@ export function useClinicasAbertasAgora(enabled: boolean = true): Resultado {
 
   const abertas = clinicas.filter(c => estaAberta(c, agora));
   if (abertas.length > 0) {
+=======
+
+  // FAIL-CLOSED: enquanto não temos dados, o botão fica desabilitado.
+  if (!clinicas || !serverSnapshot) {
+    return {
+      podeAgendar: false,
+      motivoBloqueio: 'Verificando horário das clínicas...',
+      proximaAbertura: null,
+      isLoading,
+      clinicasAbertas: 0,
+      totalAtivas: 0,
+      nowServer: null,
+      clinicas: null,
+    };
+  }
+
+  // serverIso vem como 'YYYY-MM-DD HH:mm:ss' já em UTC-3 (sem TZ).
+  // Aplicamos drift do relógio local desde o último fetch para não "congelar".
+  const base = new Date(serverSnapshot.serverIso.replace(' ', 'T'));
+  const driftMs = Date.now() - serverSnapshot.fetchedAtLocal;
+  const agora = new Date(base.getTime() + driftMs);
+
+  const status = algumaClinicaAbertaAgora(clinicas, agora);
+
+  if (status.algumaAberta) {
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
     return {
       podeAgendar: true,
       motivoBloqueio: '',
       proximaAbertura: null,
       isLoading: false,
+<<<<<<< HEAD
       clinicasAbertas: abertas.length,
       totalAtivas: clinicas.length,
+=======
+      clinicasAbertas: status.abertasAgora,
+      totalAtivas: status.totalAtivas,
+      nowServer: agora,
+      clinicas,
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
     };
   }
 
@@ -151,10 +250,20 @@ export function useClinicasAbertasAgora(enabled: boolean = true): Resultado {
     podeAgendar: false,
     motivoBloqueio: proxima
       ? `Agendamento bloqueado: todas as clínicas estão fechadas no momento. Próxima abertura: ${proxima}.`
+<<<<<<< HEAD
       : 'Agendamento bloqueado: todas as clínicas estão fechadas no momento.',
     proximaAbertura: proxima,
     isLoading: false,
     clinicasAbertas: 0,
     totalAtivas: clinicas.length,
+=======
+      : status.motivo || 'Agendamento bloqueado: todas as clínicas estão fechadas no momento.',
+    proximaAbertura: proxima,
+    isLoading: false,
+    clinicasAbertas: 0,
+    totalAtivas: status.totalAtivas,
+    nowServer: agora,
+    clinicas,
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
   };
 }

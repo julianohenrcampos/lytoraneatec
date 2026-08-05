@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import GlobalErrorBoundary from "@/components/error/GlobalErrorBoundary";
 import { useBodyPointerEvents } from "@/hooks/useBodyPointerEvents";
@@ -12,6 +12,7 @@ import { PageTitleProvider } from "@/contexts/PageTitleContext";
 import SimpleAuthGuard from "@/components/routing/SimpleAuthGuard";
 import SimplePermissionGuard from "@/components/routing/SimplePermissionGuard";
 import SecureRouteGuard from "@/components/routing/SecureRouteGuard";
+import OrdemDiariaCampoGuard from "@/components/routing/OrdemDiariaCampoGuard";
 import SimpleLogin from "@/pages/SimpleLogin";
 import Portal from "@/pages/Portal";
 import NotFound from "@/pages/NotFound";
@@ -39,6 +40,9 @@ const GestaoCaminhoes = lazy(() => import("@/pages/GestaoCaminhoes"));
 const GestaoUsinas = lazy(() => import("@/pages/GestaoUsinas"));
 const RelatorioMedicao = lazy(() => import("@/pages/RelatorioMedicao"));
 const GestaoSolicitacoesEquipamento = lazy(() => import("@/pages/GestaoSolicitacoesEquipamento"));
+const PlanejamentoMacroObra = lazy(() => import("@/pages/PlanejamentoMacroObra"));
+const OrdemDiariaCampo = lazy(() => import("@/pages/OrdemDiariaCampo"));
+const OrdemDiariaCampoDetalhe = lazy(() => import("@/pages/OrdemDiariaCampoDetalhe"));
 const GestaoDisponibilidade = lazy(() => import("@/pages/GestaoDisponibilidade"));
 const GestaoPortfolio = lazy(() => import("@/pages/GestaoPortfolio"));
 const LinhasOperacionaisPage = lazy(() => import("@/pages/LinhasOperacionaisPage"));
@@ -127,6 +131,17 @@ const Secure = ({ permission, children }: { permission: string; children: React.
   </SimpleAuthGuard>
 );
 
+// Redireciona a rota antiga /gestao-rh/desligamentos para a aba dentro de funcionários,
+// preservando quaisquer query params já presentes (ex.: deep links externos).
+const RedirectDesligamentosToFuncionarios = () => {
+  const [searchParams] = useSearchParams();
+  const next = new URLSearchParams(searchParams);
+  next.set("tab", "desligamentos");
+  return <Navigate to={`/gestao-rh/funcionarios?${next.toString()}`} replace />;
+};
+
+
+
 const App = () => {
   useBodyPointerEvents();
 
@@ -168,7 +183,7 @@ const App = () => {
                     <Route path="/gestao-rh/funcoes" element={<Secure permission="gestao_rh_funcoes_view"><GestaoFuncoes /></Secure>} />
                     <Route path="/gestao-rh/funcionarios" element={<Secure permission="gestao_rh_funcionarios_view"><GestaoFuncionarios /></Secure>} />
                     <Route path="/gestao-rh/equipes" element={<Secure permission="gestao_rh_equipes_view"><GestaoEquipes /></Secure>} />
-                    <Route path="/gestao-rh/desligamentos" element={<Secure permission="gestao_rh_funcionarios_view"><GestaoDesligamentos /></Secure>} />
+                    <Route path="/gestao-rh/desligamentos" element={<Secure permission="gestao_rh_funcionarios_view"><RedirectDesligamentosToFuncionarios /></Secure>} />
                     <Route path="/gestao-rh/arquivo-morto" element={<Secure permission="gestao_rh_arquivo_morto_view"><ArquivoMorto /></Secure>} />
 
                     {/* Gestão Máquinas */}
@@ -182,6 +197,16 @@ const App = () => {
                     <Route path="/gestao-maquinas/linhas-operacionais" element={<Perm><LinhasOperacionaisPage /></Perm>} />
                     <Route path="/gestao-maquinas/central-transporte" element={<Secure permission="gestao_maquinas_caminhoes_view"><CentralTransporte /></Secure>} />
                     <Route path="/gestao-maquinas/checklist-saida/:movimentacaoId" element={<Perm><ChecklistSaida /></Perm>} />
+                    {/* FASE 1/2: rota antiga mantida apenas como redirect para a nova rota definitiva em /engenharia. */}
+                    <Route path="/gestao-maquinas/planejamento-macro" element={<Navigate to="/engenharia/planejamento-macro" replace />} />
+
+                    {/* Engenharia */}
+                    <Route path="/engenharia/planejamento-macro" element={<Secure permission="engenharia_planejamento_macro_view"><PlanejamentoMacroObra /></Secure>} />
+                    <Route path="/engenharia/ordem-do-dia" element={<Auth><OrdemDiariaCampoGuard><OrdemDiariaCampo /></OrdemDiariaCampoGuard></Auth>} />
+                    <Route path="/engenharia/ordem-do-dia/:ordemId/item/:itemId" element={<Auth><OrdemDiariaCampoGuard><OrdemDiariaCampoDetalhe /></OrdemDiariaCampoGuard></Auth>} />
+                    {/* Redirects das rotas antigas (campo) — preservam deep links */}
+                    <Route path="/engenharia/ordem-diaria-campo" element={<Navigate to="/engenharia/ordem-do-dia" replace />} />
+                    <Route path="/engenharia/ordem-diaria-campo/:ordemId/item/:itemId" element={<Navigate to="/engenharia/ordem-do-dia" replace />} />
 
                     {/* Requisições */}
                     <Route path="/programacao-entrega" element={<Secure permission="requisicoes_programacao_entrega_view"><ProgramacaoEntrega /></Secure>} />

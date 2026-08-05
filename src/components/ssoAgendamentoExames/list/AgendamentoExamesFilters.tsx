@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Combobox } from '@/components/ui/combobox';
 import { MultiCombobox } from '@/components/ui/multi-combobox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AgendamentoExameFilters, TIPOS_EXAME, STATUS_AGENDAMENTO, STATUS_INTEGRACAO, STATUS_CARTEIRA } from '@/types/ssoAgendamentoExames';
+import { AgendamentoExameFilters, TIPOS_EXAME, STATUS_AGENDAMENTO, STATUS_INTEGRACAO, STATUS_CARTEIRA, getStatusCarteiraLabel } from '@/types/ssoAgendamentoExames';
 import { useAgendamentoExames } from '@/hooks/ssoAgendamentoExames';
 import { Filter, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -247,7 +247,7 @@ export const AgendamentoExamesFilters: React.FC<AgendamentoExamesFiltersProps> =
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
             {STATUS_CARTEIRA.map((s) => (
-              <SelectItem key={s} value={s}>{s}</SelectItem>
+              <SelectItem key={s} value={s}>{getStatusCarteiraLabel(s)}</SelectItem>
             ))}
           </SelectContent>
         </Select>

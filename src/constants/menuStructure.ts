@@ -21,7 +21,8 @@ import {
   Briefcase,
   FileSearch,
   Clock,
-  ScanFace
+  ScanFace,
+  HardHat
 } from "lucide-react";
 
 export const menuStructure = [
@@ -78,12 +79,6 @@ export const menuStructure = [
         requiredPermission: "gestao_rh_equipes_view"
       },
       {
-        name: "Desligamentos",
-        href: "/gestao-rh/desligamentos",
-        icon: Users,
-        requiredPermission: "gestao_rh_funcionarios_view"
-      },
-      {
         name: "Arquivo Morto",
         href: "/gestao-rh/arquivo-morto",
         icon: Users,
@@ -100,6 +95,31 @@ export const menuStructure = [
         href: "/sso/clinicas",
         icon: Building2,
         requiredPermission: "acesso_sso_clinica"
+      }
+    ]
+  },
+  {
+    groupIcon: HardHat,
+    title: "Engenharia",
+    items: [
+      {
+        name: "Planejamento Macro da Obra",
+        href: "/engenharia/planejamento-macro",
+        icon: ClipboardList,
+        requiredPermission: "engenharia_planejamento_macro_view"
+      },
+      {
+        name: "Ordem do Dia",
+        href: "/engenharia/ordem-do-dia",
+        icon: ClipboardCheck,
+        requiredPermissions: [
+          "engenharia_ordem_diaria_view",
+          "engenharia_ordem_diaria_campo_view"
+        ],
+        // Marcador consumido pelo AppSidebar para liberar o item também via
+        // responsabilidade operacional (responsável principal/de item) sem
+        // exigir permissão administrativa explícita.
+        customAccessKey: "ordemDiariaCampo"
       }
     ]
   },

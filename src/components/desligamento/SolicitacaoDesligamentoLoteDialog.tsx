@@ -125,6 +125,13 @@ export const SolicitacaoDesligamentoLoteDialog: React.FC<Props> = ({
 
   const adicionarFuncionario = async (funcId: string) => {
     if (readOnly) return;
+<<<<<<< HEAD
+=======
+    // NOTA DE ESCOPO: A lista de candidatos exibida vem de `useFuncionarioSearch`,
+    // que já aplica `useEscopoCentrosCusto` (poda por allowedCentroIds — AdmOBRA
+    // via adm_obra_funcionario_id, etc.). Esta query é apenas enriquecimento por
+    // id de um item já selecionado dentro do escopo — não introduz vazamento.
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
     if (itens.find((i) => i.funcionario_id === funcId)) {
       toast.info('Funcionário já está na lista.');
       return;

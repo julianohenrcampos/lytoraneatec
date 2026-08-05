@@ -15,6 +15,38 @@ export interface CriarSolicitacaoClassificacaoPayload {
   observacao?: string | null;
   data_efetivacao_desejada?: string | null; // YYYY-MM-DD
   precisa_exame: boolean;
+<<<<<<< HEAD
+=======
+  /**
+   * Fase 2B: quando definido, vincula a solicitação individual a um lote
+   * (cabeçalho em bd_solicitacoes_classificacao). O fluxo individual
+   * existente continua passando undefined/null e a coluna fica NULL.
+   */
+  solicitacao_lote_id?: string | null;
+}
+
+/**
+ * Monta o payload de INSERT em bd_funcionario_classificacao_solicitacoes
+ * a partir do payload de domínio. Helper PURO, reutilizado pelo fluxo
+ * individual e pelo batch de lote (Fase 2B).
+ */
+export function montarPayloadClassificacaoSolicitacao(
+  payload: CriarSolicitacaoClassificacaoPayload,
+) {
+  return {
+    funcionario_id: payload.funcionario_id,
+    centro_custo_id: payload.centro_custo_id,
+    cargo_atual_id: payload.cargo_atual_id,
+    cargo_atual_nome: payload.cargo_atual_nome,
+    cargo_novo_id: payload.cargo_novo_id,
+    cargo_novo_nome: payload.cargo_novo_nome,
+    motivo: payload.motivo,
+    observacao: payload.observacao ?? null,
+    data_efetivacao_desejada: payload.data_efetivacao_desejada ?? null,
+    precisa_exame: !!payload.precisa_exame,
+    solicitacao_lote_id: payload.solicitacao_lote_id ?? null,
+  };
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
 }
 
 const RLS_MSG =
@@ -31,6 +63,7 @@ export async function criarSolicitacaoClassificacao(
 ): Promise<{ ok: true; id: string } | { ok: false; message: string }> {
   const { data, error } = await (supabase as any)
     .from("bd_funcionario_classificacao_solicitacoes")
+<<<<<<< HEAD
     .insert({
       funcionario_id: payload.funcionario_id,
       centro_custo_id: payload.centro_custo_id,
@@ -43,6 +76,9 @@ export async function criarSolicitacaoClassificacao(
       data_efetivacao_desejada: payload.data_efetivacao_desejada ?? null,
       precisa_exame: !!payload.precisa_exame,
     })
+=======
+    .insert(montarPayloadClassificacaoSolicitacao(payload))
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
     .select("id")
     .single();
 

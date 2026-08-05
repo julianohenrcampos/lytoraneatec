@@ -94,3 +94,72 @@ export function validarJanelaClinica(
 
   return { ok: true };
 }
+<<<<<<< HEAD
+=======
+
+/**
+ * Verifica se pelo menos uma das clínicas ATIVAS está dentro da sua janela
+ * (dia da semana + horário) no instante `agora`.
+ *
+ * Usado como gate global do botão "Novo Agendamento" e como segunda trava
+ * no submit (caso o usuário tenha aberto o dialog dentro do expediente
+ * e tentado salvar depois do encerramento).
+ */
+export interface ClinicaJanelaComStatus extends ClinicaJanela {
+  ativo?: boolean | null;
+}
+
+export interface ResultadoAbertura {
+  algumaAberta: boolean;
+  motivo?: string;
+  totalAtivas: number;
+  abertasAgora: number;
+}
+
+export function algumaClinicaAbertaAgora(
+  clinicas: ClinicaJanelaComStatus[] | null | undefined,
+  agora: Date,
+): ResultadoAbertura {
+  const ativas = (clinicas || []).filter((c) => c.ativo !== false);
+  if (ativas.length === 0) {
+    return {
+      algumaAberta: false,
+      motivo: 'Nenhuma clínica ativa cadastrada.',
+      totalAtivas: 0,
+      abertasAgora: 0,
+    };
+  }
+
+  const diaNome = DIAS_SEMANA_MAP[agora.getDay()];
+  const minutosAgora = agora.getHours() * 60 + agora.getMinutes();
+
+  const abertas = ativas.filter((c) => {
+    const dias =
+      Array.isArray(c.dias_atendimento) && c.dias_atendimento.length > 0
+        ? (c.dias_atendimento as string[])
+        : ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'];
+    if (!dias.includes(diaNome)) return false;
+    const [hi, mi] = (c.horario_inicio || '07:00').substring(0, 5).split(':').map(Number);
+    const [hf, mf] = (c.horario_fim || '17:00').substring(0, 5).split(':').map(Number);
+    const ini = hi * 60 + (mi || 0);
+    const fim = hf * 60 + (mf || 0);
+    return minutosAgora >= ini && minutosAgora < fim;
+  });
+
+  if (abertas.length > 0) {
+    return {
+      algumaAberta: true,
+      totalAtivas: ativas.length,
+      abertasAgora: abertas.length,
+    };
+  }
+
+  return {
+    algumaAberta: false,
+    motivo:
+      'Horário comercial encerrado. Agendamento permitido apenas enquanto pelo menos uma clínica estiver dentro da janela de atendimento.',
+    totalAtivas: ativas.length,
+    abertasAgora: 0,
+  };
+}
+>>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
