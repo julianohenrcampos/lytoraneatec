@@ -49,9 +49,13 @@ const GestaoPortfolio = lazy(() => import("@/pages/GestaoPortfolio"));
 const LinhasOperacionaisPage = lazy(() => import("@/pages/LinhasOperacionaisPage"));
 const CentralTransporte = lazy(() => import("@/pages/CentralTransporte"));
 const CentralTransporteSolicitacao = lazy(() => import("@/pages/CentralTransporteSolicitacao"));
+const CentralTransporteMovimentacaoNova = lazy(
+  () => import("@/pages/CentralTransporteMovimentacaoNova"),
+);
 const ChecklistSaida = lazy(() => import("@/pages/ChecklistSaida"));
 const Abastecimento = lazy(() => import("@/pages/GestaoAbastecimento"));
 const MapaOperacional = lazy(() => import("@/pages/gestao-maquinas/MapaOperacional"));
+const MinhasMobilizacoes = lazy(() => import("@/pages/MinhasMobilizacoes"));
 
 const TestePonto = lazy(() => import("@/pages/dev/TestePonto"));
 const PwaStatus = lazy(() => import("@/pages/dev/PwaStatus"));
@@ -236,7 +240,11 @@ const App = () => {
                     <Route path="/gestao-maquinas/linhas-operacionais" element={<Perm><LinhasOperacionaisPage /></Perm>} />
                     <Route path="/gestao-maquinas/central-transporte" element={<Secure permission="gestao_maquinas_central_transporte_view" action="visualizar"><CentralTransporte /></Secure>} />
                     <Route path="/gestao-maquinas/central-transporte/solicitacao/:solicitacaoId" element={<Secure permission="gestao_maquinas_central_transporte_view" action="visualizar"><CentralTransporteSolicitacao /></Secure>} />
+                    {/* CT-4 — movimentação direta (sem solicitação), com paradas múltiplas. */}
+                    <Route path="/gestao-maquinas/central-transporte/movimentacao/nova" element={<Secure permission="gestao_maquinas_central_transporte_view" action="criar"><CentralTransporteMovimentacaoNova /></Secure>} />
+                    <Route path="/gestao-maquinas/central-transporte/movimentacao/:viagemId" element={<Secure permission="gestao_maquinas_central_transporte_view" action="visualizar"><CentralTransporteMovimentacaoNova /></Secure>} />
                     <Route path="/gestao-maquinas/mapa-operacional" element={<Secure permission="veiculos_equipamentos_mapa_operacional_view"><MapaOperacional /></Secure>} />
+                    <Route path="/minhas-mobilizacoes" element={<Secure permission="gestao_maquinas_minhas_mobilizacoes_view"><MinhasMobilizacoes /></Secure>} />
                     <Route path="/gestao-maquinas/checklist-saida/:movimentacaoId" element={<Perm><ChecklistSaida /></Perm>} />
                     {/* FASE 1/2: rota antiga mantida apenas como redirect para a nova rota definitiva em /engenharia. */}
                     <Route path="/gestao-maquinas/planejamento-macro" element={<Navigate to="/engenharia/planejamento-macro" replace />} />

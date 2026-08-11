@@ -295,6 +295,8 @@ export async function emitirSolicitacaoClassificacaoLote(
       observacao: it.observacao,
       data_efetivacao_desejada: it.data_efetivacao_desejada,
       precisa_exame: it.precisa_exame,
+      salario_atual: it.salario_atual ?? null,
+      salario_novo: it.salario_novo ?? null,
       solicitacao_lote_id: loteId,
     }),
   );

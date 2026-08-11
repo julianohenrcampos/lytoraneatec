@@ -120,7 +120,19 @@ export interface CtSubstituirResult {
 /* Motor de idempotência                                               */
 /* ------------------------------------------------------------------ */
 
-export type CtOperationKind = "ATRIBUIR" | "ENCERRAR" | "SUBSTITUIR";
+export type CtOperationKind =
+  | "ATRIBUIR"
+  | "ENCERRAR"
+  | "SUBSTITUIR"
+  /* CT-3E / CT-3F — operação da viagem */
+  | "CHECKLIST_SAIDA"
+  | "VIAGEM_INICIAR"
+  | "VIAGEM_CHEGADA"
+  | "RECEBIMENTO_FINALIZAR"
+  /* CT-4 — movimentação direta (viagem sem solicitação) */
+  | "MOV_DIRETA_RASCUNHO"
+  | "MOV_DIRETA_PROGRAMAR"
+  | "MOV_DIRETA_CANCELAR";
 
 export type CtAttemptState = "READY" | "PENDING" | "UNCERTAIN";
 
@@ -132,7 +144,14 @@ export interface CtPendingAttempt {
   createdAt: number;
   /** Recursos travados pela tentativa (item, atendimento, equipamento). */
   resourceIds: string[];
+  /**
+   * CT-3D.5 — escopo da tentativa (ex.: `CT3_MOBILIZACAO|<solicitacao>|<planejamento>`).
+   * Bloqueios só se aplicam DENTRO do mesmo escopo: uma tentativa de seleção de
+   * ativo nunca pode travar a Mobilização, e vice-versa.
+   */
+  scope: string | null;
 }
+
 
 /* ------------------------------------------------------------------ */
 /* Seleção de candidato (adapter sobre a análise CT-1)                 */

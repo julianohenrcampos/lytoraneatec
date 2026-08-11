@@ -15,6 +15,10 @@ export interface CriarSolicitacaoClassificacaoPayload {
   observacao?: string | null;
   data_efetivacao_desejada?: string | null; // YYYY-MM-DD
   precisa_exame: boolean;
+  /** Snapshot de salário atual do funcionário (opcional). */
+  salario_atual?: number | null;
+  /** Snapshot de salário base do novo cargo (opcional). */
+  salario_novo?: number | null;
   /**
    * Fase 2B: quando definido, vincula a solicitação individual a um lote
    * (cabeçalho em bd_solicitacoes_classificacao). O fluxo individual
@@ -22,6 +26,7 @@ export interface CriarSolicitacaoClassificacaoPayload {
    */
   solicitacao_lote_id?: string | null;
 }
+
 
 /**
  * Monta o payload de INSERT em bd_funcionario_classificacao_solicitacoes
@@ -42,6 +47,8 @@ export function montarPayloadClassificacaoSolicitacao(
     observacao: payload.observacao ?? null,
     data_efetivacao_desejada: payload.data_efetivacao_desejada ?? null,
     precisa_exame: !!payload.precisa_exame,
+    salario_atual: payload.salario_atual ?? null,
+    salario_novo: payload.salario_novo ?? null,
     solicitacao_lote_id: payload.solicitacao_lote_id ?? null,
   };
 }

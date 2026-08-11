@@ -33,6 +33,8 @@ export interface CtRunParams<T> {
   materialKey: string;
   /** Recursos travados (item, atendimento, equipamento) para anti-concorrência. */
   resourceIds: Array<string | null | undefined>;
+  /** CT-3D.5 — escopo da operação; o bloqueio nunca atravessa escopos. */
+  scope?: string | null;
   exec: (requestId: string) => Promise<T & { replay?: boolean }>;
 }
 
@@ -51,12 +53,23 @@ export interface CtOperationApi {
   attempts: ReadonlyMap<string, CtPendingAttempt>;
   getAttempt: (materialKey: string) => CtPendingAttempt | null;
   /** true quando existe tentativa PENDING/UNCERTAIN incompatível sobre os recursos. */
-  isBlocked: (resourceIds: Array<string | null | undefined>, materialKey?: string) => boolean;
+  isBlocked: (
+    resourceIds: Array<string | null | undefined>,
+    materialKey?: string,
+    scope?: string | null,
+  ) => boolean;
   /** Descarta tentativa ainda não enviada (state READY). */
   cancelAttempt: (materialKey: string) => void;
+  /** CT-3D.5 — remove a tentativa independentemente do estado (resolução manual). */
+  clearAttempt: (materialKey: string) => void;
+  /** CT-3D.5 — remove todas as tentativas de um escopo (resolução manual). */
+  clearScope: (scope: string) => void;
+  /** CT-3D.5 — tentativa incerta viva no escopo informado, se existir. */
+  uncertainInScope: (scope: string) => CtPendingAttempt | null;
   run: <T>(params: CtRunParams<T>) => Promise<CtRunOutcome<T>>;
   isRunning: boolean;
 }
+
 
 export const useCtOperation = (): CtOperationApi => {
   const attemptsRef = useRef<Map<string, CtPendingAttempt>>(new Map());
@@ -71,11 +84,17 @@ export const useCtOperation = (): CtOperationApi => {
   );
 
   const isBlocked = useCallback(
-    (resourceIds: Array<string | null | undefined>, materialKey?: string) => {
+    (
+      resourceIds: Array<string | null | undefined>,
+      materialKey?: string,
+      scope: string | null = null,
+    ) => {
       const ids = resourceIds.filter((r): r is string => !!r);
       for (const attempt of attemptsRef.current.values()) {
         if (attempt.state === "READY") continue;
         if (materialKey && attempt.materialKey === materialKey) continue;
+        // CT-3D.5 — o bloqueio é estritamente intra-escopo.
+        if ((attempt.scope ?? null) !== scope) continue;
         if (attempt.resourceIds.some((r) => ids.includes(r))) return true;
       }
       return false;
@@ -94,8 +113,42 @@ export const useCtOperation = (): CtOperationApi => {
     [bump],
   );
 
+  const clearAttempt = useCallback(
+    (materialKey: string) => {
+      if (attemptsRef.current.delete(materialKey)) bump();
+    },
+    [bump],
+  );
+
+  const clearScope = useCallback(
+    (scope: string) => {
+      let mudou = false;
+      for (const [key, attempt] of Array.from(attemptsRef.current.entries())) {
+        if ((attempt.scope ?? null) === scope) {
+          attemptsRef.current.delete(key);
+          mudou = true;
+        }
+      }
+      if (mudou) bump();
+    },
+    [bump],
+  );
+
+  const uncertainInScope = useCallback((scope: string) => {
+    for (const attempt of attemptsRef.current.values()) {
+      if ((attempt.scope ?? null) === scope && attempt.state === "UNCERTAIN") return attempt;
+    }
+    return null;
+  }, []);
+
   const run = useCallback(
-    async <T,>({ operation, materialKey, resourceIds, exec }: CtRunParams<T>): Promise<CtRunOutcome<T>> => {
+    async <T,>({
+      operation,
+      materialKey,
+      resourceIds,
+      scope = null,
+      exec,
+    }: CtRunParams<T>): Promise<CtRunOutcome<T>> => {
       const ids = resourceIds.filter((r): r is string => !!r);
       const existing = attemptsRef.current.get(materialKey);
 
@@ -110,7 +163,7 @@ export const useCtOperation = (): CtOperationApi => {
         };
       }
 
-      if (isBlocked(ids, materialKey)) {
+      if (isBlocked(ids, materialKey, scope)) {
         return {
           status: "error",
           error: {
@@ -126,7 +179,7 @@ export const useCtOperation = (): CtOperationApi => {
       // Reaproveita o request_id de uma tentativa incerta; só gera UUID novo
       // quando não há tentativa registrada para esta chave material.
       const attempt: CtPendingAttempt = existing
-        ? { ...existing, state: "PENDING" }
+        ? { ...existing, state: "PENDING", scope }
         : {
             operation,
             requestId: newUuid(),
@@ -134,6 +187,7 @@ export const useCtOperation = (): CtOperationApi => {
             state: "PENDING",
             createdAt: Date.now(),
             resourceIds: ids,
+            scope,
           };
 
       attemptsRef.current.set(materialKey, attempt);
@@ -168,9 +222,13 @@ export const useCtOperation = (): CtOperationApi => {
     getAttempt,
     isBlocked,
     cancelAttempt,
+    clearAttempt,
+    clearScope,
+    uncertainInScope,
     run,
     isRunning,
   };
+
 };
 
 export default useCtOperation;

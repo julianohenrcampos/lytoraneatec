@@ -9,31 +9,22 @@
  * autoritativo e idempotência por request_id. Mobilização parcial é permitida:
  * ativos fora de viagem seguem aguardando planejamento.
  */
-import React, { useEffect, useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, RotateCcw, Save } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { ArrowRight, CheckCircle2, Loader2, Plus, RotateCcw, Save } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import useCtMobilizacaoCadastros from "@/hooks/central-transporte/useCtMobilizacaoCadastros";
-import { invalidarCachesAtivosOperacionais } from "@/lib/queryInvalidation/ativosOperacionais";
 import {
   atribuirAtivoAViagem,
-  chaveMaterialRascunho,
   criarViagemVazia,
-  hidratarRascunho,
   indiceAtendimentos,
   rotuloAtivo,
   sugerirModalidade,
-  validarProgramacao,
-  validarRascunho,
 } from "@/lib/central-transporte/mobilizacaoRascunho";
-import {
-  abrirNovaRevisaoMobilizacao,
-  salvarRascunhoMobilizacao,
-} from "@/services/centralTransporteMobilizacaoService";
+import { abrirNovaRevisaoMobilizacao } from "@/services/centralTransporteMobilizacaoService";
 import {
   CT_PLANEJAMENTO_STATUS_LABELS,
   type CtViagemRascunho,
@@ -42,47 +33,84 @@ import { formatDateBR } from "@/utils/formatDateBR";
 import { useCtSolicitacao } from "./CentralTransporteSolicitacaoProvider";
 import ViagemCardEditor from "./ViagemCardEditor";
 
+const horaBR = (iso: string | null): string =>
+  iso
+    ? new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+    : "—";
+
+/** CT-3D.5 — status material do ativo no ciclo de planejamento. */
+type StatusAtivoPlanejamento = "PENDENTE" | "NAO_SALVO" | "SALVO" | "PROGRAMADO";
+
+const ROTULO_STATUS_ATIVO: Record<StatusAtivoPlanejamento, string> = {
+  PENDENTE: "Pendente",
+  NAO_SALVO: "Não salvo",
+  SALVO: "Salvo no rascunho",
+  PROGRAMADO: "Programado",
+};
+
 export const EtapaMobilizacao: React.FC = () => {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const { solicitacaoId, mobilizacao, capabilities, ctOperation } = useCtSolicitacao();
+  const { mobilizacao, mobilizacaoDraft, capabilities, ctOperation, irParaEtapa } =
+    useCtSolicitacao();
 
   const estado = mobilizacao.estado;
   const rascunhoServidor = mobilizacao.rascunhoEmEdicao;
   const vigente = mobilizacao.planejamentoVigente;
 
-  const [viagens, setViagens] = useState<CtViagemRascunho[]>([]);
-  const [chaveEstado, setChaveEstado] = useState<string>("");
-  const [salvando, setSalvando] = useState(false);
+  // CT-3D.2 — o rascunho vive no provider: trocar de etapa não perde dados.
+  const viagens = mobilizacaoDraft.viagens;
+  const setViagens = mobilizacaoDraft.setViagens;
+  const salvando = mobilizacaoDraft.salvando;
+  const somenteLeitura = mobilizacaoDraft.somenteLeitura;
+  const problemasRascunho = mobilizacaoDraft.problemasRascunho;
+  const problemasProgramacao = mobilizacaoDraft.problemasProgramacao;
+
+  /**
+   * CT-3D.4 — "Salvar rascunho" é permissivo: basta haver algo material a
+   * persistir (edição local, ou viagens ainda não persistidas no servidor).
+   */
+  const podeSalvarRascunho =
+    mobilizacaoDraft.dirty ||
+    (!mobilizacaoDraft.temPlanejamentoPersistido && mobilizacaoDraft.viagens.length > 0);
+
+
   const [abrindoRevisao, setAbrindoRevisao] = useState(false);
 
   const cadastros = useCtMobilizacaoCadastros(!!estado && capabilities.canVisualizar);
 
-  // Hidrata a partir do servidor sempre que a versão em foco mudar.
-  const assinaturaServidor = `${rascunhoServidor?.id ?? "-"}:${rascunhoServidor?.lockVersion ?? -1}:${
-    vigente?.id ?? "-"
-  }:${vigente?.lockVersion ?? -1}`;
-
-  useEffect(() => {
-    if (!estado) return;
-    if (chaveEstado === assinaturaServidor) return;
-    setViagens(hidratarRascunho(estado));
-    setChaveEstado(assinaturaServidor);
-  }, [estado, assinaturaServidor, chaveEstado]);
-
-  const somenteLeitura = !capabilities.canEditar || (!rascunhoServidor && !!vigente);
-
-  const problemasRascunho = useMemo(() => validarRascunho(viagens), [viagens]);
-  const problemasProgramacao = useMemo(
-    () => validarProgramacao(viagens, estado?.ativos ?? []),
-    [viagens, estado],
-  );
-
   const indice = useMemo(() => indiceAtendimentos(viagens), [viagens]);
+  const indicePersistido = useMemo(
+    () =>
+      new Map(
+        (rascunhoServidor?.viagens ?? vigente?.viagens ?? []).flatMap((v) =>
+          v.atendimentoIds.map((id) => [id, v] as const),
+        ),
+      ),
+    [rascunhoServidor, vigente],
+  );
   const pendentes = useMemo(
     () => (estado?.ativos ?? []).filter((a) => !indice.has(a.atendimentoId)),
     [estado, indice],
   );
+  const planejados = useMemo(
+    () => (estado?.ativos ?? []).filter((a) => indice.has(a.atendimentoId)),
+    [estado, indice],
+  );
+
+  /* ---------- CT-3D.5 — seleção única e status material por ativo ---------- */
+  const chaveSelecionada = mobilizacaoDraft.chaveSelecionada;
+  const viagemSelecionada =
+    viagens.find((v) => v.chaveLocal === chaveSelecionada) ?? viagens[0] ?? null;
+  const podeAgruparNaSelecionada =
+    !!viagemSelecionada && viagemSelecionada.modalidade === "TRANSPORTADO";
+
+  const statusAtivo = (atendimentoId: string): StatusAtivoPlanejamento => {
+    const persistida = indicePersistido.get(atendimentoId);
+    if (persistida?.status === "PROGRAMADA") return "PROGRAMADO";
+    if (persistida) return "SALVO";
+    if (indice.has(atendimentoId)) return "NAO_SALVO";
+    return "PENDENTE";
+  };
 
   const problemasDaViagem = (chaveLocal: string): string[] =>
     problemasProgramacao.filter((p) => p.chaveLocal === chaveLocal).map((p) => p.mensagem);
@@ -92,11 +120,14 @@ export const EtapaMobilizacao: React.FC = () => {
       atual.map((v) => (v.chaveLocal === chaveLocal ? { ...v, ...patch } : v)),
     );
 
-  const adicionarViagem = () =>
-    setViagens((atual) => [
-      ...atual,
-      criarViagemVazia({ destinoCentroCustoId: null, modalidade: null }),
-    ]);
+
+  const adicionarViagem = () => {
+    const nova = criarViagemVazia({ destinoCentroCustoId: null, modalidade: null });
+    setViagens((atual) => [...atual, nova]);
+    // CT-3D.5 — a nova viagem passa a ser o único formulário em foco.
+    mobilizacaoDraft.selecionarViagem(nova.chaveLocal);
+  };
+
 
   const removerViagem = (chaveLocal: string) =>
     setViagens((atual) => atual.filter((v) => v.chaveLocal !== chaveLocal));
@@ -104,64 +135,23 @@ export const EtapaMobilizacao: React.FC = () => {
   const agrupar = (atendimentoId: string, chaveLocal: string | null) =>
     setViagens((atual) => atribuirAtivoAViagem(atual, atendimentoId, chaveLocal));
 
-  /** Cria uma viagem já com o ativo, sugerindo a modalidade pelo tipo do ativo. */
-  const novaViagemComAtivo = (atendimentoId: string) => {
-    const ativo = (estado?.ativos ?? []).find((a) => a.atendimentoId === atendimentoId);
-    const nova = criarViagemVazia({
-      modalidade: ativo ? sugerirModalidade(ativo) : null,
-      origemCentroCustoId: ativo?.centroCustoAtualId ?? null,
-      atendimentoIds: [atendimentoId],
-    });
-    setViagens((atual) => [...atribuirAtivoAViagem(atual, atendimentoId, null), nova]);
-  };
+  /* CT-3D.5 — a criação de viagem por ativo passou para o provider
+     (`selecionarAtivo`), garantindo um único formulário em foco. */
 
+
+  /**
+   * CT-3D.5 — Salvar rascunho: permissivo e sequencial. Após persistir, o
+   * próximo ativo pendente é selecionado automaticamente.
+   */
   const salvar = async () => {
-    if (problemasRascunho.length > 0) {
-      toast({
-        title: "Rascunho incompleto",
-        description: problemasRascunho[0].mensagem,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setSalvando(true);
-    const out = await ctOperation.run({
-      operation: "ATRIBUIR",
-      materialKey: chaveMaterialRascunho(solicitacaoId, viagens),
-      resourceIds: viagens.flatMap((v) => v.atendimentoIds),
-      exec: (requestId) =>
-        salvarRascunhoMobilizacao({
-          solicitacaoId,
-          planejamentoId: rascunhoServidor?.id ?? null,
-          versaoEsperada: rascunhoServidor?.lockVersion ?? null,
-          viagens,
-          requestId,
-        }),
-    });
-    setSalvando(false);
-
-    if (out.status === "ok") {
-      await invalidarCachesAtivosOperacionais(queryClient);
-      await mobilizacao.refetch();
-      setChaveEstado("");
-      toast({
-        title: out.data.noChange
-          ? "Nenhuma alteração a salvar"
-          : out.replay
-            ? "Rascunho já salvo"
-            : "Rascunho salvo",
-        description: `Versão ${out.data.versao} do planejamento atualizada.`,
-      });
-      return;
-    }
-
-    toast({
-      title: out.status === "uncertain" ? "Operação sem confirmação" : "Não foi possível salvar",
-      description: out.error.message,
-      variant: "destructive",
-    });
+    const ok = await mobilizacaoDraft.salvar();
+    if (!ok) return;
+    const proximo = (estado?.ativos ?? []).find((a) => !indice.has(a.atendimentoId));
+    if (proximo) mobilizacaoDraft.selecionarAtivo(proximo.atendimentoId);
   };
+
+  /** CT-3D.2 — autosave antes de abrir a Revisão (transição comandada pelo provider). */
+  const irParaRevisao = () => irParaEtapa("REVISAO");
 
   const abrirRevisao = async () => {
     if (!vigente) return;
@@ -177,7 +167,7 @@ export const EtapaMobilizacao: React.FC = () => {
 
     if (out.status === "ok") {
       await mobilizacao.refetch();
-      setChaveEstado("");
+      mobilizacaoDraft.ressincronizar();
       toast({
         title: "Revisão aberta",
         description: `Versão ${out.data.versao} em rascunho. O planejamento programado segue vigente.`,
@@ -223,6 +213,22 @@ export const EtapaMobilizacao: React.FC = () => {
               {CT_PLANEJAMENTO_STATUS_LABELS[(rascunhoServidor ?? vigente)!.status]}
             </Badge>
           )}
+          {/* CT-3D.2 — estado do rascunho sempre visível */}
+          <span className="text-[11px] text-muted-foreground" data-testid="ct3d2-estado-rascunho">
+            {mobilizacaoDraft.status === "SAVING"
+              ? "Salvando rascunho..."
+              : mobilizacaoDraft.status === "CONFIRMING"
+                ? "Operação sendo confirmada"
+              : mobilizacaoDraft.status === "DIRTY"
+                ? "Alterações não salvas"
+                : mobilizacaoDraft.status === "SAVED"
+                  ? `Rascunho salvo ${horaBR(mobilizacaoDraft.salvoEm)}`
+                  : mobilizacaoDraft.status === "ERROR"
+                    ? mobilizacaoDraft.mensagemErro ?? "Falha ao salvar o rascunho"
+                    : mobilizacaoDraft.temPlanejamentoPersistido
+                      ? "Rascunho sincronizado com o servidor"
+                      : "Nenhum rascunho salvo"}
+          </span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -257,9 +263,10 @@ export const EtapaMobilizacao: React.FC = () => {
               </Button>
               <Button
                 size="sm"
+                variant="outline"
                 className="gap-2"
                 data-testid="ct3c-salvar-rascunho"
-                disabled={salvando || problemasRascunho.length > 0}
+                disabled={salvando || !podeSalvarRascunho}
                 onClick={salvar}
               >
                 {salvando ? (
@@ -271,8 +278,50 @@ export const EtapaMobilizacao: React.FC = () => {
               </Button>
             </>
           )}
+          <Button
+            size="sm"
+            className="gap-2"
+            data-testid="ct3d2-ir-revisao"
+            disabled={salvando || viagens.length === 0}
+            onClick={irParaRevisao}
+          >
+            {salvando ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ArrowRight className="h-4 w-4" />
+            )}
+            Revisar planejamento
+          </Button>
+
         </div>
       </div>
+
+      {mobilizacaoDraft.operacaoPendente && (
+        <Alert data-testid="ct3d3-confirmar-salvamento">
+          <AlertTitle className="text-xs">Operação sem confirmação</AlertTitle>
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span>
+              Uma tentativa deste planejamento não teve resposta. Resolver reconsulta o servidor e,
+              se necessário, repete o mesmo comando com segurança (sem duplicar registros).
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              data-testid="ct3d5-resolver-pendencia"
+              disabled={salvando || mobilizacaoDraft.resolvendoPendencia}
+              onClick={() => void mobilizacaoDraft.resolverOperacaoPendente()}
+            >
+              {mobilizacaoDraft.resolvendoPendencia ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Resolver operação pendente"
+              )}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+
 
       {somenteLeitura && vigente && (
         <Alert data-testid="ct3c-mobilizacao-programada">
@@ -300,92 +349,163 @@ export const EtapaMobilizacao: React.FC = () => {
       )}
 
       <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+        {/* CT-3D.5 — coluna lateral: TODOS os ativos com status material e seleção. */}
         <Card data-testid="ct3c-painel-ativos">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-xs font-medium">
-              Ativos aguardando planejamento
+              Ativos da solicitação
               <Badge variant="outline" className="text-[10px]">
-                {pendentes.length}
+                {planejados.length}/{(estado.ativos ?? []).length}
               </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-xs">
-            {pendentes.length === 0 ? (
+            {(estado.ativos ?? []).length === 0 ? (
               <p className="text-[11px] text-muted-foreground">
-                Todos os ativos reservados já estão agrupados em viagens.
+                Nenhum ativo reservado nesta solicitação.
               </p>
             ) : (
-              pendentes.map((a) => (
-                <div
-                  key={a.atendimentoId}
-                  className="space-y-1 rounded-md border p-2"
-                  data-testid={`ct3c-ativo-pendente-${a.atendimentoId}`}
-                >
-                  <p className="font-medium">{rotuloAtivo(a)}</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {a.centroCustoAtualNome ?? "Sem centro de custo atual"}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    Reserva a partir de{" "}
-                    {a.periodoInicio ? formatDateBR(a.periodoInicio) : "—"}
-                  </p>
-                  {!somenteLeitura && (
-                    <div className="flex flex-wrap gap-1 pt-1">
-                      {viagens.map((v, i) => (
-                        <Button
-                          key={v.chaveLocal}
-                          size="sm"
-                          variant="outline"
-                          className="h-6 text-[11px]"
-                          onClick={() => agrupar(a.atendimentoId, v.chaveLocal)}
-                        >
-                          {v.codigo ?? `Viagem ${i + 1}`}
-                        </Button>
-                      ))}
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="h-6 text-[11px]"
-                        data-testid={`ct3c-nova-viagem-com-${a.atendimentoId}`}
-                        onClick={() => novaViagemComAtivo(a.atendimentoId)}
+              (estado.ativos ?? []).map((a) => {
+                const st = statusAtivo(a.atendimentoId);
+                const chaveDoAtivo = indice.get(a.atendimentoId) ?? null;
+                const selecionado = !!chaveDoAtivo && chaveDoAtivo === chaveSelecionada;
+                return (
+                  <button
+                    key={a.atendimentoId}
+                    type="button"
+                    className={`w-full space-y-1 rounded-md border p-2 text-left transition-colors hover:bg-muted/50 ${
+                      selecionado ? "border-primary bg-primary/5" : ""
+                    }`}
+                    data-testid={`ct3d5-card-ativo-${a.atendimentoId}`}
+                    data-status={st}
+                    data-selecionado={selecionado ? "true" : "false"}
+                    onClick={() => mobilizacaoDraft.selecionarAtivo(a.atendimentoId)}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium">{rotuloAtivo(a)}</p>
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] ${
+                          st === "PROGRAMADO" || st === "SALVO"
+                            ? "border-emerald-600/50 bg-emerald-600/10"
+                            : st === "NAO_SALVO"
+                              ? "border-amber-500/50 bg-amber-500/10"
+                              : ""
+                        }`}
                       >
-                        + Nova viagem
-                      </Button>
+                        {ROTULO_STATUS_ATIVO[st]}
+                      </Badge>
                     </div>
-                  )}
-                </div>
-              ))
+                    <p className="text-[11px] text-muted-foreground">
+                      {a.centroCustoAtualNome ?? "Sem centro de custo atual"}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Reserva a partir de {a.periodoInicio ? formatDateBR(a.periodoInicio) : "—"}
+                    </p>
+                    {!somenteLeitura && st === "PENDENTE" && podeAgruparNaSelecionada && (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        className="mt-1 inline-flex cursor-pointer text-[11px] font-medium text-primary underline"
+                        data-testid={`ct3d5-incluir-na-viagem-${a.atendimentoId}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          agrupar(a.atendimentoId, chaveSelecionada);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.stopPropagation();
+                            agrupar(a.atendimentoId, chaveSelecionada);
+                          }
+                        }}
+                      >
+                        Incluir nesta viagem transportada
+                      </span>
+                    )}
+                  </button>
+                );
+              })
             )}
+          </CardContent>
+          <CardContent className="border-t pt-2 text-[11px] text-muted-foreground">
+            Selecione um ativo para planejar. Ativos sem viagem permanecem aguardando planejamento
+            (mobilização parcial é permitida).
           </CardContent>
         </Card>
 
+        {/* CT-3D.5 — um único formulário de planejamento visível por vez. */}
         <div className="space-y-3">
-          {viagens.length === 0 ? (
+          {viagens.length === 0 || !viagemSelecionada ? (
             <Alert data-testid="ct3c-sem-viagens">
-              <AlertTitle className="text-xs">Nenhuma viagem criada</AlertTitle>
+              <AlertTitle className="text-xs">Nenhum planejamento em edição</AlertTitle>
               <AlertDescription className="text-xs">
-                Crie uma viagem e agrupe os ativos reservados. Ativos que ficarem de fora
-                permanecem aguardando planejamento (mobilização parcial).
+                Selecione um ativo na coluna ao lado para planejar sua mobilização. Ativos que
+                ficarem de fora permanecem aguardando planejamento.
               </AlertDescription>
             </Alert>
           ) : (
-            viagens.map((v, i) => (
-              <ViagemCardEditor
-                key={v.chaveLocal}
-                viagem={v}
-                indice={i}
-                ativos={estado.ativos}
-                problemas={problemasDaViagem(v.chaveLocal)}
-                somenteLeitura={somenteLeitura}
-                cadastros={cadastros}
-                onPatch={(patch) => patchViagem(v.chaveLocal, patch)}
-                onRemover={() => removerViagem(v.chaveLocal)}
-                onRemoverAtivo={(at) => agrupar(at, null)}
-              />
-            ))
+            (() => {
+              const v = viagemSelecionada;
+              const i = viagens.findIndex((x) => x.chaveLocal === v.chaveLocal);
+              const persistida =
+                v.atendimentoIds.map((at) => indicePersistido.get(at)).find((x) => !!x) ?? null;
+              const programada = persistida?.status === "PROGRAMADA";
+              return (
+                <div
+                  className="space-y-1"
+                  data-state={programada ? "programado" : persistida ? "persistido" : "nao-salvo"}
+                  data-testid={`ct3d3-viagem-estado-${v.chaveLocal}`}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    {persistida && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />}
+                    <Badge
+                      variant="outline"
+                      className={
+                        persistida
+                          ? "border-emerald-600/50 bg-emerald-600/10 text-[10px]"
+                          : "text-[10px]"
+                      }
+                    >
+                      {programada ? "Programada" : persistida ? "Salva no rascunho" : "Não salva"}
+                    </Badge>
+                    <span className="text-[11px] text-muted-foreground">
+                      {persistida?.codigo ?? v.codigo ?? "Nova viagem"} ·{" "}
+                      {v.atendimentoIds.length} ativo(s)
+                    </span>
+                    {viagens.length > 1 && (
+                      <span className="text-[11px] text-muted-foreground">
+                        Planejamento {i + 1} de {viagens.length}
+                      </span>
+                    )}
+                  </div>
+                  <ViagemCardEditor
+                    viagem={v}
+                    indice={i}
+                    ativos={estado.ativos}
+                    problemas={problemasDaViagem(v.chaveLocal)}
+                    somenteLeitura={somenteLeitura}
+                    cadastros={cadastros}
+                    origemCcEndereco={
+                      v.origemCentroCustoId
+                        ? cadastros.enderecosCentroCusto[v.origemCentroCustoId] ?? null
+                        : null
+                    }
+                    destinoCcEndereco={
+                      v.destinoCentroCustoId
+                        ? cadastros.enderecosCentroCusto[v.destinoCentroCustoId] ?? null
+                        : null
+                    }
+                    onPatch={(patch) => patchViagem(v.chaveLocal, patch)}
+                    onRemover={() => removerViagem(v.chaveLocal)}
+                    onRemoverAtivo={(at) => agrupar(at, null)}
+                  />
+                </div>
+              );
+            })()
           )}
         </div>
       </div>
+
     </div>
   );
 };

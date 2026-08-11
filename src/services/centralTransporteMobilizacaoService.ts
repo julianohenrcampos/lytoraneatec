@@ -89,16 +89,37 @@ const mapViagem = (raw: unknown): CtViagem => {
     origemCcCodigoSnapshot: texto(r.origem_cc_codigo_snapshot),
     origemCcNomeSnapshot: texto(r.origem_cc_nome_snapshot),
     origemCcEnderecoSnapshot: texto(r.origem_cc_endereco_snapshot),
+    origemCcLatitudeSnapshot: numero(r.origem_cc_latitude_snapshot),
+    origemCcLongitudeSnapshot: numero(r.origem_cc_longitude_snapshot),
+    origemEnderecoOperacional: texto(r.origem_endereco_operacional),
+    origemPontoExato: texto(r.origem_ponto_exato),
+    origemColetaLatitude: numero(r.origem_coleta_latitude),
+    origemColetaLongitude: numero(r.origem_coleta_longitude),
     destinoCentroCustoId: texto(r.destino_centro_custo_id),
     destinoCcCodigoSnapshot: texto(r.destino_cc_codigo_snapshot),
     destinoCcNomeSnapshot: texto(r.destino_cc_nome_snapshot),
     destinoCcEnderecoSnapshot: texto(r.destino_cc_endereco_snapshot),
+    destinoCcLatitudeSnapshot: numero(r.destino_cc_latitude_snapshot),
+    destinoCcLongitudeSnapshot: numero(r.destino_cc_longitude_snapshot),
+    destinoEnderecoOperacional: texto(r.destino_endereco_operacional),
+    destinoPontoExato: texto(r.destino_ponto_exato),
+    destinoDescargaLatitude: numero(r.destino_descarga_latitude),
+    destinoDescargaLongitude: numero(r.destino_descarga_longitude),
+    recebedorPrevistoFuncionarioId: texto(r.recebedor_previsto_funcionario_id),
+    recebedorPrevistoNomeSnapshot: texto(r.recebedor_previsto_nome_snapshot),
+    recebedorPrevistoTelefoneSnapshot: texto(r.recebedor_previsto_telefone_snapshot),
     dataPrevistaSaida: texto(r.data_prevista_saida),
     dataPrevistaEntrega: texto(r.data_prevista_entrega),
     distanciaKm: numero(r.distancia_km),
+    distanciaRotaKm: numero(r.distancia_rota_km),
+    duracaoRotaMin: numero(r.duracao_rota_min),
+    rotaResumo: texto(r.rota_resumo),
+    distanciaOperacionalKm: numero(r.distancia_operacional_km),
+    distanciaRegraAplicada: texto(r.distancia_regra_aplicada),
     observacoes: texto(r.observacoes),
     atendimentoIds: listaIds(r.atendimento_ids),
   };
+
 };
 
 const mapPlanejamento = (raw: unknown): CtPlanejamento => {
@@ -153,9 +174,25 @@ export const serializarViagem = (v: CtViagemRascunho): Record<string, unknown> =
   empresa_transportadora_id: v.empresaTransportadoraId,
   origem_centro_custo_id: v.origemCentroCustoId,
   destino_centro_custo_id: v.destinoCentroCustoId,
+  origem_endereco_operacional: v.origemEnderecoOperacional.trim() || null,
+  origem_ponto_exato: v.origemPontoExato.trim() || null,
+  origem_coleta_latitude: v.origemColetaLatitude,
+  origem_coleta_longitude: v.origemColetaLongitude,
+  destino_endereco_operacional: v.destinoEnderecoOperacional.trim() || null,
+  destino_ponto_exato: v.destinoPontoExato.trim() || null,
+  destino_descarga_latitude: v.destinoDescargaLatitude,
+  destino_descarga_longitude: v.destinoDescargaLongitude,
+  recebedor_previsto_funcionario_id: v.recebedorPrevistoFuncionarioId,
+  recebedor_previsto_nome: v.recebedorPrevistoFuncionarioId
+    ? null
+    : v.recebedorPrevistoNome.trim() || null,
+  recebedor_previsto_telefone: v.recebedorPrevistoTelefone.trim() || null,
   data_prevista_saida: v.dataPrevistaSaida || null,
   data_prevista_entrega: v.dataProgramada || null,
-  distancia_km: v.distanciaKm.trim() || null,
+  distancia_rota_km: v.distanciaRotaKm,
+  duracao_rota_min: v.duracaoRotaMin,
+  rota_resumo: v.rotaResumo.trim() || null,
+
   observacoes: v.observacoes.trim() || null,
   atendimento_ids: v.atendimentoIds,
 });
@@ -174,6 +211,7 @@ const mapComando = (
     lockVersion: Number(data.lock_version ?? 0),
     status: (texto(data.status) ?? statusPadrao) as CtPlanejamentoStatus,
     contentHash: texto(data.content_hash),
+    viagens: Array.isArray(data.viagens) ? data.viagens.map(mapViagem) : [],
   };
 };
 

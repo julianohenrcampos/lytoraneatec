@@ -3225,6 +3225,101 @@ export type Database = {
           },
         ]
       }
+      bd_ct_checklists: {
+        Row: {
+          assinatura_id: string | null
+          checklist_codigo: string
+          checklist_versao: number
+          created_at: string
+          created_by: string | null
+          fase: string
+          id: string
+          latitude: number | null
+          longitude: number | null
+          movimentacao_id: string | null
+          realizado_em: string | null
+          realizado_por_funcionario_id: string | null
+          realizado_por_profile_id: string | null
+          respostas: Json
+          status: string
+          tipo: string
+          updated_at: string
+          updated_by: string | null
+          viagem_id: string
+        }
+        Insert: {
+          assinatura_id?: string | null
+          checklist_codigo: string
+          checklist_versao?: number
+          created_at?: string
+          created_by?: string | null
+          fase?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          movimentacao_id?: string | null
+          realizado_em?: string | null
+          realizado_por_funcionario_id?: string | null
+          realizado_por_profile_id?: string | null
+          respostas?: Json
+          status?: string
+          tipo: string
+          updated_at?: string
+          updated_by?: string | null
+          viagem_id: string
+        }
+        Update: {
+          assinatura_id?: string | null
+          checklist_codigo?: string
+          checklist_versao?: number
+          created_at?: string
+          created_by?: string | null
+          fase?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          movimentacao_id?: string | null
+          realizado_em?: string | null
+          realizado_por_funcionario_id?: string | null
+          realizado_por_profile_id?: string | null
+          respostas?: Json
+          status?: string
+          tipo?: string
+          updated_at?: string
+          updated_by?: string | null
+          viagem_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_ct_checklists_assinatura_id_fkey"
+            columns: ["assinatura_id"]
+            isOneToOne: false
+            referencedRelation: "bd_assinaturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_checklists_assinatura_id_fkey"
+            columns: ["assinatura_id"]
+            isOneToOne: false
+            referencedRelation: "vw_assinaturas_diarias_seguro"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_checklists_movimentacao_id_fkey"
+            columns: ["movimentacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_movimentacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_checklists_viagem_id_fkey"
+            columns: ["viagem_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ct_viagens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_ct_comando_requests: {
         Row: {
           command_hash: string
@@ -3234,7 +3329,7 @@ export type Database = {
           planejamento_id: string | null
           request_id: string
           response_json: Json
-          solicitacao_id: string
+          solicitacao_id: string | null
         }
         Insert: {
           command_hash: string
@@ -3244,7 +3339,7 @@ export type Database = {
           planejamento_id?: string | null
           request_id: string
           response_json: Json
-          solicitacao_id: string
+          solicitacao_id?: string | null
         }
         Update: {
           command_hash?: string
@@ -3254,7 +3349,7 @@ export type Database = {
           planejamento_id?: string | null
           request_id?: string
           response_json?: Json
-          solicitacao_id?: string
+          solicitacao_id?: string | null
         }
         Relationships: [
           {
@@ -3308,8 +3403,334 @@ export type Database = {
           },
         ]
       }
+      bd_ct_recebimento_itens: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          equipamento_id: string | null
+          fotos: Json
+          id: string
+          movimentacao_id: string
+          nao_conformidade_tipo: string | null
+          observacao: string | null
+          recebimento_id: string
+          respostas: Json
+          resultado: string
+          tratado_em: string | null
+          tratado_por: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          equipamento_id?: string | null
+          fotos?: Json
+          id?: string
+          movimentacao_id: string
+          nao_conformidade_tipo?: string | null
+          observacao?: string | null
+          recebimento_id: string
+          respostas?: Json
+          resultado: string
+          tratado_em?: string | null
+          tratado_por?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          equipamento_id?: string | null
+          fotos?: Json
+          id?: string
+          movimentacao_id?: string
+          nao_conformidade_tipo?: string | null
+          observacao?: string | null
+          recebimento_id?: string
+          respostas?: Json
+          resultado?: string
+          tratado_em?: string | null
+          tratado_por?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_ct_recebimento_itens_movimentacao_id_fkey"
+            columns: ["movimentacao_id"]
+            isOneToOne: false
+            referencedRelation: "bd_movimentacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_recebimento_itens_recebimento_id_fkey"
+            columns: ["recebimento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ct_recebimentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_ct_recebimentos: {
+        Row: {
+          assinatura_id: string | null
+          created_at: string
+          created_by: string | null
+          fotos: Json
+          id: string
+          latitude: number | null
+          longitude: number | null
+          observacoes: string | null
+          operado_por_profile_id: string | null
+          parada_id: string | null
+          recebedor_documento_snapshot: string | null
+          recebedor_nome_snapshot: string | null
+          recebedor_previsto_id: string | null
+          recebedor_real_id: string | null
+          recebido_em: string | null
+          status: string
+          updated_at: string
+          updated_by: string | null
+          viagem_id: string
+        }
+        Insert: {
+          assinatura_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          fotos?: Json
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          observacoes?: string | null
+          operado_por_profile_id?: string | null
+          parada_id?: string | null
+          recebedor_documento_snapshot?: string | null
+          recebedor_nome_snapshot?: string | null
+          recebedor_previsto_id?: string | null
+          recebedor_real_id?: string | null
+          recebido_em?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          viagem_id: string
+        }
+        Update: {
+          assinatura_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          fotos?: Json
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          observacoes?: string | null
+          operado_por_profile_id?: string | null
+          parada_id?: string | null
+          recebedor_documento_snapshot?: string | null
+          recebedor_nome_snapshot?: string | null
+          recebedor_previsto_id?: string | null
+          recebedor_real_id?: string | null
+          recebido_em?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          viagem_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_ct_recebimentos_assinatura_id_fkey"
+            columns: ["assinatura_id"]
+            isOneToOne: false
+            referencedRelation: "bd_assinaturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_recebimentos_assinatura_id_fkey"
+            columns: ["assinatura_id"]
+            isOneToOne: false
+            referencedRelation: "vw_assinaturas_diarias_seguro"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_recebimentos_parada_id_fkey"
+            columns: ["parada_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ct_viagem_paradas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_recebimentos_viagem_id_fkey"
+            columns: ["viagem_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ct_viagens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_ct_viagem_paradas: {
+        Row: {
+          cc_codigo_snapshot: string | null
+          cc_nome_snapshot: string | null
+          centro_custo_id: string
+          chegada_registrada_em: string | null
+          chegada_registrada_por: string | null
+          concluida_em: string | null
+          created_at: string
+          created_by: string | null
+          data_prevista: string | null
+          endereco_snapshot: string | null
+          hora_prevista: string | null
+          id: string
+          latitude: number | null
+          longitude: number | null
+          observacao: string | null
+          ordem: number
+          ponto_exato: string | null
+          recebedor_previsto_funcionario_id: string | null
+          recebedor_previsto_nome_snapshot: string | null
+          status: string
+          updated_at: string
+          updated_by: string | null
+          viagem_id: string
+        }
+        Insert: {
+          cc_codigo_snapshot?: string | null
+          cc_nome_snapshot?: string | null
+          centro_custo_id: string
+          chegada_registrada_em?: string | null
+          chegada_registrada_por?: string | null
+          concluida_em?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_prevista?: string | null
+          endereco_snapshot?: string | null
+          hora_prevista?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          observacao?: string | null
+          ordem: number
+          ponto_exato?: string | null
+          recebedor_previsto_funcionario_id?: string | null
+          recebedor_previsto_nome_snapshot?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          viagem_id: string
+        }
+        Update: {
+          cc_codigo_snapshot?: string | null
+          cc_nome_snapshot?: string | null
+          centro_custo_id?: string
+          chegada_registrada_em?: string | null
+          chegada_registrada_por?: string | null
+          concluida_em?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_prevista?: string | null
+          endereco_snapshot?: string | null
+          hora_prevista?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          observacao?: string | null
+          ordem?: number
+          ponto_exato?: string | null
+          recebedor_previsto_funcionario_id?: string | null
+          recebedor_previsto_nome_snapshot?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          viagem_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_ct_viagem_paradas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagem_paradas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagem_paradas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagem_paradas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagem_paradas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagem_paradas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagem_paradas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagem_paradas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagem_paradas_recebedor_previsto_funcionario_id_fkey"
+            columns: ["recebedor_previsto_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagem_paradas_recebedor_previsto_funcionario_id_fkey"
+            columns: ["recebedor_previsto_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagem_paradas_recebedor_previsto_funcionario_id_fkey"
+            columns: ["recebedor_previsto_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagem_paradas_viagem_id_fkey"
+            columns: ["viagem_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ct_viagens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_ct_viagens: {
         Row: {
+          chegada_registrada_em: string | null
+          chegada_registrada_por: string | null
           codigo: string
           created_at: string
           created_by: string | null
@@ -3321,10 +3742,19 @@ export type Database = {
           destino_cc_longitude_snapshot: number | null
           destino_cc_nome_snapshot: string | null
           destino_centro_custo_id: string | null
+          destino_descarga_latitude: number | null
+          destino_descarga_longitude: number | null
           destino_descricao: string | null
+          destino_endereco_operacional: string | null
+          destino_ponto_exato: string | null
           distancia_km: number | null
+          distancia_operacional_km: number | null
+          distancia_regra_aplicada: string | null
+          distancia_rota_km: number | null
+          duracao_rota_min: number | null
           empresa_transportadora_id: string | null
           empresa_transportadora_nome_snapshot: string | null
+          finalizada_em: string | null
           id: string
           modalidade_deslocamento: string | null
           motorista_cpf_snapshot: string | null
@@ -3337,19 +3767,32 @@ export type Database = {
           origem_cc_longitude_snapshot: number | null
           origem_cc_nome_snapshot: string | null
           origem_centro_custo_id: string | null
+          origem_coleta_latitude: number | null
+          origem_coleta_longitude: number | null
           origem_descricao: string | null
+          origem_endereco_operacional: string | null
+          origem_fluxo: string
+          origem_ponto_exato: string | null
           placa_transportador_snapshot: string | null
           planejamento_id: string | null
+          recebedor_previsto_funcionario_id: string | null
+          recebedor_previsto_nome_snapshot: string | null
+          recebedor_previsto_telefone_snapshot: string | null
           responsavel_transporte: string | null
-          solicitacao_id: string
+          rota_resumo: string | null
+          solicitacao_id: string | null
           status: string
           tipo_transporte: string | null
           transportadora: string | null
+          transporte_iniciado_em: string | null
+          transporte_iniciado_por: string | null
           updated_at: string
           updated_by: string | null
           veiculo_transportador_id: string | null
         }
         Insert: {
+          chegada_registrada_em?: string | null
+          chegada_registrada_por?: string | null
           codigo?: string
           created_at?: string
           created_by?: string | null
@@ -3361,10 +3804,19 @@ export type Database = {
           destino_cc_longitude_snapshot?: number | null
           destino_cc_nome_snapshot?: string | null
           destino_centro_custo_id?: string | null
+          destino_descarga_latitude?: number | null
+          destino_descarga_longitude?: number | null
           destino_descricao?: string | null
+          destino_endereco_operacional?: string | null
+          destino_ponto_exato?: string | null
           distancia_km?: number | null
+          distancia_operacional_km?: number | null
+          distancia_regra_aplicada?: string | null
+          distancia_rota_km?: number | null
+          duracao_rota_min?: number | null
           empresa_transportadora_id?: string | null
           empresa_transportadora_nome_snapshot?: string | null
+          finalizada_em?: string | null
           id?: string
           modalidade_deslocamento?: string | null
           motorista_cpf_snapshot?: string | null
@@ -3377,19 +3829,32 @@ export type Database = {
           origem_cc_longitude_snapshot?: number | null
           origem_cc_nome_snapshot?: string | null
           origem_centro_custo_id?: string | null
+          origem_coleta_latitude?: number | null
+          origem_coleta_longitude?: number | null
           origem_descricao?: string | null
+          origem_endereco_operacional?: string | null
+          origem_fluxo?: string
+          origem_ponto_exato?: string | null
           placa_transportador_snapshot?: string | null
           planejamento_id?: string | null
+          recebedor_previsto_funcionario_id?: string | null
+          recebedor_previsto_nome_snapshot?: string | null
+          recebedor_previsto_telefone_snapshot?: string | null
           responsavel_transporte?: string | null
-          solicitacao_id: string
+          rota_resumo?: string | null
+          solicitacao_id?: string | null
           status?: string
           tipo_transporte?: string | null
           transportadora?: string | null
+          transporte_iniciado_em?: string | null
+          transporte_iniciado_por?: string | null
           updated_at?: string
           updated_by?: string | null
           veiculo_transportador_id?: string | null
         }
         Update: {
+          chegada_registrada_em?: string | null
+          chegada_registrada_por?: string | null
           codigo?: string
           created_at?: string
           created_by?: string | null
@@ -3401,10 +3866,19 @@ export type Database = {
           destino_cc_longitude_snapshot?: number | null
           destino_cc_nome_snapshot?: string | null
           destino_centro_custo_id?: string | null
+          destino_descarga_latitude?: number | null
+          destino_descarga_longitude?: number | null
           destino_descricao?: string | null
+          destino_endereco_operacional?: string | null
+          destino_ponto_exato?: string | null
           distancia_km?: number | null
+          distancia_operacional_km?: number | null
+          distancia_regra_aplicada?: string | null
+          distancia_rota_km?: number | null
+          duracao_rota_min?: number | null
           empresa_transportadora_id?: string | null
           empresa_transportadora_nome_snapshot?: string | null
+          finalizada_em?: string | null
           id?: string
           modalidade_deslocamento?: string | null
           motorista_cpf_snapshot?: string | null
@@ -3417,14 +3891,25 @@ export type Database = {
           origem_cc_longitude_snapshot?: number | null
           origem_cc_nome_snapshot?: string | null
           origem_centro_custo_id?: string | null
+          origem_coleta_latitude?: number | null
+          origem_coleta_longitude?: number | null
           origem_descricao?: string | null
+          origem_endereco_operacional?: string | null
+          origem_fluxo?: string
+          origem_ponto_exato?: string | null
           placa_transportador_snapshot?: string | null
           planejamento_id?: string | null
+          recebedor_previsto_funcionario_id?: string | null
+          recebedor_previsto_nome_snapshot?: string | null
+          recebedor_previsto_telefone_snapshot?: string | null
           responsavel_transporte?: string | null
-          solicitacao_id?: string
+          rota_resumo?: string | null
+          solicitacao_id?: string | null
           status?: string
           tipo_transporte?: string | null
           transportadora?: string | null
+          transporte_iniciado_em?: string | null
+          transporte_iniciado_por?: string | null
           updated_at?: string
           updated_by?: string | null
           veiculo_transportador_id?: string | null
@@ -3569,6 +4054,27 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_recebedor_previsto_funcionario_id_fkey"
+            columns: ["recebedor_previsto_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_recebedor_previsto_funcionario_id_fkey"
+            columns: ["recebedor_previsto_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_recebedor_previsto_funcionario_id_fkey"
+            columns: ["recebedor_previsto_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "bd_ct_viagens_solicitacao_id_fkey"
@@ -5783,6 +6289,8 @@ export type Database = {
           motivo_rejeicao: string | null
           observacao: string | null
           precisa_exame: boolean
+          salario_atual: number | null
+          salario_novo: number | null
           solicitacao_lote_id: string | null
           solicitado_em: string
           solicitado_por: string
@@ -5810,6 +6318,8 @@ export type Database = {
           motivo_rejeicao?: string | null
           observacao?: string | null
           precisa_exame?: boolean
+          salario_atual?: number | null
+          salario_novo?: number | null
           solicitacao_lote_id?: string | null
           solicitado_em?: string
           solicitado_por?: string
@@ -5837,6 +6347,8 @@ export type Database = {
           motivo_rejeicao?: string | null
           observacao?: string | null
           precisa_exame?: boolean
+          salario_atual?: number | null
+          salario_novo?: number | null
           solicitacao_lote_id?: string | null
           solicitado_em?: string
           solicitado_por?: string
@@ -7888,12 +8400,14 @@ export type Database = {
           equipamento_id: string | null
           id: string
           observacoes: string | null
+          origem_fluxo: string
           origem_id: string | null
           origem_tipo: string
+          parada_id: string | null
           planejamento_id: string | null
           prazo_estimado_horas: number | null
           responsavel_transporte: string | null
-          solicitacao_id: string
+          solicitacao_id: string | null
           solicitacao_planejamento_id: string | null
           status: string | null
           tipo_atendimento: string | null
@@ -7914,12 +8428,14 @@ export type Database = {
           equipamento_id?: string | null
           id?: string
           observacoes?: string | null
+          origem_fluxo?: string
           origem_id?: string | null
           origem_tipo: string
+          parada_id?: string | null
           planejamento_id?: string | null
           prazo_estimado_horas?: number | null
           responsavel_transporte?: string | null
-          solicitacao_id: string
+          solicitacao_id?: string | null
           solicitacao_planejamento_id?: string | null
           status?: string | null
           tipo_atendimento?: string | null
@@ -7940,12 +8456,14 @@ export type Database = {
           equipamento_id?: string | null
           id?: string
           observacoes?: string | null
+          origem_fluxo?: string
           origem_id?: string | null
           origem_tipo?: string
+          parada_id?: string | null
           planejamento_id?: string | null
           prazo_estimado_horas?: number | null
           responsavel_transporte?: string | null
-          solicitacao_id?: string
+          solicitacao_id?: string | null
           solicitacao_planejamento_id?: string | null
           status?: string | null
           tipo_atendimento?: string | null
@@ -7982,6 +8500,13 @@ export type Database = {
             columns: ["equipamento_id"]
             isOneToOne: false
             referencedRelation: "vw_ativos_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_movimentacoes_parada_id_fkey"
+            columns: ["parada_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ct_viagem_paradas"
             referencedColumns: ["id"]
           },
           {
@@ -22408,6 +22933,10 @@ export type Database = {
         Args: { p_equipamento_id: string }
         Returns: Json
       }
+      fn_ct_ativos_movimentacao_listar: {
+        Args: { p_limit?: number; p_termo?: string }
+        Returns: Json
+      }
       fn_ct_avaliar_disponibilidade: {
         Args: {
           p_equipamento_id: string
@@ -22418,6 +22947,12 @@ export type Database = {
       }
       fn_ct_avaliar_match: {
         Args: { p_equipamento_id: string; p_item_id: string }
+        Returns: Json
+      }
+      fn_ct_cap: { Args: { p_acao: string; p_user: string }; Returns: boolean }
+      fn_ct_cap_admin: { Args: { p_user: string }; Returns: boolean }
+      fn_ct_checklist_saida_salvar: {
+        Args: { p_payload: Json; p_request_id: string; p_viagem_id: string }
         Returns: Json
       }
       fn_ct_contadores_item: { Args: { p_item_id: string }; Returns: Json }
@@ -22449,6 +22984,8 @@ export type Database = {
             }
             Returns: Json
           }
+      fn_ct_distancia_operacional: { Args: { p_km: number }; Returns: number }
+      fn_ct_distancia_regra: { Args: { p_km: number }; Returns: string }
       fn_ct_estado_efetivo_lote: {
         Args: {
           p_centro_custo_ids?: string[]
@@ -22458,6 +22995,7 @@ export type Database = {
         }
         Returns: Json
       }
+      fn_ct_funcionarios_com_usuario: { Args: never; Returns: Json }
       fn_ct_item_resumo_json: {
         Args: { p_solicitacao_item_id: string }
         Returns: Json
@@ -22524,9 +23062,73 @@ export type Database = {
         }
         Returns: Json
       }
+      fn_ct_motorista_ordem_detalhe: {
+        Args: { p_viagem_id: string }
+        Returns: Json
+      }
+      fn_ct_motorista_ordens_listar: {
+        Args: { p_data_fim?: string; p_data_inicio?: string }
+        Returns: Json
+      }
+      fn_ct_mov_direta_cancelar: {
+        Args: { p_motivo: string; p_request_id: string; p_viagem_id: string }
+        Returns: Json
+      }
+      fn_ct_mov_direta_estado: { Args: { p_viagem_id: string }; Returns: Json }
+      fn_ct_mov_direta_listar: { Args: { p_status?: string }; Returns: Json }
+      fn_ct_mov_direta_programar: {
+        Args: { p_request_id: string; p_viagem_id: string }
+        Returns: Json
+      }
+      fn_ct_mov_direta_salvar_rascunho: {
+        Args: { p_payload: Json; p_request_id: string; p_viagem_id: string }
+        Returns: Json
+      }
+      fn_ct_operacao_ordens_listar: {
+        Args: { p_data_fim?: string; p_data_inicio?: string; p_status?: string }
+        Returns: Json
+      }
+      fn_ct_parada_registrar_chegada: {
+        Args: { p_parada_id: string; p_request_id: string }
+        Returns: Json
+      }
+      fn_ct_pode_ver_viagem: {
+        Args: { p_user?: string; p_viagem_id: string }
+        Returns: boolean
+      }
       fn_ct_recalcular_status_item: {
         Args: { p_solicitacao_item_id: string }
         Returns: string
+      }
+      fn_ct_recebimento_finalizar: {
+        Args: { p_payload: Json; p_request_id: string; p_viagem_id: string }
+        Returns: Json
+      }
+      fn_ct_recebimentos_pendentes_listar: { Args: never; Returns: Json }
+      fn_ct_registrar_assinatura: {
+        Args: { p_solicitacao_id: string; p_tipo: string; p_user: string }
+        Returns: string
+      }
+      fn_ct_solicitacao_timeline: {
+        Args: { p_solicitacao_id: string }
+        Returns: Json
+      }
+      fn_ct_viagem_iniciar: {
+        Args: { p_request_id: string; p_viagem_id: string }
+        Returns: Json
+      }
+      fn_ct_viagem_json: { Args: { p_viagem_id: string }; Returns: Json }
+      fn_ct_viagem_operacao_detalhe: {
+        Args: { p_viagem_id: string }
+        Returns: Json
+      }
+      fn_ct_viagem_paradas_json: {
+        Args: { p_viagem_id: string }
+        Returns: Json
+      }
+      fn_ct_viagem_registrar_chegada: {
+        Args: { p_request_id: string; p_viagem_id: string }
+        Returns: Json
       }
       fn_designar_equipe_atividade: {
         Args: {

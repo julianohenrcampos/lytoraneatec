@@ -32,6 +32,7 @@ interface Props {
   onRemoveSalva: (path: string) => void;
   disabled?: boolean;
   invalid?: boolean;
+  resolverFotoUrl?: (path: string) => Promise<string | null>;
 }
 
 const STATUS_STYLES: Record<ChecklistValor, { trigger: string; label: string }> = {
@@ -65,6 +66,7 @@ const ChecklistItemRow: React.FC<Props> = ({
   onRemoveSalva,
   disabled,
   invalid,
+  resolverFotoUrl,
 }) => {
   const needsObs = status === "NAO_OK";
   const needsFoto = status === "NAO_OK" && item.exigeFotoNaoOk;
@@ -136,6 +138,7 @@ const ChecklistItemRow: React.FC<Props> = ({
         itemCodigo={item.codigo}
         fotosSalvas={fotosSalvas}
         fotosNovas={fotosNovas}
+        resolverFotoUrl={resolverFotoUrl}
         onAddFiles={onAddFiles}
         onRemoveLocal={onRemoveLocal}
         onRemoveSalva={onRemoveSalva}

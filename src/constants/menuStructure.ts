@@ -211,7 +211,14 @@ export const menuStructure = [
         href: "/gestao-maquinas/mapa-operacional",
         icon: MapPinned,
         requiredPermission: "veiculos_equipamentos_mapa_operacional_view"
+      },
+      {
+        name: "Minhas Mobilizações",
+        href: "/minhas-mobilizacoes",
+        icon: MapPinned,
+        requiredPermission: "gestao_maquinas_minhas_mobilizacoes_view"
       }
+
     ]
   },
   {

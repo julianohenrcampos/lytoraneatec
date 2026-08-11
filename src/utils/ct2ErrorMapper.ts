@@ -75,9 +75,55 @@ const CT2_MESSAGES: Record<string, string> = {
   CT3C_VIAGEM_INCOMPLETA:
     "Informe responsável, data de saída e data de entrega em todas as viagens.",
   CT3C_SEM_VIAGENS: "Crie ao menos uma viagem antes de programar a mobilização.",
+  CT3C_CLIENT_REF_OBRIGATORIO:
+    "Referência local da viagem ausente. Recarregue a página e refaça a viagem.",
+  CT3C_MODALIDADE_INVALIDA: "Modalidade da viagem inválida — use rodante ou transportado.",
+  CT3C_TIPO_TRANSPORTE_INVALIDO: "Tipo de transporte inválido — use próprio ou terceiro.",
+  CT3C_MOTORISTA_INVALIDO: "Motorista não encontrado no cadastro.",
+  CT3C_TRANSPORTADOR_INVALIDO: "Veículo transportador não encontrado no cadastro.",
+  CT3C_TRANSPORTADOR_INDISPONIVEL: "O veículo transportador não está disponível.",
+  CT3C_TRANSPORTADOR_E_CARGA:
+    "O veículo transportador não pode ser carga da própria viagem.",
+  CT3C_EMPRESA_INVALIDA: "Empresa transportadora não encontrada no cadastro.",
+  CT3C_CC_INVALIDO: "Centro de custo de origem ou destino não encontrado.",
+  CT3C_VIAGEM_INVALIDA:
+    "Esta viagem não pertence ao rascunho atual. Recarregue a página para sincronizar.",
+
+  /* CT-3 / CT-3D — endereços, rota e ordem do motorista */
+  CT3_IDEMPOTENCY_KEY_REUSED: "Esta operação já foi registrada com parâmetros diferentes.",
+  CT3D_COORDENADA_INCOMPLETA:
+    "Informe latitude e longitude juntas ao ajustar o ponto no mapa.",
+  CT3D_COORDENADA_INVALIDA: "Coordenada fora do intervalo válido.",
+  CT3D_DISTANCIA_INVALIDA: "Distância da rota fora do intervalo aceitável.",
+  CT3D_RECEBEDOR_INVALIDO: "Recebedor previsto não encontrado no cadastro.",
 };
 
-const CT2_CODE_RE = /\b(CT2_[A-Z_]+|CT25_[A-Z_]+|CT3C_[A-Z_]+)\b/;
+/**
+ * CT-3D.4 — todos os prefixos de domínio da Central. Um código reconhecido
+ * significa transação ABORTADA (determinística), nunca resultado incerto.
+ */
+const CT2_CODE_RE = /\b(CT2_[A-Z0-9_]+|CT25_[A-Z0-9_]+|CT3_[A-Z0-9_]+|CT3C_[A-Z0-9_]+|CT3D_[A-Z0-9_]+)\b/;
+
+/**
+ * SQLSTATEs que provam aborto da transação no servidor: erro de regra de
+ * negócio (RAISE), violação de constraint, permissão ou identificador inválido.
+ * Nenhum deles pode ser tratado como "incerto".
+ */
+const SQLSTATES_DETERMINISTICOS = new Set([
+  "P0001",
+  "22P02",
+  "23502",
+  "23503",
+  "23505",
+  "23514",
+  "42501",
+  "42703",
+  "42883",
+  "55000",
+  "40001",
+  "55P03",
+]);
+
 
 
 const NETWORK_HINTS = [
@@ -159,12 +205,30 @@ export const normalizeCt2Error = (err: unknown): Ct2NormalizedError => {
     };
   }
 
+  // CT-3D.4 — SQLSTATE determinístico: a transação abortou no servidor, mesmo
+  // que o código de domínio não esteja catalogado. Nunca é resultado incerto.
+  const sqlstate = readField(err, "code").trim();
+  if (SQLSTATES_DETERMINISTICOS.has(sqlstate)) {
+    const hint = readField(err, "hint").trim();
+    return {
+      code: sqlstate,
+      message:
+        hint ||
+        (sqlstate === "22P02"
+          ? MENSAGEM_IDENTIFICADOR_INVALIDO
+          : sqlstate === "55000"
+            ? "O servidor rejeitou o estado interno da operação e nada foi gravado. Tente novamente; se persistir, recarregue a página."
+            : "A operação foi rejeitada pelo servidor e nada foi gravado. Ajuste os dados e tente novamente."),
+      isUncertain: false,
+    };
+  }
 
   const raw = [readField(err, "message"), readField(err, "details"), typeof err === "string" ? err : ""]
     .join(" ")
     .toLowerCase();
 
   const looksNetwork = NETWORK_HINTS.some((h) => raw.includes(h)) || raw.trim() === "";
+
 
   if (looksNetwork) {
     return {

@@ -52,24 +52,38 @@ export function novoEstadoDetalhadoOK(
   return s;
 }
 
+/** Template mínimo aceito pelo motor visual (permite reuso fora do C&E). */
+export interface ChecklistTemplateRenderizavel {
+  grupos: { codigo: string; titulo: string; icone: string; ordem: number; itens: ChecklistCeItemDef[] }[];
+}
+
 interface Props {
-  templateCodigo: ChecklistCeTemplateCodigo;
+  /** Um dos templates oficiais C&E (fonte única). */
+  templateCodigo?: ChecklistCeTemplateCodigo;
+  /** Template já resolvido — usado por adapters (ex.: Central do Transporte). */
+  template?: ChecklistTemplateRenderizavel;
   state: ChecklistDetalhadoState;
   onChangeItem: (codigo: string, patch: Partial<ChecklistItemState>) => void;
   showValidation?: boolean;
   showInitialHint?: boolean;
   disabled?: boolean;
+  /** Resolve URL assinada das fotos já persistidas (bucket por módulo). */
+  resolverFotoUrl?: (path: string) => Promise<string | null>;
 }
 
 const ChecklistDinamico: React.FC<Props> = ({
   templateCodigo,
+  template: templateProp,
   state,
   onChangeItem,
   showValidation,
   showInitialHint,
   disabled,
+  resolverFotoUrl,
 }) => {
-  const template = CHECKLIST_CE_TEMPLATES[templateCodigo];
+  const template =
+    templateProp ??
+    (CHECKLIST_CE_TEMPLATES[templateCodigo as ChecklistCeTemplateCodigo] as ChecklistTemplateRenderizavel);
   const [abertos, setAbertos] = useState<Record<string, boolean>>(() => {
     const m: Record<string, boolean> = {};
     template.grupos.forEach((g, idx) => (m[g.codigo] = idx === 0));
@@ -144,6 +158,7 @@ const ChecklistDinamico: React.FC<Props> = ({
                   fotosNovas={s.fotosNovas}
                   disabled={disabled}
                   invalid={isItemInvalido(i)}
+                  resolverFotoUrl={resolverFotoUrl}
                   onStatus={(v) => onChangeItem(i.codigo, { status: v })}
                   onObservacao={(v) => onChangeItem(i.codigo, { observacao: v })}
                   onAddFiles={(files) => {

@@ -24,6 +24,8 @@ export interface CtMobilizacaoCadastros {
   veiculos: ComboboxOption[];
   empresas: ComboboxOption[];
   centrosCusto: ComboboxOption[];
+  /** CT-3D — endereço cadastrado por centro de custo (null quando ausente). */
+  enderecosCentroCusto: Record<string, string | null>;
   isLoading: boolean;
 }
 
@@ -98,21 +100,39 @@ export const useCtMobilizacaoCadastros = (enabled = true): CtMobilizacaoCadastro
     enabled,
     queryKey: ["ct3c", "cadastros", "centros-custo"],
     staleTime: 5 * 60 * 1000,
-    queryFn: async (): Promise<ComboboxOption[]> => {
+    queryFn: async (): Promise<{
+      opcoes: ComboboxOption[];
+      enderecos: Record<string, string | null>;
+    }> => {
       const { data, error } = await supabase
         .from("bd_centros_custo")
-        .select("id, codigo_centro_custo, nome_centro_custo, situacao")
+        .select(
+          "id, codigo_centro_custo, nome_centro_custo, situacao, endereco_completo, endereco_rua, endereco_numero, endereco_bairro, endereco_cidade",
+        )
         .order("codigo_centro_custo");
       if (error) throw error;
-      return ordenar(
-        (data ?? [])
-          .filter((c) => (c.situacao ?? "Ativo") !== "Inativo")
-          .map((c) => ({
+      const ativos = (data ?? []).filter((c) => (c.situacao ?? "Ativo") !== "Inativo");
+      const enderecos: Record<string, string | null> = {};
+      for (const c of ativos) {
+        const composto = [
+          [c.endereco_rua, c.endereco_numero].filter(Boolean).join(", "),
+          c.endereco_bairro,
+          c.endereco_cidade,
+        ]
+          .filter(Boolean)
+          .join(" - ");
+        enderecos[c.id] = (c.endereco_completo ?? "").trim() || composto.trim() || null;
+      }
+      return {
+        enderecos,
+        opcoes: ordenar(
+          ativos.map((c) => ({
             value: c.id,
             label: [c.codigo_centro_custo, c.nome_centro_custo].filter(Boolean).join(" — "),
             searchText: [c.codigo_centro_custo, c.nome_centro_custo].filter(Boolean).join(" "),
           })),
-      );
+        ),
+      };
     },
   });
 
@@ -120,7 +140,8 @@ export const useCtMobilizacaoCadastros = (enabled = true): CtMobilizacaoCadastro
     motoristas: motoristas.data ?? [],
     veiculos: veiculos.data ?? [],
     empresas: empresas.data ?? [],
-    centrosCusto: centrosCusto.data ?? [],
+    centrosCusto: centrosCusto.data?.opcoes ?? [],
+    enderecosCentroCusto: centrosCusto.data?.enderecos ?? {},
     isLoading:
       motoristas.isLoading || veiculos.isLoading || empresas.isLoading || centrosCusto.isLoading,
   };

@@ -32,12 +32,20 @@ const Conteudo: React.FC = () => {
     resumoItens,
     etapa,
     irParaEtapa,
+    etapasConcluidas,
+    mobilizacaoDraft,
     ctOperation,
   } = useCtSolicitacao();
 
+  /**
+   * CT-3D.5 — o banner geral só trata tentativas SEM escopo (ex.: seleção de
+   * ativos). Pendências da Mobilização são resolvidas dentro da própria etapa,
+   * com botão de resolução, e não podem bloquear a página inteira.
+   */
   const temTentativaIncerta = Array.from(ctOperation.attempts.values()).some(
-    (a) => a.state === "UNCERTAIN",
+    (a) => a.state === "UNCERTAIN" && !a.scope,
   );
+
 
   if (isLoading) {
     return (
@@ -91,7 +99,12 @@ const Conteudo: React.FC = () => {
         totalItens={itens.length}
       />
 
-      <CtSolicitacaoStepper atual={etapa} onSelect={irParaEtapa} />
+      <CtSolicitacaoStepper
+        atual={etapa}
+        onSelect={irParaEtapa}
+        concluidas={etapasConcluidas}
+        salvando={mobilizacaoDraft.salvando}
+      />
 
       {etapa === "ITENS" && <EtapaItens />}
       {etapa === "SELECAO" && <EtapaSelecao />}

@@ -48,6 +48,11 @@ const viagemTransportadoPropria = (over: Partial<CtViagemRascunho> = {}): CtViag
   veiculoTransportadorId: "veic-1",
   origemCentroCustoId: "cc-1",
   destinoCentroCustoId: "cc-2",
+  origemEnderecoOperacional: "Rua Origem, 100 - Centro",
+  origemPontoExato: "Patio 1",
+  destinoEnderecoOperacional: "Av. Destino, 200 - Centro",
+  destinoPontoExato: "Portaria 2",
+  recebedorPrevistoNome: "MARIA RECEBEDORA",
   dataPrevistaSaida: "2026-08-04",
   dataProgramada: "2026-08-05",
   ...over,
@@ -70,13 +75,35 @@ const viagemServidor = (over: Partial<CtViagem> = {}): CtViagem => ({
   origemCcCodigoSnapshot: "0001",
   origemCcNomeSnapshot: "OBRA A",
   origemCcEnderecoSnapshot: null,
+  origemCcLatitudeSnapshot: null,
+  origemCcLongitudeSnapshot: null,
+  origemEnderecoOperacional: "Rua Origem, 100 - Centro",
+  origemPontoExato: "Patio 1",
+  origemColetaLatitude: null,
+  origemColetaLongitude: null,
   destinoCentroCustoId: "cc-2",
   destinoCcCodigoSnapshot: "0002",
   destinoCcNomeSnapshot: "OBRA B",
   destinoCcEnderecoSnapshot: null,
+  destinoCcLatitudeSnapshot: null,
+  destinoCcLongitudeSnapshot: null,
+  destinoEnderecoOperacional: "Av. Destino, 200 - Centro",
+  destinoPontoExato: "Portaria 2",
+  destinoDescargaLatitude: null,
+  destinoDescargaLongitude: null,
+  recebedorPrevistoFuncionarioId: null,
+  recebedorPrevistoNomeSnapshot: "MARIA RECEBEDORA",
+  recebedorPrevistoTelefoneSnapshot: null,
   dataPrevistaSaida: "2026-08-04",
   dataPrevistaEntrega: "2026-08-05",
   distanciaKm: 120,
+  distanciaRotaKm: 96,
+  duracaoRotaMin: 150,
+  rotaResumo: "BR-101",
+  distanciaOperacionalKm: 120,
+  distanciaRegraAplicada: "ACIMA_28KM_MAIS_25PCT",
+
+
   observacoes: null,
   atendimentoIds: ["at-1"],
   ...over,
@@ -122,23 +149,23 @@ describe("CT-3C R2 — rascunho de mobilização", () => {
     expect(indiceAtendimentos(viagens).size).toBe(0);
   });
 
-  it("exige modalidade e acusa data de saída posterior à mobilização", () => {
-    const v = { ...criarViagemVazia(), dataPrevistaSaida: "2026-08-10", dataProgramada: "2026-08-05" };
+  it("permite persistir rascunho operacionalmente incompleto", () => {
+    const v = { ...criarViagemVazia(), dataPrevistaSaida: "2026-08-10", dataProgramada: "2026-08-05", atendimentoIds: ["at-1"] };
     const problemas = validarRascunho([v]);
-    expect(problemas.some((p) => p.mensagem.includes("modalidade"))).toBe(true);
-    expect(problemas.some((p) => p.mensagem.includes("posterior"))).toBe(true);
+    expect(problemas).toEqual([]);
+    expect(validarProgramacao([v], [ativo("at-1")]).some((p) => p.mensagem.includes("modalidade"))).toBe(true);
   });
 
-  it("limita a viagem rodante a um único ativo", () => {
+  it("limita a viagem rodante a um único ativo somente ao programar", () => {
     const v = { ...criarViagemVazia(), modalidade: "RODANTE" as const, atendimentoIds: ["at-1", "at-2"] };
-    expect(validarRascunho([v]).some((p) => p.mensagem.includes("exatamente um ativo"))).toBe(true);
+    expect(validarRascunho([v])).toEqual([]);
+    expect(validarProgramacao([v], [ativo("at-1"), ativo("at-2")]).some((p) => p.mensagem.includes("exatamente um ativo"))).toBe(true);
   });
 
-  it("exige tipo de transporte quando a viagem é transportada", () => {
-    const v = { ...criarViagemVazia(), modalidade: "TRANSPORTADO" as const };
-    expect(validarRascunho([v]).some((p) => p.mensagem.includes("próprio ou de terceiro"))).toBe(
-      true,
-    );
+  it("exige tipo de transporte somente ao programar", () => {
+    const v = { ...criarViagemVazia(), modalidade: "TRANSPORTADO" as const, atendimentoIds: ["at-1"] };
+    expect(validarRascunho([v])).toEqual([]);
+    expect(validarProgramacao([v], [ativo("at-1")]).some((p) => p.mensagem.includes("próprio ou de terceiro"))).toBe(true);
   });
 
   it("permite mobilização parcial: ativo fora de viagem não bloqueia", () => {

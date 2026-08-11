@@ -7,7 +7,7 @@
  */
 import React, { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Loader2, Send } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, Save, Send } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,18 +27,21 @@ import {
   CT_VIAGEM_STATUS_LABELS,
 } from "@/types/centralTransporteMobilizacao";
 import { formatDateBR } from "@/utils/formatDateBR";
+import CtSolicitacaoTimeline from "./CtSolicitacaoTimeline";
 import { useCtSolicitacao } from "./CentralTransporteSolicitacaoProvider";
 
 export const EtapaRevisao: React.FC = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { mobilizacao, capabilities, ctOperation } = useCtSolicitacao();
+  const { solicitacaoId, mobilizacao, mobilizacaoDraft, capabilities, ctOperation, irParaEtapa } =
+    useCtSolicitacao();
   const [enviando, setEnviando] = useState(false);
 
   const estado = mobilizacao.estado;
   const rascunho = mobilizacao.rascunhoEmEdicao;
   const planejamento = rascunho ?? mobilizacao.planejamentoVigente;
   const programado = planejamento?.status === "PROGRAMADO";
+  // CT-3D.2 — a Revisão renderiza SOMENTE a versão persistida no servidor.
   const viagens = planejamento?.viagens ?? [];
 
   const rotuloPorAtendimento = useMemo(() => {
@@ -51,6 +54,12 @@ export const EtapaRevisao: React.FC = () => {
     () => (estado && rascunho ? validarProgramacao(hidratarRascunho(estado), estado.ativos) : []),
     [estado, rascunho],
   );
+
+  const ativosPendentes = useMemo(() => {
+    const planejados = new Set(viagens.flatMap((v) => v.atendimentoIds));
+    return (estado?.ativos ?? []).filter((a) => !planejados.has(a.atendimentoId));
+  }, [estado, viagens]);
+
 
   const programar = async () => {
     if (!rascunho) return;
@@ -70,10 +79,13 @@ export const EtapaRevisao: React.FC = () => {
 
     if (out.status === "ok") {
       await invalidarCachesAtivosOperacionais(queryClient);
+      // CT-3D.2 — a agenda do motorista passa a listar a viagem PROGRAMADA.
+      await queryClient.invalidateQueries({ queryKey: ["ct3d", "minhas-ordens"] });
       await mobilizacao.refetch();
+      mobilizacaoDraft.ressincronizar();
       toast({
         title: out.replay ? "Mobilização já programada" : "Mobilização programada",
-        description: `Versão ${out.data.versao} do planejamento passou a vigorar.`,
+        description: "Mobilização programada e disponibilizada ao motorista.",
       });
       return;
     }
@@ -109,13 +121,24 @@ export const EtapaRevisao: React.FC = () => {
     return (
       <Alert data-testid="ct3c-revisao-sem-plano">
         <AlertTitle className="text-xs">Nenhum planejamento registrado</AlertTitle>
-        <AlertDescription className="text-xs">
-          Agrupe os ativos reservados em viagens na etapa de mobilização e salve o rascunho antes
-          de revisar.
+        <AlertDescription className="space-y-2 text-xs">
+          <p>
+            Agrupe os ativos reservados em viagens na etapa de mobilização e salve o rascunho antes
+            de revisar.
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            data-testid="ct3d2-voltar-mobilizacao"
+            onClick={() => irParaEtapa("MOBILIZACAO")}
+          >
+            Voltar à mobilização
+          </Button>
         </AlertDescription>
       </Alert>
     );
   }
+
 
   return (
     <div className="space-y-4" data-testid="ct3c-etapa-revisao">
@@ -127,18 +150,34 @@ export const EtapaRevisao: React.FC = () => {
             {CT_PLANEJAMENTO_STATUS_LABELS[planejamento.status] ?? planejamento.status}
           </Badge>
         </div>
-        {!!rascunho && capabilities.canAprovar && (
-          <Button
-            size="sm"
-            className="gap-2"
-            data-testid="ct3c-programar"
-            disabled={enviando || problemas.length > 0}
-            onClick={programar}
-          >
-            {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            Programar mobilização
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" className="gap-2" onClick={() => irParaEtapa("MOBILIZACAO")}>
+            <ArrowLeft className="h-4 w-4" /> Voltar e editar
           </Button>
-        )}
+          {!!rascunho && capabilities.canEditar && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-2"
+              disabled={mobilizacaoDraft.salvando}
+              onClick={() => void mobilizacaoDraft.salvar()}
+            >
+              <Save className="h-4 w-4" /> Salvar rascunho
+            </Button>
+          )}
+          {!!rascunho && capabilities.canAprovar && (
+            <Button
+              size="sm"
+              className="gap-2"
+              data-testid="ct3c-programar"
+              disabled={enviando || problemas.length > 0}
+              onClick={programar}
+            >
+              {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              Programar mobilização
+            </Button>
+          )}
+        </div>
       </div>
 
       {programado && (
@@ -167,6 +206,43 @@ export const EtapaRevisao: React.FC = () => {
           </AlertDescription>
         </Alert>
       )}
+
+      {mobilizacaoDraft.dirty && (
+        <Alert data-testid="ct3d2-revisao-desatualizada">
+          <AlertTitle className="text-xs">Existem alterações não salvas na mobilização</AlertTitle>
+          <AlertDescription className="space-y-2 text-xs">
+            <p>
+              A revisão abaixo mostra a última versão gravada no servidor. Volte à mobilização e
+              salve para revisar as alterações mais recentes.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              data-testid="ct3d2-voltar-mobilizacao-dirty"
+              onClick={() => irParaEtapa("MOBILIZACAO")}
+            >
+              Voltar à mobilização
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {ativosPendentes.length > 0 && (
+        <Alert data-testid="ct3d2-ativos-pendentes">
+          <AlertTitle className="text-xs">
+            {ativosPendentes.length} ativo(s) sem viagem (mobilização parcial)
+          </AlertTitle>
+          <AlertDescription className="text-xs">
+            <ul className="list-disc pl-4">
+              {ativosPendentes.map((a) => (
+                <li key={a.atendimentoId}>{rotuloAtivo(a)}</li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      )}
+
+
 
       {viagens.map((v) => (
         <Card key={v.id} data-testid={`ct3c-revisao-viagem-${v.id}`}>
@@ -211,25 +287,68 @@ export const EtapaRevisao: React.FC = () => {
                 <dd>{v.dataPrevistaEntrega ? formatDateBR(v.dataPrevistaEntrega) : "—"}</dd>
               </div>
               <div className="md:col-span-2">
-                <dt className="text-[11px] text-muted-foreground">Origem</dt>
+                <dt className="text-[11px] text-muted-foreground">Coleta</dt>
                 <dd>
                   {[v.origemCcCodigoSnapshot, v.origemCcNomeSnapshot].filter(Boolean).join(" — ") ||
                     "—"}
                 </dd>
+                {(v.origemEnderecoOperacional || v.origemPontoExato) && (
+                  <dd className="text-[11px] text-muted-foreground">
+                    {[v.origemEnderecoOperacional, v.origemPontoExato].filter(Boolean).join(" · ")}
+                  </dd>
+                )}
               </div>
               <div className="md:col-span-2">
-                <dt className="text-[11px] text-muted-foreground">Destino</dt>
+                <dt className="text-[11px] text-muted-foreground">Descarga</dt>
                 <dd>
                   {[v.destinoCcCodigoSnapshot, v.destinoCcNomeSnapshot]
                     .filter(Boolean)
                     .join(" — ") || "—"}
                 </dd>
+                {(v.destinoEnderecoOperacional || v.destinoPontoExato) && (
+                  <dd className="text-[11px] text-muted-foreground">
+                    {[v.destinoEnderecoOperacional, v.destinoPontoExato]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </dd>
+                )}
               </div>
               <div>
-                <dt className="text-[11px] text-muted-foreground">Distância</dt>
-                <dd>{v.distanciaKm !== null ? `${v.distanciaKm} km` : "—"}</dd>
+                <dt className="text-[11px] text-muted-foreground">Recebedor previsto</dt>
+                <dd>
+                  {v.recebedorPrevistoNomeSnapshot ?? "—"}
+                  {v.recebedorPrevistoTelefoneSnapshot
+                    ? ` · ${v.recebedorPrevistoTelefoneSnapshot}`
+                    : ""}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[11px] text-muted-foreground">Rota</dt>
+                <dd>
+                  {v.distanciaRotaKm !== null ? `${v.distanciaRotaKm} km` : "—"}
+                  {v.duracaoRotaMin !== null ? ` · ${v.duracaoRotaMin} min` : ""}
+                </dd>
+                {v.rotaResumo && (
+                  <dd className="text-[11px] text-muted-foreground">{v.rotaResumo}</dd>
+                )}
+              </div>
+              <div>
+                <dt className="text-[11px] text-muted-foreground">Distância operacional</dt>
+                <dd>
+                  {v.distanciaOperacionalKm !== null
+                    ? `${v.distanciaOperacionalKm} km`
+                    : v.distanciaKm !== null
+                      ? `${v.distanciaKm} km`
+                      : "—"}
+                </dd>
+                {v.distanciaRegraAplicada && (
+                  <dd className="text-[11px] text-muted-foreground">
+                    {v.distanciaRegraAplicada}
+                  </dd>
+                )}
               </div>
             </dl>
+
             <div>
               <p className="text-[11px] text-muted-foreground">
                 Ativos ({v.atendimentoIds.length})
@@ -253,6 +372,9 @@ export const EtapaRevisao: React.FC = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* CT-3F — linha do tempo operacional consolidada da solicitação. */}
+      <CtSolicitacaoTimeline solicitacaoId={solicitacaoId} />
     </div>
   );
 };

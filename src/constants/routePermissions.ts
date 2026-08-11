@@ -37,6 +37,7 @@ export const ROUTE_PERMISSIONS = {
   '/gestao-maquinas/relatorio-medicao': ['gestao_maquinas_relatorio_medicao_view'],
   '/gestao-maquinas/dashboard': ['dashboard_maquinas_view'],
   '/gestao-maquinas/mapa-operacional': ['veiculos_equipamentos_mapa_operacional_view'],
+  '/minhas-mobilizacoes': ['gestao_maquinas_minhas_mobilizacoes_view'],
   '/gestao-maquinas/central-transporte': ['gestao_maquinas_central_transporte_view'],
   // CT-3B: página dedicada da solicitação herda exatamente a mesma permissão.
   '/gestao-maquinas/central-transporte/solicitacao': ['gestao_maquinas_central_transporte_view'],

@@ -52,9 +52,24 @@ export const criarViagemVazia = (
   empresaTransportadoraId: null,
   origemCentroCustoId: null,
   destinoCentroCustoId: null,
+  origemEnderecoOperacional: "",
+  origemPontoExato: "",
+  origemColetaLatitude: null,
+  origemColetaLongitude: null,
+  destinoEnderecoOperacional: "",
+  destinoPontoExato: "",
+  destinoDescargaLatitude: null,
+  destinoDescargaLongitude: null,
+  recebedorPrevistoFuncionarioId: null,
+  recebedorPrevistoNome: "",
+  recebedorPrevistoTelefone: "",
   dataPrevistaSaida: "",
   dataProgramada: "",
   distanciaKm: "",
+  distanciaRotaKm: null,
+  duracaoRotaMin: null,
+  rotaResumo: "",
+
   observacoes: "",
   atendimentoIds: [],
   ...over,
@@ -77,9 +92,31 @@ const daViagem = (v: CtViagem): CtViagemRascunho => ({
   empresaTransportadoraId: v.empresaTransportadoraId,
   origemCentroCustoId: v.origemCentroCustoId,
   destinoCentroCustoId: v.destinoCentroCustoId,
+  origemEnderecoOperacional: v.origemEnderecoOperacional ?? "",
+  origemPontoExato: v.origemPontoExato ?? "",
+  origemColetaLatitude: v.origemColetaLatitude,
+  origemColetaLongitude: v.origemColetaLongitude,
+  destinoEnderecoOperacional: v.destinoEnderecoOperacional ?? "",
+  destinoPontoExato: v.destinoPontoExato ?? "",
+  destinoDescargaLatitude: v.destinoDescargaLatitude,
+  destinoDescargaLongitude: v.destinoDescargaLongitude,
+  recebedorPrevistoFuncionarioId: v.recebedorPrevistoFuncionarioId,
+  recebedorPrevistoNome: v.recebedorPrevistoFuncionarioId
+    ? ""
+    : (v.recebedorPrevistoNomeSnapshot ?? ""),
+  recebedorPrevistoTelefone: v.recebedorPrevistoTelefoneSnapshot ?? "",
   dataPrevistaSaida: v.dataPrevistaSaida ?? "",
   dataProgramada: v.dataPrevistaEntrega ?? "",
-  distanciaKm: v.distanciaKm === null ? "" : String(v.distanciaKm),
+  distanciaKm:
+    v.distanciaOperacionalKm !== null
+      ? String(v.distanciaOperacionalKm)
+      : v.distanciaKm === null
+        ? ""
+        : String(v.distanciaKm),
+  distanciaRotaKm: v.distanciaRotaKm,
+  duracaoRotaMin: v.duracaoRotaMin,
+  rotaResumo: v.rotaResumo ?? "",
+
   observacoes: v.observacoes ?? "",
   atendimentoIds: [...v.atendimentoIds],
 });
@@ -139,30 +176,6 @@ export const validarRascunho = (viagens: CtViagemRascunho[]): ProblemaRascunho[]
       vistos.add(at);
     }
 
-    if (!v.modalidade) {
-      problemas.push({
-        chaveLocal: v.chaveLocal,
-        mensagem: "Escolha a modalidade da viagem: rodante ou transportado.",
-      });
-    }
-    if (v.modalidade === "TRANSPORTADO" && !v.tipoTransporte) {
-      problemas.push({
-        chaveLocal: v.chaveLocal,
-        mensagem: "Informe se o transporte é próprio ou de terceiro.",
-      });
-    }
-    if (v.modalidade === "RODANTE" && v.atendimentoIds.length > 1) {
-      problemas.push({
-        chaveLocal: v.chaveLocal,
-        mensagem: "Uma viagem rodante transporta exatamente um ativo.",
-      });
-    }
-    if (v.dataPrevistaSaida && v.dataProgramada && v.dataPrevistaSaida > v.dataProgramada) {
-      problemas.push({
-        chaveLocal: v.chaveLocal,
-        mensagem: "A data de saída não pode ser posterior à data da mobilização.",
-      });
-    }
     if (v.distanciaKm.trim() !== "" && !Number.isFinite(Number(v.distanciaKm))) {
       problemas.push({ chaveLocal: v.chaveLocal, mensagem: "Distância inválida." });
     }
@@ -188,6 +201,18 @@ export const validarProgramacao = (
   }
 
   for (const v of viagensAtivas) {
+    if (!v.modalidade) {
+      problemas.push({ chaveLocal: v.chaveLocal, mensagem: "Escolha a modalidade da viagem: rodante ou transportado." });
+    }
+    if (v.modalidade === "TRANSPORTADO" && !v.tipoTransporte) {
+      problemas.push({ chaveLocal: v.chaveLocal, mensagem: "Informe se o transporte é próprio ou de terceiro." });
+    }
+    if (v.modalidade === "RODANTE" && v.atendimentoIds.length !== 1) {
+      problemas.push({ chaveLocal: v.chaveLocal, mensagem: "Uma viagem rodante transporta exatamente um ativo." });
+    }
+    if (v.dataPrevistaSaida && v.dataProgramada && v.dataPrevistaSaida > v.dataProgramada) {
+      problemas.push({ chaveLocal: v.chaveLocal, mensagem: "A data de saída não pode ser posterior à data da mobilização." });
+    }
     if (!v.dataProgramada) {
       problemas.push({
         chaveLocal: v.chaveLocal,
@@ -198,6 +223,33 @@ export const validarProgramacao = (
       problemas.push({
         chaveLocal: v.chaveLocal,
         mensagem: "Informe o centro de custo de origem e de destino.",
+      });
+    }
+    if (
+      !v.origemPontoExato.trim() &&
+      v.origemColetaLatitude === null &&
+      !v.origemEnderecoOperacional.trim()
+    ) {
+      problemas.push({
+        chaveLocal: v.chaveLocal,
+        mensagem: "Informe o ponto exato de coleta.",
+      });
+    }
+    if (
+      !v.destinoPontoExato.trim() &&
+      v.destinoDescargaLatitude === null &&
+      !v.destinoEnderecoOperacional.trim()
+    ) {
+      problemas.push({
+        chaveLocal: v.chaveLocal,
+        mensagem: "Informe o ponto exato de entrega.",
+      });
+    }
+
+    if (!v.recebedorPrevistoFuncionarioId && !v.recebedorPrevistoNome.trim()) {
+      problemas.push({
+        chaveLocal: v.chaveLocal,
+        mensagem: "Informe o recebedor previsto da viagem.",
       });
     }
 
@@ -282,9 +334,22 @@ export const chaveMaterialRascunho = (
           v.empresaTransportadoraId ?? "",
           v.origemCentroCustoId ?? "",
           v.destinoCentroCustoId ?? "",
+          v.origemEnderecoOperacional.trim(),
+          v.origemPontoExato.trim(),
+          v.origemColetaLatitude === null ? "" : String(v.origemColetaLatitude),
+          v.origemColetaLongitude === null ? "" : String(v.origemColetaLongitude),
+          v.destinoEnderecoOperacional.trim(),
+          v.destinoPontoExato.trim(),
+          v.destinoDescargaLatitude === null ? "" : String(v.destinoDescargaLatitude),
+          v.destinoDescargaLongitude === null ? "" : String(v.destinoDescargaLongitude),
+          v.recebedorPrevistoFuncionarioId ?? "",
+          v.recebedorPrevistoNome.trim(),
+          v.recebedorPrevistoTelefone.trim(),
           v.dataPrevistaSaida,
           v.dataProgramada,
-          v.distanciaKm.trim(),
+          v.distanciaRotaKm === null ? "" : String(v.distanciaRotaKm),
+          v.rotaResumo.trim(),
+
           v.observacoes.trim(),
           [...v.atendimentoIds].sort().join("+"),
         ].join("|"),

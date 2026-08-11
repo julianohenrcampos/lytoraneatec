@@ -17,6 +17,8 @@ interface Props {
   onRemoveLocal: (localId: string) => void;
   onRemoveSalva: (path: string) => void;
   disabled?: boolean;
+  /** Resolve a URL assinada da foto persistida (bucket varia por módulo). */
+  resolverFotoUrl?: (path: string) => Promise<string | null>;
 }
 
 const ChecklistFotoField: React.FC<Props> = ({
@@ -27,6 +29,7 @@ const ChecklistFotoField: React.FC<Props> = ({
   onRemoveLocal,
   onRemoveSalva,
   disabled,
+  resolverFotoUrl = getSignedFotoUrl,
 }) => {
   const [signedMap, setSignedMap] = useState<Record<string, string | null>>({});
 
@@ -36,7 +39,7 @@ const ChecklistFotoField: React.FC<Props> = ({
       const missing = fotosSalvas.filter((p) => !(p in signedMap));
       if (missing.length === 0) return;
       const entries = await Promise.all(
-        missing.map(async (p) => [p, await getSignedFotoUrl(p)] as const)
+        missing.map(async (p) => [p, await resolverFotoUrl(p)] as const)
       );
       if (cancel) return;
       setSignedMap((prev) => {
@@ -48,7 +51,7 @@ const ChecklistFotoField: React.FC<Props> = ({
     return () => {
       cancel = true;
     };
-  }, [fotosSalvas, signedMap]);
+  }, [fotosSalvas, signedMap, resolverFotoUrl]);
 
   const inputId = `checklist-foto-${itemCodigo}`;
 

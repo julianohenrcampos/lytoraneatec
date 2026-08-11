@@ -15,6 +15,8 @@ import { useAuth } from "@/hooks/useAuth";
 import useCtOperation from "@/hooks/central-transporte/useCtOperation";
 import useCentralTransporteCapabilities from "@/hooks/central-transporte/useCentralTransporteCapabilities";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import MovimentacoesDiretasList from "./mov-direta/MovimentacoesDiretasList";
 import { AlertTriangle } from "lucide-react";
 import {
   criarStateDeRetorno,
@@ -83,13 +85,28 @@ const CentralTransportePage: React.FC = () => {
         </Alert>
       )}
 
-      <CentralTransporteFilters filters={filters} onChange={setFilters} />
+      <Tabs defaultValue="solicitacoes" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="solicitacoes">Solicitações</TabsTrigger>
+          <TabsTrigger value="movimentacoes" data-testid="ct4-tab-movimentacoes">
+            Movimentações
+          </TabsTrigger>
+        </TabsList>
 
-      {isLoading ? (
-        <div className="text-center py-12 text-muted-foreground">Carregando...</div>
-      ) : (
-        <CentralTransporteTable data={data || []} onSelect={handleSelect} />
-      )}
+        <TabsContent value="solicitacoes" className="space-y-4">
+          <CentralTransporteFilters filters={filters} onChange={setFilters} />
+
+          {isLoading ? (
+            <div className="text-center py-12 text-muted-foreground">Carregando...</div>
+          ) : (
+            <CentralTransporteTable data={data || []} onSelect={handleSelect} />
+          )}
+        </TabsContent>
+
+        <TabsContent value="movimentacoes">
+          <MovimentacoesDiretasList />
+        </TabsContent>
+      </Tabs>
 
       <AnaliseOperacionalSheet
         context={selected}

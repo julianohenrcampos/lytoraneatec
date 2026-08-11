@@ -27,6 +27,7 @@ import {
   type CtViagemRascunho,
 } from "@/types/centralTransporteMobilizacao";
 import { rotuloAtivo } from "@/lib/central-transporte/mobilizacaoRascunho";
+import ViagemEnderecosEditor from "./ViagemEnderecosEditor";
 
 const MODALIDADES: CtModalidade[] = ["RODANTE", "TRANSPORTADO"];
 const TIPOS: CtTipoTransporte[] = ["PROPRIO", "TERCEIRO"];
@@ -43,6 +44,9 @@ export interface ViagemCardEditorProps {
     empresas: ComboboxOption[];
     centrosCusto: ComboboxOption[];
   };
+  /** CT-3D — endereço cadastrado dos CCs escolhidos (null quando ausente). */
+  origemCcEndereco: string | null;
+  destinoCcEndereco: string | null;
   onPatch: (patch: Partial<CtViagemRascunho>) => void;
   onRemover: () => void;
   onRemoverAtivo: (atendimentoId: string) => void;
@@ -55,6 +59,8 @@ export const ViagemCardEditor: React.FC<ViagemCardEditorProps> = ({
   problemas,
   somenteLeitura,
   cadastros,
+  origemCcEndereco,
+  destinoCcEndereco,
   onPatch,
   onRemover,
   onRemoverAtivo,
@@ -201,29 +207,6 @@ export const ViagemCardEditor: React.FC<ViagemCardEditorProps> = ({
           )}
 
           <div className="space-y-1">
-            <Label className="text-[11px]">Origem (centro de custo)</Label>
-            <Combobox
-              disabled={somenteLeitura}
-              value={viagem.origemCentroCustoId ?? ""}
-              placeholder="Centro de custo de origem"
-              searchPlaceholder="Buscar centro de custo..."
-              options={cadastros.centrosCusto}
-              onChange={(v) => onPatch({ origemCentroCustoId: v || null })}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[11px]">Destino (centro de custo)</Label>
-            <Combobox
-              disabled={somenteLeitura}
-              value={viagem.destinoCentroCustoId ?? ""}
-              placeholder="Centro de custo de destino"
-              searchPlaceholder="Buscar centro de custo..."
-              options={cadastros.centrosCusto}
-              onChange={(v) => onPatch({ destinoCentroCustoId: v || null })}
-            />
-          </div>
-
-          <div className="space-y-1">
             <Label className="text-[11px]">Saída prevista (opcional)</Label>
             <Input
               type="date"
@@ -242,17 +225,20 @@ export const ViagemCardEditor: React.FC<ViagemCardEditorProps> = ({
               onChange={(e) => onPatch({ dataProgramada: e.target.value })}
             />
           </div>
-          <div className="space-y-1">
-            <Label className="text-[11px]">Distância estimada (km)</Label>
-            <Input
-              inputMode="decimal"
-              disabled={somenteLeitura}
-              value={viagem.distanciaKm}
-              placeholder="0"
-              onChange={(e) => onPatch({ distanciaKm: e.target.value })}
-            />
-          </div>
         </div>
+
+        <ViagemEnderecosEditor
+          viagem={viagem}
+          somenteLeitura={somenteLeitura}
+          origemCcEndereco={origemCcEndereco}
+          destinoCcEndereco={destinoCcEndereco}
+          funcionarios={cadastros.motoristas}
+          centrosCusto={cadastros.centrosCusto}
+          onPatch={onPatch}
+        />
+
+
+
 
         <div className="space-y-1">
           <Label className="text-[11px]">Observações</Label>
