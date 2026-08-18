@@ -344,7 +344,13 @@ const ChamadosInternosDashboard: React.FC = () => {
 
         <ChamadosDashGraficos series={seriesQ.data} isLoading={seriesQ.isLoading} />
 
-        <FilaSlaRiscoTabela linhas={filaQ.data} isLoading={filaQ.isLoading} />
+        <FilaSlaRiscoTabela
+          linhas={filaQ.data}
+          isLoading={filaQ.isLoading}
+          isError={filaQ.isError}
+          erroMensagem={filaQ.error instanceof Error ? filaQ.error.message : undefined}
+          onTentarNovamente={() => void filaQ.refetch()}
+        />
 
         <div className="grid gap-4 xl:grid-cols-2">
           <AtendentesTabela linhas={atendentesQ.data} isLoading={atendentesQ.isLoading} />

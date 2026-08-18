@@ -22839,12 +22839,15 @@ export type Database = {
       }
       fn_chamado_interno_dash_fila_risco: {
         Args: {
+          p_ate?: string
           p_centro_custo?: string
+          p_de?: string
           p_limite?: number
           p_prioridade?: Database["public"]["Enums"]["chamado_interno_prioridade"][]
           p_responsavel?: string
           p_setor?: Database["public"]["Enums"]["chamado_interno_setor"][]
           p_sla?: string
+          p_somente_em_andamento?: boolean
         }
         Returns: {
           centro_custo_codigo: string

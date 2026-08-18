@@ -38,6 +38,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+
 import { cn } from "@/lib/utils";
 import {
   PrioridadeBadge,
@@ -65,7 +66,10 @@ function restante(min: number | null): { texto: string; critico: boolean } {
 export const FilaSlaRiscoTabela: React.FC<{
   linhas?: ChamadosDashFilaRiscoRow[];
   isLoading?: boolean;
-}> = ({ linhas, isLoading }) => {
+  isError?: boolean;
+  erroMensagem?: string;
+  onTentarNovamente?: () => void;
+}> = ({ linhas, isLoading, isError, erroMensagem, onTentarNovamente }) => {
   const navigate = useNavigate();
   const [aberto, setAberto] = React.useState(true);
 
@@ -79,24 +83,39 @@ export const FilaSlaRiscoTabela: React.FC<{
               Fila crítica e SLA em risco
             </CardTitle>
             <CardDescription>
-              Chamados em andamento ordenados pelo prazo mais próximo do vencimento.
+              Todos os chamados do período filtrado, ordenados pelo prazo mais próximo do
+              vencimento.
             </CardDescription>
           </div>
-          <CollapsibleTrigger asChild>
-            <Button variant="outline" size="sm" className="mt-3 sm:mt-0">
-              <ChevronDown
-                className={cn("mr-2 h-4 w-4 transition-transform", aberto && "rotate-180")}
-              />
-              {aberto ? "Recolher" : "Expandir"}
-            </Button>
-          </CollapsibleTrigger>
+          <div className="mt-3 flex flex-wrap items-center gap-3 sm:mt-0">
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" size="sm">
+                <ChevronDown
+                  className={cn("mr-2 h-4 w-4 transition-transform", aberto && "rotate-180")}
+                />
+                {aberto ? "Recolher" : "Expandir"}
+              </Button>
+            </CollapsibleTrigger>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <Skeleton className="h-48 w-full" />
+          ) : isError ? (
+            <div className="space-y-3 py-6 text-center">
+              <p className="text-sm text-destructive">
+                Não foi possível carregar a fila.
+                {erroMensagem ? ` (${erroMensagem})` : ""}
+              </p>
+              {onTentarNovamente ? (
+                <Button variant="outline" size="sm" onClick={onTentarNovamente}>
+                  Tentar novamente
+                </Button>
+              ) : null}
+            </div>
           ) : !linhas?.length ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              Nenhum chamado em andamento no seu escopo.
+              Nenhum chamado encontrado para os filtros aplicados.
             </p>
           ) : (
             <CollapsibleContent>

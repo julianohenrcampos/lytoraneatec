@@ -291,14 +291,25 @@ describe("encerrar / reabrir — ato do solicitante ou admin", () => {
     expect(caps.canResolver).toBe(true);
   });
 
-  it("solicitante só encerra quando status é resolvido", () => {
-    const base = {
-      chamado: chamado({ status: "respondido", aberto_por: PROFILE }),
-      permissions: perms({ canAbrirEditar: true }),
-    };
-    expect(getChamadoActionCapabilities(input(base)).canConfirmarEncerramento).toBe(false);
+  it("solicitante encerra em respondido/reaberto/resolvido, mas não em em_analise", () => {
+    const perm = perms({ canAbrirEditar: true });
+    const respondido = getChamadoActionCapabilities(
+      input({ chamado: chamado({ status: "respondido", aberto_por: PROFILE }), permissions: perm }),
+    );
+    expect(respondido.canConfirmarEncerramento).toBe(true);
+
+    const reaberto = getChamadoActionCapabilities(
+      input({ chamado: chamado({ status: "reaberto", aberto_por: PROFILE }), permissions: perm }),
+    );
+    expect(reaberto.canConfirmarEncerramento).toBe(true);
+
+    const emAnalise = getChamadoActionCapabilities(
+      input({ chamado: chamado({ status: "em_analise", aberto_por: PROFILE }), permissions: perm }),
+    );
+    expect(emAnalise.canConfirmarEncerramento).toBe(false);
+
     const resolvido = getChamadoActionCapabilities(
-      input({ ...base, chamado: chamado({ status: "resolvido", aberto_por: PROFILE }) }),
+      input({ chamado: chamado({ status: "resolvido", aberto_por: PROFILE }), permissions: perm }),
     );
     expect(resolvido.canConfirmarEncerramento).toBe(true);
     expect(resolvido.canReabrir).toBe(true);

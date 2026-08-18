@@ -76,15 +76,21 @@ export async function buscarAtendentes(
 
 export async function buscarFilaRisco(
   f: ChamadosDashFiltro,
-  limite = 25,
+  limite = 200,
 ): Promise<ChamadosDashFilaRiscoRow[]> {
   const { data, error } = await supabase.rpc("fn_chamado_interno_dash_fila_risco", {
+    p_de: f.de,
+    p_ate: f.ate,
     p_setor: f.setor?.length ? f.setor : undefined,
     p_centro_custo: f.centroCustoId ?? undefined,
     p_limite: limite,
+    p_somente_em_andamento: false,
     ...argsExtras(f),
   });
-  if (error) raise(error);
+  if (error) {
+    console.error("[dash] fila_risco falhou:", error);
+    raise(error);
+  }
   return (data ?? []) as unknown as ChamadosDashFilaRiscoRow[];
 }
 

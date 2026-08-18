@@ -58,6 +58,17 @@ const STATUS_ENCERRADOS: ReadonlyArray<ChamadoInternoStatus> = [
   "encerrado",
   "cancelado",
 ];
+/**
+ * Confirmar encerramento — espelha `fn_chamado_interno_confirmar_encerramento`.
+ * Fora de `resolvido`, a confirmação do solicitante registra a resolução antes
+ * de encerrar (o chamado só é encerrado porque foi resolvido).
+ */
+const STATUS_CONFIRMAR_ENCERRAMENTO: ReadonlyArray<ChamadoInternoStatus> = [
+  "resolvido",
+  "respondido",
+  "aguardando_solicitante",
+  "reaberto",
+];
 
 
 export function getChamadoActionCapabilities(
@@ -119,7 +130,8 @@ export function getChamadoActionCapabilities(
   // Encerrar / Reabrir — atos do SOLICITANTE (ou admin), nunca do atendente.
   // Espelha `fn_chamado_interno_confirmar_encerramento` / `..._reabrir`.
   const atorDoSolicitante = podeCancelarComoAdmin || podeCancelarComoSolicitante;
-  const canConfirmarEncerramento = atorDoSolicitante && status === "resolvido";
+  const canConfirmarEncerramento =
+    atorDoSolicitante && STATUS_CONFIRMAR_ENCERRAMENTO.includes(status);
   const canReabrir =
     atorDoSolicitante && STATUS_REABRIR.includes(status);
 

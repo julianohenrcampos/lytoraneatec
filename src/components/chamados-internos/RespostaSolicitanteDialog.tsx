@@ -1,7 +1,10 @@
 /**
  * Diálogo automático exibido ao solicitante quando o chamado recebe resposta
  * ou é resolvido pelo atendente. Pergunta se ele deseja encerrar ou continuar.
- * Não substitui as regras do banco: "Encerrar" só é habilitado em `resolvido`.
+ *
+ * Regra de negócio: encerrar pelo solicitante significa que o chamado foi
+ * resolvido (o backend registra a resolução antes do encerramento).
+ * A classificação do atendimento (1 a 5) é obrigatória para encerrar.
  */
 import React from "react";
 import { CheckCircle2, Loader2, RefreshCw, Star } from "lucide-react";
@@ -38,6 +41,13 @@ export interface RespostaSolicitanteDialogProps {
   onDepois: () => void;
 }
 
+const NOTA_LABELS: Record<number, string> = {
+  1: "Muito ruim",
+  2: "Ruim",
+  3: "Regular",
+  4: "Bom",
+  5: "Ótimo",
+};
 
 export const RespostaSolicitanteDialog: React.FC<
   RespostaSolicitanteDialogProps
@@ -65,6 +75,8 @@ export const RespostaSolicitanteDialog: React.FC<
     }
   }, [open]);
 
+  const encerrarBloqueado = !podeEncerrar || nota == null || isEncerrando;
+
   return (
     <Dialog
       open={open}
@@ -74,116 +86,145 @@ export const RespostaSolicitanteDialog: React.FC<
         onOpenChange(next);
       }}
     >
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Sua solicitação foi atendida?</DialogTitle>
-          <DialogDescription>
-            O setor respondeu ao seu chamado {protocolo}. Confirme se podemos
-            encerrar ou se você ainda precisa de ajuda.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-3 text-sm">
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-muted-foreground">Status atual:</span>
-            <StatusBadge status={status} />
-          </div>
-
-          {ultimaMensagem ? (
-            <div className="rounded-md border bg-muted/40 p-3">
-              {autorNome && (
-                <p className="mb-1 text-xs text-muted-foreground">
-                  por: {autorNome}
-                </p>
-              )}
-              <p className="whitespace-pre-wrap">{ultimaMensagem}</p>
+      <DialogContent className="w-full max-w-xl overflow-hidden p-6">
+        <div className="w-full min-w-0">
+          <DialogHeader className="w-full space-y-2 text-left">
+            <DialogTitle className="w-full text-lg leading-tight">
+              Sua solicitação foi atendida?
+            </DialogTitle>
+            <DialogDescription className="w-full whitespace-normal break-words text-sm">
+              O setor respondeu ao chamado{" "}
+              <span className="font-medium text-foreground">{protocolo}</span>.
+              Confirme se podemos encerrar ou se você ainda precisa de ajuda.
+            </DialogDescription>
+            <div className="flex w-full items-center gap-2 pt-1 text-xs">
+              <span className="text-muted-foreground">Status atual:</span>
+              <StatusBadge status={status} />
             </div>
-          ) : null}
+          </DialogHeader>
 
-          {podeEncerrar && (
-            <div className="space-y-2 rounded-md border p-3">
-              <p className="text-xs font-medium">
-                Como você avalia o atendimento? (opcional)
-              </p>
-              <div className="flex items-center gap-1">
+          <div className="w-full space-y-4 py-4">
+            {ultimaMensagem ? (
+              <div className="w-full box-border rounded-lg border bg-muted/40">
+                {autorNome && (
+                  <div className="w-full border-b px-3 py-2 text-xs font-medium text-foreground">
+                    {autorNome}
+                  </div>
+                )}
+                <div className="w-full max-h-40 overflow-y-auto px-3 py-2">
+                  <p className="w-full whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">
+                    {ultimaMensagem}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="w-full box-border space-y-3 rounded-lg border p-3">
+              <div className="w-full space-y-0.5">
+                <p className="w-full whitespace-normal break-words text-sm font-medium">
+                  Classifique o atendimento
+                </p>
+                <p className="w-full whitespace-normal break-words text-xs text-muted-foreground">
+                  Obrigatório para encerrar o chamado.
+                </p>
+              </div>
+
+              <div className="flex w-full flex-wrap items-center gap-1.5">
                 {[1, 2, 3, 4, 5].map((n) => (
                   <button
                     key={n}
                     type="button"
-                    aria-label={`Nota ${n}`}
+                    aria-label={`Nota ${n} — ${NOTA_LABELS[n]}`}
+                    aria-pressed={nota === n}
                     onClick={() => setNota(nota === n ? null : n)}
-                    className="rounded p-1 transition-colors hover:bg-muted"
+                    className="rounded-md p-1.5 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <Star
                       className={cn(
-                        "h-5 w-5",
+                        "h-7 w-7 transition-colors",
                         nota != null && n <= nota
-                          ? "fill-amber-400 text-amber-400"
-                          : "text-muted-foreground",
+                          ? "fill-primary text-primary"
+                          : "text-muted-foreground/50",
                       )}
                     />
                   </button>
                 ))}
-                {nota != null && (
-                  <span className="ml-1 text-xs text-muted-foreground">{nota} de 5</span>
-                )}
+                <span className="ml-1 whitespace-normal break-words text-xs text-muted-foreground">
+                  {nota != null
+                    ? `${nota} de 5 — ${NOTA_LABELS[nota]}`
+                    : "Selecione uma nota"}
+                </span>
               </div>
+
               <Textarea
                 rows={2}
                 maxLength={2000}
-                placeholder="Deixe um comentário sobre o atendimento (opcional)"
+                placeholder="Comentário sobre o atendimento (opcional)"
                 value={comentario}
                 onChange={(e) => setComentario(e.target.value)}
+                className="w-full resize-none"
               />
             </div>
-          )}
 
-          {!podeEncerrar && (
-            <p className="text-xs text-muted-foreground">
-              O encerramento fica disponível quando o setor marcar o chamado como
-              resolvido.
-            </p>
-          )}
-        </div>
+            {!podeEncerrar && (
+              <p className="w-full whitespace-normal break-words text-xs text-muted-foreground">
+                O encerramento não está disponível para este chamado no momento.
+              </p>
+            )}
+          </div>
 
-
-        <DialogFooter className="flex-col gap-2 sm:flex-row">
-          <Button variant="ghost" onClick={onDepois} disabled={isEncerrando}>
-            Decidir depois
-          </Button>
-          {podeReabrir && (
+          <DialogFooter className="flex w-full flex-wrap items-center justify-between gap-3 pt-2">
             <Button
-              variant="outline"
-              onClick={onPrecisoAjuda}
+              variant="ghost"
+              className="w-full text-muted-foreground sm:w-auto"
+              onClick={onDepois}
               disabled={isEncerrando}
             >
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Ainda preciso de ajuda
+              Decidir depois
             </Button>
-          )}
-          <Button
-            onClick={() =>
-              void onEncerrar({
-                nota,
-                comentario: comentario.trim() ? comentario.trim() : null,
-              })
-            }
 
-            disabled={!podeEncerrar || isEncerrando}
-          >
-            {isEncerrando ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Encerrando...
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="mr-2 h-4 w-4" />
-                Encerrar chamado
-              </>
-            )}
-          </Button>
-        </DialogFooter>
+            <div className="flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto">
+              {podeReabrir && (
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                  onClick={onPrecisoAjuda}
+                  disabled={isEncerrando}
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Ainda preciso de ajuda
+                </Button>
+              )}
+              <Button
+                className="w-full sm:w-auto"
+                onClick={() =>
+                  void onEncerrar({
+                    nota,
+                    comentario: comentario.trim() ? comentario.trim() : null,
+                  })
+                }
+                disabled={encerrarBloqueado}
+                title={
+                  podeEncerrar && nota == null
+                    ? "Selecione uma nota para encerrar"
+                    : undefined
+                }
+              >
+                {isEncerrando ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Encerrando...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    Encerrar chamado
+                  </>
+                )}
+              </Button>
+            </div>
+          </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
