@@ -44,7 +44,6 @@ import {
 import { useChamadosInternosRealtime } from "@/hooks/useChamadosInternosRealtime";
 import { usePagination } from "@/hooks/usePagination";
 import TablePagination from "@/components/ui/table-pagination";
-import { primeiroNome } from "@/utils/primeiroNome";
 
 import {
   StatusBadge,
@@ -292,7 +291,7 @@ const ChamadosInternosList: React.FC = () => {
                                 <div className="truncate">{r.titulo}</div>
                                 {ex?.solicitante_nome && (
                                   <div className="mt-0.5 text-[11px] text-muted-foreground">
-                                    por: {primeiroNome(ex.solicitante_nome)}
+                                    por: {ex.solicitante_nome}
                                   </div>
                                 )}
                               </TableCell>
@@ -335,7 +334,7 @@ const ChamadosInternosList: React.FC = () => {
                           <div className="text-sm font-medium">{r.titulo}</div>
                           {ex?.solicitante_nome && (
                             <div className="text-[11px] text-muted-foreground">
-                              por: {primeiroNome(ex.solicitante_nome)}
+                              por: {ex.solicitante_nome}
                             </div>
                           )}
                           <div className="mt-2 flex flex-wrap gap-1">

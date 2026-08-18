@@ -2503,6 +2503,57 @@ export type Database = {
           },
         ]
       }
+      bd_chamado_interno_anexos: {
+        Row: {
+          chamado_id: string
+          created_at: string
+          enviado_por: string | null
+          evento_id: string | null
+          id: string
+          mime_type: string
+          nome_arquivo: string
+          storage_path: string
+          tamanho_bytes: number
+        }
+        Insert: {
+          chamado_id: string
+          created_at?: string
+          enviado_por?: string | null
+          evento_id?: string | null
+          id?: string
+          mime_type: string
+          nome_arquivo: string
+          storage_path: string
+          tamanho_bytes: number
+        }
+        Update: {
+          chamado_id?: string
+          created_at?: string
+          enviado_por?: string | null
+          evento_id?: string | null
+          id?: string
+          mime_type?: string
+          nome_arquivo?: string
+          storage_path?: string
+          tamanho_bytes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_chamado_interno_anexos_chamado_id_fkey"
+            columns: ["chamado_id"]
+            isOneToOne: false
+            referencedRelation: "bd_chamados_internos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_chamado_interno_anexos_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_chamado_interno_eventos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_chamado_interno_atendentes: {
         Row: {
           atendente_profile_id: string
@@ -2548,6 +2599,41 @@ export type Database = {
             columns: ["atendente_profile_id"]
             isOneToOne: false
             referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_chamado_interno_avaliacoes: {
+        Row: {
+          autor_profile_id: string
+          chamado_id: string
+          comentario: string | null
+          created_at: string
+          id: string
+          nota: number
+        }
+        Insert: {
+          autor_profile_id: string
+          chamado_id: string
+          comentario?: string | null
+          created_at?: string
+          id?: string
+          nota: number
+        }
+        Update: {
+          autor_profile_id?: string
+          chamado_id?: string
+          comentario?: string | null
+          created_at?: string
+          id?: string
+          nota?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_chamado_interno_avaliacoes_chamado_id_fkey"
+            columns: ["chamado_id"]
+            isOneToOne: true
+            referencedRelation: "bd_chamados_internos"
             referencedColumns: ["id"]
           },
         ]
@@ -22664,6 +22750,10 @@ export type Database = {
         Args: { p_chamado_id: string; p_mensagem: string }
         Returns: undefined
       }
+      fn_chamado_interno_anexos_registrar: {
+        Args: { p_anexos: Json; p_chamado_id: string; p_evento_id: string }
+        Returns: number
+      }
       fn_chamado_interno_assumir: {
         Args: { p_chamado_id: string }
         Returns: undefined
@@ -22712,18 +22802,145 @@ export type Database = {
         Args: { p_chamado_id: string; p_motivo: string }
         Returns: undefined
       }
-      fn_chamado_interno_confirmar_encerramento: {
+      fn_chamado_interno_confirmar_encerramento:
+        | { Args: { p_chamado_id: string }; Returns: undefined }
+        | {
+            Args: {
+              p_chamado_id: string
+              p_comentario?: string
+              p_nota: number
+            }
+            Returns: undefined
+          }
+      fn_chamado_interno_dash_atendentes: {
+        Args: {
+          p_ate: string
+          p_centro_custo?: string
+          p_de: string
+          p_prioridade?: Database["public"]["Enums"]["chamado_interno_prioridade"][]
+          p_responsavel?: string
+          p_setor?: Database["public"]["Enums"]["chamado_interno_setor"][]
+          p_sla?: string
+        }
+        Returns: {
+          atendente_nome: string
+          atendente_profile_id: string
+          atribuidos: number
+          frt_minutos: number
+          mttr_minutos: number
+          resolvidos: number
+        }[]
+      }
+      fn_chamado_interno_dash_escopo: {
+        Args: never
+        Returns: {
+          chamado_id: string
+        }[]
+      }
+      fn_chamado_interno_dash_fila_risco: {
+        Args: {
+          p_centro_custo?: string
+          p_limite?: number
+          p_prioridade?: Database["public"]["Enums"]["chamado_interno_prioridade"][]
+          p_responsavel?: string
+          p_setor?: Database["public"]["Enums"]["chamado_interno_setor"][]
+          p_sla?: string
+        }
+        Returns: {
+          centro_custo_codigo: string
+          created_at: string
+          id: string
+          is_critico: boolean
+          minutos_restantes: number
+          prioridade: Database["public"]["Enums"]["chamado_interno_prioridade"]
+          protocolo: string
+          responsavel_nome: string
+          setor: Database["public"]["Enums"]["chamado_interno_setor"]
+          sla_prazo: string
+          solicitante_nome: string
+          status: Database["public"]["Enums"]["chamado_interno_status"]
+          titulo: string
+        }[]
+      }
+      fn_chamado_interno_dash_kpis: {
+        Args: {
+          p_ate: string
+          p_centro_custo?: string
+          p_de: string
+          p_prioridade?: Database["public"]["Enums"]["chamado_interno_prioridade"][]
+          p_responsavel?: string
+          p_setor?: Database["public"]["Enums"]["chamado_interno_setor"][]
+          p_sla?: string
+        }
+        Returns: Json
+      }
+      fn_chamado_interno_dash_pode_ver: { Args: never; Returns: boolean }
+      fn_chamado_interno_dash_series: {
+        Args: {
+          p_ate: string
+          p_centro_custo?: string
+          p_de: string
+          p_prioridade?: Database["public"]["Enums"]["chamado_interno_prioridade"][]
+          p_responsavel?: string
+          p_setor?: Database["public"]["Enums"]["chamado_interno_setor"][]
+        }
+        Returns: Json
+      }
+      fn_chamado_interno_dash_solicitantes: {
+        Args: {
+          p_ate: string
+          p_centro_custo?: string
+          p_de: string
+          p_prioridade?: Database["public"]["Enums"]["chamado_interno_prioridade"][]
+          p_responsavel?: string
+          p_setor?: Database["public"]["Enums"]["chamado_interno_setor"][]
+          p_sla?: string
+        }
+        Returns: {
+          adm_sede_funcionario_id: string
+          centros_custo: number
+          em_aberto: number
+          encerrados: number
+          frt_minutos: number
+          nome: string
+          respondidos: number
+          sem_resposta: number
+          total: number
+        }[]
+      }
+      fn_chamado_interno_detalhe_pessoas: {
         Args: { p_chamado_id: string }
-        Returns: undefined
+        Returns: {
+          aberto_por_nome: string
+          responsavel_nome: string
+          solicitante_nome: string
+        }[]
       }
       fn_chamado_interno_enriquecer_lista: {
         Args: { p_ids: string[] }
         Returns: {
+          aberto_por_nome: string
           centro_custo_codigo: string
           centro_custo_nome: string
           chamado_id: string
           solicitante_funcionario_id: string
           solicitante_nome: string
+        }[]
+      }
+      fn_chamado_interno_eventos_listar: {
+        Args: { p_chamado_id: string }
+        Returns: {
+          autor_nome: string
+          autor_profile_id: string
+          chamado_id: string
+          created_at: string
+          id: string
+          mensagem: string
+          payload: Json
+          status_anterior: Database["public"]["Enums"]["chamado_interno_status"]
+          status_novo: Database["public"]["Enums"]["chamado_interno_status"]
+          tipo: Database["public"]["Enums"]["chamado_interno_evento_tipo"]
+          visivel_solicitante: boolean
         }[]
       }
       fn_chamado_interno_listar_ccs_abertura: {
@@ -22787,6 +23004,10 @@ export type Database = {
       fn_chamado_interno_solicitar_informacao: {
         Args: { p_chamado_id: string; p_mensagem: string }
         Returns: undefined
+      }
+      fn_chamado_interno_ultimo_evento_proprio: {
+        Args: { p_chamado_id: string }
+        Returns: string
       }
       fn_check_email_autorizado: {
         Args: { _email: string }

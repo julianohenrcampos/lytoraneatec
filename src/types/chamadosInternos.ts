@@ -15,6 +15,11 @@ export type ChamadoInternoCategoriaRow =
 export type ChamadoInternoEventoRow =
   Database["public"]["Tables"]["bd_chamado_interno_eventos"]["Row"];
 
+/** Evento + nome completo do autor (RPC fn_chamado_interno_eventos_listar). */
+export interface ChamadoInternoEventoComAutor extends ChamadoInternoEventoRow {
+  autor_nome: string | null;
+}
+
 export type ChamadoInternoAtendenteRow =
   Database["public"]["Tables"]["bd_chamado_interno_atendentes"]["Row"];
 
@@ -108,7 +113,38 @@ export interface ChamadoInternoEnriquecimentoRow {
   centro_custo_nome: string | null;
   solicitante_funcionario_id: string | null;
   solicitante_nome: string | null;
+  /** Nome completo de quem abriu o chamado (ex. AdmObra). */
+  aberto_por_nome: string | null;
 }
+
+// ---------- Nomes das pessoas do chamado (RPC fn_chamado_interno_detalhe_pessoas) ----------
+export interface ChamadoInternoPessoasRow {
+  solicitante_nome: string | null;
+  aberto_por_nome: string | null;
+  responsavel_nome: string | null;
+}
+
+// ---------- Anexos ----------
+export type ChamadoInternoAnexoRow =
+  Database["public"]["Tables"]["bd_chamado_interno_anexos"]["Row"];
+
+/** Metadados enviados para a RPC de registro dos anexos. */
+export interface ChamadoInternoAnexoMeta {
+  storage_path: string;
+  nome_arquivo: string;
+  mime_type: string;
+  tamanho_bytes: number;
+}
+
+export const CHAMADO_ANEXO_MIMES_ACEITOS = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+] as const;
+
+export const CHAMADO_ANEXO_MAX_BYTES = 10 * 1024 * 1024; // 10MB
+export const CHAMADO_ANEXO_MAX_ARQUIVOS = 5;
 
 
 // ---------- Filtros de listagem ----------

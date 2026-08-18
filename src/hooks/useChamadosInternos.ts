@@ -40,6 +40,8 @@ export const CHAMADOS_INTERNOS_KEYS = {
   profilesAdmin: (busca: string) => ["chamados-internos", "profiles-admin", busca] as const,
   filaAtendimento: (params: { status?: ChamadoInternoStatus[]; setor?: ChamadoInternoSetor | null }) =>
     ["chamados-internos", "fila-atendimento", params] as const,
+  pessoas: (id: string) => ["chamados-internos", "pessoas", id] as const,
+  anexos: (id: string) => ["chamados-internos", "anexos", id] as const,
   enriquecimento: (ids: string[]) =>
     ["chamados-internos", "enriquecimento", [...ids].sort().join(",")] as const,
 };
@@ -200,6 +202,37 @@ export function useChamadoInternoCapacidadeOperar(chamadoId: string | undefined)
   });
 }
 
+/** Nomes completos do solicitante, de quem abriu e do responsável. */
+export function useChamadoInternoPessoas(chamadoId: string | undefined) {
+  return useQuery({
+    queryKey: CHAMADOS_INTERNOS_KEYS.pessoas(chamadoId ?? ""),
+    queryFn: () => svc.obterPessoasChamado(chamadoId as string),
+    enabled: !!chamadoId,
+    staleTime: 60_000,
+  });
+}
+
+/** Anexos (imagens/PDF) de um chamado. */
+export function useChamadoInternoAnexos(chamadoId: string | undefined) {
+  return useQuery({
+    queryKey: CHAMADOS_INTERNOS_KEYS.anexos(chamadoId ?? ""),
+    queryFn: () => svc.listarAnexos(chamadoId as string),
+    enabled: !!chamadoId,
+  });
+}
+
+/** Upload + registro de anexos de um chamado (opcionalmente vinculados a um evento). */
+export function useChamadoInternoAnexar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { chamadoId: string; eventoId?: string | null; arquivos: File[] }) =>
+      svc.anexarArquivos(vars.chamadoId, vars.eventoId ?? null, vars.arquivos),
+    onSuccess: (_d, vars) => {
+      void qc.invalidateQueries({ queryKey: CHAMADOS_INTERNOS_KEYS.anexos(vars.chamadoId) });
+    },
+  });
+}
+
 // ---------------- Helpers de invalidação ----------------
 function useInvalidacoes() {
   const qc = useQueryClient();
@@ -277,11 +310,21 @@ export function useChamadoInternoCancelar() {
   return useAcaoChamado<string>((id, motivo) => svc.cancelar(id, motivo));
 }
 
+export interface ConfirmarEncerramentoVars {
+  chamadoId: string;
+  nota?: number | null;
+  comentario?: string | null;
+}
+
 export function useChamadoInternoConfirmarEncerramento() {
   const inv = useInvalidacoes();
   return useMutation({
-    mutationFn: (chamadoId: string) => svc.confirmarEncerramento(chamadoId),
-    onSuccess: (_d, chamadoId) => {
+    mutationFn: (vars: string | ConfirmarEncerramentoVars) =>
+      typeof vars === "string"
+        ? svc.confirmarEncerramento(vars)
+        : svc.confirmarEncerramento(vars.chamadoId, vars.nota, vars.comentario),
+    onSuccess: (_d, vars) => {
+      const chamadoId = typeof vars === "string" ? vars : vars.chamadoId;
       void inv.item(chamadoId);
       void inv.eventos(chamadoId);
       void inv.capacidadeOperar(chamadoId);
@@ -290,6 +333,7 @@ export function useChamadoInternoConfirmarEncerramento() {
     },
   });
 }
+
 
 export function useChamadoInternoAtendenteVincular() {
   const inv = useInvalidacoes();

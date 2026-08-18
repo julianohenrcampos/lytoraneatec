@@ -8,7 +8,7 @@ describe("menuStructure — chamados internos", () => {
   it("possui uma seção independente 'Chamados Internos'", () => {
     const group = findGroup("Chamados Internos");
     expect(group).toBeDefined();
-    expect(group!.items).toHaveLength(4);
+    expect(group!.items).toHaveLength(5);
   });
 
   it("possui os quatro itens com hrefs e permissions canônicas", () => {

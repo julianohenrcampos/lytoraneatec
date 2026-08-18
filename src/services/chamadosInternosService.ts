@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type {
   ChamadoInternoRow,
   ChamadoInternoCategoriaRow,
-  ChamadoInternoEventoRow,
+  ChamadoInternoEventoComAutor,
   ChamadoInternoAbrirInput,
   ChamadoInternoAbrirResult,
   ChamadoInternoCcAberturaRow,
@@ -20,6 +20,9 @@ import type {
   ChamadoInternoStatus,
   ChamadoFilaAtendimentoRow,
   ChamadoInternoEnriquecimentoRow,
+  ChamadoInternoPessoasRow,
+  ChamadoInternoAnexoRow,
+  ChamadoInternoAnexoMeta,
 
   ChamadosInternosError,
   ChamadosInternosListaFiltro,
@@ -94,14 +97,14 @@ export async function obterChamado(id: string): Promise<ChamadoInternoRow | null
   return (data as ChamadoInternoRow | null) ?? null;
 }
 
-export async function listarEventos(chamadoId: string): Promise<ChamadoInternoEventoRow[]> {
-  const { data, error } = await supabase
-    .from("bd_chamado_interno_eventos")
-    .select("*")
-    .eq("chamado_id", chamadoId)
-    .order("created_at", { ascending: true });
+export async function listarEventos(
+  chamadoId: string,
+): Promise<ChamadoInternoEventoComAutor[]> {
+  const { data, error } = await supabase.rpc("fn_chamado_interno_eventos_listar", {
+    p_chamado_id: chamadoId,
+  });
   if (error) raise(error);
-  return (data ?? []) as ChamadoInternoEventoRow[];
+  return (data ?? []) as ChamadoInternoEventoComAutor[];
 }
 
 export async function listarCategoriasAtivas(): Promise<ChamadoInternoCategoriaRow[]> {
@@ -207,6 +210,96 @@ export async function enriquecerChamados(
 }
 
 
+/** Nomes completos (solicitante, quem abriu e responsável) de um chamado. */
+export async function obterPessoasChamado(
+  chamadoId: string,
+): Promise<ChamadoInternoPessoasRow | null> {
+  const { data, error } = await supabase.rpc("fn_chamado_interno_detalhe_pessoas", {
+    p_chamado_id: chamadoId,
+  });
+  if (error) raise(error);
+  const row = Array.isArray(data) ? data[0] : data;
+  return (row as ChamadoInternoPessoasRow | undefined) ?? null;
+}
+
+// ---------------- Anexos (bucket privado `chamados-internos-anexos`) ----------------
+const ANEXOS_BUCKET = "chamados-internos-anexos";
+
+export async function listarAnexos(chamadoId: string): Promise<ChamadoInternoAnexoRow[]> {
+  const { data, error } = await supabase
+    .from("bd_chamado_interno_anexos")
+    .select("*")
+    .eq("chamado_id", chamadoId)
+    .order("created_at", { ascending: true });
+  if (error) raise(error);
+  return (data ?? []) as ChamadoInternoAnexoRow[];
+}
+
+export async function getSignedAnexoUrl(storagePath: string): Promise<string | null> {
+  const { data, error } = await supabase.storage
+    .from(ANEXOS_BUCKET)
+    .createSignedUrl(storagePath, 3600);
+  if (error) return null;
+  return data?.signedUrl ?? null;
+}
+
+function slugArquivo(nome: string): string {
+  const limpo = nome
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]/g, "_");
+  return limpo.slice(-80) || "arquivo";
+}
+
+/** Envia os arquivos para o bucket privado e devolve os metadados registráveis. */
+export async function uploadAnexosChamado(
+  chamadoId: string,
+  arquivos: File[],
+): Promise<ChamadoInternoAnexoMeta[]> {
+  const metas: ChamadoInternoAnexoMeta[] = [];
+  for (const file of arquivos) {
+    const path = `${chamadoId}/${crypto.randomUUID()}-${slugArquivo(file.name)}`;
+    const { error } = await supabase.storage
+      .from(ANEXOS_BUCKET)
+      .upload(path, file, { contentType: file.type, upsert: false });
+    if (error) raise(error);
+    metas.push({
+      storage_path: path,
+      nome_arquivo: file.name,
+      mime_type: file.type,
+      tamanho_bytes: file.size,
+    });
+  }
+  return metas;
+}
+
+/** Registra os metadados dos anexos (única via de escrita). */
+export async function registrarAnexos(
+  chamadoId: string,
+  eventoId: string | null,
+  anexos: ChamadoInternoAnexoMeta[],
+): Promise<number> {
+  if (anexos.length === 0) return 0;
+  const { data, error } = await supabase.rpc("fn_chamado_interno_anexos_registrar", {
+    p_chamado_id: chamadoId,
+    p_evento_id: eventoId,
+    p_anexos: anexos as unknown as never,
+  });
+  if (error) raise(error);
+  return typeof data === "number" ? data : 0;
+}
+
+/** Upload + registro em uma etapa. Devolve a quantidade registrada. */
+export async function anexarArquivos(
+  chamadoId: string,
+  eventoId: string | null,
+  arquivos: File[],
+): Promise<number> {
+  if (arquivos.length === 0) return 0;
+  const metas = await uploadAnexosChamado(chamadoId, arquivos);
+  return registrarAnexos(chamadoId, eventoId, metas);
+}
+
 // ---------------- Leitura administrativa de profiles (para vincular atendentes) ----------------
 export interface ProfileAdminSafeRow {
   id: string;
@@ -291,12 +384,24 @@ export async function responderSolicitante(chamadoId: string, mensagem: string):
   if (error) raise(error);
 }
 
-export async function confirmarEncerramento(chamadoId: string): Promise<void> {
-  const { error } = await supabase.rpc("fn_chamado_interno_confirmar_encerramento", {
-    p_chamado_id: chamadoId,
-  });
+export async function confirmarEncerramento(
+  chamadoId: string,
+  nota?: number | null,
+  comentario?: string | null,
+): Promise<void> {
+  const { error } =
+    nota == null
+      ? await supabase.rpc("fn_chamado_interno_confirmar_encerramento", {
+          p_chamado_id: chamadoId,
+        })
+      : await supabase.rpc("fn_chamado_interno_confirmar_encerramento", {
+          p_chamado_id: chamadoId,
+          p_nota: nota,
+          p_comentario: comentario?.trim() ? comentario.trim() : undefined,
+        });
   if (error) raise(error);
 }
+
 
 export async function reabrir(chamadoId: string, mensagem: string): Promise<void> {
   const { error } = await supabase.rpc("fn_chamado_interno_reabrir", {

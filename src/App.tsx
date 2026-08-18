@@ -114,6 +114,8 @@ const ChamadosInternosList = lazy(() => import("@/pages/chamados-internos/Chamad
 const ChamadosInternosAbrir = lazy(() => import("@/pages/chamados-internos/ChamadosInternosAbrir"));
 const ChamadosInternosAtendimento = lazy(() => import("@/pages/chamados-internos/ChamadosInternosAtendimento"));
 const ChamadosInternosAdmin = lazy(() => import("@/pages/chamados-internos/ChamadosInternosAdmin"));
+const ChamadosInternosDashboard = lazy(() => import("@/pages/chamados-internos/ChamadosInternosDashboard"));
+
 
 const ChamadoInternoDetalhe = lazy(() => import("@/pages/chamados-internos/ChamadoInternoDetalhe"));
 
@@ -335,6 +337,8 @@ const App = () => {
                     
                     <Route path="/chamados-internos/abrir" element={<Secure permission="chamados_internos_abrir"><ChamadosInternosAbrir /></Secure>} />
                     <Route path="/chamados-internos/atendimento" element={<Secure permission="chamados_internos_atender"><ChamadosInternosAtendimento /></Secure>} />
+                    <Route path="/chamados-internos/dashboard" element={<Secure permission="chamados_internos_atender"><ChamadosInternosDashboard /></Secure>} />
+
                     <Route path="/chamados-internos/admin" element={<Secure permission="chamados_internos_admin"><ChamadosInternosAdmin /></Secure>} />
                     <Route path="/chamados-internos/:chamadoId" element={<Secure permission="chamados_internos_view"><ChamadoInternoDetalhe /></Secure>} />
 

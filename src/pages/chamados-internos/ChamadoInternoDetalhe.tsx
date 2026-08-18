@@ -57,8 +57,9 @@ import {
   useChamadoInternoCancelar,
   useChamadoInternoCapacidadeOperar,
   useChamadoInternoEnriquecimento,
+  useChamadoInternoPessoas,
+  useChamadoInternoAnexos,
 } from "@/hooks/useChamadosInternos";
-import { primeiroNome } from "@/utils/primeiroNome";
 
 import { useChamadosInternosRealtime } from "@/hooks/useChamadosInternosRealtime";
 import { useAuth } from "@/hooks/useAuth";
@@ -82,6 +83,11 @@ import {
 } from "@/utils/chamadosInternosCapabilities";
 import CancelarChamadoDialog from "@/components/chamados-internos/CancelarChamadoDialog";
 import ReabrirChamadoDialog from "@/components/chamados-internos/ReabrirChamadoDialog";
+import ChamadoAnexosLista from "@/components/chamados-internos/ChamadoAnexosLista";
+import RespostaSolicitanteDialog from "@/components/chamados-internos/RespostaSolicitanteDialog";
+
+/** Chave do gate local do diálogo automático (chamado + último evento visto). */
+const decisaoKey = (chamadoId: string) => `chi-decisao-solicitante:${chamadoId}`;
 
 type AcaoAtendente =
   | "responder"
@@ -118,6 +124,8 @@ const ChamadoInternoDetalhe: React.FC = () => {
   // cobre SuperAdm, AdmSede (por CC) e Atendente (por setor), sem depender de
   // `fn_chamado_interno_can_attend`. Fail-closed enquanto carrega ou em erro.
   const capacidadeQ = useChamadoInternoCapacidadeOperar(chamado?.id);
+  const pessoasQ = useChamadoInternoPessoas(chamado?.id);
+  const anexosQ = useChamadoInternoAnexos(chamado?.id);
   const canOperateChamado =
     !capacidadeQ.isLoading && !capacidadeQ.isError && capacidadeQ.data === true;
 
@@ -206,6 +214,47 @@ const ChamadoInternoDetalhe: React.FC = () => {
   const [cancelarOpen, setCancelarOpen] = React.useState(false);
   const [reabrirOpen, setReabrirOpen] = React.useState(false);
   const [isAssumindo, setIsAssumindo] = React.useState(false);
+  const [perguntaOpen, setPerguntaOpen] = React.useState(false);
+
+  // Último evento do atendente (resposta/resolução) para o diálogo automático.
+  const ultimoEventoAtendente = React.useMemo(() => {
+    const eventos = eventosQ.data ?? [];
+    for (let i = eventos.length - 1; i >= 0; i -= 1) {
+      const ev = eventos[i];
+      if (ev.tipo === "resposta_atendente" || ev.tipo === "resolucao") return ev;
+    }
+    return undefined;
+  }, [eventosQ.data]);
+
+  const deveperguntar =
+    !!chamado &&
+    (chamado.status === "respondido" || chamado.status === "resolvido") &&
+    (capabilities.canConfirmarEncerramento || capabilities.canReabrir);
+
+  React.useEffect(() => {
+    if (!chamado || !deveperguntar || !ultimoEventoAtendente) return;
+    let jaDecidiu = false;
+    try {
+      jaDecidiu =
+        window.localStorage.getItem(decisaoKey(chamado.id)) ===
+        ultimoEventoAtendente.id;
+    } catch {
+      jaDecidiu = false;
+    }
+    if (!jaDecidiu) setPerguntaOpen(true);
+  }, [chamado, deveperguntar, ultimoEventoAtendente]);
+
+  const registrarDecisao = React.useCallback(() => {
+    if (!chamado || !ultimoEventoAtendente) return;
+    try {
+      window.localStorage.setItem(
+        decisaoKey(chamado.id),
+        ultimoEventoAtendente.id,
+      );
+    } catch {
+      /* storage indisponível — apenas não persiste o gate */
+    }
+  }, [chamado, ultimoEventoAtendente]);
 
   // Trata erros de mutação de forma centralizada, sem toast otimista.
   const handleMutationError = (e: unknown, contexto: string) => {
@@ -450,15 +499,24 @@ const ChamadoInternoDetalhe: React.FC = () => {
     }
   };
 
-  const executarConfirmar = async () => {
+  const executarConfirmar = async (
+    avaliacao?: { nota: number | null; comentario: string | null },
+  ) => {
     if (!chamado) return;
     try {
-      await confirmarM.mutateAsync(chamado.id);
+      await confirmarM.mutateAsync({
+        chamadoId: chamado.id,
+        nota: avaliacao?.nota ?? null,
+        comentario: avaliacao?.comentario ?? null,
+      });
+      registrarDecisao();
+      setPerguntaOpen(false);
       toast.success("Chamado encerrado");
     } catch (e) {
       handleMutationError(e, "confirmar_encerramento");
     }
   };
+
 
   const confirmarReabertura = async (motivo: string) => {
     if (!chamado) throw new Error("Sem chamado");
@@ -560,7 +618,7 @@ const ChamadoInternoDetalhe: React.FC = () => {
             {capabilities.canConfirmarEncerramento && (
               <Button
                 size="sm"
-                onClick={executarConfirmar}
+                onClick={() => setPerguntaOpen(true)}
                 disabled={confirmarM.isPending}
                 data-testid="btn-encerrar"
                 title="Confirmar o encerramento do chamado (ação do solicitante)."
@@ -613,17 +671,17 @@ const ChamadoInternoDetalhe: React.FC = () => {
                 ? `${extras.centro_custo_codigo}${extras.centro_custo_nome ? ` — ${extras.centro_custo_nome}` : ""}`
                 : "—"}
             </Meta>
-            <Meta label="Solicitante">
-              {extras?.solicitante_nome
-                ? `por: ${primeiroNome(extras.solicitante_nome)}`
-                : "—"}
+            <Meta label="Solicitante (reclamante)">
+              {pessoasQ.data?.solicitante_nome ?? extras?.solicitante_nome ?? "—"}
+            </Meta>
+            <Meta label="Aberto por">
+              {pessoasQ.data?.aberto_por_nome ?? extras?.aberto_por_nome ?? "—"}
             </Meta>
             <Meta label="Responsável pelo atendimento">
-
               {chamado.responsavel_atual_profile_id
                 ? chamado.responsavel_atual_profile_id === userId
                   ? "Você"
-                  : "Atendente atribuído"
+                  : (pessoasQ.data?.responsavel_nome ?? "Atendente atribuído")
                 : "Não atribuído"}
             </Meta>
             <div className="md:col-span-3">
@@ -633,6 +691,13 @@ const ChamadoInternoDetalhe: React.FC = () => {
               <p className="mt-1 whitespace-pre-wrap text-sm">
                 {chamado.descricao}
               </p>
+            </div>
+            <div className="md:col-span-3">
+              <ChamadoAnexosLista
+                anexos={anexosQ.data ?? []}
+                isLoading={anexosQ.isLoading}
+                titulo="Anexos"
+              />
             </div>
           </CardContent>
         </Card>
@@ -690,6 +755,11 @@ const ChamadoInternoDetalhe: React.FC = () => {
                               <span className="text-muted-foreground">
                                 {formatarDataHora(ev.created_at)}
                               </span>
+                              {ev.autor_nome && (
+                                <span className="text-muted-foreground">
+                                  por: {ev.autor_nome}
+                                </span>
+                              )}
                             </div>
                             {ev.mensagem && (
                               <p className="mt-1 whitespace-pre-wrap text-sm">
@@ -847,6 +917,28 @@ const ChamadoInternoDetalhe: React.FC = () => {
           status={chamado.status}
           isPending={reabrirM.isPending}
           onConfirm={confirmarReabertura}
+        />
+
+        <RespostaSolicitanteDialog
+          open={perguntaOpen && !reabrirOpen}
+          onOpenChange={setPerguntaOpen}
+          protocolo={chamado.protocolo}
+          status={chamado.status}
+          ultimaMensagem={ultimoEventoAtendente?.mensagem ?? null}
+          autorNome={ultimoEventoAtendente?.autor_nome ?? null}
+          podeEncerrar={capabilities.canConfirmarEncerramento}
+          podeReabrir={capabilities.canReabrir}
+          isEncerrando={confirmarM.isPending}
+          onEncerrar={executarConfirmar}
+          onPrecisoAjuda={() => {
+            registrarDecisao();
+            setPerguntaOpen(false);
+            setReabrirOpen(true);
+          }}
+          onDepois={() => {
+            registrarDecisao();
+            setPerguntaOpen(false);
+          }}
         />
       </div>
     </MainLayout>

@@ -428,6 +428,12 @@ export const menuStructure = [
     title: "Chamados Internos",
     items: [
       {
+        name: "Dashboard",
+        href: "/chamados-internos/dashboard",
+        icon: BarChart3,
+        requiredPermission: "chamados_internos_atender"
+      },
+      {
         name: "Meus Chamados",
         href: "/chamados-internos",
         icon: ListChecks,
@@ -445,6 +451,8 @@ export const menuStructure = [
         icon: Headphones,
         requiredPermission: "chamados_internos_atender"
       },
+
+
       {
         name: "Administração",
         href: "/chamados-internos/admin",

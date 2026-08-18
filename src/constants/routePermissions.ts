@@ -100,6 +100,8 @@ export const ROUTE_PERMISSIONS = {
   
   '/chamados-internos/abrir': ['chamados_internos_abrir'],
   '/chamados-internos/atendimento': ['chamados_internos_atender'],
+  '/chamados-internos/dashboard': ['chamados_internos_atender'],
+
   '/chamados-internos/admin': ['chamados_internos_admin'],
   '/chamados-internos/:chamadoId': ['chamados_internos_view'],
 

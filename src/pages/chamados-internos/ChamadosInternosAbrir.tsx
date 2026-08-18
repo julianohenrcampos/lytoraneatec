@@ -43,7 +43,12 @@ import {
   useChamadoInternoCcsAbertura,
   useChamadoInternoSolicitantesDoCc,
 } from "@/hooks/useChamadosInternos";
+import {
+  useChamadoInternoAnexar,
+} from "@/hooks/useChamadosInternos";
+import { useUserProfile } from "@/hooks/useUserProfile";
 import { CategoriaIcon } from "@/components/chamados-internos/CategoriaIcon";
+import ChamadoAnexosInput from "@/components/chamados-internos/ChamadoAnexosInput";
 import {
   PrioridadeBadge,
   SetorBadge,
@@ -68,11 +73,19 @@ const ChamadosInternosAbrir: React.FC = () => {
   const [solicitanteId, setSolicitanteId] = React.useState("");
   const [titulo, setTitulo] = React.useState("");
   const [descricao, setDescricao] = React.useState("");
+  const [anexos, setAnexos] = React.useState<File[]>([]);
 
   const ccsQ = useChamadoInternoCcsAbertura();
   const categoriasQ = useChamadoInternoCategorias();
   const solicitantesQ = useChamadoInternoSolicitantesDoCc(centroCustoId || undefined);
   const abrirM = useChamadoInternoAbrir();
+  const anexarM = useChamadoInternoAnexar();
+  const { user: userProfile } = useUserProfile();
+
+  const abertoPorNome: string =
+    (userProfile && typeof userProfile === "object" && "nome_completo" in userProfile
+      ? ((userProfile as { nome_completo?: string | null }).nome_completo ?? "")
+      : "") || "—";
 
   const categoriasAtivas = React.useMemo(
     () => (categoriasQ.data ?? []).filter((c) => c.ativo),
@@ -116,7 +129,11 @@ const ChamadosInternosAbrir: React.FC = () => {
   const podeAvancar1 = !!categoriaId;
   const podeAvancar2 =
     !!centroCustoId && !!solicitanteId && tituloTrim.length > 0 && descricaoTrim.length > 0;
-  const podeSubmeter = podeAvancar1 && podeAvancar2 && !abrirM.isPending;
+  const podeSubmeter =
+    podeAvancar1 && podeAvancar2 && !abrirM.isPending && !anexarM.isPending;
+
+  const solicitanteNome =
+    solicitanteOptions.find((o) => o.value === solicitanteId)?.label ?? "—";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,6 +146,15 @@ const ChamadosInternosAbrir: React.FC = () => {
         p_titulo: tituloTrim,
         p_descricao: descricaoTrim,
       });
+      if (anexos.length > 0) {
+        try {
+          await anexarM.mutateAsync({ chamadoId: res.chamado_id, arquivos: anexos });
+        } catch {
+          toast.warning("Chamado aberto, mas houve falha ao enviar os anexos", {
+            description: "Você pode reenviar os arquivos pela tela do chamado.",
+          });
+        }
+      }
       toast.success("Chamado aberto", {
         description: `Protocolo ${res.protocolo}`,
       });
@@ -284,6 +310,20 @@ const ChamadosInternosAbrir: React.FC = () => {
                       placeholder="Descreva o problema com o máximo de detalhes possível."
                     />
                   </div>
+
+                  <div className="md:col-span-2">
+                    <ChamadoAnexosInput
+                      inputId="anexos-abertura"
+                      arquivos={anexos}
+                      onChange={setAnexos}
+                      disabled={abrirM.isPending || anexarM.isPending}
+                    />
+                  </div>
+
+                  <dl className="grid gap-3 rounded-lg border bg-muted/40 p-3 text-sm md:col-span-2 md:grid-cols-2">
+                    <RevisaoItem label="Solicitante (reclamante)" valor={solicitanteNome} />
+                    <RevisaoItem label="Aberto por" valor={abertoPorNome} />
+                  </dl>
                 </div>
               )}
 
@@ -311,14 +351,19 @@ const ChamadosInternosAbrir: React.FC = () => {
                         ccOptions.find((o) => o.value === centroCustoId)?.label ?? "—"
                       }
                     />
-                    <RevisaoItem
-                      label="Solicitante"
-                      valor={
-                        solicitanteOptions.find((o) => o.value === solicitanteId)?.label ?? "—"
-                      }
-                    />
+                    <RevisaoItem label="Solicitante (reclamante)" valor={solicitanteNome} />
+                    <RevisaoItem label="Aberto por" valor={abertoPorNome} />
                     <RevisaoItem label="Título" valor={tituloTrim} span />
                     <RevisaoItem label="Descrição" valor={descricaoTrim} span pre />
+                    <RevisaoItem
+                      label="Anexos"
+                      span
+                      valor={
+                        anexos.length === 0
+                          ? "Nenhum arquivo anexado"
+                          : anexos.map((a) => a.name).join(", ")
+                      }
+                    />
                   </dl>
                   {erro && (
                     <Alert variant="destructive">
@@ -365,7 +410,9 @@ const ChamadosInternosAbrir: React.FC = () => {
                 )}
                 {etapa === 3 && (
                   <Button type="submit" disabled={!podeSubmeter}>
-                    {abrirM.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {(abrirM.isPending || anexarM.isPending) && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    )}
                     Abrir chamado
                   </Button>
                 )}
