@@ -23,6 +23,7 @@ export default function AtestadosMedicos() {
   const [resultado, setResultado] = useState<AtestadoSubmeterResponse | null>(
     null
   );
+  const [diasAfastamento, setDiasAfastamento] = useState<number | null>(null);
 
   const current =
     etapa === "orientacoes"
@@ -37,6 +38,7 @@ export default function AtestadosMedicos() {
     setToken(null);
     setFuncionario(null);
     setResultado(null);
+    setDiasAfastamento(null);
     setEtapa("orientacoes");
   }
 
@@ -64,14 +66,16 @@ export default function AtestadosMedicos() {
           tokenValidacao={token}
           funcionarioNome={funcionario.nome}
           funcionarioMatricula={funcionario.matricula}
-          onEnviado={(resp) => {
+          onEnviado={(resp, dias) => {
             setToken(null); // limpa token da memória assim que confirmado
             setResultado(resp);
+            setDiasAfastamento(dias);
             setEtapa("protocolo");
           }}
           onTokenInvalido={() => {
             setToken(null);
             setFuncionario(null);
+            setDiasAfastamento(null);
             setEtapa("validacao");
           }}
         />
@@ -88,7 +92,9 @@ export default function AtestadosMedicos() {
             ]
           }
           sistemaDescricao={resultado.sistema_afetado_descricao ?? null}
+          tipoDocumentoDescricao={resultado.tipo_documento_descricao ?? null}
           enviadoEm={new Date().toISOString()}
+          diasAfastamento={diasAfastamento}
           onNovo={reset}
         />
       )}

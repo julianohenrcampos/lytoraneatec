@@ -25,6 +25,9 @@ const SELECT_COLS = `
   declaracoes_aceitas_em,
   observacao_saude,
   arquivo_path,
+  tipo_documento,
+  tipo_documento_descricao,
+  notificacao_email_destino,
   sistema_afetado_codigo,
   sistema_afetado_descricao,
   sistema_afetado_observacao,
@@ -50,6 +53,24 @@ export function useAtestadosPainel(filters: AtestadosPainelFilters) {
       if (filters.status && filters.status !== "todos") q = q.eq("status", filters.status);
       if (filters.prazo === "dentro") q = q.eq("dentro_prazo_24h", true);
       if (filters.prazo === "fora") q = q.eq("dentro_prazo_24h", false);
+      if (filters.tipo_documento && filters.tipo_documento !== "todos") {
+        q = q.eq("tipo_documento", filters.tipo_documento);
+      }
+      if (filters.setor_destino === "saude") {
+        q = q.eq("tipo_documento", "atestado_medico");
+      } else if (filters.setor_destino === "dp") {
+        q = q.neq("tipo_documento", "atestado_medico");
+      }
+      if (filters.status_email && filters.status_email !== "todos") {
+        q = q.eq("notificacao_email_status", filters.status_email);
+      }
+      if (filters.centro_custo && filters.centro_custo.trim()) {
+        const cc = filters.centro_custo.trim().replace(/[%_]/g, "");
+        q = q.ilike("centro_custo_snapshot", `%${cc}%`);
+      }
+      if (filters.sistema_afetado && filters.sistema_afetado !== "todos") {
+        q = q.eq("sistema_afetado_codigo", filters.sistema_afetado);
+      }
       if (filters.busca && filters.busca.trim()) {
         const b = filters.busca.trim().replace(/[%_]/g, "");
         q = q.or(

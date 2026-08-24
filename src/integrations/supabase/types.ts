@@ -936,6 +936,7 @@ export type Database = {
           medico_nome: string | null
           medico_registro: string | null
           nome_snapshot: string
+          notificacao_email_destino: string | null
           notificacao_email_enviada_em: string | null
           notificacao_email_erro: string | null
           notificacao_email_status: string
@@ -949,6 +950,8 @@ export type Database = {
           sistema_afetado_descricao: string | null
           sistema_afetado_observacao: string | null
           status: string
+          tipo_documento: string
+          tipo_documento_descricao: string | null
           updated_at: string
           user_agent: string | null
         }
@@ -984,6 +987,7 @@ export type Database = {
           medico_nome?: string | null
           medico_registro?: string | null
           nome_snapshot: string
+          notificacao_email_destino?: string | null
           notificacao_email_enviada_em?: string | null
           notificacao_email_erro?: string | null
           notificacao_email_status?: string
@@ -997,6 +1001,8 @@ export type Database = {
           sistema_afetado_descricao?: string | null
           sistema_afetado_observacao?: string | null
           status?: string
+          tipo_documento?: string
+          tipo_documento_descricao?: string | null
           updated_at?: string
           user_agent?: string | null
         }
@@ -1032,6 +1038,7 @@ export type Database = {
           medico_nome?: string | null
           medico_registro?: string | null
           nome_snapshot?: string
+          notificacao_email_destino?: string | null
           notificacao_email_enviada_em?: string | null
           notificacao_email_erro?: string | null
           notificacao_email_status?: string
@@ -1045,6 +1052,8 @@ export type Database = {
           sistema_afetado_descricao?: string | null
           sistema_afetado_observacao?: string | null
           status?: string
+          tipo_documento?: string
+          tipo_documento_descricao?: string | null
           updated_at?: string
           user_agent?: string | null
         }
@@ -3413,6 +3422,7 @@ export type Database = {
           created_by: string
           operacao: string
           planejamento_id: string | null
+          puxada_id: string | null
           request_id: string
           response_json: Json
           solicitacao_id: string | null
@@ -3423,6 +3433,7 @@ export type Database = {
           created_by: string
           operacao: string
           planejamento_id?: string | null
+          puxada_id?: string | null
           request_id: string
           response_json: Json
           solicitacao_id?: string | null
@@ -3433,6 +3444,7 @@ export type Database = {
           created_by?: string
           operacao?: string
           planejamento_id?: string | null
+          puxada_id?: string | null
           request_id?: string
           response_json?: Json
           solicitacao_id?: string | null
@@ -3467,6 +3479,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bd_ct_comando_requests_puxada_id_fkey"
+            columns: ["puxada_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ct_puxadas"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bd_ct_comando_requests_solicitacao_id_fkey"
             columns: ["solicitacao_id"]
             isOneToOne: false
@@ -3485,6 +3504,260 @@ export type Database = {
             columns: ["solicitacao_id"]
             isOneToOne: false
             referencedRelation: "vw_solicitacoes_equipamento_operacional"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_ct_puxada_caminhoes: {
+        Row: {
+          caminhao_equipamento_id: string
+          created_at: string
+          frota_snapshot: string | null
+          id: string
+          motorista_funcionario_id: string
+          motorista_nome_snapshot: string
+          placa_snapshot: string | null
+          puxada_id: string
+          updated_at: string
+        }
+        Insert: {
+          caminhao_equipamento_id: string
+          created_at?: string
+          frota_snapshot?: string | null
+          id?: string
+          motorista_funcionario_id: string
+          motorista_nome_snapshot: string
+          placa_snapshot?: string | null
+          puxada_id: string
+          updated_at?: string
+        }
+        Update: {
+          caminhao_equipamento_id?: string
+          created_at?: string
+          frota_snapshot?: string | null
+          id?: string
+          motorista_funcionario_id?: string
+          motorista_nome_snapshot?: string
+          placa_snapshot?: string | null
+          puxada_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_ct_puxada_caminhoes_caminhao_equipamento_id_fkey"
+            columns: ["caminhao_equipamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_caminhoes_equipamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_puxada_caminhoes_caminhao_equipamento_id_fkey"
+            columns: ["caminhao_equipamento_id"]
+            isOneToOne: false
+            referencedRelation: "vw_ativos_logistica_manutencao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_puxada_caminhoes_caminhao_equipamento_id_fkey"
+            columns: ["caminhao_equipamento_id"]
+            isOneToOne: false
+            referencedRelation: "vw_ativos_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_puxada_caminhoes_motorista_funcionario_id_fkey"
+            columns: ["motorista_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_puxada_caminhoes_motorista_funcionario_id_fkey"
+            columns: ["motorista_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_puxada_caminhoes_motorista_funcionario_id_fkey"
+            columns: ["motorista_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_puxada_caminhoes_puxada_id_fkey"
+            columns: ["puxada_id"]
+            isOneToOne: false
+            referencedRelation: "bd_ct_puxadas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_ct_puxadas: {
+        Row: {
+          cancelado_em: string | null
+          cancelado_por: string | null
+          centro_custo_id: string
+          codigo: string
+          coleta_endereco: string | null
+          coleta_latitude: number | null
+          coleta_longitude: number | null
+          created_at: string
+          created_by: string
+          data_puxada: string
+          descarga_endereco: string | null
+          descarga_latitude: number | null
+          descarga_longitude: number | null
+          distancia_rota_km: number | null
+          duracao_rota_min: number | null
+          id: string
+          motivo_cancelamento: string | null
+          observacoes: string | null
+          planejador_nome_snapshot: string
+          planejador_user_id: string
+          programada_em: string | null
+          programada_por: string | null
+          rota_geometria: Json | null
+          rota_resumo: string | null
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          cancelado_em?: string | null
+          cancelado_por?: string | null
+          centro_custo_id: string
+          codigo: string
+          coleta_endereco?: string | null
+          coleta_latitude?: number | null
+          coleta_longitude?: number | null
+          created_at?: string
+          created_by: string
+          data_puxada: string
+          descarga_endereco?: string | null
+          descarga_latitude?: number | null
+          descarga_longitude?: number | null
+          distancia_rota_km?: number | null
+          duracao_rota_min?: number | null
+          id?: string
+          motivo_cancelamento?: string | null
+          observacoes?: string | null
+          planejador_nome_snapshot: string
+          planejador_user_id: string
+          programada_em?: string | null
+          programada_por?: string | null
+          rota_geometria?: Json | null
+          rota_resumo?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          cancelado_em?: string | null
+          cancelado_por?: string | null
+          centro_custo_id?: string
+          codigo?: string
+          coleta_endereco?: string | null
+          coleta_latitude?: number | null
+          coleta_longitude?: number | null
+          created_at?: string
+          created_by?: string
+          data_puxada?: string
+          descarga_endereco?: string | null
+          descarga_latitude?: number | null
+          descarga_longitude?: number | null
+          distancia_rota_km?: number | null
+          duracao_rota_min?: number | null
+          id?: string
+          motivo_cancelamento?: string | null
+          observacoes?: string | null
+          planejador_nome_snapshot?: string
+          planejador_user_id?: string
+          programada_em?: string | null
+          programada_por?: string | null
+          rota_geometria?: Json | null
+          rota_resumo?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_ct_puxadas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_puxadas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_puxadas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_puxadas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_puxadas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_puxadas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_puxadas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_puxadas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_puxadas_planejador_user_id_fkey"
+            columns: ["planejador_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_puxadas_planejador_user_id_fkey"
+            columns: ["planejador_user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_ct_puxadas_planejador_user_id_fkey"
+            columns: ["planejador_user_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -3865,6 +4138,7 @@ export type Database = {
           recebedor_previsto_nome_snapshot: string | null
           recebedor_previsto_telefone_snapshot: string | null
           responsavel_transporte: string | null
+          rota_geometria: Json | null
           rota_resumo: string | null
           solicitacao_id: string | null
           status: string
@@ -3927,6 +4201,7 @@ export type Database = {
           recebedor_previsto_nome_snapshot?: string | null
           recebedor_previsto_telefone_snapshot?: string | null
           responsavel_transporte?: string | null
+          rota_geometria?: Json | null
           rota_resumo?: string | null
           solicitacao_id?: string | null
           status?: string
@@ -3989,6 +4264,7 @@ export type Database = {
           recebedor_previsto_nome_snapshot?: string | null
           recebedor_previsto_telefone_snapshot?: string | null
           responsavel_transporte?: string | null
+          rota_geometria?: Json | null
           rota_resumo?: string | null
           solicitacao_id?: string | null
           status?: string
@@ -14841,6 +15117,288 @@ export type Database = {
         }
         Relationships: []
       }
+      bd_solicitacoes_desmobilizacao: {
+        Row: {
+          aprovado_em: string | null
+          aprovado_por: string | null
+          cancelado_em: string | null
+          cancelado_por: string | null
+          centro_custo_origem_id: string
+          concluido_em: string | null
+          concluido_por: string | null
+          created_at: string
+          data_retirada: string
+          engenheiro_responsavel_id: string
+          engenheiro_solicitante_id: string
+          equipamento_id: string
+          exige_aprovacao: boolean
+          hora_retirada: string | null
+          id: string
+          motivo_cancelamento: string | null
+          motivo_recusa: string | null
+          observacoes: string | null
+          previsao_aplicada: boolean
+          previsao_liberacao_anterior: string | null
+          solicitante_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          cancelado_em?: string | null
+          cancelado_por?: string | null
+          centro_custo_origem_id: string
+          concluido_em?: string | null
+          concluido_por?: string | null
+          created_at?: string
+          data_retirada: string
+          engenheiro_responsavel_id: string
+          engenheiro_solicitante_id: string
+          equipamento_id: string
+          exige_aprovacao: boolean
+          hora_retirada?: string | null
+          id?: string
+          motivo_cancelamento?: string | null
+          motivo_recusa?: string | null
+          observacoes?: string | null
+          previsao_aplicada?: boolean
+          previsao_liberacao_anterior?: string | null
+          solicitante_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          cancelado_em?: string | null
+          cancelado_por?: string | null
+          centro_custo_origem_id?: string
+          concluido_em?: string | null
+          concluido_por?: string | null
+          created_at?: string
+          data_retirada?: string
+          engenheiro_responsavel_id?: string
+          engenheiro_solicitante_id?: string
+          equipamento_id?: string
+          exige_aprovacao?: boolean
+          hora_retirada?: string | null
+          id?: string
+          motivo_cancelamento?: string | null
+          motivo_recusa?: string | null
+          observacoes?: string | null
+          previsao_aplicada?: boolean
+          previsao_liberacao_anterior?: string | null
+          solicitante_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_aprovado_por_fkey"
+            columns: ["aprovado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_aprovado_por_fkey"
+            columns: ["aprovado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_aprovado_por_fkey"
+            columns: ["aprovado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_cancelado_por_fkey"
+            columns: ["cancelado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_cancelado_por_fkey"
+            columns: ["cancelado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_cancelado_por_fkey"
+            columns: ["cancelado_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_concluido_por_fkey"
+            columns: ["concluido_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_concluido_por_fkey"
+            columns: ["concluido_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_concluido_por_fkey"
+            columns: ["concluido_por"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_engenheiro_responsavel_id_fkey"
+            columns: ["engenheiro_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_engenheiro_responsavel_id_fkey"
+            columns: ["engenheiro_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_engenheiro_responsavel_id_fkey"
+            columns: ["engenheiro_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_engenheiro_solicitante_id_fkey"
+            columns: ["engenheiro_solicitante_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_engenheiro_solicitante_id_fkey"
+            columns: ["engenheiro_solicitante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_engenheiro_solicitante_id_fkey"
+            columns: ["engenheiro_solicitante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_equipamento_id_fkey"
+            columns: ["equipamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_caminhoes_equipamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_equipamento_id_fkey"
+            columns: ["equipamento_id"]
+            isOneToOne: false
+            referencedRelation: "vw_ativos_logistica_manutencao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_equipamento_id_fkey"
+            columns: ["equipamento_id"]
+            isOneToOne: false
+            referencedRelation: "vw_ativos_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_solicitante_id_fkey"
+            columns: ["solicitante_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_solicitante_id_fkey"
+            columns: ["solicitante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_solicitante_id_fkey"
+            columns: ["solicitante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_solicitacoes_equip_aprovacoes: {
         Row: {
           aprovador_id: string | null
@@ -22353,6 +22911,14 @@ export type Database = {
         Args: { p_apontamento_id: string; p_turno: string }
         Returns: undefined
       }
+      fn_apontar_manutencao_ativo_dia: {
+        Args: { p_actor?: string; p_data?: string; p_equipamento_id: string }
+        Returns: number
+      }
+      fn_apontar_manutencao_diario: {
+        Args: { p_actor?: string; p_data?: string }
+        Returns: number
+      }
       fn_aprovar_classificacao_solicitacao: {
         Args: { p_id: string }
         Returns: undefined
@@ -23316,9 +23882,36 @@ export type Database = {
         Args: { p_parada_id: string; p_request_id: string }
         Returns: Json
       }
+      fn_ct_pode_ver_puxada: {
+        Args: { p_puxada_id: string; p_user?: string }
+        Returns: boolean
+      }
       fn_ct_pode_ver_viagem: {
         Args: { p_user?: string; p_viagem_id: string }
         Returns: boolean
+      }
+      fn_ct_puxada_cancelar: {
+        Args: { p_motivo: string; p_puxada_id: string; p_request_id: string }
+        Returns: Json
+      }
+      fn_ct_puxada_estado: { Args: { p_puxada_id: string }; Returns: Json }
+      fn_ct_puxada_json: { Args: { p_puxada_id: string }; Returns: Json }
+      fn_ct_puxada_listar: {
+        Args: {
+          p_centro_custo_id?: string
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_status?: string
+        }
+        Returns: Json
+      }
+      fn_ct_puxada_programar: {
+        Args: { p_puxada_id: string; p_request_id: string }
+        Returns: Json
+      }
+      fn_ct_puxada_salvar_rascunho: {
+        Args: { p_payload: Json; p_puxada_id: string; p_request_id: string }
+        Returns: Json
       }
       fn_ct_recalcular_status_item: {
         Args: { p_solicitacao_item_id: string }
@@ -23354,6 +23947,8 @@ export type Database = {
         Args: { p_request_id: string; p_viagem_id: string }
         Returns: Json
       }
+      fn_ct4_proximo_codigo_mov: { Args: never; Returns: string }
+      fn_ct5_proximo_codigo_puxada: { Args: never; Returns: string }
       fn_designar_equipe_atividade: {
         Args: {
           p_atividade_id: string
@@ -23367,6 +23962,30 @@ export type Database = {
           p_semana_inicio: string
         }
         Returns: string
+      }
+      fn_desmob_aplicar_previsao: {
+        Args: { p_equipamento_id: string; p_motivo: string; p_previsao: string }
+        Returns: undefined
+      }
+      fn_desmobilizacao_cancelar: {
+        Args: { p_id: string; p_motivo?: string }
+        Returns: Json
+      }
+      fn_desmobilizacao_concluir: { Args: { p_id: string }; Returns: Json }
+      fn_desmobilizacao_decidir: {
+        Args: { p_decisao: string; p_id: string; p_motivo?: string }
+        Returns: Json
+      }
+      fn_desmobilizacao_solicitar: {
+        Args: {
+          p_data_retirada: string
+          p_engenheiro_responsavel_id: string
+          p_engenheiro_solicitante_id: string
+          p_equipamento_id: string
+          p_hora_retirada?: string
+          p_observacoes?: string
+        }
+        Returns: Json
       }
       fn_desvio_can_select_row: {
         Args: { p_criado_por: string; p_obra_id: string }
@@ -23772,6 +24391,37 @@ export type Database = {
         Returns: string
       }
       fn_normalize_role_name: { Args: { p_nome: string }; Returns: string }
+      fn_notificacao_ct_viagem_evento: {
+        Args: {
+          p_actor: string
+          p_request_id: string
+          p_tipo: string
+          p_titulo: string
+          p_viagem_id: string
+        }
+        Returns: undefined
+      }
+      fn_notificacao_dest_centros_custo: {
+        Args: { p_ccs: string[] }
+        Returns: string[]
+      }
+      fn_notificacao_dest_profiles: {
+        Args: { p_ids: string[] }
+        Returns: string[]
+      }
+      fn_notificacao_emitir_core: {
+        Args: {
+          p_created_by?: string
+          p_dedup_key?: string
+          p_destinatarios?: string[]
+          p_link?: string
+          p_mensagem: string
+          p_metadata?: Json
+          p_tipo: string
+          p_titulo: string
+        }
+        Returns: Json
+      }
       fn_ordem_diaria_build_item_snapshot: {
         Args: { p_atividade_id: string }
         Returns: Json
@@ -23983,6 +24633,10 @@ export type Database = {
         Returns: undefined
       }
       fn_recalcula_total_os: { Args: { p_os_id: string }; Returns: undefined }
+      fn_reconciliar_estado_manutencao_ativo: {
+        Args: { p_equipamento_id: string }
+        Returns: undefined
+      }
       fn_registrar_apontamento_item_ordem_diaria: {
         Args: {
           p_equipe_presente?: string[]

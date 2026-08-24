@@ -1,0 +1,1 @@
+REVOKE ALL ON FUNCTION public.fn_apontar_manutencao_ativo_dia(uuid, date, uuid) FROM service_role;

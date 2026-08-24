@@ -487,3 +487,171 @@ export const rotuloCentroCusto = (e: {
   if (e.centroCustoAtualId) return CENTRO_CUSTO_NAO_LOCALIZADO_LABEL;
   return SEM_CENTRO_CUSTO_LABEL;
 };
+
+/* ------------------------------------------------------------------ */
+/* Disponibilidade para movimentação (regra ÚNICA e derivada)          */
+/*                                                                     */
+/* Dimensões distintas, nunca confundidas:                             */
+/*   - manutenção  → existe OS 'Aberta'/'Em Andamento' (fonte da       */
+/*     verdade: bd_ordens_servico). Tem PRECEDÊNCIA absoluta.          */
+/*   - alocação    → status ALOCADO + Centro de Custo atual. O ativo   */
+/*     permanece ALOCADO até a movimentação efetiva acontecer.         */
+/*   - liberação   → previsao_liberacao <= data de referência          */
+/*     (America/Sao_Paulo) apenas HABILITA a desmobilização.           */
+/* ------------------------------------------------------------------ */
+
+export type DisponibilidadeMovimentacao =
+  | "DISPONIVEL"
+  | "DISPONIVEL_DESMOBILIZACAO"
+  | "ALOCADO_LIBERACAO_FUTURA"
+  | "ALOCADO_SEM_PREVISAO"
+  | "MANUTENCAO"
+  | "SEM_STATUS"
+  | "DESCONHECIDO"
+  | "INDISPONIVEL_LEGADO";
+
+export interface EntradaDisponibilidadeMovimentacao {
+  statusOperacional: StatusOperacionalCanonico;
+  previsaoLiberacao?: string | null;
+  temOsAberta?: boolean;
+}
+
+export interface ResultadoDisponibilidadeMovimentacao {
+  estado: DisponibilidadeMovimentacao;
+  /** Rótulo curto exibido em badges e no detalhe do ativo. */
+  label: string;
+  disponivelParaMovimentacao: boolean;
+  motivo: string | null;
+}
+
+/** Data de referência do negócio (America/Sao_Paulo), ISO yyyy-MM-dd. */
+export const dataReferenciaSaoPaulo = (agora: Date = new Date()): string =>
+  agora.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+
+/** yyyy-MM-dd → DD/MM/YYYY (sem Date, para não deslocar fuso). */
+export const formatarDataIsoBr = (iso: string | null | undefined): string => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso ?? ""));
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
+};
+
+export const derivarDisponibilidadeMovimentacao = (
+  entrada: EntradaDisponibilidadeMovimentacao,
+  referencia: string = dataReferenciaSaoPaulo(),
+): ResultadoDisponibilidadeMovimentacao => {
+  // 1) Manutenção tem precedência sobre previsão, alocação e situação anterior.
+  if (entrada.temOsAberta) {
+    return {
+      estado: "MANUTENCAO",
+      label: "Manutenção",
+      disponivelParaMovimentacao: false,
+      motivo: "Ordem de Serviço aberta ou em andamento.",
+    };
+  }
+
+  const previsao = entrada.previsaoLiberacao ?? null;
+
+  switch (entrada.statusOperacional) {
+    case "MANUTENCAO":
+      return {
+        estado: "MANUTENCAO",
+        label: "Manutenção",
+        disponivelParaMovimentacao: false,
+        motivo: "Disponibilidade operacional registrada em manutenção.",
+      };
+    case "DISPONIVEL":
+      return {
+        estado: "DISPONIVEL",
+        label: "Disponível",
+        disponivelParaMovimentacao: true,
+        motivo: null,
+      };
+    case "ALOCADO": {
+      if (previsao && previsao <= referencia) {
+        return {
+          estado: "DISPONIVEL_DESMOBILIZACAO",
+          label: "Disponível para desmobilização",
+          disponivelParaMovimentacao: true,
+          motivo: `Liberação prevista para ${formatarDataIsoBr(previsao)} já atingida — o ativo permanece alocado até a movimentação efetiva.`,
+        };
+      }
+      if (previsao) {
+        return {
+          estado: "ALOCADO_LIBERACAO_FUTURA",
+          label: `Alocado até ${formatarDataIsoBr(previsao)}`,
+          disponivelParaMovimentacao: false,
+          motivo: `Liberação prevista para ${formatarDataIsoBr(previsao)}.`,
+        };
+      }
+      return {
+        estado: "ALOCADO_SEM_PREVISAO",
+        label: "Alocado",
+        disponivelParaMovimentacao: false,
+        motivo: "Alocado — sem previsão de liberação.",
+      };
+    }
+    case "INDISPONIVEL":
+      return {
+        estado: "INDISPONIVEL_LEGADO",
+        label: "Indisponível",
+        disponivelParaMovimentacao: false,
+        motivo: "Status legado — regularize a disponibilidade operacional.",
+      };
+    case "SEM_STATUS":
+      return {
+        estado: "SEM_STATUS",
+        label: "Sem status",
+        disponivelParaMovimentacao: false,
+        motivo: "Ativo sem disponibilidade operacional confirmada.",
+      };
+    default:
+      return {
+        estado: "DESCONHECIDO",
+        label: "Status desconhecido",
+        disponivelParaMovimentacao: false,
+        motivo: "Registro de disponibilidade com status não reconhecido.",
+      };
+  }
+};
+
+/**
+ * Regularização automática permitida para ativos SEM linha de disponibilidade
+ * (espelho da migration): OS aberta ⇒ MANUTENCAO; Centro de Custo atual ⇒
+ * ALOCADO; sem OS e sem CC ⇒ permanece SEM_STATUS (nunca DISPONIVEL).
+ */
+export const statusRegularizacaoSemRegistro = (entrada: {
+  temOsAberta?: boolean;
+  centroCustoAtualId?: string | null;
+}): Extract<StatusOperacionalCanonico, "MANUTENCAO" | "ALOCADO" | "SEM_STATUS"> => {
+  if (entrada.temOsAberta) return "MANUTENCAO";
+  if (entrada.centroCustoAtualId) return "ALOCADO";
+  return "SEM_STATUS";
+};
+
+/**
+ * Estado restaurado ao encerrar a ÚLTIMA OS (espelho de
+ * fn_reconciliar_estado_manutencao_ativo). Só restaura quando o estado corrente
+ * é de manutenção — nunca sobrescreve condição registrada por outro fluxo.
+ */
+export const estadoAposEncerramentoOs = (entrada: {
+  aindaTemOsAberta?: boolean;
+  centroCustoAtualId?: string | null;
+  statusOperacionalCorrente: StatusOperacionalCanonico;
+  situacaoCorrente?: string | null;
+}): { statusOperacional: StatusOperacionalCanonico; situacao: string | null } => {
+  const emManutencaoStatus = entrada.statusOperacionalCorrente === "MANUTENCAO";
+  const emManutencaoSituacao = canonTexto(entrada.situacaoCorrente) === "EM MANUTENCAO";
+
+  if (entrada.aindaTemOsAberta) {
+    return { statusOperacional: "MANUTENCAO", situacao: "Em Manutenção" };
+  }
+
+  const alvoStatus: StatusOperacionalCanonico = entrada.centroCustoAtualId
+    ? "ALOCADO"
+    : "DISPONIVEL";
+  const alvoSituacao = entrada.centroCustoAtualId ? "Operando" : "Disponível";
+
+  return {
+    statusOperacional: emManutencaoStatus ? alvoStatus : entrada.statusOperacionalCorrente,
+    situacao: emManutencaoSituacao ? alvoSituacao : (entrada.situacaoCorrente ?? null),
+  };
+};

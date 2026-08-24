@@ -2,11 +2,14 @@ import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Activity, CalendarClock, CalendarDays, ShieldAlert } from "lucide-react";
+import { Activity, CalendarClock, CalendarDays, ShieldAlert, Truck } from "lucide-react";
 import AssetInfoSection from "./AssetInfoSection";
 import AssetInfoItem from "./AssetInfoItem";
 import { formatDataOperacional } from "./formatadores";
-import type { StatusOperacionalCanonico } from "@/lib/ativos/reconciliacaoOperacional";
+import {
+  derivarDisponibilidadeMovimentacao,
+  type StatusOperacionalCanonico,
+} from "@/lib/ativos/reconciliacaoOperacional";
 import type { EstadoOperacionalDetalhado } from "@/services/disponibilidadeEquipamentoService";
 import { ACAO_LISTAGEM } from "@/components/disponibilidade/disponibilidadeFormLogic";
 import {
@@ -63,6 +66,13 @@ const DisponibilidadeOperacionalCard: React.FC<DisponibilidadeOperacionalCardPro
   // Rótulo contextual da vigência: campo `data_inicio`, nunca `previsao_liberacao`.
   const vigencia = rotuloDataInicio(estado?.statusOperacional, estado?.registro?.dataInicio ?? null);
 
+  // Regra ÚNICA e derivada (OS aberta > previsão > alocação > disponibilidade).
+  const movimentacao = derivarDisponibilidadeMovimentacao({
+    statusOperacional: estado?.statusOperacional ?? "SEM_STATUS",
+    previsaoLiberacao: estado?.registro?.previsaoLiberacao ?? null,
+    temOsAberta: estado?.temOsAberta ?? false,
+  });
+
   return (
     <AssetInfoSection title="Disponibilidade operacional" icon={Activity} action={acao}>
       {isLoading ? (
@@ -81,9 +91,11 @@ const DisponibilidadeOperacionalCard: React.FC<DisponibilidadeOperacionalCardPro
             <Activity className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             <div className="min-w-0">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Status
+                Condição operacional
               </p>
-              {estado.possuiRegistroDisponibilidade ? (
+              {estado.temOsAberta ? (
+                <Badge className={STATUS_CLASSES.MANUTENCAO}>Em manutenção (OS aberta)</Badge>
+              ) : estado.possuiRegistroDisponibilidade ? (
                 <Badge className={STATUS_CLASSES[estado.statusOperacional]}>
                   {STATUS_OPERACIONAL_TEXTO[estado.statusOperacional]}
                 </Badge>
@@ -105,6 +117,29 @@ const DisponibilidadeOperacionalCard: React.FC<DisponibilidadeOperacionalCardPro
             value={formatDataOperacional(estado.registro?.previsaoLiberacao, "")}
             emptyLabel="Não informada"
           />
+
+          <div className="flex items-start gap-2.5 py-1.5">
+            <Truck className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Disponibilidade para movimentação
+              </p>
+              <Badge
+                className={
+                  movimentacao.disponivelParaMovimentacao
+                    ? "border-transparent bg-emerald-100 text-emerald-800"
+                    : STATUS_CLASSES.SEM_STATUS
+                }
+                data-testid="ativo-disponibilidade-movimentacao"
+              >
+                {movimentacao.label}
+              </Badge>
+              {movimentacao.motivo ? (
+                <p className="mt-1 text-[11px] text-muted-foreground">{movimentacao.motivo}</p>
+              ) : null}
+            </div>
+          </div>
+
           {vigencia.vigenciaFutura ? (
             <p
               className="text-xs text-amber-700 sm:col-span-2 lg:col-span-4"

@@ -5,7 +5,10 @@ import {
   SEM_CENTRO_CUSTO_LABEL,
   avaliarCapacidade,
   casaBusca,
+  derivarDisponibilidadeMovimentacao,
   detectarConflitoCadastral,
+  estadoAposEncerramentoOs,
+  statusRegularizacaoSemRegistro,
   escolherRegistroOperacionalMaisRecente,
   indexarDisponibilidadePorEquipamento,
   montarChaveOrdenacao,
@@ -182,5 +185,126 @@ describe("reconciliarAtivo", () => {
     expect(e.statusOperacional).toBe("MANUTENCAO");
     expect(e.bloqueioMotivo).toBeTruthy();
     expect(e.possuiConflitoCadastral).toBe(true);
+  });
+});
+
+describe("disponibilidade para movimentação (regra única)", () => {
+  const HOJE = "2026-08-20";
+
+  it("OS aberta tem precedência sobre ALOCADO com previsão vencida", () => {
+    const r = derivarDisponibilidadeMovimentacao(
+      { statusOperacional: "ALOCADO", previsaoLiberacao: "2026-08-01", temOsAberta: true },
+      HOJE,
+    );
+    expect(r.estado).toBe("MANUTENCAO");
+    expect(r.disponivelParaMovimentacao).toBe(false);
+  });
+
+  it("ALOCADO com previsão hoje libera desmobilização", () => {
+    const r = derivarDisponibilidadeMovimentacao(
+      { statusOperacional: "ALOCADO", previsaoLiberacao: HOJE },
+      HOJE,
+    );
+    expect(r.estado).toBe("DISPONIVEL_DESMOBILIZACAO");
+    expect(r.disponivelParaMovimentacao).toBe(true);
+  });
+
+  it("ALOCADO com previsão anterior libera desmobilização", () => {
+    const r = derivarDisponibilidadeMovimentacao(
+      { statusOperacional: "ALOCADO", previsaoLiberacao: "2026-07-31" },
+      HOJE,
+    );
+    expect(r.estado).toBe("DISPONIVEL_DESMOBILIZACAO");
+    expect(r.disponivelParaMovimentacao).toBe(true);
+  });
+
+  it("ALOCADO com previsão futura ainda não está disponível", () => {
+    const r = derivarDisponibilidadeMovimentacao(
+      { statusOperacional: "ALOCADO", previsaoLiberacao: "2026-09-10" },
+      HOJE,
+    );
+    expect(r.estado).toBe("ALOCADO_LIBERACAO_FUTURA");
+    expect(r.label).toBe("Alocado até 10/09/2026");
+    expect(r.disponivelParaMovimentacao).toBe(false);
+  });
+
+  it("ALOCADO sem previsão continua alocado", () => {
+    const r = derivarDisponibilidadeMovimentacao(
+      { statusOperacional: "ALOCADO", previsaoLiberacao: null },
+      HOJE,
+    );
+    expect(r.estado).toBe("ALOCADO_SEM_PREVISAO");
+    expect(r.disponivelParaMovimentacao).toBe(false);
+  });
+
+  it("DISPONIVEL sem OS está disponível", () => {
+    const r = derivarDisponibilidadeMovimentacao({ statusOperacional: "DISPONIVEL" }, HOJE);
+    expect(r.estado).toBe("DISPONIVEL");
+    expect(r.disponivelParaMovimentacao).toBe(true);
+  });
+
+  it("SEM_STATUS nunca é tratado como disponível", () => {
+    const r = derivarDisponibilidadeMovimentacao({ statusOperacional: "SEM_STATUS" }, HOJE);
+    expect(r.estado).toBe("SEM_STATUS");
+    expect(r.disponivelParaMovimentacao).toBe(false);
+  });
+});
+
+describe("regularização de ativos sem registro", () => {
+  it("sem status + Centro de Custo ⇒ ALOCADO", () => {
+    expect(statusRegularizacaoSemRegistro({ centroCustoAtualId: "cc1" })).toBe("ALOCADO");
+  });
+
+  it("sem status + OS aberta ⇒ MANUTENCAO (mesmo com CC)", () => {
+    expect(statusRegularizacaoSemRegistro({ centroCustoAtualId: "cc1", temOsAberta: true })).toBe(
+      "MANUTENCAO",
+    );
+  });
+
+  it("sem status, sem CC e sem OS permanece SEM_STATUS (nunca DISPONIVEL)", () => {
+    expect(statusRegularizacaoSemRegistro({ centroCustoAtualId: null })).toBe("SEM_STATUS");
+  });
+});
+
+describe("estado após encerramento da OS", () => {
+  it("última OS encerrada com CC ⇒ Operando / ALOCADO", () => {
+    expect(
+      estadoAposEncerramentoOs({
+        centroCustoAtualId: "cc1",
+        statusOperacionalCorrente: "MANUTENCAO",
+        situacaoCorrente: "Em Manutenção",
+      }),
+    ).toEqual({ statusOperacional: "ALOCADO", situacao: "Operando" });
+  });
+
+  it("última OS encerrada sem CC ⇒ Disponível / DISPONIVEL", () => {
+    expect(
+      estadoAposEncerramentoOs({
+        centroCustoAtualId: null,
+        statusOperacionalCorrente: "MANUTENCAO",
+        situacaoCorrente: "Em Manutenção",
+      }),
+    ).toEqual({ statusOperacional: "DISPONIVEL", situacao: "Disponível" });
+  });
+
+  it("outra OS ainda aberta mantém manutenção", () => {
+    expect(
+      estadoAposEncerramentoOs({
+        aindaTemOsAberta: true,
+        centroCustoAtualId: "cc1",
+        statusOperacionalCorrente: "MANUTENCAO",
+        situacaoCorrente: "Em Manutenção",
+      }),
+    ).toEqual({ statusOperacional: "MANUTENCAO", situacao: "Em Manutenção" });
+  });
+
+  it("status corrente diferente de MANUTENCAO não é sobrescrito", () => {
+    expect(
+      estadoAposEncerramentoOs({
+        centroCustoAtualId: null,
+        statusOperacionalCorrente: "ALOCADO",
+        situacaoCorrente: "Operando",
+      }),
+    ).toEqual({ statusOperacional: "ALOCADO", situacao: "Operando" });
   });
 });

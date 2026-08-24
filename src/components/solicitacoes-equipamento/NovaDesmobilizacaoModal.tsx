@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,8 @@ import { AlertCircle } from "lucide-react";
 import { fetchVeiculos } from "@/services/veiculo/queries";
 import { getUsuariosOperacionais } from "@/services/solicitacaoEquipamentoService";
 import { useAuth } from "@/hooks/useAuth";
+import { solicitarDesmobilizacao } from "@/services/desmobilizacaoService";
+import { DESMOBILIZACAO_INVALIDATE_KEYS } from "./desmobilizacaoQueryKeys";
 
 interface Props {
   open: boolean;
@@ -51,6 +53,7 @@ const isEngenheiroOuGerente = (funcao: string): boolean => {
 const NovaDesmobilizacaoModal: React.FC<Props> = ({ open, onOpenChange }) => {
   const { toast } = useToast();
   const { userId } = useAuth();
+  const queryClient = useQueryClient();
   const { data: aprovacaoDesmobilizacaoRaw, isLoading: aprovacaoDesmobilizacaoLoading } =
     useConfiguracaoSistema('veic_equip_exige_aprovacao_desmobilizacao');
   const exigeAprovacaoDesmobilizacao = aprovacaoDesmobilizacaoLoading
@@ -128,6 +131,39 @@ const NovaDesmobilizacaoModal: React.FC<Props> = ({ open, onOpenChange }) => {
     [engenheirosFiltrados]
   );
 
+  const hojeBrt = useMemo(
+    () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date()),
+    []
+  );
+
+  const semCentroCusto = !!form.veiculoId && !ccAtualNome;
+  const dataRetroativa = !!form.dataRetirada && form.dataRetirada < hojeBrt;
+
+  const solicitarMutation = useMutation({
+    mutationFn: () =>
+      solicitarDesmobilizacao({
+        equipamentoId: form.veiculoId,
+        engenheiroResponsavelId: form.engResponsavelId,
+        engenheiroSolicitanteId: form.engSolicitanteId,
+        dataRetirada: form.dataRetirada,
+        horaRetirada: form.horaRetirada || null,
+        observacoes: form.observacoes || null,
+      }),
+    onSuccess: (res) => {
+      DESMOBILIZACAO_INVALIDATE_KEYS.forEach((key) => queryClient.invalidateQueries({ queryKey: [key] }));
+      toast({
+        title: res.status === "APROVADA" ? "Desmobilização registrada" : "Enviada para aprovação",
+        description:
+          res.status === "APROVADA"
+            ? "A previsão de liberação do ativo foi atualizada. O ativo permanece Alocado no centro de custo atual."
+            : "A solicitação aguarda aprovação. A disponibilidade do ativo só muda após a decisão.",
+      });
+      handleClose();
+    },
+    onError: (e: Error) =>
+      toast({ title: "Não foi possível registrar", description: e.message, variant: "destructive" }),
+  });
+
   const handleEnviar = () => {
     const faltando =
       !form.veiculoId ||
@@ -144,14 +180,25 @@ const NovaDesmobilizacaoModal: React.FC<Props> = ({ open, onOpenChange }) => {
       return;
     }
 
-    toast({
-      title: "Formulário validado",
-      description:
-        exigeAprovacaoDesmobilizacao === true
-          ? "A desmobilização será enviada para aprovação quando a persistência for liberada."
-          : "A desmobilização será enviada diretamente para a Central do Transporte quando a persistência for liberada.",
-    });
-    handleClose();
+    if (semCentroCusto) {
+      toast({
+        title: "Ativo sem centro de custo",
+        description: "Só é possível desmobilizar um ativo alocado a um centro de custo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (dataRetroativa) {
+      toast({
+        title: "Data inválida",
+        description: "A data disponível para retirada não pode ser retroativa.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    solicitarMutation.mutate();
   };
 
   return (
@@ -165,12 +212,13 @@ const NovaDesmobilizacaoModal: React.FC<Props> = ({ open, onOpenChange }) => {
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
             {aprovacaoDesmobilizacaoLoading
-              ? "Pré-formulário operacional. A Central do Transporte executará a decisão final."
+              ? "A Central do Transporte executará a movimentação física após o registro."
               : exigeAprovacaoDesmobilizacao
-              ? "Pré-formulário operacional. Após validação da modelagem, esta demanda seguirá para aprovação antes da Central do Transporte."
-              : "Pré-formulário operacional. Após validação da modelagem, esta demanda seguirá diretamente para a Central do Transporte."}
+              ? "Esta solicitação seguirá para aprovação. Aprovada, a data informada passa a ser a previsão de liberação do ativo — o centro de custo atual é mantido até a movimentação real."
+              : "Aprovação desativada: ao enviar, a data informada passa imediatamente a ser a previsão de liberação do ativo. O centro de custo atual é mantido até a movimentação real."}
           </AlertDescription>
         </Alert>
+
 
         <div className="space-y-6 py-2">
           <section className="space-y-3">
@@ -194,8 +242,8 @@ const NovaDesmobilizacaoModal: React.FC<Props> = ({ open, onOpenChange }) => {
                   <Alert className="mt-2">
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
-                      Centro de custo atual não identificado. A Central do Transporte deverá
-                      validar a origem operacional.
+                      Centro de custo atual não identificado. Não é possível desmobilizar um ativo
+                      sem centro de custo de origem — regularize a alocação antes de solicitar.
                     </AlertDescription>
                   </Alert>
                 )}
@@ -228,6 +276,7 @@ const NovaDesmobilizacaoModal: React.FC<Props> = ({ open, onOpenChange }) => {
                 <Input
                   id="des-data-ret"
                   type="date"
+                  min={hojeBrt}
                   value={form.dataRetirada}
                   onChange={(e) => set("dataRetirada", e.target.value)}
                 />
@@ -262,10 +311,12 @@ const NovaDesmobilizacaoModal: React.FC<Props> = ({ open, onOpenChange }) => {
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>
+          <Button variant="outline" onClick={handleClose} disabled={solicitarMutation.isPending}>
             Cancelar
           </Button>
-          <Button onClick={handleEnviar}>Enviar para Central</Button>
+          <Button onClick={handleEnviar} disabled={solicitarMutation.isPending || semCentroCusto || dataRetroativa}>
+            {solicitarMutation.isPending ? "Enviando..." : "Enviar solicitação"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

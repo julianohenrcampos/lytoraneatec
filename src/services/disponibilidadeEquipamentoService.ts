@@ -430,6 +430,8 @@ export interface EstadoOperacionalDetalhado {
   possuiRegistroDisponibilidade: boolean;
   /** Registro real gravado — null quando o ativo não possui linha operacional. */
   registro: RegistroDisponibilidadeAtual | null;
+  /** Existe OS 'Aberta'/'Em Andamento' — precedência sobre qualquer previsão. */
+  temOsAberta: boolean;
 }
 
 /**
@@ -439,20 +441,31 @@ export interface EstadoOperacionalDetalhado {
 export const fetchEstadoOperacionalAtivo = async (
   equipamentoId: string,
 ): Promise<EstadoOperacionalDetalhado> => {
-  const { data, error } = await supabase
-    .from("bd_disponibilidade_equipamentos")
-    .select(
-      `id, equipamento_id, status_operacional, centro_custo_id, previsao_liberacao,
-       confiabilidade_previsao, data_inicio, motivo_risco, observacao, created_at, updated_at`,
-    )
-    .eq("equipamento_id", equipamentoId);
-  if (error) throw error;
+  const [dispResp, osResp] = await Promise.all([
+    supabase
+      .from("bd_disponibilidade_equipamentos")
+      .select(
+        `id, equipamento_id, status_operacional, centro_custo_id, previsao_liberacao,
+         confiabilidade_previsao, data_inicio, motivo_risco, observacao, created_at, updated_at`,
+      )
+      .eq("equipamento_id", equipamentoId),
+    supabase
+      .from("bd_ordens_servico")
+      .select("id", { count: "exact", head: true })
+      .eq("caminhao_equipamento_id", equipamentoId)
+      .in("status", ["Aberta", "Em Andamento"]),
+  ]);
+  if (dispResp.error) throw dispResp.error;
+  if (osResp.error) throw osResp.error;
+
+  const temOsAberta = (osResp.count ?? 0) > 0;
 
   const idx = indexarDisponibilidadePorEquipamento(
-    ((data as unknown) as LinhaDispCompleta[]) || [],
+    ((dispResp.data as unknown) as LinhaDispCompleta[]) || [],
   );
   const linha = (idx.get(equipamentoId) ?? null) as LinhaDispCompleta | null;
   const statusOperacional = normalizarStatusOperacional(!!linha, linha?.status_operacional ?? null);
+
 
   const statusEditavel =
     statusOperacional === "DISPONIVEL" ||
@@ -463,7 +476,8 @@ export const fetchEstadoOperacionalAtivo = async (
       : null;
 
   return {
-    statusOperacional,
+    statusOperacional: temOsAberta ? "MANUTENCAO" : statusOperacional,
+    temOsAberta,
     possuiRegistroDisponibilidade: !!linha,
     registro:
       linha && statusEditavel

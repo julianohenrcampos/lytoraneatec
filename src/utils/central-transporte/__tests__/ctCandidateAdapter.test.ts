@@ -30,6 +30,8 @@ const estadoLivre = (over: Partial<CtEstadoEfetivoAtivo> = {}): CtEstadoEfetivoA
   centroCustoId: null,
   condicaoOperacional: "DISPONIVEL",
   possuiRegistroOperacional: true,
+  emManutencao: false,
+  osManutencao: null,
   previsaoLiberacao: null,
   dataInicioDisponibilidade: null,
   agenda: null,

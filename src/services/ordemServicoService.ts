@@ -158,21 +158,9 @@ export const convertChamadoToOs = async (
   }
 };
  
-// Helper: marcar equipamento como Disponível ao encerrar OS
-const setEquipamentoDisponivel = async (equipamentoId?: string | null) => {
-  try {
-    if (!equipamentoId) return;
-    const { error } = await supabase
-      .from('bd_caminhoes_equipamentos')
-      .update({ situacao: 'Disponível' })
-      .eq('id', equipamentoId);
-    if (error) throw error;
-    console.log(`✅ Equipamento ${equipamentoId} marcado como "Disponível".`);
-  } catch (err) {
-    console.error('❌ Erro ao marcar equipamento como "Disponível":', err);
-    // Não propaga erro para não bloquear encerramento da OS
-  }
-};
+// FASE C — a liberação do ativo é AUTOMÁTICA (sem OS aberta, as RPCs de
+// disponibilidade deixam de bloquear). Não escrevemos mais em
+// bd_caminhoes_equipamentos.situacao ao concluir/atualizar OS.
 
 export const finishOrdemServico = async (osId: string, userId: string): Promise<void> => {
   try {
@@ -201,10 +189,6 @@ export const finishOrdemServico = async (osId: string, userId: string): Promise<
       await updateChamadoStatus(updatedOs.chamado_id, 'Concluído');
     }
 
-    // Marcar equipamento como Disponível ao concluir OS
-    if (updatedOs && (updatedOs as any).caminhao_equipamento_id) {
-      await setEquipamentoDisponivel((updatedOs as any).caminhao_equipamento_id);
-    }
   } catch (error) {
     console.error("Error finishing OS:", error);
     throw error;
@@ -730,16 +714,6 @@ export const updateOrdemServico = async (
     }
     
     console.log('✅ [UPDATE-OS-SERVICE] ================================================');
-
-    // Se a OS foi marcada como Concluída, liberar o equipamento automaticamente
-    try {
-      if ((os as any)?.status === 'Concluída' && (os as any)?.caminhao_equipamento_id) {
-        await setEquipamentoDisponivel((os as any).caminhao_equipamento_id);
-      }
-    } catch (e) {
-      // Apenas logar, não bloquear atualização da OS
-      console.warn('⚠️ [UPDATE-OS-SERVICE] Falha ao marcar equipamento como Disponível:', e);
-    }
 
     return os as any as OrdemServico;
   } catch (error) {

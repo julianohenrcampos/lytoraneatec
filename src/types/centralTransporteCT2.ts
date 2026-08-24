@@ -132,7 +132,12 @@ export type CtOperationKind =
   /* CT-4 — movimentação direta (viagem sem solicitação) */
   | "MOV_DIRETA_RASCUNHO"
   | "MOV_DIRETA_PROGRAMAR"
-  | "MOV_DIRETA_CANCELAR";
+  | "MOV_DIRETA_CANCELAR"
+  /* CT-5 — puxadas (transporte de material com N caminhões) */
+  | "PUXADA_RASCUNHO"
+  | "PUXADA_PROGRAMAR"
+  | "PUXADA_CANCELAR";
+
 
 export type CtAttemptState = "READY" | "PENDING" | "UNCERTAIN";
 

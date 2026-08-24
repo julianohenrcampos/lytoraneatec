@@ -96,13 +96,95 @@ const CT2_MESSAGES: Record<string, string> = {
   CT3D_COORDENADA_INVALIDA: "Coordenada fora do intervalo válido.",
   CT3D_DISTANCIA_INVALIDA: "Distância da rota fora do intervalo aceitável.",
   CT3D_RECEBEDOR_INVALIDO: "Recebedor previsto não encontrado no cadastro.",
+
+  /* CT-3E / CT-3F — operação da viagem */
+  CT3E_ASSINATURA_NAO_CADASTRADA:
+    "Sua assinatura digital ainda não está cadastrada. A conclusão será registrada como aceite eletrônico — se o bloqueio persistir, cadastre a assinatura no menu do usuário.",
+  CT3E_USUARIO_SEM_NOME:
+    "Seu perfil está sem nome completo. Complete o cadastro para registrar o aceite eletrônico desta etapa.",
+  CT3E_VIAGEM_NAO_SELECIONADA: "Nenhuma viagem selecionada para esta operação.",
+  CT3E_CARGA_INVALIDA: "A carga informada não pertence a esta viagem.",
+
+  /* CT-4 — movimentação direta e viagem multiparadas */
+  CT4_AUTH_REQUIRED: "Sessão expirada. Entre novamente para continuar.",
+  CT4_REQUEST_ID_OBRIGATORIO:
+    "Requisição inválida. Recarregue a página e repita a operação.",
+  CT4_FORBIDDEN: "Você não tem permissão para planejar ou programar movimentações.",
+  CT4_VIAGEM_NAO_ENCONTRADA:
+    "Esta movimentação não existe mais. Recarregue a Central do Transporte.",
+  CT4_STATUS_INVALIDO:
+    "Somente movimentações em rascunho podem ser alteradas. Esta já foi programada.",
+  CT4_PARADA_SEM_CENTRO_CUSTO: "Informe a obra/centro de custo de cada parada de entrega.",
+  CT4_PARADA_SEM_EQUIPAMENTO: "Toda parada precisa de ao menos um ativo vinculado.",
+  CT4_SEM_PARADAS: "Adicione ao menos uma parada de entrega antes de programar.",
+  CT4_SEM_EQUIPAMENTOS: "Vincule ao menos um ativo a uma parada antes de programar.",
+  CT4_ATIVO_SEM_PARADA:
+    "Existem ativos da movimentação ainda sem parada de entrega definida.",
+  CT4_MODALIDADE_OBRIGATORIA: "Informe a modalidade do deslocamento.",
+  CT4_DATA_OBRIGATORIA: "Informe a data prevista de saída.",
+  CT4_ORIGEM_OBRIGATORIA: "Informe o ponto de partida (origem da coleta).",
+  CT4_TRANSPORTE_INCOMPLETO:
+    "Dados de transporte incompletos — informe veículo/motorista (próprio) ou transportadora, placa e motorista previsto (terceiro).",
+  CT4_DISPONIBILIDADE_SEM_REGISTRO:
+    "Há ativo sem disponibilidade operacional cadastrada. Regularize em Saneamento da Frota antes de programar.",
+  CT4_ATIVO_INDISPONIVEL:
+    "Há ativo em manutenção ou indisponível, que não pode ser movimentado.",
+  CT4_ATIVO_EM_MANUTENCAO:
+    "Há ativo com ordem de serviço de manutenção aberta. Conclua a OS antes de movimentar.",
+  CT4_ATIVO_COMPROMETIDO:
+    "Um dos ativos recebeu outro compromisso enquanto o planejamento estava aberto. Atualize a movimentação e escolha outro ativo.",
+  CT4_PARADA_NAO_ENCONTRADA: "Parada não encontrada nesta viagem.",
+  CT4_PARADA_STATUS_INVALIDO: "Esta parada já foi registrada.",
+  CT4_PARADA_FORA_DE_ORDEM: "Registre as paradas na ordem planejada da viagem.",
+  CT4_MOTIVO_OBRIGATORIO: "Informe o motivo do cancelamento.",
+  CT4_CANCELAMENTO_APOS_INICIO_NAO_PERMITIDO:
+    "O transporte desta movimentação já foi iniciado e o planejamento não pode mais ser cancelado.",
+  CT4_RESPOSTA_INVALIDA: "Resposta inesperada do servidor. Recarregue a página e tente novamente.",
+
+  /* CT-5 — puxadas (transporte de material com N caminhões + N motoristas) */
+  CT5_AUTH_REQUIRED: "Sessão expirada. Entre novamente para continuar.",
+  CT5_REQUEST_ID_OBRIGATORIO:
+    "Requisição inválida. Recarregue a página e repita a operação.",
+  CT5_FORBIDDEN: "Você não tem permissão para planejar ou programar puxadas.",
+  CT5_PUXADA_NAO_ENCONTRADA:
+    "Esta puxada não existe mais. Recarregue a Central do Transporte.",
+  CT5_STATUS_NAO_EDITAVEL:
+    "O planejamento desta puxada não pode mais ser alterado (já iniciada, concluída ou cancelada).",
+  CT5_STATUS_INVALIDO: "Somente puxadas em rascunho podem ser programadas.",
+  CT5_DATA_OBRIGATORIA: "Informe a data da puxada.",
+  CT5_CENTRO_CUSTO_OBRIGATORIO: "Informe o centro de custo da puxada.",
+  CT5_CENTRO_CUSTO_INVALIDO: "Centro de custo inexistente. Selecione outro.",
+  CT5_CENTRO_CUSTO_FORA_DO_ESCOPO:
+    "Este centro de custo está fora do seu escopo de acesso.",
+  CT5_USUARIO_SEM_PERFIL: "Seu perfil de usuário não foi encontrado. Procure o administrador.",
+  CT5_ROTA_GEOMETRIA_INVALIDA: "Rota inválida — recalcule o trajeto no mapa.",
+  CT5_ROTA_NAO_CALCULADA:
+    "Calcule a rota entre coleta e descarga antes de programar a puxada.",
+  CT5_COLETA_INCOMPLETA: "Confirme o ponto de coleta no mapa.",
+  CT5_DESCARGA_INCOMPLETA: "Confirme o ponto de descarga no mapa.",
+  CT5_SEM_CAMINHOES: "Adicione ao menos um caminhão com motorista.",
+  CT5_CAMINHAO_INVALIDO: "Caminhão inexistente. Selecione outro no catálogo.",
+  CT5_CAMINHAO_DUPLICADO_NA_PUXADA:
+    "O mesmo caminhão não pode ser incluído duas vezes na puxada.",
+  CT5_CAMINHAO_INDISPONIVEL:
+    "Há caminhão indisponível para a data da puxada (manutenção, sem registro ou bloqueado).",
+  CT5_CAMINHAO_COMPROMETIDO_PUXADA:
+    "Um dos caminhões já está comprometido com outra puxada nesta data. Atualize o planejamento e escolha outro.",
+  CT5_MOTORISTA_OBRIGATORIO: "Selecione o motorista de cada caminhão.",
+  CT5_MOTORISTA_INATIVO: "Motorista sem cadastro ativo. Escolha outro motorista.",
+  CT5_MOTIVO_OBRIGATORIO: "Informe o motivo do cancelamento (mínimo de 5 caracteres).",
+  CT5_CANCELAMENTO_APOS_INICIO_NAO_PERMITIDO:
+    "A operação desta puxada já foi iniciada e o planejamento não pode mais ser cancelado.",
+  CT5_RESPOSTA_INVALIDA: "Resposta inesperada do servidor. Recarregue a página e tente novamente.",
 };
 
 /**
  * CT-3D.4 — todos os prefixos de domínio da Central. Um código reconhecido
  * significa transação ABORTADA (determinística), nunca resultado incerto.
  */
-const CT2_CODE_RE = /\b(CT2_[A-Z0-9_]+|CT25_[A-Z0-9_]+|CT3_[A-Z0-9_]+|CT3C_[A-Z0-9_]+|CT3D_[A-Z0-9_]+)\b/;
+const CT2_CODE_RE =
+  /\b(CT2_[A-Z0-9_]+|CT25_[A-Z0-9_]+|CT3_[A-Z0-9_]+|CT3C_[A-Z0-9_]+|CT3D_[A-Z0-9_]+|CT3E_[A-Z0-9_]+|CT4_[A-Z0-9_]+|CT5_[A-Z0-9_]+)\b/;
+
 
 /**
  * SQLSTATEs que provam aborto da transação no servidor: erro de regra de
@@ -190,20 +272,35 @@ const detalheVigencia = (err: unknown): string | null => {
 
 export const normalizeCt2Error = (err: unknown): Ct2NormalizedError => {
   const code = extractCt2Code(err);
-
+  const sqlstateBruto = readField(err, "code").trim();
 
   if (code) {
     // Erro determinístico do servidor: a transação abortou.
-    const base = CT2_MESSAGES[code] || "Não foi possível concluir a operação.";
+    const catalogada = CT2_MESSAGES[code];
+    if (!catalogada) {
+      // Código de domínio não catalogado — pode inclusive vir do DETAIL de uma
+      // violação de constraint (23514/23505). Nunca devolver mensagem opaca.
+      const hint = readField(err, "hint").trim();
+      console.warn("[CT2][CODIGO_NAO_CATALOGADO]", code, sqlstateBruto || "sem-sqlstate");
+      return {
+        code,
+        message:
+          hint ||
+          "A operação foi rejeitada pelo servidor e nada foi gravado " +
+            `(${code}). Tente novamente; se persistir, informe este código ao suporte.`,
+        isUncertain: false,
+      };
+    }
     return {
       code,
       message:
         code === "CT2_ATIVO_AINDA_NAO_DISPONIVEL"
-          ? [base, detalheVigencia(err)].filter(Boolean).join(" ")
-          : base,
+          ? [catalogada, detalheVigencia(err)].filter(Boolean).join(" ")
+          : catalogada,
       isUncertain: false,
     };
   }
+
 
   // CT-3D.4 — SQLSTATE determinístico: a transação abortou no servidor, mesmo
   // que o código de domínio não esteja catalogado. Nunca é resultado incerto.

@@ -27,9 +27,12 @@ export interface CtAtivoMovimentacao {
   statusOperacional: string;
   possuiRegistro: boolean;
   compromissoViagem: string | null;
+  /** Número da OS de manutenção aberta que impede a movimentação, se houver. */
+  osManutencao: string | null;
   elegivel: boolean;
   bloqueioMotivo: string | null;
 }
+
 
 export const rotuloAtivoMovimentacao = (a: CtAtivoMovimentacao): string =>
   [a.frota, a.numeroFrota].filter(Boolean).join("-") || a.placa || a.equipamentoId;
@@ -76,6 +79,16 @@ export interface CtMovDiretaRascunho {
    * parada de entrega. Persistidos em bd_movimentacoes com parada_id NULL.
    */
   ativosPlanejados: string[];
+  /** CT-4 Fase 1 — snapshot da rota planejada (Mapbox), quando calculada. */
+  rotaPlanejada: CtRotaSnapshot | null;
+}
+
+/** Snapshot da rota planejada persistido em bd_ct_viagens. */
+export interface CtRotaSnapshot {
+  distanciaKm: number;
+  duracaoMin: number | null;
+  resumo: string | null;
+  geometria: { type: "LineString"; coordinates: [number, number][] } | null;
 }
 
 

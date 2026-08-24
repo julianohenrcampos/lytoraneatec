@@ -93,8 +93,20 @@ export const hidratarRascunho = (v: CtOrdemMotorista): CtMovDiretaRascunho => ({
     recebedorPrevistoNome: p.recebedorPrevistoNome ?? "",
     equipamentos: p.cargas.map((c) => c.equipamentoId),
   })),
-  /* Participantes salvos, inclusive cargas com parada_id NULL. */
-  ativosPlanejados: Array.from(new Set(v.cargas.map((c) => c.equipamentoId))),
+  /* Projeção derivada: os participantes são exatamente os ativos das paradas. */
+  ativosPlanejados: Array.from(
+    new Set(v.paradas.flatMap((p) => p.cargas.map((c) => c.equipamentoId))),
+  ),
+  /* Snapshot autoritativo da rota já persistida (nada é recalculado aqui). */
+  rotaPlanejada:
+    v.distanciaRotaKm !== null
+      ? {
+          distanciaKm: v.distanciaRotaKm,
+          duracaoMin: v.duracaoRotaMin,
+          resumo: v.rotaResumo,
+          geometria: v.rotaGeometria,
+        }
+      : null,
 });
 
 
@@ -125,21 +137,30 @@ export const useCtMovDiretaEdicao = ({ viagemId = null }: UseCtMovDiretaEdicaoPa
     qc.invalidateQueries({ queryKey: ["ct3e", "ordens-todas"] });
   }, [qc]);
 
-  const salvar = useCallback(async () => {
-    const chave = `${scope}:rascunho`;
-    const out = await run<CtMovDiretaComandoResult>({
-      operation: "MOV_DIRETA_RASCUNHO",
-      materialKey: chave,
-      resourceIds: [chave],
-      scope,
-      exec: (requestId) => salvarRascunhoMovDireta(rascunho, requestId),
-    });
-    if (out.status === "ok") {
-      setRascunho((prev) => ({ ...prev, viagemId: out.data.viagemId }));
-      invalidar();
-    }
-    return out;
-  }, [invalidar, rascunho, run, scope]);
+  /**
+   * `snapshot` permite gravar o rascunho recém-composto (ex.: com a rota da
+   * Directions API) no mesmo tick, sem depender do re-render do estado.
+   */
+  const salvar = useCallback(
+    async (snapshot?: CtMovDiretaRascunho) => {
+      const alvo = snapshot ?? rascunho;
+      const chave = `${scope}:rascunho`;
+      const out = await run<CtMovDiretaComandoResult>({
+        operation: "MOV_DIRETA_RASCUNHO",
+        materialKey: chave,
+        resourceIds: [chave],
+        scope,
+        exec: (requestId) => salvarRascunhoMovDireta(alvo, requestId),
+      });
+      if (out.status === "ok") {
+        setRascunho({ ...alvo, viagemId: out.data.viagemId });
+        invalidar();
+      }
+      return out;
+    },
+    [invalidar, rascunho, run, scope],
+  );
+
 
   const programar = useCallback(
     async (idViagem: string) => {
@@ -177,6 +198,8 @@ export const useCtMovDiretaEdicao = ({ viagemId = null }: UseCtMovDiretaEdicaoPa
     rascunho,
     setRascunho,
     viagemPersistida: estado.data ?? null,
+    /** Reidrata o estado autoritativo (usado após erro de concorrência). */
+    recarregar: estado.refetch,
     isLoading: estado.isLoading,
     error: estado.error,
     salvar,

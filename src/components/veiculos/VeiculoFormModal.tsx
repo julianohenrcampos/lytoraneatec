@@ -300,8 +300,6 @@ const VeiculoFormModal: React.FC<VeiculoFormModalProps> = ({
         numero_serie: values.numero_serie || null,
         chassi: values.chassi || null,
         informacoes_complementares: values.informacoes_complementares || null,
-        status_cadastro: 'ativo',
-        status_disponibilidade: 'disponivel',
         proprietario_tipo: proprietarioTipo,
         tipo_ativo: proprietarioTipo,
         empresa_locadora_id: empresaLocadoraId,

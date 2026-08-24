@@ -167,6 +167,12 @@ interface ColaboradorPresenca extends PresencaFormData {
    * do estado global selectedDate da UI.
    */
   data_apontamento?: string;
+  /**
+   * Funcionário em Férias (status do cadastro ou flag do convocado):
+   * força diária exclusiva independentemente do tipo de dia.
+   */
+  exclusivaPorFerias?: boolean;
+
 }
 
 interface FuncionarioBuscaItem {
@@ -503,7 +509,7 @@ export default function ApontamentoDiariasModal({
   });
 
   // Buscar valor_refeicao das funções
-  const { data: funcoesMap = {} } = useQuery({
+  const { data: funcoesMap, isLoading: isLoadingFuncoesRefeicao } = useQuery({
     queryKey: ['funcoes-refeicao'],
     queryFn: async () => {
       const { data } = await supabase
@@ -512,8 +518,12 @@ export default function ApontamentoDiariasModal({
       const map: Record<string, number> = {};
       (data || []).forEach(f => { map[f.id] = f.valor_refeicao || 0; });
       return map;
-    }
+    },
+    staleTime: 300_000,
   });
+  const refeicaoCarregada = !!funcoesMap && !isLoadingFuncoesRefeicao;
+  const funcoesRefeicaoMap = funcoesMap ?? {};
+
 
   // Busca GLOBAL de funcionários ativos via RPC SECURITY DEFINER
   // (get_funcionarios_ativos_global), padronizada com Nova Solicitação,
@@ -603,6 +613,35 @@ export default function ApontamentoDiariasModal({
     enabled: isOpen
   });
 
+  /**
+   * Fonte única do valor de refeição gravado.
+   * Evita a condição de corrida que gravava 0 quando o mapa de funções
+   * ainda não havia carregado: usa o mapa dedicado e, como fallback,
+   * o cadastro completo de funções já em cache.
+   */
+  const resolverValorRefeicao = useCallback(
+    (col: { funcao_id?: string | null; recebe_refeicao?: boolean | null }): number => {
+      if ((col.recebe_refeicao ?? true) === false) return 0;
+      const id = col.funcao_id || '';
+      const doMapa = funcoesRefeicaoMap[id];
+      if (doMapa != null) return Number(doMapa) || 0;
+      const funcao = funcoesCompletas.find((f: any) => f.id === id) as any;
+      return Number(funcao?.valor_refeicao ?? 0) || 0;
+    },
+    [funcoesRefeicaoMap, funcoesCompletas]
+  );
+
+  /** Bloqueia salvamento enquanto os valores de refeição não estiverem disponíveis. */
+  const refeicaoIndisponivel = useCallback(
+    (cols: { funcao_id?: string | null; recebe_refeicao?: boolean | null }[]): boolean => {
+      if (refeicaoCarregada) return false;
+      return cols.some((c) => (c.recebe_refeicao ?? true) && resolverValorRefeicao(c) === 0);
+    },
+    [refeicaoCarregada, resolverValorRefeicao]
+  );
+
+
+
   // Mapa de CPFs dos colaboradores carregados — usado apenas para filtro local da lista
   const colaboradoresIds = useMemo(() => colaboradores.map(c => c.funcionario_id), [colaboradores]);
 
@@ -612,21 +651,66 @@ export default function ApontamentoDiariasModal({
     [colaboradores]
   );
   const origensPontoEletronico = useOrigemPontoEletronico(presencaIdsParaOrigem);
-  const { data: cpfMap = {} } = useQuery({
-    queryKey: ['apontamento-colaboradores-cpf', colaboradoresIds.sort().join(',')],
+  const { data: cadastroMap = {} } = useQuery({
+    queryKey: ['apontamento-colaboradores-cadastro', colaboradoresIds.sort().join(',')],
     queryFn: async () => {
-      if (colaboradoresIds.length === 0) return {} as Record<string, string>;
+      if (colaboradoresIds.length === 0) return {} as Record<string, { cpf: string; status: string | null }>;
       const { data } = await supabase
         .from('bd_funcionarios')
-        .select('id, cpf')
+        .select('id, cpf, status')
         .in('id', colaboradoresIds);
-      const map: Record<string, string> = {};
-      (data || []).forEach((f: any) => { if (f?.id) map[f.id] = f.cpf || ''; });
+      const map: Record<string, { cpf: string; status: string | null }> = {};
+      (data || []).forEach((f: any) => {
+        if (f?.id) map[f.id] = { cpf: f.cpf || '', status: f.status ?? null };
+      });
       return map;
     },
     enabled: isOpen && colaboradoresIds.length > 0,
     staleTime: 60_000,
   });
+  const cpfMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    Object.entries(cadastroMap).forEach(([id, v]) => { map[id] = v.cpf; });
+    return map;
+  }, [cadastroMap]);
+  /**
+   * Funcionários em Férias recebem SEMPRE diária exclusiva (regra oficial RH).
+   * Fonte: status do cadastro (bd_funcionarios.status).
+   */
+  const idsEmFerias = useMemo(() => {
+    const set = new Set<string>();
+    Object.entries(cadastroMap).forEach(([id, v]) => {
+      if ((v.status || '').trim() === 'Férias') set.add(id);
+    });
+    return set;
+  }, [cadastroMap]);
+
+  // Ao carregar o cadastro, marca os colaboradores em Férias e ajusta o valor
+  // exibido para a diária exclusiva (a persistência usa resolverValorOriginalParaData).
+  useEffect(() => {
+    if (idsEmFerias.size === 0) return;
+    setColaboradores((prev) => {
+      let mudou = false;
+      const next = prev.map((col) => {
+        if (!idsEmFerias.has(col.funcionario_id)) return col;
+        const valorExclusivo = col.valor_diaria_exclusiva_valor ?? col.valor_diaria_normal ?? 0;
+        if (col.exclusivaPorFerias && col.usarDiariaExclusiva && col.valor_diaria_original === valorExclusivo) {
+          return col;
+        }
+        mudou = true;
+        return {
+          ...col,
+          exclusivaPorFerias: true,
+          usarDiariaExclusiva: true,
+          valor_diaria_original: valorExclusivo,
+        };
+      });
+      return mudou ? next : prev;
+    });
+  }, [idsEmFerias]);
+
+
+
   const datasDisponiveis = useMemo(() => {
     if (!solicitacao?.data_inicio || !solicitacao?.data_fim) return [];
 
@@ -830,12 +914,21 @@ export default function ApontamentoDiariasModal({
       label = isFeriadoCalendario ? 'Feriado' : dow === 0 ? 'Domingo' : dow === 6 ? 'Sábado' : 'Normal';
     }
 
+    // REGRA RH: funcionário em Férias recebe SEMPRE diária exclusiva,
+    // inclusive em dia útil. Sobrepõe qualquer resolução por tipo de dia.
+    const emFerias = idsEmFerias.has(col.funcionario_id) || col.exclusivaPorFerias === true;
+    if (emFerias) {
+      usarExclusiva = true;
+      label = `${label} · Férias (exclusiva)`;
+    }
+
     const valorOriginal = usarExclusiva
       ? (col.valor_diaria_exclusiva_valor ?? col.valor_diaria_normal ?? 0)
       : (col.valor_diaria_normal ?? 0);
 
     return { valorOriginal, usarExclusiva, label };
-  }, [resolveTipoDiaManual, feriados]);
+  }, [resolveTipoDiaManual, feriados, idsEmFerias]);
+
 
   const getTipoDiaBadge = useCallback((data: string, info?: { isFeriado?: boolean; isWeekend?: boolean; nomeFeriado?: string | null }) => {
     const manual = resolveTipoDiaManual(data);
@@ -1994,6 +2087,11 @@ export default function ApontamentoDiariasModal({
       return;
     }
 
+    if (refeicaoIndisponivel([colaborador])) {
+      toast.error('Valores de refeição ainda carregando. Aguarde um instante e salve novamente.');
+      return;
+    }
+
     setIsSavingIndividual(colaborador.funcionario_id);
     try {
       const dataApontamento = selectedDate;
@@ -2021,7 +2119,8 @@ export default function ApontamentoDiariasModal({
         tipo_diaria: tipo,
         valor_diaria_aplicada: valorFinal,
         recebe_refeicao: colaborador.recebe_refeicao ?? true,
-        valor_refeicao_aplicado: colaborador.recebe_refeicao ? (funcoesMap[colaborador.funcao_id] || 0) : 0
+        valor_refeicao_aplicado: resolverValorRefeicao(colaborador),
+        usar_diaria_exclusiva: usarExclusiva,
       });
 
       setSaidasSalvas(prev => new Set(prev).add(colaborador.funcionario_id));
@@ -2808,6 +2907,11 @@ export default function ApontamentoDiariasModal({
     }
     if (!solicitacao?.id || !selectedDate) return;
 
+    if (refeicaoIndisponivel(colaboradores)) {
+      toast.error('Valores de refeição ainda carregando. Aguarde um instante e salve novamente.');
+      return;
+    }
+
     setIsSaving(true);
     try {
       const dataApontamento = buildDataApontamentoSegura('salvarInicio');
@@ -2841,7 +2945,7 @@ export default function ApontamentoDiariasModal({
           usar_diaria_exclusiva: usarExclusiva,
           turno: col.turno,
           recebe_refeicao: col.recebe_refeicao ?? true,
-          valor_refeicao_aplicado: (col.recebe_refeicao ?? true) ? (funcoesMap[col.funcao_id] || 0) : 0,
+          valor_refeicao_aplicado: resolverValorRefeicao(col),
         };
       });
 
@@ -3012,6 +3116,11 @@ export default function ApontamentoDiariasModal({
 
     const presentes = colaboradores.filter(c => c.presente);
 
+    if (refeicaoIndisponivel(presentes)) {
+      toast.error('Valores de refeição ainda carregando. Aguarde um instante e salve novamente.');
+      return;
+    }
+
     // Validação turno x virada de dia (D+1) — diurno não pode ter saída <= entrada
     const turnoIncoerente = presentes.filter(col => {
       const isDiurno = (col.turno || 'diurno') === 'diurno';
@@ -3070,7 +3179,8 @@ export default function ApontamentoDiariasModal({
           tipo_diaria: tipo,
           valor_diaria_aplicada: valorFinal,
           recebe_refeicao: col.recebe_refeicao ?? true,
-          valor_refeicao_aplicado: col.recebe_refeicao ? (funcoesMap[col.funcao_id] || 0) : 0
+          valor_refeicao_aplicado: resolverValorRefeicao(col),
+          usar_diaria_exclusiva: usarExclusiva,
         };
       });
 
@@ -3093,6 +3203,11 @@ export default function ApontamentoDiariasModal({
       return;
     }
     if (!solicitacao?.id || !selectedDate || !observacaoCorrecao.trim()) return;
+
+    if (refeicaoIndisponivel(colaboradores)) {
+      toast.error('Valores de refeição ainda carregando. Aguarde um instante e salve novamente.');
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -3142,7 +3257,8 @@ export default function ApontamentoDiariasModal({
             tipo_diaria: col.presente ? tipo : 'nenhuma',
             valor_diaria_aplicada: valorFinal,
             recebe_refeicao: col.recebe_refeicao ?? true,
-            valor_refeicao_aplicado: col.recebe_refeicao ? (funcoesMap[col.funcao_id] || 0) : 0,
+            valor_refeicao_aplicado: resolverValorRefeicao(col),
+            usar_diaria_exclusiva: usarExclusiva,
             turno: col.turno,
             funcao_id: col.funcao_id || undefined
           };
@@ -3177,7 +3293,8 @@ export default function ApontamentoDiariasModal({
             tipo_diaria: col.presente ? tipo : 'nenhuma',
             valor_diaria_aplicada: valorFinal,
             recebe_refeicao: col.recebe_refeicao ?? true,
-            valor_refeicao_aplicado: col.recebe_refeicao ? (funcoesMap[col.funcao_id] || 0) : 0,
+            valor_refeicao_aplicado: resolverValorRefeicao(col),
+            usar_diaria_exclusiva: usarExclusiva,
             turno: col.turno,
             funcao_id: col.funcao_id || undefined
           };
@@ -3924,7 +4041,7 @@ export default function ApontamentoDiariasModal({
                   )}
                   {colaboradoresFiltrados.map((colaborador) => {
                     const { horas, tipo } = calcularJornada(colaborador.hora_entrada, colaborador.hora_saida);
-                    const valorRefeicao = funcoesMap[colaborador.funcao_id] || 0;
+                    const valorRefeicao = resolverValorRefeicao({ funcao_id: colaborador.funcao_id, recebe_refeicao: true });
 
                     const presencaDisabled = legacyPresenceActionsDisabled || readOnly || (fase === 'concluido' && !edicaoLiberada) || (fase === 'finalizacao' && !!colaborador.presencaId && colaborador.presente && !faltaConvertida.has(colaborador.funcionario_id)) || (fase !== 'inicio' && fase !== 'finalizacao' && !(fase === 'concluido' && edicaoLiberada));
                     const isAtrasado = fase === 'finalizacao' && colaborador.presente && (!colaborador.presencaId || faltaConvertida.has(colaborador.funcionario_id));

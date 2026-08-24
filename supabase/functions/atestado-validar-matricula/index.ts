@@ -13,11 +13,19 @@ import {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const HMAC_SECRET = Deno.env.get("ATESTADO_HMAC_SECRET")!;
+const normalizarStatus = (v: unknown) =>
+  String(v || "").trim().toUpperCase();
+// Status elegíveis a enviar atestado. "Inativo" (desligado) é a única exclusão real.
 const STATUS_PERMITIDOS = new Set([
-  "Ativo",
-  "Ativo sem Registro",
-  "Férias",
+  "ATIVO",
+  "ATIVO SEM REGISTRO",
+  "FÉRIAS",
+  "FERIAS",
+  "INSS",
 ]);
+// Status que exigem registro de auditoria (colaborador afastado).
+const STATUS_AFASTADO = new Set(["FÉRIAS", "FERIAS", "INSS"]);
+
 
 // Mesma resposta genérica em qualquer falha de validação, para evitar enumeração.
 const GENERIC_ERROR = { ok: false, error: "credenciais_invalidas" };
@@ -120,7 +128,10 @@ Deno.serve(async (req) => {
     return jsonResponse(GENERIC_ERROR, 401, cors);
   }
 
-  const elegiveis = candidatos.filter((c) => STATUS_PERMITIDOS.has(c.status));
+  const elegiveis = candidatos.filter((c) =>
+    STATUS_PERMITIDOS.has(normalizarStatus(c.status))
+  );
+
   if (elegiveis.length === 0) {
     await delay(500, 1200);
     return jsonResponse(GENERIC_ERROR, 401, cors);
@@ -192,6 +203,19 @@ Deno.serve(async (req) => {
       });
     } catch (_) { /* noop */ }
   }
+
+  // Observabilidade: envio por colaborador afastado (Férias/INSS).
+  if (STATUS_AFASTADO.has(normalizarStatus(func.status))) {
+    try {
+      await supabase.from("bd_security_audit_log").insert({
+        event_type: "atestado_validar_status_afastado",
+        table_name: "bd_funcionarios",
+        ip,
+        contexto: { funcionario_id: func.id, status: func.status },
+      });
+    } catch (_) { /* noop */ }
+  }
+
 
 
 

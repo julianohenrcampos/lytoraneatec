@@ -63,6 +63,7 @@ export default function AtestadosTable({
           <TableRow>
             <TableHead>Lido</TableHead>
             <TableHead>Protocolo</TableHead>
+            <TableHead>Tipo</TableHead>
             <TableHead>Enviado em</TableHead>
             <TableHead>Colaborador</TableHead>
             <TableHead>Matrícula</TableHead>
@@ -79,7 +80,7 @@ export default function AtestadosTable({
         <TableBody>
           {isLoading && (
             <TableRow>
-              <TableCell colSpan={13} className="text-center py-8">
+              <TableCell colSpan={14} className="text-center py-8">
                 <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
                 Carregando…
               </TableCell>
@@ -87,8 +88,8 @@ export default function AtestadosTable({
           )}
           {!isLoading && rows.length === 0 && (
             <TableRow>
-              <TableCell colSpan={13} className="text-center py-8 text-muted-foreground">
-                Nenhum atestado encontrado.
+              <TableCell colSpan={14} className="text-center py-8 text-muted-foreground">
+                Nenhum documento encontrado.
               </TableCell>
             </TableRow>
           )}
@@ -134,6 +135,9 @@ export default function AtestadosTable({
                   </div>
                 </TableCell>
                 <TableCell className="font-mono text-xs">{r.protocolo}</TableCell>
+                <TableCell className="text-xs">
+                  {r.tipo_documento_descricao ?? "Atestado Médico"}
+                </TableCell>
                 <TableCell className="text-xs">{fmtBRT(r.enviado_em)}</TableCell>
                 <TableCell>{r.nome_snapshot}</TableCell>
                 <TableCell className="font-mono text-xs">

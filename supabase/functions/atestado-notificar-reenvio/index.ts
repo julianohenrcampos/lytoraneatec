@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
   const { data: atm, error: atmErr } = await admin
     .from("bd_atestados_medicos")
     .select(
-      "id, protocolo, matricula_snapshot, nome_snapshot, dias_afastamento, dentro_prazo_24h, notificacao_email_tentativas, notificacao_email_status",
+      "id, protocolo, matricula_snapshot, nome_snapshot, dias_afastamento, dentro_prazo_24h, notificacao_email_tentativas, notificacao_email_status, notificacao_email_destino, tipo_documento_descricao",
     )
     .eq("id", atestadoId)
     .maybeSingle();
@@ -92,11 +92,20 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "resend_key_missing" }, 500, cors);
   }
 
+  // Destino derivado do registro (fallback saude@ para históricos sem a coluna).
+  const emailDestino = atm.notificacao_email_destino || EMAIL_DESTINO;
+  const tipoDescricao = atm.tipo_documento_descricao || "Atestado Médico";
+  const mat = String(atm.matricula_snapshot || "");
+  const matMask = mat.length <= 3
+    ? mat
+    : `${mat.slice(0, 2)}${"*".repeat(Math.max(0, mat.length - 3))}${mat.slice(-1)}`;
+
   const html = `
-    <p>Reenvio de notificação de atestado médico.</p>
+    <p>Reenvio de notificação de documento.</p>
     <ul>
       <li><b>Protocolo:</b> ${atm.protocolo}</li>
-      <li><b>Colaborador:</b> ${atm.nome_snapshot} (matrícula ${atm.matricula_snapshot})</li>
+      <li><b>Tipo de documento:</b> ${tipoDescricao}</li>
+      <li><b>Colaborador:</b> ${atm.nome_snapshot} (matrícula ${matMask})</li>
       <li><b>Dias:</b> ${atm.dias_afastamento}</li>
       <li><b>Dentro de 24h:</b> ${atm.dentro_prazo_24h ? "Sim" : "Não"}</li>
     </ul>`;
@@ -111,9 +120,9 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         from: EMAIL_FROM,
-        to: [EMAIL_DESTINO],
-        reply_to: EMAIL_DESTINO,
-        subject: `[Atestado - Reenvio] ${atm.protocolo}`,
+        to: [emailDestino],
+        reply_to: emailDestino,
+        subject: `[Documento - Reenvio] ${atm.protocolo}`,
         html,
       }),
     });

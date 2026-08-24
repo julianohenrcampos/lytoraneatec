@@ -40,9 +40,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatItemDisplay, isNaoCadastrado } from "@/utils/solicitacaoItemDisplay";
 import NovaCedenciaModal from "./NovaCedenciaModal";
 import NovaDesmobilizacaoModal from "./NovaDesmobilizacaoModal";
-import { emitNotification } from "@/services/notifications/notificationEmitter";
-import { getAprovadorSolicitacaoUserIds, getCentralTransporteUserIds } from "@/services/notifications/recipientsService";
-import { formatProtocolo } from "@/utils/formatProtocolo";
+import DesmobilizacoesPanel from "./DesmobilizacoesPanel";
 
 
 type CardDef = { label: string; match: string[]; icon: LucideIcon; isOutros?: boolean };
@@ -136,39 +134,8 @@ const SolicitacaoEquipamentoPage: React.FC = () => {
       setIsFormOpen(false);
       resetCategoriaSelection();
 
-      void (async () => {
-        try {
-          const solicitacaoCriada: any = solicitacao as any;
-          if (solicitacaoCriada?.status_fluxo !== "PENDENTE_APROVACAO") return;
-
-          const destinatarios = getAprovadorSolicitacaoUserIds({
-            aprovador_centro_custo_id: solicitacaoCriada.aprovador_centro_custo_id,
-          });
-
-          if (!destinatarios || destinatarios.length === 0) {
-            console.warn("[SOLIC_EQUIP][NOTIF_SKIP] sem aprovador_centro_custo_id", {
-              solicitacao_id: solicitacaoCriada.id,
-            });
-            return;
-          }
-
-          const protocolo = formatProtocolo(solicitacaoCriada.id);
-
-          await emitNotification({
-            tipo: "equip_solicitacao_pendente",
-            titulo: "Nova solicitação de equipamento",
-            mensagem: `Solicitação ${protocolo} aguardando aprovação.`,
-            link: "/gestao-maquinas/solicitacoes-equipamentos",
-            metadata: {
-              solicitacao_id: solicitacaoCriada.id,
-              protocolo,
-            },
-            destinatariosUserIds: destinatarios,
-          });
-        } catch (e) {
-          console.error("[SOLIC_EQUIP][NOTIF_ERROR]", e);
-        }
-      })();
+      // N3: a notificação de solicitação criada é emitida server-side
+      // (trigger trg_notif_solicitacao_equipamento -> fn_notificacao_emitir_core).
 
       const itensHidratados = (itens || []).map((i: any) => ({
         ...i,
@@ -216,25 +183,7 @@ const SolicitacaoEquipamentoPage: React.FC = () => {
       toast({ title: "Aprovado", description: "Solicitação aprovada com sucesso." });
       queryClient.invalidateQueries({ queryKey: ["solicitacoes-equipamento"] });
 
-      void (async () => {
-        try {
-          const centralIds = await getCentralTransporteUserIds();
-          if (centralIds.length === 0) return;
-          await emitNotification({
-            tipo: "equip_solicitacao_aprovada",
-            titulo: "Solicitação aprovada",
-            mensagem: `A solicitação ${formatProtocolo(approvalItem.id)} foi aprovada e aguarda programação na Central do Transporte.`,
-            link: "/gestao-maquinas/central-transporte",
-            metadata: {
-              entidade_tipo: "solicitacao_equipamento",
-              entidade_id: approvalItem.id,
-            },
-            destinatariosUserIds: centralIds,
-          });
-        } catch (notifyErr) {
-          console.error("[SOLIC_EQUIP][APROVAR_NOTIFICACAO_ERRO]", notifyErr);
-        }
-      })();
+      // N3: a notificação de aprovação é emitida server-side na transição de status_fluxo.
 
       setApprovalItem(null);
       setApprovalComment("");
@@ -424,6 +373,8 @@ const SolicitacaoEquipamentoPage: React.FC = () => {
         onFilterChange={handleFilterChange}
         onResetFilters={resetFilters}
       />
+
+      <DesmobilizacoesPanel />
 
       <SolicitacaoEquipamentoTable
         solicitacoes={solicitacoesVisiveis}

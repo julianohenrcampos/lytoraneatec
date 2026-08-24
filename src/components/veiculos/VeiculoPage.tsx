@@ -162,6 +162,7 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
         isLoading={isLoading}
         totalVeiculos={veiculos?.length || 0}
         categorias={categoriasDropdown}
+        departamentos={departamentosDropdown || []}
       />
       
       <VeiculoTable 

@@ -9,7 +9,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Badge } from "@/components/ui/badge";
 import { formatIdentificadorFromVeiculo } from "@/utils/formatIdentificadorAtivo";
 import {
-  STATUS_OPERACIONAL_LABELS,
+  derivarDisponibilidadeMovimentacao,
   type StatusOperacionalCanonico,
 } from "@/lib/ativos/reconciliacaoOperacional";
 import { useStatusOperacionalMap } from "@/hooks/vehicles/useStatusOperacionalMap";
@@ -119,8 +119,9 @@ export const useVeiculoColumns = ({
     },
     {
       accessorKey: "situacao",
-      // G3: dimensão CADASTRAL — nunca confundir com disponibilidade operacional.
-      header: "Situação cadastral",
+      // Situação operacional/física do ativo — sincronizada automaticamente
+      // pela Ordem de Serviço (Em Manutenção) quando aplicável.
+      header: "Situação",
       cell: ({ row }) => {
         const situacao = row.original.situacao;
         return <VeiculoStatusBadge situacao={situacao} />;
@@ -128,28 +129,34 @@ export const useVeiculoColumns = ({
     },
     {
       id: "status_operacional",
-      // G3: dimensão OPERACIONAL — origem exclusiva bd_disponibilidade_equipamentos.
+      // Dimensão OPERACIONAL derivada (regra única em reconciliacaoOperacional):
+      // OS aberta > previsão de liberação > alocação > disponibilidade.
       header: "Disponibilidade operacional",
       cell: ({ row }) => {
         const estado = statusOperacionalMap?.[row.original.id];
-        const status: StatusOperacionalCanonico = estado?.statusOperacional ?? "SEM_STATUS";
+        const derivado = derivarDisponibilidadeMovimentacao({
+          statusOperacional: (estado?.statusOperacional ?? "SEM_STATUS") as StatusOperacionalCanonico,
+          previsaoLiberacao: estado?.previsaoLiberacao ?? null,
+          temOsAberta: estado?.temOsAberta ?? false,
+        });
         const tone =
-          status === "DISPONIVEL" ? "default"
-          : status === "SEM_STATUS" || status === "DESCONHECIDO" ? "outline"
+          derivado.disponivelParaMovimentacao ? "default"
+          : derivado.estado === "SEM_STATUS" || derivado.estado === "DESCONHECIDO" ? "outline"
           : "secondary";
         return (
           <TooltipProvider delayDuration={150}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Badge variant={tone as any} data-testid="veiculo-status-operacional">
-                  {STATUS_OPERACIONAL_LABELS[status]}
+                  {derivado.label}
                 </Badge>
               </TooltipTrigger>
               <TooltipContent side="top">
-                <div className="text-xs max-w-[260px]">
-                  {status === "SEM_STATUS"
+                <div className="text-xs max-w-[280px]">
+                  {derivado.estado === "SEM_STATUS"
                     ? "Sem disponibilidade operacional confirmada — o ativo não pode ser atendido pela Central do Transporte até ser regularizado."
-                    : "Disponibilidade operacional registrada em Disponibilidade Operacional; independente da situação cadastral."}
+                    : derivado.motivo ??
+                      "Disponibilidade operacional registrada em Disponibilidade Operacional."}
                 </div>
               </TooltipContent>
             </Tooltip>

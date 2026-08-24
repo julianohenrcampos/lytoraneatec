@@ -117,4 +117,60 @@ export const calcularAlternativasRota = async (
   }
 };
 
+/**
+ * CT-4 Fase 1 — rota multiparadas (origem + N paradas, na ordem informada).
+ * Mapbox Directions aceita até 25 waypoints; acima disso não há rota.
+ * Sem 2 pontos válidos não existe rota: devolve null (nada é inventado).
+ */
+export const calcularRotaMultiparadas = async (
+  pontos: Array<CtCoordenada | null>,
+): Promise<CtRotaAlternativa | null> => {
+  const validos = pontos.filter(valida);
+  if (validos.length < 2 || validos.length > 25) return null;
+
+  const token = await obterTokenMapbox();
+  if (!token) return null;
+
+  try {
+    const coords = validos.map((p) => `${p.longitude},${p.latitude}`).join(";");
+    const url =
+      `https://api.mapbox.com/directions/v5/mapbox/driving/${coords}` +
+      `?alternatives=false&overview=full&geometries=geojson&steps=false&language=pt` +
+      `&access_token=${encodeURIComponent(token)}`;
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      console.error("ctRotaService multiparadas", resp.status, await resp.text());
+      return null;
+    }
+    const json = (await resp.json()) as {
+      routes?: Array<{
+        distance?: number;
+        duration?: number;
+        geometry?: { type?: string; coordinates?: [number, number][] };
+        legs?: Array<{ summary?: string }>;
+      }>;
+    };
+    const r = (json.routes ?? [])[0];
+    if (!r || !Number.isFinite(r.distance)) return null;
+
+    return {
+      indice: 0,
+      distanciaKm: km(r.distance as number),
+      duracaoMin: Number.isFinite(r.duration) ? Math.round((r.duration as number) / 60) : null,
+      resumo:
+        (r.legs ?? [])
+          .map((l) => (l.summary ?? "").trim())
+          .filter(Boolean)
+          .join(" → ") || "Rota planejada",
+      geometria:
+        r.geometry?.type === "LineString" && Array.isArray(r.geometry.coordinates)
+          ? { type: "LineString", coordinates: r.geometry.coordinates }
+          : null,
+    };
+  } catch (e) {
+    console.error("ctRotaService.calcularRotaMultiparadas", e);
+    return null;
+  }
+};
+
 export default calcularRotaMobilizacao;

@@ -47,6 +47,7 @@ export const rascunhoVazio = (): CtMovDiretaRascunho => ({
   observacoes: "",
   paradas: [paradaVazia()],
   ativosPlanejados: [],
+  rotaPlanejada: null,
 });
 
 /** Ativos participantes da movimentação (com ou sem parada de entrega). */
@@ -156,5 +157,13 @@ export const montarPayloadRascunho = (r: CtMovDiretaRascunho): Record<string, un
   })),
   /* Participantes da movimentação — o servidor grava os sem parada com parada_id NULL. */
   ativos_planejados: ativosDaMovimentacao(r),
-
+  /* Snapshot da rota planejada; ausente quando o Mapbox não pôde calcular. */
+  rota: r.rotaPlanejada
+    ? {
+        distancia_km: r.rotaPlanejada.distanciaKm,
+        duracao_min: r.rotaPlanejada.duracaoMin,
+        resumo: r.rotaPlanejada.resumo,
+        geometria: r.rotaPlanejada.geometria,
+      }
+    : null,
 });

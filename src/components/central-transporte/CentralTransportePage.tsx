@@ -8,15 +8,14 @@ import { SolicitacaoItem } from "@/services/solicitacaoItensService";
 import CentralTransporteFilters from "./CentralTransporteFilters";
 import CentralTransporteTable, { SolicitacaoTransporteComItens } from "./CentralTransporteTable";
 import AnaliseOperacionalSheet from "./AnaliseOperacionalSheet";
-import { emitNotification } from "@/services/notifications/notificationEmitter";
-import { getDestinatariosStatusCentral } from "@/services/notifications/recipientsService";
-import { formatProtocolo } from "@/utils/formatProtocolo";
 import { useAuth } from "@/hooks/useAuth";
 import useCtOperation from "@/hooks/central-transporte/useCtOperation";
 import useCentralTransporteCapabilities from "@/hooks/central-transporte/useCentralTransporteCapabilities";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import MovimentacoesDiretasList from "./mov-direta/MovimentacoesDiretasList";
+import MovimentacoesDiretasWorkspace from "./mov-direta/MovimentacoesDiretasWorkspace";
+import PuxadasWorkspace from "./puxada/PuxadasWorkspace";
+
 import { AlertTriangle } from "lucide-react";
 import {
   criarStateDeRetorno,
@@ -91,7 +90,11 @@ const CentralTransportePage: React.FC = () => {
           <TabsTrigger value="movimentacoes" data-testid="ct4-tab-movimentacoes">
             Movimentações
           </TabsTrigger>
+          <TabsTrigger value="puxadas" data-testid="ct5-tab-puxadas">
+            Puxadas
+          </TabsTrigger>
         </TabsList>
+
 
         <TabsContent value="solicitacoes" className="space-y-4">
           <CentralTransporteFilters filters={filters} onChange={setFilters} />
@@ -104,8 +107,13 @@ const CentralTransportePage: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="movimentacoes">
-          <MovimentacoesDiretasList />
+          <MovimentacoesDiretasWorkspace />
         </TabsContent>
+
+        <TabsContent value="puxadas">
+          <PuxadasWorkspace />
+        </TabsContent>
+
       </Tabs>
 
       <AnaliseOperacionalSheet
@@ -127,37 +135,8 @@ const CentralTransportePage: React.FC = () => {
           // atendimentos do mesmo item sem reabrir a solicitação.
 
 
-          void (async () => {
-            try {
-              if (!solicitacaoSelecionada) return;
-
-              const destinatariosBase = getDestinatariosStatusCentral({
-                solicitante_id: solicitacaoSelecionada.solicitante_id ?? null,
-                engenheiro_solicitante_id: solicitacaoSelecionada.engenheiro_solicitante_id ?? null,
-                apontador_responsavel_id: solicitacaoSelecionada.apontador_responsavel_id ?? null,
-              });
-
-              const destinatarios = destinatariosBase.filter((id) => id !== userId);
-              if (destinatarios.length === 0) return;
-
-              const protocolo = formatProtocolo(solicitacaoSelecionada.id);
-
-              await emitNotification({
-                tipo: "equip_central_status",
-                titulo: "Atualização da Central do Transporte",
-                mensagem: `Solicitação ${protocolo} teve uma decisão registrada pela Central do Transporte.`,
-                link: "/gestao-maquinas/solicitacoes-equipamentos",
-                metadata: {
-                  solicitacao_id: solicitacaoSelecionada.id,
-                  protocolo,
-                  status_fluxo: "EM_TRANSPORTE",
-                },
-                destinatariosUserIds: destinatarios,
-              });
-            } catch (e) {
-              console.warn("[CENTRAL_TRANSPORTE][NOTIF_STATUS_ERROR]", e);
-            }
-          })();
+          // N3: a notificação de mudança de etapa é emitida server-side
+          // pelo trigger de status/status_fluxo da solicitação.
         }}
       />
     </div>

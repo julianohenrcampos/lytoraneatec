@@ -90,9 +90,11 @@ export default function AtestadoDetailModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
-          <DialogTitle>Atestado {row.protocolo}</DialogTitle>
+          <DialogTitle>
+            {row.tipo_documento_descricao ?? "Atestado"} {row.protocolo}
+          </DialogTitle>
           <DialogDescription>
-            Detalhes do atestado registrado via canal público.
+            Detalhes do documento registrado via canal público.
           </DialogDescription>
         </DialogHeader>
 
@@ -110,6 +112,14 @@ export default function AtestadoDetailModal({
 
           <TabsContent value="dados" className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Tipo de documento">
+                <Badge variant="secondary">
+                  {row.tipo_documento_descricao ?? "Atestado Médico"}
+                </Badge>
+              </Field>
+              <Field label="Destino do e-mail">
+                {row.notificacao_email_destino ?? "saude@lytoranea.com.br"}
+              </Field>
               <Field label="Colaborador">{row.nome_snapshot}</Field>
               <Field label="Matrícula">{mask(row.matricula_snapshot)}</Field>
               <Field label="Centro de custo">{row.centro_custo_snapshot ?? "—"}</Field>
@@ -165,6 +175,7 @@ export default function AtestadoDetailModal({
               </div>
             </div>
 
+            {(row.tipo_documento ?? "atestado_medico") === "atestado_medico" && (
             <div className="border-t border-border pt-4">
               <div className="text-sm font-medium text-foreground mb-2">
                 Sistema afetado
@@ -184,6 +195,7 @@ export default function AtestadoDetailModal({
                 )}
               </div>
             </div>
+            )}
 
             {row.alertas_gerados && row.alertas_gerados.length > 0 && (
               <div className="border-t border-border pt-4">

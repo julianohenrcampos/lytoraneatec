@@ -310,6 +310,11 @@ export interface CtOrdemMotorista {
   destinoLatitude: number | null;
   destinoLongitude: number | null;
   distanciaKm: number | null;
+  /** CT-4 Fase 1 — snapshot da rota planejada (Mapbox Directions). */
+  distanciaRotaKm: number | null;
+  duracaoRotaMin: number | null;
+  rotaResumo: string | null;
+  rotaGeometria: { type: "LineString"; coordinates: [number, number][] } | null;
   recebedorPrevistoNome: string | null;
   recebedorPrevistoTelefone: string | null;
   observacoes: string | null;

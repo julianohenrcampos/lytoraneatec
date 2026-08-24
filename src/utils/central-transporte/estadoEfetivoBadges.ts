@@ -152,6 +152,17 @@ export const badgeDoEstadoEfetivo = (
     };
   }
 
+  if (estado.emManutencao) {
+    return {
+      label: estado.osManutencao ? `Em manutenção — OS ${estado.osManutencao}` : "Em manutenção",
+      tom: "bloqueado",
+      bloqueiaOperacao: true,
+      detalhe: estado.osManutencao
+        ? `Ativo com ordem de serviço de manutenção aberta (OS ${estado.osManutencao}).`
+        : "Ativo com ordem de serviço de manutenção aberta.",
+    };
+  }
+
   if (!estado.possuiRegistroOperacional) {
     return {
       label: "Sem status — bloqueado",

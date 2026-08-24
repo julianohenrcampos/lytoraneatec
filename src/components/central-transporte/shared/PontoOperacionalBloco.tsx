@@ -45,9 +45,6 @@ export interface PontoOperacionalBlocoProps {
 }
 
 
-const coordTexto = (lat: number | null, lng: number | null): string =>
-  lat === null || lng === null ? "Ponto não ajustado" : `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-
 export const PontoOperacionalBloco: React.FC<PontoOperacionalBlocoProps> = ({
   titulo,
   labelCentroCusto = "Centro de custo",
@@ -121,9 +118,6 @@ export const PontoOperacionalBloco: React.FC<PontoOperacionalBlocoProps> = ({
             onAddressSelected={selecionarEndereco}
           />
         </div>
-        <span className="block text-[11px] text-muted-foreground">
-          {coordTexto(latitude, longitude)}
-        </span>
       </div>
     </div>
 

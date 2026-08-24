@@ -269,6 +269,12 @@ export interface FinalizacaoFormData {
   valor_diaria_aplicada: number;
   recebe_refeicao: boolean;
   valor_refeicao_aplicado: number;
+  /**
+   * Flag autoritativa da diária exclusiva (FDS/feriado/ponte/Férias).
+   * Precisa ser persistida na saída/finalização, senão o relatório
+   * classifica o dia como normal mesmo com valor exclusivo gravado.
+   */
+  usar_diaria_exclusiva?: boolean;
 }
 
 // Salvar INÍCIO — INSERT only, rejeita se já existir
@@ -355,6 +361,9 @@ export async function salvarFinalizacao(
         valor_diaria_aplicada: r.valor_diaria_aplicada,
         recebe_refeicao: r.recebe_refeicao,
         valor_refeicao_aplicado: r.valor_refeicao_aplicado,
+        ...(r.usar_diaria_exclusiva != null
+          ? { usar_diaria_exclusiva: r.usar_diaria_exclusiva }
+          : {}),
         confirmado_por: userId,
         confirmado_em: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -387,6 +396,9 @@ export async function salvarSaidaIndividual(
       valor_diaria_aplicada: registro.valor_diaria_aplicada,
       recebe_refeicao: registro.recebe_refeicao,
       valor_refeicao_aplicado: registro.valor_refeicao_aplicado,
+      ...(registro.usar_diaria_exclusiva != null
+        ? { usar_diaria_exclusiva: registro.usar_diaria_exclusiva }
+        : {}),
       confirmado_por: userId,
       confirmado_em: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -473,7 +485,7 @@ export async function inserirPresencasCompletas(
     tipo_diaria: r.tipo_diaria,
     recebe_refeicao: r.recebe_refeicao,
     valor_refeicao_aplicado: r.valor_refeicao_aplicado,
-    usar_diaria_exclusiva: false,
+    usar_diaria_exclusiva: r.usar_diaria_exclusiva ?? false,
     turno: r.turno || 'diurno',
     observacoes: justificativa,
     confirmado_por: userId,
@@ -601,6 +613,7 @@ export interface CorrecaoFormData {
   valor_refeicao_aplicado: number;
   turno?: TurnoDiaria;
   funcao_id?: string;
+  usar_diaria_exclusiva?: boolean;
 }
 
 export async function salvarCorrecao(
@@ -633,6 +646,9 @@ export async function salvarCorrecao(
         valor_diaria_aplicada: sanitized.valor_diaria_aplicada,
         recebe_refeicao: r.recebe_refeicao,
         valor_refeicao_aplicado: r.valor_refeicao_aplicado,
+        ...(r.usar_diaria_exclusiva != null
+          ? { usar_diaria_exclusiva: r.usar_diaria_exclusiva }
+          : {}),
         turno: r.turno || 'diurno',
         observacoes: justificativa,
         confirmado_por: userId,

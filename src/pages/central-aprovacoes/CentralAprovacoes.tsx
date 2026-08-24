@@ -18,6 +18,7 @@ import CentralListaDesktop from '@/components/central-aprovacoes/CentralListaDes
 import CentralCardsMobile from '@/components/central-aprovacoes/CentralCardsMobile';
 import CentralDetalhePanel from '@/components/central-aprovacoes/CentralDetalhePanel';
 import CentralEquipamentoDecisionDialog from '@/components/central-aprovacoes/CentralEquipamentoDecisionDialog';
+import CentralDesmobilizacaoDecisionDialog from '@/components/central-aprovacoes/CentralDesmobilizacaoDecisionDialog';
 
 import { useCentralAprovacoes } from '@/hooks/useCentralAprovacoes';
 import type { CentralApprovalItem, CentralModulo, CentralView } from '@/services/central-aprovacoes/types';
@@ -123,6 +124,10 @@ export default function CentralAprovacoes() {
   };
 
 
+  // ── Fluxo Desmobilização ──
+  const [desmobDecisionOpen, setDesmobDecisionOpen] = useState(false);
+  const [desmobDecisionMode, setDesmobDecisionMode] = useState<'aprovar' | 'reprovar'>('aprovar');
+
   const aprovarGerente = useAprovarGerenteAdm();
   const reprovarGerente = useReprovarGerenteAdm();
   const aprovarDirOp = useAprovarDiretorOperacional();
@@ -142,6 +147,12 @@ export default function CentralAprovacoes() {
   const openModal = (mode: 'view' | 'aprovar' | 'reprovar') => {
     if (!selectedItem) return;
     setSheetOpen(false);
+    if (selectedItem.modulo === 'desmobilizacao') {
+      if (mode === 'view') return; // detalhe já inline
+      setDesmobDecisionMode(mode);
+      setDesmobDecisionOpen(true);
+      return;
+    }
     if (selectedItem.modulo === 'equipamentos') {
       if (mode === 'view') return; // detalhe já inline
       setEquipDecisionMode(mode);
@@ -392,6 +403,14 @@ export default function CentralAprovacoes() {
           onAprovar={handleAprovar}
           onReprovar={handleReprovar}
           isLoading={isMutating}
+        />
+
+        <CentralDesmobilizacaoDecisionDialog
+          open={desmobDecisionOpen}
+          onOpenChange={setDesmobDecisionOpen}
+          item={selectedItem?.modulo === 'desmobilizacao' ? selectedItem : null}
+          mode={desmobDecisionMode}
+          onSuccess={() => moduleStates.desmobilizacao?.refetch()}
         />
 
         <CentralEquipamentoDecisionDialog

@@ -116,6 +116,8 @@ const parseItem = (value: unknown): CtEstadoEfetivoAtivo | null => {
       ? vigenciaBruta
       : "SEM_COMPROMISSO") as CtEstadoEfetivoAtivo["compromissoPrincipalVigencia"],
     reservadoPelaCentral: r.reservado_pela_central === true,
+    emManutencao: r.em_manutencao === true,
+    osManutencao: str(r.os_manutencao),
     /* ------------- fim CT-2.4 ------------- */
 
     periodoComprometido:

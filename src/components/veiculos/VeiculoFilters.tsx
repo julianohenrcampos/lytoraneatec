@@ -14,6 +14,7 @@ interface VeiculoFiltersProps {
   isLoading?: boolean;
   totalVeiculos?: number;
   categorias?: { id: string; nome_categoria: string }[];
+  departamentos?: { id: string; nome_departamento: string }[];
 }
 
 interface DropdownOption {
@@ -85,6 +86,7 @@ const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
   onResetFilters,
   isLoading = false,
   totalVeiculos = 0,
+  departamentos = [],
 }) => {
   const [subcategorias, setSubcategorias] = useState<DropdownOption[]>([]);
   const [frotas, setFrotas] = useState<DropdownOption[]>([]);
@@ -146,6 +148,12 @@ const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
     return found?.label || "";
   };
 
+  const getDepartamentoDisplay = () => {
+    if (!filters.departamento_id) return "";
+    const found = departamentos.find((d) => d.id === filters.departamento_id);
+    return found?.nome_departamento || "";
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -195,6 +203,16 @@ const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
             onChange={(val) => {
               const match = empresas.find((e) => e.value === val || e.label === val);
               onFilterChange("empresa_id", match ? match.value : "");
+            }}
+          />
+          <SearchDropdown
+            label="Departamento"
+            placeholder="Buscar departamento..."
+            options={departamentos.map((d) => ({ label: d.nome_departamento, value: d.id }))}
+            value={getDepartamentoDisplay()}
+            onChange={(val) => {
+              const match = departamentos.find((d) => d.id === val || d.nome_departamento === val);
+              onFilterChange("departamento_id", match ? match.id : "");
             }}
           />
           <SearchDropdown

@@ -5,6 +5,7 @@
 import { useMemo } from 'react';
 import { useDiariasCentralProvider } from '@/services/central-aprovacoes/diariasProvider';
 import { useEquipamentosCentralProvider } from '@/services/central-aprovacoes/equipamentosProvider';
+import { useDesmobilizacaoCentralProvider } from '@/services/central-aprovacoes/desmobilizacaoProvider';
 import { useConfiguracaoSistema } from '@/hooks/useConfiguracaoSistema';
 import type {
   CentralFiltrosBase,
@@ -44,12 +45,16 @@ export function useCentralAprovacoes(filtros: CentralFiltrosBase): CentralProvid
   const diarias = useDiariasCentralProvider(filtros);
   const equipamentos = useEquipamentosCentralProvider(filtros, { enabled: equipamentosEnabled });
 
+  const desmobilizacaoAtivo = moduloAtivo(filtros, 'desmobilizacao');
+  const desmobilizacao = useDesmobilizacaoCentralProvider(filtros, { enabled: desmobilizacaoAtivo });
+
   const providers = useMemo(() => {
     const list: { key: CentralModulo; provider: CentralProviderResult; active: boolean }[] = [];
     list.push({ key: 'diarias', provider: diarias, active: diariasAtivo });
     if (equipamentosEnabled) list.push({ key: 'equipamentos', provider: equipamentos, active: true });
+    list.push({ key: 'desmobilizacao', provider: desmobilizacao, active: desmobilizacaoAtivo });
     return list;
-  }, [diarias, equipamentos, diariasAtivo, equipamentosEnabled]);
+  }, [diarias, equipamentos, desmobilizacao, diariasAtivo, equipamentosEnabled, desmobilizacaoAtivo]);
 
   const itens: CentralApprovalItem[] = useMemo(() => {
     const combined: CentralApprovalItem[] = [];

@@ -34,6 +34,20 @@ const asRecord = (v: unknown): Record<string, unknown> => {
 
 const texto = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
 
+/** CT-4 Fase 1 — geometria da rota planejada; nada é inferido se vier inválida. */
+const mapGeometria = (
+  v: unknown,
+): { type: "LineString"; coordinates: [number, number][] } | null => {
+  if (!v || typeof v !== "object") return null;
+  const g = v as { type?: unknown; coordinates?: unknown };
+  if (g.type !== "LineString" || !Array.isArray(g.coordinates)) return null;
+  const coords = g.coordinates.filter(
+    (c): c is [number, number] =>
+      Array.isArray(c) && c.length >= 2 && Number.isFinite(c[0]) && Number.isFinite(c[1]),
+  );
+  return coords.length >= 2 ? { type: "LineString", coordinates: coords } : null;
+};
+
 const numero = (v: unknown): number | null => {
   if (v === null || v === undefined || v === "") return null;
   const n = Number(v);
@@ -128,6 +142,10 @@ export const mapOrdem = (raw: unknown): CtOrdemMotorista => {
     destinoLatitude: numero(r.destino_latitude),
     destinoLongitude: numero(r.destino_longitude),
     distanciaKm: numero(r.distancia_km),
+    distanciaRotaKm: numero(r.distancia_rota_km),
+    duracaoRotaMin: numero(r.duracao_rota_min),
+    rotaResumo: texto(r.rota_resumo),
+    rotaGeometria: mapGeometria(r.rota_geometria),
     recebedorPrevistoNome: texto(r.recebedor_previsto_nome),
     recebedorPrevistoTelefone: texto(r.recebedor_previsto_telefone),
     observacoes: texto(r.observacoes),

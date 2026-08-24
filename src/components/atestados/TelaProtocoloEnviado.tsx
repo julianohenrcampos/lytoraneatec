@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Info,
   Printer,
+  MessageCircle,
 } from "lucide-react";
 import type { AtestadoAlerta } from "@/types/atestadoMedico";
 
@@ -13,8 +14,19 @@ interface Props {
   protocolo: string;
   alertas: AtestadoAlerta[];
   sistemaDescricao?: string | null;
+  tipoDocumentoDescricao?: string | null;
   enviadoEm?: string; // ISO
+  diasAfastamento?: number | null;
   onNovo: () => void;
+}
+
+// Orientação pós-envio para afastamento superior a 15 dias.
+// LGPD: a mensagem pré-preenchida contém APENAS o protocolo.
+const WHATSAPP_NUMERO = "5521976652245";
+
+function buildWhatsappUrl(protocolo: string): string {
+  const mensagem = `Olá, preciso de orientação sobre um documento enviado no sistema LYTOTEC com afastamento superior a 15 dias. Protocolo: ${protocolo}.`;
+  return `https://wa.me/${WHATSAPP_NUMERO}?text=${encodeURIComponent(mensagem)}`;
 }
 
 interface AlertaTexto {
@@ -86,9 +98,31 @@ export default function TelaProtocoloEnviado({
   protocolo,
   alertas,
   sistemaDescricao,
+  tipoDocumentoDescricao,
   enviadoEm,
+  diasAfastamento,
   onNovo,
 }: Props) {
+  const shouldOpenWhatsapp = (diasAfastamento ?? 0) > 15;
+  const whatsappUrl = useMemo(
+    () => (shouldOpenWhatsapp ? buildWhatsappUrl(protocolo) : ""),
+    [shouldOpenWhatsapp, protocolo]
+  );
+
+  // Tentativa automática única ao carregar a tela final.
+  // Se o navegador bloquear o pop-up, o botão manual permanece visível.
+  useEffect(() => {
+    if (!shouldOpenWhatsapp || !protocolo || !whatsappUrl) return;
+    try {
+      window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+    } catch {
+      // pop-up bloqueado — o botão manual continua disponível
+    }
+  }, [shouldOpenWhatsapp, protocolo, whatsappUrl]);
+
+  function abrirWhatsapp() {
+    window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+  }
   // Deduplica recorrencia_mes / acompanhamento_60d (mesma mensagem).
   const alertasRender = useMemo(() => {
     const vistos = new Set<string>();
@@ -134,7 +168,9 @@ export default function TelaProtocoloEnviado({
               <CheckCircle2 className="w-8 h-8 text-primary" />
               <div>
                 <h2 className="text-xl font-semibold text-foreground">
-                  Atestado registrado
+                  {tipoDocumentoDescricao && tipoDocumentoDescricao !== "Atestado Médico"
+                    ? "Documento registrado"
+                    : "Atestado registrado"}
                 </h2>
                 <p className="text-sm text-muted-foreground">
                   Comprovante de envio — LYTOTEC
@@ -161,6 +197,14 @@ export default function TelaProtocoloEnviado({
                 </div>
                 <div className="text-foreground">{enviadoFmt}</div>
               </div>
+              {tipoDocumentoDescricao && (
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Tipo de documento
+                  </div>
+                  <div className="text-foreground">{tipoDocumentoDescricao}</div>
+                </div>
+              )}
               {sistemaDescricao && (
                 <div>
                   <div className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -188,9 +232,40 @@ export default function TelaProtocoloEnviado({
               </div>
             ))}
 
+            {shouldOpenWhatsapp && (
+              <div className="p-4 rounded-md border border-amber-500/40 bg-amber-500/10 flex gap-3 items-start">
+                <Info className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                <div className="text-sm space-y-3 flex-1">
+                  <div>
+                    <p className="font-medium text-foreground">
+                      Afastamento superior a 15 dias
+                    </p>
+                    <p className="text-muted-foreground">
+                      Seu documento informa afastamento superior a 15 dias.
+                      Entre em contato imediatamente pelo WhatsApp indicado para
+                      receber orientações sobre os próximos procedimentos
+                      administrativos.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={abrirWhatsapp}
+                    className="no-print bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <MessageCircle className="w-4 h-4 mr-2" />
+                    Falar pelo WhatsApp
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <ul className="text-sm text-muted-foreground space-y-2">
               <li>• Entregue a <b>via original</b> ao RH em até 48 horas.</li>
-              <li>• A validação médica final é presencial, feita pelo SSO.</li>
+              {(!tipoDocumentoDescricao || tipoDocumentoDescricao === "Atestado Médico") ? (
+                <li>• A validação médica final é presencial, feita pelo SSO.</li>
+              ) : (
+                <li>• O documento seguirá para análise do setor responsável.</li>
+              )}
             </ul>
           </div>
 
@@ -200,7 +275,7 @@ export default function TelaProtocoloEnviado({
               Baixar comprovante
             </Button>
             <Button variant="outline" onClick={onNovo} className="w-full sm:w-auto">
-              Enviar outro atestado
+              Enviar outro documento
             </Button>
           </div>
         </CardContent>

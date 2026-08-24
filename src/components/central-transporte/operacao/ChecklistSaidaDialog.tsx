@@ -315,7 +315,9 @@ const ChecklistSaidaDialog: React.FC<Props> = ({
               />
               <span>
                 Confirmo, como responsável pela saída, a veracidade das informações registradas
-                neste checklist (assinatura digital).
+                neste checklist. Caso você ainda não tenha assinatura digital cadastrada, esta
+                confirmação é registrada como <strong>aceite eletrônico</strong> (nome, data, IP e
+                código de verificação).
               </span>
             </label>
           )}

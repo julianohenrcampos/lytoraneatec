@@ -15,6 +15,8 @@ import type {
   CtParadaChegadaResult,
 } from "@/types/centralTransporteMovDireta";
 import { montarPayloadRascunho } from "@/lib/central-transporte/movDiretaRascunho";
+import { normalizarTermoBuscaAtivo } from "@/lib/central-transporte/normalizarTermoBuscaAtivo";
+
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- fronteira supabase.rpc (RPCs CT-4 não tipadas) */
 const rpc = async (fn: string, args: Record<string, unknown>): Promise<unknown> => {
@@ -45,10 +47,12 @@ const mapAtivo = (raw: unknown): CtAtivoMovimentacao => {
     statusOperacional: texto(r.status_operacional) ?? "SEM_REGISTRO",
     possuiRegistro: r.possui_registro === true,
     compromissoViagem: texto(r.compromisso_viagem),
+    osManutencao: texto(r.os_manutencao),
     elegivel: r.elegivel === true,
     bloqueioMotivo: texto(r.bloqueio_motivo),
   };
 };
+
 
 const mapComando = (raw: unknown): CtMovDiretaComandoResult => {
   const d = asRecord(raw);
@@ -65,13 +69,26 @@ const mapComando = (raw: unknown): CtMovDiretaComandoResult => {
 export const fetchAtivosMovimentacao = async (
   termo: string | null = null,
 ): Promise<CtAtivoMovimentacao[]> => {
-  const d = asRecord(
-    /* Teto máximo já suportado pela RPC: a janela alfabética não pode esconder
-       ativos elegíveis. Alcance total garantido pela busca por termo. */
-    await rpc("fn_ct_ativos_movimentacao_listar", { p_termo: termo, p_limit: 300 }),
-  );
-  return Array.isArray(d.ativos) ? d.ativos.map(mapAtivo) : [];
+  try {
+    const d = asRecord(
+      /* Teto máximo já suportado pela RPC: a janela alfabética não pode esconder
+         ativos elegíveis. Alcance total garantido pela busca por termo. */
+      await rpc("fn_ct_ativos_movimentacao_listar", {
+        p_termo: normalizarTermoBuscaAtivo(termo) || null,
+        p_limit: 300,
+      }),
+    );
+    return Array.isArray(d.ativos) ? d.ativos.map(mapAtivo) : [];
+  } catch (e) {
+    /* Erro técnico NUNCA vira "lista vazia": propaga para a UI diferenciar. */
+    console.error("[CT4][ATIVOS_MOVIMENTACAO_LISTAR_ERROR]", {
+      termo,
+      message: e instanceof Error ? e.message : String(e),
+    });
+    throw e;
+  }
 };
+
 
 export const fetchMovDiretas = async (
   status: string | null = null,
@@ -90,14 +107,16 @@ export const fetchMovDiretaEstado = async (viagemId: string): Promise<CtOrdemMot
 export const salvarRascunhoMovDireta = async (
   rascunho: CtMovDiretaRascunho,
   requestId: string,
-): Promise<CtMovDiretaComandoResult> =>
-  mapComando(
+): Promise<CtMovDiretaComandoResult> => {
+  const payload = montarPayloadRascunho(rascunho);
+  return mapComando(
     await rpc("fn_ct_mov_direta_salvar_rascunho", {
       p_viagem_id: rascunho.viagemId,
-      p_payload: montarPayloadRascunho(rascunho),
+      p_payload: payload,
       p_request_id: requestId,
     }),
   );
+};
 
 export const programarMovDireta = async (
   viagemId: string,

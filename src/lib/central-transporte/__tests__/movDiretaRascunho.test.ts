@@ -56,4 +56,28 @@ describe("movDiretaRascunho", () => {
     r.modalidade = "TRANSPORTADO";
     expect(montarPayloadRascunho(r).tipo_transporte).toBe("PROPRIO");
   });
+
+  it("envia o snapshot completo da rota no contrato validado pela RPC", () => {
+    const r = rascunhoVazio();
+    r.rotaPlanejada = {
+      distanciaKm: 3.7,
+      duracaoMin: 8,
+      resumo: "Estrada do Guandu",
+      geometria: {
+        type: "LineString",
+        coordinates: [
+          [-43.767851, -22.857036],
+          [-43.76, -22.85],
+          [-43.748005, -22.845221],
+        ],
+      },
+    };
+
+    expect(montarPayloadRascunho(r).rota).toEqual({
+      distancia_km: 3.7,
+      duracao_min: 8,
+      resumo: "Estrada do Guandu",
+      geometria: r.rotaPlanejada.geometria,
+    });
+  });
 });

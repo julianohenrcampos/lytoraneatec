@@ -38,8 +38,10 @@ export interface AtestadoSubmeterResponse {
   ok: true;
   protocolo: string;
   dentro_prazo_24h: boolean;
-  sistema_afetado_codigo?: string;
-  sistema_afetado_descricao?: string;
+  tipo_documento?: string;
+  tipo_documento_descricao?: string;
+  sistema_afetado_codigo?: string | null;
+  sistema_afetado_descricao?: string | null;
   alertas_gerados?: AtestadoAlerta[];
 }
 
@@ -71,6 +73,9 @@ export interface AtestadoRow {
   declaracoes_aceitas_em: string | null;
   observacao_saude: string | null;
   arquivo_path: string;
+  tipo_documento: string;
+  tipo_documento_descricao: string | null;
+  notificacao_email_destino: string | null;
   sistema_afetado_codigo: string | null;
   sistema_afetado_descricao: string | null;
   sistema_afetado_observacao: string | null;
@@ -87,6 +92,11 @@ export interface AtestadosPainelFilters {
   status?: string;
   prazo?: 'todos' | 'dentro' | 'fora';
   busca?: string;
+  tipo_documento?: string; // 'todos' | codigo do tipo
+  setor_destino?: 'todos' | 'saude' | 'dp';
+  status_email?: string; // 'todos' | valor de notificacao_email_status
+  centro_custo?: string; // busca parcial em centro_custo_snapshot
+  sistema_afetado?: string; // 'todos' | codigo do sistema afetado
 }
 
 export interface AtestadoFormValues {
@@ -97,6 +107,7 @@ export interface AtestadoFormValues {
   declaracao_veracidade: boolean;
   declaracao_original_48h: boolean;
   declaracao_ciencia_nao_validacao: boolean;
+  tipo_documento: string;
   sistema_afetado_codigo: string;
   sistema_afetado_observacao?: string;
 }

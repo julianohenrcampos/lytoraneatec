@@ -114,6 +114,11 @@ export interface CtEstadoEfetivoAtivo {
   reservadoPelaCentral: boolean;
   /* ------------------- fim CT-2.4 ---------------------------- */
 
+  /** FASE C — OS de manutenção aberta (decidido pelo servidor). */
+  emManutencao: boolean;
+  /** Número da OS de manutenção aberta, quando disponível. */
+  osManutencao: string | null;
+
   periodoComprometido: { inicio: string | null; fim: string | null } | null;
   atendimentoId: string | null;
   solicitacaoId: string | null;

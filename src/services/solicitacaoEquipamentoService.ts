@@ -431,49 +431,47 @@ export const createSolicitacaoEquipamento = async (
 };
 
 
+// ============================================================
+// N3.3 — Decisão SEMPRE pela RPC autoritativa `fn_solic_equip_decidir`.
+// A RPC persiste a decisão (header + linha de aprovação), audita e emite a
+// notificação server-side (identidade da ocorrência = aprovacao_id + data_decisao).
+// Proibido UPDATE direto aqui e proibida notificação client-side.
+// ============================================================
+async function decidirSolicitacaoEquipamento(
+  solicitacaoId: string,
+  decisao: "APROVADO" | "NEGADO",
+  comentario?: string,
+): Promise<Record<string, unknown>> {
+  const { data, error } = await supabase.rpc(
+    "fn_solic_equip_decidir" as any,
+    {
+      p_solicitacao_id: solicitacaoId,
+      p_decisao: decisao,
+      p_comentario: comentario?.trim() ? comentario.trim() : null,
+    } as any,
+  );
+  if (error) {
+    console.error("[SOLIC_EQUIP][DECIDIR_RPC_ERROR]", {
+      solicitacao_id: solicitacaoId,
+      decisao,
+      message: error.message,
+      code: (error as any).code,
+      details: (error as any).details,
+      hint: (error as any).hint,
+    });
+    throw error;
+  }
+  return (data ?? {}) as Record<string, unknown>;
+}
+
 export const aprovarSolicitacaoEquipamento = async (solicitacaoId: string, comentario?: string) => {
-  // Update approval record
-  const { error: errAprov } = await supabase
-    .from("bd_solicitacoes_equip_aprovacoes")
-    .update({
-      status: "APROVADO",
-      comentario: comentario || null,
-      data_decisao: new Date().toISOString(),
-    })
-    .eq("solicitacao_id", solicitacaoId)
-    .eq("status", "PENDENTE");
-
-  if (errAprov) throw errAprov;
-
-  // Update solicitacao status_fluxo
-  const { error } = await supabase
-    .from("bd_solicitacoes_equipamento")
-    .update({ status_fluxo: "APROVADO" } as any)
-    .eq("id", solicitacaoId);
-
-  if (error) throw error;
+  await decidirSolicitacaoEquipamento(solicitacaoId, "APROVADO", comentario);
 };
 
 export const negarSolicitacaoEquipamento = async (solicitacaoId: string, comentario?: string) => {
-  const { error: errAprov } = await supabase
-    .from("bd_solicitacoes_equip_aprovacoes")
-    .update({
-      status: "NEGADO",
-      comentario: comentario || null,
-      data_decisao: new Date().toISOString(),
-    })
-    .eq("solicitacao_id", solicitacaoId)
-    .eq("status", "PENDENTE");
-
-  if (errAprov) throw errAprov;
-
-  const { error } = await supabase
-    .from("bd_solicitacoes_equipamento")
-    .update({ status_fluxo: "NEGADO" } as any)
-    .eq("id", solicitacaoId);
-
-  if (error) throw error;
+  await decidirSolicitacaoEquipamento(solicitacaoId, "NEGADO", comentario);
 };
+
 
 export const runMatching = async (solicitacaoId: string) => {
   try {

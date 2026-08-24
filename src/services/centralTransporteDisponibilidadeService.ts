@@ -33,11 +33,15 @@ export type StatusOperacionalEditavel = Extract<
   "DISPONIVEL" | "ALOCADO" | "MANUTENCAO" | "INDISPONIVEL"
 >;
 
+/**
+ * Cadastros manuais: INDISPONIVEL é status LEGADO (0 registros vivos) e deixou de
+ * ser oferecido — manutenção vem da Ordem de Serviço e alocação de ALOCADO.
+ * A leitura/compatibilidade histórica do valor permanece intacta (enum e tipos).
+ */
 export const STATUS_OPERACIONAIS_EDITAVEIS: readonly StatusOperacionalEditavel[] = [
   "DISPONIVEL",
   "ALOCADO",
   "MANUTENCAO",
-  "INDISPONIVEL",
 ];
 
 export type ConfiabilidadePrevisao = "ALTA" | "MEDIA" | "BAIXA";
