@@ -19,12 +19,14 @@ import CentralCardsMobile from '@/components/central-aprovacoes/CentralCardsMobi
 import CentralDetalhePanel from '@/components/central-aprovacoes/CentralDetalhePanel';
 import CentralEquipamentoDecisionDialog from '@/components/central-aprovacoes/CentralEquipamentoDecisionDialog';
 import CentralDesmobilizacaoDecisionDialog from '@/components/central-aprovacoes/CentralDesmobilizacaoDecisionDialog';
+import CentralTransferenciaDecisionDialog from '@/components/central-aprovacoes/CentralTransferenciaDecisionDialog';
 
 import { useCentralAprovacoes } from '@/hooks/useCentralAprovacoes';
 import type { CentralApprovalItem, CentralModulo, CentralView } from '@/services/central-aprovacoes/types';
 import CentralEquipamentoPostDecisionDialog from '@/components/central-aprovacoes/CentralEquipamentoPostDecisionDialog';
 
 import { useConfiguracaoSistema } from '@/hooks/useConfiguracaoSistema';
+import { usePermission } from '@/hooks/usePermission';
 
 import FluxoAprovacaoModal from '@/components/diarias/FluxoAprovacaoModal';
 import type { SolicitacaoGestao } from '@/hooks/diarias/useGestaoAprovacoesDiarias';
@@ -49,6 +51,13 @@ export default function CentralAprovacoes() {
 
   const equipamentosConfig = useConfiguracaoSistema('central_aprovacoes_equipamentos_ativo');
   const equipamentosToggle = equipamentosConfig.isSuccess && equipamentosConfig.data === 'true';
+  const { isSuperAdmin } = usePermission();
+  const transferenciasConfig = useConfiguracaoSistema('transferencia_aprovacao_recebedor_ativo');
+  const transferenciasTesteConfig = useConfiguracaoSistema('transferencia_aprovacao_recebedor_teste_superadm');
+  // Toggle global ON, ou modo teste ON + SuperAdm (validado server-side nas RPCs)
+  const transferenciasToggle =
+    (transferenciasConfig.isSuccess && transferenciasConfig.data === 'true') ||
+    (transferenciasTesteConfig.isSuccess && transferenciasTesteConfig.data === 'true' && isSuperAdmin);
 
   // ── Filtros ──
   const [modulo, setModulo] = useState('todos');
@@ -86,8 +95,9 @@ export default function CentralAprovacoes() {
       { value: 'diarias', label: 'Diárias' },
     ];
     if (equipamentosToggle) base.push({ value: 'equipamentos', label: 'Equipamentos' });
+    if (transferenciasToggle) base.push({ value: 'transferencias', label: 'Transferências' });
     return base;
-  }, [equipamentosToggle]);
+  }, [equipamentosToggle, transferenciasToggle]);
 
   // ── Seleção ──
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -128,6 +138,10 @@ export default function CentralAprovacoes() {
   const [desmobDecisionOpen, setDesmobDecisionOpen] = useState(false);
   const [desmobDecisionMode, setDesmobDecisionMode] = useState<'aprovar' | 'reprovar'>('aprovar');
 
+  // ── Fluxo Transferências ──
+  const [transfDecisionOpen, setTransfDecisionOpen] = useState(false);
+  const [transfDecisionMode, setTransfDecisionMode] = useState<'aprovar' | 'reprovar'>('aprovar');
+
   const aprovarGerente = useAprovarGerenteAdm();
   const reprovarGerente = useReprovarGerenteAdm();
   const aprovarDirOp = useAprovarDiretorOperacional();
@@ -151,6 +165,12 @@ export default function CentralAprovacoes() {
       if (mode === 'view') return; // detalhe já inline
       setDesmobDecisionMode(mode);
       setDesmobDecisionOpen(true);
+      return;
+    }
+    if (selectedItem.modulo === 'transferencias') {
+      if (mode === 'view') return; // detalhe já inline
+      setTransfDecisionMode(mode);
+      setTransfDecisionOpen(true);
       return;
     }
     if (selectedItem.modulo === 'equipamentos') {
@@ -405,6 +425,13 @@ export default function CentralAprovacoes() {
           isLoading={isMutating}
         />
 
+        <CentralTransferenciaDecisionDialog
+          open={transfDecisionOpen}
+          onOpenChange={setTransfDecisionOpen}
+          item={selectedItem?.modulo === 'transferencias' ? selectedItem : null}
+          mode={transfDecisionMode}
+          onSuccess={() => moduleStates.transferencias?.refetch()}
+        />
         <CentralDesmobilizacaoDecisionDialog
           open={desmobDecisionOpen}
           onOpenChange={setDesmobDecisionOpen}

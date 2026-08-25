@@ -53,6 +53,12 @@ export interface CentroCusto {
     nome_completo: string | null;
     email: string | null;
   };
+  // Engenheiro Responsável (funcionário) — recebedor das aprovações de transferência
+  engenheiro_responsavel_id: string | null;
+  engenheiro_responsavel?: {
+    id: string;
+    nome_completo: string;
+  };
 }
 
 export interface CentroCustoFormData {
@@ -78,6 +84,7 @@ export interface CentroCustoFormData {
   longitude?: number;
   geocoding_status?: string;
   planejador_responsavel_id?: string;
+  engenheiro_responsavel_id?: string;
 }
 
 export interface CentroCustoFilter {

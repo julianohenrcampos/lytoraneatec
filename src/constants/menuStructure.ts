@@ -398,6 +398,13 @@ export const menuStructure = [
         requiredPermission: "admin_auditoria_view"
       },
       {
+        // Exclusiva de SuperAdm (gate sintético: nenhum perfil possui essa permissão).
+        name: "Qualidade Cadastral",
+        href: "/admin/qualidade-cadastral",
+        icon: ShieldCheck,
+        requiredPermission: "__superadmin_only__"
+      },
+      {
         name: "Biometria Facial",
         href: "/admin/biometria-facial",
         icon: ScanFace,

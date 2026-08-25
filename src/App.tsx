@@ -94,6 +94,7 @@ const GestaoAprovacoesDiarias = lazy(() => import("@/pages/diarias/GestaoAprovac
 const CentralAprovacoes = lazy(() => import("@/pages/central-aprovacoes/CentralAprovacoes"));
 const RedirectGestaoAprovacoesToCentral = lazy(() => import("@/pages/central-aprovacoes/RedirectLegacy"));
 const PontoShadowAuditoria = lazy(() => import("@/pages/diarias/PontoShadowAuditoria"));
+const QualidadeCadastral = lazy(() => import("@/pages/admin/QualidadeCadastral"));
 
 const SSOChecklistList = lazy(() => import("@/pages/SSOChecklistList"));
 const SSODashboard = lazy(() => import("@/pages/SSODashboard"));
@@ -279,6 +280,8 @@ const App = () => {
                     <Route path="/admin/biometria-facial" element={<Auth><Secure permission="biometria_facial_gerenciar"><BiometriaFacial /></Secure></Auth>} />
                     <Route path="/admin/auditoria-biometria" element={<Auth><Secure permission="admin_auditoria_view"><AuditoriaBiometria /></Secure></Auth>} />
                     <Route path="/admin/gestao-ponto" element={<Auth><Secure permission="biometria_facial_gerenciar"><GestaoPonto /></Secure></Auth>} />
+                    {/* Gate sintético: apenas SuperAdm passa pelo SecureRouteGuard. */}
+                    <Route path="/admin/qualidade-cadastral" element={<Secure permission="__superadmin_only__"><QualidadeCadastral /></Secure>} />
 
                     {/* SSO */}
                     <Route path="/sso/checklists" element={<Secure permission="acesso_sso_checklists"><SSOChecklistList /></Secure>} />

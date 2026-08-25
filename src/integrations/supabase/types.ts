@@ -1111,6 +1111,13 @@ export type Database = {
             foreignKeyName: "bd_atestados_medicos_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_atestados_medicos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -2036,6 +2043,13 @@ export type Database = {
             foreignKeyName: "fk_caminhoes_eq_cc_atual"
             columns: ["centro_custo_atual_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "fk_caminhoes_eq_cc_atual"
+            columns: ["centro_custo_atual_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -2324,6 +2338,7 @@ export type Database = {
           endereco_normalizado: string | null
           endereco_numero: string | null
           endereco_rua: string | null
+          engenheiro_responsavel_id: string | null
           geocoding_relevance: number | null
           geocoding_source: string | null
           geocoding_status: string | null
@@ -2359,6 +2374,7 @@ export type Database = {
           endereco_normalizado?: string | null
           endereco_numero?: string | null
           endereco_rua?: string | null
+          engenheiro_responsavel_id?: string | null
           geocoding_relevance?: number | null
           geocoding_source?: string | null
           geocoding_status?: string | null
@@ -2394,6 +2410,7 @@ export type Database = {
           endereco_normalizado?: string | null
           endereco_numero?: string | null
           endereco_rua?: string | null
+          engenheiro_responsavel_id?: string | null
           geocoding_relevance?: number | null
           geocoding_source?: string | null
           geocoding_status?: string | null
@@ -2487,6 +2504,27 @@ export type Database = {
             columns: ["diretoria_id"]
             isOneToOne: false
             referencedRelation: "bd_diretorias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_engenheiro_responsavel_id_fkey"
+            columns: ["engenheiro_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_engenheiro_responsavel_id_fkey"
+            columns: ["engenheiro_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_engenheiro_responsavel_id_fkey"
+            columns: ["engenheiro_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
             referencedColumns: ["id"]
           },
           {
@@ -2915,6 +2953,13 @@ export type Database = {
             foreignKeyName: "fk_ci_cc"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "fk_ci_cc"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -3084,6 +3129,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_chamados_os_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_chamados_os_centro_custo_id_fkey"
@@ -3736,6 +3788,13 @@ export type Database = {
             foreignKeyName: "bd_ct_puxadas_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_puxadas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -4053,6 +4112,13 @@ export type Database = {
             foreignKeyName: "bd_ct_viagem_paradas_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagem_paradas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -4330,6 +4396,13 @@ export type Database = {
             foreignKeyName: "bd_ct_viagens_destino_centro_custo_id_fkey"
             columns: ["destino_centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_destino_centro_custo_id_fkey"
+            columns: ["destino_centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -4409,6 +4482,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ct_viagens_origem_centro_custo_id_fkey"
+            columns: ["origem_centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_ct_viagens_origem_centro_custo_id_fkey"
@@ -5619,6 +5699,13 @@ export type Database = {
             foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -5857,6 +5944,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_disponibilidade_equipamentos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_disponibilidade_equipamentos_centro_custo_id_fkey"
@@ -6438,6 +6532,13 @@ export type Database = {
             foreignKeyName: "bd_fluxo_centro_custo_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_fluxo_centro_custo_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -6806,6 +6907,13 @@ export type Database = {
             foreignKeyName: "bd_funcionario_classificacao_solicitacoes_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_funcionario_classificacao_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -7112,6 +7220,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_funcionarios_centro_custo_id_fkey"
@@ -7772,6 +7887,13 @@ export type Database = {
             foreignKeyName: "bd_importacao_alterdata_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_importacao_alterdata_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -8327,6 +8449,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_localizacao_equipamentos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_localizacao_equipamentos_centro_custo_id_fkey"
@@ -9123,6 +9252,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ordens_diarias_obra_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_ordens_diarias_obra_centro_custo_id_fkey"
@@ -10311,6 +10447,13 @@ export type Database = {
             foreignKeyName: "bd_planejamento_atividade_equipe_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -10362,6 +10505,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamento_atividade_equipe_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_planejamento_atividade_equipe_centro_custo_origem_id_fkey"
@@ -10742,6 +10892,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_planejamentos_obra_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_planejamentos_obra_centro_custo_id_fkey"
@@ -11547,6 +11704,13 @@ export type Database = {
             foreignKeyName: "bd_ponto_batidas_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_batidas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -11814,6 +11978,13 @@ export type Database = {
             foreignKeyName: "bd_ponto_config_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: true
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_config_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: true
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -11952,6 +12123,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_diaria_integracao_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_ponto_diaria_integracao_centro_custo_id_fkey"
@@ -12126,6 +12304,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_dispositivo_centros_custo_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_ponto_dispositivo_centros_custo_centro_custo_id_fkey"
@@ -12337,6 +12522,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_dispositivos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_ponto_dispositivos_centro_custo_id_fkey"
@@ -12571,6 +12763,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_vinculos_operacionais_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_ponto_vinculos_operacionais_centro_custo_id_fkey"
@@ -12979,6 +13178,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_programacao_entrega_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_programacao_entrega_centro_custo_id_fkey"
@@ -13540,6 +13746,13 @@ export type Database = {
             foreignKeyName: "fk_raa_centro_custo"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "fk_raa_centro_custo"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -13670,6 +13883,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_registro_apontamento_cam_equipa_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_registro_apontamento_cam_equipa_centro_custo_id_fkey"
@@ -14034,6 +14254,13 @@ export type Database = {
             foreignKeyName: "bd_registro_desvios_sso_obra_id_fkey"
             columns: ["obra_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_registro_desvios_sso_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -14145,6 +14372,13 @@ export type Database = {
             foreignKeyName: "bd_relatorio_aps_carimbos_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_relatorio_aps_carimbos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -14236,6 +14470,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_requisicoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_requisicoes_centro_custo_id_fkey"
@@ -14614,6 +14855,13 @@ export type Database = {
             foreignKeyName: "bd_solicitacao_desligamento_itens_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_desligamento_itens_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -14911,6 +15159,13 @@ export type Database = {
             foreignKeyName: "bd_solicitacao_transferencia_itens_centro_custo_destino_id_fkey"
             columns: ["centro_custo_destino_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_transferencia_itens_centro_custo_destino_id_fkey"
+            columns: ["centro_custo_destino_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -14962,6 +15217,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacao_transferencia_itens_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_solicitacao_transferencia_itens_centro_custo_origem_id_fkey"
@@ -15284,6 +15546,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_desmobilizacao_centro_custo_origem_id_fkey"
+            columns: ["centro_custo_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_solicitacoes_desmobilizacao_centro_custo_origem_id_fkey"
@@ -15644,6 +15913,13 @@ export type Database = {
             foreignKeyName: "bd_solicitacoes_equipamento_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_equipamento_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -15962,15 +16238,22 @@ export type Database = {
       }
       bd_solicitacoes_transferencia: {
         Row: {
+          aprovado_em: string | null
+          aprovado_por: string | null
+          centro_custo_destino_id: string | null
+          centro_custo_destino_snapshot: string | null
           created_at: string
           created_by: string | null
           data_solicitacao: string
+          data_transferencia: string | null
           diretor_area_nome_snapshot: string | null
           diretoria_financeira_nome_snapshot: string | null
           gerente_area_nome_snapshot: string | null
           id: string
+          observacao_decisao: string | null
           observacoes: string | null
           protocolo: string
+          recebedor_user_id: string | null
           solicitante_id: string | null
           solicitante_nome_snapshot: string | null
           status: string
@@ -15980,15 +16263,22 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          centro_custo_destino_id?: string | null
+          centro_custo_destino_snapshot?: string | null
           created_at?: string
           created_by?: string | null
           data_solicitacao?: string
+          data_transferencia?: string | null
           diretor_area_nome_snapshot?: string | null
           diretoria_financeira_nome_snapshot?: string | null
           gerente_area_nome_snapshot?: string | null
           id?: string
+          observacao_decisao?: string | null
           observacoes?: string | null
           protocolo: string
+          recebedor_user_id?: string | null
           solicitante_id?: string | null
           solicitante_nome_snapshot?: string | null
           status?: string
@@ -15998,15 +16288,22 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          centro_custo_destino_id?: string | null
+          centro_custo_destino_snapshot?: string | null
           created_at?: string
           created_by?: string | null
           data_solicitacao?: string
+          data_transferencia?: string | null
           diretor_area_nome_snapshot?: string | null
           diretoria_financeira_nome_snapshot?: string | null
           gerente_area_nome_snapshot?: string | null
           id?: string
+          observacao_decisao?: string | null
           observacoes?: string | null
           protocolo?: string
+          recebedor_user_id?: string | null
           solicitante_id?: string | null
           solicitante_nome_snapshot?: string | null
           status?: string
@@ -16015,7 +16312,71 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "bd_solicitacoes_transferencia_centro_custo_destino_id_fkey"
+            columns: ["centro_custo_destino_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_transferencia_centro_custo_destino_id_fkey"
+            columns: ["centro_custo_destino_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_transferencia_centro_custo_destino_id_fkey"
+            columns: ["centro_custo_destino_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_transferencia_centro_custo_destino_id_fkey"
+            columns: ["centro_custo_destino_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_transferencia_centro_custo_destino_id_fkey"
+            columns: ["centro_custo_destino_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_transferencia_centro_custo_destino_id_fkey"
+            columns: ["centro_custo_destino_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_transferencia_centro_custo_destino_id_fkey"
+            columns: ["centro_custo_destino_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_transferencia_centro_custo_destino_id_fkey"
+            columns: ["centro_custo_destino_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_transferencia_centro_custo_destino_id_fkey"
+            columns: ["centro_custo_destino_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+        ]
       }
       bd_sso_checklist_itens: {
         Row: {
@@ -16195,6 +16556,13 @@ export type Database = {
             foreignKeyName: "bd_sso_checklists_obra_id_fkey"
             columns: ["obra_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_sso_checklists_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -16352,6 +16720,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_sso_ver_agir_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_sso_ver_agir_centro_custo_id_fkey"
@@ -17013,6 +17388,13 @@ export type Database = {
             foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -17136,6 +17518,13 @@ export type Database = {
             foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -17245,6 +17634,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_registro_apontamento_cam_equipa_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_registro_apontamento_cam_equipa_centro_custo_id_fkey"
@@ -17506,6 +17902,13 @@ export type Database = {
             foreignKeyName: "bd_solicitacoes_equipamento_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_equipamento_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -17651,6 +18054,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
@@ -17874,6 +18284,13 @@ export type Database = {
             foreignKeyName: "bd_disponibilidade_equipamentos_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_disponibilidade_equipamentos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -17974,6 +18391,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_disponibilidade_equipamentos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_disponibilidade_equipamentos_centro_custo_id_fkey"
@@ -18172,6 +18596,13 @@ export type Database = {
             foreignKeyName: "bd_chamados_os_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_chamados_os_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -18235,6 +18666,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_chamados_os_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_chamados_os_centro_custo_id_fkey"
@@ -18305,6 +18743,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_funcionarios_centro_custo_id_fkey"
@@ -18384,6 +18829,13 @@ export type Database = {
             foreignKeyName: "bd_funcionarios_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -18455,6 +18907,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_sso_checklists_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_sso_checklists_obra_id_fkey"
@@ -18556,6 +19015,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_chamados_os_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_chamados_os_centro_custo_id_fkey"
@@ -18670,6 +19136,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_equipamento_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_solicitacoes_equipamento_centro_custo_id_fkey"
@@ -19472,6 +19945,13 @@ export type Database = {
             foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_diaria_solicitacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -19574,6 +20054,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_funcionarios_centro_custo_id_fkey"
@@ -19719,6 +20206,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_funcionarios_centro_custo_id_fkey"
@@ -19980,6 +20474,13 @@ export type Database = {
             foreignKeyName: "bd_localizacao_equipamentos_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_localizacao_equipamentos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -20068,6 +20569,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_programacao_entrega_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_programacao_entrega_centro_custo_id_fkey"
@@ -20608,6 +21116,13 @@ export type Database = {
             foreignKeyName: "bd_funcionarios_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_funcionarios_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -20767,6 +21282,13 @@ export type Database = {
             foreignKeyName: "bd_ponto_batidas_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_batidas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -20911,6 +21433,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_batidas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_ponto_batidas_centro_custo_id_fkey"
@@ -21132,6 +21661,13 @@ export type Database = {
             foreignKeyName: "bd_ponto_diaria_integracao_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_diaria_integracao_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -21268,6 +21804,13 @@ export type Database = {
             foreignKeyName: "bd_ponto_dispositivos_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_dispositivos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -21379,6 +21922,13 @@ export type Database = {
             foreignKeyName: "bd_ponto_dispositivos_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_dispositivos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -21472,6 +22022,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_ponto_batidas_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_ponto_batidas_centro_custo_id_fkey"
@@ -21745,6 +22302,13 @@ export type Database = {
             foreignKeyName: "bd_programacao_entrega_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_programacao_entrega_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -21763,6 +22327,245 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      vw_qc_cc_ctx: {
+        Row: {
+          adm_obra_funcionario_id: string | null
+          adm_obra_nome: string | null
+          adm_obra_status: string | null
+          adm_sede_funcionario_id: string | null
+          adm_sede_nome: string | null
+          adm_sede_status: string | null
+          aprovador_diarias_id: string | null
+          cc_codigo: string | null
+          cc_id: string | null
+          cc_nome: string | null
+          cc_situacao: string | null
+          cnpj_vinculado: string | null
+          created_at: string | null
+          departamento_id: string | null
+          diretoria_id: string | null
+          empresa_id: string | null
+          endereco_cep: string | null
+          endereco_cidade: string | null
+          endereco_estado: string | null
+          endereco_rua: string | null
+          eng_nome: string | null
+          eng_status: string | null
+          engenheiro_responsavel_id: string | null
+          latitude: number | null
+          longitude: number | null
+          nome_departamento: string | null
+          nome_diretoria: string | null
+          nome_empresa: string | null
+          plan_nome: string | null
+          plan_status: string | null
+          planejador_responsavel_id: string | null
+          resp_id: string | null
+          resp_nome: string | null
+          resp_papel: string | null
+          resp_secundario_nome: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_centros_custo_adm_obra_funcionario_id_fkey"
+            columns: ["adm_obra_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_adm_obra_funcionario_id_fkey"
+            columns: ["adm_obra_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_adm_obra_funcionario_id_fkey"
+            columns: ["adm_obra_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_adm_sede_funcionario_id_fkey"
+            columns: ["adm_sede_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_adm_sede_funcionario_id_fkey"
+            columns: ["adm_sede_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_adm_sede_funcionario_id_fkey"
+            columns: ["adm_sede_funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_aprovador_diarias_id_fkey"
+            columns: ["aprovador_diarias_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_aprovador_diarias_id_fkey"
+            columns: ["aprovador_diarias_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_aprovador_diarias_id_fkey"
+            columns: ["aprovador_diarias_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_departamento_id_fkey"
+            columns: ["departamento_id"]
+            isOneToOne: false
+            referencedRelation: "bd_departamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_diretoria_id_fkey"
+            columns: ["diretoria_id"]
+            isOneToOne: false
+            referencedRelation: "bd_diretorias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_engenheiro_responsavel_id_fkey"
+            columns: ["engenheiro_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "bd_funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_engenheiro_responsavel_id_fkey"
+            columns: ["engenheiro_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_operacional"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_engenheiro_responsavel_id_fkey"
+            columns: ["engenheiro_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "vw_funcionarios_rh"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_planejador_responsavel_id_fkey"
+            columns: ["planejador_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_planejador_responsavel_id_fkey"
+            columns: ["planejador_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_centros_custo_planejador_responsavel_id_fkey"
+            columns: ["planejador_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_departamento_empresa"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "bd_empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vw_qc_pendencias: {
+        Row: {
+          ativo: boolean | null
+          atualizado_em: string | null
+          atualizado_operacional_em: string | null
+          campo: string | null
+          cc_codigo: string | null
+          cc_nome: string | null
+          centro_custo_id: string | null
+          departamento_id: string | null
+          departamento_nome: string | null
+          descricao: string | null
+          dias_sem_atualizacao: number | null
+          diretoria_id: string | null
+          diretoria_nome: string | null
+          dominio: string | null
+          empresa_id: string | null
+          empresa_nome: string | null
+          identificacao: string | null
+          mensagem: string | null
+          penalidade: number | null
+          registro_id: string | null
+          regra: string | null
+          resp_secundario_nome: string | null
+          responsavel_id: string | null
+          responsavel_nome: string | null
+          responsavel_papel: string | null
+          severidade: string | null
+          tipo: string | null
+          tipo_ativo: string | null
+        }
+        Relationships: []
+      }
+      vw_qc_pendencias_raw: {
+        Row: {
+          campo: string | null
+          dominio: string | null
+          mensagem: string | null
+          registro_id: string | null
+          regra: string | null
+          severidade: string | null
+          tipo: string | null
+        }
+        Relationships: []
+      }
+      vw_qc_registros: {
+        Row: {
+          ativo: boolean | null
+          atualizado_em: string | null
+          atualizado_operacional_em: string | null
+          cc_codigo: string | null
+          cc_nome: string | null
+          centro_custo_id: string | null
+          departamento_id: string | null
+          departamento_nome: string | null
+          descricao: string | null
+          diretoria_id: string | null
+          diretoria_nome: string | null
+          dominio: string | null
+          empresa_id: string | null
+          empresa_nome: string | null
+          identificacao: string | null
+          registro_id: string | null
+          resp_secundario_nome: string | null
+          responsavel_id: string | null
+          responsavel_nome: string | null
+          responsavel_papel: string | null
+          tipo_ativo: string | null
+        }
+        Relationships: []
       }
       vw_rbac_legacy_map_drift: {
         Row: {
@@ -22215,6 +23018,13 @@ export type Database = {
             foreignKeyName: "bd_requisicoes_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_requisicoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -22372,6 +23182,13 @@ export type Database = {
             foreignKeyName: "bd_solicitacoes_equipamento_centro_custo_id_fkey"
             columns: ["centro_custo_id"]
             isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_equipamento_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
           },
@@ -22478,6 +23295,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_diarias_operacional_campo"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_equipamento_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
           },
           {
             foreignKeyName: "bd_solicitacoes_equipamento_centro_custo_id_fkey"
@@ -24613,6 +25437,41 @@ export type Database = {
         Args: { p_motivo: string; p_pop_id: string }
         Returns: string
       }
+      fn_qualidade_cadastral_estrutura: {
+        Args: { p_filtros?: Json }
+        Returns: Json
+      }
+      fn_qualidade_cadastral_pendencias: {
+        Args: { p_filtros?: Json; p_limit?: number; p_offset?: number }
+        Returns: {
+          atualizado_em: string
+          campo: string
+          cc_codigo: string
+          cc_nome: string
+          centro_custo_id: string
+          departamento_nome: string
+          descricao: string
+          dias_sem_atualizacao: number
+          diretoria_nome: string
+          dominio: string
+          empresa_nome: string
+          identificacao: string
+          mensagem: string
+          registro_id: string
+          regra: string
+          resp_secundario_nome: string
+          responsavel_nome: string
+          responsavel_papel: string
+          score: number
+          severidade: string
+          tipo: string
+          total_registros: number
+        }[]
+      }
+      fn_qualidade_cadastral_resumo: {
+        Args: { p_filtros?: Json }
+        Returns: Json
+      }
       fn_rate_limit_check: {
         Args: {
           p_bloqueio_segundos: number
@@ -25053,6 +25912,59 @@ export type Database = {
       fn_target_user_has_protected_access: {
         Args: { p_target_user_id: string }
         Returns: boolean
+      }
+      fn_transferencia_aprovacao_habilitada: {
+        Args: { p_uid: string }
+        Returns: boolean
+      }
+      fn_transferencia_central_detalhe: {
+        Args: { p_id: string }
+        Returns: Json
+      }
+      fn_transferencia_decidir: {
+        Args: {
+          p_decisao: string
+          p_observacao: string
+          p_solicitacao_id: string
+        }
+        Returns: string
+      }
+      fn_transferencia_emitir: {
+        Args: {
+          p_centro_custo_destino_id: string
+          p_data_transferencia: string
+          p_solicitacao_id: string
+        }
+        Returns: string
+      }
+      fn_transferencia_resolver_aprovador: {
+        Args: { p_centro_custo_id: string; p_solicitacao_id?: string }
+        Returns: Json
+      }
+      fn_transferencias_central_listar: {
+        Args: {
+          p_apenas_minhas?: boolean
+          p_busca?: string
+          p_centro_custo_id?: string
+          p_view?: string
+        }
+        Returns: {
+          aguardando_minha_acao: boolean
+          aprovado_em: string
+          centro_custo_destino_id: string
+          centro_custo_destino_snapshot: string
+          created_at: string
+          data_solicitacao: string
+          id: string
+          observacao_decisao: string
+          protocolo: string
+          recebedor_user_id: string
+          solicitante_id: string
+          solicitante_nome_snapshot: string
+          status: string
+          total_funcionarios: number
+          updated_at: string
+        }[]
       }
       fn_ultima_classificacao_data: {
         Args: { p_funcionario_id: string }

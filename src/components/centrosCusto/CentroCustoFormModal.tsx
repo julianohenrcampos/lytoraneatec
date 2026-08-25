@@ -35,6 +35,7 @@ const formSchema = z.object({
   adm_sede_funcionario_id: z.string().min(1, { message: "ADM SEDE é obrigatório" }),
   adm_obra_funcionario_id: z.string().optional(),
   planejador_responsavel_id: z.string().optional(),
+  engenheiro_responsavel_id: z.string().optional(),
   diretoria_id: z.string().optional(),
   departamento_id: z.string().min(1, { message: "Departamento é obrigatório" }),
   endereco_completo: z.string().optional(),
@@ -75,6 +76,7 @@ const FIELD_TO_TAB: Record<string, "dados-gerais" | "responsaveis"> = {
   adm_sede_funcionario_id: "responsaveis",
   adm_obra_funcionario_id: "responsaveis",
   planejador_responsavel_id: "responsaveis",
+  engenheiro_responsavel_id: "responsaveis",
   diretoria_id: "responsaveis",
   departamento_id: "responsaveis",
 };
@@ -188,6 +190,44 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
     },
   });
 
+  // Engenheiros (função "ENGENHEIRO (A) CIVIL") — candidatos a Engenheiro Responsável do CC,
+  // recebedor das aprovações de transferência de funcionários.
+  const { data: engenheirosCandidatos = [] } = useQuery({
+    queryKey: ['engenheiros-candidatos-cc'],
+    enabled: isOpen,
+    queryFn: async () => {
+      const { data: funcoes } = await supabase
+        .from('bd_funcoes')
+        .select('id')
+        .ilike('nome_funcao', 'engenheiro%civil');
+      const ids = (funcoes || []).map((f: any) => f.id);
+      if (!ids.length) return [];
+      const { data } = await supabase
+        .from('bd_funcionarios')
+        .select('id, nome_completo')
+        .in('funcao_id', ids)
+        .in('status', ['Ativo', 'Ativo sem Registro'])
+        .order('nome_completo');
+      return data || [];
+    },
+  });
+
+  const { data: extraEngenheiroCandidate } = useQuery({
+    queryKey: ['engenheiro-extra', centroCusto?.engenheiro_responsavel_id, engenheirosCandidatos.length],
+    enabled:
+      isOpen &&
+      !!centroCusto?.engenheiro_responsavel_id &&
+      !engenheirosCandidatos.some((c: any) => c.id === centroCusto?.engenheiro_responsavel_id),
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('bd_funcionarios')
+        .select('id, nome_completo')
+        .eq('id', centroCusto!.engenheiro_responsavel_id!)
+        .maybeSingle();
+      return data;
+    },
+  });
+
   const { data: extraSedeCandidate } = useQuery({
     queryKey: ['adm-sede-extra', centroCusto?.adm_sede_funcionario_id, admSedeCandidates.length],
     enabled: isOpen && !!centroCusto?.adm_sede_funcionario_id &&
@@ -228,6 +268,12 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
       : planejadoresCandidatos;
   }, [extraPlanejadorCandidate, planejadoresCandidatos]);
 
+  const engenheiroOptions = useMemo(() => {
+    return extraEngenheiroCandidate
+      ? [extraEngenheiroCandidate, ...engenheirosCandidatos]
+      : engenheirosCandidatos;
+  }, [extraEngenheiroCandidate, engenheirosCandidatos]);
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -240,6 +286,7 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
       adm_sede_funcionario_id: "",
       adm_obra_funcionario_id: "",
       planejador_responsavel_id: "",
+      engenheiro_responsavel_id: "",
       diretoria_id: "",
       departamento_id: "",
       endereco_completo: "",
@@ -269,6 +316,7 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
         adm_sede_funcionario_id: centroCusto.adm_sede_funcionario_id || "",
         adm_obra_funcionario_id: centroCusto.adm_obra_funcionario_id || "",
         planejador_responsavel_id: centroCusto.planejador_responsavel_id || "",
+        engenheiro_responsavel_id: centroCusto.engenheiro_responsavel_id || "",
         diretoria_id: centroCusto.diretoria_id || "",
         departamento_id: centroCusto.departamento_id || "",
         endereco_completo: centroCusto.endereco_completo || "",
@@ -293,6 +341,7 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
         adm_sede_funcionario_id: "",
         adm_obra_funcionario_id: "",
         planejador_responsavel_id: "",
+        engenheiro_responsavel_id: "",
         diretoria_id: "",
         departamento_id: "",
         endereco_completo: "",
@@ -383,6 +432,7 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
         adm_sede_funcionario_id: resolveOptionalFK(values.adm_sede_funcionario_id),
         adm_obra_funcionario_id: resolveOptionalFK(values.adm_obra_funcionario_id),
         planejador_responsavel_id: resolveOptionalFK(values.planejador_responsavel_id),
+        engenheiro_responsavel_id: resolveOptionalFK(values.engenheiro_responsavel_id),
         diretoria_id: resolveOptionalFK(values.diretoria_id),
         departamento_id: resolveOptionalFK(values.departamento_id),
         endereco_completo: values.endereco_completo || undefined,
@@ -678,6 +728,33 @@ const CentroCustoFormModal: React.FC<CentroCustoFormModalProps> = ({
                         <p className="text-xs text-muted-foreground mt-1">
                           Somente usuários com permissão de <strong>Planejamento Macro</strong> (visualizar) são listados.
                           O vínculo entra no escopo de Planejamento Macro / Ordem Diária, mas não concede a permissão sozinho.
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="engenheiro_responsavel_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Engenheiro Responsável</FormLabel>
+                        <FormControl>
+                          <Combobox
+                            options={engenheiroOptions.map((e: any) => ({
+                              value: e.id,
+                              label: e.nome_completo,
+                            }))}
+                            value={field.value || ""}
+                            onChange={field.onChange}
+                            placeholder="Selecione um engenheiro..."
+                            searchPlaceholder="Buscar engenheiro..."
+                            emptyText="Nenhum funcionário com função de Engenheiro Civil encontrado."
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Recebedor das aprovações de <strong>transferência de funcionários</strong> para este centro de custo.
                         </p>
                         <FormMessage />
                       </FormItem>

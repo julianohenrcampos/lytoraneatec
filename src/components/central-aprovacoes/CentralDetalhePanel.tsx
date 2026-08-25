@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { CentralApprovalItem } from '@/services/central-aprovacoes/types';
 import CentralDetalheEquipamento from './CentralDetalheEquipamento';
+import CentralDetalheTransferencia from './CentralDetalheTransferencia';
 
 interface Props {
   item: CentralApprovalItem | null;
@@ -44,6 +45,16 @@ export default function CentralDetalhePanel({ item, onVer, onAprovar, onReprovar
         onReprovar={onReprovar}
         onReverter={onReverter}
         onCancelar={onCancelar}
+      />
+    );
+  }
+
+  if (item.modulo === 'transferencias') {
+    return (
+      <CentralDetalheTransferencia
+        item={item}
+        onAprovar={onAprovar}
+        onReprovar={onReprovar}
       />
     );
   }

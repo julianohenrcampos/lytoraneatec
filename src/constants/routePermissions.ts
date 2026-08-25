@@ -72,6 +72,8 @@ export const ROUTE_PERMISSIONS = {
   '/gestao-rh/central-aprovacoes': ['central_aprovacoes_view', 'acesso_gestao_aprovacoes'],
   // Shadow audit: gate sintético — apenas SuperAdmin passa pelo SecureRouteGuard.
   '/requisicoes/diarias/auditoria-ponto-shadow': ['__superadmin_only__'],
+  // Central de Qualidade Cadastral: gate sintético — exclusiva de SuperAdm.
+  '/admin/qualidade-cadastral': ['__superadmin_only__'],
 
   // SSO
   '/sso/checklists': ['acesso_sso_checklists'],

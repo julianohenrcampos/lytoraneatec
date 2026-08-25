@@ -2,7 +2,7 @@
  * Central de Aprovações — contrato genérico multi-módulo.
  */
 
-export type CentralModulo = 'diarias' | 'equipamentos' | 'cedencia' | 'desmobilizacao' | 'outros';
+export type CentralModulo = 'diarias' | 'equipamentos' | 'cedencia' | 'desmobilizacao' | 'transferencias' | 'outros';
 
 export type CentralView = 'pendentes' | 'concluidas' | 'canceladas' | 'todas';
 

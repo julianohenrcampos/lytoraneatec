@@ -1,7 +1,13 @@
 // Tipos para Solicitações persistidas de Desligamento e Transferência.
 // Não substituem bd_desligamentos; representam apenas o documento/pedido.
 
-export type StatusSolicitacaoRh = 'rascunho' | 'emitida' | 'cancelada';
+export type StatusSolicitacaoRh =
+  | 'rascunho'
+  | 'emitida'
+  | 'cancelada'
+  | 'pendente_aprovacao'
+  | 'aprovada'
+  | 'rejeitada';
 
 export interface SolicitacaoDesligamentoHeader {
   id: string;
@@ -50,6 +56,14 @@ export interface SolicitacaoTransferenciaHeader {
   diretor_area_nome_snapshot: string | null;
   diretoria_financeira_nome_snapshot: string | null;
   observacoes: string | null;
+  // Fluxo de aprovação (toggle transferencia_aprovacao_recebedor_ativo)
+  centro_custo_destino_id: string | null;
+  centro_custo_destino_snapshot: string | null;
+  data_transferencia: string | null;
+  recebedor_user_id: string | null;
+  aprovado_por: string | null;
+  aprovado_em: string | null;
+  observacao_decisao: string | null;
   created_at: string;
   updated_at: string;
 }

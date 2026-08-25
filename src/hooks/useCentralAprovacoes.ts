@@ -6,7 +6,9 @@ import { useMemo } from 'react';
 import { useDiariasCentralProvider } from '@/services/central-aprovacoes/diariasProvider';
 import { useEquipamentosCentralProvider } from '@/services/central-aprovacoes/equipamentosProvider';
 import { useDesmobilizacaoCentralProvider } from '@/services/central-aprovacoes/desmobilizacaoProvider';
+import { useTransferenciasCentralProvider } from '@/services/central-aprovacoes/transferenciasProvider';
 import { useConfiguracaoSistema } from '@/hooks/useConfiguracaoSistema';
+import { usePermission } from '@/hooks/usePermission';
 import type {
   CentralFiltrosBase,
   CentralProviderResult,
@@ -48,13 +50,25 @@ export function useCentralAprovacoes(filtros: CentralFiltrosBase): CentralProvid
   const desmobilizacaoAtivo = moduloAtivo(filtros, 'desmobilizacao');
   const desmobilizacao = useDesmobilizacaoCentralProvider(filtros, { enabled: desmobilizacaoAtivo });
 
+  const { isSuperAdmin } = usePermission();
+  const transfConfigQuery = useConfiguracaoSistema('transferencia_aprovacao_recebedor_ativo');
+  const transfTesteQuery = useConfiguracaoSistema('transferencia_aprovacao_recebedor_teste_superadm');
+  // Toggle global ON, ou modo teste ON + SuperAdm (validado server-side nas RPCs)
+  const transferenciasEnabledConfig =
+    (transfConfigQuery.isSuccess && transfConfigQuery.data === 'true') ||
+    (transfTesteQuery.isSuccess && transfTesteQuery.data === 'true' && isSuperAdmin);
+  const transferenciasAtivo = moduloAtivo(filtros, 'transferencias');
+  const transferenciasEnabled = transferenciasEnabledConfig && transferenciasAtivo;
+  const transferencias = useTransferenciasCentralProvider(filtros, { enabled: transferenciasEnabled });
+
   const providers = useMemo(() => {
     const list: { key: CentralModulo; provider: CentralProviderResult; active: boolean }[] = [];
     list.push({ key: 'diarias', provider: diarias, active: diariasAtivo });
     if (equipamentosEnabled) list.push({ key: 'equipamentos', provider: equipamentos, active: true });
     list.push({ key: 'desmobilizacao', provider: desmobilizacao, active: desmobilizacaoAtivo });
+    if (transferenciasEnabled) list.push({ key: 'transferencias', provider: transferencias, active: true });
     return list;
-  }, [diarias, equipamentos, desmobilizacao, diariasAtivo, equipamentosEnabled, desmobilizacaoAtivo]);
+  }, [diarias, equipamentos, desmobilizacao, transferencias, diariasAtivo, equipamentosEnabled, desmobilizacaoAtivo, transferenciasEnabled]);
 
   const itens: CentralApprovalItem[] = useMemo(() => {
     const combined: CentralApprovalItem[] = [];

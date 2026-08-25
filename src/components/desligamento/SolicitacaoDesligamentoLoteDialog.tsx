@@ -29,7 +29,7 @@ import {
 import * as svc from '@/services/rh/solicitacaoDesligamentoService';
 import { useSolicitacaoDesligamento } from '@/hooks/rh/useSolicitacoesDesligamento';
 import { usePermission } from '@/hooks/usePermission';
-import type { DesligamentoItemInput } from '@/types/solicitacaoRh';
+import type { DesligamentoItemInput, StatusSolicitacaoRh } from '@/types/solicitacaoRh';
 
 interface Props {
   open: boolean;
@@ -65,7 +65,7 @@ export const SolicitacaoDesligamentoLoteDialog: React.FC<Props> = ({
 
   const [solId, setSolId] = useState<string | null>(null);
   const [protocolo, setProtocolo] = useState<string>('');
-  const [status, setStatus] = useState<'rascunho' | 'emitida' | 'cancelada'>('rascunho');
+  const [status, setStatus] = useState<StatusSolicitacaoRh>('rascunho');
   const [observacoes, setObservacoes] = useState('');
   const [itens, setItens] = useState<ItemEstado[]>([]);
   const [salarioStr, setSalarioStr] = useState<Record<string, string>>({});

@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Combobox } from '@/components/ui/combobox';
 import {
   Search, Loader2, User, Plus, Trash2, FileDown, AlertTriangle, RefreshCw, Save, Send, Ban, Bus,
+  CheckCircle2, UserX,
 } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -24,7 +25,7 @@ import { useFuncionarioSearch } from '@/hooks/ssoAgendamentoExames/useFuncionari
 import { useProfile } from '@/hooks/useProfile';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fmtBRLInput, parseBRL } from '@/utils/pdf/brlMask';
 import {
   gerarPdfLoteSolicitacaoTransferencia,
@@ -33,7 +34,8 @@ import {
 import * as svc from '@/services/rh/solicitacaoTransferenciaService';
 import { useSolicitacaoTransferencia } from '@/hooks/rh/useSolicitacoesTransferencia';
 import { usePermission } from '@/hooks/usePermission';
-import type { TransferenciaItemInput } from '@/types/solicitacaoRh';
+import { useConfiguracaoSistema } from '@/hooks/useConfiguracaoSistema';
+import type { TransferenciaItemInput, StatusSolicitacaoRh } from '@/types/solicitacaoRh';
 import {
   resolverGerenteDaArea,
   resolverDiretorDaArea,
@@ -56,6 +58,9 @@ const statusBadge: Record<string, { label: string; cls: string }> = {
   rascunho: { label: 'Rascunho', cls: 'bg-muted text-muted-foreground' },
   emitida: { label: 'Emitida', cls: 'bg-primary/15 text-primary border-primary/30' },
   cancelada: { label: 'Cancelada', cls: 'bg-destructive/15 text-destructive border-destructive/30' },
+  pendente_aprovacao: { label: 'Pendente de Aprovação', cls: 'bg-amber-500/15 text-amber-600 border-amber-500/30' },
+  aprovada: { label: 'Aprovada', cls: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30' },
+  rejeitada: { label: 'Rejeitada', cls: 'bg-destructive/15 text-destructive border-destructive/30' },
 };
 
 export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
@@ -65,6 +70,12 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
   const { userId, isSuperAdmin } = usePermission();
   const scopeUserId: string | null = isSuperAdmin ? null : (userId ?? null);
   const qc = useQueryClient();
+  const aprovacaoConfig = useConfiguracaoSistema('transferencia_aprovacao_recebedor_ativo');
+  const testeSuperAdmConfig = useConfiguracaoSistema('transferencia_aprovacao_recebedor_teste_superadm');
+  // Novo fluxo: toggle global ON, ou modo teste ON + SuperAdm (validado server-side nas RPCs)
+  const aprovacaoAtiva =
+    (aprovacaoConfig.isSuccess && aprovacaoConfig.data === 'true') ||
+    (testeSuperAdmConfig.isSuccess && testeSuperAdmConfig.data === 'true' && isSuperAdmin);
   const { data: existente, isLoading: loadingExistente } = useSolicitacaoTransferencia(open ? solicitacaoId ?? null : null);
 
   const {
@@ -74,7 +85,7 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
 
   const [solId, setSolId] = useState<string | null>(null);
   const [protocolo, setProtocolo] = useState<string>('');
-  const [status, setStatus] = useState<'rascunho' | 'emitida' | 'cancelada'>('rascunho');
+  const [status, setStatus] = useState<StatusSolicitacaoRh>('rascunho');
   const [observacoes, setObservacoes] = useState('');
   const [itens, setItens] = useState<ItemEstado[]>([]);
   const [salarioStr, setSalarioStr] = useState<Record<string, string>>({});
@@ -90,6 +101,11 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
   const [removing, setRemoving] = useState(false);
 
   const readOnly = status !== 'rascunho';
+
+  // Fluxo de aprovação (toggle ON): CC destino + data únicos no cabeçalho
+  const [ccDestinoHeaderId, setCcDestinoHeaderId] = useState<string | null>(null);
+  const [ccDestinoHeaderLabel, setCcDestinoHeaderLabel] = useState<string | null>(null);
+  const [dataHeader, setDataHeader] = useState<string | null>(null);
 
   const [ccOptions, setCcOptions] = useState<{ value: string; label: string }[]>([]);
   useEffect(() => {
@@ -111,11 +127,37 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
     })();
   }, [open]);
 
+  // Aprovador da Transferência: resolução server-side (apenas UX).
+  // A emissão revalida autoritativamente em fn_transferencia_emitir — o frontend
+  // NUNCA envia recebedor_user_id. Para solicitações já emitidas, a RPC retorna
+  // o recebedor congelado na emissão (não o engenheiro atual do CC).
+  interface AprovadorInfo {
+    status: 'ok' | 'sem_engenheiro' | 'engenheiro_inativo' | 'sem_usuario' | 'cc_nao_encontrado';
+    congelado?: boolean;
+    nome?: string | null;
+    recebedor_user_id?: string | null;
+  }
+  const { data: aprovadorInfo, isLoading: loadingAprovador } = useQuery<AprovadorInfo>({
+    queryKey: ['transferencia-aprovador', ccDestinoHeaderId, readOnly ? solId : null],
+    enabled: aprovacaoAtiva && !!ccDestinoHeaderId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc('fn_transferencia_resolver_aprovador', {
+        p_centro_custo_id: ccDestinoHeaderId,
+        p_solicitacao_id: readOnly ? solId : null,
+      });
+      if (error) throw error;
+      return data as AprovadorInfo;
+    },
+  });
+  const aprovadorOk = !aprovacaoAtiva || aprovadorInfo?.status === 'ok';
+
   useEffect(() => {
     if (!open) return;
     if (!solicitacaoId) {
       setSolId(null); setProtocolo(''); setStatus('rascunho');
       setObservacoes(''); setItens([]); setSalarioStr({});
+      setCcDestinoHeaderId(null); setCcDestinoHeaderLabel(null); setDataHeader(null);
       return;
     }
     if (!existente) return;
@@ -123,6 +165,9 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
     setProtocolo(existente.header.protocolo);
     setStatus(existente.header.status);
     setObservacoes(existente.header.observacoes || '');
+    setCcDestinoHeaderId(existente.header.centro_custo_destino_id ?? null);
+    setCcDestinoHeaderLabel(existente.header.centro_custo_destino_snapshot ?? null);
+    setDataHeader(existente.header.data_transferencia ?? existente.itens[0]?.data_transferencia ?? null);
     const ss: Record<string, string> = {};
     const mapped: ItemEstado[] = existente.itens.map((it) => {
       const key = it.funcionario_id || it.id;
@@ -152,6 +197,10 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
 
   const adicionarFuncionario = async (funcId: string) => {
     if (readOnly) return;
+    if (aprovacaoAtiva && (!ccDestinoHeaderId || !dataHeader)) {
+      toast.error('Informe o Centro de Custo Destino e a Data da Transferência antes de adicionar funcionários.');
+      return;
+    }
     if (itens.find((i) => i.funcionario_id === funcId)) {
       toast.info('Funcionário já está na lista.');
       return;
@@ -161,7 +210,7 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
       const { data, error } = await supabase
         .from('bd_funcionarios')
         .select(`
-          id, nome_completo, matricula, cpf, data_admissao, centro_custo_id,
+          id, nome_completo, matricula, cpf, data_admissao, centro_custo_id, salario_base,
           bd_funcoes(nome_funcao),
           bd_centros_custo:centro_custo_id(codigo_centro_custo, nome_centro_custo)
         `)
@@ -172,6 +221,14 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
       const ccOrigem = f.bd_centros_custo
         ? `${f.bd_centros_custo.codigo_centro_custo} - ${f.bd_centros_custo.nome_centro_custo}`
         : '—';
+      // Salário: snapshot automático da origem oficial (bd_funcionarios.salario_base)
+      const salarioOficial = f.salario_base != null ? Number(f.salario_base) : null;
+      if (salarioOficial != null) {
+        setSalarioStr((prev) => ({
+          ...prev,
+          [f.id]: fmtBRLInput(String(Math.round(salarioOficial * 100))),
+        }));
+      }
       setItens((prev) => [
         ...prev,
         {
@@ -186,7 +243,7 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
           centro_custo_destino_id: null,
           centro_custo_destino_nome: null,
           data_transferencia: null,
-          salario: null,
+          salario: salarioOficial,
           alteracao_passagem: false,
           valor_passagem_atual: null,
           valor_passagem_novo: null,
@@ -259,14 +316,14 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
   const camposObrigatoriosOk = useMemo(
     () =>
       itens.length > 0 &&
+      (!aprovacaoAtiva || (!!ccDestinoHeaderId && !!dataHeader && aprovadorOk)) &&
       itens.every(
         (i) =>
-          !!i.centro_custo_destino_id &&
-          !!i.data_transferencia &&
+          (aprovacaoAtiva || (!!i.centro_custo_destino_id && !!i.data_transferencia)) &&
           i.salario != null &&
           itemPassagemValido(i),
       ),
-    [itens],
+    [itens, aprovacaoAtiva, ccDestinoHeaderId, dataHeader, aprovadorOk],
   );
 
   const itensParaPersistir = (): TransferenciaItemInput[] =>
@@ -278,10 +335,10 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
       cargo_snapshot: it.cargo,
       centro_custo_origem_id: it.centro_custo_origem_id ?? null,
       centro_custo_origem_snapshot: it.centro_custo_origem,
-      centro_custo_destino_id: it.centro_custo_destino_id ?? null,
-      centro_custo_destino_snapshot: it.centro_custo_destino_nome,
+      centro_custo_destino_id: aprovacaoAtiva ? ccDestinoHeaderId : (it.centro_custo_destino_id ?? null),
+      centro_custo_destino_snapshot: aprovacaoAtiva ? ccDestinoHeaderLabel : it.centro_custo_destino_nome,
       data_admissao_snapshot: it.data_admissao,
-      data_transferencia: it.data_transferencia,
+      data_transferencia: aprovacaoAtiva ? dataHeader : it.data_transferencia,
       salario_manual: it.salario,
       alteracao_passagem: !!it.alteracao_passagem,
       valor_passagem_atual: it.alteracao_passagem ? (it.valor_passagem_atual ?? null) : null,
@@ -323,11 +380,23 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
       toast.error('Adicione pelo menos um funcionário.');
       return;
     }
+    if (aprovacaoAtiva && (!ccDestinoHeaderId || !dataHeader)) {
+      toast.error('Informe o Centro de Custo Destino e a Data da Transferência da solicitação.');
+      return;
+    }
+    if (aprovacaoAtiva && !aprovadorOk) {
+      toast.error('O Centro de Custo destino não possui Engenheiro Responsável habilitado para receber a aprovação.');
+      return;
+    }
     const semObrig = itens.find(
-      (i) => !i.centro_custo_destino_id || !i.data_transferencia || i.salario == null,
+      (i) => (!aprovacaoAtiva && (!i.centro_custo_destino_id || !i.data_transferencia)) || i.salario == null,
     );
     if (semObrig) {
-      toast.error(`Preencha CC destino, data e salário de ${semObrig.nome}.`);
+      toast.error(
+        aprovacaoAtiva
+          ? `${semObrig.nome}: salário oficial não encontrado no cadastro do funcionário.`
+          : `Preencha CC destino, data e salário de ${semObrig.nome}.`,
+      );
       return;
     }
     const semPassagem = itens.find((i) => !itemPassagemValido(i));
@@ -337,6 +406,13 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
       );
       return;
     }
+    if (aprovacaoAtiva) {
+      const destinoIgualOrigem = itens.find((i) => i.centro_custo_origem_id === ccDestinoHeaderId);
+      if (destinoIgualOrigem) {
+        toast.error(`${destinoIgualOrigem.nome}: o CC destino não pode ser igual ao de origem.`);
+        return;
+      }
+    }
     setEmitting(true);
     try {
       const id = await garantirRascunho();
@@ -344,8 +420,13 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
       await svc.substituirItens(id, persist, scopeUserId);
       const totais = svc.calcularTotais(persist);
       await svc.atualizarRascunhoHeader(id, { observacoes, ...totais }, scopeUserId);
-      await svc.emitirSolicitacao(id, perfil ?? null, persist.map((p) => p.centro_custo_origem_id), scopeUserId);
-      toast.success(`Solicitação ${protocolo} emitida.`);
+      if (aprovacaoAtiva) {
+        await svc.emitirParaAprovacao(id, ccDestinoHeaderId!, dataHeader!);
+        toast.success(`Solicitação ${protocolo} enviada para aprovação do engenheiro responsável do CC destino.`);
+      } else {
+        await svc.emitirSolicitacao(id, perfil ?? null, persist.map((p) => p.centro_custo_origem_id), scopeUserId);
+        toast.success(`Solicitação ${protocolo} emitida.`);
+      }
       qc.invalidateQueries({ queryKey: ['solicitacoes-transferencia'] });
       onOpenChange(false);
     } catch (e: any) {
@@ -444,6 +525,7 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
     if (!next) {
       setItens([]); setSalarioStr({}); setObservacoes(''); setSearchTerm('');
       setSolId(null); setProtocolo(''); setStatus('rascunho');
+      setCcDestinoHeaderId(null); setCcDestinoHeaderLabel(null); setDataHeader(null);
     }
     onOpenChange(next);
   };
@@ -534,12 +616,102 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
                 </div>
                 <ScrollArea className="h-[420px] border rounded-md">{renderBusca()}</ScrollArea>
                 <p className="text-xs text-muted-foreground">
-                  O centro de custo do funcionário NÃO é alterado. Apenas o documento é gerado.
+                  {aprovacaoAtiva
+                    ? 'A transferência será efetivada após aprovação do responsável pelo Centro de Custo de destino.'
+                    : 'O centro de custo do funcionário NÃO é alterado. Apenas o documento é gerado.'}
                 </p>
               </div>
             )}
 
             <div className="space-y-2">
+              {aprovacaoAtiva && (
+                <Card className="p-3 space-y-2 border-primary/30 bg-primary/5">
+                  <Label className="text-xs font-semibold">Dados da Transferência</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Centro de Custo Destino *</Label>
+                      {readOnly ? (
+                        <Input value={ccDestinoHeaderLabel || '—'} disabled />
+                      ) : (
+                        <Combobox
+                          options={ccOptions}
+                          value={ccDestinoHeaderId || ''}
+                          onChange={(value) => {
+                            const opt = ccOptions.find((o) => o.value === value);
+                            setCcDestinoHeaderId(value || null);
+                            setCcDestinoHeaderLabel(opt?.label || null);
+                          }}
+                          placeholder="Selecione o CC destino..."
+                          searchPlaceholder="Buscar centro de custo..."
+                        />
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Data da Transferência *</Label>
+                      <Input
+                        type="date"
+                        disabled={readOnly}
+                        value={dataHeader || ''}
+                        onChange={(e) => setDataHeader(e.target.value || null)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Aprovador da Transferência — read-only, derivado do CC destino */}
+                  <div className="rounded-md border bg-background p-2">
+                    <Label className="text-xs font-semibold">Aprovador da Transferência</Label>
+                    {!ccDestinoHeaderId ? (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Selecione o Centro de Custo de destino para identificar o aprovador.
+                      </p>
+                    ) : loadingAprovador ? (
+                      <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Identificando aprovador...
+                      </p>
+                    ) : aprovadorInfo?.status === 'ok' ? (
+                      <div className="mt-1 flex items-start gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{aprovadorInfo.nome}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {aprovadorInfo.congelado
+                              ? 'Responsável registrado na emissão desta solicitação.'
+                              : 'Engenheiro Responsável pelo Centro de Custo destino.'}
+                          </p>
+                          {!aprovadorInfo.congelado && (
+                            <p className="text-xs text-muted-foreground">
+                              A solicitação será enviada automaticamente para este responsável após a emissão.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-1 flex items-start gap-2">
+                        <UserX className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-destructive">Aprovador não configurado</p>
+                          <p className="text-xs text-muted-foreground">
+                            {aprovadorInfo?.status === 'sem_usuario'
+                              ? `${aprovadorInfo.nome ?? 'O Engenheiro Responsável'} não possui usuário do sistema vinculado para receber aprovações.`
+                              : aprovadorInfo?.status === 'engenheiro_inativo'
+                                ? `${aprovadorInfo.nome ?? 'O Engenheiro Responsável'} está inativo e não pode receber solicitações de transferência.`
+                                : 'Este Centro de Custo não possui Engenheiro Responsável habilitado para receber solicitações de transferência.'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    {aprovadorInfo?.status === 'ok' && aprovadorInfo.nome
+                      ? aprovadorInfo.congelado
+                        ? `A aprovação desta solicitação foi registrada para ${aprovadorInfo.nome}, responsável definido na emissão.`
+                        : `A aprovação será enviada para ${aprovadorInfo.nome}, Engenheiro Responsável pelo ${ccDestinoHeaderLabel ?? 'CC destino'}.`
+                      : 'Destino e data únicos para todos os funcionários da solicitação. A aprovação será enviada ao Engenheiro Responsável do CC destino.'}
+                  </p>
+                </Card>
+              )}
+
               <div className="flex items-center justify-between">
                 <Label>Funcionários na solicitação ({itens.length})</Label>
               </div>
@@ -568,6 +740,13 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
                           )}
                         </div>
 
+                        {aprovacaoAtiva ? (
+                          <p className="text-xs text-muted-foreground">
+                            Salário atual: {it.salario != null
+                              ? fmtBRLInput(String(Math.round(it.salario * 100)))
+                              : '—'}
+                          </p>
+                        ) : (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                           <div className="space-y-1">
                             <Label className="text-xs">Centro de Custo Destino *</Label>
@@ -609,6 +788,7 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
                             />
                           </div>
                         </div>
+                        )}
 
                         {/* Alteração de Passagem (Vale Transporte) */}
                         <div className="pt-2 border-t space-y-2">
@@ -747,7 +927,7 @@ export const SolicitacaoTransferenciaLoteDialog: React.FC<Props> = ({
               </Button>
               <Button onClick={emitir} disabled={!camposObrigatoriosOk || emitting}>
                 {emitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
-                Emitir Solicitação
+                {aprovacaoAtiva ? 'Enviar para Aprovação' : 'Emitir Solicitação'}
               </Button>
             </>
           )}
