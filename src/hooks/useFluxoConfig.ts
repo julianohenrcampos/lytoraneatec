@@ -1,9 +1,34 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "./use-toast";
 import * as service from "@/services/fluxoAprovacaoConfigService";
+import * as aplicacoesService from "@/services/fluxoAplicacoesService";
 import type { FluxoFormData, EtapaFormData } from "@/types/fluxoAprovacao";
 
 const FLUXOS_KEY = ["fluxos"];
+
+export function useAplicacoes(fluxoId: string | null) {
+  return useQuery({
+    queryKey: ["fluxo-aplicacoes", fluxoId],
+    queryFn: () => aplicacoesService.fetchAplicacoes(fluxoId!),
+    enabled: !!fluxoId,
+  });
+}
+
+export function useSaveAplicacoes() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: (input: aplicacoesService.SaveAplicacoesInput) =>
+      aplicacoesService.saveAplicacoes(input),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["fluxo-aplicacoes", vars.fluxoId] });
+      qc.invalidateQueries({ queryKey: FLUXOS_KEY });
+    },
+    onError: (e: any) =>
+      toast({ title: "Erro ao salvar aplicação do fluxo", description: e.message, variant: "destructive" }),
+  });
+}
+
 
 export function useFluxos() {
   return useQuery({

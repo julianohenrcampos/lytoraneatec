@@ -49,7 +49,17 @@ export default function FluxoTable({ fluxos, isLoading, onEdit, onDuplicate, onD
         <TableBody>
           {fluxos.map((fluxo) => (
             <TableRow key={fluxo.id}>
-              <TableCell className="font-medium">{fluxo.nome}</TableCell>
+              <TableCell className="font-medium">
+                <div className="flex items-center gap-2">
+                  {fluxo.nome}
+                  {fluxo.legado_diarias && (
+                    <Badge variant="outline" className="text-[10px]">
+                      Fluxo legado — Diárias
+                    </Badge>
+                  )}
+                </div>
+              </TableCell>
+
               <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
                 {fluxo.descricao || "—"}
               </TableCell>

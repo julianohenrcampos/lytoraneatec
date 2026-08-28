@@ -36,6 +36,11 @@ export interface SolicitacaoEquipamento {
   engenheiro_solicitante_id: string | null;
   apontador_responsavel_id: string | null;
   aprovador_centro_custo_id: string | null;
+  /** CHI vinculado (protocolo mestre) quando a solicitação nasceu integrada. */
+  chamado_id?: string | null;
+  aprovacao_origem?: string | null;
+  /** Departamento preferencial de atendimento. NULL = "Avaliar disponibilidade". */
+  departamento_atendimento_preferencial_id?: string | null;
   created_at: string | null;
   updated_at: string | null;
   // Joins
@@ -78,6 +83,8 @@ export interface SolicitacaoEquipamentoInsert {
   justificativa: string;
   engenheiro_solicitante_id?: string | null;
   apontador_responsavel_id?: string | null;
+  /** Departamento preferencial de atendimento. NULL = "Avaliar disponibilidade". */
+  departamento_atendimento_preferencial_id?: string | null;
 }
 
 export const fetchSolicitacoesEquipamento = async (filters?: {

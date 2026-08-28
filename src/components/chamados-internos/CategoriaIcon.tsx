@@ -15,8 +15,13 @@ import {
   ShieldAlert,
   ClipboardList,
   LifeBuoy,
+  ScrollText,
+  Truck,
+  Construction,
+  ArrowLeftRight,
   type LucideIcon,
 } from "lucide-react";
+
 
 const MAP: Record<string, LucideIcon> = {
   passagem: Bus,
@@ -43,7 +48,14 @@ const MAP: Record<string, LucideIcon> = {
   acidente: ShieldAlert,
   sso: ShieldAlert,
   outros: ClipboardList,
+  asfalto_mudanca_regras: ScrollText,
+  asfalto_transportes: Truck,
+  asfalto_equipamentos: Construction,
+  asfalto_descontos: Banknote,
+  asfalto_movimentacoes: ArrowLeftRight,
+  solicitacao_equipamento: Truck,
 };
+
 
 export function getCategoriaIcon(codigo: string | null | undefined): LucideIcon {
   if (!codigo) return LifeBuoy;

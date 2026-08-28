@@ -12,6 +12,7 @@ import { formatItemDisplay, isNaoCadastrado } from "@/utils/solicitacaoItemDispl
 import { formatDateBR } from "@/utils/formatDateBR";
 import { getStatusBadgeConfig } from "@/utils/solicitacaoStatus";
 import type { SolicitacaoEquipamento } from "@/services/solicitacaoEquipamentoService";
+import AtendimentoPreferencialPanel from "./AtendimentoPreferencialPanel";
 
 interface Props {
   solicitacao: SolicitacaoEquipamento | null;
@@ -60,6 +61,12 @@ const SolicitacaoEquipamentoViewModal: React.FC<Props> = ({ solicitacao, isOpen,
             <div>
               <div className="text-muted-foreground">Prioridade</div>
               <div className="font-medium">{s.prioridade}</div>
+            </div>
+            <div className="col-span-2">
+              <AtendimentoPreferencialPanel
+                solicitacaoId={s.id}
+                departamentoAtualId={s.departamento_atendimento_preferencial_id ?? null}
+              />
             </div>
             <div>
               <div className="text-muted-foreground">Status Fluxo</div>

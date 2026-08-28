@@ -2,6 +2,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Veiculo, VeiculoAlocacaoAtual } from "@/types/veiculo";
 import { VeiculoFilter } from "./types";
+import { normalizeSearchTerm, parseFrotaTerm } from "@/lib/veiculos/frotaSearch";
 
 async function fetchAlocacaoAtual(ids: string[]): Promise<Map<string, VeiculoAlocacaoAtual>> {
   const map = new Map<string, VeiculoAlocacaoAtual>();
@@ -61,17 +62,27 @@ export const getVeiculos = async (filters: VeiculoFilter = {}) => {
     `);
 
 
-  if (filters.placa) query = query.ilike("placa", `%${filters.placa}%`);
+  if (filters.placa) {
+    const placa = normalizeSearchTerm(filters.placa);
+    if (placa) query = query.ilike("placa", `%${placa}%`);
+  }
   if (filters.fabricante) query = query.ilike("fabricante", `%${filters.fabricante}%`);
   if (filters.situacao && filters.situacao !== "_all") query = query.eq("situacao", filters.situacao);
   if (filters.departamento_id && filters.departamento_id !== "_all") query = query.eq("departamento_id", filters.departamento_id);
   if (filters.empresa_id && filters.empresa_id !== "_all") query = query.eq("empresa_id", filters.empresa_id);
   if (filters.frota && filters.frota !== "_all") {
-    query = query.or(`frota.ilike.%${filters.frota}%,numero_frota.ilike.%${filters.frota}%`);
+    // Busca tolerante a formatação: "LYE - 239", "lye239", "LYE 239", "239" e "LYE"
+    const { full, sigla, numero } = parseFrotaTerm(filters.frota);
+    if (sigla && numero) {
+      query = query.ilike("frota", `%${sigla}%`).ilike("numero_frota", `%${numero}%`);
+    } else if (full) {
+      query = query.or(`frota.ilike.%${full}%,numero_frota.ilike.%${full}%`);
+    }
   }
   if (filters.categoria_ativo_id && filters.categoria_ativo_id !== "_all") query = query.eq("categoria_ativo_id", filters.categoria_ativo_id);
   if (filters.subcategoria_ativo_id && filters.subcategoria_ativo_id !== "_all") query = query.eq("subcategoria_ativo_id", filters.subcategoria_ativo_id);
   if (filters.capacidade) query = query.ilike("capacidade", `%${filters.capacidade}%`);
+
 
   const { data, error } = await query.order("created_at", { ascending: false });
   if (error) {

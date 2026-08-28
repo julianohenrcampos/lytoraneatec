@@ -1,3 +1,4 @@
+import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +12,33 @@ import { formatItemDisplay, isNaoCadastrado, type ItemDisplayInput } from '@/uti
 import type { CentralApprovalItem } from '@/services/central-aprovacoes/types';
 import { statusVisual } from './statusVisual';
 import { cn } from '@/lib/utils';
+import { useAprovacaoResumoLote } from '@/hooks/useChamadoOperacional';
+
+/** Protocolo mestre (Chamado Interno) e etapa corrente do motor corporativo, quando houver. */
+const ProcessoMestreResumo: React.FC<{ solicitacaoId: string }> = ({ solicitacaoId }) => {
+  const ids = React.useMemo(() => [solicitacaoId], [solicitacaoId]);
+  const { data } = useAprovacaoResumoLote(ids);
+  const r = data?.[0];
+  if (!r || (!r.protocolo && r.aprovacao_origem !== 'CORPORATIVO')) return null;
+  return (
+    <div className="rounded-md border p-3 text-sm space-y-1">
+      {r.protocolo && (
+        <div>
+          <span className="text-muted-foreground text-xs">Protocolo mestre (Chamado)</span>
+          <div className="font-semibold">{r.protocolo}</div>
+        </div>
+      )}
+      {r.aprovacao_origem === 'CORPORATIVO' && (
+        <div className="text-xs text-muted-foreground">
+          Motor corporativo · {r.status_aprovacao}
+          {r.etapa_atual_nome ? ` · Etapa atual: ${r.etapa_atual_nome}` : ''}
+          {r.aprovador_atual_nome ? ` · Aprovador: ${r.aprovador_atual_nome}` : ''}
+          {r.etapa_atual_ordem && r.total_etapas ? ` (${r.etapa_atual_ordem}/${r.total_etapas})` : ''}
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface DetalheItem extends ItemDisplayInput {
   id: string;
@@ -123,6 +151,7 @@ export default function CentralDetalheEquipamento({
         <p className="text-sm text-muted-foreground">{item.titulo}</p>
       </CardHeader>
       <CardContent className="space-y-4">
+        <ProcessoMestreResumo solicitacaoId={item.id} />
         {query.isLoading ? (
           <div className="space-y-2">
             <Skeleton className="h-4 w-full" />

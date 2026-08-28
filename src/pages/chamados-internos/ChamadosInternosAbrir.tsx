@@ -17,7 +17,10 @@ import {
   Loader2,
   AlertTriangle,
   CheckCircle2,
+  Construction,
+  Truck,
 } from "lucide-react";
+
 
 import MainLayout from "@/components/layout/MainLayout";
 import { usePageTitle } from "@/contexts/PageTitleContext";
@@ -58,10 +61,33 @@ import type {
   ChamadosInternosError,
 } from "@/types/chamadosInternos";
 
+import AbrirSolicitacaoEquipamentoIntegrada from "@/components/chamados-internos/AbrirSolicitacaoEquipamentoIntegrada";
+import { useAcoesIntegradasAtivas } from "@/hooks/useChamadoOperacional";
+
 const isError = (e: unknown): e is ChamadosInternosError =>
   !!e && typeof e === "object" && "message" in (e as Record<string, unknown>);
 
+/** Código canônico da categoria do processo operacional transversal. */
+const CATEGORIA_SOLICITACAO_EQUIPAMENTO = "solicitacao_equipamento";
+
+/** Orientação de UX por categoria (apenas placeholder — não há campo novo). */
+const DESCRICAO_ORIENTACAO: Record<string, string> = {
+  asfalto_mudanca_regras:
+    "Descreva a regra atual, a alteração solicitada, a justificativa e o impacto esperado.",
+  asfalto_transportes:
+    "Informe a necessidade de transporte, operação envolvida, data/previsão e demais informações relevantes.",
+  asfalto_equipamentos:
+    "Descreva a necessidade, situação ou assunto relacionado aos equipamentos do Setor Asfalto.",
+  asfalto_descontos:
+    "Informe a referência do desconto, motivo, justificativa e documentação relacionada quando aplicável.",
+  asfalto_movimentacoes:
+    "Informe origem, destino, necessidade da movimentação e previsão quando aplicável.",
+  solicitacao_equipamento:
+    "Descreva a necessidade operacional: frente de serviço, tipo de equipamento e contexto da solicitação.",
+};
+
 type Etapa = 1 | 2 | 3;
+
 
 const ChamadosInternosAbrir: React.FC = () => {
   usePageTitle("Abrir Chamado Interno");
@@ -74,6 +100,9 @@ const ChamadosInternosAbrir: React.FC = () => {
   const [titulo, setTitulo] = React.useState("");
   const [descricao, setDescricao] = React.useState("");
   const [anexos, setAnexos] = React.useState<File[]>([]);
+  /** Registro integrado (CHI + Solicitação de Equipamento) — governado pelo gate do banco. */
+  const [wizardAberto, setWizardAberto] = React.useState(false);
+  const { ativo: integracaoAtiva } = useAcoesIntegradasAtivas();
 
   const ccsQ = useChamadoInternoCcsAbertura();
   const categoriasQ = useChamadoInternoCategorias();
@@ -92,10 +121,37 @@ const ChamadosInternosAbrir: React.FC = () => {
     [categoriasQ.data],
   );
 
+  /** Categoria do processo operacional transversal (não é chamado comunicacional). */
+  const categoriaSolicEquip = React.useMemo(
+    () => categoriasAtivas.find((c) => c.codigo === CATEGORIA_SOLICITACAO_EQUIPAMENTO) ?? null,
+    [categoriasAtivas],
+  );
+
+  const categoriasComuns = React.useMemo(
+    () =>
+      categoriasAtivas.filter(
+        (c) => c.setor !== "asfalto" && c.codigo !== CATEGORIA_SOLICITACAO_EQUIPAMENTO,
+      ),
+    [categoriasAtivas],
+  );
+
+  const categoriasAsfalto = React.useMemo(
+    () => categoriasAtivas.filter((c) => c.setor === "asfalto"),
+    [categoriasAtivas],
+  );
+
   const categoriaSelecionada: ChamadoInternoCategoriaRow | null = React.useMemo(
     () => categoriasAtivas.find((c) => c.id === categoriaId) ?? null,
     [categoriasAtivas, categoriaId],
   );
+
+  /** Agrupador visual: não é uma categoria persistida. */
+  const [grupoAsfalto, setGrupoAsfalto] = React.useState(false);
+
+  const descricaoPlaceholder =
+    (categoriaSelecionada && DESCRICAO_ORIENTACAO[categoriaSelecionada.codigo]) ||
+    "Descreva o problema com o máximo de detalhes possível.";
+
 
   const ccOptions: ComboboxOption[] = React.useMemo(
     () =>
@@ -135,9 +191,23 @@ const ChamadosInternosAbrir: React.FC = () => {
   const solicitanteNome =
     solicitanteOptions.find((o) => o.value === solicitanteId)?.label ?? "—";
 
+  /**
+   * Processo operacional transversal: a Solicitação de Equipamento nasce
+   * exclusivamente pela categoria `solicitacao_equipamento` (nunca por Asfalto).
+   */
+  const ehSolicitacaoEquipamento =
+    categoriaSelecionada?.codigo === CATEGORIA_SOLICITACAO_EQUIPAMENTO;
+
+
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!podeSubmeter) return;
+    if (ehSolicitacaoEquipamento) {
+      setWizardAberto(true);
+      return;
+    }
     try {
       const res = await abrirM.mutateAsync({
         p_centro_custo_id: centroCustoId,
@@ -204,11 +274,50 @@ const ChamadosInternosAbrir: React.FC = () => {
               {etapa === 1 && (
                 <div>
                   <div className="mb-3 text-sm text-muted-foreground">
-                    Selecione o tipo de chamado. Isso define o setor responsável e a prioridade.
+                    {grupoAsfalto
+                      ? "Selecione o assunto da solicitação destinada ao Setor Asfalto."
+                      : "Selecione o tipo de chamado. Isso define o setor responsável e a prioridade."}
                   </div>
                   {categoriasQ.isLoading ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" /> Carregando categorias...
+                    </div>
+                  ) : grupoAsfalto ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-sm font-semibold">Selecione o assunto</div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setGrupoAsfalto(false);
+                            setCategoriaId("");
+                          }}
+                        >
+                          <ArrowLeft className="mr-1.5 h-4 w-4" />
+                          Outros chamados
+                        </Button>
+                      </div>
+                      <div
+                        className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
+                        role="radiogroup"
+                        aria-label="Assunto do Chamado Setor Asfalto"
+                      >
+                        {categoriasAsfalto.map((c) => (
+                          <CategoriaCard
+                            key={c.id}
+                            categoria={c}
+                            ativo={categoriaId === c.id}
+                            onSelect={() => setCategoriaId(c.id)}
+                          />
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Chamados do Setor Asfalto são comunicacionais. Para solicitar máquinas,
+                        veículos ou equipamentos, use o card "Solicitação de Equipamento".
+                      </p>
+
                     </div>
                   ) : (
                     <div
@@ -216,44 +325,78 @@ const ChamadosInternosAbrir: React.FC = () => {
                       role="radiogroup"
                       aria-label="Categoria do chamado"
                     >
-                      {categoriasAtivas.map((c) => {
-                        const ativo = categoriaId === c.id;
-                        return (
-                          <button
-                            key={c.id}
-                            type="button"
-                            role="radio"
-                            aria-checked={ativo}
-                            onClick={() => setCategoriaId(c.id)}
-                            className={cn(
-                              "flex flex-col items-start gap-2 rounded-lg border p-3 text-left transition-colors",
-                              "hover:border-primary/60 focus:outline-none focus:ring-2 focus:ring-ring",
-                              ativo
-                                ? "border-primary bg-primary/5"
-                                : "border-border bg-card",
+                      {categoriasComuns.map((c) => (
+                        <CategoriaCard
+                          key={c.id}
+                          categoria={c}
+                          ativo={categoriaId === c.id}
+                          onSelect={() => setCategoriaId(c.id)}
+                        />
+                      ))}
+                      {categoriasAsfalto.length > 0 && (
+                        <button
+                          type="button"
+                          data-testid="card-grupo-asfalto"
+                          onClick={() => {
+                            setGrupoAsfalto(true);
+                            setCategoriaId("");
+                          }}
+                          className={cn(
+                            "flex flex-col items-start gap-2 rounded-lg border p-3 text-left transition-colors",
+                            "hover:border-primary/60 focus:outline-none focus:ring-2 focus:ring-ring",
+                            "border-border bg-card",
+                          )}
+                        >
+                          <div className="flex w-full items-center justify-between">
+                            <Construction className="text-primary" size={20} aria-hidden />
+                            <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <div className="text-sm font-semibold leading-tight">
+                            Chamado Setor Asfalto
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            Solicitações operacionais destinadas ao Setor Asfalto.
+                          </div>
+                        </button>
+                      )}
+                      {integracaoAtiva && categoriaSolicEquip && (
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={categoriaId === categoriaSolicEquip.id}
+                          data-testid="card-solicitacao-equipamento"
+                          onClick={() => setCategoriaId(categoriaSolicEquip.id)}
+                          className={cn(
+                            "flex flex-col items-start gap-2 rounded-lg border p-3 text-left transition-colors",
+                            "hover:border-primary/60 focus:outline-none focus:ring-2 focus:ring-ring",
+                            categoriaId === categoriaSolicEquip.id
+                              ? "border-primary bg-primary/5"
+                              : "border-border bg-card",
+                          )}
+                        >
+                          <div className="flex w-full items-center justify-between">
+                            <Truck className="text-primary" size={20} aria-hidden />
+                            {categoriaId === categoriaSolicEquip.id ? (
+                              <CheckCircle2 className="h-4 w-4 text-primary" />
+                            ) : (
+                              <span className="rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                                Ação
+                              </span>
                             )}
-                          >
-                            <div className="flex w-full items-center justify-between">
-                              <CategoriaIcon codigo={c.codigo} className="text-primary" />
-                              {ativo && <CheckCircle2 className="h-4 w-4 text-primary" />}
-                            </div>
-                            <div className="text-sm font-semibold leading-tight">{c.nome}</div>
-                            <div className="flex flex-wrap gap-1">
-                              <SetorBadge setor={c.setor} />
-                              <PrioridadeBadge prioridade={c.prioridade_padrao} />
-                            </div>
-                            {c.sla_horas ? (
-                              <div className="text-[11px] text-muted-foreground">
-                                SLA {c.sla_horas}h
-                              </div>
-                            ) : null}
-                          </button>
-                        );
-                      })}
+                          </div>
+                          <div className="text-sm font-semibold leading-tight">
+                            Solicitação de Equipamento
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            Solicite máquinas, veículos ou equipamentos para atendimento da obra.
+                          </div>
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
               )}
+
 
               {etapa === 2 && (
                 <div className="grid gap-4 md:grid-cols-2">
@@ -307,7 +450,7 @@ const ChamadosInternosAbrir: React.FC = () => {
                       rows={5}
                       value={descricao}
                       onChange={(e) => setDescricao(e.target.value)}
-                      placeholder="Descreva o problema com o máximo de detalhes possível."
+                      placeholder={descricaoPlaceholder}
                     />
                   </div>
 
@@ -413,19 +556,71 @@ const ChamadosInternosAbrir: React.FC = () => {
                     {(abrirM.isPending || anexarM.isPending) && (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     )}
-                    Abrir chamado
+                    {ehSolicitacaoEquipamento
+                      ? "Continuar para a solicitação"
+                      : "Abrir chamado"}
                   </Button>
                 )}
               </div>
             </CardFooter>
           </Card>
         </form>
+
+        {wizardAberto && (
+          <AbrirSolicitacaoEquipamentoIntegrada
+            isOpen={wizardAberto}
+            onClose={() => setWizardAberto(false)}
+            chamado={{
+              centro_custo_id: centroCustoId,
+              categoria_id: categoriaId,
+              solicitante_funcionario_id: solicitanteId,
+              titulo: tituloTrim,
+              descricao: descricaoTrim,
+            }}
+            onSuccess={(chamadoId) => {
+              setWizardAberto(false);
+              navigate(`/chamados-internos/${chamadoId}`);
+            }}
+          />
+        )}
       </div>
     </MainLayout>
   );
 };
 
+const CategoriaCard: React.FC<{
+  categoria: ChamadoInternoCategoriaRow;
+  ativo: boolean;
+  onSelect: () => void;
+}> = ({ categoria: c, ativo, onSelect }) => (
+  <button
+    type="button"
+    role="radio"
+    aria-checked={ativo}
+    onClick={onSelect}
+    className={cn(
+      "flex flex-col items-start gap-2 rounded-lg border p-3 text-left transition-colors",
+      "hover:border-primary/60 focus:outline-none focus:ring-2 focus:ring-ring",
+      ativo ? "border-primary bg-primary/5" : "border-border bg-card",
+    )}
+  >
+    <div className="flex w-full items-center justify-between">
+      <CategoriaIcon codigo={c.codigo} className="text-primary" />
+      {ativo && <CheckCircle2 className="h-4 w-4 text-primary" />}
+    </div>
+    <div className="text-sm font-semibold leading-tight">{c.nome}</div>
+    <div className="flex flex-wrap gap-1">
+      <SetorBadge setor={c.setor} />
+      <PrioridadeBadge prioridade={c.prioridade_padrao} />
+    </div>
+    {c.sla_horas ? (
+      <div className="text-[11px] text-muted-foreground">SLA {c.sla_horas}h</div>
+    ) : null}
+  </button>
+);
+
 const Stepper: React.FC<{ etapa: Etapa }> = ({ etapa }) => {
+
   const passos = [
     { n: 1, label: "Categoria" },
     { n: 2, label: "Detalhes" },

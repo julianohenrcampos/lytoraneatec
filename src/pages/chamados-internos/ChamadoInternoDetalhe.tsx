@@ -65,6 +65,8 @@ import { useChamadosInternosRealtime } from "@/hooks/useChamadosInternosRealtime
 import { useAuth } from "@/hooks/useAuth";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { usePermission } from "@/hooks/usePermission";
+import ProcessoOperacionalCard from "@/components/chamados-internos/ProcessoOperacionalCard";
+import { usePodeResolverOperacional } from "@/hooks/useChamadoOperacional";
 import {
   StatusBadge,
   PrioridadeBadge,
@@ -110,6 +112,10 @@ const ChamadoInternoDetalhe: React.FC = () => {
       : null) ?? null;
 
   const { hasActionPermission, isSuperAdmin } = usePermission();
+  const podeAnalisarCT = hasActionPermission("gestao_maquinas_central_transporte_view", "visualizar");
+  const podePlanejarCT =
+    hasActionPermission("gestao_maquinas_central_transporte_view", "criar") ||
+    hasActionPermission("gestao_maquinas_central_transporte_view", "editar");
 
   const chamadoQ = useChamadoInterno(chamadoId);
   const eventosQ = useChamadoInternoEventos(chamadoId);
@@ -202,6 +208,7 @@ const ChamadoInternoDetalhe: React.FC = () => {
   const solicitarM = useChamadoInternoSolicitarInformacao();
   const notaM = useChamadoInternoAdicionarNotaInterna();
   const resolverM = useChamadoInternoResolver();
+  const { data: gateResolver } = usePodeResolverOperacional(chamado?.id ?? null);
   const cancelarM = useChamadoInternoCancelar();
   const responderSolicitanteM = useChamadoInternoResponderSolicitante();
   const confirmarM = useChamadoInternoConfirmarEncerramento();
@@ -702,6 +709,14 @@ const ChamadoInternoDetalhe: React.FC = () => {
           </CardContent>
         </Card>
 
+        <div className="mt-4">
+          <ProcessoOperacionalCard
+            chamadoId={chamado.id}
+            podeAnalisarDisponibilidade={podeAnalisarCT || isSuperAdmin}
+            podePlanejar={podePlanejarCT || isSuperAdmin}
+          />
+        </div>
+
         <Tabs defaultValue="timeline">
           <TabsList>
             <TabsTrigger value="timeline">Timeline</TabsTrigger>
@@ -820,7 +835,7 @@ const ChamadoInternoDetalhe: React.FC = () => {
                         onClick={setAcaoAtendente}
                       />
                     )}
-                    {capabilities.canResolver && (
+                    {capabilities.canResolver && gateResolver?.pode_resolver !== false && (
                       <BotaoAcao
                         v="resolver"
                         label="Resolver"

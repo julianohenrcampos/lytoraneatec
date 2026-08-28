@@ -19,6 +19,12 @@ import { formatItemDisplay } from "@/utils/solicitacaoItemDisplay";
 import { formatDateBR } from "@/utils/formatDateBR";
 import { formatProtocolo } from "@/utils/formatProtocolo";
 import { usePagination } from "@/hooks/usePagination";
+import { useAprovacaoResumoLote } from "@/hooks/useChamadoOperacional";
+import { useQuery } from "@tanstack/react-query";
+import {
+  getDepartamentosFornecedoresEquipamento,
+  labelAtendimentoPreferencial,
+} from "@/services/atendimentoPreferencialService";
 import TablePagination from "@/components/ui/table-pagination";
 import {
   getStatusBadgeConfig,
@@ -64,6 +70,28 @@ const SolicitacaoEquipamentoTable: React.FC<Props> = ({
 }) => {
   const pagination = usePagination(solicitacoes, { pageSize: 10 });
 
+  /** Departamentos fornecedores (2 registros, uma consulta cacheada — sem N+1). */
+  const { data: depsFornecedores = [] } = useQuery({
+    queryKey: ["departamentos-fornecedores-equipamento"],
+    queryFn: getDepartamentosFornecedoresEquipamento,
+    staleTime: 5 * 60_000,
+  });
+  const depsPorId = React.useMemo(
+    () => Object.fromEntries(depsFornecedores.map((d) => [d.id, d.nome])),
+    [depsFornecedores],
+  );
+
+  // Protocolo mestre (CHI) + situação da aprovação em UMA consulta por página (sem N+1).
+  const idsPagina = React.useMemo(
+    () => (pagination.paginatedData as SolicitacaoEquipamento[]).map((s) => s.id),
+    [pagination.paginatedData],
+  );
+  const { data: resumos = [] } = useAprovacaoResumoLote(idsPagina);
+  const resumoPorId = React.useMemo(
+    () => new Map(resumos.map((r) => [r.solicitacao_id, r])),
+    [resumos],
+  );
+
   const [deleteTarget, setDeleteTarget] = useState<SolicitacaoEquipamento | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -101,6 +129,7 @@ const SolicitacaoEquipamentoTable: React.FC<Props> = ({
               <TableHead>Centro de Custo</TableHead>
               <TableHead className="text-center">Qtd</TableHead>
               <TableHead>Prioridade</TableHead>
+              <TableHead>Atendimento preferencial</TableHead>
               <TableHead>Status Fluxo</TableHead>
               <TableHead>Data da Solicitação</TableHead>
               <TableHead>Data Início</TableHead>
@@ -122,7 +151,34 @@ const SolicitacaoEquipamentoTable: React.FC<Props> = ({
 
               return (
                 <TableRow key={s.id}>
-                  <TableCell className="font-mono text-xs">{formatProtocolo(s.id)}</TableCell>
+                  <TableCell className="text-xs">
+                    {resumoPorId.get(s.id)?.protocolo ? (
+                      <div className="space-y-0.5">
+                        <div className="font-semibold">{resumoPorId.get(s.id)?.protocolo}</div>
+                        <div className="font-mono text-[11px] text-muted-foreground">
+                          {formatProtocolo(s.id)}
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="font-mono">{formatProtocolo(s.id)}</span>
+                    )}
+                    {(() => {
+                      const r = resumoPorId.get(s.id);
+                      if (!r || r.aprovacao_origem !== "CORPORATIVO") return null;
+                      if (r.status_aprovacao === "APROVADO")
+                        return <div className="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">Aprovado</div>;
+                      if (r.status_aprovacao === "REJEITADO")
+                        return <div className="mt-1 text-[11px] text-destructive">Rejeitado</div>;
+                      return (
+                        <div className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
+                          Aguardando {r.aprovador_atual_nome ?? "aprovação"}
+                          {r.etapa_atual_ordem && r.total_etapas
+                            ? ` · Etapa ${r.etapa_atual_ordem}/${r.total_etapas}`
+                            : ""}
+                        </div>
+                      );
+                    })()}
+                  </TableCell>
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span>
@@ -143,6 +199,13 @@ const SolicitacaoEquipamentoTable: React.FC<Props> = ({
                     <Badge variant="outline" className={prioridadeColors[s.prioridade] || ""}>
                       {s.prioridade}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    {labelAtendimentoPreferencial(
+                      s.departamento_atendimento_preferencial_id
+                        ? depsPorId[s.departamento_atendimento_preferencial_id]
+                        : null,
+                    )}
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline" className={statusCfg.className}>

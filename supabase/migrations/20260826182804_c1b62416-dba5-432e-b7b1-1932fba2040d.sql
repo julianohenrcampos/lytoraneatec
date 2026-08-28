@@ -1,0 +1,1 @@
+REVOKE ALL ON FUNCTION public.fn_diaria_preencher_valor_refeicao() FROM PUBLIC, anon, authenticated;

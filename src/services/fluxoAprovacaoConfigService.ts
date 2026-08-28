@@ -26,10 +26,18 @@ export async function fetchFluxos(): Promise<FluxoAprovacao[]> {
       .eq("fluxo_id", f.id)
       .eq("ativo", true);
 
+    const { count: aplicacoesCount } = await supabase
+      .from("bd_fluxo_aplicacoes")
+      .select("*", { count: "exact", head: true })
+      .eq("fluxo_id", f.id)
+      .eq("ativo", true);
+
     result.push({
       ...f,
       etapas_count: etapasCount || 0,
       vinculacoes_count: vinculacoesCount || 0,
+      aplicacoes_count: aplicacoesCount || 0,
+      legado_diarias: (aplicacoesCount || 0) === 0 && (vinculacoesCount || 0) > 0,
     });
   }
 
@@ -116,6 +124,8 @@ export async function duplicarFluxo(id: string): Promise<FluxoAprovacao> {
         nome_tecnico: e.nome_tecnico,
         tipo_aprovador: e.tipo_aprovador,
         cargo_id: e.cargo_id,
+        permission_id: e.permission_id ?? null,
+        usuario_especifico_id: e.usuario_especifico_id ?? null,
         obrigatorio: e.obrigatorio,
         permite_multiplo: e.permite_multiplo,
         ativo: true,
@@ -174,6 +184,8 @@ export async function saveEtapas(fluxoId: string, etapas: EtapaFormData[]): Prom
         nome_tecnico: etapa.nome_tecnico,
         tipo_aprovador: etapa.tipo_aprovador,
         cargo_id: etapa.cargo_id,
+        permission_id: etapa.permission_id ?? null,
+        usuario_especifico_id: etapa.usuario_especifico_id ?? null,
         obrigatorio: etapa.obrigatorio,
         permite_multiplo: etapa.permite_multiplo,
       })
@@ -192,6 +204,8 @@ export async function saveEtapas(fluxoId: string, etapas: EtapaFormData[]): Prom
         nome_tecnico: e.nome_tecnico,
         tipo_aprovador: e.tipo_aprovador,
         cargo_id: e.cargo_id,
+        permission_id: e.permission_id ?? null,
+        usuario_especifico_id: e.usuario_especifico_id ?? null,
         obrigatorio: e.obrigatorio,
         permite_multiplo: e.permite_multiplo,
         ativo: true,

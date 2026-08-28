@@ -21,6 +21,11 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { formatItemDisplay, isNaoCadastrado } from "@/utils/solicitacaoItemDisplay";
 import { formatDateBR } from "@/utils/formatDateBR";
+import AtendimentoPreferencialSelect, {
+  ATENDIMENTO_AVALIAR,
+  resolveDepartamentoPreferencialId,
+} from "./AtendimentoPreferencialSelect";
+import { getDepartamentosFornecedoresEquipamento } from "@/services/atendimentoPreferencialService";
 
 
 const schema = z.object({
@@ -30,6 +35,8 @@ const schema = z.object({
   justificativa: z.string().min(1, "Justificativa é obrigatória"),
   engenheiro_solicitante_id: z.string().min(1, "Engenheiro solicitante é obrigatório"),
   apontador_responsavel_id: z.string().min(1, "Apontador responsável é obrigatório"),
+  /** 'AVALIAR' (persiste NULL) ou UUID do departamento preferencial. Obrigatório escolher. */
+  atendimento_preferencial: z.string().min(1, "Atendimento preferencial é obrigatório"),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -115,6 +122,7 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
       justificativa: "",
       engenheiro_solicitante_id: "",
       apontador_responsavel_id: "",
+      atendimento_preferencial: "",
     },
   });
 
@@ -127,6 +135,18 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
     staleTime: 30_000,
   });
   const aprovadorInfo: AprovadorCentroCusto | null | undefined = aprovadorQuery.data;
+
+  /** Departamentos fornecedores (apenas apresentação; persistência é por UUID). */
+  const { data: depsFornecedores = [] } = useQuery({
+    queryKey: ["departamentos-fornecedores-equipamento"],
+    queryFn: getDepartamentosFornecedoresEquipamento,
+    staleTime: 5 * 60_000,
+  });
+  const atendimentoPreferencialValor = form.watch("atendimento_preferencial");
+  const atendimentoPreferencialLabel =
+    !atendimentoPreferencialValor || atendimentoPreferencialValor === ATENDIMENTO_AVALIAR
+      ? "Avaliar disponibilidade"
+      : depsFornecedores.find((d) => d.id === atendimentoPreferencialValor)?.nome ?? "—";
   const aprovadorLoading = !!centroCustoId && (aprovadorQuery.isLoading || aprovadorQuery.isFetching) && !aprovadorInfo;
   const aprovadorInvalido = !aprovadorLoading && (aprovadorInfo === null || aprovadorInfo === undefined || aprovadorInfo?.sem_profile === true || !aprovadorInfo?.id);
   const aprovadorMotivo: string = (() => {
@@ -163,6 +183,9 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
         justificativa: initialData.justificativa ?? "",
         engenheiro_solicitante_id: initialData.engenheiro_solicitante_id ?? "",
         apontador_responsavel_id: initialData.apontador_responsavel_id ?? "",
+        atendimento_preferencial:
+          (initialData as { departamento_atendimento_preferencial_id?: string | null })
+            .departamento_atendimento_preferencial_id ?? ATENDIMENTO_AVALIAR,
       });
       // Itens read-only (para exibição na etapa Itens)
       const readOnlyItens: ItemWithDisplay[] = (initialData.itens ?? []).map((it: any) => ({
@@ -415,6 +438,9 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
       justificativa: values.justificativa,
       engenheiro_solicitante_id: values.engenheiro_solicitante_id,
       apontador_responsavel_id: values.apontador_responsavel_id,
+      departamento_atendimento_preferencial_id: resolveDepartamentoPreferencialId(
+        values.atendimento_preferencial,
+      ),
     };
     const cleanItens: SolicitacaoItemInsert[] = itens.map(({ _displayName, ...rest }) => rest);
     try {
@@ -590,6 +616,26 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
                   </FormItem>
                 )} />
 
+                <FormField control={form.control} name="atendimento_preferencial" render={({ field }) => (
+                  <FormItem className="col-span-2">
+                    <FormLabel>Atendimento preferencial *</FormLabel>
+                    <FormControl>
+                      <AtendimentoPreferencialSelect
+                        value={field.value}
+                        onChange={field.onChange}
+                        disabled={isEdit}
+                      />
+                    </FormControl>
+                    {isEdit && (
+                      <p className="text-xs text-muted-foreground">
+                        O direcionamento preferencial de uma solicitação existente é alterado pelo
+                        planejamento, com justificativa registrada no histórico.
+                      </p>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
                 <FormField control={form.control} name="justificativa" render={({ field }) => (
                   <FormItem className="col-span-2">
                     <FormLabel>Justificativa *</FormLabel>
@@ -705,6 +751,8 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
                     <span className="font-medium">{getLabel(funcionarioOptions, form.getValues("apontador_responsavel_id"))}</span>
                     <span className="text-muted-foreground">Data Início:</span>
                     <span className="font-medium">{formatDateBR(form.getValues("data_inicio"))}</span>
+                    <span className="text-muted-foreground">Atendimento preferencial:</span>
+                    <span className="font-medium">{atendimentoPreferencialLabel}</span>
                     <span className="text-muted-foreground">Prioridade:</span>
                     <span className="font-medium">{prioridadeLabel[form.getValues("prioridade")] || form.getValues("prioridade")}</span>
                     <span className="text-muted-foreground">Aprovador:</span>

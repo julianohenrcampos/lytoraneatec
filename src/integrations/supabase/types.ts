@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -604,48 +604,90 @@ export type Database = {
       }
       bd_aprovacoes_fluxo_exec: {
         Row: {
+          aprovador_nome_snapshot: string | null
+          aprovador_origem: string | null
+          aprovador_resolvido_id: string | null
+          contexto_snapshot: Json | null
           created_at: string | null
           data_aprovacao: string | null
           etapa_id: string | null
           etapa_nome_snapshot: string | null
+          fluxo_id_snapshot: string | null
           fluxo_versao: number | null
           id: string
           observacao: string | null
           ordem: number | null
+          permission_id_snapshot: string | null
           pode_aprovar: boolean | null
+          processo_tipo: string
           solicitacao_id: string
           status: string | null
           usuario_id: string | null
         }
         Insert: {
+          aprovador_nome_snapshot?: string | null
+          aprovador_origem?: string | null
+          aprovador_resolvido_id?: string | null
+          contexto_snapshot?: Json | null
           created_at?: string | null
           data_aprovacao?: string | null
           etapa_id?: string | null
           etapa_nome_snapshot?: string | null
+          fluxo_id_snapshot?: string | null
           fluxo_versao?: number | null
           id?: string
           observacao?: string | null
           ordem?: number | null
+          permission_id_snapshot?: string | null
           pode_aprovar?: boolean | null
+          processo_tipo?: string
           solicitacao_id: string
           status?: string | null
           usuario_id?: string | null
         }
         Update: {
+          aprovador_nome_snapshot?: string | null
+          aprovador_origem?: string | null
+          aprovador_resolvido_id?: string | null
+          contexto_snapshot?: Json | null
           created_at?: string | null
           data_aprovacao?: string | null
           etapa_id?: string | null
           etapa_nome_snapshot?: string | null
+          fluxo_id_snapshot?: string | null
           fluxo_versao?: number | null
           id?: string
           observacao?: string | null
           ordem?: number | null
+          permission_id_snapshot?: string | null
           pode_aprovar?: boolean | null
+          processo_tipo?: string
           solicitacao_id?: string
           status?: string | null
           usuario_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "bd_aprovacoes_fluxo_exec_aprovador_resolvido_id_fkey"
+            columns: ["aprovador_resolvido_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_aprovacoes_fluxo_exec_aprovador_resolvido_id_fkey"
+            columns: ["aprovador_resolvido_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_aprovacoes_fluxo_exec_aprovador_resolvido_id_fkey"
+            columns: ["aprovador_resolvido_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bd_aprovacoes_fluxo_exec_etapa_id_fkey"
             columns: ["etapa_id"]
@@ -6456,6 +6498,110 @@ export type Database = {
         }
         Relationships: []
       }
+      bd_fluxo_aplicacoes: {
+        Row: {
+          ativo: boolean
+          centro_custo_id: string | null
+          created_at: string
+          fluxo_id: string
+          id: string
+          prioridade: number
+          processo_tipo: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          centro_custo_id?: string | null
+          created_at?: string
+          fluxo_id: string
+          id?: string
+          prioridade?: number
+          processo_tipo: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          centro_custo_id?: string | null
+          created_at?: string
+          fluxo_id?: string
+          id?: string
+          prioridade?: number
+          processo_tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bd_fluxo_aplicacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_fluxo_aplicacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_financeiro_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_fluxo_aplicacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_gerencial_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_fluxo_aplicacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_bi_diarias_operacional_indicadores"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_fluxo_aplicacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_aprovacao_gerencial"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_fluxo_aplicacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_financeiro_dp"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_fluxo_aplicacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_diarias_operacional_campo"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_fluxo_aplicacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_qc_cc_ctx"
+            referencedColumns: ["cc_id"]
+          },
+          {
+            foreignKeyName: "bd_fluxo_aplicacoes_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "vw_relatorio_diarias_folha"
+            referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_fluxo_aplicacoes_fluxo_id_fkey"
+            columns: ["fluxo_id"]
+            isOneToOne: false
+            referencedRelation: "bd_fluxos_aprovacao"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bd_fluxo_centro_custo: {
         Row: {
           ativo: boolean | null
@@ -6566,6 +6712,7 @@ export type Database = {
           permite_multiplo: boolean | null
           status_fluxo_nome: string | null
           tipo_aprovador: string
+          usuario_especifico_id: string | null
         }
         Insert: {
           ativo?: boolean | null
@@ -6581,6 +6728,7 @@ export type Database = {
           permite_multiplo?: boolean | null
           status_fluxo_nome?: string | null
           tipo_aprovador: string
+          usuario_especifico_id?: string | null
         }
         Update: {
           ativo?: boolean | null
@@ -6596,6 +6744,7 @@ export type Database = {
           permite_multiplo?: boolean | null
           status_fluxo_nome?: string | null
           tipo_aprovador?: string
+          usuario_especifico_id?: string | null
         }
         Relationships: [
           {
@@ -6617,6 +6766,27 @@ export type Database = {
             columns: ["permission_id"]
             isOneToOne: false
             referencedRelation: "vw_rbac_permissions_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_fluxo_etapas_usuario_especifico_id_fkey"
+            columns: ["usuario_especifico_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_fluxo_etapas_usuario_especifico_id_fkey"
+            columns: ["usuario_especifico_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profile_self_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_fluxo_etapas_usuario_especifico_id_fkey"
+            columns: ["usuario_especifico_id"]
+            isOneToOne: false
+            referencedRelation: "vw_profiles_admin_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -15747,11 +15917,14 @@ export type Database = {
       bd_solicitacoes_equipamento: {
         Row: {
           apontador_responsavel_id: string | null
+          aprovacao_origem: string | null
           aprovador_centro_custo_id: string | null
           centro_custo_id: string
+          chamado_id: string | null
           com_operador: boolean | null
           created_at: string | null
           data_inicio: string
+          departamento_atendimento_preferencial_id: string | null
           engenheiro_solicitante_id: string | null
           id: string
           justificativa: string
@@ -15771,11 +15944,14 @@ export type Database = {
         }
         Insert: {
           apontador_responsavel_id?: string | null
+          aprovacao_origem?: string | null
           aprovador_centro_custo_id?: string | null
           centro_custo_id: string
+          chamado_id?: string | null
           com_operador?: boolean | null
           created_at?: string | null
           data_inicio: string
+          departamento_atendimento_preferencial_id?: string | null
           engenheiro_solicitante_id?: string | null
           id?: string
           justificativa: string
@@ -15795,11 +15971,14 @@ export type Database = {
         }
         Update: {
           apontador_responsavel_id?: string | null
+          aprovacao_origem?: string | null
           aprovador_centro_custo_id?: string | null
           centro_custo_id?: string
+          chamado_id?: string | null
           com_operador?: boolean | null
           created_at?: string | null
           data_inicio?: string
+          departamento_atendimento_preferencial_id?: string | null
           engenheiro_solicitante_id?: string | null
           id?: string
           justificativa?: string
@@ -15922,6 +16101,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_relatorio_diarias_folha"
             referencedColumns: ["centro_custo_id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_equipamento_chamado_id_fkey"
+            columns: ["chamado_id"]
+            isOneToOne: false
+            referencedRelation: "bd_chamados_internos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bd_solicitacoes_equipamento_departamento_atendimento_prefe_fkey"
+            columns: ["departamento_atendimento_preferencial_id"]
+            isOneToOne: false
+            referencedRelation: "bd_departamentos"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "bd_solicitacoes_equipamento_engenheiro_solicitante_id_fkey"
@@ -23743,6 +23936,43 @@ export type Database = {
         Args: { p_actor?: string; p_data?: string }
         Returns: number
       }
+      fn_aprovacao_corporativa_decidir_core: {
+        Args: {
+          p_decisao: string
+          p_etapa_exec_id: string
+          p_observacao?: string
+          p_processo_id: string
+          p_processo_tipo: string
+        }
+        Returns: Json
+      }
+      fn_aprovacao_corporativa_iniciar: {
+        Args: {
+          p_centro_custo_id: string
+          p_contexto?: Json
+          p_processo_id: string
+          p_processo_tipo: string
+        }
+        Returns: Json
+      }
+      fn_aprovacao_corporativa_status: {
+        Args: { p_processo_id: string; p_processo_tipo: string }
+        Returns: Json
+      }
+      fn_aprovacao_resolver_aprovador: {
+        Args: {
+          p_centro_custo_id: string
+          p_contexto?: Json
+          p_permission_id?: string
+          p_tipo_aprovador: string
+          p_usuario_especifico_id?: string
+        }
+        Returns: Json
+      }
+      fn_aprovacao_resolver_fluxo: {
+        Args: { p_centro_custo_id: string; p_processo_tipo: string }
+        Returns: string
+      }
       fn_aprovar_classificacao_solicitacao: {
         Args: { p_id: string }
         Returns: undefined
@@ -24136,6 +24366,28 @@ export type Database = {
           protocolo: string
         }[]
       }
+      fn_chamado_interno_abrir_solic_equipamento: {
+        Args: {
+          p_apontador_responsavel_id: string
+          p_categoria_id: string
+          p_centro_custo_id: string
+          p_com_operador: boolean
+          p_data_inicio: string
+          p_departamento_atendimento_preferencial_id?: string
+          p_descricao: string
+          p_engenheiro_solicitante_id: string
+          p_itens: Json
+          p_justificativa: string
+          p_prioridade: string
+          p_regime_trabalho: string
+          p_solicitacao_id: string
+          p_solicitante_funcionario_id: string
+          p_tempo_previsto_dias: number
+          p_tipo_equipamento_id: string
+          p_titulo: string
+        }
+        Returns: Json
+      }
       fn_chamado_interno_adicionar_nota_interna: {
         Args: { p_chamado_id: string; p_mensagem: string }
         Returns: undefined
@@ -24378,9 +24630,27 @@ export type Database = {
           nome_completo: string
         }[]
       }
+      fn_chamado_interno_pode_resolver_operacional: {
+        Args: { p_chamado_id: string }
+        Returns: Json
+      }
+      fn_chamado_interno_processo_operacional: {
+        Args: { p_chamado_id: string }
+        Returns: Json
+      }
       fn_chamado_interno_reabrir: {
         Args: { p_chamado_id: string; p_mensagem: string }
         Returns: undefined
+      }
+      fn_chamado_interno_registrar_evento_operacional: {
+        Args: {
+          p_acao: string
+          p_autor_profile_id?: string
+          p_chamado_id: string
+          p_payload?: Json
+          p_visivel_solicitante?: boolean
+        }
+        Returns: string
       }
       fn_chamado_interno_resolver: {
         Args: { p_chamado_id: string; p_mensagem: string }
@@ -24401,6 +24671,10 @@ export type Database = {
       fn_chamado_interno_ultimo_evento_proprio: {
         Args: { p_chamado_id: string }
         Returns: string
+      }
+      fn_chamados_acoes_integradas_disponivel: {
+        Args: { p_user_id?: string }
+        Returns: boolean
       }
       fn_check_email_autorizado: {
         Args: { _email: string }
@@ -25196,6 +25470,10 @@ export type Database = {
         Args: { p_filtros?: Json }
         Returns: Json
       }
+      fn_motor_aprovacao_corporativo_disponivel: {
+        Args: { p_user_id?: string }
+        Returns: boolean
+      }
       fn_motoristas_operacional_lookup: {
         Args: never
         Returns: {
@@ -25753,6 +26031,36 @@ export type Database = {
         }[]
       }
       fn_server_now_brt: { Args: never; Returns: string }
+      fn_solic_equip_alterar_atendimento_preferencial: {
+        Args: {
+          p_departamento_id: string
+          p_justificativa: string
+          p_solicitacao_id: string
+        }
+        Returns: Json
+      }
+      fn_solic_equip_aprovacao_preview: {
+        Args: { p_centro_custo_id: string; p_contexto?: Json }
+        Returns: Json
+      }
+      fn_solic_equip_aprovacao_resumo: {
+        Args: { p_ids: string[] }
+        Returns: {
+          aprovacao_origem: string
+          aprovador_atual_id: string
+          aprovador_atual_nome: string
+          aprovador_atual_origem: string
+          chamado_id: string
+          etapa_atual_nome: string
+          etapa_atual_ordem: number
+          etapas_concluidas: number
+          fluxo_nome: string
+          protocolo: string
+          solicitacao_id: string
+          status_aprovacao: string
+          total_etapas: number
+        }[]
+      }
       fn_solic_equip_capacidades_aprovacao: {
         Args: { p_ids: string[] }
         Returns: {
@@ -25783,6 +26091,14 @@ export type Database = {
         Returns: Json
       }
       fn_solic_equip_decidir: {
+        Args: {
+          p_comentario: string
+          p_decisao: string
+          p_solicitacao_id: string
+        }
+        Returns: Json
+      }
+      fn_solic_equip_decidir_corporativa: {
         Args: {
           p_comentario: string
           p_decisao: string
@@ -26463,6 +26779,7 @@ export type Database = {
         | "confirmacao_encerramento"
         | "reabertura"
         | "cancelamento"
+        | "evento_operacional"
       chamado_interno_prioridade: "baixa" | "normal" | "alta" | "critico"
       chamado_interno_setor:
         | "administracao"
@@ -26471,6 +26788,8 @@ export type Database = {
         | "manutencao"
         | "eletrica"
         | "sso"
+        | "asfalto"
+        | "equipamentos"
       chamado_interno_status:
         | "aberto"
         | "em_triagem"
@@ -26690,6 +27009,7 @@ export const Constants = {
         "confirmacao_encerramento",
         "reabertura",
         "cancelamento",
+        "evento_operacional",
       ],
       chamado_interno_prioridade: ["baixa", "normal", "alta", "critico"],
       chamado_interno_setor: [
@@ -26699,6 +27019,8 @@ export const Constants = {
         "manutencao",
         "eletrica",
         "sso",
+        "asfalto",
+        "equipamentos",
       ],
       chamado_interno_status: [
         "aberto",

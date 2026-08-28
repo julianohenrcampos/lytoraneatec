@@ -35,7 +35,10 @@ export const CHAMADO_INTERNO_SETOR_META: Record<ChamadoInternoSetor, Presentatio
   manutencao:    { label: "Manutenção",    ordem: 4, badgeClasses: "bg-accent/40 text-accent-foreground" },
   eletrica:      { label: "Elétrica",      ordem: 5, badgeClasses: "bg-amber-500/15 text-amber-700 dark:text-amber-300" },
   sso:           { label: "SSO",           ordem: 6, badgeClasses: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" },
+  asfalto:       { label: "Asfalto",       ordem: 7, badgeClasses: "bg-primary/15 text-primary" },
+  equipamentos:  { label: "Equipamentos",  ordem: 8, badgeClasses: "bg-secondary/40 text-secondary-foreground" },
 };
+
 
 export const CHAMADO_INTERNO_PRIORIDADE_META: Record<ChamadoInternoPrioridade, PresentationMeta> = {
   baixa:   { label: "Baixa",    ordem: 1, badgeClasses: "bg-muted text-muted-foreground" },
@@ -57,4 +60,5 @@ export const CHAMADO_INTERNO_EVENTO_META: Record<ChamadoInternoEventoTipo, Prese
   confirmacao_encerramento: { label: "Confirmação de encerramento", ordem: 10, badgeClasses: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
   reabertura:               { label: "Reabertura",               ordem: 11, badgeClasses: "bg-amber-500/20 text-amber-700 dark:text-amber-300" },
   cancelamento:             { label: "Cancelamento",             ordem: 12, badgeClasses: "bg-destructive/15 text-destructive" },
+  evento_operacional:       { label: "Processo operacional",     ordem: 13, badgeClasses: "bg-primary/10 text-primary" },
 };
