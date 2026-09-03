@@ -15,6 +15,7 @@ import { SolicitacaoItem } from "@/services/solicitacaoItensService";
 import { formatProtocolo } from "@/utils/formatProtocolo";
 import { formatDateBR } from "@/utils/formatDateBR";
 import { ChevronRight } from "lucide-react";
+import { labelAtendimentoPreferencial } from "@/services/atendimentoPreferencialService";
 
 const prioridadeBadge = (p: string) => {
   const map: Record<string, string> = {
@@ -106,9 +107,18 @@ const CentralTransporteTable: React.FC<Props> = ({ data, onSelect }) => {
           >
             <CardContent className="space-y-2 p-3">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded bg-muted px-2 py-0.5 font-mono text-xs">
-                  {formatProtocolo(s.id)}
+                {/* T22 — CHI é o protocolo mestre; SOL permanece como ref. técnica. */}
+                <span
+                  className="rounded bg-muted px-2 py-0.5 font-mono text-xs"
+                  data-testid={`ct5-protocolo-${s.id}`}
+                >
+                  {s.chamado_protocolo || formatProtocolo(s.id)}
                 </span>
+                {s.chamado_protocolo && (
+                  <span className="font-mono text-[10px] text-muted-foreground">
+                    Ref. {formatProtocolo(s.id)}
+                  </span>
+                )}
                 <h3 className="min-w-0 flex-1 truncate text-sm font-semibold">
                   {s.nome_centro_custo || "Centro de Custo não informado"}
                 </h3>
@@ -131,7 +141,11 @@ const CentralTransporteTable: React.FC<Props> = ({ data, onSelect }) => {
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                 <MetaField label="Engenheiro" value={s.engenheiro_nome || "—"} />
                 <MetaField label="Apontador" value={s.apontador_nome || "—"} />
-                <MetaField label="Departamento" value={s.departamento_nome || "—"} />
+                <MetaField label="Departamento da obra" value={s.departamento_nome || "—"} />
+                <MetaField
+                  label="Atendimento preferencial"
+                  value={labelAtendimentoPreferencial(s.atendimento_preferencial_nome)}
+                />
                 <MetaField label="Período" value={periodo || "—"} />
                 <MetaField
                   label="Itens"

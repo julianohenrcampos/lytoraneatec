@@ -69,13 +69,16 @@ export const ssoChecklistService = {
   },
 
   // Criar novo checklist
-  async create(formData: SSOChecklistFormData) {
+  // `id` opcional: quando informado pelo chamador, a gravação vira idempotente
+  // e pode ser reenviada com segurança se a rede cair (ver ssoNetwork.ts).
+  async create(formData: SSOChecklistFormData, id?: string) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuário não autenticado');
 
     const { data, error } = await supabase
       .from('bd_sso_checklists')
       .insert({
+        ...(id ? { id } : {}),
         ...formData,
         criado_por: user.id,
         nota_objetivo: 100,

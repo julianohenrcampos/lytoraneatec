@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -24853,6 +24853,14 @@ export type Database = {
         }
         Returns: Json
       }
+      fn_ct_ativo_departamento_alternativo_registrar: {
+        Args: {
+          p_equipamento_id: string
+          p_justificativa: string
+          p_solicitacao_id: string
+        }
+        Returns: Json
+      }
       fn_ct_ativo_edicao_permitida: {
         Args: { p_equipamento_id: string }
         Returns: Json
@@ -24879,6 +24887,20 @@ export type Database = {
         Args: { p_payload: Json; p_request_id: string; p_viagem_id: string }
         Returns: Json
       }
+      fn_ct_chi_avaliar_conclusao: {
+        Args: { p_solicitacao_id: string }
+        Returns: undefined
+      }
+      fn_ct_chi_evento: {
+        Args: {
+          p_acao: string
+          p_dedup_key?: string
+          p_payload?: Json
+          p_solicitacao_id: string
+        }
+        Returns: string
+      }
+      fn_ct_chi_viagem_payload: { Args: { p_viagem_id: string }; Returns: Json }
       fn_ct_contadores_item: { Args: { p_item_id: string }; Returns: Json }
       fn_ct_disponibilidade_upsert:
         | {

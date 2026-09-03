@@ -23,11 +23,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Combobox } from "@/components/ui/combobox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import useCentralTransporteCapabilities from "@/hooks/central-transporte/useCentralTransporteCapabilities";
 import useCtMobilizacaoCadastros from "@/hooks/central-transporte/useCtMobilizacaoCadastros";
 import { useCtPuxadaEdicao } from "@/hooks/central-transporte/useCtPuxada";
@@ -40,19 +36,24 @@ import {
   validarPuxada,
 } from "@/lib/central-transporte/puxadaRascunho";
 import {
-  ETAPAS_PUXADA,
   errosDaEtapaPuxada,
-  indiceEtapaPuxada,
   type PuxadaEtapa,
 } from "@/lib/central-transporte/puxadaWizardSteps";
 import { calcularRotaMultiparadas } from "@/services/ctRotaService";
+import { pendenciasFrota } from "@/lib/central-transporte/puxadaBuilder";
+import type { MovLocal } from "@/lib/central-transporte/movDiretaBuilder";
 import CtFeedbackDialog from "@/components/central-transporte/operacao/CtFeedbackDialog";
 import CancelarPlanejamentoDialog from "@/components/central-transporte/mov-direta/CancelarPlanejamentoDialog";
-import PontoOperacionalBloco from "@/components/central-transporte/shared/PontoOperacionalBloco";
-import CaminhoesPuxadaEditor from "./CaminhoesPuxadaEditor";
+import PuxadaBuilder from "./builder/PuxadaBuilder";
 import PuxadasMapa from "./PuxadasMapa";
 import type { CtPuxadaRascunho } from "@/types/centralTransportePuxada";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
+
+/** Fachada visual (2 passos) sobre as etapas técnicas preservadas (4). */
+const PASSOS_VISUAIS: { id: string; label: string; etapa: PuxadaEtapa }[] = [
+  { id: "MONTAR", label: "Montar puxada", etapa: "CAMINHOES" },
+  { id: "REVISAR", label: "Revisar", etapa: "REVISAO" },
+];
 
 interface Props {
   puxadaId?: string | null;
@@ -75,8 +76,10 @@ const PuxadaWizard: React.FC<Props> = ({ puxadaId = null, onFechar }) => {
   } | null>(null);
   const [comando, setComando] = useState<"SALVAR" | "PROGRAMAR" | "CANCELAR" | null>(null);
   const [cancelarAberto, setCancelarAberto] = useState(false);
+  /* Etapa técnica DADOS continua no contrato, porém seus campos vivem dentro do
+     builder ("Montar frota") — o wizard nunca renderiza DADOS isolado. */
   const [etapa, setEtapa] = useState<PuxadaEtapa>(
-    puxadaId ? "REVISAO" : "DADOS",
+    puxadaId ? "REVISAO" : "CAMINHOES",
   );
   const assinaturaCalculada = useRef<string | null>(null);
   const programarRef = useRef<() => void>(() => undefined);
@@ -122,7 +125,8 @@ const PuxadaWizard: React.FC<Props> = ({ puxadaId = null, onFechar }) => {
     exibirSucesso = true,
     snapshot?: CtPuxadaRascunho,
   ): Promise<string | null> => {
-    const errosBase = validarPuxada(snapshot ?? rascunho, "RASCUNHO");
+    const alvo = snapshot ?? rascunho;
+    const errosBase = [...validarPuxada(alvo, "RASCUNHO"), ...pendenciasFrota(alvo)];
     if (errosBase.length > 0) {
       setFeedback({ tipo: "ERRO", titulo: "Revise os dados", mensagem: errosBase[0] });
       return null;
@@ -280,22 +284,41 @@ const PuxadaWizard: React.FC<Props> = ({ puxadaId = null, onFechar }) => {
     );
   }
 
-  const etapaIndice = indiceEtapaPuxada(etapa);
   const errosEtapaAtual = errosDaEtapaPuxada(rascunho, etapa);
 
+  /* "Montar frota" cobre as etapas técnicas DADOS + CAMINHOES. */
+  const errosPasso =
+    etapa === "REVISAO"
+      ? errosEtapaAtual
+      : [
+          ...errosDaEtapaPuxada(rascunho, "DADOS"),
+          ...errosDaEtapaPuxada(rascunho, "CAMINHOES"),
+          ...errosDaEtapaPuxada(rascunho, "TRAJETO"),
+        ];
+
+  const passoVisual = etapa === "REVISAO" ? 1 : 0;
+
   const avancar = () => {
-    if (errosEtapaAtual.length > 0) {
-      setFeedback({ tipo: "ERRO", titulo: "Revise esta etapa", mensagem: errosEtapaAtual[0] });
+    if (errosPasso.length > 0) {
+      setFeedback({ tipo: "ERRO", titulo: "Revise esta etapa", mensagem: errosPasso[0] });
       return;
     }
-    const proxima = ETAPAS_PUXADA[etapaIndice + 1];
-    if (proxima) setEtapa(proxima.id);
+    if (etapa !== "REVISAO") setEtapa("REVISAO");
   };
 
-  const voltar = () => {
-    const anterior = ETAPAS_PUXADA[etapaIndice - 1];
-    if (anterior) setEtapa(anterior.id);
-  };
+  const voltar = () => setEtapa("CAMINHOES");
+
+  /* Locais canônicos arrastáveis: mesmo cadastro já lido por useCtMobilizacaoCadastros. */
+  const locais: MovLocal[] = cadastros.centrosCusto.map((opcao) => {
+    const geo = cadastros.centrosCustoPorId[opcao.value];
+    return {
+      id: opcao.value,
+      rotulo: opcao.label,
+      endereco: geo?.endereco ?? cadastros.enderecosCentroCusto[opcao.value] ?? null,
+      latitude: geo?.latitude ?? null,
+      longitude: geo?.longitude ?? null,
+    };
+  });
 
   const ccLabel = rascunho.centroCustoId
     ? cadastros.centrosCusto.find((c) => c.value === rascunho.centroCustoId)?.label ?? null
@@ -320,18 +343,18 @@ const PuxadaWizard: React.FC<Props> = ({ puxadaId = null, onFechar }) => {
         </div>
       </div>
 
-      {/* Stepper fixo */}
+      {/* Stepper fixo — 3 rótulos operacionais sobre as etapas técnicas */}
       <div className="flex items-center justify-between gap-1 border-b px-4 py-3">
-        {ETAPAS_PUXADA.map((s, i) => {
-          const ativa = i === etapaIndice;
-          const concluida = i < etapaIndice;
+        {PASSOS_VISUAIS.map((s, i) => {
+          const ativa = i === passoVisual;
+          const concluida = i < passoVisual;
           return (
             <React.Fragment key={s.id}>
               <button
                 type="button"
                 data-testid={`ct5-step-${s.id}`}
                 onClick={() => {
-                  if (i <= etapaIndice) setEtapa(s.id);
+                  if (i <= passoVisual) setEtapa(s.etapa);
                   else avancar();
                 }}
                 className={`flex items-center gap-2 transition-colors ${
@@ -351,10 +374,10 @@ const PuxadaWizard: React.FC<Props> = ({ puxadaId = null, onFechar }) => {
                 </span>
                 <span className="hidden text-xs font-medium sm:inline">{s.label}</span>
               </button>
-              {i < ETAPAS_PUXADA.length - 1 && (
+              {i < PASSOS_VISUAIS.length - 1 && (
                 <div
                   className={`mx-1 h-0.5 flex-1 rounded ${
-                    i < etapaIndice ? "bg-primary/60" : "bg-muted"
+                    i < passoVisual ? "bg-primary/60" : "bg-muted"
                   }`}
                 />
               )}
@@ -382,134 +405,16 @@ const PuxadaWizard: React.FC<Props> = ({ puxadaId = null, onFechar }) => {
           </Alert>
         )}
 
-        {etapa === "DADOS" && (
-          <div className="space-y-4" data-testid="ct5-etapa-dados">
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label className="text-[11px]">Data da puxada *</Label>
-                <Input
-                  type="date"
-                  value={rascunho.dataPuxada}
-                  disabled={somenteLeitura}
-                  onChange={(e) =>
-                    setRascunho((p) => ({ ...p, dataPuxada: e.target.value }))
-                  }
-                  data-testid="ct5-data-puxada"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[11px]">Centro de custo *</Label>
-                <Combobox
-                  disabled={somenteLeitura}
-                  value={rascunho.centroCustoId ?? ""}
-                  options={cadastros.centrosCusto}
-                  placeholder="Obra atendida pela puxada"
-                  searchPlaceholder="Buscar centro de custo..."
-                  onChange={(v) =>
-                    setRascunho((p) => ({ ...p, centroCustoId: v || null }))
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-[11px]">Observações da puxada</Label>
-              <Textarea
-                rows={3}
-                value={rascunho.observacoes}
-                disabled={somenteLeitura}
-                placeholder="Material transportado, janela de carregamento, instruções..."
-                onChange={(e) =>
-                  setRascunho((p) => ({ ...p, observacoes: e.target.value }))
-                }
-              />
-            </div>
-          </div>
-        )}
-
-        {etapa === "CAMINHOES" && (
+        {(etapa === "DADOS" || etapa === "CAMINHOES") && (
           <div data-testid="ct5-etapa-caminhoes">
-            <CaminhoesPuxadaEditor
-              caminhoes={rascunho.caminhoes}
-              somenteLeitura={somenteLeitura}
-              onChange={(caminhoes) => setRascunho((p) => ({ ...p, caminhoes }))}
-            />
-          </div>
-        )}
-
-        {etapa === "TRAJETO" && (
-          <div className="space-y-4" data-testid="ct5-etapa-trajeto">
-            <PontoOperacionalBloco
-              semMoldura
-              titulo="Coleta do material"
-              labelCentroCusto="Centro de custo / local de coleta"
-              placeholderCentroCusto="De onde o material sai"
-              labelPonto="Ponto exato de coleta"
+            <PuxadaBuilder
+              rascunho={rascunho}
               centrosCusto={cadastros.centrosCusto}
-              centroCustoId={rascunho.centroCustoId}
-              centroCustoEndereco={
-                rascunho.centroCustoId
-                  ? cadastros.enderecosCentroCusto[rascunho.centroCustoId] ?? null
-                  : null
-              }
-              ponto={rascunho.coletaEndereco}
-              latitude={rascunho.coletaLatitude}
-              longitude={rascunho.coletaLongitude}
+              locais={locais}
+              cadastrosCarregando={cadastros.isLoading}
               somenteLeitura={somenteLeitura}
-              testId="ct5-coleta"
-              onChange={(patch) =>
-                setRascunho((p) => ({
-                  ...p,
-                  centroCustoId:
-                    patch.centroCustoId !== undefined ? patch.centroCustoId : p.centroCustoId,
-                  coletaEndereco: patch.ponto !== undefined ? patch.ponto : p.coletaEndereco,
-                  coletaLatitude:
-                    patch.latitude !== undefined ? patch.latitude : p.coletaLatitude,
-                  coletaLongitude:
-                    patch.longitude !== undefined ? patch.longitude : p.coletaLongitude,
-                }))
-              }
+              onChange={(proximo) => setRascunho(proximo)}
             />
-
-            <div className="border-t pt-3">
-              <PontoOperacionalBloco
-                semMoldura
-                titulo="Descarga do material"
-                labelCentroCusto="Centro de custo de referência"
-                placeholderCentroCusto="Selecione o centro de custo"
-                labelPonto="Ponto exato de descarga"
-                centrosCusto={[]}
-                centroCustoId={null}
-                centroCustoEndereco={null}
-                ponto={rascunho.descargaEndereco}
-                latitude={rascunho.descargaLatitude}
-                longitude={rascunho.descargaLongitude}
-                somenteLeitura={somenteLeitura}
-                testId="ct5-descarga"
-                onChange={(patch) =>
-                  setRascunho((p) => ({
-                    ...p,
-                    descargaEndereco:
-                      patch.ponto !== undefined ? patch.ponto : p.descargaEndereco,
-                    descargaLatitude:
-                      patch.latitude !== undefined ? patch.latitude : p.descargaLatitude,
-                    descargaLongitude:
-                      patch.longitude !== undefined ? patch.longitude : p.descargaLongitude,
-                  }))
-                }
-              />
-            </div>
-
-            {!podeCalcularRotaPuxada(rascunho) && (
-              <Alert data-testid="ct5-trajeto-incompleto">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle className="text-xs">Trajeto incompleto</AlertTitle>
-                <AlertDescription className="text-xs">
-                  Confirme no mapa os dois pontos (coleta e descarga). A rota rodoviária é
-                  calculada e persistida na programação.
-                </AlertDescription>
-              </Alert>
-            )}
           </div>
         )}
 
@@ -606,7 +511,7 @@ const PuxadaWizard: React.FC<Props> = ({ puxadaId = null, onFechar }) => {
       {/* Footer fixo — Salvar/Programar existem SOMENTE na revisão */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-t px-3 py-2 sm:px-4">
         <div className="flex items-center gap-2">
-          {etapa === "DADOS" ? (
+          {etapa === "CAMINHOES" || etapa === "DADOS" ? (
             <Button size="sm" variant="ghost" className="h-8 gap-1 text-xs" onClick={onFechar}>
               <ArrowLeft className="h-3.5 w-3.5" /> Cancelar
             </Button>
@@ -628,15 +533,29 @@ const PuxadaWizard: React.FC<Props> = ({ puxadaId = null, onFechar }) => {
 
         <div className="flex flex-wrap items-center gap-2">
           {etapa !== "REVISAO" ? (
-            <Button size="sm" onClick={avancar} data-testid="ct5-proxima-etapa">
-              {etapa === "DADOS"
-                ? "Próximo: Caminhões"
-                : etapa === "CAMINHOES"
-                  ? "Próximo: Coleta e descarga"
-                  : "Revisar puxada"}{" "}
-              →
-            </Button>
+            <>
+              {!somenteLeitura && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={comando !== null}
+                  onClick={() => void salvar()}
+                  data-testid="ct5-salvar-rascunho-montar"
+                >
+                  {comando === "SALVAR" ? (
+                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="mr-1 h-4 w-4" />
+                  )}
+                  Salvar rascunho
+                </Button>
+              )}
+              <Button size="sm" onClick={avancar} data-testid="ct5-proxima-etapa">
+                Revisar puxada →
+              </Button>
+            </>
           ) : (
+
             <>
               {!somenteLeitura && (
                 <>

@@ -66,7 +66,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { usePermission } from "@/hooks/usePermission";
 import ProcessoOperacionalCard from "@/components/chamados-internos/ProcessoOperacionalCard";
-import { usePodeResolverOperacional } from "@/hooks/useChamadoOperacional";
+import {
+  usePodeResolverOperacional,
+  useProcessoOperacionalChamado,
+} from "@/hooks/useChamadoOperacional";
 import {
   StatusBadge,
   PrioridadeBadge,
@@ -74,8 +77,11 @@ import {
   formatarDataHora,
   formatarPrazoRestante,
 } from "@/components/chamados-internos/StatusBadges";
-import { CHAMADO_INTERNO_EVENTO_META } from "@/constants/chamadosInternos";
-import type { ChamadoInternoEventoTipo } from "@/types/chamadosInternos";
+import { formatChamadoEvento } from "@/utils/chamadoEventoOperacional";
+import {
+  derivarFaseOperacional,
+  podeAssumirPorFase,
+} from "@/utils/chamadoFaseOperacional";
 import {
   getChamadoActionCapabilities,
   getErrorField,
@@ -209,6 +215,22 @@ const ChamadoInternoDetalhe: React.FC = () => {
   const notaM = useChamadoInternoAdicionarNotaInterna();
   const resolverM = useChamadoInternoResolver();
   const { data: gateResolver } = usePodeResolverOperacional(chamado?.id ?? null);
+  const { data: processoOperacional } = useProcessoOperacionalChamado(chamado?.id ?? null);
+
+  /**
+   * Fase operacional (fonte autoritativa: aprovação + marcos materiais).
+   * Independente do status do CHI; usada para gate de apresentação do Assumir.
+   */
+  const faseOperacional = React.useMemo(
+    () =>
+      derivarFaseOperacional(
+        processoOperacional,
+        eventosQ.data ?? [],
+        chamado?.status === "cancelado",
+      ),
+    [processoOperacional, eventosQ.data, chamado?.status],
+  );
+  const assumirLiberadoPelaFase = podeAssumirPorFase(faseOperacional);
   const cancelarM = useChamadoInternoCancelar();
   const responderSolicitanteM = useChamadoInternoResponderSolicitante();
   const confirmarM = useChamadoInternoConfirmarEncerramento();
@@ -350,7 +372,7 @@ const ChamadoInternoDetalhe: React.FC = () => {
 
   const executarAssumir = async () => {
     if (!chamado) return;
-    if (!capabilities.canAssumir || isAssumindo) return;
+    if (!capabilities.canAssumir || !assumirLiberadoPelaFase || isAssumindo) return;
 
     let preflight: boolean | null = null;
     let assumeError: unknown = null;
@@ -456,6 +478,17 @@ const ChamadoInternoDetalhe: React.FC = () => {
       ]);
       await Promise.all([chamadoQ.refetch(), capacidadeQ.refetch()]);
       toast.success("Chamado assumido com sucesso.");
+
+      /**
+       * CT-3E / T01 — assumir é o início do atendimento operacional: quando há
+       * Solicitação de Equipamento vinculada e o usuário tem acesso à Central do
+       * Transporte, segue direto para a página da solicitação. Sem permissão de
+       * CT (ou sem solicitação vinculada) permanece no detalhe do chamado.
+       */
+      const solicitacaoVinculadaId = processoOperacional?.solicitacao_id ?? null;
+      if (solicitacaoVinculadaId && (podeAnalisarCT || podePlanejarCT || isSuperAdmin)) {
+        navigate(`/gestao-maquinas/central-transporte/solicitacao/${solicitacaoVinculadaId}`);
+      }
     } catch (e) {
       console.error("[chamados-internos][assumir][response-error]", {
         routeParam: chamadoId,
@@ -584,7 +617,7 @@ const ChamadoInternoDetalhe: React.FC = () => {
             <ArrowLeft className="mr-2 h-4 w-4" /> Meus chamados
           </Button>
           <div className="flex items-center gap-2">
-            {capabilities.canAssumir && (
+            {capabilities.canAssumir && assumirLiberadoPelaFase && (
               <Button
                 size="sm"
                 onClick={executarAssumir}
@@ -712,6 +745,9 @@ const ChamadoInternoDetalhe: React.FC = () => {
         <div className="mt-4">
           <ProcessoOperacionalCard
             chamadoId={chamado.id}
+            eventos={eventosQ.data ?? []}
+            responsavelNome={pessoasQ.data?.responsavel_nome ?? null}
+            chamadoCancelado={chamado.status === "cancelado"}
             podeAnalisarDisponibilidade={podeAnalisarCT || isSuperAdmin}
             podePlanejar={podePlanejarCT || isSuperAdmin}
           />
@@ -745,15 +781,20 @@ const ChamadoInternoDetalhe: React.FC = () => {
                 ) : (
                   <ol className="space-y-4">
                     {(eventosQ.data ?? []).map((ev) => {
-                      const meta =
-                        CHAMADO_INTERNO_EVENTO_META[
-                          ev.tipo as ChamadoInternoEventoTipo
-                        ];
-                      const label = meta?.label ?? ev.tipo;
+                      const apres = formatChamadoEvento(ev);
                       return (
-                        <li key={ev.id} className="flex gap-3">
+                        <li key={ev.id} className="flex gap-3" data-testid="timeline-evento">
                           <div
-                            className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary"
+                            className={cn(
+                              "mt-1 h-2 w-2 shrink-0 rounded-full",
+                              apres.variante === "sucesso"
+                                ? "bg-emerald-500"
+                                : apres.variante === "erro"
+                                  ? "bg-destructive"
+                                  : apres.variante === "alerta"
+                                    ? "bg-amber-500"
+                                    : "bg-primary",
+                            )}
                             aria-hidden
                           />
                           <div className="flex-1">
@@ -761,11 +802,10 @@ const ChamadoInternoDetalhe: React.FC = () => {
                               <span
                                 className={cn(
                                   "inline-flex items-center rounded-full px-2 py-0.5 font-semibold",
-                                  meta?.badgeClasses ??
-                                    "bg-muted text-foreground",
+                                  apres.badgeClasses,
                                 )}
                               >
-                                {label}
+                                {apres.titulo}
                               </span>
                               <span className="text-muted-foreground">
                                 {formatarDataHora(ev.created_at)}
@@ -776,10 +816,17 @@ const ChamadoInternoDetalhe: React.FC = () => {
                                 </span>
                               )}
                             </div>
-                            {ev.mensagem && (
-                              <p className="mt-1 whitespace-pre-wrap text-sm">
-                                {ev.mensagem}
+                            {apres.descricao && (
+                              <p className="mt-1 whitespace-pre-wrap text-sm font-medium">
+                                {apres.descricao}
                               </p>
+                            )}
+                            {apres.metadata.length > 0 && (
+                              <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                                {apres.metadata.map((linha, i) => (
+                                  <li key={i}>{linha}</li>
+                                ))}
+                              </ul>
                             )}
                           </div>
                         </li>
@@ -787,6 +834,7 @@ const ChamadoInternoDetalhe: React.FC = () => {
                     })}
                   </ol>
                 )}
+
               </CardContent>
             </Card>
           </TabsContent>

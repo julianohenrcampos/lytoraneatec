@@ -14,10 +14,8 @@ import {
   useCtSolicitacao,
 } from "./CentralTransporteSolicitacaoProvider";
 import CtSolicitacaoStepper from "./CtSolicitacaoStepper";
-import EtapaItens from "./EtapaItens";
-import EtapaMobilizacao from "./EtapaMobilizacao";
+import EtapaMontarAtendimento from "./EtapaMontarAtendimento";
 import EtapaRevisao from "./EtapaRevisao";
-import EtapaSelecao from "./EtapaSelecao";
 import SolicitacaoResumoHeader from "./SolicitacaoResumoHeader";
 
 
@@ -106,9 +104,10 @@ const Conteudo: React.FC = () => {
         salvando={mobilizacaoDraft.salvando}
       />
 
-      {etapa === "ITENS" && <EtapaItens />}
-      {etapa === "SELECAO" && <EtapaSelecao />}
-      {etapa === "MOBILIZACAO" && <EtapaMobilizacao />}
+      {/* CT-9 — as três etapas técnicas de montagem compartilham UM workspace. */}
+      {(etapa === "ITENS" || etapa === "SELECAO" || etapa === "MOBILIZACAO") && (
+        <EtapaMontarAtendimento />
+      )}
       {etapa === "REVISAO" && <EtapaRevisao />}
     </div>
   );

@@ -51,9 +51,15 @@ export const useCtRecebimentosPendentes = (enabled = true) => {
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,
-    ordens: query.data ?? [],
+    /** Viagens que chegaram ao destino e aguardam conferência. */
+    ordens: query.data?.ordens ?? [],
+    /** Viagens em trânsito direcionadas ao mesmo recebedor (somente acompanhamento). */
+    aCaminho: query.data?.aCaminho ?? [],
+    /** Viagens já recebidas — histórico somente leitura. */
+    concluidos: query.data?.concluidos ?? [],
   };
 };
+
 
 export const useCtViagemOperacao = (viagemId: string | null) => {
   const query = useQuery({

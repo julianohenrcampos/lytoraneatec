@@ -39,6 +39,8 @@ interface Props {
   onChange: (patch: Partial<CtParadaRascunho>) => void;
   onRemover: () => void;
   onConhecerAtivo?: (ativo: CtAtivoMovimentacao) => void;
+  /** Builder: os ativos são atribuídos no canvas, não neste formulário. */
+  ocultarAtivos?: boolean;
 }
 
 const ParadaEditor: React.FC<Props> = ({
@@ -54,6 +56,7 @@ const ParadaEditor: React.FC<Props> = ({
   onChange,
   onRemover,
   onConhecerAtivo,
+  ocultarAtivos = false,
 }) => {
   const porId = metadadosAtivos;
   const [externo, setExterno] = React.useState(parada.recebedorPrevistoNome.trim().length > 0);
@@ -85,6 +88,7 @@ const ParadaEditor: React.FC<Props> = ({
 
       <CardContent className="space-y-4 px-4 pb-4">
         {/* Ativos desta parada — catálogo server-side dentro da parada. */}
+        {!ocultarAtivos && (
         <div className="space-y-2" data-testid={`ct4-ativos-parada-${ordem}`}>
           <div className="flex items-center gap-2">
             <Label className="text-[11px]">Ativos desta parada</Label>
@@ -103,6 +107,7 @@ const ParadaEditor: React.FC<Props> = ({
             onConhecerAtivo={onConhecerAtivo}
           />
         </div>
+        )}
 
 
         {/* Data / hora */}

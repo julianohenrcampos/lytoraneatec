@@ -13,7 +13,6 @@ import { toast } from "sonner";
 import {
   ArrowLeft,
   ArrowRight,
-  CirclePlus,
   Loader2,
   AlertTriangle,
   CheckCircle2,
@@ -27,10 +26,8 @@ import { usePageTitle } from "@/contexts/PageTitleContext";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,7 +58,7 @@ import type {
   ChamadosInternosError,
 } from "@/types/chamadosInternos";
 
-import AbrirSolicitacaoEquipamentoIntegrada from "@/components/chamados-internos/AbrirSolicitacaoEquipamentoIntegrada";
+import SolicitacaoEquipamentoIntegradaWizard from "@/components/chamados-internos/SolicitacaoEquipamentoIntegradaWizard";
 import { useAcoesIntegradasAtivas } from "@/hooks/useChamadoOperacional";
 
 const isError = (e: unknown): e is ChamadosInternosError =>
@@ -100,8 +97,6 @@ const ChamadosInternosAbrir: React.FC = () => {
   const [titulo, setTitulo] = React.useState("");
   const [descricao, setDescricao] = React.useState("");
   const [anexos, setAnexos] = React.useState<File[]>([]);
-  /** Registro integrado (CHI + Solicitação de Equipamento) — governado pelo gate do banco. */
-  const [wizardAberto, setWizardAberto] = React.useState(false);
   const { ativo: integracaoAtiva } = useAcoesIntegradasAtivas();
 
   const ccsQ = useChamadoInternoCcsAbertura();
@@ -204,10 +199,6 @@ const ChamadosInternosAbrir: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!podeSubmeter) return;
-    if (ehSolicitacaoEquipamento) {
-      setWizardAberto(true);
-      return;
-    }
     try {
       const res = await abrirM.mutateAsync({
         p_centro_custo_id: centroCustoId,
@@ -237,19 +228,30 @@ const ChamadosInternosAbrir: React.FC = () => {
   const erroUnknown: unknown = abrirM.error;
   const erro = isError(erroUnknown) ? erroUnknown : null;
 
+  /**
+   * Fluxo ÚNICO integrado: escolhida a categoria transversal, o próprio wizard
+   * de Solicitação de Equipamento assume as 3 etapas (nenhum segundo modal).
+   */
+  if (ehSolicitacaoEquipamento && etapa > 1 && categoriaSelecionada) {
+    return (
+      <MainLayout>
+        <div className="p-4 md:p-6">
+          <SolicitacaoEquipamentoIntegradaWizard
+            categoria={categoriaSelecionada}
+            onVoltarCategoria={() => setEtapa(1)}
+          />
+        </div>
+      </MainLayout>
+    );
+  }
+
   return (
     <MainLayout>
+
       <div className="p-4 md:p-6">
         <form onSubmit={handleSubmit} noValidate>
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CirclePlus className="h-5 w-5 text-primary" />
-                Abrir Chamado Interno
-              </CardTitle>
-              <CardDescription>
-                Registre uma nova solicitação em três passos rápidos. O protocolo é gerado automaticamente.
-              </CardDescription>
               <Stepper etapa={etapa} />
             </CardHeader>
 
@@ -385,7 +387,7 @@ const ChamadosInternosAbrir: React.FC = () => {
                             )}
                           </div>
                           <div className="text-sm font-semibold leading-tight">
-                            Solicitação de Equipamento
+                            Chamado Setor Transporte
                           </div>
                           <div className="text-[11px] text-muted-foreground">
                             Solicite máquinas, veículos ou equipamentos para atendimento da obra.
@@ -556,9 +558,7 @@ const ChamadosInternosAbrir: React.FC = () => {
                     {(abrirM.isPending || anexarM.isPending) && (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     )}
-                    {ehSolicitacaoEquipamento
-                      ? "Continuar para a solicitação"
-                      : "Abrir chamado"}
+                    Abrir chamado
                   </Button>
                 )}
               </div>
@@ -566,23 +566,6 @@ const ChamadosInternosAbrir: React.FC = () => {
           </Card>
         </form>
 
-        {wizardAberto && (
-          <AbrirSolicitacaoEquipamentoIntegrada
-            isOpen={wizardAberto}
-            onClose={() => setWizardAberto(false)}
-            chamado={{
-              centro_custo_id: centroCustoId,
-              categoria_id: categoriaId,
-              solicitante_funcionario_id: solicitanteId,
-              titulo: tituloTrim,
-              descricao: descricaoTrim,
-            }}
-            onSuccess={(chamadoId) => {
-              setWizardAberto(false);
-              navigate(`/chamados-internos/${chamadoId}`);
-            }}
-          />
-        )}
       </div>
     </MainLayout>
   );

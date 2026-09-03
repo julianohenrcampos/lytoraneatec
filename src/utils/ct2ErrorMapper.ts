@@ -102,8 +102,16 @@ const CT2_MESSAGES: Record<string, string> = {
     "Sua assinatura digital ainda não está cadastrada. A conclusão será registrada como aceite eletrônico — se o bloqueio persistir, cadastre a assinatura no menu do usuário.",
   CT3E_USUARIO_SEM_NOME:
     "Seu perfil está sem nome completo. Complete o cadastro para registrar o aceite eletrônico desta etapa.",
+  CT3E_ASSINATURA_OBRIGATORIA:
+    "Marque a confirmação de aceite da conferência antes de registrar o recebimento.",
+  CT3E_RECEBEDOR_OBRIGATORIO: "Informe o nome de quem está recebendo a entrega.",
+  CT3E_ITENS_INCOMPLETOS:
+    "Informe o resultado de cada equipamento desta entrega antes de registrar.",
+  CT3E_STATUS_INVALIDO:
+    "A viagem não está no estado necessário para esta operação. Recarregue a página para ver a situação atual.",
   CT3E_VIAGEM_NAO_SELECIONADA: "Nenhuma viagem selecionada para esta operação.",
   CT3E_CARGA_INVALIDA: "A carga informada não pertence a esta viagem.",
+
 
   /* CT-4 — movimentação direta e viagem multiparadas */
   CT4_AUTH_REQUIRED: "Sessão expirada. Entre novamente para continuar.",
@@ -314,8 +322,11 @@ export const normalizeCt2Error = (err: unknown): Ct2NormalizedError => {
         (sqlstate === "22P02"
           ? MENSAGEM_IDENTIFICADOR_INVALIDO
           : sqlstate === "55000"
-            ? "O servidor rejeitou o estado interno da operação e nada foi gravado. Tente novamente; se persistir, recarregue a página."
-            : "A operação foi rejeitada pelo servidor e nada foi gravado. Ajuste os dados e tente novamente."),
+            ? `O servidor rejeitou o estado interno da operação e nada foi gravado (${sqlstate}). ` +
+              "Tente novamente; se persistir, recarregue a página e informe este código ao suporte."
+            : `A operação foi rejeitada pelo servidor e nada foi gravado (${sqlstate}). ` +
+              "Ajuste os dados e tente novamente."),
+
       isUncertain: false,
     };
   }

@@ -119,10 +119,20 @@ export const fetchOrdensOperacaoTodas = async (status: string | null = null) => 
   };
 };
 
+/**
+ * CT-3F — Recebimentos do usuário autenticado.
+ * O servidor decide o escopo (funcionário vinculado / recebedor previsto / capacidade
+ * no CC de destino) e separa as viagens em trânsito das que aguardam conferência.
+ */
 export const fetchRecebimentosPendentes = async () => {
   const d = asRecord(await rpc("fn_ct_recebimentos_pendentes_listar", {}));
-  return Array.isArray(d.ordens) ? d.ordens.map(mapOrdem) : [];
+  return {
+    ordens: Array.isArray(d.ordens) ? d.ordens.map(mapOrdem) : [],
+    aCaminho: Array.isArray(d.a_caminho) ? d.a_caminho.map(mapOrdem) : [],
+    concluidos: Array.isArray(d.concluidos) ? d.concluidos.map(mapOrdem) : [],
+  };
 };
+
 
 export const fetchSolicitacaoTimeline = async (
   solicitacaoId: string,

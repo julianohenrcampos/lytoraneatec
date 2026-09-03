@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getDepartamentosFornecedoresEquipamento } from "@/services/atendimentoPreferencialService";
+import { SEM_PREFERENCIA } from "@/utils/central-transporte/filtroCentralTransporte";
 
 interface Props {
   filters: {
@@ -10,14 +14,20 @@ interface Props {
     prioridade?: string;
     tipo_equipamento_id?: string;
     status_fluxo?: string;
+    atendimento_preferencial?: string;
   };
   onChange: (f: any) => void;
+  /** T27 — busca livre (CHI, SOL, centro de custo). */
+  busca?: string;
+  onBuscaChange?: (v: string) => void;
 }
 
-const CentralTransporteFilters: React.FC<Props> = ({ filters, onChange }) => {
+const CentralTransporteFilters: React.FC<Props> = ({ filters, onChange, busca = "", onBuscaChange }) => {
   const [centrosCusto, setCentrosCusto] = useState<any[]>([]);
   const [departamentos, setDepartamentos] = useState<any[]>([]);
   const [tiposEquipamento, setTiposEquipamento] = useState<any[]>([]);
+  /** Departamentos fornecedores resolvidos pelo cadastro (sem UUID hardcoded). */
+  const [fornecedores, setFornecedores] = useState<{ id: string; nome: string }[]>([]);
 
   useEffect(() => {
     const load = async () => {
@@ -29,6 +39,11 @@ const CentralTransporteFilters: React.FC<Props> = ({ filters, onChange }) => {
       setCentrosCusto(cc.data || []);
       setDepartamentos(dep.data || []);
       setTiposEquipamento(te.data || []);
+      try {
+        setFornecedores(await getDepartamentosFornecedoresEquipamento());
+      } catch {
+        setFornecedores([]);
+      }
     };
     load();
   }, []);
@@ -36,51 +51,93 @@ const CentralTransporteFilters: React.FC<Props> = ({ filters, onChange }) => {
   const set = (key: string, val: string) => onChange({ ...filters, [key]: val === "all" ? undefined : val });
 
   return (
-    <div className="flex flex-wrap gap-2">
-      <Select value={filters.centro_custo_id || "all"} onValueChange={(v) => set("centro_custo_id", v)}>
-        <SelectTrigger className="w-[180px]"><SelectValue placeholder="Centro de Custo" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Todos CC</SelectItem>
-          {centrosCusto.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome_centro_custo}</SelectItem>)}
-        </SelectContent>
-      </Select>
+    <div className="space-y-2">
+      {onBuscaChange && (
+        <div className="relative max-w-md">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={busca}
+            className="pl-8"
+            data-testid="ct5-busca-central"
+            placeholder="Buscar CHI, SOL, centro de custo, frota..."
+            onChange={(e) => onBuscaChange(e.target.value)}
+          />
+        </div>
+      )}
 
-      <Select value={filters.departamento_id || "all"} onValueChange={(v) => set("departamento_id", v)}>
-        <SelectTrigger className="w-[180px]"><SelectValue placeholder="Departamento" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Todos Dep.</SelectItem>
-          {departamentos.map((d) => <SelectItem key={d.id} value={d.id}>{d.nome_departamento}</SelectItem>)}
-        </SelectContent>
-      </Select>
+      <div className="flex flex-wrap gap-2">
+        <Select value={filters.centro_custo_id || "all"} onValueChange={(v) => set("centro_custo_id", v)}>
+          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Centro de Custo" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos CC</SelectItem>
+            {centrosCusto.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome_centro_custo}</SelectItem>)}
+          </SelectContent>
+        </Select>
 
-      <Select value={filters.prioridade || "all"} onValueChange={(v) => set("prioridade", v)}>
-        <SelectTrigger className="w-[150px]"><SelectValue placeholder="Prioridade" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Todas</SelectItem>
-          <SelectItem value="NORMAL">Normal</SelectItem>
-          <SelectItem value="ALTA">Alta</SelectItem>
-          <SelectItem value="URGENTE">Urgente</SelectItem>
-        </SelectContent>
-      </Select>
+        {/* Departamento do CENTRO DE CUSTO solicitante (filtro existente, intacto). */}
+        <Select value={filters.departamento_id || "all"} onValueChange={(v) => set("departamento_id", v)}>
+          <SelectTrigger className="w-[190px]"><SelectValue placeholder="Departamento da obra" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos Dep. da obra</SelectItem>
+            {departamentos.map((d) => <SelectItem key={d.id} value={d.id}>{d.nome_departamento}</SelectItem>)}
+          </SelectContent>
+        </Select>
 
-      <Select value={filters.tipo_equipamento_id || "all"} onValueChange={(v) => set("tipo_equipamento_id", v)}>
-        <SelectTrigger className="w-[200px]"><SelectValue placeholder="Tipo Equipamento" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Todos Tipos</SelectItem>
-          {tiposEquipamento.map((t) => <SelectItem key={t.id} value={t.id}>{t.descricao_padronizada}</SelectItem>)}
-        </SelectContent>
-      </Select>
+        {/* T24/T25/T26 — atendimento preferencial DA SOLICITAÇÃO (campo distinto). */}
+        <Select
+          value={filters.atendimento_preferencial || "all"}
+          onValueChange={(v) => set("atendimento_preferencial", v)}
+        >
+          <SelectTrigger className="w-[220px]" data-testid="ct5-filtro-atendimento-preferencial">
+            <SelectValue placeholder="Atendimento preferencial" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Atend. preferencial: todos</SelectItem>
+            {fornecedores.map((f) => (
+              <SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>
+            ))}
+            <SelectItem value={SEM_PREFERENCIA}>Avaliar disponibilidade</SelectItem>
+          </SelectContent>
+        </Select>
 
-      <Select value={filters.status_fluxo || "all"} onValueChange={(v) => set("status_fluxo", v)}>
-        <SelectTrigger className="w-[160px]"><SelectValue placeholder="Status" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Todos</SelectItem>
-          <SelectItem value="APROVADO">Aprovado</SelectItem>
-          <SelectItem value="EM_TRANSPORTE">Em Transporte</SelectItem>
-        </SelectContent>
-      </Select>
+        <Select value={filters.prioridade || "all"} onValueChange={(v) => set("prioridade", v)}>
+          <SelectTrigger className="w-[150px]"><SelectValue placeholder="Prioridade" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas</SelectItem>
+            <SelectItem value="NORMAL">Normal</SelectItem>
+            <SelectItem value="ALTA">Alta</SelectItem>
+            <SelectItem value="URGENTE">Urgente</SelectItem>
+          </SelectContent>
+        </Select>
 
-      <Button variant="outline" size="sm" onClick={() => onChange({})}>Limpar</Button>
+        <Select value={filters.tipo_equipamento_id || "all"} onValueChange={(v) => set("tipo_equipamento_id", v)}>
+          <SelectTrigger className="w-[200px]"><SelectValue placeholder="Tipo Equipamento" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos Tipos</SelectItem>
+            {tiposEquipamento.map((t) => <SelectItem key={t.id} value={t.id}>{t.descricao_padronizada}</SelectItem>)}
+          </SelectContent>
+        </Select>
+
+        <Select value={filters.status_fluxo || "all"} onValueChange={(v) => set("status_fluxo", v)}>
+          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="APROVADO">Aprovado</SelectItem>
+            <SelectItem value="EM_TRANSPORTE">Em Transporte</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            onChange({});
+            onBuscaChange?.("");
+          }}
+        >
+          Limpar
+        </Button>
+      </div>
     </div>
   );
 };

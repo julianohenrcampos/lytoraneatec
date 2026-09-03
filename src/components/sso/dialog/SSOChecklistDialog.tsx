@@ -11,7 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SSOChecklistFormHeader } from './SSOChecklistFormHeader';
 import { SSOChecklistFormItems } from './SSOChecklistFormItems';
 import { useSSOChecklist } from '@/hooks/sso/useSSOChecklist';
-import { SSOChecklistItem, SSOChecklist, SSOChecklistFormData, AvaliacaoTipo } from '@/types/sso';
+import { SSOChecklistItem, SSOChecklist, SSOChecklistFormData, AvaliacaoTipo, SSOFoto } from '@/types/sso';
+import { comRetryDeRede, isErroDeRede, MENSAGEM_SEM_CONEXAO } from '@/services/sso/ssoNetwork';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -201,10 +202,14 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
         // 1. Atualizar checklist existente
         await updateChecklist({ id: checklistId, data: formData });
         
-        // 2. Atualizar cada item individualmente com suas fotos
+        // 2. Subir apenas as fotos novas. É o único passo que exige uma
+        //    requisição por arquivo; os itens sem foto nova não pagam nada.
+        const fotosPorItem = new Map<string, SSOFoto[]>();
+        const fotosNaoEnviadas: number[] = [];
+
         for (const item of itens) {
           const files = itemFilesRef.current.get(item.id) || [];
-          
+
           // Filtrar fotos existentes válidas (proteção robusta contra perda de dados)
           const fotosExistentes = (item.fotos || []).filter(f => {
             // Deve ter path válido do Storage (formato: checklistId/filename.ext)
@@ -213,29 +218,60 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
             const hasValidUrl = !f.url || (typeof f.url === 'string' && !f.url.startsWith('data:'));
             return hasValidPath && hasValidUrl;
           });
-          
-          let updatedFotos = [...fotosExistentes]; // Copiar array para evitar mutação
-          
-          // Upload de novas fotos, se houver
-          if (files.length > 0) {
-            const uploads = await ssoStorageService.uploadMultiple(checklistId, files);
-            const novasFotos = uploads.map(upload => ({
-              path: upload.path,
-              url: upload.url,
-              created_at: new Date().toISOString(),
-            }));
-            updatedFotos = [...updatedFotos, ...novasFotos];
+
+          if (files.length === 0) {
+            fotosPorItem.set(item.id, fotosExistentes);
+            continue;
           }
-          
-          // Atualizar item no banco com fotos válidas do Storage
-          await ssoItemService.update(item.id, {
-            avaliacao: item.avaliacao,
-            evidencia: item.evidencia,
-            fotos: updatedFotos as any,
-          });
+
+          try {
+            const uploads = await ssoStorageService.uploadMultiple(checklistId, files);
+            fotosPorItem.set(item.id, [
+              ...fotosExistentes,
+              ...uploads.map(upload => ({
+                path: upload.path,
+                url: upload.url,
+                created_at: new Date().toISOString(),
+              })),
+            ]);
+          } catch (uploadError) {
+            // Falha de upload não pode descartar a edição inteira:
+            // preserva as fotos que já estavam salvas e segue.
+            console.error(`Falha ao enviar fotos do item ${item.ordem}:`, uploadError);
+            fotosPorItem.set(item.id, fotosExistentes);
+            fotosNaoEnviadas.push(item.ordem);
+          }
         }
-        
-        toast.success('Checklist atualizado com sucesso!');
+
+        // 3. Gravar TODOS os itens numa única requisição.
+        //    Antes era um UPDATE por item, em série: com 36 itens bastava uma
+        //    oscilação de sinal para a edição parar pela metade, sem aviso.
+        await comRetryDeRede(
+          () =>
+            ssoItemService.updateMany(
+              itens.map(item => ({
+                id: item.id,
+                checklist_id: checklistId,
+                item_modelo_id: item.item_modelo_id,
+                avaliacao: item.avaliacao,
+                evidencia: item.evidencia,
+                ordem: item.ordem,
+                tema: item.tema,
+                descricao: item.descricao,
+                fotos: (fotosPorItem.get(item.id) ?? []) as any,
+              }))
+            ),
+          'atualizar itens do checklist'
+        );
+
+        if (fotosNaoEnviadas.length > 0) {
+          toast.warning(
+            `Checklist atualizado. As fotos dos itens ${fotosNaoEnviadas.join(', ')} não subiram — ` +
+            'tente reenviá-las.'
+          );
+        } else {
+          toast.success('Checklist atualizado com sucesso!');
+        }
       } else {
         // Criar novo checklist com itens preenchidos
         await createChecklist({
@@ -248,7 +284,11 @@ export const SSOChecklistDialog = ({ open, onOpenChange, checklistId }: SSOCheck
       onOpenChange(false);
     } catch (error: any) {
       console.error('Erro ao salvar:', error);
-      toast.error(error.message || 'Erro ao salvar checklist');
+      toast.error(
+        isErroDeRede(error)
+          ? MENSAGEM_SEM_CONEXAO
+          : error.message || 'Erro ao salvar checklist'
+      );
     }
   };
 

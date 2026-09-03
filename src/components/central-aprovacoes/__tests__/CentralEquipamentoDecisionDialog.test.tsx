@@ -91,7 +91,7 @@ describe('CentralEquipamentoDecisionDialog', () => {
     );
   });
 
-  it('autoapproval: exibe alerta e exige comentário ≥10 mesmo aprovando', () => {
+  it('autoapproval: exibe alerta, mas comentário permanece opcional ao aprovar', () => {
     render(
       <CentralEquipamentoDecisionDialog
         open
@@ -102,13 +102,11 @@ describe('CentralEquipamentoDecisionDialog', () => {
     );
     expect(screen.getByText(/aprovando uma solicitação criada por você/i)).toBeInTheDocument();
     const btn = screen.getByRole('button', { name: /confirmar aprovação/i });
-    expect(btn).toBeDisabled();
-
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'auto aprov justificada operacional' } });
     expect(btn).not.toBeDisabled();
+
     fireEvent.click(btn);
     expect(mutateMock).toHaveBeenCalledWith(
-      expect.objectContaining({ decisao: 'APROVADO', comentario: 'auto aprov justificada operacional' }),
+      expect.objectContaining({ decisao: 'APROVADO', comentario: null }),
       expect.any(Object),
     );
   });

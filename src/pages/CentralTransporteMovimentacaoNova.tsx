@@ -61,11 +61,12 @@ import {
 } from "@/lib/central-transporte/movDiretaWizardSteps";
 import { fetchEstadoEfetivoAtivos } from "@/services/centralTransporteEstadoEfetivoService";
 import CtFeedbackDialog from "@/components/central-transporte/operacao/CtFeedbackDialog";
-import AtivosMovimentacaoPanel from "@/components/central-transporte/mov-direta/AtivosMovimentacaoPanel";
+import MovimentacaoBuilder from "@/components/central-transporte/mov-direta/builder/MovimentacaoBuilder";
+import AjustarPontoDialog from "@/components/central-transporte/mov-direta/builder/AjustarPontoDialog";
+import type { MovLocal } from "@/lib/central-transporte/movDiretaBuilder";
+import EntregaParadaDialog from "@/components/central-transporte/mov-direta/builder/EntregaParadaDialog";
 import CancelarPlanejamentoDialog from "@/components/central-transporte/mov-direta/CancelarPlanejamentoDialog";
 import MovimentacoesMapa from "@/components/central-transporte/mov-direta/MovimentacoesMapa";
-import ParadaEditor from "@/components/central-transporte/mov-direta/ParadaEditor";
-import ParadasSelector from "@/components/central-transporte/mov-direta/ParadasSelector";
 import PontoOperacionalBloco from "@/components/central-transporte/shared/PontoOperacionalBloco";
 import {
   CT_MODALIDADE_LABELS,
@@ -123,9 +124,11 @@ const CentralTransporteMovimentacaoNova: React.FC<WizardProps> = ({
   /** CT-4 — confirmação central do cancelamento do planejamento. */
   const [cancelarAberto, setCancelarAberto] = useState(false);
   /** CT-4 UX — wizard paginado: apenas UMA etapa montada por vez. */
-  const [etapa, setEtapa] = useState<MovDiretaEtapa>("ORIGEM");
+  const [etapa, setEtapa] = useState<MovDiretaEtapa>("MONTAGEM");
+  /** Dialog central do ponto de coleta (origem) — antiga etapa "Origem". */
+  const [pontoOrigemAberto, setPontoOrigemAberto] = useState(false);
   const [paradaSelecionada, setParadaSelecionada] = useState<string | null>(null);
-  const [ativoSelecionado, setAtivoSelecionado] = useState<string | null>(null);
+  const [entregaAberta, setEntregaAberta] = useState(false);
   /** Dados de catálogo dos ativos escolhidos nas paradas nesta sessão. */
   const [catalogoEscolhido, setCatalogoEscolhido] = useState<
     Record<string, CtAtivoMovimentacao>
@@ -235,16 +238,6 @@ const CentralTransporteMovimentacaoNova: React.FC<WizardProps> = ({
     setRascunho((p) => ({ ...p, paradas: [...p.paradas, nova] }));
     setParadaSelecionada(nova.chaveLocal);
   };
-
-  /** Clicar no card do ativo apenas leva o foco à parada daquele ativo. */
-  const selecionarAtivo = (id: string) => {
-    const parada = rascunho.paradas.find((p) => p.equipamentos.includes(id));
-    if (parada) setParadaSelecionada(parada.chaveLocal);
-    setAtivoSelecionado(id);
-  };
-
-
-
 
   /**
    * CT-4 — snapshot da rota. A geometria é SEMPRE da Directions API
@@ -612,10 +605,21 @@ const CentralTransporteMovimentacaoNova: React.FC<WizardProps> = ({
   const veiculoLabel =
     cadastros.veiculos.find((v) => v.value === rascunho.veiculoTransportadorId)?.label ?? null;
   const origemLabel = rascunho.origemCentroCustoId
-    ? cadastros.centrosCusto
-        .find((c) => c.value === rascunho.origemCentroCustoId)
-        ?.label.split(" — ")[0] ?? "Origem"
+    ? cadastros.centrosCusto.find((c) => c.value === rascunho.origemCentroCustoId)?.label ??
+      "Origem"
     : null;
+
+  /* Locais canônicos arrastáveis: mesmo cadastro já lido por useCtMobilizacaoCadastros. */
+  const locais: MovLocal[] = cadastros.centrosCusto.map((opcao) => {
+    const geo = cadastros.centrosCustoPorId[opcao.value];
+    return {
+      id: opcao.value,
+      rotulo: opcao.label,
+      endereco: geo?.endereco ?? cadastros.enderecosCentroCusto[opcao.value] ?? null,
+      latitude: geo?.latitude ?? null,
+      longitude: geo?.longitude ?? null,
+    };
+  });
 
 
   const etapaIndice = indiceEtapa(etapa);
@@ -741,239 +745,33 @@ const CentralTransporteMovimentacaoNova: React.FC<WizardProps> = ({
             </Alert>
           )}
 
-          {etapa === "ORIGEM" && (
-            <div className="space-y-4" data-testid="ct4-etapa-origem">
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label className="text-[11px]">Data prevista de saída *</Label>
-                  <Input
-                    type="date"
-                    value={rascunho.dataPrevistaSaida}
-                    disabled={somenteLeitura}
-                    onChange={(e) =>
-                      setRascunho((p) => ({ ...p, dataPrevistaSaida: e.target.value }))
-                    }
-                  />
-                </div>
-              </div>
-
-              <PontoOperacionalBloco
-                semMoldura
-                titulo="Origem — coleta"
-                labelCentroCusto="Centro de custo / local"
-                placeholderCentroCusto="De onde os ativos saem"
-                labelPonto="Ponto exato de coleta"
-                centrosCusto={cadastros.centrosCusto}
-                centroCustoId={rascunho.origemCentroCustoId}
-                centroCustoEndereco={
-                  rascunho.origemCentroCustoId
-                    ? cadastros.enderecosCentroCusto[rascunho.origemCentroCustoId] ?? null
-                    : null
-                }
-                ponto={rascunho.origemPontoExato}
-                latitude={rascunho.origemLatitude}
-                longitude={rascunho.origemLongitude}
-                somenteLeitura={somenteLeitura}
-                testId="ct4-origem"
-                onChange={(patch) =>
-                  setRascunho((p) => ({
-                    ...p,
-                    ...(patch.centroCustoId !== undefined
-                      ? {
-                          origemCentroCustoId: patch.centroCustoId,
-                          origemEndereco:
-                            p.origemEndereco ||
-                            (patch.centroCustoId
-                              ? cadastros.enderecosCentroCusto[patch.centroCustoId] ?? ""
-                              : ""),
-                        }
-                      : {}),
-                    ...(patch.ponto !== undefined ? { origemPontoExato: patch.ponto } : {}),
-                    ...(patch.latitude !== undefined ? { origemLatitude: patch.latitude } : {}),
-                    ...(patch.longitude !== undefined
-                      ? { origemLongitude: patch.longitude }
-                      : {}),
-                  }))
-                }
-              />
-
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-1">
-                  <Label className="text-[11px]">Modalidade *</Label>
-                  <Combobox
-                    options={Object.entries(CT_MODALIDADE_LABELS).map(([value, label]) => ({
-                      value,
-                      label,
-                    }))}
-                    value={rascunho.modalidade ?? ""}
-                    disabled={somenteLeitura}
-                    placeholder="Como o ativo se desloca"
-                    onChange={(v) =>
-                      setRascunho((p) => ({
-                        ...p,
-                        modalidade: (v || null) as CtModalidade | null,
-                        tipoTransporte: v === "TRANSPORTADO" ? p.tipoTransporte : null,
-                      }))
-                    }
-                  />
-                </div>
-
-                {transportado && (
-                  <div className="space-y-1">
-                    <Label className="text-[11px]">Tipo de transporte *</Label>
-                    <Combobox
-                      options={Object.entries(CT_TIPO_TRANSPORTE_LABELS).map(
-                        ([value, label]) => ({ value, label }),
-                      )}
-                      value={rascunho.tipoTransporte ?? ""}
-                      disabled={somenteLeitura}
-                      placeholder="Próprio ou terceiro"
-                      onChange={(v) =>
-                        setRascunho((p) => ({
-                          ...p,
-                          tipoTransporte: (v || null) as CtTipoTransporte | null,
-                        }))
-                      }
-                    />
-                  </div>
-                )}
-
-                <div className="space-y-1">
-                  <Label className="text-[11px]">Motorista do transporte *</Label>
-                  <Combobox
-                    options={cadastros.motoristas}
-                    value={rascunho.motoristaId ?? ""}
-                    disabled={somenteLeitura}
-                    placeholder="Quem executa o deslocamento"
-                    searchPlaceholder="Buscar funcionário..."
-                    onChange={(v) => setRascunho((p) => ({ ...p, motoristaId: v || null }))}
-                  />
-                  {rascunho.motoristaNome && !rascunho.motoristaId && (
-                    <p className="text-[11px] text-muted-foreground">
-                      Registrado: {rascunho.motoristaNome}
-                    </p>
-                  )}
-                </div>
-
-                {transportado && (
-                  <div className="space-y-1">
-                    <Label className="text-[11px]">Veículo transportador</Label>
-                    <Combobox
-                      options={cadastros.veiculos}
-                      value={rascunho.veiculoTransportadorId ?? ""}
-                      disabled={somenteLeitura}
-                      placeholder="Prancha / carreta"
-                      searchPlaceholder="Buscar veículo..."
-                      onChange={(v) =>
-                        setRascunho((p) => ({ ...p, veiculoTransportadorId: v || null }))
-                      }
-                    />
-                  </div>
-                )}
-
-                {transportado && terceiro && (
-                  <div className="space-y-1">
-                    <Label className="text-[11px]">Transportadora</Label>
-                    <Combobox
-                      options={cadastros.empresas}
-                      value={rascunho.empresaTransportadoraId ?? ""}
-                      disabled={somenteLeitura}
-                      placeholder="Empresa terceira"
-                      searchPlaceholder="Buscar empresa..."
-                      onChange={(v) =>
-                        setRascunho((p) => ({ ...p, empresaTransportadoraId: v || null }))
-                      }
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-[11px]">Observações gerais</Label>
-                <Textarea
-                  rows={2}
-                  value={rascunho.observacoes}
-                  disabled={somenteLeitura}
-                  onChange={(e) => setRascunho((p) => ({ ...p, observacoes: e.target.value }))}
-                />
-              </div>
-            </div>
-          )}
-
-          {etapa === "PARADAS" && (
-            <div
-              className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]"
-              data-testid="ct4-etapa-paradas"
-            >
+          {etapa === "MONTAGEM" && (
+            <div data-testid="ct4-etapa-montagem">
               {carregandoAtivos ? (
                 <Skeleton className="h-48 w-full" />
               ) : (
-                <AtivosMovimentacaoPanel
-                  planejados={planejados}
-                  catalogo={catalogo}
+                <MovimentacaoBuilder
                   rascunho={rascunho}
-                  ativoSelecionado={ativoSelecionado}
-                  rotuloParada={rotuloParada}
-                  onSelecionarAtivo={selecionarAtivo}
+                  catalogo={catalogo}
+                  centrosCusto={cadastros.centrosCusto}
+                  motoristas={cadastros.motoristas}
+                  veiculos={cadastros.veiculos}
+                  cadastrosCarregando={cadastros.isLoading}
+                  somenteLeitura={somenteLeitura}
+                  origemLabel={origemLabel}
+                  locais={locais}
+                  recebedores={cadastros.motoristas}
+                  onAjustarOrigem={() => setPontoOrigemAberto(true)}
+                  onChange={(proximo) => setRascunho(proximo)}
+                  onConhecerAtivo={(a) =>
+                    setCatalogoEscolhido((prev) => ({ ...prev, [a.equipamentoId]: a }))
+                  }
+                  onEditarParada={(chave) => {
+                    setParadaSelecionada(chave);
+                    setEntregaAberta(true);
+                  }}
                 />
               )}
-
-              <div className="space-y-3" data-testid="ct4-detalhe-viagem">
-                <h2 className="text-sm font-semibold">
-                  Paradas de entrega{" "}
-                  <span className="text-muted-foreground">({rascunho.paradas.length})</span>
-                </h2>
-
-                <ParadasSelector
-                  paradas={rascunho.paradas}
-                  selecionada={paradaAtual?.chaveLocal ?? null}
-                  rotuloParada={rotuloParada}
-                  somenteLeitura={somenteLeitura}
-                  onSelecionar={setParadaSelecionada}
-                  onAdicionar={adicionarParada}
-                />
-
-                {paradaAtual ? (
-                  <ParadaEditor
-                    key={paradaAtual.chaveLocal}
-                    parada={paradaAtual}
-                    ordem={indiceAtual + 1}
-                    centrosCusto={cadastros.centrosCusto}
-                    enderecosCentroCusto={cadastros.enderecosCentroCusto}
-                    funcionarios={cadastros.motoristas}
-                    metadadosAtivos={catalogo}
-                    alocadosEmOutrasParadas={
-                      new Map(
-                        Array.from(alocacoes.entries()).filter(([id]) =>
-                          equipamentosJaAlocados(rascunho, paradaAtual.chaveLocal).has(id),
-                        ),
-                      )
-                    }
-                    podeRemover={rascunho.paradas.length > 1}
-                    desabilitado={somenteLeitura}
-                    onChange={(patch) => patchParada(paradaAtual.chaveLocal, patch)}
-                    onConhecerAtivo={(a) =>
-                      setCatalogoEscolhido((p) => ({ ...p, [a.equipamentoId]: a }))
-                    }
-                    onRemover={() => {
-                      setRascunho((prev) => ({
-                        ...prev,
-                        paradas: prev.paradas.filter(
-                          (x) => x.chaveLocal !== paradaAtual.chaveLocal,
-                        ),
-                      }));
-                      setParadaSelecionada(null);
-                    }}
-                  />
-                ) : (
-                  <Alert>
-                    <AlertTitle className="text-xs">Nenhuma parada em edição</AlertTitle>
-                    <AlertDescription className="text-xs">
-                      Adicione uma parada de entrega para planejar a movimentação.
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </div>
             </div>
           )}
 
@@ -1076,7 +874,7 @@ const CentralTransporteMovimentacaoNova: React.FC<WizardProps> = ({
         {/* Footer fixo — Salvar/Programar existem SOMENTE na revisão */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-t px-3 py-2 sm:px-4">
           <div className="flex items-center gap-2">
-            {etapa === "ORIGEM" ? (
+            {etapa === "MONTAGEM" ? (
               <Button size="sm" variant="ghost" className="h-8 gap-1 text-xs" onClick={sair}>
                 <ArrowLeft className="h-3.5 w-3.5" /> {embutido ? "Cancelar" : "Voltar à Central"}
               </Button>
@@ -1101,7 +899,7 @@ const CentralTransporteMovimentacaoNova: React.FC<WizardProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             {etapa !== "REVISAO" ? (
               <Button size="sm" onClick={avancar} data-testid="ct4-proxima-etapa">
-                {etapa === "ORIGEM" ? "Próximo: Paradas" : "Revisar movimentação"} →
+                Revisar movimentação →
               </Button>
             ) : (
               <>
@@ -1157,6 +955,74 @@ const CentralTransporteMovimentacaoNova: React.FC<WizardProps> = ({
             )}
           </div>
         </div>
+
+        <AjustarPontoDialog
+          aberto={pontoOrigemAberto}
+          centrosCusto={cadastros.centrosCusto}
+          centroCustoId={rascunho.origemCentroCustoId}
+          centroCustoEndereco={
+            rascunho.origemCentroCustoId
+              ? cadastros.enderecosCentroCusto[rascunho.origemCentroCustoId] ?? null
+              : null
+          }
+          ponto={rascunho.origemPontoExato}
+          latitude={rascunho.origemLatitude}
+          longitude={rascunho.origemLongitude}
+          somenteLeitura={somenteLeitura}
+          onOpenChange={setPontoOrigemAberto}
+          onChange={(patch) =>
+            setRascunho((p) => ({
+              ...p,
+              ...(patch.centroCustoId !== undefined
+                ? {
+                    origemCentroCustoId: patch.centroCustoId,
+                    origemEndereco: patch.centroCustoId
+                      ? cadastros.enderecosCentroCusto[patch.centroCustoId] ?? ""
+                      : "",
+                  }
+                : {}),
+              ...(patch.ponto !== undefined ? { origemPontoExato: patch.ponto } : {}),
+              ...(patch.latitude !== undefined ? { origemLatitude: patch.latitude } : {}),
+              ...(patch.longitude !== undefined ? { origemLongitude: patch.longitude } : {}),
+            }))
+          }
+        />
+
+        <EntregaParadaDialog
+          aberto={entregaAberta}
+          parada={paradaAtual}
+          ordem={indiceAtual + 1}
+          centrosCusto={cadastros.centrosCusto}
+          enderecosCentroCusto={cadastros.enderecosCentroCusto}
+          funcionarios={cadastros.motoristas}
+          metadadosAtivos={catalogo}
+          alocadosEmOutrasParadas={
+            paradaAtual
+              ? new Map(
+                  Array.from(alocacoes.entries()).filter(([id]) =>
+                    equipamentosJaAlocados(rascunho, paradaAtual.chaveLocal).has(id),
+                  ),
+                )
+              : new Map()
+          }
+          podeRemover={rascunho.paradas.length > 1}
+          somenteLeitura={somenteLeitura}
+          onOpenChange={(aberto) => setEntregaAberta(aberto)}
+          onChange={(patch) =>
+            paradaAtual ? patchParada(paradaAtual.chaveLocal, patch) : undefined
+          }
+          onRemover={() => {
+            if (!paradaAtual) return;
+            setRascunho((prev) => ({
+              ...prev,
+              paradas: prev.paradas.filter((x) => x.chaveLocal !== paradaAtual.chaveLocal),
+            }));
+            setParadaSelecionada(null);
+          }}
+          onConhecerAtivo={(a) =>
+            setCatalogoEscolhido((prev) => ({ ...prev, [a.equipamentoId]: a }))
+          }
+        />
 
         <CancelarPlanejamentoDialog
           aberto={cancelarAberto}

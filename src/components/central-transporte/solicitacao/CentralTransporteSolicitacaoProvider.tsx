@@ -195,7 +195,8 @@ export const CentralTransporteSolicitacaoProvider: React.FC<ProviderProps> = ({
   // Motor de idempotência no topo da árvore: troca de item/etapa não perde tentativa.
   const ctOperation = useCtOperation();
 
-  const [etapa, setEtapa] = useState<CtEtapa>("ITENS");
+  // CT-3E — a página abre na experiência item → ativo ("Atender").
+  const [etapa, setEtapa] = useState<CtEtapa>("SELECAO");
   // URL como fonte de verdade do item selecionado (?item=<uuid>).
   // itemInicialId é apenas semente: se a URL já tem item, ela vence.
   const [searchParams, setSearchParams] = useSearchParams();

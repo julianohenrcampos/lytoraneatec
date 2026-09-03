@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { montarCriterioPreferencia } from "@/utils/central-transporte/filtroCentralTransporte";
 import { SolicitacaoItem, fetchItensBySolicitacao } from "@/services/solicitacaoItensService";
 import {
   avaliarCapacidade,
@@ -37,11 +38,45 @@ export interface SolicitacaoTransporte {
   nome_centro_custo?: string;
   codigo_centro_custo?: string;
   departamento_nome?: string;
+  /** CHI vinculado (protocolo mestre) — null em SOL legada. */
+  chamado_id?: string | null;
+  /**
+   * T27 — protocolo canônico do CHI lido por RELAÇÃO
+   * (bd_chamados_internos.protocolo). Nunca copiado/persistido na CT.
+   */
+  chamado_protocolo?: string | null;
+  /** Direcionamento preferencial (FK bd_departamentos) — null = avaliar disponibilidade. */
+  departamento_atendimento_preferencial_id?: string | null;
+  /** Nome do departamento preferencial, por relação (null = avaliar disponibilidade). */
+  atendimento_preferencial_nome?: string | null;
   engenheiro_nome?: string;
   apontador_nome?: string;
   descricao_tipo_equipamento?: string;
   itens?: SolicitacaoItem[];
 }
+
+/** Relações compartilhadas pela listagem e pela leitura por ID (sem N+1). */
+const SOLICITACAO_RELACOES = `
+      *,
+      centro_custo:bd_centros_custo(nome_centro_custo, codigo_centro_custo, departamento_id, departamento:bd_departamentos(nome_departamento)),
+      tipo_equipamento:bd_tipos_equipamento(descricao_padronizada),
+      engenheiro:profiles!bd_solicitacoes_equipamento_engenheiro_solicitante_id_fkey(nome_completo),
+      apontador:profiles!bd_solicitacoes_equipamento_apontador_responsavel_id_fkey(nome_completo),
+      chamado:bd_chamados_internos(protocolo),
+      atendimento_preferencial:bd_departamentos!bd_solicitacoes_equipamento_departamento_atendimento_prefe_fkey(nome_departamento)
+    `;
+
+const mapearSolicitacao = (item: any): any => ({
+  ...item,
+  nome_centro_custo: item.centro_custo?.nome_centro_custo || null,
+  codigo_centro_custo: item.centro_custo?.codigo_centro_custo || null,
+  departamento_nome: item.centro_custo?.departamento?.nome_departamento || null,
+  chamado_protocolo: item.chamado?.protocolo || null,
+  atendimento_preferencial_nome: item.atendimento_preferencial?.nome_departamento || null,
+  engenheiro_nome: item.engenheiro?.nome_completo || null,
+  apontador_nome: item.apontador?.nome_completo || null,
+  descricao_tipo_equipamento: item.tipo_equipamento?.descricao_padronizada || null,
+});
 
 export const fetchSolicitacoesTransporte = async (filters?: {
   centro_custo_id?: string;
@@ -49,16 +84,16 @@ export const fetchSolicitacoesTransporte = async (filters?: {
   prioridade?: string;
   tipo_equipamento_id?: string;
   status_fluxo?: string;
+  /**
+   * T24–T26 — atendimento preferencial DA SOLICITAÇÃO. UUID real de
+   * bd_departamentos, ou SEM_PREFERENCIA para `IS NULL`. Não confundir com
+   * `departamento_id`, que é o departamento do CC solicitante.
+   */
+  atendimento_preferencial?: string;
 }): Promise<SolicitacaoTransporte[]> => {
   let query = supabase
     .from("bd_solicitacoes_equipamento")
-    .select(`
-      *,
-      centro_custo:bd_centros_custo(nome_centro_custo, codigo_centro_custo, departamento_id, departamento:bd_departamentos(nome_departamento)),
-      tipo_equipamento:bd_tipos_equipamento(descricao_padronizada),
-      engenheiro:profiles!bd_solicitacoes_equipamento_engenheiro_solicitante_id_fkey(nome_completo),
-      apontador:profiles!bd_solicitacoes_equipamento_apontador_responsavel_id_fkey(nome_completo)
-    `)
+    .select(SOLICITACAO_RELACOES)
     .in("status_fluxo", ["APROVADO", "EM_TRANSPORTE"] as any)
     .order("created_at", { ascending: false });
 
@@ -67,18 +102,18 @@ export const fetchSolicitacoesTransporte = async (filters?: {
   if (filters?.centro_custo_id) query = query.eq("centro_custo_id", filters.centro_custo_id);
   if (filters?.status_fluxo) query = query.eq("status_fluxo", filters.status_fluxo as any);
 
+  // Critério server-side do atendimento preferencial (nunca UUID hardcoded).
+  const criterio = montarCriterioPreferencia(filters?.atendimento_preferencial);
+  if (criterio.tipo === "IS_NULL") {
+    query = query.is("departamento_atendimento_preferencial_id", null);
+  } else if (criterio.tipo === "EQ") {
+    query = query.eq("departamento_atendimento_preferencial_id", criterio.departamentoId);
+  }
+
   const { data, error } = await query;
   if (error) throw error;
 
-  let results = (data || []).map((item: any) => ({
-    ...item,
-    nome_centro_custo: item.centro_custo?.nome_centro_custo || null,
-    codigo_centro_custo: item.centro_custo?.codigo_centro_custo || null,
-    departamento_nome: item.centro_custo?.departamento?.nome_departamento || null,
-    engenheiro_nome: item.engenheiro?.nome_completo || null,
-    apontador_nome: item.apontador?.nome_completo || null,
-    descricao_tipo_equipamento: item.tipo_equipamento?.descricao_padronizada || null,
-  }));
+  let results = (data || []).map(mapearSolicitacao);
 
   if (filters?.departamento_id) {
     results = results.filter((r: any) => r.centro_custo?.departamento_id === filters.departamento_id);
@@ -137,32 +172,16 @@ export const fetchSolicitacaoTransporteById = async (
 ): Promise<SolicitacaoTransporte | null> => {
   const { data, error } = await supabase
     .from("bd_solicitacoes_equipamento")
-    .select(`
-      *,
-      centro_custo:bd_centros_custo(nome_centro_custo, codigo_centro_custo, departamento_id, departamento:bd_departamentos(nome_departamento)),
-      tipo_equipamento:bd_tipos_equipamento(descricao_padronizada),
-      engenheiro:profiles!bd_solicitacoes_equipamento_engenheiro_solicitante_id_fkey(nome_completo),
-      apontador:profiles!bd_solicitacoes_equipamento_apontador_responsavel_id_fkey(nome_completo)
-    `)
+    .select(SOLICITACAO_RELACOES)
     .eq("id", solicitacaoId)
     .maybeSingle();
 
   if (error) throw error;
   if (!data) return null;
 
-  const row = data as any;
   const itens = await fetchItensBySolicitacao(solicitacaoId);
 
-  return {
-    ...row,
-    nome_centro_custo: row.centro_custo?.nome_centro_custo || null,
-    codigo_centro_custo: row.centro_custo?.codigo_centro_custo || null,
-    departamento_nome: row.centro_custo?.departamento?.nome_departamento || null,
-    engenheiro_nome: row.engenheiro?.nome_completo || null,
-    apontador_nome: row.apontador?.nome_completo || null,
-    descricao_tipo_equipamento: row.tipo_equipamento?.descricao_padronizada || null,
-    itens,
-  } as SolicitacaoTransporte;
+  return { ...mapearSolicitacao(data), itens } as SolicitacaoTransporte;
 };
 
 /* ------------------------------------------------------------------
@@ -218,6 +237,10 @@ export interface AtivoAnalise {
   /** CT-3B.1 — vigência do status operacional (bd_disponibilidade_equipamentos.data_inicio). */
   data_inicio_disponibilidade: string | null;
   confiabilidade: string | null;
+
+  /** Departamento CANÔNICO do ativo (bd_caminhoes_equipamentos.departamento_id). */
+  departamento_id: string | null;
+  departamento_nome: string | null;
 
   compatibilidade: "EXATA" | "PARCIAL";
   motivo_compatibilidade?: string;
@@ -435,6 +458,8 @@ type EquipamentoRow = {
   frota_id: string | null;
   situacao: string | null;
   status_cadastro: string | null;
+  departamento_id: string | null;
+  departamento?: { nome_departamento: string | null } | null;
   empresa: { nome_empresa: string | null } | null;
   empresa_locadora: { nome_empresa: string | null } | null;
   frota_ref?: { tipo_propriedade_padrao: string | null } | null;
@@ -570,6 +595,8 @@ export const fetchAnaliseOperacional = async (
     tipo_equipamento_id, proprietario_tipo,
     empresa_id, empresa_locadora_id, frota_id,
     situacao, status_cadastro,
+    departamento_id,
+    departamento:bd_departamentos(nome_departamento),
     empresa:bd_empresas(nome_empresa),
     empresa_locadora:bd_empresas_locadoras(nome_empresa),
     frota_ref:bd_frotas(tipo_propriedade_padrao)
@@ -772,6 +799,8 @@ export const fetchAnaliseOperacional = async (
       previsao_liberacao: previsaoLiberacao,
       data_inicio_disponibilidade: disp?.data_inicio || null,
       confiabilidade: disp?.confiabilidade_previsao || null,
+      departamento_id: e.departamento_id ?? null,
+      departamento_nome: e.departamento?.nome_departamento ?? null,
       compatibilidade: cap.matchTipo === "EXATO" ? "EXATA" : "PARCIAL",
       motivo_compatibilidade: cap.matchMotivo ?? undefined,
       capacidade_valor: capValor,

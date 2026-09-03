@@ -42,6 +42,7 @@ import {
 import { rotuloDataInicio } from "@/utils/central-transporte/disponibilidadeTemporal";
 import { ariaLabelCandidato } from "@/utils/central-transporte/selecaoProgressiva";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { agruparCandidatosPorDepartamento } from "@/utils/central-transporte/agruparCandidatosPorDepartamento";
 
 
 export const MetaField: React.FC<{ label: string; value: string }> = ({ label, value }) => (
@@ -62,6 +63,9 @@ export interface AnaliseBodyProps {
   /** CT-2.2 — detalhe do erro do servidor, exibido para diagnóstico. */
   estadoErro?: { code: string | null; message: string | null; hint: string | null } | null;
   onRetryEstados?: () => void;
+  /** Direcionamento preferencial da solicitação (bd_departamentos.id) — null = avaliar. */
+  departamentoPreferencialId?: string | null;
+  departamentoPreferencialNome?: string | null;
 }
 
 export const AnaliseBody: React.FC<AnaliseBodyProps> = ({
@@ -73,6 +77,8 @@ export const AnaliseBody: React.FC<AnaliseBodyProps> = ({
   estadoStatus,
   estadoErro = null,
   onRetryEstados,
+  departamentoPreferencialId = null,
+  departamentoPreferencialNome = null,
 }) => {
   // Busca global aplicada a TODAS as abas, sobre o conjunto já carregado.
   // Não recorta o universo de candidatos — apenas a exibição.
@@ -279,10 +285,10 @@ export const AnaliseBody: React.FC<AnaliseBodyProps> = ({
 
 
         <TabsContent value="propria">
-          <AtivosTable rows={listas.propria} empty={busca ? "Nenhum ativo próprio corresponde à busca." : "Nenhum equipamento próprio cadastrado para este item."} origem="PROPRIA" selectedId={selectedId} onSelect={onSelect} estados={estados} />
+          <CandidatosAgrupados departamentoPreferencialId={departamentoPreferencialId} departamentoPreferencialNome={departamentoPreferencialNome} rows={listas.propria} empty={busca ? "Nenhum ativo próprio corresponde à busca." : "Nenhum equipamento próprio cadastrado para este item."} origem="PROPRIA" selectedId={selectedId} onSelect={onSelect} estados={estados} />
         </TabsContent>
         <TabsContent value="grupo">
-          <AtivosTable rows={listas.grupo} empty={busca ? "Nenhum ativo do grupo corresponde à busca." : "Nenhum equipamento do grupo cadastrado para este item."} origem="GRUPO" selectedId={selectedId} onSelect={onSelect} estados={estados} />
+          <CandidatosAgrupados departamentoPreferencialId={departamentoPreferencialId} departamentoPreferencialNome={departamentoPreferencialNome} rows={listas.grupo} empty={busca ? "Nenhum ativo do grupo corresponde à busca." : "Nenhum equipamento do grupo cadastrado para este item."} origem="GRUPO" selectedId={selectedId} onSelect={onSelect} estados={estados} />
         </TabsContent>
         <TabsContent value="previsao">
           <PrevisaoTable rows={listas.previsao} selectedId={selectedId} onSelect={onSelect} estados={estados} />
@@ -554,6 +560,9 @@ const CandidatosCards: React.FC<AtivosTableProps & { grupo: string }> = ({
                   {propriedadeBadge(r.propriedade)}
                 </div>
                 <CcCell r={r} />
+                <p className="text-[11px] text-muted-foreground" data-testid={`ct5-dep-card-${r.equipamento_id}`}>
+                  Departamento: {r.departamento_nome || "Não informado"}
+                </p>
                 <div className="flex flex-wrap items-center gap-2">
                   {statusBadge(r.status_operacional)}
                   <CompromissoCell estado={estados} id={r.equipamento_id} />
@@ -567,6 +576,43 @@ const CandidatosCards: React.FC<AtivosTableProps & { grupo: string }> = ({
     )}
   </div>
 );
+
+/**
+ * Candidatos agrupados pelo direcionamento preferencial da solicitação.
+ * Apresentação apenas: recebe a lista JÁ ordenada pelo matching maduro e
+ * somente a particiona. Nenhum candidato é escondido.
+ */
+export const CandidatosAgrupados: React.FC<
+  AtivosTableProps & {
+    departamentoPreferencialId?: string | null;
+    departamentoPreferencialNome?: string | null;
+  }
+> = ({ rows, empty, departamentoPreferencialId, departamentoPreferencialNome, ...rest }) => {
+  const grupos = React.useMemo(
+    () =>
+      agruparCandidatosPorDepartamento(
+        rows,
+        departamentoPreferencialId,
+        departamentoPreferencialNome,
+      ),
+    [rows, departamentoPreferencialId, departamentoPreferencialNome],
+  );
+
+  if (rows.length === 0) return <AtivosTable rows={rows} empty={empty} {...rest} />;
+
+  return (
+    <div className="space-y-4" data-testid="ct5-candidatos-agrupados">
+      {grupos.map((g) => (
+        <div key={g.id} data-testid={`ct5-grupo-${g.id.toLowerCase()}`}>
+          <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {g.titulo} ({g.candidatos.length})
+          </h4>
+          <AtivosTable rows={g.candidatos} empty={empty} {...rest} />
+        </div>
+      ))}
+    </div>
+  );
+};
 
 export const AtivosTable: React.FC<AtivosTableProps> = ({ rows, empty, origem, selectedId = null, onSelect, estados }) => {
   const grupo = React.useId();
@@ -591,6 +637,7 @@ export const AtivosTable: React.FC<AtivosTableProps> = ({ rows, empty, origem, s
               <TableHead className="text-xs">Nº Frota</TableHead>
               <TableHead className="text-xs">Placa</TableHead>
               <TableHead className="text-xs">Empresa</TableHead>
+              <TableHead className="text-xs">Departamento</TableHead>
               <TableHead className="text-xs">Propriedade</TableHead>
               <TableHead className="text-xs">Capacidade</TableHead>
               <TableHead className="text-xs">CC atual</TableHead>
@@ -602,7 +649,7 @@ export const AtivosTable: React.FC<AtivosTableProps> = ({ rows, empty, origem, s
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={selecionavel ? 11 : 10} className="text-center text-xs text-muted-foreground py-6">
+                <TableCell colSpan={selecionavel ? 12 : 11} className="text-center text-xs text-muted-foreground py-6">
                   {empty}
                 </TableCell>
               </TableRow>
@@ -632,6 +679,9 @@ export const AtivosTable: React.FC<AtivosTableProps> = ({ rows, empty, origem, s
                     <TableCell className="text-xs">{r.numero_frota || "—"}</TableCell>
                     <TableCell className="text-xs">{r.placa || "—"}</TableCell>
                     <TableCell className="text-xs">{r.empresa || "—"}</TableCell>
+                    <TableCell className="text-xs" data-testid={`ct5-dep-${r.equipamento_id}`}>
+                      {r.departamento_nome || "—"}
+                    </TableCell>
                     <TableCell>{propriedadeBadge(r.propriedade)}</TableCell>
                     <TableCell className="text-xs">
                       {r.capacidade_valor != null ? `${r.capacidade_valor} ${r.capacidade_unidade || ""}` : "—"}
